@@ -1,0 +1,4 @@
+/target
+docker/sample_db
+docker/pagila/
+.idea/
