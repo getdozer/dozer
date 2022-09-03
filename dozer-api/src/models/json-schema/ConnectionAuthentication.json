@@ -1,0 +1,1 @@
+{"allOf":[{"title":"ConnectionDetails","type":"object","properties":{"database":{"type":"string"},"user":{"type":"string"},"host":{"type":"string"},"name":{"type":"string"}},"required":["database","user"]},{"type":"object","properties":{"password":{"type":"string"}},"required":["password"]}]}
