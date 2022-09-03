@@ -1,0 +1,10 @@
+{
+  "name": "generator",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@apidevtools/swagger-cli": "^4.0.4",
+    "child_process": "^1.0.2"
+  }
+}
