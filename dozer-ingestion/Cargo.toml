@@ -1,0 +1,17 @@
+[package]
+name = "dozer-ingestion"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+postgres = { git = "https://github.com/materializeInc/rust-postgres" }
+tokio = { version = "1", features = ["full"] }
+futures = "*"
+async-trait = "*"
+bytes = "*"
+postgres-protocol = { git = "https://github.com/materializeInc/rust-postgres" }
+postgres-types = { git = "https://github.com/materializeInc/rust-postgres" }
+tokio-postgres = { git = "https://github.com/materializeInc/rust-postgres" }
+
