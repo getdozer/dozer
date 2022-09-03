@@ -1,18 +1,36 @@
+### Dozer Workspace
+
+This repository follows a `cargo workspace` structure with several packages. 
+```
+dozer
+|
+|-- dozer-ingestion       # Ingestion & Connectors
+|-- dozer-storage         # Initial checkpointing of data from ingestion
+|-- dozer-api             # APIs to be consumed by clients 
+|-- dozer-shared          # Library with shared utilities
+|-- dozer-pipeline         # Library with shared utilities
+```
+
+1) Adding a new package as a service
+```
+cargo new --vcs none dozer-storage
+```
+
+2) Adding a new package as a library
+```
+cargo new --vcs none --lib dozer-shared
+```
+
+### Running
+Run a specific service with `-p` flag. 
+Note: If you have multiple binaries generated,  you can use `--bin` flag.
+
+```
+cargo run -p dozer-ingestion
+```
 
 
 
 ### References 
-
-https://www.postgresql.org/docs/current/protocol-replication.html
-
-https://github.com/materializeInc/rust-postgres
-
-https://github.com/petrosagg/rust-postgres/tree/copy-both
-
-https://github.com/rusuly/mysql_cdc
-
-
-https://www.pgcon.org/2014/schedule/attachments/330_postgres-for-the-wire.pdf
-
-https://github.com/MaterializeInc/materialize/issues/5370
-https://gist.github.com/petrosagg/d9693d754002b1fc19d82ded91f8e8ed
+https://doc.rust-lang.org/cargo/reference/workspaces.html
+https://www.youtube.com/watch?v=S3c7NRS698A
