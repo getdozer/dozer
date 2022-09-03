@@ -1,0 +1,1 @@
+{"title":"MasterOverwriteOptions","type":"object","properties":{"master_source_option_type":{"type":"string","enum":["overwrite"]},"override":{"type":"string"}},"required":["master_source_option_type"]}

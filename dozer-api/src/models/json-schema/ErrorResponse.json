@@ -1,0 +1,1 @@
+{"title":"ErrorResponse","x-stoplight":{"id":"4z0t4alqeuwzm"},"type":"object","properties":{"error_code":{"type":"string"},"message":{"type":"string"},"details":{"type":"string"}},"required":["error_code","message"]}

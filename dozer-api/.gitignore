@@ -1,0 +1,5 @@
+/.idea/
+/.target/
+/db/
+target/
+generator/node_modules/
