@@ -9,11 +9,12 @@ use std::borrow::Borrow;
 use std::cell::Ref;
 use std::collections::HashMap;
 use std::future::Future;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 use futures::task::SpawnExt;
-use tokio::sync::{mpsc};
+use tokio::sync::{mpsc, Mutex};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::{JoinHandle};
 use crate::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, Where};
@@ -22,10 +23,10 @@ use crate::record::{Field, Record, Schema};
 
 async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
 
-    let mut nodes_idx: HashMap<u16, Arc<Box<dyn Processor>>> = HashMap::new();
-    for node in nodes {
-        nodes_idx.insert(node.id, Arc::new(node.processor));
-    }
+    // let mut nodes_idx: HashMap<u16, Arc<Mutex<dyn Processor>>> = HashMap::new();
+    // for node in nodes {
+    //     nodes_idx.insert(node.id, Arc::new(Mutex::new(node.processor)));
+    // }
 
     let mut internal_senders : HashMap<u32, UnboundedSender<(u8, Record)>> = HashMap::new();
     let mut internal_receivers : Vec<(u16, u8, UnboundedReceiver<(u8, Record)>)> = Vec::new();
@@ -55,7 +56,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
     for t in internal_receivers {
 
         let mut receiver = t.2;
-        let mut cloned_processor = nodes_idx.get(&t.0).unwrap().clone();
+        let mut cloned_processor = nodes.first().unwrap().processor.clone();
 
         handles.push(tokio::spawn(async move {
             loop {
@@ -64,6 +65,8 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
                 if result.is_none() {
                     return;
                 }
+                cloned_processor.lock().await.process(result.unwrap());
+                //cloned_processor.get_mut().process(result.unwrap());
                 println!("something received");
             }
         }));
@@ -93,9 +96,9 @@ async fn main() {
     let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<(u8,Record)>();
 
     let nodes = vec![
-        Node::new(100, Box::new(Where::new())),
-        Node::new(200, Box::new(Where::new())),
-        Node::new(300, Box::new(Where::new()))
+        Node::new(100, Arc::new(Mutex::new(Where::new()))),
+        Node::new(200, Arc::new(Mutex::new(Where::new()))),
+        Node::new(300, Arc::new(Mutex::new(Where::new())))
     ];
 
     let edges = vec![
