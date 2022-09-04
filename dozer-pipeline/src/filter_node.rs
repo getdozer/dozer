@@ -30,7 +30,7 @@ impl Processor for FilterNode {
     }
 
     fn prepare(&self, ctx: &ExecutionContext) {
-        todo!()
+
     }
 
     fn process(&self, port: u8, data: Record, ctx: &ExecutionContext) -> (u8, Record) {

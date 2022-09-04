@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::task::JoinHandle;
 use crate::{ExecutionContext, Processor, Record};
 
 pub struct Pipe {
@@ -15,8 +16,8 @@ pub trait Executor {
     fn register_pipe(&mut self, pipe: Pipe);
     fn register_input(&mut self, rx: UnboundedReceiver<Record>, node: u16, port: u8);
     fn register_output(&mut self, node: u16, port: u8, tx: UnboundedSender<Record>);
-    fn prepare(&self, context: &ExecutionContext);
-    fn start(&self, context: &ExecutionContext);
-    fn stop(&self, context: &ExecutionContext);
+    fn prepare(&mut self, context: &ExecutionContext);
+    fn start(&mut self, context: &ExecutionContext) -> Vec<JoinHandle<()>>;
+    fn stop(&mut self, context: &ExecutionContext);
 }
 
