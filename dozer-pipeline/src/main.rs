@@ -12,6 +12,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
+use futures::task::SpawnExt;
 use tokio::sync::{mpsc};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::{JoinHandle};
@@ -26,25 +27,21 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
         nodes_idx.insert(node.id, Arc::new(node.processor));
     }
 
-    let mut inputs: HashMap<u8, UnboundedSender<(u8, Record)>> = HashMap::new();
-    let mut outputs: HashMap<u8, UnboundedReceiver<(u8, Record)>> = HashMap::new();
     let mut internal_senders : HashMap<u32, UnboundedSender<(u8, Record)>> = HashMap::new();
     let mut internal_receivers : Vec<(u16, u8, UnboundedReceiver<(u8, Record)>)> = Vec::new();
 
     for edge in edges {
 
-        let (mut tx, mut rx) = mpsc::unbounded_channel::<(u8,Record)>();
         match edge {
             Edge::input(edge) => {
-                inputs.insert(edge.input, tx);
-                internal_receivers.push((edge.to_node, edge.to_port, rx));
+                internal_receivers.push((edge.to_node, edge.to_port, edge.input));
             }
             Edge::output(edge) => {
-                outputs.insert(edge.output, rx);
                 let node_port : u32 = u32::from(edge.from_node) << 16 | u32::from(edge.from_port);
-                internal_senders.insert(node_port, tx);
+                internal_senders.insert(node_port, edge.output);
             }
             Edge::internal(edge) => {
+                let (mut tx, mut rx) = mpsc::unbounded_channel::<(u8,Record)>();
                 let from_node_port : u32 = u32::from(edge.from_node) << 16 | u32::from(edge.from_port);
                 internal_senders.insert(from_node_port, tx);
                 let to_node_port : u32 = u32::from(edge.to_node) << 16 | u32::from(edge.to_port);
@@ -67,7 +64,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
                 if result.is_none() {
                     return;
                 }
-
+                println!("something received");
             }
         }));
     }
@@ -76,54 +73,45 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
 
 }
 
+async fn sender(tx: UnboundedSender<(u8, Record)>) {
 
+    while true {
+        sleep(Duration::from_secs(1));
+        let r = tx.send((1, Record::new(1, vec![])));
+        if r.is_err() {
+            println!("Error sending");
+        }
+    }
+
+
+}
 
 #[tokio::main]
 async fn main() {
 
+    let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<(u8,Record)>();
+    let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<(u8,Record)>();
 
     let nodes = vec![
         Node::new(100, Box::new(Where::new())),
-        Node::new(200, Box::new(Where::new()))
+        Node::new(200, Box::new(Where::new())),
+        Node::new(300, Box::new(Where::new()))
     ];
 
-    let pipes = vec![
-        Edge::input(InputEdge::new(1, 100, 1)),
+    let edges = vec![
+        Edge::input(InputEdge::new(1, input_rx, 100, 1)),
         Edge::internal(InternalEdge::new(100, 1, 200, 1)),
-        Edge::output(OutputEdge::new(1, 200,1))
+        Edge::internal(InternalEdge::new(200, 1, 300, 1)),
+        Edge::output(OutputEdge::new(1, output_tx, 300,1))
     ];
 
 
-    run_dag(nodes, pipes).await
+    let r1 = run_dag(nodes, edges);
+    let r2 = sender(input_tx);
+    futures::future::join(r1, r2).await;
 
 
-    // let dag = DagExecutor::new();
-    //
-    // let filter_node_0 = FilterNode::new(
-    //     NodeConfig::new(vec![1], vec![1]),
-    //     FilterNodeConfig::new()
-    // );
-    //
-    // let filter_node_1 = FilterNode::new(
-    //     NodeConfig::new(vec![1], vec![1]),
-    //     FilterNodeConfig::new()
-    // );
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    // let (mut tx, mut rx) = mpsc::unbounded_channel::<String>();
-    // let ctx = ExecutionContext::new();
-    //
-    // let node  = FilterNode::new(NodeConfig::new( vec![1], vec![1]), FilterNodeConfig::new());
-    //
-    // tokio::spawn(async move {node.process(0, Record::new(0, vec![]), &ctx)}).await;
-    //
-    //
+
 
 
 }
