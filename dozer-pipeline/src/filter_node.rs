@@ -33,9 +33,9 @@ impl Processor for FilterNode {
 
     }
 
-    fn process(&self, port: u8, data: Record, ctx: &ExecutionContext) -> (u8, Record) {
+    fn process(&self, port: u8, data: Record, ctx: &ExecutionContext) -> (u8, Vec<Record>) {
         println!("test");
-        return (0, Record::new(0, vec![]))
+        return (0, vec![]);
     }
 
 
