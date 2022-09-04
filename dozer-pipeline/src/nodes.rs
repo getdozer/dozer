@@ -19,16 +19,23 @@ impl NodeConfig {
 
 pub trait Processor {
     fn get_config(&self) -> &NodeConfig;
-    fn process(&self, data: HashMap<u8,Vec<Record>>, ctx: &ExecutionContext) -> HashMap<u8,Vec<Record>>;
+    fn prepare(&self, ctx: &ExecutionContext);
+    fn process(&self, port: u8, data: Record, ctx: &ExecutionContext) -> (u8, Record);
+}
+
+pub trait Storage {
+
 }
 
 pub struct ExecutionContext {
-
+   // storage: Box<dyn Storage>
 }
 
 impl ExecutionContext {
     pub fn new() -> ExecutionContext {
-        ExecutionContext {}
+        ExecutionContext {
+           // storage
+        }
     }
 }
 

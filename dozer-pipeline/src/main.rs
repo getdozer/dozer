@@ -27,7 +27,7 @@ async fn main() {
 
     let node  = FilterNode::new(NodeConfig::new( vec![1], vec![1]), FilterNodeConfig::new());
 
-    tokio::spawn(async move {node.process(HashMap::new(), &ctx)}).await;
+    tokio::spawn(async move {node.process(0, Record::new(0, vec![]), &ctx)}).await;
 
 
 

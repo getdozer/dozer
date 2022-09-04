@@ -29,8 +29,14 @@ impl Processor for FilterNode {
         &self.config
     }
 
-    fn process(&self, data: HashMap<u8,Vec<Record>>, ctx: &ExecutionContext) -> HashMap<u8,Vec<Record>> {
-        println!("test");
-        return HashMap::new();
+    fn prepare(&self, ctx: &ExecutionContext) {
+        todo!()
     }
+
+    fn process(&self, port: u8, data: Record, ctx: &ExecutionContext) -> (u8, Record) {
+        println!("test");
+        return (0, Record::new(0, vec![]))
+    }
+
+
 }

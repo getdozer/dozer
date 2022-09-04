@@ -22,7 +22,16 @@ pub struct Schema {
 
 pub struct Record {
     pub values: Vec<Field>,
-    pub schema_id: u32
+    pub schema_id: u64
+}
+
+impl Record {
+    pub fn new(schema_id: u64, values: Vec<Field>) -> Record {
+        Record {
+            schema_id, values
+        }
+    }
+
 }
 
 
