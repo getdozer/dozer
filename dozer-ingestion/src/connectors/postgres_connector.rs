@@ -2,6 +2,7 @@ use std::fmt::format;
 
 use async_trait::async_trait;
 use futures::StreamExt;
+use postgres::SimpleQueryMessage;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
 };
@@ -74,6 +75,15 @@ impl PostgresConnector {
         format!("dozer_slot_{}", self.name)
     }
 
+    async fn _run_simple_query(&self, query: &str) -> Vec<SimpleQueryMessage> {
+        self.client
+            .as_ref()
+            .unwrap()
+            .simple_query(query)
+            .await
+            .unwrap()
+    }
+
     async fn create_publication(&self) {
         let publication_name = self.get_publication_name();
         let table_str: String = match self.tables.as_ref() {
@@ -81,30 +91,19 @@ impl PostgresConnector {
             Some(arr) => format!("TABLE {}", arr.join(" ")).to_string(),
         };
 
-        self.client
-            .as_ref()
-            .unwrap()
-            .simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())
-            .await
-            .unwrap();
-        self.client
-            .as_ref()
-            .unwrap()
-            .simple_query(
-                format!("CREATE PUBLICATION {} FOR {}", publication_name, table_str).as_str(),
-            )
-            .await
-            .unwrap();
+        self._run_simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())
+            .await;
+
+        self._run_simple_query(
+            format!("CREATE PUBLICATION {} FOR {}", publication_name, table_str).as_str(),
+        )
+        .await;
     }
 
     async fn _create_slot_and_sync_snapshot(&mut self) {
         // Begin Transaction
-        self.client
-            .as_ref()
-            .unwrap()
-            .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
-            .await
-            .unwrap();
+        self._run_simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
+            .await;
 
         // Create a replication slot
         let lsn = self._create_replication_slot().await;
@@ -113,22 +112,13 @@ impl PostgresConnector {
         self._sync_snapshot().await;
 
         // Commit the transaction
-        self.client
-            .as_ref()
-            .unwrap()
-            .simple_query("COMMIT;")
-            .await
-            .unwrap();
+        self._run_simple_query("COMMIT;").await;
     }
 
     pub async fn drop_replication_slot(&self) {
         let slot = self.get_slot_name();
-        self.client
-            .as_ref()
-            .unwrap()
-            .simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref())
-            .await
-            .unwrap();
+        self._run_simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref())
+            .await;
     }
     async fn _create_replication_slot(&self) -> Option<String> {
         let slot = self.get_slot_name();
@@ -138,15 +128,9 @@ impl PostgresConnector {
             slot
         );
 
-        let slot_query = self
-            .client
-            .as_ref()
-            .unwrap()
-            .simple_query(&create_replication_slot_query)
-            .await
-            .unwrap();
+        let slot_query_row = self._run_simple_query(&create_replication_slot_query).await;
 
-        let lsn = if let Row(row) = &slot_query[0] {
+        let lsn = if let Row(row) = &slot_query_row[0] {
             row.get("consistent_point").unwrap()
         } else {
             panic!("unexpected query message");
