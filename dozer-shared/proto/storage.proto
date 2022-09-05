@@ -1,0 +1,24 @@
+syntax = "proto3";
+package storage;
+
+service Storage {
+  rpc insert_record(Record) returns (ServerResponse);
+  rpc insert_schema(Schema) returns (ServerResponse);
+}
+
+message Record {
+  // string id = 1;
+  uint32 schema_id = 2;
+  repeated string values = 3;
+}
+
+message Schema {
+  string id = 1;
+  repeated string field_names = 2;
+  repeated string field_types = 3;
+}
+
+message ServerResponse {
+  int32 status = 1;
+  string message = 2;
+}

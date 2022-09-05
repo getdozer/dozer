@@ -1,8 +1,5 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
+pub mod types;
+
+pub mod storage {
+    tonic::include_proto!("storage"); // The string specified here must match the proto package name
 }
