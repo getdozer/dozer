@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 use futures::task::SpawnExt;
+use futures::TryFutureExt;
 use tokio::sync::{mpsc, Mutex};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::{JoinHandle};
@@ -59,6 +60,11 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
         let mut cloned_processor = nodes.first().unwrap().processor.clone();
 
         handles.push(tokio::spawn(async move {
+
+            let result = receiver.recv().and_then(async {
+
+            })
+
             loop {
                 println!("starting to listen");
                 let result = receiver.recv().await;
