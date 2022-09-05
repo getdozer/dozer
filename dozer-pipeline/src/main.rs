@@ -98,23 +98,24 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
                 let mut m_node_processor_clone = m_node_processor.clone();
                 let mut m_node_senders_clone : HashMap<u8, Arc<Mutex<UnboundedSender<Record>>>> = HashMap::new();
                 for mut t in &m_node_senders.clone() {
-                    m_node_senders.insert(t.0.clone(), t.1.clone());
+                    m_node_senders_clone.insert(t.0.clone(), t.1.clone());
                 }
 
                 let handle = tokio::spawn(async move {
-
-                    let res = receiver.1.recv().await;
-                    if res.is_none() {
-                        println!("Exiting read loop for node/port {}/{}", node_id, receiver.0);
-                        return;
-                    }
-                    println!("Incoming record on node {} / port {}", node_id, receiver.0);
-                    let processed = m_node_processor_clone.lock().await.process((receiver.0, res.unwrap()));
-                    for rec in processed {
-                        let sender = m_node_senders_clone.get_mut(&rec.0);
-                        if (!sender.is_none()) {
-                            println!("Forwarding message from node {} / port {}", node.id, rec.0);
-                            sender.unwrap().lock().await.send(rec.1);
+                    loop {
+                        let res = receiver.1.recv().await;
+                        if res.is_none() {
+                            println!("Exiting read loop for node/port {}/{}", node_id, receiver.0);
+                            return;
+                        }
+                        println!("Incoming record on node {} / port {}", node_id, receiver.0);
+                        let processed = m_node_processor_clone.lock().await.process((receiver.0, res.unwrap()));
+                        for rec in processed {
+                            let sender = m_node_senders_clone.get_mut(&rec.0);
+                            if (!sender.is_none()) {
+                                println!("Forwarding message from node {} / port {}", node.id, rec.0);
+                                sender.unwrap().lock().await.send(rec.1);
+                            }
                         }
                     }
                 });
@@ -135,6 +136,7 @@ async fn sender(tx: UnboundedSender<Record>) {
     println!("Starting sender");
     loop {
         ctr += 1;
+       // tokio::time::sleep(Duration::from_millis(1000)).await;
         println!("record {}", &ctr);
         let r = tx.send(Record::new(1, vec![]));
         if r.is_err() {
@@ -173,7 +175,7 @@ async fn main() {
 
     let edges = vec![
         Edge::input(InputEdge::new(1, input_rx, 100, 1)),
-    //    Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
+        Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
         Edge::internal(InternalEdge::new(100, 1, 200, 1)),
         Edge::internal(InternalEdge::new(200, 1, 300, 1)),
         Edge::internal(InternalEdge::new(300, 1, 400, 1)),
@@ -184,9 +186,9 @@ async fn main() {
     let r1 = tokio::spawn(run_dag(nodes, edges));
     let r3 = tokio::spawn(receiver(output_rx));
     let r2 = tokio::spawn(sender(input_tx));
-   // let r4 = tokio::spawn(sender(input2_tx));
+    let r4 = tokio::spawn(sender(input2_tx));
 
-    futures::future::join3(r1, r2, r3).await;
+    futures::future::join4(r1, r2, r3, r4).await;
 
 
 
