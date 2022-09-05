@@ -1,15 +1,17 @@
 use std::fmt::format;
 
 use async_trait::async_trait;
+use dozer_shared::storage::storage_client::StorageClient;
+use dozer_shared::storage::{Record, ServerResponse};
 use futures::StreamExt;
-use postgres::SimpleQueryMessage;
-use postgres_protocol::message::backend::LogicalReplicationMessage::{
-    Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
-};
+use postgres::{Column, SimpleQueryMessage};
+// use postgres_protocol::message::backend::LogicalReplicationMessage::{
+//     Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
+// };
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::{Client, NoTls, RowStream};
 
 use connector::Connector;
 
@@ -21,17 +23,23 @@ pub struct PostgresConnector {
     tables: Option<Vec<String>>,
     client: Option<Client>,
     lsn: Option<String>,
+    storage_client: StorageClient<tonic::transport::channel::Channel>,
 }
 
 #[async_trait]
 impl Connector for PostgresConnector {
-    fn new(name: String, tables: Option<Vec<String>>) -> PostgresConnector {
+    fn new(
+        name: String,
+        tables: Option<Vec<String>>,
+        storage_client: StorageClient<tonic::transport::channel::Channel>,
+    ) -> PostgresConnector {
         PostgresConnector {
             name,
             conn_str: None,
             tables,
             client: None,
             lsn: None,
+            storage_client: storage_client,
         }
     }
 
@@ -75,6 +83,35 @@ impl PostgresConnector {
         format!("dozer_slot_{}", self.name)
     }
 
+    async fn get_tables(&self) -> Vec<String> {
+        match self.tables.as_ref() {
+            None => {
+                let query = "SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                ORDER BY table_name;";
+
+                let rows: Vec<String> = self
+                    ._run_simple_query(query)
+                    .await
+                    .iter()
+                    .map(|r| {
+                        let str = match r {
+                            Row(row) => row.get(0).unwrap().to_string(),
+                            _ => {
+                                panic!("unexpected");
+                            }
+                        };
+                        str
+                    })
+                    .collect();
+                rows
+                // vec!["actor".to_string()]
+            }
+            Some(arr) => arr.to_vec(),
+        }
+    }
+
     async fn _run_simple_query(&self, query: &str) -> Vec<SimpleQueryMessage> {
         self.client
             .as_ref()
@@ -106,9 +143,11 @@ impl PostgresConnector {
             .await;
 
         // Create a replication slot
+        println!("Creating Slot....");
         let lsn = self._create_replication_slot().await;
         self.lsn = lsn;
 
+        println!("Syncing data....");
         self._sync_snapshot().await;
 
         // Commit the transaction
@@ -117,8 +156,12 @@ impl PostgresConnector {
 
     pub async fn drop_replication_slot(&self) {
         let slot = self.get_slot_name();
-        self._run_simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref())
-            .await;
+        match self
+            ._run_simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref())
+            .await
+        {
+            _ => (),
+        }
     }
     async fn _create_replication_slot(&self) -> Option<String> {
         let slot = self.get_slot_name();
@@ -140,7 +183,56 @@ impl PostgresConnector {
         Some(lsn.to_string())
     }
 
-    async fn _sync_snapshot(&self) {}
+    async fn insert_record(
+        &mut self,
+        row: &tokio_postgres::Row,
+        columns: &[Column],
+    ) -> ServerResponse {
+        let values = columns.iter().map(|c| row.get(c.name())).collect();
+        let request = tonic::Request::new(Record {
+            schema_id: 1,
+            values: values,
+        });
+
+        let response = self.storage_client.insert_record(request).await.unwrap();
+
+        println!("RESPONSE={:?}", response);
+
+        response.into_inner()
+    }
+
+    async fn _sync_snapshot(&mut self) {
+        let tables = self.get_tables().await;
+
+        println!("Initialized with tables: {:?}", tables);
+
+        for t in tables.iter() {
+            println!("Syncing table {} .....", t);
+            let query = format!("select * from {}", t);
+            let stmt = self.client.as_ref().unwrap().prepare(&query).await.unwrap();
+            let columns = stmt.columns();
+            println!("{:?}", columns);
+
+            let empty_vec: Vec<String> = Vec::new();
+            let stream: RowStream = self
+                .client
+                .as_ref()
+                .unwrap()
+                .query_raw(&stmt, empty_vec)
+                .await
+                .unwrap();
+
+            tokio::pin!(stream);
+            loop {
+                match stream.next().await {
+                    Some(Ok(row)) => self.insert_record(&row, columns).await,
+                    _ => {
+                        panic!("Shouldn't be here")
+                    }
+                };
+            }
+        }
+    }
 
     async fn _start_replication(&self) {
         let slot = self.get_slot_name();
