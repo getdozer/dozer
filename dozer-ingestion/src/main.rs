@@ -1,17 +1,23 @@
 use connectors::connector::Connector;
-use connectors::postgres_connector::PostgresConnector;
+use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 
 mod connectors;
 mod storage_client;
 
 #[tokio::main]
 async fn main() {
-    let mut client = storage_client::initialize().await;
-    let mut connector = PostgresConnector::new("test_c".to_string(), None, client);
+    // Use a normal connection till snapshot is created
+    let client = storage_client::initialize().await;
 
-    let str = "host=127.0.0.1 port=5432 user=postgres dbname=pagila replication=database";
+    let postgres_config = PostgresConfig {
+        name: "test_c".to_string(),
+        tables: None,
+        conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
+    };
+    let mut connector = PostgresConnector::new(postgres_config, client);
 
-    connector.initialize(str.to_string()).await;
+    connector.initialize().await;
+
     // For testing purposes
     connector.drop_replication_slot().await;
 

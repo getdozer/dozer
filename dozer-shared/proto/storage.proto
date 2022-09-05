@@ -9,7 +9,7 @@ service Storage {
 message Record {
   // string id = 1;
   uint32 schema_id = 2;
-  repeated string values = 3;
+  repeated bytes values = 3;
 }
 
 message Schema {

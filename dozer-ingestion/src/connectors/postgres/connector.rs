@@ -1,25 +1,29 @@
-use std::fmt::format;
-
 use async_trait::async_trait;
 use dozer_shared::storage::storage_client::StorageClient;
-use dozer_shared::storage::{Record, ServerResponse};
 use futures::StreamExt;
-use postgres::{Column, SimpleQueryMessage};
+use postgres::SimpleQueryMessage;
 // use postgres_protocol::message::backend::LogicalReplicationMessage::{
 //     Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
 // };
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
-use tokio_postgres::{Client, NoTls, RowStream};
-
-use connector::Connector;
+use tokio_postgres::{Client, NoTls};
 
 use crate::connectors::connector;
+use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use connector::Connector;
+
+pub struct PostgresConfig {
+    pub name: String,
+    pub tables: Option<Vec<String>>,
+    pub conn_str: String,
+}
 
 pub struct PostgresConnector {
     name: String,
-    conn_str: Option<String>,
+    conn_str: String,
+    conn_str_plain: String,
     tables: Option<Vec<String>>,
     client: Option<Client>,
     lsn: Option<String>,
@@ -27,37 +31,44 @@ pub struct PostgresConnector {
 }
 
 #[async_trait]
-impl Connector for PostgresConnector {
+impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
     fn new(
-        name: String,
-        tables: Option<Vec<String>>,
+        config: PostgresConfig,
         storage_client: StorageClient<tonic::transport::channel::Channel>,
     ) -> PostgresConnector {
+        let mut conn_str = config.conn_str.to_owned();
+        conn_str.push_str(" replication=database");
+
         PostgresConnector {
-            name,
-            conn_str: None,
-            tables,
+            name: config.name,
+            conn_str_plain: config.conn_str,
+            conn_str,
+            tables: config.tables,
             client: None,
             lsn: None,
             storage_client: storage_client,
         }
     }
 
-    async fn connect(&mut self) {
-        let (client, connection) = tokio_postgres::connect(&self.conn_str.as_ref().unwrap(), NoTls)
+    async fn connect(&mut self) -> tokio_postgres::Client {
+        let (client, connection) = tokio_postgres::connect(&self.conn_str, NoTls)
             .await
             .unwrap();
-
-        // Initialize client after connection
-        self.client = Some(client);
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
                 eprintln!("connection error: {}", e);
+                panic!("Connection failed!");
             }
         });
+        client
     }
 
+    async fn initialize(&mut self) {
+        let client = self.connect().await;
+        self.client = Some(client);
+        self.create_publication().await;
+    }
     async fn get_schema(&self) {}
 
     async fn start(&mut self) {
@@ -69,47 +80,12 @@ impl Connector for PostgresConnector {
 }
 
 impl PostgresConnector {
-    pub async fn initialize(&mut self, conn_str: String) {
-        self.conn_str = Some(conn_str);
-        self.connect().await;
-        self.create_publication().await;
-    }
-
     fn get_publication_name(&self) -> String {
         format!("dozer_publication_{}", self.name)
     }
 
     fn get_slot_name(&self) -> String {
         format!("dozer_slot_{}", self.name)
-    }
-
-    async fn get_tables(&self) -> Vec<String> {
-        match self.tables.as_ref() {
-            None => {
-                let query = "SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                ORDER BY table_name;";
-
-                let rows: Vec<String> = self
-                    ._run_simple_query(query)
-                    .await
-                    .iter()
-                    .map(|r| {
-                        let str = match r {
-                            Row(row) => row.get(0).unwrap().to_string(),
-                            _ => {
-                                panic!("unexpected");
-                            }
-                        };
-                        str
-                    })
-                    .collect();
-                rows
-                // vec!["actor".to_string()]
-            }
-            Some(arr) => arr.to_vec(),
-        }
     }
 
     async fn _run_simple_query(&self, query: &str) -> Vec<SimpleQueryMessage> {
@@ -163,6 +139,7 @@ impl PostgresConnector {
             _ => (),
         }
     }
+
     async fn _create_replication_slot(&self) -> Option<String> {
         let slot = self.get_slot_name();
 
@@ -183,55 +160,14 @@ impl PostgresConnector {
         Some(lsn.to_string())
     }
 
-    async fn insert_record(
-        &mut self,
-        row: &tokio_postgres::Row,
-        columns: &[Column],
-    ) -> ServerResponse {
-        let values = columns.iter().map(|c| row.get(c.name())).collect();
-        let request = tonic::Request::new(Record {
-            schema_id: 1,
-            values: values,
-        });
-
-        let response = self.storage_client.insert_record(request).await.unwrap();
-
-        println!("RESPONSE={:?}", response);
-
-        response.into_inner()
-    }
-
     async fn _sync_snapshot(&mut self) {
-        let tables = self.get_tables().await;
+        let mut snapshotter = PostgresSnapshotter {
+            tables: self.tables.to_owned(),
+            conn_str: self.conn_str_plain.to_owned(),
+            storage_client: self.storage_client.to_owned(),
+        };
 
-        println!("Initialized with tables: {:?}", tables);
-
-        for t in tables.iter() {
-            println!("Syncing table {} .....", t);
-            let query = format!("select * from {}", t);
-            let stmt = self.client.as_ref().unwrap().prepare(&query).await.unwrap();
-            let columns = stmt.columns();
-            println!("{:?}", columns);
-
-            let empty_vec: Vec<String> = Vec::new();
-            let stream: RowStream = self
-                .client
-                .as_ref()
-                .unwrap()
-                .query_raw(&stmt, empty_vec)
-                .await
-                .unwrap();
-
-            tokio::pin!(stream);
-            loop {
-                match stream.next().await {
-                    Some(Ok(row)) => self.insert_record(&row, columns).await,
-                    _ => {
-                        panic!("Shouldn't be here")
-                    }
-                };
-            }
-        }
+        snapshotter.run().await;
     }
 
     async fn _start_replication(&self) {
