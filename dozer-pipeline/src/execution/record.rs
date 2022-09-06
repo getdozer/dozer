@@ -28,7 +28,8 @@ pub struct Record {
 pub enum Operation {
     delete {table: u64, record: Record},
     insert {table: u64, record: Record},
-    update {table: u64, old_record: Record, new_record: Record}
+    update {table: u64, old_record: Record, new_record: Record},
+    terminate
 }
 
 

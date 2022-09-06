@@ -26,11 +26,15 @@ async fn sender(tx: UnboundedSender<Operation>) {
     loop {
         ctr += 1;
        // tokio::time::sleep(Duration::from_millis(1000)).await;
-        println!("record {}", &ctr);
-        let r = tx.send(Operation::insert {table: 1, record: Record::new(1, vec![])});
-        if r.is_err() {
-            println!("Error sending");
+       // println!("record {}", &ctr);
+        if (ctr <= 10000) {
+            let r = tx.send(Operation::insert { table: 1, record: Record::new(1, vec![]) });
         }
+        else if (ctr == 10001){
+            let r = tx.send(Operation::terminate);
+            return;
+        }
+
     }
 
 }
@@ -68,7 +72,7 @@ async fn main() {
 
     let edges = vec![
         Edge::input(InputEdge::new(1, input_rx, 100, 1)),
-        Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
+   //     Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
         Edge::internal(InternalEdge::new(100, 1, 200, 1)),
         Edge::internal(InternalEdge::new(200, 1, 300, 1)),
         Edge::internal(InternalEdge::new(300, 1, 400, 1)),
@@ -79,10 +83,10 @@ async fn main() {
     let r1 = tokio::spawn(run_dag(nodes, edges, ctx));
     let r3 = tokio::spawn(receiver(output_rx));
     let r2 = tokio::spawn(sender(input_tx));
-    let r4 = tokio::spawn(sender(input2_tx));
+  //  let r4 = tokio::spawn(sender(input2_tx));
 
-    futures::future::join4(r1, r2, r3, r4).await;
-  //  futures::future::join3(r1, r2, r3).await;
+  //  futures::future::join4(r1, r2, r3, r4).await;
+    futures::future::join3(r1, r2, r3).await;
 
 
 

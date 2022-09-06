@@ -125,15 +125,29 @@ pub async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>, ctx: Arc<dyn ExecutionC
                         info!("Exiting read loop for node/port {}/{}", node.id, receiver.0);
                         return;
                     }
-                    info!("Incoming record on node {} / port {}", node.id, receiver.0);
-                    let processed = node.processor.process((receiver.0, res.unwrap()), cloned_ctx.as_ref()).await;
-                    for rec in processed {
-                        let sender = senders.get_mut(&rec.0);
-                        if (!sender.is_none()) {
-                            info!("Forwarding message from node {} / port {}", node.id, rec.0);
-                            sender.unwrap().send(rec.1);
+
+                    let op = res.unwrap();
+                    match op {
+                        Operation::terminate => {
+                            info!("Terminating read on node {} / port {}", node.id, receiver.0);
+                            for mut e in &senders {
+                                e.1.send(Operation::terminate);
+                            }
+                            return;
+                        }
+                        _ => {
+                            info!("Incoming record on node {} / port {}", node.id, receiver.0);
+                            let processed = node.processor.process((receiver.0, op), cloned_ctx.as_ref()).await;
+                            for rec in processed {
+                                let sender = senders.get_mut(&rec.0);
+                                if (!sender.is_none()) {
+                                    info!("Forwarding message from node {} / port {}", node.id, rec.0);
+                                    sender.unwrap().send(rec.1);
+                                }
+                            }
                         }
                     }
+
                 }
             });
         }
@@ -155,20 +169,35 @@ pub async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>, ctx: Arc<dyn ExecutionC
 
                 let handle = tokio::spawn(async move {
                     loop {
+
                         let res = receiver.1.recv().await;
                         if res.is_none() {
                             info!("Exiting read loop for node/port {}/{}", node_id, receiver.0);
                             return;
                         }
-                        info!("Incoming record on node {} / port {}", node_id, receiver.0);
-                        let processed = m_node_processor_clone.lock().await.process((receiver.0, res.unwrap()), cloned_ctx.as_ref()).await;
-                        for rec in processed {
-                            let sender = m_node_senders_clone.get_mut(&rec.0);
-                            if (!sender.is_none()) {
-                                info!("Forwarding message from node {} / port {}", node.id, rec.0);
-                                sender.unwrap().lock().await.send(rec.1);
+
+                        let op = res.unwrap();
+                        match op {
+                            Operation::terminate => {
+                                info!("Terminating read on node {} / port {}", node_id, receiver.0);
+                                for mut e in &m_node_senders_clone {
+                                    e.1.lock().await.send(Operation::terminate);
+                                    return;
+                                }
+                            }
+                            _ => {
+                                info!("Incoming record on node {} / port {}", node_id, receiver.0);
+                                let processed = m_node_processor_clone.lock().await.process((receiver.0, op), cloned_ctx.as_ref()).await;
+                                for rec in processed {
+                                    let sender = m_node_senders_clone.get_mut(&rec.0);
+                                    if (!sender.is_none()) {
+                                        info!("Forwarding message from node {} / port {}", node.id, rec.0);
+                                        sender.unwrap().lock().await.send(rec.1);
+                                    }
+                                }
                             }
                         }
+
                     }
                 });
             }
