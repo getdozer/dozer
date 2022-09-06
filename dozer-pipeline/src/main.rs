@@ -73,7 +73,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>, ctx: Arc<dyn ExecutionConte
                         return;
                     }
                     println!("Incoming record on node {} / port {}", node.id, receiver.0);
-                    let processed = node.processor.process((receiver.0, res.unwrap()), cloned_ctx.as_ref());
+                    let processed = node.processor.process((receiver.0, res.unwrap()), cloned_ctx.as_ref()).await;
                     for rec in processed {
                         let sender = senders.get_mut(&rec.0);
                         if (!sender.is_none()) {
@@ -111,7 +111,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>, ctx: Arc<dyn ExecutionConte
                             return;
                         }
                         println!("Incoming record on node {} / port {}", node_id, receiver.0);
-                        let processed = m_node_processor_clone.lock().await.process((receiver.0, res.unwrap()), cloned_ctx.as_ref());
+                        let processed = m_node_processor_clone.lock().await.process((receiver.0, res.unwrap()), cloned_ctx.as_ref()).await;
                         for rec in processed {
                             let sender = m_node_senders_clone.get_mut(&rec.0);
                             if (!sender.is_none()) {

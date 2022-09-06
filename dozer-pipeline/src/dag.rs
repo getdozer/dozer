@@ -4,6 +4,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
 use crate::Record;
 use crate::record::Operation;
+use async_trait::async_trait;
 
 pub struct InternalEdge {
     pub from_node: u16,
@@ -64,8 +65,9 @@ impl Node {
 
 }
 
+#[async_trait]
 pub trait Processor : Send {
-    fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)>;
+    async fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)>;
 }
 
 
@@ -100,8 +102,9 @@ impl Where {
     }
 }
 
+#[async_trait]
 impl Processor for Where {
-    fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)> {
+    async fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)> {
         ctx.get_kv("ddd".to_string());
         vec![(1, Operation::insert {table: 1, record: Record::new(0, vec![])})]
     }
