@@ -1,0 +1,41 @@
+
+
+syntax = "proto3";
+package ingestion;
+import "google/protobuf/struct.proto";
+
+service Ingestion {
+  rpc connect_db(Connection) returns (ConnectionResponse);
+}
+enum ConnectionType {
+  postgres = 0;
+  snowflake = 1;
+  databricks = 2;
+}
+message Connection {
+  ConnectionType connection_type = 1;
+  ConnectionAuth detail = 2;
+}
+
+message ConnectionAuth {
+  string database = 1;
+  string user = 2;
+  string host = 3;
+  string name = 4;
+  string password = 5;
+}
+message ConnectionErrorResponse {
+  string error_message = 1;
+}
+message ConnectionResponse {
+  oneof response {
+    ConnectionErrorResponse error = 1;
+    ConnectionDetails success = 2;
+  }
+}
+
+message ConnectionDetails {
+  google.protobuf.ListValue tables = 1;
+  google.protobuf.ListValue views = 2; 
+}
+
