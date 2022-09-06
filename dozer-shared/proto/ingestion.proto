@@ -21,8 +21,9 @@ message ConnectionAuth {
   string database = 1;
   string user = 2;
   string host = 3;
-  string name = 4;
-  string password = 5;
+  string port = 4;
+  string name = 5;
+  string password = 6;
 }
 message ConnectionErrorResponse {
   string error_message = 1;
