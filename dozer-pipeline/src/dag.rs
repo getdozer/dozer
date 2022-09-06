@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
 use crate::Record;
+use crate::record::Operation;
 
 pub struct InternalEdge {
     pub from_node: u16,
@@ -19,26 +20,26 @@ impl InternalEdge {
 
 pub struct InputEdge {
     pub input_id: u8,
-    pub input: UnboundedReceiver<Record>,
+    pub input: UnboundedReceiver<Operation>,
     pub to_node: u16,
     pub to_port: u8
 }
 
 impl InputEdge {
-    pub fn new(input_id: u8, input: UnboundedReceiver<Record>, to_node: u16, to_port: u8) -> Self {
+    pub fn new(input_id: u8, input: UnboundedReceiver<Operation>, to_node: u16, to_port: u8) -> Self {
         Self { input_id, input, to_node, to_port }
     }
 }
 
 pub struct OutputEdge {
     pub output_id: u8,
-    pub output: UnboundedSender<Record>,
+    pub output: UnboundedSender<Operation>,
     pub from_node: u16,
     pub from_port: u8
 }
 
 impl OutputEdge {
-    pub fn new(output_id: u8, output: UnboundedSender<Record>, from_node: u16, from_port: u8) -> Self {
+    pub fn new(output_id: u8, output: UnboundedSender<Operation>, from_node: u16, from_port: u8) -> Self {
         Self { output_id, output, from_node, from_port }
     }
 }
@@ -64,7 +65,7 @@ impl Node {
 }
 
 pub trait Processor : Send {
-    fn process(&mut self, data: (u8, Record)) -> Vec<(u8, Record)>;
+    fn process(&mut self, data: (u8, Operation)) -> Vec<(u8, Operation)>;
 }
 
 
@@ -80,9 +81,9 @@ impl Where {
 }
 
 impl Processor for Where {
-    fn process(&mut self, data: (u8, Record)) -> Vec<(u8, Record)> {
+    fn process(&mut self, data: (u8, Operation)) -> Vec<(u8, Operation)> {
         println!("processing");
-        vec![(1, Record::new(0, vec![]))]
+        vec![(1, Operation::insert {table: 1, record: Record::new(0, vec![])})]
     }
 }
 

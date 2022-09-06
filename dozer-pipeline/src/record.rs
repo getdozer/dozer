@@ -25,13 +25,19 @@ pub struct Record {
     pub schema_id: u64
 }
 
+pub enum Operation {
+    delete {table: u64, record: Record},
+    insert {table: u64, record: Record},
+    update {table: u64, old_record: Record, new_record: Record}
+}
+
+
 impl Record {
     pub fn new(schema_id: u64, values: Vec<Field>) -> Record {
         Record {
             schema_id, values
         }
     }
-
 }
 
 

@@ -21,15 +21,15 @@ use tokio::task::{JoinHandle};
 use futures::stream::{iter};
 use tokio::{join, select};
 use crate::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, Where};
-use crate::record::{Field, Record, Schema};
+use crate::record::{Field, Operation, Record, Schema};
 
 
 
 async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
 
 
-    let mut senders : HashMap<u16, HashMap<u8, UnboundedSender<Record>>> = HashMap::new();
-    let mut receivers : HashMap<u16, Vec<(u8, UnboundedReceiver<Record>)>>  = HashMap::new();
+    let mut senders : HashMap<u16, HashMap<u8, UnboundedSender<Operation>>> = HashMap::new();
+    let mut receivers : HashMap<u16, Vec<(u8, UnboundedReceiver<Operation>)>>  = HashMap::new();
 
     for node in &nodes {
         senders.insert(node.id, HashMap::new());
@@ -45,7 +45,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
                 senders.get_mut(&edge.from_node).unwrap().insert(edge.from_port, edge.output);
             }
             Edge::internal(edge) => {
-                let (mut tx, mut rx) = mpsc::unbounded_channel::<Record>();
+                let (mut tx, mut rx) = mpsc::unbounded_channel::<Operation>();
                 receivers.get_mut(&edge.to_node).unwrap().push((edge.to_port, rx)) ;
                 senders.get_mut(&edge.from_node).unwrap().insert(edge.from_port, tx);
             }
@@ -85,7 +85,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
         }
         else {
 
-            let mut m_node_senders : HashMap<u8, Arc<Mutex<UnboundedSender<Record>>>> = HashMap::new();
+            let mut m_node_senders : HashMap<u8, Arc<Mutex<UnboundedSender<Operation>>>> = HashMap::new();
             for mut t in node_senders {
                 m_node_senders.insert(t.0, Arc::new(Mutex::new(t.1)));
             }
@@ -96,7 +96,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
             for mut receiver in node_receivers {
 
                 let mut m_node_processor_clone = m_node_processor.clone();
-                let mut m_node_senders_clone : HashMap<u8, Arc<Mutex<UnboundedSender<Record>>>> = HashMap::new();
+                let mut m_node_senders_clone : HashMap<u8, Arc<Mutex<UnboundedSender<Operation>>>> = HashMap::new();
                 for mut t in &m_node_senders.clone() {
                     m_node_senders_clone.insert(t.0.clone(), t.1.clone());
                 }
@@ -130,7 +130,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
 
 }
 
-async fn sender(tx: UnboundedSender<Record>) {
+async fn sender(tx: UnboundedSender<Operation>) {
 
     let mut ctr = 0;
     println!("Starting sender");
@@ -138,7 +138,7 @@ async fn sender(tx: UnboundedSender<Record>) {
         ctr += 1;
        // tokio::time::sleep(Duration::from_millis(1000)).await;
         println!("record {}", &ctr);
-        let r = tx.send(Record::new(1, vec![]));
+        let r = tx.send(Operation::insert {table: 1, record: Record::new(1, vec![])});
         if r.is_err() {
             println!("Error sending");
         }
@@ -146,7 +146,7 @@ async fn sender(tx: UnboundedSender<Record>) {
 
 }
 
-async fn receiver(mut rx: UnboundedReceiver<Record>) {
+async fn receiver(mut rx: UnboundedReceiver<Operation>) {
 
     println!("Starting receiver");
     loop {
@@ -162,9 +162,9 @@ async fn receiver(mut rx: UnboundedReceiver<Record>) {
 #[tokio::main]
 async fn main() {
 
-    let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<Record>();
-    let (mut input2_tx, mut input2_rx) = mpsc::unbounded_channel::<Record>();
-    let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<Record>();
+    let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<Operation>();
+    let (mut input2_tx, mut input2_rx) = mpsc::unbounded_channel::<Operation>();
+    let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<Operation>();
 
     let nodes = vec![
         Node::new(100, Box::new(Where::new())),
@@ -175,7 +175,7 @@ async fn main() {
 
     let edges = vec![
         Edge::input(InputEdge::new(1, input_rx, 100, 1)),
-        Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
+   //     Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
         Edge::internal(InternalEdge::new(100, 1, 200, 1)),
         Edge::internal(InternalEdge::new(200, 1, 300, 1)),
         Edge::internal(InternalEdge::new(300, 1, 400, 1)),
@@ -186,9 +186,10 @@ async fn main() {
     let r1 = tokio::spawn(run_dag(nodes, edges));
     let r3 = tokio::spawn(receiver(output_rx));
     let r2 = tokio::spawn(sender(input_tx));
-    let r4 = tokio::spawn(sender(input2_tx));
+  //  let r4 = tokio::spawn(sender(input2_tx));
 
-    futures::future::join4(r1, r2, r3, r4).await;
+  //  futures::future::join4(r1, r2, r3, r4).await;
+    futures::future::join3(r1, r2, r3).await;
 
 
 
