@@ -1,9 +1,4 @@
-mod nodes;
-mod record;
-mod filter_node;
-mod executor;
-mod dag_executor;
-mod dag;
+mod execution;
 
 use std::borrow::Borrow;
 use std::cell::Ref;
@@ -11,18 +6,17 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Duration;
 use futures::future::{join_all, select_all};
-use futures::task::SpawnExt;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::task::{JoinHandle};
-use futures::stream::{iter};
-use tokio::{join, select};
-use crate::dag::{Edge, ExecutionContext, InputEdge, InternalEdge, MemoryExecutionContext, Node, OutputEdge, Processor, Where};
-use crate::record::{Field, Operation, Record, Schema};
+use tokio::task::JoinHandle;
+use futures::stream::iter;
 
+use crate::execution::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, ExecutionContext};
+use crate::execution::mem_context::MemoryExecutionContext;
+use crate::execution::record::{Field, Record, Schema, Operation};
+use crate::execution::where_processor::{Where};
 
 
 async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>, ctx: Arc<dyn ExecutionContext>) {
@@ -97,10 +91,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>, ctx: Arc<dyn ExecutionConte
             for mut receiver in node_receivers {
 
                 let mut m_node_processor_clone = m_node_processor.clone();
-                let mut m_node_senders_clone : HashMap<u8, Arc<Mutex<UnboundedSender<Operation>>>> = HashMap::new();
-                for mut t in &m_node_senders.clone() {
-                    m_node_senders_clone.insert(t.0.clone(), t.1.clone());
-                }
+                let mut m_node_senders_clone = m_node_senders.clone();
                 let cloned_ctx = ctx.clone();
 
                 let handle = tokio::spawn(async move {
@@ -179,7 +170,7 @@ async fn main() {
 
     let edges = vec![
         Edge::input(InputEdge::new(1, input_rx, 100, 1)),
-   //     Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
+        Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
         Edge::internal(InternalEdge::new(100, 1, 200, 1)),
         Edge::internal(InternalEdge::new(200, 1, 300, 1)),
         Edge::internal(InternalEdge::new(300, 1, 400, 1)),
@@ -190,10 +181,10 @@ async fn main() {
     let r1 = tokio::spawn(run_dag(nodes, edges, ctx));
     let r3 = tokio::spawn(receiver(output_rx));
     let r2 = tokio::spawn(sender(input_tx));
-  //  let r4 = tokio::spawn(sender(input2_tx));
+    let r4 = tokio::spawn(sender(input2_tx));
 
-  //  futures::future::join4(r1, r2, r3, r4).await;
-    futures::future::join3(r1, r2, r3).await;
+    futures::future::join4(r1, r2, r3, r4).await;
+  //  futures::future::join3(r1, r2, r3).await;
 
 
 

@@ -1,9 +1,7 @@
-use std::ops::DerefMut;
 use std::sync::Arc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
-use crate::Record;
-use crate::record::Operation;
+use crate::{Operation, Record};
 use async_trait::async_trait;
 
 pub struct InternalEdge {
@@ -74,43 +72,6 @@ pub trait Processor : Send {
 pub trait ExecutionContext : Send + Sync {
     fn get_kv(&self, id: String);
 }
-
-pub struct MemoryExecutionContext {
-
-}
-
-impl MemoryExecutionContext {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl ExecutionContext for MemoryExecutionContext {
-    fn get_kv(&self, id: String) {
-        println!("getting kv");
-    }
-}
-
-
-pub struct Where {
-
-}
-
-impl Where {
-    pub fn new() -> Where {
-        Where {}
-    }
-}
-
-#[async_trait]
-impl Processor for Where {
-    async fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)> {
-        ctx.get_kv("ddd".to_string());
-        vec![(1, Operation::insert {table: 1, record: Record::new(0, vec![])})]
-    }
-}
-
-
 
 
 
