@@ -1,4 +1,4 @@
-
+use std::ops::Deref;
 use crate::{ExecutionContext, Field, MemoryExecutionContext, Operation, Processor, Record};
 use async_trait::async_trait;
 use crate::Field::empty;
@@ -36,7 +36,19 @@ fn eval_cmp<T: std::cmp::PartialEq + std::cmp::PartialOrd>(v_left: T, v_right: T
     }
 }
 
-fn eval_cmp_operator(record: &Record, ctx: &dyn ExecutionContext, left: Operand, right: Operand, cmp: Cmp) -> bool {
+
+fn eval_operand<'a>(op: &'a Operand, record: &'a Record, ctx: &dyn ExecutionContext) -> &'a Field {
+    match op {
+        Operand::const_value(value) => { value }
+        Operand::field_value(index) => {
+            let o = record.values.get(*index);
+            if (o.is_none()) {&Field::empty} else {o.unwrap()}
+        }
+        _ => {&Field::empty}
+    }
+}
+
+fn eval_cmp_operator(record: &Record, ctx: &dyn ExecutionContext, left: &Operand, right: &Operand, cmp: Cmp) -> bool {
 
     let c_left = eval_operand(left, record, ctx);
     let c_right = eval_operand(right, record, ctx);
@@ -88,8 +100,8 @@ fn eval_cmp_operator(record: &Record, ctx: &dyn ExecutionContext, left: Operand,
 }
 
 
-fn eval_operator(op: Box<Operator>, record: &Record, ctx: &dyn ExecutionContext) -> bool {
-    match *op {
+fn eval_operator(op: &Box<Operator>, record: &Record, ctx: &dyn ExecutionContext) -> bool {
+    match op.deref() {
         Operator::eq (left, right) => {
             return eval_cmp_operator(record, ctx, left, right, Cmp::eq);
         }
@@ -126,17 +138,6 @@ fn eval_operator(op: Box<Operator>, record: &Record, ctx: &dyn ExecutionContext)
 }
 
 
-fn eval_operand(op: Operand, record: &Record, ctx: &dyn ExecutionContext) -> Field {
-    match op {
-        Operand::const_value(value) => { value }
-        Operand::field_value(index) => {
-            let o = record.values.get(index);
-            if (o.is_none()) {Field::empty} else {(*o.unwrap()).clone()}
-        }
-        _ => {Field::empty}
-    }
-}
-
 
 #[test]
 fn test_eq_operator() {
@@ -145,8 +146,47 @@ fn test_eq_operator() {
     let f = Field::int_field(10);
     let r = Record::new(0, vec![Field::int_field(10)]);
     let op = Box::new(Operator::eq(Operand::const_value(f), Operand::field_value(0)));
-    assert!(eval_operator(op, &r, &ctx));
+    assert!(eval_operator(&op, &r, &ctx));
+}
 
+#[test]
+fn test_eq_operator_false() {
+
+    let ctx = MemoryExecutionContext::new();
+    let f = Field::int_field(20);
+    let r = Record::new(0, vec![Field::int_field(10)]);
+    let op = Box::new(Operator::eq(Operand::const_value(f), Operand::field_value(0)));
+    assert!(!eval_operator(&op, &r, &ctx));
+}
+
+#[test]
+fn test_ne_operator() {
+
+    let ctx = MemoryExecutionContext::new();
+    let f = Field::int_field(50);
+    let r = Record::new(0, vec![Field::int_field(10)]);
+    let op = Box::new(Operator::ne(Operand::const_value(f), Operand::field_value(0)));
+    assert!(eval_operator(&op, &r, &ctx));
+}
+
+#[test]
+fn test_gt_operator() {
+
+    let ctx = MemoryExecutionContext::new();
+    let f = Field::int_field(50);
+    let r = Record::new(0, vec![Field::int_field(100)]);
+    let op = Box::new(Operator::ne(Operand::const_value(f), Operand::field_value(0)));
+    assert!(eval_operator(&op, &r, &ctx));
+}
+
+#[test]
+fn test_lt_operator() {
+
+    let ctx = MemoryExecutionContext::new();
+    let f = Field::int_field(100);
+    let r = Record::new(0, vec![Field::int_field(50)]);
+    let op = Box::new(Operator::ne(Operand::const_value(f), Operand::field_value(0)));
+    assert!(eval_operator(&op, &r, &ctx));
 }
 
 #[test]
@@ -163,7 +203,7 @@ fn test_and_operator() {
 
     let and = Box::new(Operator::and(op0, op1));
 
-    assert!(eval_operator(and, &r, &ctx));
+    assert!(eval_operator(&and, &r, &ctx));
 
 }
 
@@ -181,7 +221,7 @@ fn test_or_operator() {
 
     let and = Box::new(Operator::or(op0, op1));
 
-    assert!(eval_operator(and, &r, &ctx));
+    assert!(eval_operator(&and, &r, &ctx));
 
 }
 
@@ -193,7 +233,7 @@ fn test_not_operator() {
     let r = Record::new(0, vec![Field::int_field(20)]);
     let op = Box::new(Operator::eq(Operand::const_value(f), Operand::field_value(0)));
     let not_op = Box::new(Operator::not(op));
-    assert!(eval_operator(not_op, &r, &ctx));
+    assert!(eval_operator(&not_op, &r, &ctx));
 
 }
 
