@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub enum Field {
     string_field(String),
-    integer_field(i32),
-    bigint_field(i64),
-    float_field(f32),
-    bigfloat_field(f64),
-    boolean_field(bool),
+    int_field(i64),
+    float_field(f64),
+    bool_field(bool),
     binary_field(Vec<u8>),
-    timestamp_field(u64)
+    timestamp_field(u64),
+    empty
 }
 
 pub struct Schema {
