@@ -15,18 +15,17 @@ use std::thread::sleep;
 use std::time::Duration;
 use futures::future::{join_all, select_all};
 use futures::task::SpawnExt;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::{JoinHandle};
 use futures::stream::{iter};
 use tokio::{join, select};
-use crate::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, Where};
+use crate::dag::{Edge, ExecutionContext, InputEdge, InternalEdge, MemoryExecutionContext, Node, OutputEdge, Processor, Where};
 use crate::record::{Field, Operation, Record, Schema};
 
 
 
-async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
-
+async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>, ctx: Arc<dyn ExecutionContext>) {
 
     let mut senders : HashMap<u16, HashMap<u8, UnboundedSender<Operation>>> = HashMap::new();
     let mut receivers : HashMap<u16, Vec<(u8, UnboundedReceiver<Operation>)>>  = HashMap::new();
@@ -62,6 +61,8 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
         if node_receivers.len() == 1 {
 
             let mut receiver = node_receivers.remove(0);
+            let cloned_ctx = ctx.clone();
+
             let handle = tokio::spawn(async move {
 
                 let mut senders = node_senders;
@@ -72,7 +73,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
                         return;
                     }
                     println!("Incoming record on node {} / port {}", node.id, receiver.0);
-                    let processed = node.processor.process((receiver.0, res.unwrap()));
+                    let processed = node.processor.process((receiver.0, res.unwrap()), cloned_ctx.as_ref());
                     for rec in processed {
                         let sender = senders.get_mut(&rec.0);
                         if (!sender.is_none()) {
@@ -100,6 +101,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
                 for mut t in &m_node_senders.clone() {
                     m_node_senders_clone.insert(t.0.clone(), t.1.clone());
                 }
+                let cloned_ctx = ctx.clone();
 
                 let handle = tokio::spawn(async move {
                     loop {
@@ -109,7 +111,7 @@ async fn run_dag(nodes: Vec<Node>, edges: Vec<Edge>) {
                             return;
                         }
                         println!("Incoming record on node {} / port {}", node_id, receiver.0);
-                        let processed = m_node_processor_clone.lock().await.process((receiver.0, res.unwrap()));
+                        let processed = m_node_processor_clone.lock().await.process((receiver.0, res.unwrap()), cloned_ctx.as_ref());
                         for rec in processed {
                             let sender = m_node_senders_clone.get_mut(&rec.0);
                             if (!sender.is_none()) {
@@ -162,6 +164,8 @@ async fn receiver(mut rx: UnboundedReceiver<Operation>) {
 #[tokio::main]
 async fn main() {
 
+    let ctx = Arc::new(MemoryExecutionContext::new());
+
     let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<Operation>();
     let (mut input2_tx, mut input2_rx) = mpsc::unbounded_channel::<Operation>();
     let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<Operation>();
@@ -183,7 +187,7 @@ async fn main() {
     ];
 
 
-    let r1 = tokio::spawn(run_dag(nodes, edges));
+    let r1 = tokio::spawn(run_dag(nodes, edges, ctx));
     let r3 = tokio::spawn(receiver(output_rx));
     let r2 = tokio::spawn(sender(input_tx));
   //  let r4 = tokio::spawn(sender(input2_tx));

@@ -65,9 +65,29 @@ impl Node {
 }
 
 pub trait Processor : Send {
-    fn process(&mut self, data: (u8, Operation)) -> Vec<(u8, Operation)>;
+    fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)>;
 }
 
+
+pub trait ExecutionContext : Send + Sync {
+    fn get_kv(&self, id: String);
+}
+
+pub struct MemoryExecutionContext {
+
+}
+
+impl MemoryExecutionContext {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl ExecutionContext for MemoryExecutionContext {
+    fn get_kv(&self, id: String) {
+        println!("getting kv");
+    }
+}
 
 
 pub struct Where {
@@ -81,8 +101,8 @@ impl Where {
 }
 
 impl Processor for Where {
-    fn process(&mut self, data: (u8, Operation)) -> Vec<(u8, Operation)> {
-        println!("processing");
+    fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)> {
+        ctx.get_kv("ddd".to_string());
         vec![(1, Operation::insert {table: 1, record: Record::new(0, vec![])})]
     }
 }

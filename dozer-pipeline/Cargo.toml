@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.21.0", features = ["full"] }
 futures = "0.3.24"
+async-trait = "0.1.57"
