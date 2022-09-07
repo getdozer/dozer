@@ -2,12 +2,20 @@ syntax = "proto3";
 package storage;
 
 service Storage {
+  rpc insert_operation(Operation) returns (ServerResponse);
   rpc insert_record(Record) returns (ServerResponse);
   rpc insert_schema(Schema) returns (ServerResponse);
 }
 
 message Record {
   // string id = 1;
+  uint32 schema_id = 2;
+  repeated bytes values = 3;
+}
+
+message Operation {
+  // string id = 1;
+  string operation_type = 1;
   uint32 schema_id = 2;
   repeated bytes values = 3;
 }
