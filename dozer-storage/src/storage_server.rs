@@ -1,6 +1,6 @@
 use dozer_shared::storage as storage_proto;
 use storage_proto::storage_server::{Storage, StorageServer};
-use storage_proto::{Record, Schema, ServerResponse};
+use storage_proto::{Record, Schema, Operation, ServerResponse};
 use tonic::{transport::Server, Request, Response, Status};
 
 #[derive(Debug, Default)]
@@ -17,6 +17,20 @@ impl Storage for MyStorage {
         let reply = storage_proto::ServerResponse {
             status: 1,
             message: "Inserted Record".to_string(),
+        };
+
+        Ok(Response::new(reply))
+    }
+
+    async fn insert_operation(
+        &self,
+        request: Request<Operation>,
+    ) -> Result<Response<ServerResponse>, Status> {
+        println!("Got a request: {:?}", request);
+
+        let reply = storage_proto::ServerResponse {
+            status: 1,
+            message: "Inserted Operation".to_string(),
         };
 
         Ok(Response::new(reply))
