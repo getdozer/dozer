@@ -9,10 +9,8 @@ use tokio_postgres::{Client, NoTls};
 use crate::connectors::connector;
 use crate::connectors::postgres::mapper::Mapper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use connector::Connector;
-use dozer_shared::ingestion::{
-    TableInfo, ColumnInfo
-};
 
 pub struct PostgresConfig {
     pub name: String,
@@ -233,13 +231,11 @@ impl PostgresConnector {
         let stream = LogicalReplicationStream::new(copy_stream);
         tokio::pin!(stream);
 
-        let mut mapper = Mapper::new();
+        let mut mapper = XlogMapper::new();
         loop {
             match stream.next().await {
                 Some(Ok(XLogData(body))) => {
-                    mapper
-                        .handle_xlog_message(body, &mut self.storage_client)
-                        .await;
+                    mapper.handle_message(body, &mut self.storage_client).await;
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
                     println!("keep alive: {}", k.reply());
