@@ -12,11 +12,14 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 use futures::stream::iter;
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 
 use crate::execution::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, ExecutionContext, run_dag};
 use crate::execution::mem_context::MemoryExecutionContext;
 use crate::execution::record::{Field, Record, Schema, Operation};
 use crate::execution::where_processor::{Where};
+use crate::execution::pipeline_builder::PipelineBuilder;
 
 
 async fn sender(tx: UnboundedSender<Operation>) {
@@ -58,6 +61,24 @@ async fn main() {
     log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
 
     let ctx = Arc::new(MemoryExecutionContext::new());
+
+
+
+    let sql = "SELECT Country, COUNT(CustomerID), SUM(Spending) \
+                        FROM Customers \
+                        WHERE Spending >= 1000 \
+                        GROUP BY Country \
+                        HAVING COUNT(CustomerID) > 1;";
+
+    let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+
+    let ast = Parser::parse_sql(&dialect, sql).unwrap();
+
+    println!("AST: {:?}", ast);
+
+    let statement = &ast[0];
+
+    let (nodes, edges) = PipelineBuilder::statement_to_pipeline(statement.clone()).unwrap();
 
     let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<Operation>();
     let (mut input2_tx, mut input2_rx) = mpsc::unbounded_channel::<Operation>();
