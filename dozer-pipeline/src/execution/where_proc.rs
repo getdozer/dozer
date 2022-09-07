@@ -18,6 +18,11 @@ impl Where {
 
 #[async_trait]
 impl Processor for Where {
+
+    async fn init(&mut self, ctx: &dyn ExecutionContext) {
+
+    }
+
     async fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)> {
 
         if data.0 != 0 {
@@ -49,13 +54,10 @@ impl Processor for Where {
             _ => { panic!("Received invalid operation in Where processor") }
         }
     }
+
+
 }
 
-macro_rules! aw {
-    ($e:expr) => {
-        tokio_test::block_on($e)
-    };
-  }
 
 mod tests {
     use futures::executor::block_on;

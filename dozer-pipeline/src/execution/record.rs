@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 #[derive(Clone)]
 pub enum Field {
+
     string_field(String),
     int_field(i64),
     float_field(f64),
