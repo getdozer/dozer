@@ -80,7 +80,7 @@ async fn insert_record(
         values,
     });
 
-    storage_client.insert_record(request).await.unwrap().into_inner();
+    storage_client.insert_record(request).await.unwrap().into_inner()
 }
 
 pub async fn insert_row_record(
