@@ -1,28 +1,29 @@
-use std::collections::HashMap;
+use crate::connectors::postgres::helper;
+use dozer_shared::storage::storage_client::StorageClient;
+use dozer_shared::storage::Operation;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
 };
-use postgres_protocol::message::backend::{Column, LogicalReplicationMessage, TupleData, XLogDataBody};
-use dozer_shared::storage::storage_client::StorageClient;
-use crate::connectors::postgres::helper;
-use dozer_shared::storage::Operation;
+use postgres_protocol::message::backend::{
+    Column, LogicalReplicationMessage, TupleData, XLogDataBody,
+};
+use std::collections::HashMap;
 
-
-pub struct Mapper {
-    messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>>
+pub struct XlogMapper {
+    messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>>,
 }
 
-impl Mapper {
+impl XlogMapper {
     pub fn new() -> Self {
-        Mapper {
-            messages_buffer: vec![]
+        XlogMapper {
+            messages_buffer: vec![],
         }
     }
 
-    pub async fn handle_xlog_message(
+    pub async fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
-        storage_client: &mut StorageClient<tonic::transport::channel::Channel>
+        storage_client: &mut StorageClient<tonic::transport::channel::Channel>,
     ) {
         match message.data() {
             Insert(insert) => {
@@ -86,10 +87,7 @@ impl Mapper {
         let mut relations_map = HashMap::<u32, &[Column]>::new();
         for message in self.messages_buffer.iter() {
             if let Relation(relation) = message.data() {
-                relations_map.insert(
-                    relation.rel_id(),
-                    relation.columns()
-                );
+                relations_map.insert(relation.rel_id(), relation.columns());
             }
         }
 
@@ -97,7 +95,7 @@ impl Mapper {
         for message in self.messages_buffer.iter() {
             match message.data() {
                 Insert(insert) => {
-                    let columns  = relations_map.get(&insert.rel_id()).unwrap();
+                    let columns = relations_map.get(&insert.rel_id()).unwrap();
                     let new_values = insert.tuple().tuple_data();
 
                     let values = Self::convert_values_to_vec(columns, new_values);
@@ -105,11 +103,11 @@ impl Mapper {
                     operations.push(Operation {
                         operation_type: "insert".to_string(),
                         schema_id: insert.rel_id(),
-                        values
+                        values,
                     });
-                },
+                }
                 Update(update) => {
-                    let columns  = relations_map.get(&update.rel_id()).unwrap();
+                    let columns = relations_map.get(&update.rel_id()).unwrap();
                     let new_values = update.new_tuple().tuple_data();
 
                     let values = Self::convert_values_to_vec(columns, new_values);
@@ -117,12 +115,12 @@ impl Mapper {
                     operations.push(Operation {
                         operation_type: "update".to_string(),
                         schema_id: update.rel_id(),
-                        values
+                        values,
                     });
-                },
+                }
                 Delete(delete) => {
                     // TODO: Use only columns with .flags() = 0
-                    let columns  = relations_map.get(&delete.rel_id()).unwrap();
+                    let columns = relations_map.get(&delete.rel_id()).unwrap();
                     let key_values = delete.key_tuple().unwrap().tuple_data();
 
                     let values = Self::convert_values_to_vec(columns, key_values);
@@ -130,7 +128,7 @@ impl Mapper {
                     operations.push(Operation {
                         operation_type: "delete".to_string(),
                         schema_id: delete.rel_id(),
-                        values
+                        values,
                     })
                 }
                 _ => {}
