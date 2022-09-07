@@ -1,4 +1,4 @@
-use crate::connectors::postgres::helper::insert_record;
+use crate::connectors::postgres::helper::insert_row_record;
 use dozer_shared::storage::storage_client::StorageClient;
 use futures::StreamExt;
 use tokio_postgres::SimpleQueryMessage::Row;
@@ -27,10 +27,11 @@ impl PostgresSnapshotter {
     async fn get_tables(&self, client: Client) -> Vec<String> {
         match self.tables.as_ref() {
             None => {
-                let query = "SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                ORDER BY table_name;";
+                let query = "SELECT ist.table_name, t.relid AS id
+                FROM information_schema.tables ist
+                LEFT JOIN pg_catalog.pg_statio_user_tables t ON t.relname = ist.table_name
+                WHERE ist.table_schema = 'public'
+                ORDER BY ist.table_name;";
 
                 let mut rows: Vec<String> = vec![];
                 let results = client.simple_query(query).await.unwrap();
@@ -65,9 +66,12 @@ impl PostgresSnapshotter {
             tokio::pin!(stream);
             loop {
                 match stream.next().await {
-                    Some(Ok(row)) => insert_record(&mut self.storage_client, &row, columns).await,
+                    Some(Ok(row)) => insert_row_record(&mut self.storage_client, &row, columns, 1).await,
+                    Some(Err(error)) => {
+                        panic!("{}", error)
+                    },
                     _ => {
-                        panic!("Shouldn't be here")
+                        break;
                     }
                 };
             }

@@ -13,6 +13,7 @@ use tokio_postgres::{Client, NoTls};
 use crate::connectors::connector;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use connector::Connector;
+use crate::connectors::postgres::mapper::Mapper;
 
 pub struct PostgresConfig {
     pub name: String,
@@ -46,7 +47,7 @@ impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
             tables: config.tables,
             client: None,
             lsn: None,
-            storage_client: storage_client,
+            storage_client,
         }
     }
 
@@ -170,7 +171,7 @@ impl PostgresConnector {
         snapshotter.run().await;
     }
 
-    async fn _start_replication(&self) {
+    async fn _start_replication(&mut self) {
         let slot = self.get_slot_name();
         let publication_name = self.get_publication_name();
         let lsn = self.lsn.as_ref().unwrap();
@@ -193,41 +194,11 @@ impl PostgresConnector {
         let stream = LogicalReplicationStream::new(copy_stream);
         tokio::pin!(stream);
 
+        let mut mapper = Mapper::new();
         loop {
             match stream.next().await {
                 Some(Ok(XLogData(body))) => {
-                    println!("received message");
-                    match body.data() {
-                        // Insert(insert) => {
-                        //     println!("insert:");
-                        //     println!("{:?}", insert.tuple().tuple_data());
-                        // }
-                        // Update(update) => {
-                        //     println!("update:");
-                        // }
-                        // Delete(delete) => {
-                        //     println!("delete:");
-                        // }
-                        // Begin(begin) => {
-                        //     println!("begin:");
-                        // }
-                        // Commit(commit) => {
-                        //     println!("commit:")
-                        // }
-                        //
-                        // Relation(relation) => {
-                        //     println!("relation:")
-                        // }
-                        // Origin(origin) => {
-                        //     println!("origin:")
-                        // }
-                        // Type(typ) => {
-                        //     println!("type:")
-                        // }
-                        _ => {
-                            panic!("Why is this happening")
-                        }
-                    }
+                    mapper.handle_xlog_message(body, &mut self.storage_client).await;
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
                     println!("keep alive: {}", k.reply());
