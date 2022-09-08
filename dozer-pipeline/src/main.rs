@@ -10,12 +10,13 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
-
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 
 use crate::execution::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, ExecutionContext, run_dag};
 use crate::execution::mem_context::MemoryExecutionContext;
 use crate::execution::record::{Field, Operation, Record, Schema};
-
+use crate::execution::pipeline_builder::PipelineBuilder;
 
 
 struct EmptyProcessor {
@@ -64,9 +65,6 @@ impl ExecutionContext for EmptyExecutionContext {
 
 }
 
-
-
-}
 
 fn sender(tx: Arc<Mutex<Sender<Operation>>>, table_id: u64, count: u64) -> u64 {
 
@@ -135,6 +133,24 @@ fn main() {
 
 }
 
+#[test]
+fn test_pipeline_builder() {
+let sql = "SELECT Country, COUNT(CustomerID), SUM(Spending) \
+                        FROM Customers \
+                        WHERE Spending >= 1000 \
+                        GROUP BY Country \
+                        HAVING COUNT(CustomerID) > 1;";
+
+let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+
+let ast = Parser::parse_sql(&dialect, sql).unwrap();
+
+println!("AST: {:?}", ast);
+
+let statement = &ast[0];
+
+let (nodes, edges) = PipelineBuilder::statement_to_pipeline(statement.clone()).unwrap();
+}
 
 #[test]
 fn test_pipeline() {
@@ -211,7 +227,7 @@ fn test2() {
 
 use blockingqueue::BlockingQueue;
 
-}
+
 
 #[test]
 fn test() {

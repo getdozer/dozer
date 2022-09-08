@@ -27,7 +27,7 @@ impl PipelineBuilder {
         }
     }
 
-    fn select_to_pipeline(select: sqlparser::ast::query::Select) -> Result<(Vec<Node>, Vec<Edge>)> {
+    fn select_to_pipeline(select: Select) -> Result<(Vec<Node>, Vec<Edge>)> {
         // Where clause
         let node = PipelineBuilder::selection_to_node(select.selection).unwrap();
 

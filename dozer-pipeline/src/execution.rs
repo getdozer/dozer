@@ -5,7 +5,5 @@ pub mod mem_context;
 pub mod where_proc;
 pub mod engine;
 mod expressions;
-pub mod where_proc;
-pub mod engine;
 pub mod pipeline_builder;
 pub mod error;
