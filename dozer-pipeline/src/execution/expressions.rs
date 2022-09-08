@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 mod values;
-mod operands;
+mod math_operators;
 mod comparators;
 
 trait Value {
