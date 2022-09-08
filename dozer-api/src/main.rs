@@ -7,12 +7,11 @@ pub mod models;
 pub mod lib;
 pub mod schema;
 pub mod db;
-
+pub mod services;
 // use actix_web::middleware::ErrorHandlers;
-use actix_web::{get, post, web::{self, Data}, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, web::{self, Data}, App, HttpResponse, HttpServer, Responder, dev::Service as _};
 use routes::{sources, connections};
 use db::pool::establish_connection;
-
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
