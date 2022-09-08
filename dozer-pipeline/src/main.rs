@@ -5,106 +5,17 @@ use std::borrow::Borrow;
 use std::cell::Ref;
 use std::collections::HashMap;
 use std::future::Future;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
+use std::thread::sleep;
 use std::time::Duration;
-use futures::executor::block_on;
-use futures::future::{join_all, select_all};
-use tokio::sync::{mpsc, Mutex, RwLock};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::task::JoinHandle;
-use futures::stream::iter;
-use tokio::time::sleep;
-use sqlparser::dialect::GenericDialect;
-use sqlparser::parser::Parser;
+
 
 use crate::execution::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, ExecutionContext, run_dag};
 use crate::execution::mem_context::MemoryExecutionContext;
-use crate::execution::pipeline_builder::PipelineBuilder;
 use crate::execution::record::{Field, Operation, Record, Schema};
 
-
-// async fn sender(tx: UnboundedSender<Operation>, count: u64) {
-//
-//     let mut ctr = 0;
-//     println!("Starting sender");
-//     loop {
-//         if (ctr > count) {
-//             let r = tx.send(Operation::terminate);
-//             return;
-//         }
-//         let r = tx.send(
-//             Operation::insert { table_id: ctr, new: Record::new(1, vec![]) }
-//         );
-//         ctr += 1;
-//     }
-//
-// }
-//
-// async fn receiver(mut rx: UnboundedReceiver<Operation>, count: u64) {
-//
-//     println!("Starting receiver");
-//     let mut ctr = 0;
-//     loop {
-//         let r = rx.recv().await;
-//         if (r.is_none()) {
-//             return;
-//         }
-//         match r.unwrap() {
-//             Operation::insert {table_id, new} => {
-//                 assert_eq!(table_id, ctr);
-//                 ctr += 1;
-//             }
-//             Operation::terminate => {
-//                 assert_eq!(ctr-1, count);
-//                 return;
-//             }
-//             _ => {
-//                 assert!(false)
-//             }
-//         }
-//     }
-//
-// }
-
-//#[tokio::main]
-//async fn main() {
-
-  //   log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
-  //
-  //   let ctx = Arc::new(MemoryExecutionContext::new());
-  //
-  //   let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<Operation>();
-  //   let (mut input2_tx, mut input2_rx) = mpsc::unbounded_channel::<Operation>();
-  //   let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<Operation>();
-  //
-  //   let nodes = vec![
-  //       Node::new(100, Box::new(Where::new())),
-  //       Node::new(200, Box::new(Where::new())),
-  //       Node::new(300, Box::new(Where::new())),
-  //       Node::new(400, Box::new(Where::new()))
-  //   ];
-  //
-  //   let edges = vec![
-  //       Edge::input(InputEdge::new(1, input_rx, 100, 1)),
-  //  //     Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
-  //       Edge::internal(InternalEdge::new(100, 1, 200, 1)),
-  //       Edge::internal(InternalEdge::new(200, 1, 300, 1)),
-  //       Edge::internal(InternalEdge::new(300, 1, 400, 1)),
-  //       Edge::output(OutputEdge::new(1, output_tx, 400,1))
-  //   ];
-  //
-  //
-  //   let r1 = tokio::spawn(run_dag(nodes, edges, ctx));
-  //   let r3 = tokio::spawn(receiver(output_rx));
-  //   let r2 = tokio::spawn(sender(input_tx));
-  // //  let r4 = tokio::spawn(sender(input2_tx));
-  //
-  // //  futures::future::join4(r1, r2, r3, r4).await;
-  //   futures::future::join3(r1, r2, r3).await;
-  //
-
-//}
 
 
 struct EmptyProcessor {
@@ -117,14 +28,13 @@ impl EmptyProcessor {
     }
 }
 
-#[async_trait]
 impl Processor for EmptyProcessor {
 
-    async fn init(&mut self, ctx: &dyn ExecutionContext) {
+    fn init(&mut self, ctx: &dyn ExecutionContext) {
 
     }
 
-    async fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)> {
+    fn process(&mut self, data: (u8, Operation), ctx: &dyn ExecutionContext) -> Vec<(u8, Operation)> {
 
         match data.1 {
             Operation::insert {table_id, new} => {
@@ -155,17 +65,19 @@ impl ExecutionContext for EmptyExecutionContext {
 }
 
 
-async fn sender(tx: UnboundedSender<Operation>, table_id: u64, count: u64) {
 
+}
+
+fn sender(tx: Arc<Mutex<Sender<Operation>>>, table_id: u64, count: u64) -> u64 {
+
+    let writer = tx.lock().unwrap();
     let mut ctr = 0;
     println!("Starting sender");
     loop {
-        if (ctr > count) {
-            sleep(Duration::from_secs(5)).await;
-            let r = tx.send(Operation::terminate);
-            return;
+        if (ctr >= count) {
+            return ctr;
         }
-        let r = tx.send(
+        let r = writer.send(
             Operation::insert { table_id: table_id, new: Record::new(ctr, vec![]) }
         );
         ctr += 1;
@@ -173,22 +85,16 @@ async fn sender(tx: UnboundedSender<Operation>, table_id: u64, count: u64) {
 
 }
 
-async fn receiver(mut rx: UnboundedReceiver<Operation>, tables: u64, count: u64) -> (bool, Option<String>) {
+fn receiver(mut rx: Receiver<Operation>, tables: u64, count: u64) -> (bool, Option<String>) {
 
     println!("Starting receiver");
 
     let mut idx: HashMap<u64, u64> = HashMap::new();
 
     loop {
-        let r = rx.recv().await;
-        if (r.is_none()) {
-            let mut tot : u64 = 0;
-            for e in idx.iter() {
-                tot += (*e.1 - 1);
-            }
-
-            let res = tot == count*tables;
-            if res {return (true, None); } else { return (false, Some("Missing records at the end".to_string())); }
+        let r = rx.recv();
+        if (!r.is_ok()) {
+            return (false, Some("Error reading".to_string()));
         }
         match r.unwrap() {
             Operation::insert {table_id, new} => {
@@ -207,18 +113,16 @@ async fn receiver(mut rx: UnboundedReceiver<Operation>, tables: u64, count: u64)
                     }
                 }
 
-                let curr_val = *idx.get(&table_id).unwrap();
-            }
-            Operation::terminate => {
 
-                // let mut tot : u64 = 0;
-                // for e in idx.iter() {
-                //     tot += (*e.1 - 1);
-                // }
-                //
-                // let res = tot == count*tables;
-                // if res {return (true, None); } else { return (false, Some("Missing records at the end".to_string())); }
+                let mut tot : u64 = 0;
+                for e in idx.iter() {
+                    tot += *e.1;
+                }
+                let res = tot == count*tables;
+                if res {return (true, None); }
+
             }
+
             _ => {
                 return (false, Some("Unknown message".to_string()));
             }
@@ -226,105 +130,135 @@ async fn receiver(mut rx: UnboundedReceiver<Operation>, tables: u64, count: u64)
     }
 }
 
+fn main() {
 
-#[tokio::main]
-async fn main() {
-
-       // log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
-        let ctx = Arc::new(EmptyExecutionContext::new());
-        //
-    
-
-    let sql = "SELECT Country, COUNT(CustomerID), SUM(Spending) \
-                        FROM Customers \
-                        WHERE Spending >= 1000 \
-                        GROUP BY Country \
-                        HAVING COUNT(CustomerID) > 1;";
-
-    let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
-
-    let ast = Parser::parse_sql(&dialect, sql).unwrap();
-
-    println!("AST: {:?}", ast);
-
-    let statement = &ast[0];
-
-    let (nodes, edges) = PipelineBuilder::statement_to_pipeline(statement.clone()).unwrap();
-
-    let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<Operation>();
-        let (mut input2_tx, mut input2_rx) = mpsc::unbounded_channel::<Operation>();
-        let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<Operation>();
-
-        let nodes = vec![
-            Node::new(100, Box::new(EmptyProcessor::new())),
-            Node::new(200, Box::new(EmptyProcessor::new())),
-            Node::new(300, Box::new(EmptyProcessor::new())),
-            Node::new(400, Box::new(EmptyProcessor::new()))
-        ];
-
-        let edges = vec![
-            Edge::input(InputEdge::new(1, input_rx, 100, 1)),
-            //     Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
-            Edge::internal(InternalEdge::new(100, 1, 200, 1)),
-            Edge::internal(InternalEdge::new(200, 1, 300, 1)),
-            Edge::internal(InternalEdge::new(300, 1, 400, 1)),
-            Edge::output(OutputEdge::new(1, output_tx, 400, 1))
-        ];
-
-
-        let r1 = tokio::spawn(run_dag(nodes, edges, ctx));
-        let r3 = tokio::spawn(receiver(output_rx, 1, 200000));
-        let r2 = tokio::spawn(sender(input_tx, 1, 200000));
-        //  let r4 = tokio::spawn(sender(input2_tx));
-
-        //  futures::future::join4(r1, r2, r3, r4).await;
-        let exec = futures::future::join3(r1, r2, r3).await;
 
 }
 
-#[tokio::test]
-async fn test_pipeline() {
 
-   // log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
+#[test]
+fn test_pipeline() {
+
+  //   log4rs::init_file("config/log4rs.yaml", Default::default()).unwrap();
     let ctx = Arc::new(EmptyExecutionContext::new());
     //
-    let (mut input_tx, mut input_rx) = mpsc::unbounded_channel::<Operation>();
-    let (mut input2_tx, mut input2_rx) = mpsc::unbounded_channel::<Operation>();
-    let (mut output_tx, mut output_rx) = mpsc::unbounded_channel::<Operation>();
+    let (mut input_tx, mut input_rx) = channel::<Operation>();
+    let (mut input2_tx, mut input2_rx) = channel::<Operation>();
+    let (mut output_tx, mut output_rx) = channel::<Operation>();
 
     let nodes = vec![
         Node::new(100, Box::new(EmptyProcessor::new())),
         Node::new(200, Box::new(EmptyProcessor::new())),
         Node::new(300, Box::new(EmptyProcessor::new())),
-        Node::new(400, Box::new(EmptyProcessor::new()))
+        Node::new(400, Box::new(EmptyProcessor::new())),
+        Node::new(500, Box::new(EmptyProcessor::new())),
+        Node::new(600, Box::new(EmptyProcessor::new())),
+        Node::new(700, Box::new(EmptyProcessor::new()))
     ];
 
     let edges = vec![
         Edge::input(InputEdge::new(1, input_rx, 100, 1)),
-        Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
+     //   Edge::input(InputEdge::new(2, input2_rx, 100, 2)),
         Edge::internal(InternalEdge::new(100, 1, 200, 1)),
         Edge::internal(InternalEdge::new(200, 1, 300, 1)),
         Edge::internal(InternalEdge::new(300, 1, 400, 1)),
-        Edge::output(OutputEdge::new(1, output_tx, 400, 1))
+        Edge::internal(InternalEdge::new(400, 1, 500, 1)),
+        Edge::internal(InternalEdge::new(500, 1, 600, 1)),
+        Edge::internal(InternalEdge::new(600, 1, 700, 1)),
+        Edge::output(OutputEdge::new(1, output_tx, 700, 1))
     ];
 
+    let input_tx_arc = Arc::new(Mutex::new(input_tx.clone()));
+    let input_tx2_arc = Arc::new(Mutex::new(input2_tx.clone()));
 
-    let dag_thread = tokio::spawn(run_dag(nodes, edges, ctx));
-    let receiver_thread = tokio::spawn(receiver(output_rx, 2,1000000));
-    let sender_thread_1 = tokio::spawn(sender(input_tx, 1, 1000000));
-    let sender_thread_2 = tokio::spawn(sender(input2_tx, 2, 1000000));
+    let sender_thread_1 = thread::spawn(move || {sender(input_tx_arc, 1, 10000000)});
+  //  let sender_thread_2 = thread::spawn(move || {sender(input_tx2_arc, 2, 5000000)});
 
-    let execResult = futures::future::join4(
-        dag_thread, receiver_thread,
-        sender_thread_1,
-        sender_thread_2
-    ).await;
+    let dag_thread = thread::spawn(|| {run_dag(nodes, edges, ctx);});
+    let receiver_thread = thread::spawn(|| {receiver(output_rx, 1, 10000000)});
 
-    assert!(execResult.1.unwrap().0);
+    let r = sender_thread_1.join().unwrap();
+  //  let r2 = sender_thread_2.join().unwrap();
+    let r3 = receiver_thread.join().unwrap();
+
+
+  //  input_tx.send(Operation::terminate);
+
+   // dag_thread.join().unwrap();
+
+}
+
+#[test]
+fn test2() {
+
+    let ec = EmptyExecutionContext::new();
+    let mut p = Box::new(EmptyProcessor::new());
+
+    for n in 1..10000000 {
+
+        for n1 in 0..10 {
+            let mut data = Operation::insert { table_id: 1, new: Record::new(1, vec![]) };
+            let r = p.process((1, data), &ec);
+        }
+    }
 
 
 
 
 }
+
+
+
+use blockingqueue::BlockingQueue;
+
+}
+
+#[test]
+fn test() {
+    let bq = BlockingQueue::new();
+
+    let bq_clone1 = bq.clone();
+    thread::spawn(move || {
+        let mut c = 1;
+        loop {
+            if c > 1000000 {
+                return
+            }
+            bq_clone1.push((1, Record::new(1, vec![Field::int_field(10)])));
+            c += 1;
+        }
+    });
+
+    let bq_clone2 = bq.clone();
+    thread::spawn(move || {
+        let mut c = 1;
+        loop {
+            if c > 1000000 {
+                return
+            }
+            bq_clone2.push((1, Record::new(1, vec![Field::int_field(10)])));
+            c += 1;
+        }
+    });
+
+    let bq_clone3 = bq.clone();
+    let reader = thread::spawn(move || {
+        let mut c = 0;
+        loop {
+            if c >= 2000000 {
+                return
+            }
+            let r  = bq_clone3.pop();
+            println!("{}", r.0);
+            c += 1;
+        }
+    });
+
+    reader.join().unwrap();
+
+    println!("I will wait forever here...");
+    // println!("{}", bq.pop());
+}
+
 
 
