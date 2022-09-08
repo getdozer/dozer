@@ -1,5 +1,5 @@
-use crate::execution::where_processor::{Operand, Operator};
-use crate::{Edge, Node, Where};
+use crate::execution::where_exp::{Operand, Operator};
+use crate::{Edge, EmptyProcessor, Node};
 use sqlparser::ast::{BinaryOperator, Expr, Query, Select, SetExpr, Statement};
 
 pub struct PipelineBuilder {
@@ -38,7 +38,7 @@ impl PipelineBuilder {
         match selection.unwrap() {
             Expr::BinaryOp { left, op, right } => {
                 let operator = PipelineBuilder::parse_sql_binary_op(*left, op, *right);
-                Ok(Node::new(100, Box::new(Where::new())))
+                Ok(Node::new(100, Box::new(EmptyProcessor::new())))
             }
             _ => Err("Unsupported query.".to_string()),
         }
@@ -96,11 +96,11 @@ impl PipelineBuilder {
     }
 
     fn parse_expression(expression: Expr) -> Node {
-        Node::new(100, Box::new(Where::new()))
+        Node::new(100, Box::new(EmptyProcessor::new()))
     }
 
     fn parse_and_binary_op(left: Expr, op: BinaryOperator, right: Expr) -> Node {
         //Operator::and(Operator::field_value(0),Operand::field_value(0))
-        Node::new(100, Box::new(Where::new()))
+        Node::new(100, Box::new(EmptyProcessor::new()))
     }
 }

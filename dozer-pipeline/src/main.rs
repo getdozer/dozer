@@ -20,6 +20,7 @@ use sqlparser::parser::Parser;
 
 use crate::execution::dag::{Edge, InputEdge, InternalEdge, Node, OutputEdge, Processor, ExecutionContext, run_dag};
 use crate::execution::mem_context::MemoryExecutionContext;
+use crate::execution::pipeline_builder::PipelineBuilder;
 use crate::execution::record::{Field, Operation, Record, Schema};
 
 
@@ -153,11 +154,6 @@ impl ExecutionContext for EmptyExecutionContext {
 
 }
 
-impl EmptyExecutionContext {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 async fn sender(tx: UnboundedSender<Operation>, table_id: u64, count: u64) {
 
