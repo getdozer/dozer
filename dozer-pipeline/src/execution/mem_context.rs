@@ -11,9 +11,7 @@ impl MemoryExecutionContext {
 }
 
 impl ExecutionContext for MemoryExecutionContext {
-    fn get_kv(&self, id: String) {
-        println!("getting kv");
-    }
+
 }
 
 
