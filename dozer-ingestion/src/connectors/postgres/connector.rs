@@ -7,11 +7,10 @@ use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
 use tokio_postgres::{Client, NoTls};
 use crate::connectors::connector;
-use crate::connectors::postgres::mapper::Mapper;
-use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use crate::connectors::postgres::{ snapshotter::PostgresSnapshotter};
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use connector::Connector;
-
+use dozer_shared::ingestion::{TableInfo, ColumnInfo};
 pub struct PostgresConfig {
     pub name: String,
     pub tables: Option<Vec<String>>,

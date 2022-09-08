@@ -2,7 +2,6 @@
 
 syntax = "proto3";
 package ingestion;
-import "google/protobuf/struct.proto";
 
 service Ingestion {
   rpc connect_db(Connection) returns (ConnectionResponse);
@@ -36,7 +35,17 @@ message ConnectionResponse {
 }
 
 message ConnectionDetails {
-  google.protobuf.ListValue tables = 1;
-  google.protobuf.ListValue views = 2; 
+  repeated TableInfo table_info = 1;
+}
+
+message TableInfo {
+  string table_name = 1;
+  repeated ColumnInfo columns = 2;
+}
+message ColumnInfo {
+  string column_name = 1;
+  string is_nullable = 2;
+  string udt_name = 3;
+  bool is_primary_key = 4;
 }
 
