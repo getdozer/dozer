@@ -1,5 +1,6 @@
 use num_traits::cast::*;
 use num_traits::Bounded;
+use crate::execution::expressions::math_operators::Mult;
 use crate::execution::expressions::values::{BoolValue, ValueTypes, Timestamp, Value};
 use crate::execution::expressions::values::ValueTypes::{Invalid, Boolean};
 
