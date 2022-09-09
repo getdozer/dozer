@@ -1,9 +1,9 @@
+use crate::errors::validation_error::ValidationError;
 use serde::de::DeserializeOwned;
-use serde_json::{Error, Value};
+use serde_json::Value;
 use std::{any::type_name, fs::File};
-use valico::json_schema;
-
-pub fn validation<T>(value: Value) -> T
+use valico::json_schema::{self, ValidationState};
+pub fn validation<T>(value: Value) -> Result<T, ValidationError<ValidationState>>
 where
     T: DeserializeOwned,
 {
@@ -18,11 +18,12 @@ where
         .compile_and_return(json_schema.clone(), false)
         .unwrap();
     let validation_state = schema.validate(&value);
-
-    println!("=== validation_state: {:?}", validation_state);
     if validation_state.errors.len() < 1 {
-        serde_json::from_value::<T>(value).unwrap()
+        Ok(serde_json::from_value::<T>(value).unwrap())
     } else {
-        panic!("{:?}", serde_json::to_string(&validation_state))
+        Err(ValidationError {
+            details: validation_state,
+            message: format!("Validate {}", name),
+        })
     }
 }
