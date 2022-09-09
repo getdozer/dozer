@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-mod values;
+pub(crate) mod values;
 mod math_operators;
-mod comparators;
+pub(crate) mod comparators;
 
 trait Value {
 

@@ -100,6 +100,27 @@ impl Value for Timestamp {
     }
 }
 
+// Field
+pub trait FieldValue {}
+
+pub struct Field {
+    name: String
+}
+
+impl FieldValue for Field {}
+
+impl Field {
+    pub fn new(name: String) -> Self {
+        Self { name }
+    }
+}
+
+impl Value for Field {
+    fn get_value(&self) -> ValueTypes {
+        return Int(0);
+    }
+}
+
 
 
 
