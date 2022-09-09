@@ -2,7 +2,7 @@ use crate::execution::where_exp::{Operand, Operator};
 use crate::{Edge, EmptyProcessor, Field, Node};
 use sqlparser::ast::{BinaryOperator, Expr, Query, Select, SetExpr, Statement, Value as SqlValue};
 use crate::execution::error::{Result, DozerError};
-use crate::execution::expressions::values::{Value, ValueTypes, IntValue, FieldValue};
+use crate::execution::expressions::values::{Value, ValueTypes, IntValue, FieldValue, Field as SqlField};
 use crate::execution::expressions::comparators::{Eq as EqOperator};
 
 pub struct PipelineBuilder {
@@ -49,16 +49,23 @@ impl PipelineBuilder {
 
     fn expression_to_operand(expression: Expr) -> Result<Box<dyn Value>> {
         match expression {
-            //Expr::Identifier(i) => Ok(Box::new(  FieldValue::new("Hello"))),
+            Expr::Identifier(i) => Ok(Box::new(  SqlField::new(i.to_string()))),
             Expr::Value(SqlValue::Number(n, _)) => Ok(PipelineBuilder::parse_sql_number(&n).unwrap()),
-            //Expr::SqlValue(SqlValue::Boolean(b)) => Ok(Operand::const_value(Field::bool_field(b))),
-            //Expr::SqlValue(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => Ok()
+            Expr::Value(SqlValue::Boolean(b)) => Err(DozerError::NotImplemented("Unsupported value.".to_string())),
+            Expr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => Ok(Box::new(s)),
             _ => Err(DozerError::NotImplemented("Unsupported expression.".to_string())),
         }
     }
 
     fn parse_sql_number(n: &str) -> Result<Box<dyn Value>> {
         match n.parse::<i64>() {
+            Ok(n) => Ok(Box::new(n)),
+            Err(_) => Err(DozerError::NotImplemented("Unsupported value.".to_string())),
+        }
+    }
+
+    fn parse_sql_boolean(n: &str) -> Result<Box<dyn Value>> {
+        match n.parse::<bool>() {
             Ok(n) => Ok(Box::new(n)),
             Err(_) => Err(DozerError::NotImplemented("Unsupported value.".to_string())),
         }
