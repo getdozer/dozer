@@ -60,14 +60,10 @@ impl PipelineBuilder {
     fn parse_sql_number(n: &str) -> Result<Box<dyn Value>> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Box::new(n)),
-            Err(_) => Err(DozerError::NotImplemented("Unsupported value.".to_string())),
-        }
-    }
-
-    fn parse_sql_boolean(n: &str) -> Result<Box<dyn Value>> {
-        match n.parse::<bool>() {
-            Ok(n) => Ok(Box::new(n)),
-            Err(_) => Err(DozerError::NotImplemented("Unsupported value.".to_string())),
+            Err(_) => match n.parse::<f64>() {
+                    Ok(f) => Ok(Box::new(f)),
+                    Err(_) => Err(DozerError::NotImplemented("Unsupported expression.".to_string())),
+                }
         }
     }
 
