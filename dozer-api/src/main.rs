@@ -10,7 +10,7 @@ pub mod db;
 pub mod services;
 pub mod errors;
 // use actix_web::middleware::ErrorHandlers;
-use actix_web::{get, post, web::{self, Data}, App, HttpResponse, HttpServer, Responder, dev::Service as _};
+use actix_web::{get, post, web::{self, Data}, App, HttpResponse, HttpServer, Responder};
 use routes::{sources, connections};
 use db::pool::establish_connection;
 #[get("/")]
