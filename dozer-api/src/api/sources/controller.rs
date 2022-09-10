@@ -1,6 +1,6 @@
+use crate::{models::SourceSetting, services::validation};
 use actix_web::{post, web, Error, HttpResponse};
-use serde_json::{Value};
-use crate::{services::validation, models::SourceSetting};
+use serde_json::Value;
 
 #[post("/sources")]
 async fn create_source(input: web::Json<Value>) -> Result<HttpResponse, Error> {

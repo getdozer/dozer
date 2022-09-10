@@ -1,19 +1,16 @@
 -- Your SQL goes here
 create table connections
 (
-    id   integer not null
-        constraint pk
-            primary key autoincrement,
+    id TEXT NOT NULL PRIMARY KEY,
     auth TEXT default '{}' not null,
-    type text
+    db_type text not null
 );
 
 create table sources
 (
-    id                    integer not null
-        primary key autoincrement,
+    id   TEXT NOT NULL PRIMARY KEY,
     table_name            text,
-    connection_id         integer
+    connection_id         TEXT
         constraint foreign_key_name
             references connections (id),
     connection_table_name text,

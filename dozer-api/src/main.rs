@@ -5,7 +5,6 @@ pub mod api;
 mod routes;
 pub mod models;
 pub mod lib;
-pub mod schema;
 pub mod db;
 pub mod services;
 pub mod errors;
