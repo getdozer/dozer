@@ -18,6 +18,7 @@ exec(
       fs.mkdirSync(dirJsonSchemaGenerated, { recursive: true });
     }
     Object.keys(jsonSchemas).forEach((key) => {
+      delete jsonSchemas[key]['x-examples']
       fs.writeFileSync(
         `../src/models/json-schema/${key}.json`,
         JSON.stringify(jsonSchemas[key])
@@ -33,6 +34,7 @@ exec(
         const allProperties = allOf.flatMap(e => e.properties).reduce((prev, curr) => {
           return {...prev, ...curr}
         }, {})
+
         Object.keys(allProperties).forEach(propsKey => {
           if(allProperties[propsKey].title) {
             allProperties[propsKey] = {
@@ -64,7 +66,7 @@ exec(
       console.log(`rust model generate: ${stdout}`);
       exec("rm -f ../Orchestration-raw.json", (error, stdout, stderr) => {
         if (error) {
-          console.error(`Remove Orchestration.json ERROR: ${error}`);
+          console.error(`Remove Orchestration-raw.json ERROR: ${error}`);
           return;
         }
       })

@@ -107,6 +107,7 @@ components:
               type: string
           required:
             - password
+      title: ConnectionAuthentication
     ErrorResponse:
       title: ErrorResponse
       x-stoplight:
@@ -151,18 +152,41 @@ components:
         - postgres
         - snowflake
         - databricks
-    Connection:
+    ConnectionResponse:
       title: Connection
+      allOf:
+        - $ref: '#/components/schemas/ConnectionBase'
+        - type: object
+          properties:
+            id:
+              type: string
+          required:
+            - id
+    ConnectionRequest:
+      title: ConnectionRequest
+      allOf:
+        - $ref: '#/components/schemas/ConnectionBase'
+      x-examples:
+        example-1:
+          details:
+            database: string
+            user: string
+            host: string
+            name: string
+          type: postgres
+    ConnectionBase:
+      title: ConnectionBase
       x-stoplight:
         id: zggzx1lnelwet
       type: object
       properties:
-        id:
-          type: number
-        auth:
-          $ref: '#/components/schemas/ConnectionDetails'
+        authentication:
+          $ref: '#/components/schemas/ConnectionAuthentication'
         type:
           $ref: '#/components/schemas/ConnectionType'
+      required:
+        - authentication
+        - type
     SourceSetting:
       title: SourceSetting
       x-stoplight:
@@ -378,10 +402,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: '#/components/schemas/Connection'
+            $ref: '#/components/schemas/ConnectionResponse'
   requestBodies:
     Source:
       content:
@@ -395,15 +416,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                type: object
-                properties:
-                  type:
-                    type: string
-                  authentication:
-                    $ref: '#/components/schemas/ConnectionAuthentication'
+            $ref: '#/components/schemas/ConnectionRequest'
         application/xml:
           schema:
             type: object
@@ -412,15 +425,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                type: object
-                properties:
-                  type:
-                    type: string
-                  auth:
-                    $ref: '#/components/schemas/ConnectionAuthentication'
+            $ref: '#/components/schemas/ConnectionRequest'
   parameters:
     limit:
       name: limit
