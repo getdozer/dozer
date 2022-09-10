@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ConnectionDetails {
@@ -14,3 +15,5 @@ pub struct ConnectionDetails {
     #[serde(rename = "user")]
     pub user: String,
 }
+
+    

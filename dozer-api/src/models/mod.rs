@@ -1,10 +1,14 @@
 
-pub mod connection;
-pub use self::connection::Connection;
 pub mod connection_authentication;
 pub use self::connection_authentication::ConnectionAuthentication;
+pub mod connection_base;
+pub use self::connection_base::ConnectionBase;
 pub mod connection_details;
 pub use self::connection_details::ConnectionDetails;
+pub mod connection_request;
+pub use self::connection_request::ConnectionRequest;
+pub mod connection_response;
+pub use self::connection_response::ConnectionResponse;
 pub mod connection_type;
 pub use self::connection_type::ConnectionType;
 pub mod error_response;

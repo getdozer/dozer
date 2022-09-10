@@ -16,6 +16,16 @@ impl std::fmt::Display for TransactionalRetainFullHistoryOptionsTransactionalSou
     }
 }
 
+impl std::str::FromStr for TransactionalRetainFullHistoryOptionsTransactionalSourceOptionType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "retain_full_history" => Ok(TransactionalRetainFullHistoryOptionsTransactionalSourceOptionType::RetainFullHistory),
+            _ => Err(format!("'{}' is not a valid value for TransactionalRetainFullHistoryOptionsTransactionalSourceOptionType", s)),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
