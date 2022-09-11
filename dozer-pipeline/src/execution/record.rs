@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 #[derive(Clone)]
 pub enum Field {
-
     string_field(String),
     int_field(i64),
     float_field(f64),
@@ -12,6 +11,7 @@ pub enum Field {
     empty
 }
 
+#[derive(Clone)]
 pub struct Schema {
     id: String,
     field_names: Vec<String>,
@@ -20,12 +20,13 @@ pub struct Schema {
     ctr: u16
 }
 
-
+#[derive(Clone)]
 pub struct Record {
     pub values: Vec<Field>,
     pub schema_id: u64
 }
 
+#[derive(Clone)]
 pub enum Operation {
     delete {table_id: u64, old: Record},
     insert {table_id: u64, new: Record},
