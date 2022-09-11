@@ -4,13 +4,21 @@ syntax = "proto3";
 package ingestion;
 
 service Ingestion {
-  rpc connect_db(Connection) returns (ConnectionResponse);
+  rpc connect_db(Connection) returns (ConnectDbResponse);
+  rpc test_connection(Connection) returns (ConnectionResponse);
 }
+
 enum ConnectionType {
   postgres = 0;
   snowflake = 1;
   databricks = 2;
 }
+
+message ConnectDbResponse {
+  bool isOk = 1;
+  string error = 2;
+}
+
 message Connection {
   ConnectionType connection_type = 1;
   ConnectionAuth detail = 2;
@@ -48,4 +56,3 @@ message ColumnInfo {
   string udt_name = 3;
   bool is_primary_key = 4;
 }
-

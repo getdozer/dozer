@@ -95,9 +95,13 @@ components:
           type: string
         name:
           type: string
+        port:
+          type: string
       required:
         - database
         - user
+        - host
+        - name
     ConnectionAuthentication:
       allOf:
         - $ref: '#/components/schemas/ConnectionDetails'
@@ -349,6 +353,49 @@ components:
           type: number
       required:
         - period
+    TestConnectionResponse:
+      title: TestConnectionResponse
+      x-stoplight:
+        id: cxwk5w11om32k
+      type: object
+      properties:
+        table_info:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableInfo'
+    TableInfo:
+      title: TableInfo
+      x-stoplight:
+        id: fxqjbrkm1kris
+      type: object
+      properties:
+        table_name:
+          type: string
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnInfo'
+      required:
+        - table_name
+    ColumnInfo:
+      title: ColumnInfo
+      x-stoplight:
+        id: p24sf4deu8rrf
+      type: object
+      properties:
+        column_name:
+          type: string
+        is_nullable:
+          type: boolean
+        udt_name:
+          type: string
+        is_primary_key:
+          type: boolean
+      required:
+        - column_name
+        - is_nullable
+        - udt_name
+        - is_primary_key
   securitySchemes: {}
   responses:
     ConnectionTest:
@@ -356,10 +403,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              success:
-                type: boolean
+            $ref: '#/components/schemas/TestConnectionResponse'
           examples:
             example-1:
               value:

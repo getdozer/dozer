@@ -7,7 +7,7 @@ use dozer_shared::ingestion::{
   ConnectionResponse,
   ConnectionDetails,
   ingestion_server::Ingestion,
-  ingestion_server::IngestionServer
+  ingestion_server::IngestionServer, ConnectDbResponse
 };
 #[derive(Debug, Default)]
 pub struct IngestionService {
@@ -16,7 +16,23 @@ pub struct IngestionService {
 
 #[tonic::async_trait]
 impl Ingestion for IngestionService {
-  async fn connect_db(&self, request: Request<Connection>) -> Result<Response<ConnectionResponse>, Status> {
+  async fn connect_db(&self, request: Request<Connection>) -> Result<Response<ConnectDbResponse>, Status> {
+    let connection_input:Connection = request.into_inner();
+    let connection_detail  = connection_input.detail.unwrap();
+    let port:u32 = connection_detail.port.to_string().trim().parse().unwrap();
+    let storage_client = &crate::storage_client::initialize().await;
+    let conn_str = format!("host={} port={} user={} dbname={} password={}",connection_detail.host,port, connection_detail.user, connection_detail.database,connection_detail.password);
+    let postgres_config = crate::connectors::postgres::connector::PostgresConfig {
+      name: connection_detail.name,
+      tables: None,
+      conn_str: conn_str.clone(),
+    };
+    let mut connector = crate::connectors::postgres::connector::PostgresConnector::new(postgres_config, storage_client.to_owned());
+    connector.initialize().await;
+    Ok(Response::new(ConnectDbResponse{is_ok:true, error: String::from("") }))
+  }
+
+  async fn test_connection(&self, request: Request<Connection>) -> Result<Response<ConnectionResponse>, Status> {
     let connection_input:Connection = request.into_inner();
     let connection_detail  = connection_input.detail.unwrap();
     let port:u32 = connection_detail.port.to_string().trim().parse().unwrap();
