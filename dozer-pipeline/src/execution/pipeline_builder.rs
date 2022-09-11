@@ -3,7 +3,6 @@ use crate::execution::expressions::comparators::Eq as EqOperator;
 use crate::execution::expressions::values::{
     Field as SqlField, FieldValue, IntValue, Value, ValueTypes,
 };
-use crate::execution::where_exp::{Operand, Operator};
 use crate::{Edge, EmptyProcessor, Field, Node};
 use sqlparser::ast::{BinaryOperator, Expr, Query, Select, SetExpr, Statement, Value as SqlValue};
 
