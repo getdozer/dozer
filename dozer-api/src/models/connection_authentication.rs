@@ -7,13 +7,14 @@ pub struct ConnectionAuthentication {
     #[serde(rename = "database")]
     pub database: String,
     #[serde(rename = "host")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host: Option<String>,
+    pub host: String,
     #[serde(rename = "name")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: String,
     #[serde(rename = "password")]
     pub password: String,
+    #[serde(rename = "port")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
     #[serde(rename = "user")]
     pub user: String,
 }

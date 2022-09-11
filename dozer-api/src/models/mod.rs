@@ -1,4 +1,6 @@
 
+pub mod column_info;
+pub use self::column_info::ColumnInfo;
 pub mod connection_authentication;
 pub use self::connection_authentication::ConnectionAuthentication;
 pub mod connection_base;
@@ -27,8 +29,12 @@ pub mod source_data_layout;
 pub use self::source_data_layout::SourceDataLayout;
 pub mod source_setting;
 pub use self::source_setting::SourceSetting;
+pub mod table_info;
+pub use self::table_info::TableInfo;
 pub mod test_connection;
 pub use self::test_connection::TestConnection;
+pub mod test_connection_response;
+pub use self::test_connection_response::TestConnectionResponse;
 pub mod transactional_option;
 pub use self::transactional_option::TransactionalOption;
 pub mod transactional_retain_full_history_options;
