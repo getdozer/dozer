@@ -16,6 +16,16 @@ impl std::fmt::Display for TransactionalRetainPartialHistoryOptionsTransactional
     }
 }
 
+impl std::str::FromStr for TransactionalRetainPartialHistoryOptionsTransactionalSourceOptionType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "retain_partial_history" => Ok(TransactionalRetainPartialHistoryOptionsTransactionalSourceOptionType::RetainPartialHistory),
+            _ => Err(format!("'{}' is not a valid value for TransactionalRetainPartialHistoryOptionsTransactionalSourceOptionType", s)),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

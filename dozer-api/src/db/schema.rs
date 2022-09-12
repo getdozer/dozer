@@ -2,18 +2,17 @@
 
 diesel::table! {
     connections (id) {
-        id -> Integer,
+        id -> Text,
         auth -> Text,
-        #[sql_name = "type"]
-        type_ -> Nullable<Text>,
+        db_type -> Text,
     }
 }
 
 diesel::table! {
     sources (id) {
-        id -> Integer,
+        id -> Text,
         table_name -> Nullable<Text>,
-        connection_id -> Nullable<Integer>,
+        connection_id -> Nullable<Text>,
         connection_table_name -> Nullable<Text>,
         data_layout -> Nullable<Text>,
         refresh_options -> Nullable<Text>,

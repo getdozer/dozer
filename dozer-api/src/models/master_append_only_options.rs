@@ -16,6 +16,16 @@ impl std::fmt::Display for MasterAppendOnlyOptionsMasterSourceOptionType {
     }
 }
 
+impl std::str::FromStr for MasterAppendOnlyOptionsMasterSourceOptionType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "append_only" => Ok(MasterAppendOnlyOptionsMasterSourceOptionType::AppendOnly),
+            _ => Err(format!("'{}' is not a valid value for MasterAppendOnlyOptionsMasterSourceOptionType", s)),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

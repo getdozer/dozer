@@ -16,6 +16,16 @@ impl std::fmt::Display for MasterOverwriteOptionsMasterSourceOptionType {
     }
 }
 
+impl std::str::FromStr for MasterOverwriteOptionsMasterSourceOptionType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "overwrite" => Ok(MasterOverwriteOptionsMasterSourceOptionType::Overwrite),
+            _ => Err(format!("'{}' is not a valid value for MasterOverwriteOptionsMasterSourceOptionType", s)),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

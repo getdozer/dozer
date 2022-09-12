@@ -22,4 +22,16 @@ impl std::fmt::Display for ConnectionType {
     }
 }
 
+impl std::str::FromStr for ConnectionType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "postgres" => Ok(ConnectionType::Postgres),
+            "snowflake" => Ok(ConnectionType::Snowflake),
+            "databricks" => Ok(ConnectionType::Databricks),
+            _ => Err(format!("'{}' is not a valid value for ConnectionType", s)),
+        }
+    }
+}
+
     
