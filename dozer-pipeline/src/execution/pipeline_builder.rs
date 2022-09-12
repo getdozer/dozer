@@ -1,7 +1,8 @@
 use crate::execution::error::{DozerError, Result};
-use crate::execution::expressions::comparators::Eq as EqOperator;
+use crate::execution::expressions::comparators::{Eq, Gt, Gte, Lt, Lte, Ne};
+use crate::execution::expressions::math_operators::{Diff, Div, Mod, Mult, Sum};
 use crate::execution::expressions::values::{
-    Field as SqlField, FieldValue, IntValue, Value, ValueTypes,
+    Field as SqlField, FieldValue, IntValue, NumericValue, Value, ValueTypes,
 };
 use crate::{Edge, EmptyProcessor, Field, Node};
 use sqlparser::ast::{BinaryOperator, Expr, Query, Select, SetExpr, Statement, Value as SqlValue};
@@ -45,7 +46,7 @@ impl PipelineBuilder {
     fn selection_to_node(selection: Option<Expr>) -> Result<Node> {
         match selection.unwrap() {
             Expr::BinaryOp { left, op, right } => {
-                let operator = PipelineBuilder::parse_sql_binary_op(*left, op, *right);
+                let operator = PipelineBuilder::parse_sql_binary_op(*left, op, *right)?;
                 Ok(Node::new(100, Box::new(EmptyProcessor::new())))
             }
             _ => Err(DozerError::NotImplemented("Unsupported query.".to_string())),
@@ -56,7 +57,7 @@ impl PipelineBuilder {
         match expression {
             Expr::Identifier(i) => Ok(Box::new(SqlField::new(i.to_string()))),
             Expr::Value(SqlValue::Number(n, _)) => {
-                Ok(PipelineBuilder::parse_sql_number(&n).unwrap())
+                Ok(PipelineBuilder::parse_sql_number(&n)?)
             }
             Expr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(s))
@@ -73,38 +74,33 @@ impl PipelineBuilder {
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok(Box::new(f)),
                 Err(_) => Err(DozerError::NotImplemented(
-                    "Unsupported expression.".to_string(),
+                    "Value is not numeric.".to_string(),
                 )),
             },
         }
     }
 
     fn parse_sql_binary_op(left: Expr, op: BinaryOperator, right: Expr) -> Result<Box<dyn Value>> {
+        let left_op = PipelineBuilder::expression_to_operand(left)?;
+        let right_op = PipelineBuilder::expression_to_operand(right)?;
         match op {
-            BinaryOperator::Gt => Err(DozerError::NotImplemented(
-                "Unsupported operator.".to_string(),
+            BinaryOperator::Gt => Ok(Box::new(Gt::new(left_op, right_op))),
+            BinaryOperator::GtEq => Ok(Box::new(Gte::new(left_op, right_op))),
+            BinaryOperator::Lt => Ok(Box::new(Lt::new(left_op, right_op))),
+            BinaryOperator::LtEq => Ok(Box::new(Lte::new(left_op, right_op))),
+            BinaryOperator::Eq => Ok(Box::new(Eq::new(left_op, right_op))),
+            BinaryOperator::NotEq => Ok(Box::new(Ne::new(left_op, right_op))),
+            BinaryOperator::Plus => Ok(Box::new(Sum::new(left_op, right_op))),
+            BinaryOperator::Minus => Ok(Box::new(Diff::new(left_op, right_op))),
+            BinaryOperator::Multiply => Ok(Box::new(Mult::new(left_op, right_op))),
+            BinaryOperator::Divide => Ok(Box::new(Div::new(left_op, right_op))),
+            BinaryOperator::Modulo => Ok(Box::new(Mod::new(left_op, right_op))),
+            BinaryOperator::And => Err(DozerError::NotImplemented(
+                "Unsupported operator AND".to_string(),
             )),
-            BinaryOperator::GtEq => Err(DozerError::NotImplemented(
-                "Unsupported operator.".to_string(),
+            BinaryOperator::Or => Err(DozerError::NotImplemented(
+                "Unsupported operator OR".to_string(),
             )),
-            BinaryOperator::Lt => Err(DozerError::NotImplemented(
-                "Unsupported operator.".to_string(),
-            )),
-            BinaryOperator::LtEq => Err(DozerError::NotImplemented(
-                "Unsupported operator.".to_string(),
-            )),
-            BinaryOperator::Eq => Ok(Box::new(EqOperator::new(
-                PipelineBuilder::expression_to_operand(left).unwrap(),
-                PipelineBuilder::expression_to_operand(right).unwrap(),
-            ))),
-            // BinaryOperator::NotEq => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::Plus => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::Minus => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::Multiply => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::Divide => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::Modulo => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::And => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::Or => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
             // BinaryOperator::PGRegexMatch => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
             // BinaryOperator::PGRegexIMatch => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
             // BinaryOperator::PGRegexNotMatch => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
@@ -114,7 +110,7 @@ impl PipelineBuilder {
             // BinaryOperator::PGBitwiseShiftRight => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
             // BinaryOperator::PGBitwiseShiftLeft => Err(DozerError::NotImplemented("Unsupported operator.".to_string())),
             BinaryOperator::StringConcat => Err(DozerError::NotImplemented(
-                "Unsupported operator.".to_string(),
+                "Unsupported operator CONCAT.".to_string(),
             )),
             _ => Err(DozerError::NotImplemented(
                 "Unsupported operator.".to_string(),

@@ -6,12 +6,12 @@ macro_rules! define_math_oper {
     ($id:ident, $fct:expr, $t: expr) => {
 
         pub struct $id {
-            left: Box <dyn NumericValue>,
-            right: Box<dyn NumericValue>
+            left: Box <dyn Value>,
+            right: Box<dyn Value>
         }
 
         impl $id {
-            pub fn new(left: Box<dyn NumericValue>, right: Box<dyn NumericValue>) -> Self {
+            pub fn new(left: Box<dyn Value>, right: Box<dyn Value>) -> Self {
                 Self { left, right }
             }
         }
@@ -68,7 +68,7 @@ define_math_oper!(Sum, |a,b| { a + b }, 0);
 define_math_oper!(Diff, |a,b| { a - b }, 0);
 define_math_oper!(Mult, |a,b| { a * b }, 0);
 define_math_oper!(Div, |a,b| { a / b }, 1);
-
+define_math_oper!(Mod, |a,b| { a % b }, 0);
 
 #[test]
 fn test_int_int_div() {
