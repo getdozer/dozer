@@ -1,13 +1,14 @@
-use crate::connectors::postgres::helper::insert_row_record;
-use dozer_shared::storage::storage_client::StorageClient;
+use crate::connectors::postgres::helper::insert_operation_row;
+use dozer_storage::storage::RocksStorage;
 use futures::StreamExt;
+use std::sync::Arc;
 use tokio_postgres::SimpleQueryMessage::Row;
 use tokio_postgres::{Client, NoTls, RowStream}; // 0.4.10
 
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<String>>,
     pub conn_str: String,
-    pub storage_client: StorageClient<tonic::transport::channel::Channel>,
+    pub storage_client: Arc<RocksStorage>,
 }
 
 impl PostgresSnapshotter {
@@ -64,16 +65,26 @@ impl PostgresSnapshotter {
             let stream: RowStream = client.query_raw(&stmt, empty_vec).await.unwrap();
 
             tokio::pin!(stream);
+            let mut i = 0;
             loop {
                 match stream.next().await {
-                    Some(Ok(row)) => insert_row_record(&mut self.storage_client, &row, columns, 1).await,
+                    Some(Ok(row)) => {
+                        insert_operation_row(
+                            Arc::clone(&self.storage_client),
+                            t.to_string(),
+                            &row,
+                            columns,
+                            i,
+                        );
+                    }
                     Some(Err(error)) => {
                         panic!("{}", error)
-                    },
+                    }
                     _ => {
                         break;
                     }
                 };
+                i = i + 1;
             }
         }
     }

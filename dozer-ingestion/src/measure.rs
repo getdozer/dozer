@@ -1,13 +1,9 @@
 use connectors::postgres::helper;
-use dozer_shared::storage::storage_client::StorageClient;
+use dozer_storage::storage::{RocksConfig, Storage};
 use postgres::{NoTls, Row, Statement};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-
-use tonic::transport::Channel;
-
 mod connectors;
-mod storage_client;
 
 struct Params {
     row: Option<Row>,
@@ -27,7 +23,6 @@ async fn _connect(conn_str: &str) -> tokio_postgres::Client {
 }
 
 async fn setup(gate: Arc<Mutex<Params>>, conn_str: &str) {
-    // connector.initialize().await;
     let client = _connect(conn_str).await;
     let query = format!("select * from actor limit 1");
     let opt_stmt = Some(client.prepare(&query).await.unwrap());
@@ -49,21 +44,26 @@ async fn main() {
         stmt: None,
     }));
     let conn_str = "host=127.0.0.1 port=5432 user=postgres dbname=pagila";
+
+    let storage_config = RocksConfig {
+        path: "./db/embedded".to_string(),
+    };
+    let storage_client = Arc::new(Storage::new(storage_config));
+
     setup(Arc::clone(&a), conn_str).await;
     let gate = Arc::clone(&a);
+
     let before = Instant::now();
     for i in 1..1000000000 {
         let gate = gate.lock().unwrap();
-        let sclient: &mut StorageClient<Channel> =
-            &mut futures::executor::block_on(storage_client::initialize());
 
-        let response = helper::insert_row_record(
-            sclient,
+        helper::insert_operation_row(
+            Arc::clone(&storage_client),
+            "actor".to_string(),
             gate.row.as_ref().unwrap(),
             gate.stmt.as_ref().unwrap().columns(),
             1,
-        )
-        .await;
+        );
         // println!("{}, {:?}", i, response);
 
         const BACKSPACE: char = 8u8 as char;

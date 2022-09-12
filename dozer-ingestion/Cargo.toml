@@ -15,6 +15,7 @@ postgres-protocol = { git = "https://github.com/materializeInc/rust-postgres" }
 postgres-types = { git = "https://github.com/materializeInc/rust-postgres" }
 tokio-postgres = { git = "https://github.com/materializeInc/rust-postgres" }
 dozer-shared = {version = "0.1.0", path = "../dozer-shared"}
+dozer-storage = { path = "../dozer-storage" }
 tonic = "0.8"
 prost = "0.11"
 
