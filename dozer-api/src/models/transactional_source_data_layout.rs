@@ -16,6 +16,16 @@ impl std::fmt::Display for TransactionalSourceDataLayoutSourceDataType {
     }
 }
 
+impl std::str::FromStr for TransactionalSourceDataLayoutSourceDataType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "transactional" => Ok(TransactionalSourceDataLayoutSourceDataType::Transactional),
+            _ => Err(format!("'{}' is not a valid value for TransactionalSourceDataLayoutSourceDataType", s)),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

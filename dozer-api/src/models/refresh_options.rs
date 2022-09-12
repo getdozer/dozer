@@ -22,6 +22,18 @@ impl std::fmt::Display for RefreshOptionsPeriod {
     }
 }
 
+impl std::str::FromStr for RefreshOptionsPeriod {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "every_hour" => Ok(RefreshOptionsPeriod::EveryHour),
+            "every_day" => Ok(RefreshOptionsPeriod::EveryDay),
+            "every_week" => Ok(RefreshOptionsPeriod::EveryWeek),
+            _ => Err(format!("'{}' is not a valid value for RefreshOptionsPeriod", s)),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

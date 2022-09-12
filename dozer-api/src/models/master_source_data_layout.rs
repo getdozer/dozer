@@ -16,6 +16,16 @@ impl std::fmt::Display for MasterSourceDataLayoutSourceDataType {
     }
 }
 
+impl std::str::FromStr for MasterSourceDataLayoutSourceDataType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "master" => Ok(MasterSourceDataLayoutSourceDataType::Master),
+            _ => Err(format!("'{}' is not a valid value for MasterSourceDataLayoutSourceDataType", s)),
+        }
+    }
+}
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

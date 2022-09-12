@@ -5,14 +5,14 @@ pub mod api;
 mod routes;
 pub mod models;
 pub mod lib;
-pub mod schema;
 pub mod db;
-
+pub mod services;
+pub mod errors;
+pub mod grpc_client;
 // use actix_web::middleware::ErrorHandlers;
 use actix_web::{get, post, web::{self, Data}, App, HttpResponse, HttpServer, Responder};
 use routes::{sources, connections};
 use db::pool::establish_connection;
-
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")

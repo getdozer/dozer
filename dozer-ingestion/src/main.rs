@@ -3,9 +3,11 @@ use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 
 mod connectors;
 mod storage_client;
-
+mod ingestion_server;
 #[tokio::main]
 async fn main() {
+    ingestion_server::get_server().await.unwrap();
+
     // Use a normal connection till snapshot is created
     let client = storage_client::initialize().await;
 
