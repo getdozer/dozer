@@ -5,7 +5,7 @@ use crate::execution::expressions::values::{
     Field as SqlField, FieldValue, IntValue, NumericValue, Value, ValueTypes,
 };
 use crate::{Edge, EmptyProcessor, Field, Node};
-use sqlparser::ast::{BinaryOperator, Expr, Query, Select, SetExpr, Statement, Value as SqlValue};
+use sqlparser::ast::{BinaryOperator, Expr, Query, Select, SelectItem, SetExpr, Statement, Value as SqlValue};
 
 pub struct PipelineBuilder {
     ast: sqlparser::ast::Statement,
@@ -37,31 +37,38 @@ impl PipelineBuilder {
 
     fn select_to_pipeline(select: Select) -> Result<(Vec<Node>, Vec<Edge>)> {
         // Where clause
-        let node = PipelineBuilder::selection_to_node(select.selection)?;
+        let selection_node = PipelineBuilder::selection_to_node(select.selection)?;
 
-        let nodes = vec![node];
+        // Select clause
+        let projection_node = PipelineBuilder::projection_to_node(select.projection)?;
+
+        let nodes = vec![selection_node, projection_node];
         Ok((nodes, vec![]))
     }
 
     fn selection_to_node(selection: Option<Expr>) -> Result<Node> {
-        match selection.unwrap() {
-            Expr::BinaryOp { left, op, right } => {
-                let operator = PipelineBuilder::parse_sql_binary_op(*left, op, *right)?;
+        match selection {
+            Some(expression) => {
+                let operator = PipelineBuilder::parse_sql_expression(expression)?;
                 Ok(Node::new(100, Box::new(EmptyProcessor::new())))
             }
             _ => Err(DozerError::NotImplemented("Unsupported query.".to_string())),
         }
     }
 
-    fn expression_to_operand(expression: Expr) -> Result<Box<dyn Value>> {
+    fn projection_to_node(projection: Vec<SelectItem>) -> Result<Node> {
+        // todo: implement
+        Ok(Node::new(200, Box::new(EmptyProcessor::new())))
+    }
+
+    fn parse_sql_expression(expression: Expr) -> Result<Box<dyn Value>> {
         match expression {
             Expr::Identifier(i) => Ok(Box::new(SqlField::new(i.to_string()))),
-            Expr::Value(SqlValue::Number(n, _)) => {
-                Ok(PipelineBuilder::parse_sql_number(&n)?)
-            }
-            Expr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
-                Ok(Box::new(s))
-            }
+            Expr::Value(SqlValue::Number(n, _)) =>
+                Ok(PipelineBuilder::parse_sql_number(&n)?),
+            Expr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => Ok(Box::new(s)),
+            Expr::BinaryOp { left, op, right } => Ok(PipelineBuilder::parse_sql_binary_op(*left, op, *right)?),
+
             _ => Err(DozerError::NotImplemented(
                 "Unsupported expression.".to_string(),
             )),
@@ -81,8 +88,8 @@ impl PipelineBuilder {
     }
 
     fn parse_sql_binary_op(left: Expr, op: BinaryOperator, right: Expr) -> Result<Box<dyn Value>> {
-        let left_op = PipelineBuilder::expression_to_operand(left)?;
-        let right_op = PipelineBuilder::expression_to_operand(right)?;
+        let left_op = PipelineBuilder::parse_sql_expression(left)?;
+        let right_op = PipelineBuilder::parse_sql_expression(right)?;
         match op {
             BinaryOperator::Gt => Ok(Box::new(Gt::new(left_op, right_op))),
             BinaryOperator::GtEq => Ok(Box::new(Gte::new(left_op, right_op))),
