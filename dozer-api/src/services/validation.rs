@@ -1,4 +1,4 @@
-use crate::errors::validation_error::ValidationError;
+use crate::lib::errors::validation_error::ValidationError;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::{any::type_name, fs::File};
