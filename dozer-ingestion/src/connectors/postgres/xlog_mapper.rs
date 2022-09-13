@@ -1,12 +1,10 @@
 use crate::connectors::postgres::helper;
+use crate::connectors::storage::RocksStorage;
 use dozer_shared::types::OperationEvent;
-use dozer_storage::storage::RocksStorage;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
 };
-use postgres_protocol::message::backend::{
-     LogicalReplicationMessage, XLogDataBody,
-};
+use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use std::sync::Arc;
 
 pub struct XlogMapper {

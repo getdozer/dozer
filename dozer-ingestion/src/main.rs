@@ -1,9 +1,8 @@
 use connectors::connector::Connector;
 use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 mod connectors;
+use crate::connectors::storage::{RocksConfig, Storage};
 use std::sync::Arc;
-// mod ingestion_server;
-use dozer_storage::storage::{RocksConfig, Storage};
 #[tokio::main]
 async fn main() {
     // ingestion_server::get_server().await.unwrap();

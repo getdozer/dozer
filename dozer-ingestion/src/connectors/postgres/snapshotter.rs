@@ -1,5 +1,5 @@
 use crate::connectors::postgres::helper::insert_operation_row;
-use dozer_storage::storage::RocksStorage;
+use crate::connectors::storage::RocksStorage;
 use futures::StreamExt;
 use std::sync::Arc;
 use tokio_postgres::SimpleQueryMessage::Row;

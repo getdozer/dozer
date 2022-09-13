@@ -1,6 +1,6 @@
+use crate::connectors::storage::RocksStorage;
 use async_trait::async_trait;
 use dozer_shared::types::TableInfo;
-use dozer_storage::storage::RocksStorage;
 use std::{io::Result, sync::Arc};
 #[async_trait]
 pub trait Connector<T, A> {

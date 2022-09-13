@@ -1,5 +1,5 @@
 use connectors::postgres::helper;
-use dozer_storage::storage::{RocksConfig, Storage};
+use connectors::storage::{RocksConfig, Storage};
 use postgres::{NoTls, Row, Statement};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

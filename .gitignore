@@ -3,3 +3,5 @@ docker/sample_db
 docker/pagila/
 .idea/
 db/embedded/
+db/test
+dozer-ingestion/db/test/

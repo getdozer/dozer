@@ -1,20 +1,25 @@
+use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use serde::Serialize;
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Field {
-    CharField(char),
-    StringField(String),
-    IntField(i64),
-    FloatField(f64),
-    BoolField(bool),
-    BinaryField(Vec<u8>),
-    TimestampField(u64),
-    Empty,
+    Int(i64),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Binary(Vec<u8>),
+    #[serde(with = "rust_decimal::serde::float")]
+    Decimal(Decimal),
+    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
+    Timestamp(DateTime<Utc>),
+    Bson(Vec<u8>),
+    Null,
+    Invalid(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Schema {
     pub id: String,
     pub field_names: Vec<String>,
@@ -23,18 +28,18 @@ pub struct Schema {
     _ctr: u16,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Record {
     pub values: Vec<Field>,
     pub schema_id: u64,
 }
-
+#[derive(Clone, Serialize, Deserialize)]
 pub struct OperationEvent {
     pub operation: Operation,
     pub id: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Operation {
     Delete {
         table_name: String,
@@ -51,12 +56,12 @@ pub enum Operation {
     },
     Terminate,
 }
-#[derive(Clone,Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TableInfo {
     pub table_name: String,
     pub columns: Vec<ColumnInfo>,
 }
-#[derive(Clone,Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ColumnInfo {
     pub column_name: String,
     pub is_nullable: bool,
