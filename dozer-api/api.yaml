@@ -1,86 +1,86 @@
 openapi: 3.0.1
 info:
   title: Orchestration
-  description: Orchestration api
-  version: '1.0'
+  description: Dozer Api
+  version: "1.0"
   contact:
     name: Dozer-Team
     email: api@getdozer.io
-    url: 'https://getdozer.io'
+    url: "https://getdozer.io"
 tags:
-  - name: orchestration
+  - name: Configuration
 servers:
-  - url: 'http://localhost:3000'
+  - url: "http://localhost:3000"
 paths:
-  '/sources/{id}':
+  "/sources/{id}":
     get:
-      summary: ''
+      summary: ""
       operationId: get-sources
       responses:
-        '200':
-          $ref: '#/components/responses/Sources'
+        "200":
+          $ref: "#/components/responses/Sources"
       parameters: []
-      description: ''
+      description: ""
       requestBody:
-        $ref: '#/components/requestBodies/Source'
+        $ref: "#/components/requestBodies/Source"
     parameters:
-      - $ref: '#/components/parameters/id'
+      - $ref: "#/components/parameters/id"
     post:
-      summary: ''
+      summary: ""
       operationId: post-sources-id
       responses:
-        '200':
-          $ref: '#/components/responses/Sources'
+        "200":
+          $ref: "#/components/responses/Sources"
       requestBody:
-        $ref: '#/components/requestBodies/Source'
+        $ref: "#/components/requestBodies/Source"
     delete:
-      summary: ''
+      summary: ""
       operationId: delete-sources-id
       responses:
-        '200':
-          $ref: '#/components/responses/Delete'
+        "200":
+          $ref: "#/components/responses/Delete"
   /sources:
     get:
-      summary: ''
+      summary: ""
       operationId: get-paginated-sources
       responses:
-        '200':
-          $ref: '#/components/responses/SourcesArray'
+        "200":
+          $ref: "#/components/responses/SourcesArray"
       parameters:
-        - $ref: '#/components/parameters/limit'
-        - $ref: '#/components/parameters/offset'
-      description: ''
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+      description: ""
       requestBody:
-        $ref: '#/components/requestBodies/Source'
+        $ref: "#/components/requestBodies/Source"
     parameters: []
     put:
-      summary: ''
+      summary: ""
       operationId: put-sources
       responses:
-        '200':
-          $ref: '#/components/responses/Sources'
+        "200":
+          $ref: "#/components/responses/Sources"
       requestBody:
-        $ref: '#/components/requestBodies/Source'
+        $ref: "#/components/requestBodies/Source"
   /connections/test:
     post:
-      summary: ''
+      summary: ""
       operationId: post-sources-test-connection
       responses:
-        '200':
-          $ref: '#/components/responses/ConnectionTest'
-      description: ''
+        "200":
+          $ref: "#/components/responses/ConnectionTest"
+      description: ""
       requestBody:
-        $ref: '#/components/requestBodies/ConnectionTest'
+        $ref: "#/components/requestBodies/ConnectionTest"
     parameters: []
   /connections:
     post:
-      summary: ''
+      summary: ""
       operationId: post-connections
       requestBody:
-        $ref: '#/components/requestBodies/Connection'
+        $ref: "#/components/requestBodies/Connection"
       responses:
-        '200':
-          $ref: '#/components/responses/Connection'
+        "200":
+          $ref: "#/components/responses/Connection"
 components:
   schemas:
     ConnectionDetails:
@@ -104,7 +104,7 @@ components:
         - name
     ConnectionAuthentication:
       allOf:
-        - $ref: '#/components/schemas/ConnectionDetails'
+        - $ref: "#/components/schemas/ConnectionDetails"
         - type: object
           properties:
             password:
@@ -146,7 +146,7 @@ components:
           items:
             type: string
         type:
-          $ref: '#/components/schemas/ConnectionType'
+          $ref: "#/components/schemas/ConnectionType"
     ConnectionType:
       type: string
       title: ConnectionType
@@ -159,7 +159,7 @@ components:
     ConnectionResponse:
       title: Connection
       allOf:
-        - $ref: '#/components/schemas/ConnectionBase'
+        - $ref: "#/components/schemas/ConnectionBase"
         - type: object
           properties:
             id:
@@ -169,7 +169,7 @@ components:
     ConnectionRequest:
       title: ConnectionRequest
       allOf:
-        - $ref: '#/components/schemas/ConnectionBase'
+        - $ref: "#/components/schemas/ConnectionBase"
       x-examples:
         example-1:
           details:
@@ -185,9 +185,9 @@ components:
       type: object
       properties:
         authentication:
-          $ref: '#/components/schemas/ConnectionAuthentication'
+          $ref: "#/components/schemas/ConnectionAuthentication"
         type:
-          $ref: '#/components/schemas/ConnectionType'
+          $ref: "#/components/schemas/ConnectionType"
       required:
         - authentication
         - type
@@ -206,9 +206,9 @@ components:
         connection_table_name:
           type: string
         data_layout:
-          $ref: '#/components/schemas/SourceDataLayout'
+          $ref: "#/components/schemas/SourceDataLayout"
         refresh_options:
-          $ref: '#/components/schemas/RefreshOptions'
+          $ref: "#/components/schemas/RefreshOptions"
       required:
         - name
         - table_name
@@ -235,8 +235,8 @@ components:
     SourceDataLayout:
       title: SourceDataLayout
       oneOf:
-        - $ref: '#/components/schemas/MasterSourceDataLayout'
-        - $ref: '#/components/schemas/TransactionalSourceDataLayout'
+        - $ref: "#/components/schemas/MasterSourceDataLayout"
+        - $ref: "#/components/schemas/TransactionalSourceDataLayout"
     MasterSourceDataLayout:
       type: object
       properties:
@@ -245,7 +245,7 @@ components:
           enum:
             - master
         options:
-          $ref: '#/components/schemas/MasterOptions'
+          $ref: "#/components/schemas/MasterOptions"
       required:
         - source_data_type
         - options
@@ -260,8 +260,8 @@ components:
     MasterOptions:
       title: MasterOptions
       oneOf:
-        - $ref: '#/components/schemas/MasterAppendOnlyOptions'
-        - $ref: '#/components/schemas/MasterOverwriteOptions'
+        - $ref: "#/components/schemas/MasterAppendOnlyOptions"
+        - $ref: "#/components/schemas/MasterOverwriteOptions"
     MasterAppendOnlyOptions:
       title: MasterAppendOnlyOptions
       x-stoplight:
@@ -303,15 +303,15 @@ components:
           enum:
             - transactional
         options:
-          $ref: '#/components/schemas/TransactionalOption'
+          $ref: "#/components/schemas/TransactionalOption"
       required:
         - source_data_type
         - options
     TransactionalOption:
       title: TransactionalOption
       oneOf:
-        - $ref: '#/components/schemas/TransactionalRetainPartialHistoryOptions'
-        - $ref: '#/components/schemas/TransactionalRetainFullHistoryOptions'
+        - $ref: "#/components/schemas/TransactionalRetainPartialHistoryOptions"
+        - $ref: "#/components/schemas/TransactionalRetainFullHistoryOptions"
     TransactionalRetainPartialHistoryOptions:
       type: object
       properties:
@@ -362,7 +362,7 @@ components:
         table_info:
           type: array
           items:
-            $ref: '#/components/schemas/TableInfo'
+            $ref: "#/components/schemas/TableInfo"
     TableInfo:
       title: TableInfo
       x-stoplight:
@@ -374,7 +374,7 @@ components:
         columns:
           type: array
           items:
-            $ref: '#/components/schemas/ColumnInfo'
+            $ref: "#/components/schemas/ColumnInfo"
       required:
         - table_name
     ColumnInfo:
@@ -403,7 +403,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/TestConnectionResponse'
+            $ref: "#/components/schemas/TestConnectionResponse"
           examples:
             example-1:
               value:
@@ -420,7 +420,7 @@ components:
             type: object
             properties:
               data:
-                $ref: '#/components/schemas/SourceSetting'
+                $ref: "#/components/schemas/SourceSetting"
     Delete:
       description: Example response
       content:
@@ -440,13 +440,13 @@ components:
               data:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SourceSetting'
+                  $ref: "#/components/schemas/SourceSetting"
     Connection:
       description: Example response
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ConnectionResponse'
+            $ref: "#/components/schemas/ConnectionResponse"
   requestBodies:
     Source:
       content:
@@ -455,12 +455,12 @@ components:
             type: object
             properties:
               data:
-                $ref: '#/components/schemas/SourceSetting'
+                $ref: "#/components/schemas/SourceSetting"
     ConnectionTest:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ConnectionRequest'
+            $ref: "#/components/schemas/ConnectionRequest"
         application/xml:
           schema:
             type: object
@@ -469,7 +469,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ConnectionRequest'
+            $ref: "#/components/schemas/ConnectionRequest"
   parameters:
     limit:
       name: limit
