@@ -17,8 +17,8 @@ pub struct Schema {
     pub id: String,
     pub field_names: Vec<String>,
     pub field_types: Vec<Field>,
-    idx: HashMap<String, u16>,
-    ctr: u16,
+    _idx: HashMap<String, u16>,
+    _ctr: u16,
 }
 
 #[derive(Clone)]
@@ -72,8 +72,8 @@ impl Schema {
             id: id,
             field_names: field_names,
             field_types: field_types,
-            idx: HashMap::new(),
-            ctr: 0,
+            _idx: HashMap::new(),
+            _ctr: 0,
         }
     }
 }

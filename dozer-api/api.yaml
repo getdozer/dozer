@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
-  title: Orchestration
-  description: Dozer Api
+  title: Dozer API
+  description: Dozer API
   version: "1.0"
   contact:
     name: Dozer-Team

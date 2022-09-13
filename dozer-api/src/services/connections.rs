@@ -23,7 +23,6 @@ pub async fn test_connection(request: models::connection::Connection) -> Result<
     let connection_input: models::connection::Connection = request.into_inner();
     let connection_detail = connection_input.detail.unwrap();
     let port: u32 = connection_detail.port.to_string().trim().parse().unwrap();
-    // let storage_client = &crate::storage_client::initialize().await;
     let conn_str = format!(
         "host={} port={} user={} dbname={} password={}",
         connection_detail.host,
