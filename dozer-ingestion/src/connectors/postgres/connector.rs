@@ -2,18 +2,20 @@ use crate::connectors::connector;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
-use crate::connectors::storage::RocksStorage;
 use async_trait::async_trait;
 use connector::Connector;
-use dozer_shared::types::TableInfo;
 use futures::StreamExt;
 use postgres::SimpleQueryMessage;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use std::io::{Error, ErrorKind};
 use std::sync::Arc;
+use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
 use tokio_postgres::{Client, NoTls};
+use dozer_shared::types::TableInfo;
+use crate::connectors::storage::RocksStorage;
+
 pub struct PostgresConfig {
     pub name: String,
     pub tables: Option<Vec<String>>,
@@ -214,12 +216,13 @@ impl PostgresConnector {
         tokio::pin!(stream);
 
         let mut mapper = XlogMapper::new();
+        let mut messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>> = vec![];
         loop {
             match stream.next().await {
                 Some(Ok(XLogData(body))) => {
                     let storage_client = self.storage_client.as_ref().unwrap();
                     mapper
-                        .handle_message(body, Arc::clone(&storage_client))
+                        .handle_message(body, Arc::clone(&storage_client), &mut messages_buffer)
                         .await;
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {

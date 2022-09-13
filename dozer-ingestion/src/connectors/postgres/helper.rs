@@ -6,18 +6,32 @@ use postgres::{Column, Row};
 use postgres_types::{Type, WasNull};
 use std::error::Error;
 use std::sync::Arc;
+use chrono::DateTime;
+use crate::connectors::postgres::xlog_mapper::TableColumn;
 
 pub fn postgres_type_to_bytes(
     value: &Bytes,
-    column: &postgres_protocol::message::backend::Column,
-) -> Vec<u8> {
-    let column_type = Type::from_oid(column.type_id() as u32).unwrap();
+    column: &TableColumn,
+) -> Field {
+    let column_type = Type::from_oid(column.type_id as u32).unwrap();
     match column_type {
         Type::INT4 => {
-            let number: i32 = String::from_utf8(value.to_vec()).unwrap().parse().unwrap();
-            number.to_be_bytes().to_vec()
+            Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap())
         }
-        Type::TEXT | _ => value.to_vec(),
+        Type::TEXT | _ => Field::Null
+    }
+}
+
+pub fn postgres_type_to_dozer_type(column: &TableColumn) -> Field {
+    let column_type = Type::from_oid(column.type_id as u32).unwrap();
+    match column_type {
+        Type::INT4 | Type::INT8 | Type::INT2 => Field::Int(0),
+        Type::TEXT => Field::String("".parse().unwrap()),
+        Type::FLOAT4 | Type::FLOAT8 => Field::Float(0.0),
+        Type::BOOL => Field::Boolean(false),
+        Type::BIT => Field::Binary(vec![]),
+        Type::TIMESTAMP | Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
+        _ => Field::Null
     }
 }
 
@@ -77,7 +91,7 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
 
             match value {
                 Ok(val) => Field::String(val.to_string()),
-                Err(error) => Field::Null,
+                Err(_error) => Field::Null,
             }
         }
 

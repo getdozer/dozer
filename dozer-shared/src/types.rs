@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Field {
     Int(i64),
     Float(f64),
@@ -19,13 +19,13 @@ pub enum Field {
     Invalid(String),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Schema {
     pub id: String,
     pub field_names: Vec<String>,
     pub field_types: Vec<Field>,
-    _idx: HashMap<String, u16>,
-    _ctr: u16,
+    pub _idx: HashMap<String, u16>,
+    pub _ctr: u16,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
