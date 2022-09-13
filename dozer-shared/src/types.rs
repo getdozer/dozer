@@ -49,6 +49,16 @@ pub enum Operation {
     },
     Terminate,
 }
+pub struct TableInfo {
+    pub table_name: String,
+    pub columns: Vec<ColumnInfo>,
+}
+pub struct ColumnInfo {
+    pub column_name: String,
+    pub is_nullable: bool,
+    pub udt_name: String,
+    pub is_primary_key: bool,
+}
 
 impl Record {
     pub fn new(schema_id: u64, values: Vec<Field>) -> Record {
