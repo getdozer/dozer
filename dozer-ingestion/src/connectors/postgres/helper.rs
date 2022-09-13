@@ -65,8 +65,9 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
             }
         }
         "numeric" => {
-            let val: u32 = row.get(idx);
-            Field::Float(val.into())
+            // let val: u32 = row.get(idx);
+            // Field::Float(val.into())
+            Field::Null
             // TODO: handle numeric
             // https://github.com/paupino/rust-decimal
         }
@@ -76,7 +77,7 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
 
             match value {
                 Ok(val) => Field::String(val.to_string()),
-                Err(error) => handle_error(error),
+                Err(error) => Field::Null,
             }
         }
 
@@ -85,8 +86,11 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
         // TODO: ignore custom types
         "mpaa_rating" | "_text" => Field::Null,
         "bytea" | "_bytea" => {
-            let val: Vec<u8> = row.get(idx);
-            Field::Binary(val)
+            let val: Result<Vec<u8>, postgres::Error> = row.try_get(idx);
+            match val {
+                Ok(val) => Field::Binary(val),
+                Err(error) => handle_error(error),
+            }
         }
 
         v => {
