@@ -20,7 +20,6 @@ async fn create_connection(pool: Data<DbPool>, input: Json<Value>) -> Result<Htt
     let conn = pool.get().expect("couldn't get db connection from pool");
     let result = validation::validation::<ConnectionRequest>(serde_json::to_value(input).unwrap());
     let inserted_result = connections::create_connection(&conn, result.unwrap().into()).unwrap();
-    println!("=== inserted_result {:?}", inserted_result);
     Ok(HttpResponse::Ok().json(inserted_result))
 }
 

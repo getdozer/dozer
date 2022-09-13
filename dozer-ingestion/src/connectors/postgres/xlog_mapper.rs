@@ -5,7 +5,7 @@ use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
 };
 use postgres_protocol::message::backend::{
-    Column, LogicalReplicationMessage, TupleData, XLogDataBody,
+     LogicalReplicationMessage, XLogDataBody,
 };
 use std::sync::Arc;
 
@@ -69,19 +69,19 @@ impl XlogMapper {
         self.messages_buffer.push(message);
     }
 
-    fn convert_values_to_vec(columns: &&[Column], new_values: &[TupleData]) -> Vec<Vec<u8>> {
-        let mut values: Vec<Vec<u8>> = vec![];
+    // fn convert_values_to_vec(columns: &&[Column], new_values: &[TupleData]) -> Vec<Vec<u8>> {
+    //     let mut values: Vec<Vec<u8>> = vec![];
 
-        for i in 0..new_values.len() {
-            let value = new_values.get(i).unwrap();
-            let column = columns.get(i).unwrap();
-            if let TupleData::Text(text) = value {
-                values.push(helper::postgres_type_to_bytes(text, column));
-            }
-        }
+    //     for i in 0..new_values.len() {
+    //         let value = new_values.get(i).unwrap();
+    //         let column = columns.get(i).unwrap();
+    //         if let TupleData::Text(text) = value {
+    //             values.push(helper::postgres_type_to_bytes(text, column));
+    //         }
+    //     }
 
-        values
-    }
+    //     values
+    // }
 
     fn map_operation_events(&mut self) -> Vec<OperationEvent> {
         // let mut relations_map = HashMap::<u32, &[Column]>::new();
