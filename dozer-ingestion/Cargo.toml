@@ -25,3 +25,7 @@ rocksdb = "*"
 [[bin]]
 name = "measure-ingest"
 path = "src/measure.rs"
+
+[[bin]]
+name = "measure-large-film"
+path = "src/large_film_test.rs"

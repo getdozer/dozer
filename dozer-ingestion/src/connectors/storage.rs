@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use dozer_shared::types::*;
-use rocksdb::{DBWithThreadMode, SingleThreaded, DB};
+use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
 pub trait Storage<T> {
     fn new(storage_config: T) -> Self;
 }
@@ -34,12 +34,25 @@ impl RocksStorage {
         db.put(key, encoded).unwrap();
     }
 
+    pub fn get_estimate_key_count(&self) -> u64 {
+        let db = Arc::clone(&self.db);
+        let count: u64 = db
+            .property_int_value("rocksdb.estimate-num-keys")
+            .unwrap()
+            .unwrap();
+        count
+    }
+
+    pub fn destroy(&self) {
+        let path = self._config.path.clone();
+        let _ = DB::destroy(&Options::default(), path);
+    }
+
     pub fn insert_schema(&self, schema: &Schema) {
         let db = Arc::clone(&self.db);
         let key = self.get_schema_key(schema).to_owned();
         let key: &[u8] = key.as_ref();
         let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
-
         db.put(key, encoded).unwrap();
     }
 
