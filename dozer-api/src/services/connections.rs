@@ -1,16 +1,20 @@
-use crate::db::{models, schema};
+use crate::db::{models as DBModels, schema};
 use crate::diesel::RunQueryDsl;
 use crate::lib::error::Error;
 use crate::lib::errors::db_error::DbError;
-use crate::models::{ConnectionRequest, ConnectionResponse};
+use crate::models::ConnectionRequest;
 use diesel::prelude::*;
 use diesel::{insert_into, SqliteConnection};
+use dozer_ingestion::connectors::connector::Connector;
 use dozer_ingestion::connectors::postgres;
+use dozer_ingestion::connectors::postgres::connector::PostgresConnector;
+use dozer_shared::types::TableInfo;
 use schema::connections::dsl::*;
 use serde_json;
 
-pub fn get_connections(db: &SqliteConnection) -> Vec<models::connection::Connection> {
-    let result = connections.load::<Connection>(db);
+pub fn get_connections(db: &SqliteConnection) -> Vec<DBModels::connection::Connection> {
+    let result: Result<Vec<DBModels::connection::Connection>, diesel::result::Error> =
+        connections.load(db);
     match result {
         Ok(fetched_connections) => fetched_connections,
         Err(error) => {
@@ -19,10 +23,9 @@ pub fn get_connections(db: &SqliteConnection) -> Vec<models::connection::Connect
     }
 }
 
-pub async fn test_connection(request: models::connection::Connection) -> Result<(), Error> {
-    let connection_input: models::connection::Connection = request.into_inner();
-    let connection_detail = connection_input.detail.unwrap();
-    let port: u32 = connection_detail.port.to_string().trim().parse().unwrap();
+pub async fn test_connection(connection_input: ConnectionRequest) -> Result<Vec<TableInfo>, Error> {
+    let connection_detail = connection_input.authentication;
+    let port: String = connection_detail.port.unwrap();
     let conn_str = format!(
         "host={} port={} user={} dbname={} password={}",
         connection_detail.host,
@@ -36,28 +39,23 @@ pub async fn test_connection(request: models::connection::Connection) -> Result<
         tables: None,
         conn_str: conn_str.clone(),
     };
-    let mut connector = postgres::connector::PostgresConnector::new(postgres_config);
-    let schema = connector.get_schema().await;
-    Ok("")
-    // let mut views = Vec::new();
-    // views.push(prost_types::Value {
-    //     kind: Some(prost_types::value::Kind::StringValue(String::from(
-    //         "views1",
-    //     ))),
-    // });
-    // Ok(Response::new(ConnectionResponse {
-    //     response: Some(
-    //         dozer_shared::ingestion::connection_response::Response::Success(ConnectionDetails {
-    //             table_info: schema,
-    //         }),
-    //     ),
-    // }))
+    match PostgresConnector::new(postgres_config) {
+        mut connector => {
+            let schema = connector.get_schema().await;
+            Ok(schema)
+        }
+        _ => Err(Error {
+            errmsg: todo!(),
+            errcode: todo!(),
+            status: todo!(),
+        }),
+    }
 }
 
 pub fn create_connection(
     db: &SqliteConnection,
     connection: ConnectionRequest,
-) -> Result<(), DbError<String>> {
+) -> Result<DBModels::connection::Connection, DbError<String>> {
     let new_id = uuid::Uuid::new_v4();
     let _inserted_rows = insert_into(connections)
         .values((
@@ -68,7 +66,7 @@ pub fn create_connection(
         .execute(db);
     let new_inserted = connections
         .filter(id.eq(new_id.to_string()))
-        .first::<dyn Connection>(db);
+        .first::<DBModels::connection::Connection>(db);
     match new_inserted {
         Ok(new_value) => Ok(new_value),
         Err(error) => Err(DbError {

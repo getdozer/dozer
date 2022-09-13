@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde::Serialize;
+
 #[derive(Clone)]
 pub enum Field {
     CharField(char),
@@ -49,10 +51,12 @@ pub enum Operation {
     },
     Terminate,
 }
+#[derive(Clone,Serialize)]
 pub struct TableInfo {
     pub table_name: String,
     pub columns: Vec<ColumnInfo>,
 }
+#[derive(Clone,Serialize)]
 pub struct ColumnInfo {
     pub column_name: String,
     pub is_nullable: bool,
