@@ -3,7 +3,7 @@ use crate::services::validation;
 use crate::{db::pool::DbPool, models::ConnectionRequest};
 use actix_web::{
     get, post,
-    web::{self, Data, Json},
+    web::{ Data, Json},
     Error, HttpResponse,
 };
 
@@ -11,7 +11,7 @@ use dozer_shared::types::TableInfo;
 use serde_json::Value;
 
 #[get("/connections")]
-async fn index(pool: web::Data<DbPool>) -> Json<String> {
+async fn index() -> Json<String> {
     return Json("Hello".to_string());
 }
 

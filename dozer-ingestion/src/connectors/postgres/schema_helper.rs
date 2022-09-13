@@ -1,5 +1,5 @@
 use dozer_shared::types::{ColumnInfo, TableInfo};
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::{ NoTls};
 
 pub struct SchemaHelper {
     pub conn_str: String,
@@ -21,7 +21,7 @@ impl SchemaHelper {
 
     pub async fn get_schema(&mut self) -> Vec<TableInfo> {
         let client = self._connect().await;
-        let query = "select genericInfo.table_name, genericInfo.column_name, genericInfo.is_nullable , genericInfo.udt_name, keyInfo.constraint_type is not null as is_primary_key
+        let query = "select genericInfo.table_name, genericInfo.column_name, case when genericInfo.is_nullable = 'NO' then false else true end as is_nullable , genericInfo.udt_name, keyInfo.constraint_type is not null as is_primary_key
         FROM
         (SELECT table_schema, table_catalog, table_name, column_name, is_nullable , data_type , numeric_precision , udt_name, character_maximum_length from  information_schema.columns 
          where table_name  in ( select  table_name from information_schema.tables where table_schema = 'public' ORDER BY table_name)
@@ -45,8 +45,8 @@ impl SchemaHelper {
             let column_name: String = row.get(1);
             let is_nullable: bool = row.get(2);
             let udt_name = row.get(3);
-            let primary_key: String = row.get(4);
-            let is_primary_key = true; //matches!(primary_key, "true" | "t" | "1") ;
+            let is_primary_key: bool = row.get(4);
+            
             let column_info = ColumnInfo {
                 column_name,
                 is_nullable,

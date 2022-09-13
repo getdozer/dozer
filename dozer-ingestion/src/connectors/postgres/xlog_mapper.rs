@@ -1,5 +1,5 @@
 use crate::connectors::postgres::helper;
-use dozer_shared::types::{Operation, OperationEvent};
+use dozer_shared::types::OperationEvent;
 use dozer_storage::storage::RocksStorage;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Origin, Relation, Type, Update,
@@ -7,7 +7,6 @@ use postgres_protocol::message::backend::LogicalReplicationMessage::{
 use postgres_protocol::message::backend::{
     Column, LogicalReplicationMessage, TupleData, XLogDataBody,
 };
-use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct XlogMapper {

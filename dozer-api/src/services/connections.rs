@@ -18,7 +18,7 @@ pub fn get_connections(db: &SqliteConnection) -> Vec<DBModels::connection::Conne
     match result {
         Ok(fetched_connections) => fetched_connections,
         Err(error) => {
-            panic!("{}", error)
+            panic!("Load db connections Err {}", error)
         }
     }
 }
@@ -39,17 +39,9 @@ pub async fn test_connection(connection_input: ConnectionRequest) -> Result<Vec<
         tables: None,
         conn_str: conn_str.clone(),
     };
-    match PostgresConnector::new(postgres_config) {
-        mut connector => {
-            let schema = connector.get_schema().await;
-            Ok(schema)
-        }
-        _ => Err(Error {
-            errmsg: todo!(),
-            errcode: todo!(),
-            status: todo!(),
-        }),
-    }
+    let postgres_connection = PostgresConnector::new(postgres_config);
+    let schemas = postgres_connection.get_schema().await;
+    Ok(schemas)
 }
 
 pub fn create_connection(
@@ -74,5 +66,4 @@ pub fn create_connection(
             message: "create_connection error".to_string(),
         }),
     }
-    // new_inserted
 }
