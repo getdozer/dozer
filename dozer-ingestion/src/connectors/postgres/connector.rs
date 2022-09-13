@@ -1,16 +1,21 @@
+use crate::connectors::connector;
+use crate::connectors::postgres::schema_helper::SchemaHelper;
+use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use async_trait::async_trait;
-use dozer_shared::storage::storage_client::StorageClient;
+use connector::Connector;
 use futures::StreamExt;
 use postgres::SimpleQueryMessage;
 use postgres_protocol::message::backend::ReplicationMessage::*;
+use std::io::{Error, ErrorKind};
+use std::sync::Arc;
+use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
 use tokio_postgres::{Client, NoTls};
-use crate::connectors::connector;
-use crate::connectors::postgres::{ snapshotter::PostgresSnapshotter};
-use crate::connectors::postgres::xlog_mapper::XlogMapper;
-use connector::Connector;
-use dozer_shared::ingestion::{TableInfo, ColumnInfo};
+use dozer_shared::types::TableInfo;
+use crate::connectors::storage::RocksStorage;
+
 pub struct PostgresConfig {
     pub name: String,
     pub tables: Option<Vec<String>>,
@@ -24,15 +29,12 @@ pub struct PostgresConnector {
     tables: Option<Vec<String>>,
     client: Option<Client>,
     lsn: Option<String>,
-    storage_client: StorageClient<tonic::transport::channel::Channel>,
+    storage_client: Option<Arc<RocksStorage>>,
 }
 
 #[async_trait]
 impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
-    fn new(
-        config: PostgresConfig,
-        storage_client: StorageClient<tonic::transport::channel::Channel>,
-    ) -> PostgresConnector {
+    fn new(config: PostgresConfig) -> PostgresConnector {
         let mut conn_str = config.conn_str.to_owned();
         conn_str.push_str(" replication=database");
 
@@ -43,11 +45,12 @@ impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
             tables: config.tables,
             client: None,
             lsn: None,
-            storage_client,
+            storage_client: None,
         }
     }
 
-    async fn initialize(&mut self) {
+    async fn initialize(&mut self, storage_client: Arc<RocksStorage>) {
+        self.storage_client = Some(storage_client);
         let client = self.connect().await;
         self.client = Some(client);
         self.create_publication().await;
@@ -67,47 +70,28 @@ impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
         client
     }
 
-    async fn get_schema(&self) -> Vec<TableInfo> {
-        let query = "select genericInfo.table_name, genericInfo.column_name, genericInfo.is_nullable , genericInfo.udt_name, keyInfo.constraint_type is not null as is_primary_key
-        FROM
-        (SELECT table_schema, table_catalog, table_name, column_name, is_nullable , data_type , numeric_precision , udt_name, character_maximum_length from  information_schema.columns 
-         where table_name  in ( select  table_name from information_schema.tables where table_schema = 'public' ORDER BY table_name)
-         order by table_name) genericInfo
-         
-         left join  
-         
-         (select constraintUsage.table_name , constraintUsage.column_name , tableconstraints.constraint_name, tableConstraints.constraint_type from INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE constraintUsage join INFORMATION_SCHEMA.TABLE_CONSTRAINTS tableConstraints on constraintUsage.table_name = tableConstraints.table_name  and  constraintUsage.constraint_name
-        =    tableConstraints.constraint_name and tableConstraints.constraint_type = 'PRIMARY KEY') keyInfo
-        
-       on genericInfo.table_name = keyInfo.table_name and genericInfo.column_name = keyInfo.column_name
-       order by genericInfo.table_schema, genericInfo.table_catalog, genericInfo.table_name, genericInfo.column_name";
-        let mut table_schema: Vec<TableInfo> = vec![];
-        let results = self._run_simple_query(query).await;
-        let mut current_table:String = String::from("");
-        for row in results {
-            if let Row(row) = row {
-                let table_name = row.get(0).unwrap().to_string();
-                let column_name = row.get(1).unwrap().to_string();
-                let is_nullable = row.get(2).unwrap().to_string();
-                let udt_name = row.get(3).unwrap().to_string();
-                let primary_key = row.get(4).unwrap().to_string().as_str();
-                let is_primary_key = true; //matches!(primary_key, "true" | "t" | "1") ;
-                let column_info = ColumnInfo { column_name, is_nullable, udt_name, is_primary_key };
-                if current_table != table_name {
-                    current_table = table_name.clone();
-                    let mut column_vec:Vec<ColumnInfo> = Vec::new();
-                    column_vec.push(column_info);
-                    table_schema.push(TableInfo {table_name: table_name.clone(), columns: column_vec })
-                } else {
-                   let mut current_table_info =  table_schema.pop().unwrap();
-                   current_table_info.columns.push(column_info);
-                   table_schema.push(current_table_info);
-                }
+    async fn test_connection(&self) -> Result<(), Error> {
+        let (_client, connection) = tokio_postgres::connect(&self.conn_str, NoTls)
+            .await
+            .unwrap();
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                Result::Err(Error::new(ErrorKind::ConnectionRefused, e.to_string()))
+            } else {
+                Result::Ok(())
             }
-        }
-        table_schema
+        })
+        .await
+        .unwrap()
     }
-    
+
+    async fn get_schema(&self) -> Vec<TableInfo> {
+        let mut helper = SchemaHelper {
+            conn_str: self.conn_str_plain.clone(),
+        };
+        helper.get_schema().await
+    }
+
     async fn start(&mut self) {
         self._create_slot_and_sync_snapshot().await;
         self._start_replication().await;
@@ -198,10 +182,11 @@ impl PostgresConnector {
     }
 
     async fn _sync_snapshot(&mut self) {
+        let storage_client = self.storage_client.as_ref().unwrap();
         let mut snapshotter = PostgresSnapshotter {
             tables: self.tables.to_owned(),
             conn_str: self.conn_str_plain.to_owned(),
-            storage_client: self.storage_client.to_owned(),
+            storage_client: Arc::clone(&storage_client),
         };
 
         snapshotter.run().await;
@@ -231,10 +216,14 @@ impl PostgresConnector {
         tokio::pin!(stream);
 
         let mut mapper = XlogMapper::new();
+        let mut messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>> = vec![];
         loop {
             match stream.next().await {
                 Some(Ok(XLogData(body))) => {
-                    mapper.handle_message(body, &mut self.storage_client).await;
+                    let storage_client = self.storage_client.as_ref().unwrap();
+                    mapper
+                        .handle_message(body, Arc::clone(&storage_client), &mut messages_buffer)
+                        .await;
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
                     println!("keep alive: {}", k.reply());

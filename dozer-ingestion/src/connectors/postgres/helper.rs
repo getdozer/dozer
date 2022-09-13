@@ -1,28 +1,44 @@
 use bytes::Bytes;
-use dozer_shared::storage::storage_client::StorageClient;
-use dozer_shared::storage::{Operation, Record, ServerResponse};
-use postgres::Column;
+
+use crate::connectors::storage::RocksStorage;
+use dozer_shared::types::*;
+use postgres::{Column, Row};
 use postgres_types::{Type, WasNull};
 use std::error::Error;
+use std::sync::Arc;
+use chrono::DateTime;
+use crate::connectors::postgres::xlog_mapper::TableColumn;
 
 pub fn postgres_type_to_bytes(
     value: &Bytes,
-    column: &postgres_protocol::message::backend::Column,
-) -> Vec<u8> {
-    let column_type = Type::from_oid(column.type_id() as u32).unwrap();
+    column: &TableColumn,
+) -> Field {
+    let column_type = Type::from_oid(column.type_id as u32).unwrap();
     match column_type {
         Type::INT4 => {
-            let number: i32 = String::from_utf8(value.to_vec()).unwrap().parse().unwrap();
-            number.to_be_bytes().to_vec()
+            Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap())
         }
-        Type::TEXT | _ => value.to_vec(),
+        Type::TEXT | _ => Field::Null
     }
 }
 
-fn handle_error(e: tokio_postgres::error::Error) -> Vec<u8> {
+pub fn postgres_type_to_dozer_type(column: &TableColumn) -> Field {
+    let column_type = Type::from_oid(column.type_id as u32).unwrap();
+    match column_type {
+        Type::INT4 | Type::INT8 | Type::INT2 => Field::Int(0),
+        Type::TEXT => Field::String("".parse().unwrap()),
+        Type::FLOAT4 | Type::FLOAT8 => Field::Float(0.0),
+        Type::BOOL => Field::Boolean(false),
+        Type::BIT => Field::Binary(vec![]),
+        Type::TIMESTAMP | Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
+        _ => Field::Null
+    }
+}
+
+fn handle_error(e: tokio_postgres::error::Error) -> Field {
     if let Some(e) = e.source() {
         if let Some(_e) = e.downcast_ref::<WasNull>() {
-            vec![]
+            Field::Null
         } else {
             panic!("Conversion error: {:?}", e);
         }
@@ -30,59 +46,66 @@ fn handle_error(e: tokio_postgres::error::Error) -> Vec<u8> {
         panic!("Conversion error: {:?}", e);
     }
 }
-pub fn to_vec_bytes(row: &tokio_postgres::Row, idx: usize, col_type: &Type) -> Vec<u8> {
+pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) -> Field {
     let t = col_type.to_owned();
     match t.name() {
         "bool" => {
             let val: bool = row.get(idx);
-            (val as i32).to_be_bytes().to_vec()
+            Field::Boolean(val)
         }
-        "char" | "int2" => {
-            let value: Result<i16, postgres::Error> = row.try_get(idx);
-
-            match value {
-                Ok(val) => val.to_be_bytes().to_vec(),
-                Err(error) => handle_error(error),
-            }
+        "char" => {
+            let val: i8 = row.get(idx);
+            // TODO: Fix Char
+            // Field::CharField(char::from_digit(val.try_into().unwrap(), 10).unwrap())
+            Field::Int(val.into())
+        }
+        "int2" => {
+            let val: i16 = row.get(idx);
+            Field::Int(val.into())
         }
         "int8" | "int4" => {
             let value: Result<i32, postgres::Error> = row.try_get(idx);
 
             match value {
-                Ok(val) => (val as i32).to_be_bytes().to_vec(),
+                Ok(val) => Field::Int(val.into()),
                 Err(error) => handle_error(error),
             }
         }
         "float4" | "float8" => {
-            let val: f32 = row.try_get(idx).unwrap();
-            val.to_be_bytes().to_vec()
+            let val: Result<f32, postgres::Error> = row.try_get(idx);
+            match val {
+                Ok(val) => Field::Float(val.into()),
+                Err(error) => handle_error(error),
+            }
         }
         "numeric" => {
-            // let val: Decimal = row.get(idx);
-            // val.to_be_bytes().to_vec()
+            // let val: u32 = row.get(idx);
+            // Field::Float(val.into())
+            Field::Null
             // TODO: handle numeric
             // https://github.com/paupino/rust-decimal
-            vec![]
         }
 
         "string" | "text" | "bpchar" => {
             let value: Result<&str, postgres::Error> = row.try_get(idx);
 
             match value {
-                Ok(val) => val.as_bytes().to_vec(),
-                Err(error) => handle_error(error),
+                Ok(val) => Field::String(val.to_string()),
+                Err(_error) => Field::Null,
             }
         }
 
-        "timestamp" | "timestamptz" | "date" | "tsvector" => {
-            // let val: chrono::DateTime<Local> = row.try_get(idx).unwrap();
-            // val.as_bytes().to_vec()
-            vec![]
-        }
+        "timestamp" | "timestamptz" | "date" | "tsvector" => Field::Null,
 
         // TODO: ignore custom types
-        "mpaa_rating" | "_text" => "0".as_bytes().to_vec(),
-        "bytea" | "_bytea" => "0".as_bytes().to_vec(),
+        "mpaa_rating" | "_text" => Field::Null,
+        "bytea" | "_bytea" => {
+            let val: Result<Vec<u8>, postgres::Error> = row.try_get(idx);
+            match val {
+                Ok(val) => Field::Binary(val),
+                Err(error) => handle_error(error),
+            }
+        }
 
         v => {
             println!("{}", v);
@@ -91,49 +114,44 @@ pub fn to_vec_bytes(row: &tokio_postgres::Row, idx: usize, col_type: &Type) -> V
     }
 }
 
-async fn insert_record(
-    storage_client: &mut StorageClient<tonic::transport::channel::Channel>,
-    schema_id: i32,
-    values: Vec<Vec<u8>>,
-) -> ServerResponse {
-    let request = tonic::Request::new(Record {
-        schema_id: schema_id.try_into().unwrap(),
-        values,
-    });
-
-    storage_client
-        .insert_record(request)
-        .await
-        .unwrap()
-        .into_inner()
-}
-
-pub async fn insert_row_record(
-    storage_client: &mut StorageClient<tonic::transport::channel::Channel>,
-    row: &tokio_postgres::Row,
-    columns: &[Column],
-    schema_id: i32,
-) -> ServerResponse {
-    let mut values = Vec::new();
-
-    let len = columns.len();
-    for x in 0..len {
-        let col_type = columns[x].type_();
-        // let val: bytes::Bytes = row.get(x);
-        let val: Vec<u8> = to_vec_bytes(row, x, col_type);
+pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
+    let mut values: Vec<Field> = vec![];
+    let mut idx = 0;
+    for col in columns.iter() {
+        let val: Field = value_to_field(row, idx, col.type_());
         values.push(val);
+        idx = idx + 1;
     }
+    values
+}
+pub fn insert_operation_row(
+    storage_client: Arc<RocksStorage>,
+    table_name: String,
+    row: &Row,
+    columns: &[Column],
+    idx: u32,
+) {
+    let rec = Record {
+        values: get_values(row, columns),
+        schema_id: 1,
+    };
 
-    insert_record(storage_client, schema_id, values).await
+    let op = Operation::Insert {
+        table_name,
+        new: rec,
+    };
+    let evt: OperationEvent = OperationEvent {
+        operation: op,
+        id: idx,
+    };
+    storage_client.insert_operation_event(&evt);
 }
 
-pub async fn insert_operations(
-    storage_client: &mut StorageClient<tonic::transport::channel::Channel>,
-    operations: Vec<Operation>,
+pub async fn insert_operation_events(
+    storage_client: Arc<RocksStorage>,
+    operations: Vec<OperationEvent>,
 ) {
-    for operation in operations.iter() {
-        let request = tonic::Request::new(operation.clone());
-
-        storage_client.insert_operation(request).await.unwrap();
+    for op in operations.iter() {
+        storage_client.insert_operation_event(op);
     }
 }
