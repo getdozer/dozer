@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
 
 use crate::models::{ConnectionAuthentication, ConnectionResponse, ConnectionType};

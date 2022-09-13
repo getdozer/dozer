@@ -1,17 +1,17 @@
-// swagger-cli bundle -o Orchestration.json Orchestration.yaml -r
+// swagger-cli bundle -o api.json api.yaml -r
 
 const { exec } = require("node:child_process");
 const fs = require("fs");
 
 exec(
-  "swagger-cli bundle -o ../Orchestration.json ../Orchestration.yaml -r && swagger-cli bundle -o ../Orchestration-raw.json ../Orchestration.yaml",
+  "swagger-cli bundle -o ../api.json ../api.yaml -r && swagger-cli bundle -o ../api-raw.json ../api.yaml",
   (error, stdout, stderr) => {
     if (error) {
       console.error(`exec error: ${error}`);
       return;
     }
     console.log(`stdout: ${stdout}`);
-    var jsonContent = require("../Orchestration.json");
+    var jsonContent = require("../api.json");
     const jsonSchemas = jsonContent["components"].schemas;
     const dirJsonSchemaGenerated = "../src/models/json-schema";
     if (!fs.existsSync(dirJsonSchemaGenerated)) {
@@ -25,18 +25,18 @@ exec(
       );
     });
 
-    const jsonRaw = require("../Orchestration-raw.json");
-    const jsonRawSchemas = {...jsonRaw["components"].schemas}
-    const jsonDerefSchemas = {...jsonContent["components"].schemas}
+    const jsonRaw = require("../api-raw.json");
+    const jsonRawSchemas = { ...jsonRaw["components"].schemas }
+    const jsonDerefSchemas = { ...jsonContent["components"].schemas }
     Object.keys(jsonDerefSchemas).forEach(key => {
-      if(jsonDerefSchemas[key].allOf) {
+      if (jsonDerefSchemas[key].allOf) {
         const allOf = jsonDerefSchemas[key].allOf
         const allProperties = allOf.flatMap(e => e.properties).reduce((prev, curr) => {
-          return {...prev, ...curr}
+          return { ...prev, ...curr }
         }, {})
 
         Object.keys(allProperties).forEach(propsKey => {
-          if(allProperties[propsKey].title) {
+          if (allProperties[propsKey].title) {
             allProperties[propsKey] = {
               "$ref": `#/components/schemas/${allProperties[propsKey].title}`
             }
@@ -53,31 +53,31 @@ exec(
     })
     jsonRaw["components"].schemas = jsonRawSchemas
     fs.writeFileSync(
-      `../Orchestration-raw.json`,
+      `../api-raw.json`,
       JSON.stringify(jsonRaw)
     );
 
-    
-    exec("./oapi_generator ../ Orchestration-raw.json ../src/models",(error, stdout, stderr) => {
+
+    exec("./oapi_generator ../ api-raw.json ../src/models", (error, stdout, stderr) => {
       if (error) {
         console.error(`rust model generate ERROR: ${error}`);
         return;
       }
       console.log(`rust model generate: ${stdout}`);
-      exec("rm -f ../Orchestration-raw.json", (error, stdout, stderr) => {
+      exec("rm -f ../api-raw.json", (error, stdout, stderr) => {
         if (error) {
-          console.error(`Remove Orchestration-raw.json ERROR: ${error}`);
+          console.error(`Remove api-raw.json ERROR: ${error}`);
           return;
         }
       })
     })
 
-    exec("rm -f ../Orchestration.json", (error, stdout, stderr) => {
+    exec("rm -f ../api.json", (error, stdout, stderr) => {
       if (error) {
-        console.error(`Remove Orchestration.json ERROR: ${error}`);
+        console.error(`Remove api.json ERROR: ${error}`);
         return;
       }
     })
-   
+
   }
 );

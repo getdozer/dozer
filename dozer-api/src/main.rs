@@ -1,17 +1,19 @@
 #[macro_use]
 extern crate diesel;
 
-pub mod api;
-mod routes;
-pub mod models;
-pub mod lib;
+mod controllers;
 pub mod db;
+pub mod lib;
+pub mod models;
+mod routes;
 pub mod services;
-pub mod errors;
-pub mod grpc_client;
+
 // use actix_web::middleware::ErrorHandlers;
-use actix_web::{get, post, web::{self, Data}, App, HttpResponse, HttpServer, Responder};
-use routes::{sources, connections};
+use actix_web::{
+    get, post,
+    web::{self, Data},
+    App, HttpResponse, HttpServer, Responder,
+};
 use db::pool::establish_connection;
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -37,18 +39,17 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-        // .wrap(
-        //     ErrorHandlers::new()
-        //         .handler(http::StatusCode::METHOD_NOT_ALLOWED, error::render_405)
-        //         .handler(http::StatusCode::NOT_FOUND, error::render_404)
-        //         .handler(http::StatusCode::INTERNAL_SERVER_ERROR, error::render_500)
-        //         .handler(http::StatusCode::BAD_REQUEST, error::render_400),
-        // )
+            // .wrap(
+            //     ErrorHandlers::new()
+            //         .handler(http::StatusCode::METHOD_NOT_ALLOWED, error::render_405)
+            //         .handler(http::StatusCode::NOT_FOUND, error::render_404)
+            //         .handler(http::StatusCode::INTERNAL_SERVER_ERROR, error::render_500)
+            //         .handler(http::StatusCode::BAD_REQUEST, error::render_400),
+            // )
             .app_data(Data::new(connection.clone()))
             .service(hello)
             .service(echo)
-            .configure(sources::route)
-            .configure(connections::route)
+            .configure(routes::routes)
             .route("/hey", web::get().to(manual_hello))
     })
     .bind(("0.0.0.0", 3001))?

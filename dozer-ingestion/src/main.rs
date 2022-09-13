@@ -18,9 +18,9 @@ async fn main() {
         tables: None,
         conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
     };
-    let mut connector = PostgresConnector::new(postgres_config, storage_client);
+    let mut connector = PostgresConnector::new(postgres_config);
 
-    connector.initialize().await;
+    connector.initialize(storage_client).await;
 
     // For testing purposes
     connector.drop_replication_slot().await;

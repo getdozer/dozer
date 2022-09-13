@@ -734,6 +734,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-api"
+version = "0.0.1"
+dependencies = [
+ "actix-http",
+ "actix-web",
+ "diesel",
+ "dotenvy",
+ "dozer-ingestion",
+ "dozer-shared",
+ "env_logger",
+ "futures",
+ "json",
+ "log",
+ "oas3",
+ "r2d2",
+ "r2d2-diesel",
+ "serde",
+ "serde_json",
+ "tonic",
+ "uuid 1.1.2",
+ "valico",
+]
+
+[[package]]
 name = "dozer-ingestion"
 version = "0.1.0"
 dependencies = [
@@ -752,29 +776,6 @@ dependencies = [
  "tokio 1.21.0",
  "tokio-postgres",
  "tonic",
-]
-
-[[package]]
-name = "dozer-orchestration"
-version = "0.0.1"
-dependencies = [
- "actix-http",
- "actix-web",
- "diesel",
- "dotenvy",
- "dozer-shared",
- "env_logger",
- "futures",
- "json",
- "log",
- "oas3",
- "r2d2",
- "r2d2-diesel",
- "serde",
- "serde_json",
- "tonic",
- "uuid 1.1.2",
- "valico",
 ]
 
 [[package]]

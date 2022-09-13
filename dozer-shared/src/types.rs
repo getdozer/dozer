@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde::Serialize;
+
 #[derive(Clone)]
 pub enum Field {
     CharField(char),
@@ -17,8 +19,8 @@ pub struct Schema {
     pub id: String,
     pub field_names: Vec<String>,
     pub field_types: Vec<Field>,
-    idx: HashMap<String, u16>,
-    ctr: u16,
+    _idx: HashMap<String, u16>,
+    _ctr: u16,
 }
 
 #[derive(Clone)]
@@ -49,6 +51,18 @@ pub enum Operation {
     },
     Terminate,
 }
+#[derive(Clone,Serialize)]
+pub struct TableInfo {
+    pub table_name: String,
+    pub columns: Vec<ColumnInfo>,
+}
+#[derive(Clone,Serialize)]
+pub struct ColumnInfo {
+    pub column_name: String,
+    pub is_nullable: bool,
+    pub udt_name: String,
+    pub is_primary_key: bool,
+}
 
 impl Record {
     pub fn new(schema_id: u64, values: Vec<Field>) -> Record {
@@ -62,8 +76,8 @@ impl Schema {
             id: id,
             field_names: field_names,
             field_types: field_types,
-            idx: HashMap::new(),
-            ctr: 0,
+            _idx: HashMap::new(),
+            _ctr: 0,
         }
     }
 }
