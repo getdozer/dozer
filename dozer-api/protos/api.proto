@@ -1,0 +1,94 @@
+syntax = "proto3";
+package dozer_api;
+import "google/protobuf/struct.proto";
+
+service DozerApi {
+  rpc test_connection(TestConnectionRequest) returns (TestConnectionResponse);
+  rpc create_connection(CreateConnectionRequest) returns (CreateConnectionResponse);
+  rpc get_schema(GetSchemaRequest) returns (GetSchemaResponse);
+}
+enum ConnectionType {
+  postgres = 0;
+  snowflake = 1;
+  databricks = 2;
+}
+
+message TestConnectionRequest {
+  ConnectionType type = 1;
+  oneof authentication {
+    PostgresAuthentication postgres = 2;
+  }
+}
+
+message TestConnectionResponse {
+  oneof response {
+    ErrorResponse error = 1;
+    bool success = 2;
+  }
+}
+
+message PostgresAuthentication {
+  string database = 1;
+  string user = 2;
+  string host = 3;
+  string port = 4;
+  string name = 5;
+  string password = 6;
+}
+
+message ErrorResponse {
+  string message = 1;
+  google.protobuf.Value details = 2;
+}
+
+message CreateConnectionRequest {
+  ConnectionType type = 1;
+  oneof authentication {
+    PostgresAuthentication postgres = 2;
+  }
+}
+
+message ConnectionDetails {
+  repeated TableInfo table_info = 1;
+}
+
+message TableInfo {
+  string table_name = 1;
+  repeated ColumnInfo columns = 2;
+}
+message ColumnInfo {
+  string column_name = 1;
+  string is_nullable = 2;
+  string udt_name = 3;
+  bool is_primary_key = 4;
+}
+
+message CreateConnectionResponse {
+  oneof response {
+    CreateConnectionResponseSuccess success = 1;
+    ErrorResponse error = 2;
+  }
+}
+
+message CreateConnectionResponseSuccess {
+  string id = 1;
+  ConnectionType type = 2;
+  oneof authentication {
+    PostgresAuthentication postgres = 3;
+  }
+}
+
+message GetSchemaRequest {
+  string connection_id = 1;
+}
+
+message GetSchemaResponse {
+  oneof response {
+    GetSchemaResponseSuccess success = 1;
+    ErrorResponse error = 2;
+  }
+}
+message GetSchemaResponseSuccess {
+  string connection_id = 1;
+  ConnectionDetails schema = 2;
+}
