@@ -1,14 +1,15 @@
+use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::storage::RocksStorage;
 use async_trait::async_trait;
-use dozer_shared::types::TableInfo;
-use std::{io::Result, sync::Arc};
+use dozer_shared::types::{OperationEvent, TableInfo};
+use std::sync::Arc;
+
 #[async_trait]
-pub trait Connector<T, A> {
+pub trait Connector<T, A, E> {
     fn new(connector_config: T) -> Self;
-    async fn initialize(&mut self, storage_client: Arc<RocksStorage>);
-    async fn connect(&mut self) -> A;
-    async fn get_schema(&self) -> Vec<TableInfo>;
-    async fn start(&mut self);
-    async fn stop(&self);
-    async fn test_connection(&self) -> Result<()>;
+    fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> Result<(), E>;
+    fn get_schema(&self) -> Vec<TableInfo>;
+    fn start(&mut self) -> PostgresIterator;
+    fn stop(&self);
+    fn test_connection(&self) -> Result<(), E>;
 }

@@ -1,9 +1,8 @@
-use connectors::postgres::helper;
-use connectors::storage::{RocksConfig, Storage};
+use dozer_ingestion::connectors::postgres::helper;
+use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 use postgres::{NoTls, Row, Statement};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-mod connectors;
 
 struct Params {
     row: Option<Row>,

@@ -1,7 +1,6 @@
-use connectors::connector::Connector;
-use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
-mod connectors;
-use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
+use dozer_ingestion::connectors::connector::Connector;
+use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+use dozer_ingestion::connectors::storage::{RocksConfig, RocksStorage, Storage};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -20,8 +19,7 @@ fn print_no_of_keys(before: Arc<Instant>, storage_client: Arc<RocksStorage>) {
     }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     // ingestion_server::get_server().await.unwrap();
 
     let storage_config = RocksConfig {
@@ -45,7 +43,7 @@ async fn main() {
         print_no_of_keys(before1, client1);
     });
 
-    connector.initialize(Arc::clone(&storage_client)).await;
+    connector.initialize(Arc::clone(&storage_client)).unwrap();
 
     let val: String = storage_client.get_estimate_key_count().to_string();
     print!(
@@ -56,7 +54,10 @@ async fn main() {
     thread::sleep(Duration::from_millis(50));
 
     // For testing purposes
-    connector.drop_replication_slot().await;
-
-    connector.start().await;
+    connector.drop_replication_slot();
+    for msg in connector.start().next() {
+        println!("main function: {:?}", msg);
+        let id: i32 = msg.try_get(0).unwrap();
+        println!("{:?}", id);
+    }
 }

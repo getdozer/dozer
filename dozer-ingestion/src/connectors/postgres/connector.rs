@@ -1,4 +1,5 @@
 use crate::connectors::connector;
+use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
@@ -6,19 +7,10 @@ use crate::connectors::storage::RocksStorage;
 use async_trait::async_trait;
 use connector::Connector;
 use dozer_shared::types::TableInfo;
-use futures::StreamExt;
-use postgres::SimpleQueryMessage;
-use postgres_protocol::message::backend::ReplicationMessage::*;
-use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
-use std::io::{Error, ErrorKind};
+use postgres::Client;
 use std::sync::Arc;
-use std::time::{SystemTime};
-use chrono::{TimeZone, Utc};
-use postgres_types::PgLsn;
-use tokio_postgres::replication::LogicalReplicationStream;
-use tokio_postgres::SimpleQueryMessage::Row;
-use tokio_postgres::{Client, NoTls};
 
+use super::helper;
 
 pub struct PostgresConfig {
     pub name: String,
@@ -31,13 +23,10 @@ pub struct PostgresConnector {
     conn_str: String,
     conn_str_plain: String,
     tables: Option<Vec<String>>,
-    client: Option<Client>,
-    lsn: Option<String>,
     storage_client: Option<Arc<RocksStorage>>,
 }
 
-#[async_trait]
-impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
+impl Connector<PostgresConfig, postgres::Client, postgres::Error> for PostgresConnector {
     fn new(config: PostgresConfig) -> PostgresConnector {
         let mut conn_str = config.conn_str.to_owned();
         conn_str.push_str(" replication=database");
@@ -47,54 +36,42 @@ impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
             conn_str_plain: config.conn_str,
             conn_str,
             tables: config.tables,
-            client: None,
-            lsn: None,
             storage_client: None,
         }
     }
 
-    async fn initialize(&mut self, storage_client: Arc<RocksStorage>) {
+    fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> Result<(), postgres::Error> {
         self.storage_client = Some(storage_client);
-        let client = self.connect().await;
-        self.client = Some(client);
-        self.create_publication().await;
+        let client = helper::connect(self.conn_str.clone())?;
+        self.create_publication(client).unwrap();
+        Ok(())
     }
 
-    async fn connect(&mut self) -> tokio_postgres::Client {
-        let (client, connection) = tokio_postgres::connect(&self.conn_str, NoTls)
-            .await
-            .unwrap();
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-                panic!("Connection failed!");
-            }
-        });
-        client
+    fn test_connection(&self) -> Result<(), postgres::Error> {
+        helper::connect(self.conn_str.clone())?;
+        Ok(())
     }
 
-    async fn test_connection(&self) -> Result<(), Error> {
-        let result = tokio_postgres::connect(&self.conn_str, NoTls).await;
-        match result {
-            Ok(_) => Result::Ok(()),
-            Err(e) => Result::Err(Error::new(ErrorKind::ConnectionRefused, e.to_string())),
-        }
-    }
-
-    async fn get_schema(&self) -> Vec<TableInfo> {
+    fn get_schema(&self) -> Vec<TableInfo> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
-        helper.get_schema().await
+        helper.get_schema()
     }
 
-    async fn start(&mut self) {
-        self._create_slot_and_sync_snapshot().await;
-        self._start_replication().await;
+    fn start(&mut self) -> PostgresIterator {
+        let stream = PostgresIterator::new(
+            self.get_publication_name(),
+            self.get_slot_name(),
+            self.tables.to_owned(),
+            self.conn_str.clone(),
+            self.conn_str_plain.clone(),
+            Arc::clone(&self.storage_client.as_ref().unwrap()),
+        );
+        stream
     }
 
-    async fn stop(&self) {}
+    fn stop(&self) {}
 }
 
 impl PostgresConnector {
@@ -106,148 +83,26 @@ impl PostgresConnector {
         format!("dozer_slot_{}", self.name)
     }
 
-    async fn _run_simple_query(&self, query: &str) -> Vec<SimpleQueryMessage> {
-        self.client
-            .as_ref()
-            .unwrap()
-            .simple_query(query)
-            .await
-            .unwrap()
-    }
-
-    async fn create_publication(&self) {
+    fn create_publication(&self, mut client: Client) -> Result<(), postgres::Error> {
         let publication_name = self.get_publication_name();
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
             Some(arr) => format!("TABLE {}", arr.join(" ")).to_string(),
         };
 
-        self._run_simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())
-            .await;
+        client.simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())?;
 
-        self._run_simple_query(
+        client.simple_query(
             format!("CREATE PUBLICATION {} FOR {}", publication_name, table_str).as_str(),
-        )
-        .await;
+        )?;
+        Ok(())
     }
 
-    async fn _create_slot_and_sync_snapshot(&mut self) {
-        // Begin Transaction
-        self._run_simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
-            .await;
-
-        // Create a replication slot
-        println!("Creating Slot....");
-        let lsn = self._create_replication_slot().await;
-        self.lsn = lsn;
-
-        println!("Syncing data....");
-        self._sync_snapshot().await;
-
-        // Commit the transaction
-        self._run_simple_query("COMMIT;").await;
-    }
-
-    pub async fn drop_replication_slot(&self) {
+    pub fn drop_replication_slot(&self) {
         let slot = self.get_slot_name();
-        match self
-            ._run_simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref())
-            .await
-        {
-            _ => (),
-        }
-    }
-
-    async fn _create_replication_slot(&self) -> Option<String> {
-        let slot = self.get_slot_name();
-
-        let create_replication_slot_query = format!(
-            r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
-            slot
-        );
-
-        let slot_query_row = self._run_simple_query(&create_replication_slot_query).await;
-
-        let lsn = if let Row(row) = &slot_query_row[0] {
-            row.get("consistent_point").unwrap()
-        } else {
-            panic!("unexpected query message");
-        };
-
-        println!("lsn: {:?}", lsn);
-        Some(lsn.to_string())
-    }
-
-    async fn _sync_snapshot(&mut self) {
-        let storage_client = self.storage_client.as_ref().unwrap();
-        let mut snapshotter = PostgresSnapshotter {
-            tables: self.tables.to_owned(),
-            conn_str: self.conn_str_plain.to_owned(),
-            storage_client: Arc::clone(&storage_client),
-        };
-
-        snapshotter.run().await;
-    }
-
-    async fn _start_replication(&mut self) {
-        let slot = self.get_slot_name();
-        let publication_name = self.get_publication_name();
-        let lsn = self.lsn.as_ref().unwrap();
-        let options = format!(
-            r#"("proto_version" '1', "publication_names" '{publication_name}')"#,
-            publication_name = publication_name
-        );
-        let query = format!(
-            r#"START_REPLICATION SLOT {:?} LOGICAL {} {}"#,
-            slot, lsn, options
-        );
-        let copy_stream = self
-            .client
-            .as_ref()
-            .unwrap()
-            .copy_both_simple::<bytes::Bytes>(&query)
-            .await
+        let mut client = helper::connect(self.conn_str.clone()).unwrap();
+        client
+            .simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref())
             .unwrap();
-
-        let stream = LogicalReplicationStream::new(copy_stream);
-        tokio::pin!(stream);
-
-        let mut mapper = XlogMapper::new();
-        let mut messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>> = vec![];
-        loop {
-            match stream.next().await {
-                Some(Ok(XLogData(body))) => {
-                    let storage_client = self.storage_client.as_ref().unwrap();
-                    mapper
-                        .handle_message(body, Arc::clone(&storage_client), &mut messages_buffer)
-                        .await;
-                }
-                Some(Ok(PrimaryKeepAlive(ref k))) => {
-                    println!("keep alive: {}", k.reply());
-                    if k.reply() == 1 {
-                        // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
-                        let since_the_epoch = SystemTime::now()
-                            .duration_since(SystemTime::from(Utc.ymd(2020, 1, 1).and_hms(0, 0, 0)))
-                            .unwrap()
-                            .as_millis();
-
-                        stream.as_mut().standby_status_update(
-                            PgLsn::from(k.wal_end() + 1),
-                            PgLsn::from(k.wal_end() + 1),
-                            PgLsn::from(k.wal_end() + 1),
-                            since_the_epoch as i64,
-                            1
-                        ).await.unwrap();
-                    }
-                }
-
-                Some(Ok(msg)) => {
-                    println!("{:?}", msg);
-                    println!("why i am here ?");
-                }
-                Some(Err(_)) => panic!("unexpected replication stream error"),
-                None => panic!("unexpected replication stream end"),
-            }
-        }
     }
 }

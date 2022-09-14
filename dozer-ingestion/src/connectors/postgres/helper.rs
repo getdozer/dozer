@@ -1,24 +1,19 @@
 use bytes::Bytes;
 
+use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::connectors::storage::RocksStorage;
+use chrono::DateTime;
 use dozer_shared::types::*;
-use postgres::{Column, Row};
+use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
 use std::error::Error;
 use std::sync::Arc;
-use chrono::DateTime;
-use crate::connectors::postgres::xlog_mapper::TableColumn;
 
-pub fn postgres_type_to_bytes(
-    value: &Bytes,
-    column: &TableColumn,
-) -> Field {
+pub fn postgres_type_to_bytes(value: &Bytes, column: &TableColumn) -> Field {
     let column_type = Type::from_oid(column.type_id as u32).unwrap();
     match column_type {
-        Type::INT4 => {
-            Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap())
-        }
-        Type::TEXT | _ => Field::Null
+        Type::INT4 => Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap()),
+        Type::TEXT | _ => Field::Null,
     }
 }
 
@@ -31,11 +26,11 @@ pub fn postgres_type_to_dozer_type(column: &TableColumn) -> Field {
         Type::BOOL => Field::Boolean(false),
         Type::BIT => Field::Binary(vec![]),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
-        _ => Field::Null
+        _ => Field::Null,
     }
 }
 
-fn handle_error(e: tokio_postgres::error::Error) -> Field {
+fn handle_error(e: postgres::error::Error) -> Field {
     if let Some(e) = e.source() {
         if let Some(_e) = e.downcast_ref::<WasNull>() {
             Field::Null
@@ -154,4 +149,23 @@ pub async fn insert_operation_events(
     for op in operations.iter() {
         storage_client.insert_operation_event(op);
     }
+}
+
+pub fn connect(conn_str: String) -> Result<Client, postgres::Error> {
+    let client = Client::connect(&conn_str.clone(), NoTls)?;
+    Ok(client)
+}
+
+pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, postgres::Error> {
+    let (client, connection) = tokio_postgres::connect(&conn_str.clone(), NoTls)
+        .await
+        .unwrap();
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+            panic!("Connection failed!");
+        }
+    });
+    Ok(client)
 }

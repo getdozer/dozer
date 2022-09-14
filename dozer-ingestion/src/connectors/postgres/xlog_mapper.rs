@@ -1,24 +1,24 @@
 use crate::connectors::postgres::helper;
-use dozer_shared::types::{Field, Operation, OperationEvent, Record, Schema};
 use crate::connectors::storage::RocksStorage;
+use dozer_shared::types::{Field, Operation, OperationEvent, Record, Schema};
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
-use postgres_protocol::message::backend::{LogicalReplicationMessage, RelationBody, TupleData, XLogDataBody};
-use std::collections::HashMap;
+use postgres_protocol::message::backend::{
+    LogicalReplicationMessage, RelationBody, TupleData, XLogDataBody,
+};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 struct MessageBody<'a> {
-    message: &'a RelationBody
+    message: &'a RelationBody,
 }
 
 impl<'a> MessageBody<'a> {
     pub fn new(message: &'a RelationBody) -> Self {
-        Self {
-            message
-        }
+        Self { message }
     }
 }
 
@@ -26,18 +26,21 @@ pub struct Table {
     name: String,
     columns: Vec<TableColumn>,
     hash: u64,
-    rel_id: u32
+    rel_id: u32,
 }
 
 pub struct TableColumn {
     pub name: String,
     pub type_id: i32,
-    pub flags: i8
+    pub flags: i8,
 }
 
 impl Hash for MessageBody<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let columns_vec: Vec<(i32, &str, i8)> = self.message.columns().into_iter()
+        let columns_vec: Vec<(i32, &str, i8)> = self
+            .message
+            .columns()
+            .into_iter()
             .map(|column| (column.type_id(), column.name().unwrap(), column.flags()))
             .collect();
 
@@ -46,17 +49,17 @@ impl Hash for MessageBody<'_> {
 }
 
 pub struct XlogMapper {
-    relations_map: HashMap::<u32, Table>
+    relations_map: HashMap<u32, Table>,
 }
 
 impl XlogMapper {
     pub fn new() -> Self {
         XlogMapper {
-            relations_map: HashMap::<u32, Table>::new()
+            relations_map: HashMap::<u32, Table>::new(),
         }
     }
 
-    pub async fn handle_message(
+    pub fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
         storage_client: Arc<RocksStorage>,
@@ -77,20 +80,20 @@ impl XlogMapper {
                 match table_option {
                     None => {
                         self.insert_schema(relation, storage_client, hash);
-                    },
+                    }
                     Some(table) => {
                         if table.hash != hash {
                             self.insert_schema(relation, storage_client, hash);
                         }
                     }
                 }
-            },
+            }
             Commit(commit) => {
                 println!("commit:");
                 println!("[Commit] End lsn: {}", commit.end_lsn());
                 let operation_events = self.map_operation_events(messages_buffer);
-                helper::insert_operation_events(storage_client, operation_events).await;
-            },
+                helper::insert_operation_events(storage_client, operation_events);
+            }
             Begin(begin) => {
                 println!("begin:");
                 println!("[Begin] Transaction id: {}", begin.xid());
@@ -101,30 +104,46 @@ impl XlogMapper {
         messages_buffer.push(message);
     }
 
-    fn insert_schema(&mut self, relation: &RelationBody, storage_client: Arc<RocksStorage>, hash: u64) {
+    fn insert_schema(
+        &mut self,
+        relation: &RelationBody,
+        storage_client: Arc<RocksStorage>,
+        hash: u64,
+    ) {
         let rel_id = relation.rel_id();
-        let columns: Vec<TableColumn> = relation.columns().into_iter()
-            .map(|column| (
-                TableColumn {
+        let columns: Vec<TableColumn> = relation
+            .columns()
+            .into_iter()
+            .map(|column| {
+                (TableColumn {
                     name: String::from(column.name().unwrap()),
                     type_id: column.type_id(),
-                    flags: column.flags()
-                }
-            )).collect();
+                    flags: column.flags(),
+                })
+            })
+            .collect();
 
         let table = Table {
             name: String::from(relation.name().unwrap()),
             columns,
             hash,
-            rel_id
+            rel_id,
         };
 
         let schema = Schema {
             id: table.rel_id.to_string(),
-            field_names: table.columns.iter().map(|column| column.name.to_string()).collect(),
-            field_types: table.columns.iter().map(|column| helper::postgres_type_to_dozer_type(&column)).collect(),
+            field_names: table
+                .columns
+                .iter()
+                .map(|column| column.name.to_string())
+                .collect(),
+            field_types: table
+                .columns
+                .iter()
+                .map(|column| helper::postgres_type_to_dozer_type(&column))
+                .collect(),
             _idx: Default::default(),
-            _ctr: 0
+            _ctr: 0,
         };
 
         self.relations_map.insert(rel_id, table);
@@ -145,7 +164,10 @@ impl XlogMapper {
         values
     }
 
-    fn map_operation_events(&mut self, buffer: &Vec<XLogDataBody<LogicalReplicationMessage>>) -> Vec<OperationEvent> {
+    fn map_operation_events(
+        &mut self,
+        buffer: &Vec<XLogDataBody<LogicalReplicationMessage>>,
+    ) -> Vec<OperationEvent> {
         let mut operations: Vec<OperationEvent> = vec![];
         for message in buffer.iter() {
             match message.data() {
@@ -158,9 +180,12 @@ impl XlogMapper {
                     operations.push(OperationEvent {
                         operation: Operation::Insert {
                             table_name: table.name.clone(),
-                            new: Record { values, schema_id: table.rel_id as u64 }
+                            new: Record {
+                                values,
+                                schema_id: table.rel_id as u64,
+                            },
                         },
-                        id: 0
+                        id: 0,
                     });
                 }
                 Update(update) => {
@@ -171,10 +196,16 @@ impl XlogMapper {
                     operations.push(OperationEvent {
                         operation: Operation::Update {
                             table_name: table.name.clone(),
-                            old: Record { values: vec![], schema_id: table.rel_id as u64 },
-                            new: Record { values, schema_id: table.rel_id as u64 }
+                            old: Record {
+                                values: vec![],
+                                schema_id: table.rel_id as u64,
+                            },
+                            new: Record {
+                                values,
+                                schema_id: table.rel_id as u64,
+                            },
                         },
-                        id: 0
+                        id: 0,
                     });
                 }
                 Delete(delete) => {
@@ -187,9 +218,12 @@ impl XlogMapper {
                     operations.push(OperationEvent {
                         operation: Operation::Delete {
                             table_name: table.name.clone(),
-                            old: Record { values, schema_id: table.rel_id as u64 }
+                            old: Record {
+                                values,
+                                schema_id: table.rel_id as u64,
+                            },
                         },
-                        id: 0
+                        id: 0,
                     });
                 }
                 _ => {}
