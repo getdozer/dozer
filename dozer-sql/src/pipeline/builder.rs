@@ -1,7 +1,9 @@
-use sqlparser::ast::{Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement};
+use sqlparser::ast::{Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, Value as SqlValue};
 use crate::common::error::{DozerSqlError, Result};
 use dozer_core::dag::dag::{Dag};
 use dozer_core::dag::node::{Processor};
+use dozer_core::dag::dag::NodeType;
+use crate::pipeline::processor::selection::SelectionProcessor;
 
 pub struct PipelineBuilder {}
 
@@ -41,16 +43,49 @@ impl PipelineBuilder {
     }
 
     fn selection_to_processor(selection: Option<SqlExpr>) -> Result<Box<dyn Processor>> {
-        Err(DozerSqlError::NotImplemented("Unsupported WHERE.".to_string()))
+        match selection {
+            Some(expression) => {
+                let operator = PipelineBuilder::parse_sql_expression(expression)?;
+                Ok(Box::new(SelectionProcessor::new(0, None, None)))
+            }
+            _ => Err(DozerSqlError::NotImplemented("Unsupported WHERE clause.".to_string())),
+        }
     }
 
     fn projection_to_processor(projection: Vec<SelectItem>) -> Result<Box<dyn Processor>> {
         Err(DozerSqlError::NotImplemented("Unsupported SELECT.".to_string()))
     }
+
+    fn parse_sql_expression(expression: SqlExpr) -> Result<Box<dyn Expression>> {
+        match expression {
+            SqlExpr::Identifier(i) => Ok(Box::new(Column::new(i.to_string()))),
+            SqlExpr::Value(SqlValue::Number(n, _)) =>
+                Ok(PipelineBuilder::parse_sql_number(&n)?),
+            SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => Ok(Box::new(s)),
+            // SqlExpr::BinaryOp { left, op, right } => Ok(PipelineBuilder::parse_sql_binary_op(*left, op, *right)?),
+
+            _ => Err(DozerSqlError::NotImplemented(
+                "Unsupported expression.".to_string(),
+            )),
+        }
+    }
+
+    fn parse_sql_number(n: &str) -> Result<Box<dyn Expression>> {
+        match n.parse::<i64>() {
+            Ok(n) => Ok(Box::new(n)),
+            Err(_) => match n.parse::<f64>() {
+                Ok(f) => Ok(Box::new(f)),
+                Err(_) => Err(DozerSqlError::NotImplemented(
+                    "Value is not numeric.".to_string(),
+                )),
+            },
+        }
+    }
 }
 
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
+use crate::pipeline::operator::{Column, Expression};
 
 #[test]
 fn test_pipeline_builder() {

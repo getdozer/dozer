@@ -3,39 +3,6 @@ use dozer_shared::types::Field;
 use num_traits::FromPrimitive;
 use chrono::{DateTime, Utc};
 
-pub enum Operator {
-    BinaryOperator {
-        left: Box<dyn Expression>,
-        op: BinaryOperatorType,
-        right: Box<dyn Expression>,
-    },
-    UnaryOperator {
-        left: Box<dyn Expression>,
-        op: UnaryOperatorType,
-    },
-}
-
-pub enum BinaryOperatorType {
-    Eq,
-    Ne,
-    Gt,
-    Gte,
-    Lt,
-    Lte,
-
-    Sum,
-    Dif,
-    Mul,
-    Div,
-    Mod,
-
-    And,
-    Or,
-}
-
-pub enum UnaryOperatorType {
-    Not,
-}
 
 pub trait Expression {
     fn get_result(&self) -> Field;
@@ -149,6 +116,7 @@ fn test_string() {
 }
 
 use chrono::NaiveDateTime;
+use sqlparser::ast::BinaryOperator;
 
 #[test]
 fn test_timestamp() {
