@@ -1,6 +1,6 @@
 use num_traits::cast::*;
 use num_traits::Bounded;
-use crate::pipeline::operator::Expression;
+use crate::pipeline::expression::operator::Expression;
 use dozer_shared::types::Field;
 use dozer_shared::types::Field::{Invalid, Boolean};
 

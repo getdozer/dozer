@@ -4,9 +4,9 @@ use dozer_core::dag::dag::{Dag};
 use dozer_core::dag::node::{Processor};
 use dozer_core::dag::dag::NodeType;
 use crate::pipeline::processor::selection::SelectionProcessor;
-use crate::pipeline::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
-use crate::pipeline::mathematical::{Add, Div, Mod, Mul, Sub};
-use crate::pipeline::operator::{Column, Expression};
+use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
+use crate::pipeline::expression::mathematical::{Add, Div, Mod, Mul, Sub};
+use crate::pipeline::expression::operator::{Column, Expression};
 
 pub struct PipelineBuilder {}
 
