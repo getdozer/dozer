@@ -1,0 +1,19 @@
+[package]
+name = "dozer-core"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dozer-shared = {version = "0.1.0", path = "../dozer-shared/"}
+futures = "0.3.24"
+async-trait = "0.1.57"
+log = "0.4.17"
+log4rs = "1.1.1"
+blockingqueue = "0.1.1"
+num-traits = "0.2.15"
+sqlparser = "0.22"
+chrono = "0.4.22"
+uuid = {version = "1.1.2", features = ["v1", "v4", "fast-rng"]}
+crossbeam = "0.8.2"
