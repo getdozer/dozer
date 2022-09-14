@@ -1,4 +1,4 @@
-mod channel;
-mod node;
-mod dag;
-mod executor;
+pub mod channel;
+pub mod node;
+pub mod dag;
+pub mod executor;
