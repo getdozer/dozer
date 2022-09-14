@@ -1,9 +1,12 @@
-use sqlparser::ast::{Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, Value as SqlValue};
+use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, Value as SqlValue};
 use crate::common::error::{DozerSqlError, Result};
 use dozer_core::dag::dag::{Dag};
 use dozer_core::dag::node::{Processor};
 use dozer_core::dag::dag::NodeType;
 use crate::pipeline::processor::selection::SelectionProcessor;
+use crate::pipeline::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
+use crate::pipeline::mathematical::{Add, Div, Mod, Mul, Sub};
+use crate::pipeline::operator::{Column, Expression};
 
 pub struct PipelineBuilder {}
 
@@ -36,7 +39,7 @@ impl PipelineBuilder {
         let selection_processor = PipelineBuilder::selection_to_processor(select.selection)?;
 
         // Select clause
-        let projection_processor = PipelineBuilder::projection_to_processor(select.projection)?;
+        // let projection_processor = PipelineBuilder::projection_to_processor(select.projection)?;
 
 
         Ok(Dag::new())
@@ -62,7 +65,7 @@ impl PipelineBuilder {
             SqlExpr::Value(SqlValue::Number(n, _)) =>
                 Ok(PipelineBuilder::parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => Ok(Box::new(s)),
-            // SqlExpr::BinaryOp { left, op, right } => Ok(PipelineBuilder::parse_sql_binary_op(*left, op, *right)?),
+            SqlExpr::BinaryOp { left, op, right } => Ok(PipelineBuilder::parse_sql_binary_op(*left, op, *right)?),
 
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported expression.".to_string(),
@@ -81,11 +84,43 @@ impl PipelineBuilder {
             },
         }
     }
+
+    fn parse_sql_binary_op(left: SqlExpr, op: BinaryOperator, right: SqlExpr) -> Result<Box<dyn Expression>> {
+        let left_op = PipelineBuilder::parse_sql_expression(left)?;
+        let right_op = PipelineBuilder::parse_sql_expression(right)?;
+        match op {
+            BinaryOperator::Gt => Ok(Box::new(Gt::new(left_op, right_op))),
+            BinaryOperator::GtEq => Ok(Box::new(Gte::new(left_op, right_op))),
+            BinaryOperator::Lt => Ok(Box::new(Lt::new(left_op, right_op))),
+            BinaryOperator::LtEq => Ok(Box::new(Lte::new(left_op, right_op))),
+            BinaryOperator::Eq => Ok(Box::new( Eq::new(left_op, right_op))),
+            BinaryOperator::NotEq => Ok(Box::new(Ne::new(left_op, right_op))),
+            BinaryOperator::Plus => Ok(Box::new(Add::new(left_op, right_op))),
+            BinaryOperator::Minus => Ok(Box::new(Sub::new(left_op, right_op))),
+            BinaryOperator::Multiply => Ok(Box::new(Mul::new(left_op, right_op))),
+            BinaryOperator::Divide => Ok(Box::new(Div::new(left_op, right_op))),
+            BinaryOperator::Modulo => Ok(Box::new(Mod::new(left_op, right_op))),
+            // BinaryOperator::And => Ok(Box::new(And::new(left_op, right_op))),
+            // BinaryOperator::Or => Ok(Box::new(Or::new(left_op, right_op))),
+            // BinaryOperator::PGRegexMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
+            // BinaryOperator::PGRegexIMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
+            // BinaryOperator::PGRegexNotMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
+            // BinaryOperator::PGRegexNotIMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
+            // BinaryOperator::BitwiseAnd => Ok(Box::new(BitwiseAnd::new(left_op, right_op))),
+            // BinaryOperator::BitwiseOr => Ok(Box::new(BitwiseOr::new(left_op, right_op))),
+            // BinaryOperator::PGBitwiseShiftRight => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
+            // BinaryOperator::PGBitwiseShiftLeft => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
+            //BinaryOperator::StringConcat => Err(DozerSqlError::NotImplemented("Unsupported operator CONCAT.".to_string(),)),
+            _ => Err(DozerSqlError::NotImplemented(
+                "Unsupported operator.".to_string(),
+            )),
+        }
+    }
 }
 
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
-use crate::pipeline::operator::{Column, Expression};
+
 
 #[test]
 fn test_pipeline_builder() {
