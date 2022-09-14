@@ -33,11 +33,19 @@ pub struct Record {
     pub values: Vec<Field>,
     pub schema_id: u64,
 }
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct OperationEvent {
-    pub operation: Operation,
     pub id: u32,
+    pub operation: Operation
 }
+
+impl OperationEvent {
+    pub fn new(id: u32, operation: Operation) -> Self {
+        Self { id, operation }
+    }
+}
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Operation {
