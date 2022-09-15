@@ -1,10 +1,12 @@
 syntax = "proto3";
-package dozer_api;
+package dozer_api_grpc;
 import "google/protobuf/struct.proto";
 
 service DozerApi {
   rpc test_connection(TestConnectionRequest) returns (TestConnectionResponse);
   rpc create_connection(CreateConnectionRequest) returns (CreateConnectionResponse);
+  rpc get_connection_details(GetConnectionDetailsRequest) returns (GetConnectionDetailsResponse);
+  rpc get_all_connections(GetAllConnectionRequest) returns (GetAllConnectionResponse);
   rpc get_schema(GetSchemaRequest) returns (GetSchemaResponse);
 }
 enum ConnectionType {
@@ -21,10 +23,7 @@ message TestConnectionRequest {
 }
 
 message TestConnectionResponse {
-  oneof response {
-    ErrorResponse error = 1;
-    bool success = 2;
-  }
+  bool success = 1;
 }
 
 message PostgresAuthentication {
@@ -47,6 +46,9 @@ message CreateConnectionRequest {
     PostgresAuthentication postgres = 2;
   }
 }
+message CreateConnectionResponse {
+  ConnectionInfo info = 1;
+}
 
 message ConnectionDetails {
   repeated TableInfo table_info = 1;
@@ -58,24 +60,9 @@ message TableInfo {
 }
 message ColumnInfo {
   string column_name = 1;
-  string is_nullable = 2;
+  bool is_nullable = 2;
   string udt_name = 3;
   bool is_primary_key = 4;
-}
-
-message CreateConnectionResponse {
-  oneof response {
-    CreateConnectionResponseSuccess success = 1;
-    ErrorResponse error = 2;
-  }
-}
-
-message CreateConnectionResponseSuccess {
-  string id = 1;
-  ConnectionType type = 2;
-  oneof authentication {
-    PostgresAuthentication postgres = 3;
-  }
 }
 
 message GetSchemaRequest {
@@ -83,12 +70,40 @@ message GetSchemaRequest {
 }
 
 message GetSchemaResponse {
-  oneof response {
-    GetSchemaResponseSuccess success = 1;
-    ErrorResponse error = 2;
+  string connection_id = 1;
+  ConnectionDetails details = 2;
+}
+
+message GetConnectionDetailsRequest {
+  string connection_id = 1;
+}
+message GetConnectionDetailsResponse {
+  ConnectionInfo info = 1;
+  ConnectionDetails details = 2;
+}
+
+message GetAllConnectionRequest {
+  uint64 page = 1;
+  uint64 page_size = 2;
+}
+
+message ConnectionInfo {
+  string id = 1;
+  ConnectionType type = 2;
+  oneof authentication {
+    PostgresAuthentication postgres = 3;
   }
 }
-message GetSchemaResponseSuccess {
-  string connection_id = 1;
-  ConnectionDetails schema = 2;
+
+message GetAllConnectionResponse {
+  repeated ConnectionInfo data = 1;
+  Pagination pagination = 2;
+}
+
+message Pagination {
+  uint64 limit = 1;
+  uint64 page = 2;
+  uint64 page_size = 3;
+  uint64 total_records = 4;
+  uint64 total_pages = 5;
 }

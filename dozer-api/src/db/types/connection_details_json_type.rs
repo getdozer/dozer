@@ -3,10 +3,10 @@ use diesel::deserialize;
 use diesel::serialize;
 use diesel::types::{FromSql, ToSql};
 
-use diesel::{sql_types::Text, serialize::Output};
 use diesel::sqlite::Sqlite;
-use std::io::Write;
+use diesel::{serialize::Output, sql_types::Text};
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 
 #[derive(AsExpression, Debug, Deserialize, Serialize, FromSqlRow, PartialEq, Clone)]
 #[sql_type = "Text"]
@@ -20,7 +20,7 @@ impl FromSql<Text, Sqlite> for ConnectionDetailsJsonType {
         Ok(Self(serde_json::from_str(&t)?))
     }
 }
-    
+
 impl ToSql<Text, Sqlite> for ConnectionDetailsJsonType {
     fn to_sql<W: Write>(&self, out: &mut Output<W, Sqlite>) -> serialize::Result {
         let s = serde_json::to_string(&self.0)?;
@@ -29,5 +29,5 @@ impl ToSql<Text, Sqlite> for ConnectionDetailsJsonType {
 }
 
 pub mod exports {
-    pub use super::ConnectionDetailsJsonType as ConnectionDetailsJsonType;
+    pub use super::ConnectionDetailsJsonType;
 }
