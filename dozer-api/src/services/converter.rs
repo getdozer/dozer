@@ -1,3 +1,4 @@
+use core::fmt;
 use std::convert::From;
 
 use dozer_shared::types::{ColumnInfo, TableInfo};
@@ -5,7 +6,7 @@ use dozer_shared::types::{ColumnInfo, TableInfo};
 use crate::{
     db::models::connection::Connection,
     server::dozer_api_grpc::{
-        self, connection_info, ConnectionInfo, CreateConnectionResponse, PostgresAuthentication,
+        self, connection_info, ConnectionInfo, CreateConnectionResponse, PostgresAuthentication, ConnectionType,
     },
 };
 
@@ -64,6 +65,16 @@ impl From<Connection> for ConnectionInfo {
             id: item.id.clone(),
             r#type: 0,
             authentication: Some(item.into()),
+        }
+    }
+}
+
+
+impl From<i32> for ConnectionType {
+    fn from(item: i32) -> Self {
+        match item {
+            0 => ConnectionType::Postgres,
+            _ => panic!("ConnectionType enum not match")
         }
     }
 }

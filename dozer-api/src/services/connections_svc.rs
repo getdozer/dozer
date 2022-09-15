@@ -2,10 +2,10 @@ use crate::db::pool::DbPool;
 use crate::db::{connection_db_svc, models as DBModels};
 use crate::server::dozer_api_grpc::{
     create_connection_request, test_connection_request, ConnectionDetails, ConnectionInfo,
-    CreateConnectionRequest, CreateConnectionResponse, ErrorResponse, GetAllConnectionRequest,
-    GetAllConnectionResponse, GetConnectionDetailsRequest, GetConnectionDetailsResponse,
-    GetSchemaRequest, GetSchemaResponse, Pagination, PostgresAuthentication, TableInfo,
-    TestConnectionRequest, TestConnectionResponse,
+    ConnectionType, CreateConnectionRequest, CreateConnectionResponse, ErrorResponse,
+    GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
+    GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, Pagination,
+    PostgresAuthentication, TableInfo, TestConnectionRequest, TestConnectionResponse,
 };
 use dozer_ingestion::connectors::connector::Connector;
 use dozer_ingestion::connectors::postgres;
@@ -32,7 +32,6 @@ impl ConnectionSvc {
             postgres_connection.database,
             postgres_connection.password
         );
-        println!("====_initialize_connector {:?}", conn_str);
         let postgres_config = postgres::connector::PostgresConfig {
             name: postgres_connection.name,
             conn_str: conn_str.clone(),
@@ -90,12 +89,15 @@ impl ConnectionSvc {
                         .db_connection
                         .get()
                         .expect("couldn't get db connection from pool");
+                    let db_type = ConnectionType::from_i32(input.r#type)
+                        .unwrap_or_default()
+                        .as_str_name();
                     let inserted = connection_db_svc::create_connection(
                         &db,
                         DBModels::connection::Connection {
                             id: new_id,
                             auth: serde_json::to_string(&postgres_connection).unwrap(),
-                            db_type: "postgres".to_owned(),
+                            db_type: db_type.to_string(),
                         },
                     );
 
