@@ -9,49 +9,59 @@ use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::node::Processor;
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement,
-    Value as SqlValue,
+    Value as SqlValue
 };
+use dozer_shared::types::Schema;
 
-pub struct PipelineBuilder {}
+pub struct PipelineBuilder {
+    schema: Schema
+}
 
 impl PipelineBuilder {
-    pub fn statement_to_pipeline(statement: Statement) -> Result<Dag> {
+
+    pub fn new(schema: Schema) -> PipelineBuilder {
+        Self {
+            schema
+        }
+    }
+
+    pub fn statement_to_pipeline(&self, statement: Statement) -> Result<Dag> {
         match statement {
-            Statement::Query(query) => PipelineBuilder::query_to_pipeline(*query),
+            Statement::Query(query) => self.query_to_pipeline(*query),
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported Query.".to_string(),
             )),
         }
     }
 
-    pub fn query_to_pipeline(query: Query) -> Result<Dag> {
-        PipelineBuilder::set_expr_to_pipeline(*query.body)
+    pub fn query_to_pipeline(&self, query: Query) -> Result<Dag> {
+        self.set_expr_to_pipeline(*query.body)
     }
 
-    fn set_expr_to_pipeline(set_expr: SetExpr) -> Result<Dag> {
+    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<Dag> {
         match set_expr {
-            SetExpr::Select(s) => PipelineBuilder::select_to_pipeline(*s),
-            SetExpr::Query(q) => PipelineBuilder::query_to_pipeline(*q),
+            SetExpr::Select(s) => self.select_to_pipeline(*s),
+            SetExpr::Query(q) => self.query_to_pipeline(*q),
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported Query.".to_string(),
             )),
         }
     }
 
-    fn select_to_pipeline(select: Select) -> Result<Dag> {
+    fn select_to_pipeline(&self, select: Select) -> Result<Dag> {
         // Where clause
-        let selection_processor = PipelineBuilder::selection_to_processor(select.selection)?;
+        let selection_processor = self.selection_to_processor(select.selection)?;
 
         // Select clause
-        // let projection_processor = PipelineBuilder::projection_to_processor(select.projection)?;
+        // let projection_processor = self.projection_to_processor(select.projection)?;
 
         Ok(Dag::new())
     }
 
-    fn selection_to_processor(selection: Option<SqlExpr>) -> Result<Box<dyn Processor>> {
+    fn selection_to_processor(&self, selection: Option<SqlExpr>) -> Result<Box<dyn Processor>> {
         match selection {
             Some(expression) => {
-                let operator = PipelineBuilder::parse_sql_expression(expression)?;
+                let operator = self.parse_sql_expression(expression)?;
                 Ok(Box::new(SelectionProcessor::new(0, None, None)))
             }
             _ => Err(DozerSqlError::NotImplemented(
@@ -60,21 +70,21 @@ impl PipelineBuilder {
         }
     }
 
-    fn projection_to_processor(projection: Vec<SelectItem>) -> Result<Box<dyn Processor>> {
+    fn projection_to_processor(&self, projection: Vec<SelectItem>) -> Result<Box<dyn Processor>> {
         Err(DozerSqlError::NotImplemented(
             "Unsupported SELECT.".to_string(),
         ))
     }
 
-    fn parse_sql_expression(expression: SqlExpr) -> Result<Box<dyn Expression>> {
+    fn parse_sql_expression(&self, expression: SqlExpr) -> Result<Box<dyn Expression>> {
         match expression {
             SqlExpr::Identifier(i) => Ok(Box::new(Column::new(0))),
-            SqlExpr::Value(SqlValue::Number(n, _)) => Ok(PipelineBuilder::parse_sql_number(&n)?),
+            SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(s))
             }
             SqlExpr::BinaryOp { left, op, right } => {
-                Ok(PipelineBuilder::parse_sql_binary_op(*left, op, *right)?)
+                Ok(self.parse_sql_binary_op(*left, op, *right)?)
             }
 
             _ => Err(DozerSqlError::NotImplemented(
@@ -83,7 +93,7 @@ impl PipelineBuilder {
         }
     }
 
-    fn parse_sql_number(n: &str) -> Result<Box<dyn Expression>> {
+    fn parse_sql_number(&self, n: &str) -> Result<Box<dyn Expression>> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Box::new(n)),
             Err(_) => match n.parse::<f64>() {
@@ -95,13 +105,13 @@ impl PipelineBuilder {
         }
     }
 
-    fn parse_sql_binary_op(
+    fn parse_sql_binary_op(&self,
         left: SqlExpr,
         op: BinaryOperator,
         right: SqlExpr,
     ) -> Result<Box<dyn Expression>> {
-        let left_op = PipelineBuilder::parse_sql_expression(left)?;
-        let right_op = PipelineBuilder::parse_sql_expression(right)?;
+        let left_op = self.parse_sql_expression(left)?;
+        let right_op = self.parse_sql_expression(right)?;
         match op {
             BinaryOperator::Gt => Ok(Box::new(Gt::new(left_op, right_op))),
             BinaryOperator::GtEq => Ok(Box::new(Gte::new(left_op, right_op))),
@@ -154,6 +164,9 @@ fn test_pipeline_builder() {
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
     println!("AST: {:?}", ast);
 
+
     let statement = &ast[0];
-    let pipeline = PipelineBuilder::statement_to_pipeline(statement.clone()).unwrap();
+    let builder = PipelineBuilder::new(Schema::new(String::from("schema"), vec![], vec![]));
+    let pipeline = builder.statement_to_pipeline(statement.clone()).unwrap();
+
 }
