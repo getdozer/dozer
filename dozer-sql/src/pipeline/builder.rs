@@ -68,7 +68,7 @@ impl PipelineBuilder {
 
     fn parse_sql_expression(expression: SqlExpr) -> Result<Box<dyn Expression>> {
         match expression {
-            SqlExpr::Identifier(i) => Ok(Box::new(Column::new(i.to_string()))),
+            SqlExpr::Identifier(i) => Ok(Box::new(Column::new(0))),
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(PipelineBuilder::parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(s))

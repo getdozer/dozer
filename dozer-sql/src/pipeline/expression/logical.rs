@@ -1,10 +1,10 @@
 use num_traits::cast::*;
 use num_traits::Bounded;
 use crate::pipeline::expression::operator::{Timestamp, Expression};
-use dozer_shared::types::Field;
+use dozer_shared::types::{Field, Record};
 use dozer_shared::types::Field::{Invalid, Boolean};
 
-macro_rules! define_cmp_oper {
+macro_rules! define_log_oper {
     ($id:ident, $fct:expr) => {
         pub struct $id {
             left: Box<dyn Expression>,
@@ -19,10 +19,10 @@ macro_rules! define_cmp_oper {
 
         impl Expression for $id {
 
-            fn get_result(&self) -> Field {
+            fn get_result(&self, record: &Record) -> Field {
 
-                let left_p = self.left.get_result();
-                let right_p = self.right.get_result();
+                let left_p = self.left.get_result(&record);
+                let right_p = self.right.get_result(&record);
 
                 match left_p {
                     Field::Boolean(left_v) => {
@@ -43,33 +43,36 @@ macro_rules! define_cmp_oper {
     }
 }
 
-define_cmp_oper!(And, |l,r| { l && r});
-define_cmp_oper!(Or, |l,r| { l || r});
+define_log_oper!(And, |l,r| { l && r});
+define_log_oper!(Or, |l,r| { l || r});
 
 
 
 #[test]
 fn test_bool_bool_and() {
+    let row = Record::new(0, vec![]);
     let l = Box::new(true);
     let r = Box::new(false);
     let op = And::new(l, r);
-    assert!(matches!(op.get_result(), Field::Boolean(false)));
+    assert!(matches!(op.get_result(&row), Field::Boolean(false)));
 }
 
 #[test]
 fn test_bool_bool_or() {
+    let row = Record::new(0, vec![]);
     let l = Box::new(true);
     let r = Box::new(false);
     let op = Or::new(l, r);
-    assert!(matches!(op.get_result(), Field::Boolean(true)));
+    assert!(matches!(op.get_result(&row), Field::Boolean(true)));
 }
 
 #[test]
 fn test_int_bool_and() {
+    let row = Record::new(0, vec![]);
     let l = Box::new(1);
     let r = Box::new(true);
     let op = And::new(l, r);
-    assert!(matches!(op.get_result(), Invalid(_)));
+    assert!(matches!(op.get_result(&row), Invalid(_)));
 }
 
 

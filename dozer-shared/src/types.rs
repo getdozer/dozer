@@ -24,7 +24,7 @@ pub struct Schema {
     pub id: String,
     pub field_names: Vec<String>,
     pub field_types: Vec<Field>,
-    pub _idx: HashMap<String, u16>,
+    pub _idx: HashMap<String, usize>,
     pub _ctr: u16,
 }
 
@@ -92,5 +92,9 @@ impl Schema {
             _idx: HashMap::new(),
             _ctr: 0,
         }
+    }
+
+    pub fn get_column_index(&self, name: String) -> Option<&usize> {
+        self._idx.get(&name)
     }
 }

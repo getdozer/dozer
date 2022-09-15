@@ -1,7 +1,7 @@
 use num_traits::cast::*;
 use num_traits::Bounded;
 use crate::pipeline::expression::operator::{Timestamp, Expression};
-use dozer_shared::types::Field;
+use dozer_shared::types::{Field, Record};
 use dozer_shared::types::Field::{Invalid, Boolean};
 
 macro_rules! define_cmp_oper {
@@ -19,10 +19,10 @@ macro_rules! define_cmp_oper {
 
         impl Expression for $id {
 
-            fn get_result(&self) -> Field {
+            fn get_result(&self, record: &Record) -> Field {
 
-                let left_p = self.left.get_result();
-                let right_p = self.right.get_result();
+                let left_p = self.left.get_result(&record);
+                let right_p = self.right.get_result(&record);
 
                 match left_p {
                     Field::Boolean(left_v) => {
@@ -111,42 +111,47 @@ define_cmp_oper!(Gte, |l,r| { l >= r});
 
 #[test]
 fn test_float_float_eq() {
+    let row = Record::new(0, vec![]);
     let f0 = Box::new(1.3);
     let f1 = Box::new(1.3);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(), Field::Boolean(true)));
+    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
 }
 
 #[test]
 fn test_float_int_eq() {
+    let row = Record::new(0, vec![]);
     let f0 = Box::new(1.0);
     let f1 = Box::new(1);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(), Field::Boolean(true)));
+    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
 }
 
 #[test]
 fn test_int_float_eq() {
+    let row = Record::new(0, vec![]);
     let f0 = Box::new(1);
     let f1 = Box::new(1.0);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(), Field::Boolean(true)));
+    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
 }
 
 #[test]
 fn test_bool_bool_eq() {
+    let row = Record::new(0, vec![]);
     let f0 = Box::new(false);
     let f1 = Box::new(false);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(), Field::Boolean(true)));
+    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
 }
 
 #[test]
 fn test_str_str_eq() {
+    let row = Record::new(0, vec![]);
     let f0 = Box::new("abc".to_string());
     let f1 = Box::new("abc".to_string());
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(), Field::Boolean(true)));
+    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
 }
 
 // #[test]
