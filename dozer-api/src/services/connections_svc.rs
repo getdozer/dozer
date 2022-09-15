@@ -203,25 +203,17 @@ impl ConnectionSvc {
         &self,
         input: TestConnectionRequest,
     ) -> Result<TestConnectionResponse, ErrorResponse> {
-        println!("==== hit test_connection svc: {:?}", input);
-
         let connection_detail = input.authentication;
         match connection_detail {
             Some(authentication) => match authentication {
                 test_connection_request::Authentication::Postgres(postgres_connection) => {
-                    println!("==== hit 1");
-
                     let postgres_connection = self._initialize_connector(postgres_connection);
-                    println!("==== hit 2");
                     if let Err(e) = postgres_connection.test_connection().await {
-                        println!("==== hit 3");
-
                         Err(ErrorResponse {
                             message: e.to_string().to_owned(),
                             details: None,
                         })
                     } else {
-                        println!("==== hit 4");
                         Ok(TestConnectionResponse { success: true })
                     }
                 }
