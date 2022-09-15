@@ -7,6 +7,7 @@ use dozer_shared::types::OperationEvent;
 
 pub trait NodeSender: Send + Sync {
     fn send(&self, op: OperationEvent) -> Result<(), String>;
+    fn is_empty(&self) -> bool;
 }
 
 pub trait NodeReceiver: Send + Sync {
@@ -39,6 +40,10 @@ impl NodeSender for LocalNodeSender {
         else {
             return Ok(())
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.sender.is_empty()
     }
 }
 

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use dozer_shared::types::{OperationEvent};
+use std::thread::sleep;
+use std::time::Duration;
+use dozer_shared::types::{OperationEvent, Operation};
 use crate::dag::channel::NodeSender;
 use crate::dag::dag::PortHandle;
 use crate::dag::executor::DEFAULT_PORT_ID;
@@ -140,6 +142,44 @@ impl ChannelForwarder {
                 sender.send(op.clone())?;
             }
         }
+        return Ok(());
+    }
+
+    pub fn terminate(&self) -> Result<(),String> {
+
+        for senders in &self.senders {
+
+            if self.thread_safe {
+                self.sync.get(senders.0).unwrap().lock().unwrap();
+                for sender in senders.1 {
+                    sender.send(OperationEvent::new(0, Operation::Terminate))?;
+                }
+            }
+            else {
+                for sender in senders.1 {
+                    sender.send(OperationEvent::new(0, Operation::Terminate))?;
+                }
+            }
+
+            loop {
+
+                let mut is_empty = true;
+                for senders in &self.senders {
+                    for sender in senders.1 {
+                        is_empty |= sender.is_empty();
+                    }
+                }
+
+                if !is_empty {
+                    sleep(Duration::from_millis(250));
+                }
+                else {
+                    break;
+                }
+            }
+
+        }
+
         return Ok(());
     }
 

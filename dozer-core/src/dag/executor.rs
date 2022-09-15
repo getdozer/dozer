@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::{JoinHandle, Thread};
+use dozer_shared::types::{OperationEvent, Operation};
 use crate::dag::channel::{LocalNodeChannel, NodeReceiver, NodeSender};
 use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestSink, TestSource};
 use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorExecutor, Sink, SinkExecutor, Source};
@@ -123,13 +124,19 @@ impl MultiThreadedDagExecutor {
                 handles.push(thread::spawn(move || -> Result<(), String> {
 
                     loop {
-                        let res = receiver.receive();
-                        if res.is_err() {
+
+                        let rcv = receiver.receive();
+                        if rcv.is_err() {
                             return Err("Channel closed".to_string());;
                         }
+                        let rcv_u = rcv.unwrap();
+                        if matches!(rcv_u.operation, Operation::Terminate) {
+                            return Ok(())
+                        }
+
                         let res = local_se.process(
                             if port_receivers.0 == DEFAULT_PORT_ID { None } else { Some(port_receivers.0) },
-                            res.unwrap(),
+                            rcv_u,
                             local_ctx.as_ref()
                         );
                         if res.is_err() {
@@ -171,13 +178,18 @@ impl MultiThreadedDagExecutor {
                 handles.push(thread::spawn(move || -> Result<(), String> {
 
                     loop {
-                        let res = receiver.receive();
-                        if res.is_err() {
+                        let rcv = receiver.receive();
+                        if rcv.is_err() {
                             return Err("Channel closed".to_string());
                         }
+                        let rcv_u = rcv.unwrap();
+                        if matches!(rcv_u.operation, Operation::Terminate) {
+                            local_fw.terminate()?
+                        }
+
                         let res = local_pe.process(
                             if port_receivers.0 == DEFAULT_PORT_ID { None } else { Some(port_receivers.0) },
-                            res.unwrap(),
+                            rcv_u,
                             local_ctx.as_ref(), local_fw.as_ref()
                         );
                         if res.is_err() {
@@ -257,6 +269,10 @@ impl MultiThreadedDagExecutor {
         }
 
         for sh in source_handles {
+            sh.join().unwrap()?
+        }
+
+        for sh in processor_handles {
             sh.join().unwrap()?
         }
 
