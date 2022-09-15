@@ -85,11 +85,17 @@ impl Record {
 
 impl Schema {
     pub fn new(id: String, field_names: Vec<String>, field_types: Vec<Field>) -> Schema {
+        let mut indexes = HashMap::new();
+        let mut c = 0;
+        for i in field_names.iter() {
+            indexes.insert(i.clone(), c);
+            c = c + 1;
+        }
         Schema {
-            id: id,
-            field_names: field_names,
-            field_types: field_types,
-            _idx: HashMap::new(),
+            id,
+            field_names,
+            field_types,
+            _idx: indexes,
             _ctr: 0,
         }
     }

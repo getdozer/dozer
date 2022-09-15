@@ -11,7 +11,7 @@ use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement,
     Value as SqlValue
 };
-use dozer_shared::types::Schema;
+use dozer_shared::types::{Field, Schema};
 
 pub struct PipelineBuilder {
     schema: Schema
@@ -49,11 +49,11 @@ impl PipelineBuilder {
     }
 
     fn select_to_pipeline(&self, select: Select) -> Result<Dag> {
-        // Where clause
-        let selection_processor = self.selection_to_processor(select.selection)?;
-
         // Select clause
         // let projection_processor = self.projection_to_processor(select.projection)?;
+
+        // Where clause
+        let selection_processor = self.selection_to_processor(select.selection)?;
 
         Ok(Dag::new())
     }
@@ -72,13 +72,15 @@ impl PipelineBuilder {
 
     fn projection_to_processor(&self, projection: Vec<SelectItem>) -> Result<Box<dyn Processor>> {
         Err(DozerSqlError::NotImplemented(
-            "Unsupported SELECT.".to_string(),
+            "Unsupported SELECT clause.".to_string(),
         ))
     }
 
     fn parse_sql_expression(&self, expression: SqlExpr) -> Result<Box<dyn Expression>> {
         match expression {
-            SqlExpr::Identifier(i) => Ok(Box::new(Column::new(0))),
+            SqlExpr::Identifier(ident) => {
+                Ok(Box::new(Column::new(*self.schema.get_column_index(ident.value).unwrap())))
+            },
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(s))
@@ -88,7 +90,7 @@ impl PipelineBuilder {
             }
 
             _ => Err(DozerSqlError::NotImplemented(
-                "Unsupported expression.".to_string(),
+                "Unsupported Expression.".to_string(),
             )),
         }
     }
@@ -166,7 +168,7 @@ fn test_pipeline_builder() {
 
 
     let statement = &ast[0];
-    let builder = PipelineBuilder::new(Schema::new(String::from("schema"), vec![], vec![]));
+    let builder = PipelineBuilder::new(Schema::new(String::from("schema"), vec![String::from("Spending")], vec![Field::Int(2000)]));
     let pipeline = builder.statement_to_pipeline(statement.clone()).unwrap();
 
 }
