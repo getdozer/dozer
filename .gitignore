@@ -5,3 +5,5 @@ docker/pagila/
 db/embedded/
 db/test
 dozer-ingestion/db/test/
+Cargo.lock
+

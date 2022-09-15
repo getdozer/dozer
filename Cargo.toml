@@ -2,5 +2,6 @@
 members = [
   "dozer-api",
   "dozer-ingestion",
-  "dozer-shared"
+  "dozer-shared",
+  "dozer-core"
 ]

@@ -12,9 +12,14 @@ use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use std::io::{Error, ErrorKind};
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
+use chrono::{TimeZone, Utc};
+use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
+use postgres_types::PgLsn;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
 use tokio_postgres::{Client, NoTls};
+
 
 pub struct PostgresConfig {
     pub name: String,
@@ -220,6 +225,21 @@ impl PostgresConnector {
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
                     println!("keep alive: {}", k.reply());
+                    if k.reply() == 1 {
+                        // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
+                        let since_the_epoch = SystemTime::now()
+                            .duration_since(SystemTime::from(Utc.ymd(2020, 1, 1).and_hms(0, 0, 0)))
+                            .unwrap()
+                            .as_millis();
+
+                        stream.as_mut().standby_status_update(
+                            PgLsn::from(k.wal_end() + 1),
+                            PgLsn::from(k.wal_end() + 1),
+                            PgLsn::from(k.wal_end() + 1),
+                            since_the_epoch as i64,
+                            1
+                        ).await.unwrap();
+                    }
                 }
 
                 Some(Ok(msg)) => {
