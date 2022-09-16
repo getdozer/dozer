@@ -2,22 +2,22 @@ use crate::connectors::connector;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
+use crate::connectors::storage::RocksStorage;
 use async_trait::async_trait;
 use connector::Connector;
+use dozer_shared::types::TableInfo;
 use futures::StreamExt;
 use postgres::SimpleQueryMessage;
 use postgres_protocol::message::backend::ReplicationMessage::*;
+use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use std::io::{Error, ErrorKind};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{SystemTime};
 use chrono::{TimeZone, Utc};
-use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use postgres_types::PgLsn;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
 use tokio_postgres::{Client, NoTls};
-use dozer_shared::types::TableInfo;
-use crate::connectors::storage::RocksStorage;
 
 
 pub struct PostgresConfig {
@@ -75,18 +75,11 @@ impl Connector<PostgresConfig, tokio_postgres::Client> for PostgresConnector {
     }
 
     async fn test_connection(&self) -> Result<(), Error> {
-        let (_client, connection) = tokio_postgres::connect(&self.conn_str, NoTls)
-            .await
-            .unwrap();
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                Result::Err(Error::new(ErrorKind::ConnectionRefused, e.to_string()))
-            } else {
-                Result::Ok(())
-            }
-        })
-        .await
-        .unwrap()
+        let result = tokio_postgres::connect(&self.conn_str, NoTls).await;
+        match result {
+            Ok(_) => Result::Ok(()),
+            Err(e) => Result::Err(Error::new(ErrorKind::ConnectionRefused, e.to_string())),
+        }
     }
 
     async fn get_schema(&self) -> Vec<TableInfo> {
