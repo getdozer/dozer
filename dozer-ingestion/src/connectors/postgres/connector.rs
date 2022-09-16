@@ -14,7 +14,6 @@ use std::io::{Error, ErrorKind};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use chrono::{TimeZone, Utc};
-use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use postgres_types::PgLsn;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::SimpleQueryMessage::Row;
