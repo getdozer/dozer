@@ -1,4 +1,3 @@
-use core::fmt;
 use std::convert::From;
 
 use dozer_shared::types::{ColumnInfo, TableInfo};

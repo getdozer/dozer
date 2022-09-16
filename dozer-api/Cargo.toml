@@ -22,6 +22,7 @@ tonic = "0.8.1"
 tokio = "1.21.0"
 prost-types = "0.11.1"
 prost = "0.11.0"
+tonic-web = "0.4.0"
 
 [build-dependencies]
 tonic-build = "0.8"

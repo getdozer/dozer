@@ -12,7 +12,7 @@ use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use std::io::{Error, ErrorKind};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{SystemTime};
 use chrono::{TimeZone, Utc};
 use postgres_types::PgLsn;
 use tokio_postgres::replication::LogicalReplicationStream;

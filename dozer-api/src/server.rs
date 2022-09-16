@@ -12,6 +12,7 @@ use dozer_api_grpc::{
     CreateConnectionRequest, CreateConnectionResponse, GetSchemaRequest, GetSchemaResponse,
     TestConnectionRequest, TestConnectionResponse,
 };
+
 pub struct GrpcService {
     connection_svc: ConnectionSvc,
 }
@@ -85,9 +86,13 @@ pub async fn get_server() -> Result<(), tonic::transport::Error> {
     let grpc_service = GrpcService {
         connection_svc: ConnectionSvc::new(db_connection),
     };
-
+    let server = DozerApiServer::new(grpc_service);
+    let server =  tonic_web::config()
+    .allow_origins(vec!["127.0.0.1", "localhost", "localhost:3001", "http://localhost:3001"]).enable(server);
+    
     Server::builder()
-        .add_service(DozerApiServer::new(grpc_service))
+        .accept_http1(true)
+        .add_service(server)
         .serve(addr)
         .await
 }
