@@ -1,1 +1,0 @@
-{"type":"string","title":"ConnectionType","x-stoplight":{"id":"yad8zg2rhqu7c"},"enum":["postgres","snowflake","databricks"]}

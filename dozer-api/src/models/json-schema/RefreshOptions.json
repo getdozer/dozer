@@ -1,1 +1,0 @@
-{"title":"RefreshOptions","x-stoplight":{"id":"yil92gdf1jaje"},"type":"object","properties":{"period":{"type":"string","enum":["every_hour","every_day","every_week"]},"after_minute":{"type":"number"}},"required":["period"]}

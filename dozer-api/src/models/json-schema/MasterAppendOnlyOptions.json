@@ -1,1 +1,0 @@
-{"title":"MasterAppendOnlyOptions","x-stoplight":{"id":"wu4vkccsckw2u"},"type":"object","properties":{"master_source_option_type":{"type":"string","enum":["append_only"]},"unique_key_field":{"type":"string"},"open_date_field":{"type":"string"},"closed_date_field":{"type":"string"}},"required":["master_source_option_type","unique_key_field","open_date_field","closed_date_field"]}
