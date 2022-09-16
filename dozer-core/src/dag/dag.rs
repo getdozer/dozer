@@ -238,7 +238,7 @@ impl Source for TestSource {
                 ), None
             );
         }
-        sleep(Duration::from_secs(5));
+        fw.terminate();
         Ok(())
     }
 }
