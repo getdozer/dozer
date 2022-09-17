@@ -26,7 +26,7 @@ impl ExecutionContext for MemoryExecutionContext {
 
 pub const DEFAULT_PORT_ID : u8 = 0xffu8;
 
-struct MultiThreadedDagExecutor {
+pub struct MultiThreadedDagExecutor {
     dag: Rc<Dag>
 }
 
@@ -207,7 +207,7 @@ impl MultiThreadedDagExecutor {
     }
 
 
-    fn start(&self, ctx: Arc<dyn ExecutionContext>) -> Result<(), String>{
+    pub fn start(&self, ctx: Arc<dyn ExecutionContext>) -> Result<(), String>{
 
         let (mut senders, mut receivers) = self.index_edges();
         let (mut sources, mut processors, mut sinks) = self.get_node_types();

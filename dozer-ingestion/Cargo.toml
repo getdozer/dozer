@@ -21,11 +21,4 @@ serde_json = "1.0.85"
 bincode= "1.3.3"
 rust_decimal =  {version = "1.26", features = ["tokio-pg","db-tokio-postgres", "db-postgres", "tokio-postgres"]}
 rocksdb = "*"
-
-[[bin]]
-name = "measure-ingest"
-path = "src/measure.rs"
-
-[[bin]]
-name = "measure-large-film"
-path = "src/large_film_test.rs"
+crossbeam = "*"

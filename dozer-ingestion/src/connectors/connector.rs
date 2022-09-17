@@ -1,14 +1,13 @@
-use crate::connectors::storage::RocksStorage;
-use async_trait::async_trait;
-use dozer_shared::types::TableInfo;
-use std::{io::Result, sync::Arc};
-#[async_trait]
-pub trait Connector<T, A> {
-    fn new(connector_config: T) -> Self;
-    async fn initialize(&mut self, storage_client: Arc<RocksStorage>);
-    async fn connect(&mut self) -> A;
-    async fn get_schema(&self) -> Vec<TableInfo>;
-    async fn start(&mut self);
-    async fn stop(&self);
-    async fn test_connection(&self) -> Result<()>;
+use dozer_shared::types::{OperationEvent, TableInfo};
+use std::sync::Arc;
+
+use super::storage::RocksStorage;
+
+pub trait Connector<C, E> {
+    fn new(connector_config: C) -> Self;
+    fn get_schema(&self) -> Vec<TableInfo>;
+    fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> Result<(), E>;
+    fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static>;
+    fn stop(&self);
+    fn test_connection(&self) -> Result<(), E>;
 }

@@ -65,7 +65,7 @@ impl ConnectionSvc {
             let postgres_auth: PostgresAuthentication =
                 serde_json::from_str::<PostgresAuthentication>(&connection.auth).unwrap();
             let postgres_connector = self._initialize_connector(postgres_auth);
-            let table_info = postgres_connector.get_schema().await;
+            let table_info = postgres_connector.get_schema();
 
             return Ok((table_info, connection));
         }
@@ -210,7 +210,7 @@ impl ConnectionSvc {
             Some(authentication) => match authentication {
                 test_connection_request::Authentication::Postgres(postgres_connection) => {
                     let postgres_connection = self._initialize_connector(postgres_connection);
-                    if let Err(e) = postgres_connection.test_connection().await {
+                    if let Err(e) = postgres_connection.test_connection() {
                         Err(ErrorResponse {
                             message: e.to_string().to_owned(),
                             details: None,
