@@ -544,6 +544,7 @@ version = "0.1.0"
 dependencies = [
  "dozer-core",
  "dozer-ingestion",
+ "dozer-shared",
 ]
 
 [[package]]

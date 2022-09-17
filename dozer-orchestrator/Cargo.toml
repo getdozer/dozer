@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 dozer-ingestion = {version = "0.1.0", path = "../dozer-ingestion"}
 dozer-core = {version = "0.1.0", path = "../dozer-core"}
+dozer-shared = {version = "0.1.0", path = "../dozer-shared"}

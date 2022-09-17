@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use super::helper;
 
+#[derive(Clone, Debug)]
 pub struct PostgresConfig {
     pub name: String,
     pub tables: Option<Vec<String>>,
