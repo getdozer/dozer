@@ -1,5 +1,5 @@
+use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
-use crate::connectors::storage::RocksStorage;
 use dozer_shared::types::{Field, Operation, OperationEvent, Record, Schema};
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
@@ -62,7 +62,7 @@ impl XlogMapper {
     pub fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
-        storage_client: Arc<RocksStorage>,
+        ingestor: Arc<Ingestor>,
         messages_buffer: &mut Vec<XLogDataBody<LogicalReplicationMessage>>,
     ) {
         match &message.data() {
@@ -79,11 +79,11 @@ impl XlogMapper {
                 let table_option = self.relations_map.get(&relation.rel_id());
                 match table_option {
                     None => {
-                        self.insert_schema(relation, storage_client, hash);
+                        self.ingest_schema(relation, ingestor, hash);
                     }
                     Some(table) => {
                         if table.hash != hash {
-                            self.insert_schema(relation, storage_client, hash);
+                            self.ingest_schema(relation, ingestor, hash);
                         }
                     }
                 }
@@ -92,7 +92,9 @@ impl XlogMapper {
                 println!("commit:");
                 println!("[Commit] End lsn: {}", commit.end_lsn());
                 let operation_events = self.map_operation_events(messages_buffer);
-                helper::insert_operation_events(storage_client, operation_events);
+                for event in operation_events {
+                    ingestor.handle_message(IngestionMessage::OperationEvent(event));
+                }
             }
             Begin(begin) => {
                 println!("begin:");
@@ -104,22 +106,15 @@ impl XlogMapper {
         messages_buffer.push(message);
     }
 
-    fn insert_schema(
-        &mut self,
-        relation: &RelationBody,
-        storage_client: Arc<RocksStorage>,
-        hash: u64,
-    ) {
+    fn ingest_schema(&mut self, relation: &RelationBody, ingestor: Arc<Ingestor>, hash: u64) {
         let rel_id = relation.rel_id();
         let columns: Vec<TableColumn> = relation
             .columns()
             .into_iter()
-            .map(|column| {
-                (TableColumn {
-                    name: String::from(column.name().unwrap()),
-                    type_id: column.type_id(),
-                    flags: column.flags(),
-                })
+            .map(|column| TableColumn {
+                name: String::from(column.name().unwrap()),
+                type_id: column.type_id(),
+                flags: column.flags(),
             })
             .collect();
 
@@ -147,7 +142,8 @@ impl XlogMapper {
         };
 
         self.relations_map.insert(rel_id, table);
-        storage_client.insert_schema(&schema);
+
+        ingestor.handle_message(IngestionMessage::Schema(schema));
     }
 
     fn convert_values_to_vec(table: &Table, new_values: &[TupleData]) -> Vec<Field> {

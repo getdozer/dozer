@@ -1,13 +1,11 @@
 use bytes::Bytes;
 
 use crate::connectors::postgres::xlog_mapper::TableColumn;
-use crate::connectors::storage::RocksStorage;
 use chrono::DateTime;
 use dozer_shared::types::*;
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
 use std::error::Error;
-use std::sync::Arc;
 
 pub fn postgres_type_to_bytes(value: &Bytes, column: &TableColumn) -> Field {
     let column_type = Type::from_oid(column.type_id as u32).unwrap();
@@ -119,13 +117,13 @@ pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
     }
     values
 }
-pub fn insert_operation_row(
-    storage_client: Arc<RocksStorage>,
+
+pub fn map_row_to_operation_event(
     table_name: String,
     row: &Row,
     columns: &[Column],
     idx: u32,
-) {
+) -> OperationEvent {
     let rec = Record {
         values: get_values(row, columns),
         schema_id: 1,
@@ -139,16 +137,7 @@ pub fn insert_operation_row(
         operation: op,
         id: idx,
     };
-    storage_client.insert_operation_event(&evt);
-}
-
-pub async fn insert_operation_events(
-    storage_client: Arc<RocksStorage>,
-    operations: Vec<OperationEvent>,
-) {
-    for op in operations.iter() {
-        storage_client.insert_operation_event(op);
-    }
+    evt
 }
 
 pub fn connect(conn_str: String) -> Result<Client, postgres::Error> {

@@ -1,19 +1,17 @@
-use crate::connectors::postgres::helper::insert_operation_row;
-use crate::connectors::storage::RocksStorage;
-use dozer_shared::types::OperationEvent;
-use futures::{Stream, StreamExt};
-use postgres::Column;
+use crate::connectors::ingestor::IngestionMessage;
+use crate::connectors::ingestor::Ingestor;
+use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::SimpleQueryMessage::Row;
-use postgres::{Client, NoTls, RowIter};
+use postgres::{Client, NoTls};
 use std::cell::RefCell;
-use std::cell::RefMut;
-use std::pin::Pin;
-use std::sync::Arc; // 0.4.10
+use std::sync::Arc;
+
+use super::helper; // 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<String>>,
     pub conn_str: String,
-    pub storage_client: Arc<RocksStorage>,
+    pub ingestor: Arc<Ingestor>,
 }
 
 impl PostgresSnapshotter {
@@ -21,7 +19,7 @@ impl PostgresSnapshotter {
         let client = Client::connect(&self.conn_str, NoTls)?;
         Ok(client)
     }
-    pub fn get_tables(&self, mut client: Arc<RefCell<Client>>) -> Result<Vec<String>, Error> {
+    pub fn get_tables(&self, client: Arc<RefCell<Client>>) -> Result<Vec<String>, Error> {
         match self.tables.as_ref() {
             None => {
                 let query = "SELECT ist.table_name, t.relid AS id
@@ -43,42 +41,44 @@ impl PostgresSnapshotter {
         }
     }
 
-    // pub fn get_iterator(
-    //     &mut self,
-    //     client: Arc<RefCell<Client>>,
-    //     table: String,
-    // ) -> Result<Arc<RowIter>, Error> {
-    //     let query = format!("select * from {}", table);
-    //     let stmt = client.clone().borrow_mut().prepare(&query)?;
-    //     let columns = stmt.columns();
-    //     println!("{:?}", columns);
+    pub fn sync_tables(&self) -> Result<Vec<String>, Error> {
+        let client_plain = Arc::new(RefCell::new(helper::connect(self.conn_str.clone())?));
 
-    //     let empty_vec: Vec<String> = Vec::new();
-    //     let iter = client.clone().borrow_mut().query_raw(&stmt, empty_vec)?;
-    //     Ok(Arc::new(iter))
-    // }
+        let tables = self.get_tables(client_plain.clone())?;
 
-    // fn process_stream(&self, table_name: String, columns: &[Column], stream: &RowIter) {
-    //     let mut i = 0;
-    //     loop {
-    //         match stream.next() {
-    //             Some(Ok(row)) => {
-    //                 insert_operation_row(
-    //                     Arc::clone(&self.storage_client),
-    //                     table_name.to_owned(),
-    //                     &row,
-    //                     columns,
-    //                     i,
-    //                 );
-    //             }
-    //             Some(Err(error)) => {
-    //                 panic!("{}", error)
-    //             }
-    //             _ => {
-    //                 break;
-    //             }
-    //         };
-    //         i = i + 1;
-    //     }
-    // }
+        let mut idx: u32 = 0;
+        for table in tables.iter() {
+            let query = format!("select * from {}", table);
+            let stmt = client_plain.clone().borrow_mut().prepare(&query)?;
+            let columns = stmt.columns();
+            // println!("{:?}", columns);
+
+            let empty_vec: Vec<String> = Vec::new();
+            for msg in client_plain
+                .clone()
+                .borrow_mut()
+                .query_raw(&stmt, empty_vec)?
+                .iterator()
+            {
+                match msg {
+                    Ok(msg) => {
+                        let evt = helper::map_row_to_operation_event(
+                            table.to_string(),
+                            &msg,
+                            columns,
+                            idx,
+                        );
+                        self.ingestor
+                            .handle_message(IngestionMessage::OperationEvent(evt));
+                    }
+                    Err(e) => {
+                        println!("{:?}", e);
+                        panic!("Something happened");
+                    }
+                }
+                idx = idx + 1;
+            }
+        }
+        Ok(tables)
+    }
 }

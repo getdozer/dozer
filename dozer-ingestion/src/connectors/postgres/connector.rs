@@ -1,12 +1,9 @@
 use crate::connectors::connector;
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
-use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
-use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use crate::connectors::storage::RocksStorage;
-use async_trait::async_trait;
 use connector::Connector;
-use dozer_shared::types::TableInfo;
+use dozer_shared::types::{OperationEvent, TableInfo};
 use postgres::Client;
 use std::sync::Arc;
 
@@ -26,7 +23,7 @@ pub struct PostgresConnector {
     storage_client: Option<Arc<RocksStorage>>,
 }
 
-impl Connector<PostgresConfig, postgres::Client, postgres::Error> for PostgresConnector {
+impl Connector<PostgresConfig, postgres::Error> for PostgresConnector {
     fn new(config: PostgresConfig) -> PostgresConnector {
         let mut conn_str = config.conn_str.to_owned();
         conn_str.push_str(" replication=database");
@@ -41,9 +38,9 @@ impl Connector<PostgresConfig, postgres::Client, postgres::Error> for PostgresCo
     }
 
     fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> Result<(), postgres::Error> {
-        self.storage_client = Some(storage_client);
         let client = helper::connect(self.conn_str.clone())?;
         self.create_publication(client).unwrap();
+        self.storage_client = Some(storage_client);
         Ok(())
     }
 
@@ -59,16 +56,19 @@ impl Connector<PostgresConfig, postgres::Client, postgres::Error> for PostgresCo
         helper.get_schema()
     }
 
-    fn start(&mut self) -> PostgresIterator {
-        let stream = PostgresIterator::new(
+    fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
+        let storage_client = self.storage_client.as_ref().unwrap().clone();
+        let iterator = PostgresIterator::new(
             self.get_publication_name(),
             self.get_slot_name(),
             self.tables.to_owned(),
             self.conn_str.clone(),
             self.conn_str_plain.clone(),
-            Arc::clone(&self.storage_client.as_ref().unwrap()),
+            storage_client,
         );
-        stream
+
+        let _join_handle = iterator.start().unwrap();
+        Box::new(iterator)
     }
 
     fn stop(&self) {}
@@ -98,11 +98,14 @@ impl PostgresConnector {
         Ok(())
     }
 
-    pub fn drop_replication_slot(&self) {
+    pub fn drop_replication_slot_if_exists(&self) {
         let slot = self.get_slot_name();
         let mut client = helper::connect(self.conn_str.clone()).unwrap();
-        client
-            .simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref())
-            .unwrap();
+        let res =
+            client.simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
+        match res {
+            Ok(_) => println!("dropped replication slot {}", slot),
+            Err(_) => println!("failed to drop replication slot..."),
+        }
     }
 }

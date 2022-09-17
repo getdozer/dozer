@@ -1,9 +1,9 @@
 use connectors::connector::Connector;
 use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
-use connectors::postgres::iterator::PostgresIterator;
 mod connectors;
 use crate::connectors::storage::{RocksConfig, Storage};
 use std::sync::Arc;
+use std::time::Instant;
 
 fn main() {
     let storage_config = RocksConfig {
@@ -13,25 +13,34 @@ fn main() {
 
     let postgres_config = PostgresConfig {
         name: "test_c".to_string(),
-        tables: Some(vec!["actor".to_string()]),
+        // tables: Some(vec!["actor".to_string()]),
+        tables: None,
         conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
+        // conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=large_film".to_string(),
     };
     let mut connector = PostgresConnector::new(postgres_config);
 
     connector.initialize(storage_client).unwrap();
 
-    // connector.drop_replication_slot().await;
-    // For testing purposes
+    connector.drop_replication_slot_if_exists();
 
-    let mut iterator: PostgresIterator = connector.start();
+    // let ingestor = Ingestor::new(storage_client);
 
-    // loop {
-    //     let msg = iterator.receiver.recv().unwrap();
-    //     println!("main function: {:?}", msg);
-    // }
-    for msg in iterator.next() {
-        println!("main function: {:?}", msg);
-        let id: i32 = msg.try_get(0).unwrap();
-        println!("{:?}", id);
+    let before = Instant::now();
+    const BACKSPACE: char = 8u8 as char;
+    let mut iterator = connector.iterator();
+    let mut i = 0;
+    loop {
+        let _msg = iterator.next().unwrap();
+
+        if i % 100 == 0 {
+            print!(
+                "{}\rCount: {}, Elapsed time: {:.2?}",
+                BACKSPACE,
+                i,
+                before.elapsed(),
+            );
+        }
+        i += 1;
     }
 }

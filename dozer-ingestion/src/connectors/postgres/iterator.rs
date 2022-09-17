@@ -1,25 +1,19 @@
+use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
-use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use crate::connectors::storage::RocksStorage;
-use chrono::{TimeZone, Utc};
-use crossbeam::channel::bounded;
+use crossbeam::channel::unbounded;
 use dozer_shared::types::OperationEvent;
-use futures::{stream, Stream, StreamExt};
-use postgres::fallible_iterator::FallibleIterator;
-use postgres::{Error, Row};
-use postgres_protocol::message::backend::ReplicationMessage::{self, *};
-use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
-use postgres_types::PgLsn;
+use postgres::Error;
 use std::cell::RefCell;
-use std::sync::{Arc, RwLock};
-use std::task::Poll;
-use std::thread;
-use std::time::SystemTime;
-use tokio_postgres::replication::LogicalReplicationStream;
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+use tokio::runtime::Runtime;
 
 use postgres::Client;
 use postgres::SimpleQueryMessage::Row as SimpleRow;
+
+use super::replicator::CDCHandler;
 
 pub struct Details {
     publication_name: String,
@@ -30,24 +24,21 @@ pub struct Details {
 }
 pub struct PostgresIteratorHandler {
     details: Arc<Details>,
-    storage_client: Arc<RocksStorage>,
-    logical_stream: Arc<RwLock<Option<Arc<LogicalReplicationStream>>>>,
     lsn: RefCell<Option<String>>,
-    messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>>,
     state: RefCell<ReplicationState>,
-    sender: crossbeam::channel::Sender<postgres::Row>,
+    ingestor: Arc<Ingestor>,
 }
 
 pub struct PostgresIterator {
-    pub receiver: crossbeam::channel::Receiver<postgres::Row>,
+    receiver: RefCell<Option<crossbeam::channel::Receiver<OperationEvent>>>,
+    details: Arc<Details>,
+    storage_client: Arc<RocksStorage>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum ReplicationState {
     Pending,
     SnapshotInProgress,
-    CommitPending,
-    ReplicatePending,
     Replicating,
 }
 
@@ -60,8 +51,6 @@ impl PostgresIterator {
         conn_str_plain: String,
         storage_client: Arc<RocksStorage>,
     ) -> Self {
-        let state = RefCell::new(ReplicationState::Pending);
-        let lsn = RefCell::new(None);
         let details = Arc::new(Details {
             publication_name,
             slot_name,
@@ -69,37 +58,53 @@ impl PostgresIterator {
             conn_str,
             conn_str_plain,
         });
-        let (tx, rx) = bounded::<Row>(100);
-        // let (s, r) = bounded(1);
-        thread::spawn(move || {
-            let mut stream_inner = PostgresIteratorHandler {
-                details,
-                storage_client,
-                state,
-                lsn,
-                logical_stream: Arc::new(RwLock::new(None)),
-                messages_buffer: vec![],
-                sender: tx,
-            };
-            stream_inner._start().unwrap();
-        });
-        PostgresIterator { receiver: rx }
+        PostgresIterator {
+            receiver: RefCell::new(None),
+            details,
+            storage_client,
+        }
     }
 }
 
-impl Iterator for PostgresIterator {
-    type Item = Row;
+impl PostgresIterator {
+    pub fn start(&self) -> Result<JoinHandle<()>, Error> {
+        let state = RefCell::new(ReplicationState::Pending);
+        let lsn = RefCell::new(None);
+        let details = self.details.clone();
 
+        let (tx, rx) = unbounded::<OperationEvent>();
+
+        self.receiver.replace(Some(rx));
+
+        let forwarder: Arc<Box<dyn IngestorForwarder>> =
+            Arc::new(Box::new(ChannelForwarder { sender: tx }));
+        // ingestor.initialize(forwarder);
+        let storage_client = self.storage_client.clone();
+        let ingestor = Arc::new(Ingestor::new(storage_client, forwarder));
+
+        Ok(thread::spawn(move || {
+            let mut stream_inner = PostgresIteratorHandler {
+                details,
+                ingestor,
+                state,
+                lsn,
+            };
+            stream_inner._start().unwrap();
+        }))
+    }
+}
+impl Iterator for PostgresIterator {
+    // type Item = Row;
+    type Item = OperationEvent;
     fn next(&mut self) -> Option<Self::Item> {
-        println!("in PostgresIterator::loop");
-        let msg = self.receiver.recv();
+        let msg = self.receiver.borrow().as_ref().unwrap().recv();
         match msg {
             Ok(msg) => {
-                println!("{:?}", msg);
+                // println!("{:?}", msg);
                 Some(msg)
             }
             Err(e) => {
-                println!("{:?}", e.to_string());
+                println!("RecvError: {:?}", e.to_string());
                 None
             }
         }
@@ -107,82 +112,63 @@ impl Iterator for PostgresIterator {
 }
 
 impl PostgresIteratorHandler {
+    /*
+     Replication invovles 3 states
+        1) Pending
+        - Initialite a replication slot.
+        - Initialite snapshots
+
+        2) SnapshotInProgress
+        - Sync initial snapshots of specified tables
+        - Commit with lsn
+
+        3) Replicating
+        - Replicate CDC events using lsn
+    */
     fn _start(&mut self) -> Result<(), Error> {
         let details = Arc::clone(&self.details);
         let conn_str = details.conn_str.to_owned();
-        let conn_str_plain = details.conn_str_plain.to_owned();
         let client = Arc::new(RefCell::new(helper::connect(conn_str)?));
-        let client_plain = Arc::new(RefCell::new(helper::connect(conn_str_plain)?));
-        let storage_client = Arc::clone(&self.storage_client);
 
+        // let storage_client = Arc::clone(&self.storage_client);
+
+        /*  #####################        Pending             ############################ */
         client
             .clone()
             .borrow_mut()
             .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")?;
-        // Create a replication slot
-        println!("Creating Slot....");
 
+        println!("\nCreating Slot....");
         self._create_replication_slot(client.clone())?;
-
-        println!("Initializing snapshots...");
 
         self.state
             .clone()
             .replace(ReplicationState::SnapshotInProgress);
 
-        let tx = self.sender.clone();
+        /* #####################        SnapshotInProgress         ###################### */
+        println!("\nInitializing snapshots...");
 
         let snapshotter = PostgresSnapshotter {
             tables: details.tables.to_owned(),
             conn_str: details.conn_str_plain.to_owned(),
-            storage_client: Arc::clone(&storage_client),
+            ingestor: Arc::clone(&self.ingestor),
         };
+        let tables = snapshotter.sync_tables()?;
 
-        let tables = snapshotter.get_tables(client_plain.clone())?;
-        println!("Initialized with tables: {:?}", tables);
-        for table in tables.iter() {
-            let query = format!("select * from {}", table);
-            let stmt = client_plain.clone().borrow_mut().prepare(&query)?;
-            let columns = stmt.columns();
-            println!("{:?}", columns);
+        println!("\nInitialized with tables: {:?}", tables);
 
-            let empty_vec: Vec<String> = Vec::new();
-            for msg in client_plain
-                .clone()
-                .borrow_mut()
-                .query_raw(&stmt, empty_vec)?
-                .iterator()
-            {
-                // println!("{:?}", msg);
-                match msg {
-                    Ok(msg) => {
-                        let send_res = tx.send(msg);
-                        match send_res {
-                            Ok(_) => println!("able to send"),
-                            Err(e) => println!("{:?}", e.to_string()),
-                        }
-                    }
-                    Err(e) => {
-                        println!("{:?}", e);
-                        panic!("Something happened");
-                    }
-                }
-            }
-        }
+        client.borrow_mut().simple_query("COMMIT;")?;
+
+        self.state.clone().replace(ReplicationState::Replicating);
+
+        /*  ####################        Replicating         ######################  */
+        self._replicate()?;
+
         Ok(())
-        // ReplicationState::CommitPending => todo!(),
-        // ReplicationState::ReplicatePending => todo!(),
-        // ReplicationState::Replicating => todo!(),
     }
 
     fn _create_replication_slot(&self, client: Arc<RefCell<Client>>) -> Result<(), Error> {
         let details = Arc::clone(&self.details);
-
-        let drop_query = format!(r#"DROP_REPLICATION_SLOT {:?}"#, details.slot_name);
-        match client.borrow_mut().simple_query(&drop_query) {
-            Ok(_) => println!("previous slot dropped"),
-            Err(_) => println!("slot doesnt exist. skipping..."),
-        };
 
         let create_replication_slot_query = format!(
             r#"CREATE_REPLICATION_SLOT {:?} LOGICAL "pgoutput" USE_SNAPSHOT"#,
@@ -200,83 +186,30 @@ impl PostgresIteratorHandler {
         };
 
         println!("lsn: {:?}", lsn);
+        self.lsn.replace(Some(lsn.to_string()));
+
         Ok(())
     }
 
-    async fn _commit_snapshot(&self, client: Arc<Client>) -> Result<(), Error> {
-        // client.simple_query("COMMIT;").await?;
-        // let mut guard = self.state.write().unwrap();
-        // *guard = ReplicationState::Replicating;
-        // drop(guard);
-        Ok(())
-    }
-
-    async fn _start_replication(&self) -> Result<LogicalReplicationStream, Error> {
-        let conn_str = Arc::clone(&self.details).conn_str.to_owned();
-        let client: tokio_postgres::Client = helper::async_connect(conn_str).await?;
-
+    fn _replicate(&self) -> Result<(), Error> {
+        let rt = Runtime::new().unwrap();
+        let ingestor = self.ingestor.clone();
         let lsn = self.lsn.borrow();
-        let lsn = lsn.as_ref().unwrap();
-        let details = Arc::clone(&self.details);
-        let options = format!(
-            r#"("proto_version" '1', "publication_names" '{publication_name}')"#,
-            publication_name = details.publication_name
-        );
-        let query = format!(
-            r#"START_REPLICATION SLOT {:?} LOGICAL {} {}"#,
-            details.slot_name, lsn, options
-        );
-
-        let copy_stream = client.copy_both_simple::<bytes::Bytes>(&query).await?;
-
-        let stream = LogicalReplicationStream::new(copy_stream);
-
-        Ok(stream)
-    }
-    async fn handle_message(
-        &self,
-        message: Option<Result<ReplicationMessage<LogicalReplicationMessage>, Error>>,
-        stream: LogicalReplicationStream,
-    ) -> Poll<Option<Result<postgres::Row, postgres::Error>>> {
-        let mut mapper = XlogMapper::new();
-        let mut messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>> = vec![];
-        // match stream.next().await {
-        match message {
-            Some(Ok(XLogData(body))) => {
-                let storage_client = self.storage_client.clone();
-                mapper.handle_message(body, storage_client, &mut messages_buffer);
-            }
-            Some(Ok(PrimaryKeepAlive(ref k))) => {
-                println!("keep alive: {}", k.reply());
-                if k.reply() == 1 {
-                    // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
-                    let since_the_epoch = SystemTime::now()
-                        .duration_since(SystemTime::from(Utc.ymd(2020, 1, 1).and_hms(0, 0, 0)))
-                        .unwrap()
-                        .as_millis();
-
-                    tokio::pin!(stream);
-                    stream
-                        // .as_mut()
-                        .standby_status_update(
-                            PgLsn::from(k.wal_end() + 1),
-                            PgLsn::from(k.wal_end() + 1),
-                            PgLsn::from(k.wal_end() + 1),
-                            since_the_epoch as i64,
-                            1,
-                        )
-                        .await
-                        .unwrap();
-                }
-            }
-
-            Some(Ok(msg)) => {
-                println!("{:?}", msg);
-                println!("why i am here ?");
-            }
-            Some(Err(_)) => panic!("unexpected replication stream error"),
-            None => panic!("unexpected replication stream end"),
-        }
-        Poll::Pending
+        let lsn = match lsn.as_ref() {
+            Some(x) => x.to_string(),
+            None => panic!("lsn not stored..."),
+        };
+        let publication_name = self.details.publication_name.clone();
+        let slot_name = self.details.slot_name.clone();
+        Ok(rt.block_on(async {
+            let replicator = CDCHandler {
+                conn_str: self.details.conn_str.clone(),
+                ingestor,
+                lsn,
+                publication_name,
+                slot_name,
+            };
+            replicator.start().await
+        })?)
     }
 }

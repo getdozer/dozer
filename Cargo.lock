@@ -539,6 +539,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-orchestrator"
+version = "0.1.0"
+dependencies = [
+ "dozer-core",
+ "dozer-ingestion",
+]
+
+[[package]]
 name = "dozer-shared"
 version = "0.1.0"
 dependencies = [
@@ -547,19 +555,6 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "dozer-tests"
-version = "0.1.0"
-dependencies = [
- "dozer-core",
- "dozer-ingestion",
- "postgres 0.19.3",
- "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
- "postgres-types 0.2.3",
- "tokio",
- "tokio-postgres 0.7.6",
 ]
 
 [[package]]
