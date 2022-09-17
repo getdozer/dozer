@@ -1,31 +1,25 @@
-use crate::connectors::postgres::helper::insert_operation_row;
-use crate::connectors::storage::RocksStorage;
-use futures::StreamExt;
+use crate::connectors::ingestor::IngestionMessage;
+use crate::connectors::ingestor::Ingestor;
+use postgres::fallible_iterator::FallibleIterator;
+use postgres::Error;
+use postgres::SimpleQueryMessage::Row;
+use postgres::{Client, NoTls};
+use std::cell::RefCell;
 use std::sync::Arc;
-use tokio_postgres::SimpleQueryMessage::Row;
-use tokio_postgres::{Client, NoTls, RowStream}; // 0.4.10
 
+use super::helper; // 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<String>>,
     pub conn_str: String,
-    pub storage_client: Arc<RocksStorage>,
+    pub ingestor: Arc<Ingestor>,
 }
 
 impl PostgresSnapshotter {
-    async fn _connect(&mut self) -> tokio_postgres::Client {
-        let (client, connection) = tokio_postgres::connect(&self.conn_str, NoTls)
-            .await
-            .unwrap();
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-                panic!("Connection failed!");
-            }
-        });
-        client
+    fn _connect(&mut self) -> Result<Client, Error> {
+        let client = Client::connect(&self.conn_str, NoTls)?;
+        Ok(client)
     }
-    async fn get_tables(&self, client: Client) -> Vec<String> {
+    pub fn get_tables(&self, client: Arc<RefCell<Client>>) -> Result<Vec<String>, Error> {
         match self.tables.as_ref() {
             None => {
                 let query = "SELECT ist.table_name, t.relid AS id
@@ -35,57 +29,56 @@ impl PostgresSnapshotter {
                 ORDER BY ist.table_name;";
 
                 let mut rows: Vec<String> = vec![];
-                let results = client.simple_query(query).await.unwrap();
+                let results = client.borrow_mut().simple_query(query)?;
                 for row in results {
                     if let Row(row) = row {
                         rows.push(row.get(0).unwrap().to_string());
                     }
                 }
-                rows
+                Ok(rows)
             }
-            Some(arr) => arr.to_vec(),
+            Some(arr) => Ok(arr.to_vec()),
         }
     }
 
-    pub async fn run(&mut self) {
-        let client = self._connect().await;
-        let tables = self.get_tables(client).await;
+    pub fn sync_tables(&self) -> Result<Vec<String>, Error> {
+        let client_plain = Arc::new(RefCell::new(helper::connect(self.conn_str.clone())?));
 
-        println!("Initialized with tables: {:?}", tables);
+        let tables = self.get_tables(client_plain.clone())?;
 
-        let client = self._connect().await;
-        for t in tables.iter() {
-            println!("Syncing table {} .....", t);
-            let query = format!("select * from {}", t);
-            let stmt = client.prepare(&query).await.unwrap();
+        let mut idx: u32 = 0;
+        for table in tables.iter() {
+            let query = format!("select * from {}", table);
+            let stmt = client_plain.clone().borrow_mut().prepare(&query)?;
             let columns = stmt.columns();
-            println!("{:?}", columns);
+            // println!("{:?}", columns);
 
             let empty_vec: Vec<String> = Vec::new();
-            let stream: RowStream = client.query_raw(&stmt, empty_vec).await.unwrap();
-
-            tokio::pin!(stream);
-            let mut i = 0;
-            loop {
-                match stream.next().await {
-                    Some(Ok(row)) => {
-                        insert_operation_row(
-                            Arc::clone(&self.storage_client),
-                            t.to_string(),
-                            &row,
+            for msg in client_plain
+                .clone()
+                .borrow_mut()
+                .query_raw(&stmt, empty_vec)?
+                .iterator()
+            {
+                match msg {
+                    Ok(msg) => {
+                        let evt = helper::map_row_to_operation_event(
+                            table.to_string(),
+                            &msg,
                             columns,
-                            i,
+                            idx,
                         );
+                        self.ingestor
+                            .handle_message(IngestionMessage::OperationEvent(evt));
                     }
-                    Some(Err(error)) => {
-                        panic!("{}", error)
+                    Err(e) => {
+                        println!("{:?}", e);
+                        panic!("Something happened");
                     }
-                    _ => {
-                        break;
-                    }
-                };
-                i = i + 1;
+                }
+                idx = idx + 1;
             }
         }
+        Ok(tables)
     }
 }

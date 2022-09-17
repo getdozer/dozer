@@ -28,16 +28,16 @@ pub struct Schema {
     pub _ctr: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Record {
     pub values: Vec<Field>,
     pub schema_id: u64,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OperationEvent {
     pub id: u32,
-    pub operation: Operation
+    pub operation: Operation,
 }
 
 impl OperationEvent {
@@ -46,8 +46,7 @@ impl OperationEvent {
     }
 }
 
-
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Operation {
     Delete {
         table_name: String,
@@ -64,12 +63,12 @@ pub enum Operation {
     },
     Terminate,
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TableInfo {
     pub table_name: String,
     pub columns: Vec<ColumnInfo>,
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ColumnInfo {
     pub column_name: String,
     pub is_nullable: bool,
