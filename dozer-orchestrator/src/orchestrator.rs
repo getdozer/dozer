@@ -5,7 +5,7 @@ use dozer_core::dag::{
     node::{ChannelForwarder, Source},
 };
 use dozer_ingestion::connectors::{
-    connector::{self, Connector},
+    connector::Connector,
     postgres::connector::{PostgresConfig, PostgresConnector},
     storage::{RocksConfig, RocksStorage, Storage},
 };

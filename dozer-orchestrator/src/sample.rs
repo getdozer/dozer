@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use dozer_core::dag::{
     dag::PortHandle,
     node::{ChannelForwarder, ExecutionContext, NextStep, Processor, Sink},
@@ -7,11 +9,16 @@ use dozer_shared::types::OperationEvent;
 pub struct SampleSink {
     id: i32,
     input_ports: Option<Vec<PortHandle>>,
+    instant: Instant,
 }
 
 impl SampleSink {
     pub fn new(id: i32, input_ports: Option<Vec<PortHandle>>) -> Self {
-        Self { id, input_ports }
+        Self {
+            id,
+            input_ports,
+            instant: Instant::now(),
+        }
     }
 }
 
@@ -31,8 +38,13 @@ impl Sink for SampleSink {
         op: OperationEvent,
         ctx: &dyn ExecutionContext,
     ) -> Result<NextStep, String> {
+        const BACKSPACE: char = 8u8 as char;
         if op.id % 1000 == 0 {
-            println!("Sampled Event from Sink: {:?}", op);
+            println!(
+                "{}\r Sampled Event from Sink: {:.2?}",
+                BACKSPACE,
+                self.instant.elapsed()
+            );
         }
         Ok(NextStep::Continue)
     }
