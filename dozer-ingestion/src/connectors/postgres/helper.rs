@@ -1,22 +1,12 @@
 use bytes::Bytes;
 
 use crate::connectors::postgres::xlog_mapper::TableColumn;
-use chrono::DateTime;
 use dozer_shared::types::*;
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
 use std::error::Error;
-<<<<<<< HEAD
-
-pub fn postgres_type_to_bytes(value: &Bytes, column: &TableColumn) -> Field {
-    let column_type = Type::from_oid(column.type_id as u32).unwrap();
-    match column_type {
-        Type::INT4 => Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap()),
-        Type::TEXT | _ => Field::Null,
-=======
 use std::sync::Arc;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use crate::connectors::postgres::xlog_mapper::TableColumn;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 
@@ -49,35 +39,22 @@ pub fn postgres_type_to_field(
         }
     } else {
         Field::Null
->>>>>>> 7cd2e91 (feat: Implement type conversion for postgresql)
     }
 }
 
 pub fn postgres_type_to_dozer_type(column: &TableColumn) -> Field {
-<<<<<<< HEAD
-    let column_type = Type::from_oid(column.type_id as u32).unwrap();
-    match column_type {
-        Type::INT4 | Type::INT8 | Type::INT2 => Field::Int(0),
-        Type::TEXT => Field::String("".parse().unwrap()),
-        Type::FLOAT4 | Type::FLOAT8 => Field::Float(0.0),
-        Type::BOOL => Field::Boolean(false),
-        Type::BIT => Field::Binary(vec![]),
-        Type::TIMESTAMP | Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
-        _ => Field::Null,
-=======
-    if let Some(column_type) = Type::from_oid(column.type_id as u32) {
+    if let Some(column_type) = &column.r#type {
         match column_type {
-            Type::INT4 | Type::INT8 | Type::INT2 => Field::Int(0),
-            Type::TEXT => Field::String("".parse().unwrap()),
-            Type::FLOAT4 | Type::FLOAT8 => Field::Float(0.0),
-            Type::BOOL => Field::Boolean(false),
-            Type::BIT => Field::Binary(vec![]),
-            Type::TIMESTAMP | Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
+            &Type::INT4 | &Type::INT8 | &Type::INT2 => Field::Int(0),
+            &Type::TEXT => Field::String("".parse().unwrap()),
+            &Type::FLOAT4 | &Type::FLOAT8 => Field::Float(0.0),
+            &Type::BOOL => Field::Boolean(false),
+            &Type::BIT => Field::Binary(vec![]),
+            &Type::TIMESTAMP | &Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
             _ => Field::Null
         }
     } else {
         Field::Null
->>>>>>> 7cd2e91 (feat: Implement type conversion for postgresql)
     }
 }
 
