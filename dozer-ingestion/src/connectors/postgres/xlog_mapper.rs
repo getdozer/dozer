@@ -11,6 +11,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use postgres_types::Type;
 
 struct MessageBody<'a> {
     message: &'a RelationBody,
@@ -33,6 +34,7 @@ pub struct TableColumn {
     pub name: String,
     pub type_id: i32,
     pub flags: i8,
+    pub r#type: Option<Type>,
 }
 
 impl Hash for MessageBody<'_> {
@@ -115,7 +117,8 @@ impl XlogMapper {
                 name: String::from(column.name().unwrap()),
                 type_id: column.type_id(),
                 flags: column.flags(),
-            })
+                    r#type: Type::from_oid(column.type_id() as u32)
+                })
             .collect();
 
         let table = Table {
@@ -146,14 +149,14 @@ impl XlogMapper {
         ingestor.handle_message(IngestionMessage::Schema(schema));
     }
 
-    fn convert_values_to_vec(table: &Table, new_values: &[TupleData]) -> Vec<Field> {
+    fn convert_values_to_fields(table: &Table, new_values: &[TupleData]) -> Vec<Field> {
         let mut values: Vec<Field> = vec![];
 
         for i in 0..new_values.len() {
             let value = new_values.get(i).unwrap();
             let column = table.columns.get(i).unwrap();
             if let TupleData::Text(text) = value {
-                values.push(helper::postgres_type_to_bytes(text, column));
+                values.push(helper::postgres_type_to_field(text, column));
             }
         }
 
@@ -171,7 +174,7 @@ impl XlogMapper {
                     let table = self.relations_map.get(&insert.rel_id()).unwrap();
                     let new_values = insert.tuple().tuple_data();
 
-                    let values = Self::convert_values_to_vec(table, new_values);
+                    let values = Self::convert_values_to_fields(table, new_values);
 
                     operations.push(OperationEvent {
                         operation: Operation::Insert {
@@ -188,7 +191,7 @@ impl XlogMapper {
                     let table = self.relations_map.get(&update.rel_id()).unwrap();
                     let new_values = update.new_tuple().tuple_data();
 
-                    let values = Self::convert_values_to_vec(table, new_values);
+                    let values = Self::convert_values_to_fields(table, new_values);
                     operations.push(OperationEvent {
                         operation: Operation::Update {
                             table_name: table.name.clone(),
@@ -209,7 +212,7 @@ impl XlogMapper {
                     let table = self.relations_map.get(&delete.rel_id()).unwrap();
                     let key_values = delete.key_tuple().unwrap().tuple_data();
 
-                    let values = Self::convert_values_to_vec(table, key_values);
+                    let values = Self::convert_values_to_fields(table, key_values);
 
                     operations.push(OperationEvent {
                         operation: Operation::Delete {
