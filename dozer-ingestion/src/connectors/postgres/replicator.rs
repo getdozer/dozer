@@ -18,6 +18,7 @@ pub struct CDCHandler {
     pub lsn: String,
     pub ingestor: Arc<Ingestor>,
 }
+
 impl CDCHandler {
     pub async fn start(&self) -> Result<(), Error> {
         let conn_str = self.conn_str.clone();

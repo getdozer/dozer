@@ -48,8 +48,8 @@ impl Ingestor {
     pub fn handle_message(&self, message: IngestionMessage) {
         match message {
             IngestionMessage::OperationEvent(event) => {
-                // self.storage_client.insert_operation_event(&event);
-                self.sender.forward(event);
+                self.storage_client.insert_operation_event(&event);
+                // self.sender.forward(event);
             }
             IngestionMessage::Schema(schema) => {
                 self.storage_client.insert_schema(&schema);
