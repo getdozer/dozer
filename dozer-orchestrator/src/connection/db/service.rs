@@ -1,25 +1,28 @@
-use super::models::connection::Connection;
-use super::pool::DbPool;
-use crate::db::models as DBModels;
-use crate::db::schema;
+use crate::connection::traits::db_persistent::DbPersistentTrait;
+use super::models as DBModels;
+use super::pool::{DbPool, establish_connection};
 use diesel::prelude::*;
 use diesel::{insert_into, RunQueryDsl, SqliteConnection};
-use schema::connections::dsl::*;
+use super::schema::connections::dsl::*;
 use std::error::Error;
-use crate::db::connection_db_trait::ConnectionDbTrait;
 #[derive(Clone)]
 pub struct ConnectionDbSvc {
     db_connection: DbPool,
 }
 
 impl ConnectionDbSvc {
-    pub fn new(db_connection: DbPool) -> Self {
+    // pub fn new(db_connection: DbPool) -> Self {
+    //     Self { db_connection }
+    // }
+
+    pub fn new(database_url: String) -> Self {
+        let db_connection = establish_connection(database_url);
         Self { db_connection }
     }
 }
 
-impl ConnectionDbTrait<Connection> for ConnectionDbSvc {
-    fn get_connections(&self) -> Result<Vec<Connection>, Box<dyn Error>> {
+impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
+    fn get_connections(&self) -> Result<Vec<DBModels::connection::Connection>, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
             return Err(Box::new(db.err().unwrap()));
@@ -33,7 +36,7 @@ impl ConnectionDbTrait<Connection> for ConnectionDbSvc {
         }
     }
 
-    fn save_connection(&self, input: Connection) -> Result<String, Box<dyn Error>> {
+    fn save_connection(&self, input: DBModels::connection::Connection) -> Result<String, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
             return Err(Box::new(db.err().unwrap()));
@@ -53,7 +56,7 @@ impl ConnectionDbTrait<Connection> for ConnectionDbSvc {
         }
     }
 
-    fn get_connection_by_id(&self, connection_id: String) -> Result<Connection, Box<dyn Error>> {
+    fn get_connection_by_id(&self, connection_id: String) -> Result<DBModels::connection::Connection, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
             return Err(Box::new(db.err().unwrap()));

@@ -3,7 +3,7 @@ use std::{sync::Arc, error::Error};
 
 use super::storage::RocksStorage;
 
-pub trait Connector<C> {
+pub trait Connector {
     fn get_schema(&self) -> Vec<TableInfo>;
     fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> Result<(), Box<dyn Error>>;
     fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static>;

@@ -38,7 +38,7 @@ impl PostgresConnector {
     }
 }
 
-impl Connector<PostgresConfig> for PostgresConnector {
+impl Connector for PostgresConnector {
     fn initialize(
         &mut self,
         storage_client: Arc<RocksStorage>,

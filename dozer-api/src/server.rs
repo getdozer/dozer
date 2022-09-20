@@ -1,16 +1,15 @@
+use std::env;
+use dotenvy::dotenv;
 use tonic::{transport::Server, Request, Response, Status};
+use crate::{services::{grpc_connection_service::GRPCConnectionService}};
 pub mod dozer_api_grpc {
     tonic::include_proto!("dozer_api_grpc");
 }
-use self::dozer_api_grpc::{
-    GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
-    GetConnectionDetailsResponse,
-};
-use crate::{db::pool::establish_connection, services::{grpc_connection_service::GRPCConnectionService}};
 use dozer_api_grpc::{
     dozer_api_server::{DozerApi, DozerApiServer},
+    GetConnectionDetailsRequest,
     CreateConnectionRequest, CreateConnectionResponse, GetSchemaRequest, GetSchemaResponse,
-    TestConnectionRequest, TestConnectionResponse,
+    TestConnectionRequest, TestConnectionResponse,GetAllConnectionResponse,GetAllConnectionRequest,GetConnectionDetailsResponse
 };
 
 pub struct GrpcService {
@@ -82,9 +81,10 @@ impl DozerApi for GrpcService {
 
 pub async fn get_server() -> Result<(), tonic::transport::Error> {
     let addr = "[::1]:8081".parse().unwrap();
-    let db_connection = establish_connection();
+    dotenv().ok();
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let grpc_service = GrpcService {
-        grpc_connection_svc: GRPCConnectionService::new(db_connection),
+        grpc_connection_svc: GRPCConnectionService::new(database_url),
     };
     let server = DozerApiServer::new(grpc_service);
     let server =  tonic_web::config()
