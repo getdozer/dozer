@@ -141,7 +141,10 @@ pub fn map_row_to_operation_event(
 }
 
 pub fn connect(conn_str: String) -> Result<Client, postgres::Error> {
+    println!("==== hit connect helper 1");
     let client = Client::connect(&conn_str.clone(), NoTls)?;
+    println!("==== hit connect helper 2");
+
     Ok(client)
 }
 

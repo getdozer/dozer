@@ -1,9 +1,11 @@
-use crate::connection::traits::db_persistent::DbPersistentTrait;
-use super::models as DBModels;
-use super::pool::{DbPool, establish_connection};
+use crate::adapter::db::{
+    db_persistent_trait::DbPersistentTrait,
+    pool::{establish_connection, DbPool},
+    schema::connections::dsl::*,
+    models as DBModels
+};
 use diesel::prelude::*;
 use diesel::{insert_into, RunQueryDsl, SqliteConnection};
-use super::schema::connections::dsl::*;
 use std::error::Error;
 #[derive(Clone)]
 pub struct ConnectionDbSvc {
@@ -52,7 +54,10 @@ impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
         }
     }
 
-    fn get_by_id(&self, connection_id: String) -> Result<DBModels::connection::Connection, Box<dyn Error>> {
+    fn get_by_id(
+        &self,
+        connection_id: String,
+    ) -> Result<DBModels::connection::Connection, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
             return Err(Box::new(db.err().unwrap()));

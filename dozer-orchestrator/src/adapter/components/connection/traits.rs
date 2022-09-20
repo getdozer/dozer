@@ -1,7 +1,7 @@
 use dozer_ingestion::connectors::connector::Connector;
 use dozer_shared::types::TableInfo;
 use std::error::Error;
-use super::db_persistent::DbPersistentTrait;
+use crate::adapter::db::db_persistent_trait::DbPersistentTrait;
 
 pub trait ConnectionSvcTrait<Config, Connection> {
     fn get_connector(&self, config: Config) -> Box<dyn Connector>;

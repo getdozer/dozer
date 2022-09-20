@@ -1,3 +1,3 @@
+pub mod dal;
 pub mod service;
-pub mod db;
 pub mod traits;

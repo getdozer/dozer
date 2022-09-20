@@ -4,9 +4,10 @@ use crate::server::dozer_api_grpc::{
     GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, Pagination, TableInfo,
     TestConnectionRequest, TestConnectionResponse,
 };
-use dozer_orchestrator::connection::db::models::connection::Connection;
-use dozer_orchestrator::connection::service::ConnectionSvc;
-use dozer_orchestrator::connection::traits::connections_svc::ConnectionSvcTrait;
+use dozer_orchestrator::adapter::{
+    components::connection::{service::ConnectionSvc, traits::ConnectionSvcTrait},
+    db::models::connection::Connection,
+};
 pub struct GRPCConnectionService {
     connection_svc: ConnectionSvc,
 }
@@ -107,7 +108,7 @@ impl GRPCConnectionService {
         })
     }
 
-    pub async fn test_connection(
+    pub fn test_connection(
         &self,
         input: TestConnectionRequest,
     ) -> Result<TestConnectionResponse, ErrorResponse> {

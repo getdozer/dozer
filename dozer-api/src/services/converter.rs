@@ -3,7 +3,7 @@ use crate::server::dozer_api_grpc::{
     CreateConnectionResponse, PostgresAuthentication, TestConnectionRequest,
 };
 use core::panic;
-use dozer_orchestrator::connection::db::models::connection::Connection;
+use dozer_orchestrator::adapter::db::models::connection::Connection;
 use dozer_shared::types::{ColumnInfo, TableInfo};
 use std::convert::From;
 
@@ -86,10 +86,12 @@ impl TryFrom<TestConnectionRequest> for Connection {
                 dozer_api_grpc::test_connection_request::Authentication::Postgres(
                     postgres_auth,
                 ) => {
-                    let json_string = serde_json::to_string(&postgres_auth).map_err(|err| string_to_static_str(err.to_string()));
+                    let json_string = serde_json::to_string(&postgres_auth)
+                        .map_err(|err| string_to_static_str(err.to_string()));
                     if json_string.is_err() {
                         return Err(json_string.err().unwrap());
                     }
+
                     let new_id = uuid::Uuid::new_v4().to_string();
                     Ok(Connection {
                         id: new_id,
@@ -108,21 +110,19 @@ impl TryFrom<CreateConnectionRequest> for Connection {
     fn try_from(item: CreateConnectionRequest) -> Result<Self, Self::Error> {
         let authentication = item.authentication;
         match authentication {
-            Some(auth) => {
-                match auth {
-                    dozer_api_grpc::create_connection_request::Authentication::Postgres(
-                        postgres_auth,
-                    ) => {
-                        let json_string = serde_json::to_string(&postgres_auth)
+            Some(auth) => match auth {
+                dozer_api_grpc::create_connection_request::Authentication::Postgres(
+                    postgres_auth,
+                ) => {
+                    let json_string = serde_json::to_string(&postgres_auth)
                         .map_err(|err| string_to_static_str(err.to_string()));
-                        json_string.map(|op| Connection {
-                            id: uuid::Uuid::new_v4().to_string(),
-                            auth: op,
-                            db_type: "postgres".to_string()
-                        })
-                    }
+                    json_string.map(|op| Connection {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        auth: op,
+                        db_type: "postgres".to_string(),
+                    })
                 }
-            }
+            },
             None => Err("Missing Authentication"),
         }
     }
