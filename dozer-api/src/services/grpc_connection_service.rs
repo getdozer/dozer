@@ -85,27 +85,26 @@ impl GRPCConnectionService {
         &self,
         input: GetConnectionDetailsRequest,
     ) -> Result<GetConnectionDetailsResponse, ErrorResponse> {
-        todo!()
-        // let result = self
-        //     ._get_connection_details(input.connection_id.clone())
-        //     .await;
-        // match result {
-        //     Ok(info) => {
-        //         let table_info = info.0;
-        //         let connection = info.1;
-        //         let connection_details = ConnectionDetails {
-        //             table_info: table_info
-        //                 .iter()
-        //                 .map(|x| TableInfo::from(x.clone()))
-        //                 .collect(),
-        //         };
-        //         return Ok(GetConnectionDetailsResponse {
-        //             details: Some(connection_details),
-        //             info: Some(ConnectionInfo::from(connection)),
-        //         });
-        //     }
-        //     Err(err) => Err(err),
-        // }
+        let connection = self
+            .connection_svc
+            .get_connection_by_id(input.connection_id.clone())
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+                details: None,
+            })?;
+        let schema = self
+            .connection_svc
+            .get_schema(input.connection_id)
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+                details: None,
+            })?;
+        Ok(GetConnectionDetailsResponse {
+            info: Some(ConnectionInfo::from(connection)),
+            details: Some(ConnectionDetails {
+                table_info: schema.iter().map(|x| TableInfo::from(x.clone())).collect(),
+            }),
+        })
     }
 
     pub async fn test_connection(
