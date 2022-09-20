@@ -11,10 +11,6 @@ pub struct ConnectionDbSvc {
 }
 
 impl ConnectionDbSvc {
-    // pub fn new(db_connection: DbPool) -> Self {
-    //     Self { db_connection }
-    // }
-
     pub fn new(database_url: String) -> Self {
         let db_connection = establish_connection(database_url);
         Self { db_connection }
@@ -22,7 +18,7 @@ impl ConnectionDbSvc {
 }
 
 impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
-    fn get_connections(&self) -> Result<Vec<DBModels::connection::Connection>, Box<dyn Error>> {
+    fn get_multiple(&self) -> Result<Vec<DBModels::connection::Connection>, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
             return Err(Box::new(db.err().unwrap()));
@@ -36,7 +32,7 @@ impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
         }
     }
 
-    fn save_connection(&self, input: DBModels::connection::Connection) -> Result<String, Box<dyn Error>> {
+    fn save(&self, input: DBModels::connection::Connection) -> Result<String, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
             return Err(Box::new(db.err().unwrap()));
@@ -56,7 +52,7 @@ impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
         }
     }
 
-    fn get_connection_by_id(&self, connection_id: String) -> Result<DBModels::connection::Connection, Box<dyn Error>> {
+    fn get_by_id(&self, connection_id: String) -> Result<DBModels::connection::Connection, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
             return Err(Box::new(db.err().unwrap()));

@@ -10,11 +10,6 @@ pub struct ConnectionSvc {
   connection_db_svc: ConnectionDbSvc,
 }
 impl ConnectionSvc {
-  // pub fn new(connection_db_svc: ConnectionDbSvc) -> Self {
-  //     Self {
-  //         connection_db_svc: connection_db_svc,
-  //     }
-  // }
   pub fn new(database_url: String) -> Self {
     let connection_db_svc = ConnectionDbSvc::new(database_url);
     Self {
