@@ -64,7 +64,7 @@ impl XlogMapper {
     pub fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
-        ingestor: Arc<Ingestor>,
+        ingestor: Arc<Mutex<Ingestor>>,
         messages_buffer: &mut Vec<XLogDataBody<LogicalReplicationMessage>>,
     ) {
         match &message.data() {
@@ -95,8 +95,9 @@ impl XlogMapper {
                 println!("[Commit] End lsn: {}", commit.end_lsn());
                 let operation_events = self.map_operation_events(messages_buffer);
                 for event in operation_events {
-                    ingestor.handle_message(IngestionMessage::OperationEvent(event));
+                    ingestor.lock().unwrap().handle_message(IngestionMessage::OperationEvent(event));
                 }
+                ingestor.lock().unwrap().handle_message(IngestionMessage::Commit());
             }
             Begin(begin) => {
                 println!("begin:");
@@ -146,7 +147,7 @@ impl XlogMapper {
 
         self.relations_map.insert(rel_id, table);
 
-        ingestor.handle_message(IngestionMessage::Schema(schema));
+        ingestor.lock().unwrap().handle_message(IngestionMessage::Schema(schema));
     }
 
     fn convert_values_to_fields(table: &Table, new_values: &[TupleData]) -> Vec<Field> {

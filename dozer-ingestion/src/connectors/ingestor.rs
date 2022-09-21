@@ -3,11 +3,13 @@ use std::sync::Arc;
 use super::storage::RocksStorage;
 use dozer_shared::types::{OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
+use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum IngestionMessage {
     OperationEvent(OperationEvent),
     Schema(Schema),
+    Commit()
 }
 pub trait IngestorForwarder: Send + Sync {
     fn forward(&self, msg: OperationEvent);
@@ -29,9 +31,11 @@ impl IngestorForwarder for ChannelForwarder {
     }
 }
 
+
 pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
+    writer: BatchedRocksDbWriter
 }
 
 impl Ingestor {
@@ -42,18 +46,28 @@ impl Ingestor {
         Self {
             storage_client,
             sender,
+            writer: BatchedRocksDbWriter::new()
         }
     }
 
-    pub fn handle_message(&self, message: IngestionMessage) {
+    pub fn handle_message(&mut self, message: IngestionMessage) {
         match message {
             IngestionMessage::OperationEvent(event) => {
-                self.storage_client.insert_operation_event(&event);
-                // self.sender.forward(event);
+                let (key, encoded) =
+                    self.storage_client.map_operation_event(&event);
+                self.writer.insert(key.as_ref(), encoded);
+                self.sender.forward(event);
             }
             IngestionMessage::Schema(schema) => {
-                self.storage_client.insert_schema(&schema);
+                let (key, encoded) = self.storage_client.map_schema(&schema);
+                self.writer.insert(key.as_ref(), encoded);
+                // self.sender.forward(schema);
+            },
+            IngestionMessage::Commit() => {
+                self.writer.commit(&self.storage_client);
             }
         }
     }
 }
+
+unsafe impl Sync for Ingestor {}

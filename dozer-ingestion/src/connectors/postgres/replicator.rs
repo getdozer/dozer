@@ -1,4 +1,4 @@
-use crate::connectors::ingestor::{Ingestor, IngestorForwarder};
+use crate::connectors::ingestor::Ingestor;
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use chrono::{TimeZone, Utc};
@@ -7,7 +7,7 @@ use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use postgres_types::PgLsn;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 
@@ -16,7 +16,7 @@ pub struct CDCHandler {
     pub publication_name: String,
     pub slot_name: String,
     pub lsn: String,
-    pub ingestor: Arc<Ingestor>,
+    pub ingestor: Arc<Mutex<Ingestor>>,
 }
 
 impl CDCHandler {

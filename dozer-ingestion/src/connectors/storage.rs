@@ -1,10 +1,7 @@
-use std::borrow::Borrow;
-use std::ops::Deref;
-use std::sync::{Arc, Mutex};
-use postgres_protocol::Lsn;
+use std::sync::Arc;
 
 use dozer_shared::types::*;
-use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB, WriteBatch};
+use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
 pub trait Storage<T> {
     fn new(storage_config: T) -> Self;
 }
@@ -12,9 +9,6 @@ pub trait Storage<T> {
 pub struct RocksStorage {
     _config: RocksConfig,
     db: Arc<DBWithThreadMode<SingleThreaded>>,
-    first_lsn: u64,
-    end_lsn: u64,
-    batch: Arc<Box<WriteBatch>>,
 }
 #[derive(Clone, Debug)]
 pub struct RocksConfig {
@@ -27,34 +21,11 @@ impl Storage<RocksConfig> for RocksStorage {
         RocksStorage {
             _config: config,
             db,
-            first_lsn: 0,
-            end_lsn: 0,
-            batch: Arc::new(Box::new(WriteBatch::default()))
         }
     }
 }
 
 impl RocksStorage {
-    fn get_batch(&mut self) -> &Arc<Box<WriteBatch>> {
-        // if let None = self.batch {
-            self.batch = Arc::new(Box::new(WriteBatch::default()));
-        // }
-
-        &self.batch
-    }
-
-    pub fn insert_to_batch(&self, key: &[u8], encoded: Vec<u8>) {
-        // println!("To batch: {:?}", key);
-        // let mut batch = Arc::clone(&self.batch).as_ref().lock().unwrap();
-        self.batch.as_ref().put(key, encoded);
-    }
-
-    pub fn flush_batch(&mut self) {
-        let db = Arc::clone(&self.db);
-        let batch = Arc::clone(&self.batch);
-        db.write(batch).unwrap();
-    }
-
     pub fn get_estimate_key_count(&self) -> u64 {
         let db = Arc::clone(&self.db);
         let count: u64 = db
@@ -69,19 +40,16 @@ impl RocksStorage {
         let _ = DB::destroy(&Options::default(), path);
     }
 
-    pub fn insert_schema(&self, schema: &Schema) {
+    pub fn map_schema(&self, schema: &Schema) -> (Vec<u8>, Vec<u8>) {
         let key = self.get_schema_key(schema).to_owned();
-        let key: &[u8] = key.as_ref();
         let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
-        self.insert_to_batch(key, encoded);
+        (key, encoded)
     }
 
-    pub fn insert_operation_event(&self, op: &OperationEvent) {
-        let db = Arc::clone(&self.db);
+    pub fn map_operation_event(&self, op: &OperationEvent) -> (Vec<u8>, Vec<u8>) {
         let key = self._get_operation_key(op).to_owned();
-        let key: &[u8] = key.as_ref();
         let encoded: Vec<u8> = bincode::serialize(op).unwrap();
-        self.insert_to_batch(key, encoded);
+        (key, encoded)
     }
 
     pub fn get_operation_event(&self, id: i32) -> OperationEvent {
@@ -90,6 +58,10 @@ impl RocksStorage {
         let returned_bytes = db.get(key).unwrap().unwrap();
         let op: OperationEvent = bincode::deserialize(returned_bytes.as_ref()).unwrap();
         op
+    }
+
+    pub fn get_db(&self) -> Arc<DBWithThreadMode<SingleThreaded>> {
+        Arc::clone(&self.db)
     }
 
     fn _get_operation_key(&self, op: &OperationEvent) -> Vec<u8> {
