@@ -2,12 +2,12 @@ use super::connection::Connection;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Source {
-    id: String,
-    name: String,
-    dest_table_name: String,
-    connection: Connection,
-    history_type: HistoryType,
-    refresh_config: RefreshConfig
+    pub id: Option<String>,
+    pub name: String,
+    pub dest_table_name: String,
+    pub connection: Connection,
+    pub history_type: HistoryType,
+    pub refresh_config: RefreshConfig
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
