@@ -1,16 +1,18 @@
 use core::fmt;
-use dozer_core::dag::{dag::{Dag, NodeType, Endpoint}, channel::LocalNodeChannel, executor::{MultiThreadedDagExecutor, MemoryExecutionContext}};
-use dozer_ingestion::connectors::{
-    connector::Connector, postgres::connector::PostgresConfig, storage::RocksConfig,
+use dozer_core::dag::{
+    channel::LocalNodeChannel,
+    dag::{Dag, Endpoint, NodeType},
+    executor::{MemoryExecutionContext, MultiThreadedDagExecutor},
 };
+use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
 use dozer_shared::types::TableInfo;
-use std::{error::Error, ops::Deref, sync::Arc, rc::Rc};
+use std::{error::Error, rc::Rc, sync::Arc};
 
 use super::{
     models::{
         connection::{Authentication, Connection},
+        endpoint::Endpoint as EndpointModel,
         source::Source,
-        endpoint::Endpoint as EndpointModel
     },
     orchestrator::PgSource,
     sample::{SampleProcessor, SampleSink},
@@ -112,21 +114,22 @@ impl Dozer {
                 }
             }
         });
-        let src = pg_sources.first().unwrap().clone();
         let proc = SampleProcessor::new(2, None, None);
         let sink = SampleSink::new(2, None);
         let mut dag = Dag::new();
 
-        let src_handle = dag.add_node(NodeType::Source(Arc::new(src)));
         let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
         let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
 
-        dag.connect(
-            Endpoint::new(src_handle, None),
-            Endpoint::new(proc_handle, None),
-            Box::new(LocalNodeChannel::new(10000)),
-        )
-        .unwrap();
+        pg_sources.clone().iter().for_each(|pg_source| {
+            let src_handle = dag.add_node(NodeType::Source(Arc::new(pg_source.clone())));
+            dag.connect(
+                Endpoint::new(src_handle, None),
+                Endpoint::new(proc_handle, None),
+                Box::new(LocalNodeChannel::new(10000)),
+            )
+            .unwrap();
+        });
 
         dag.connect(
             Endpoint::new(proc_handle, None),
