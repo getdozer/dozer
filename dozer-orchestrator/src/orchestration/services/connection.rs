@@ -17,6 +17,10 @@ impl ConnectionService {
         return &self.connection;
     }
 
+    pub fn connector(&self) -> &Box<dyn Connector> {
+        return &self.connector;
+    }
+
     pub fn get_schema(&self) -> Result<Vec<TableInfo>, Box<dyn Error>> {
         return self.connector.get_schema();
     }

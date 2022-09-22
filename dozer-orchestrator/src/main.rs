@@ -1,4 +1,3 @@
-mod orchestrator;
 mod sample;
 use dozer_core::dag::{
     channel::LocalNodeChannel,
