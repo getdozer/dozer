@@ -1,14 +1,11 @@
 use dozer_orchestrator::orchestration::{
     builder::Dozer,
-    db::service::DbPersistentService,
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
         source::{HistoryType, MasterHistoryConfig, RefreshConfig, Source},
     },
 };
 fn main() {
-    let db_url = "dozer.db";
-    let persistent_service: DbPersistentService = DbPersistentService::new(db_url.to_owned());
     let connection: Connection = Connection {
         db_type: DBType::Postgres,
         authentication: PostgresAuthentication {
@@ -22,14 +19,11 @@ fn main() {
         id: None,
     };
     Dozer::test_connection(connection.to_owned()).unwrap();
-    let connection_id = persistent_service
-        .save_connection(connection.clone())
-        .unwrap();
-    let connection = persistent_service.read_connection(connection_id).unwrap();
     let source = Source {
         id: None,
         name: "actor_source".to_string(),
         dest_table_name: "ACTOR_SOURCE".to_string(),
+        source_table_name: "actor".to_string(),
         connection,
         history_type: HistoryType::Master(MasterHistoryConfig::AppendOnly {
             unique_key_field: "actor_id".to_string(),

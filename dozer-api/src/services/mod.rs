@@ -1,2 +1,2 @@
 pub mod converter;
-pub mod grpc_connection_service;
+pub mod connection_service;

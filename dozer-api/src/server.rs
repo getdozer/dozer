@@ -1,7 +1,7 @@
 use std::env;
 use dotenvy::dotenv;
 use tonic::{transport::Server, Request, Response, Status};
-use crate::{services::{grpc_connection_service::GRPCConnectionService}};
+use crate::{services::{connection_service::ConnectionService}};
 pub mod dozer_api_grpc {
     tonic::include_proto!("dozer_api_grpc");
 }

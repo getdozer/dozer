@@ -8,7 +8,7 @@ use crate::server::dozer_api_grpc::{
     GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, Pagination, TableInfo,
     TestConnectionRequest, TestConnectionResponse,
 };
-pub struct GRPCConnectionService {
+pub struct ConnectionService {
     persistent_service: DbPersistentService,
 }
 impl GRPCConnectionService {

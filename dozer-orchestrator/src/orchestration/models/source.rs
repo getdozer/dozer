@@ -5,9 +5,10 @@ pub struct Source {
     pub id: Option<String>,
     pub name: String,
     pub dest_table_name: String,
+    pub source_table_name: String,
     pub connection: Connection,
     pub history_type: HistoryType,
-    pub refresh_config: RefreshConfig
+    pub refresh_config: RefreshConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -34,9 +35,8 @@ pub enum TransactionalHistoryConfig {
 }
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum RefreshConfig {
-  Hour {minute: u32},
-  Day {time: String},
-  CronExpression {expression: String},
-  RealTime
+    Hour { minute: u32 },
+    Day { time: String },
+    CronExpression { expression: String },
+    RealTime,
 }
-
