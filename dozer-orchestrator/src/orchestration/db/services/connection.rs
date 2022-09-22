@@ -1,25 +1,24 @@
-use crate::adapter::db::{
-    db_persistent_trait::DbPersistentTrait,
-    pool::{establish_connection, DbPool},
-    schema::connections::dsl::*,
-    models as DBModels
-};
+use super::super::models as DBModels;
+use super::db_persistent::DbPersistent;
+use super::helper::{DbPool, establish_connection};
+use super::super::models::schema::connections::dsl::*;
 use diesel::prelude::*;
 use diesel::{insert_into, RunQueryDsl, SqliteConnection};
 use std::error::Error;
+
 #[derive(Clone)]
-pub struct ConnectionDbSvc {
+pub struct ConnectionDbService {
     db_connection: DbPool,
 }
 
-impl ConnectionDbSvc {
+impl ConnectionDbService {
     pub fn new(database_url: String) -> Self {
         let db_connection = establish_connection(database_url);
         Self { db_connection }
     }
 }
 
-impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
+impl DbPersistent<DBModels::connection::Connection> for ConnectionDbService {
     fn get_multiple(&self) -> Result<Vec<DBModels::connection::Connection>, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
@@ -56,7 +55,7 @@ impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
 
     fn get_by_id(
         &self,
-        connection_id: String,
+        input_id: String,
     ) -> Result<DBModels::connection::Connection, Box<dyn Error>> {
         let db = self.db_connection.get();
         if db.is_err() {
@@ -64,12 +63,16 @@ impl DbPersistentTrait<DBModels::connection::Connection> for ConnectionDbSvc {
         }
         let db: &SqliteConnection = &db.unwrap();
         let result = connections
-            .filter(id.eq(connection_id))
+            .filter(id.eq(input_id))
             .first::<DBModels::connection::Connection>(db);
         if let Err(err) = result {
             return Err(Box::new(err));
         } else {
             Ok(result.ok().unwrap())
         }
+    }
+
+    fn delete(&self, input_id: String) -> Result<(), Box<dyn Error>> {
+        todo!()
     }
 }

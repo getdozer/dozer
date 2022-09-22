@@ -1,16 +1,53 @@
 mod orchestrator;
 mod sample;
-use std::{rc::Rc, sync::Arc};
-
 use dozer_core::dag::{
     channel::LocalNodeChannel,
     dag::{Dag, Endpoint, NodeType},
     executor::{MemoryExecutionContext, MultiThreadedDagExecutor},
 };
 use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
+use dozer_orchestrator::orchestration::{
+    builder::Dozer,
+    models::{
+        connection::{Authentication::PostgresAuthentication, Connection, DBType},
+        source::{HistoryType, MasterHistoryConfig, Source, RefreshConfig},
+    },
+};
 use orchestrator::PgSource;
 use sample::{SampleProcessor, SampleSink};
+use std::{rc::Rc, sync::Arc};
+
 fn main() {
+    // let connection: Connection = Connection {
+    //     db_type: DBType::Postgres,
+    //     authentication: PostgresAuthentication {
+    //         user: "postgres".to_string(),
+    //         password: "postgres".to_string(),
+    //         host: "localhost".to_string(),
+    //         port: 5432,
+    //         database: "pagila".to_string(),
+    //     },
+    //     name: "postgres connection".to_string(),
+    //     id: None,
+    // };
+    // let source: Source = Source {
+    //     id: None,
+    //     name: "source name".to_string(),
+    //     dest_table_name: "SOURCE_NAME".to_string(),
+    //     connection,
+    //     history_type: HistoryType::Master(MasterHistoryConfig::AppendOnly {
+    //         unique_key_field: "id".to_string(),
+    //         open_date_field: "created_date".to_string(),
+    //         closed_date_field: "updated_date".to_string(),
+    //     }),
+    //     refresh_config: RefreshConfig::RealTime,
+    // };
+    // let dozer = Dozer::new();
+    // let sources = Vec::new();
+    // sources.push(source);
+    // dozer.add_sources(sources);
+    // dozer.save();
+
     let storage_config = RocksConfig {
         path: "./db/embedded".to_string(),
     };

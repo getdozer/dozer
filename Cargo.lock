@@ -552,6 +552,7 @@ dependencies = [
  "r2d2-diesel",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
