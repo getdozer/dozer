@@ -7,7 +7,8 @@ use dozer_core::dag::{
 };
 use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
 use dozer_orchestrator::orchestration::{
-    builder::Builder,
+    builder::{ Dozer},
+    db::service::DbPersistentService,
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
         source::{HistoryType, MasterHistoryConfig, RefreshConfig, Source},
@@ -20,6 +21,8 @@ use std::{error::Error, rc::Rc, sync::Arc};
 
 fn main() {
     let db_url = "dozer.db";
+    let persistent_service: DbPersistentService = DbPersistentService::new(db_url.to_owned());
+
     let connection: Connection = Connection {
         db_type: DBType::Postgres,
         authentication: PostgresAuthentication {
@@ -32,10 +35,12 @@ fn main() {
         name: "postgres connection".to_string(),
         id: None,
     };
-    Builder::test_connection(connection.clone());
-    let connection = Builder::save_connection(connection.clone(), db_url.to_string()).unwrap();
-    let connection = Builder::read_connection(connection.id.unwrap(), db_url.to_string()).unwrap();
-    
+    Dozer::test_connection(connection.to_owned()).unwrap();
+
+    let connection_id = persistent_service
+        .save_connection(connection.clone())
+        .unwrap();
+    let connection = persistent_service.read_connection(connection_id).unwrap();
     let source = Source {
         id: None,
         name: "source name".to_string(),
@@ -48,7 +53,7 @@ fn main() {
         }),
         refresh_config: RefreshConfig::RealTime,
     };
-    let mut dozer = Builder::new();
+    let mut dozer = Dozer::new();
     let mut sources = Vec::new();
     sources.push(source);
     dozer.add_sources(sources);

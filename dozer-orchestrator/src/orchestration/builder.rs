@@ -2,28 +2,16 @@ use dozer_shared::types::TableInfo;
 use std::error::Error;
 
 use super::{
-    db::service::DbPersistentService,
     models::{connection::Connection, endpoint::Endpoint, source::Source},
     services::connection::ConnectionService,
 };
 
-pub struct Builder {
+pub struct Dozer {
     sources: Option<Vec<Source>>,
     endpoints: Option<Vec<Endpoint>>,
 }
 
-impl Builder {
-    pub fn save_connection(
-        input: Connection,
-        db_url: String,
-    ) -> Result<Connection, Box<dyn Error>> {
-        let db_service = DbPersistentService::new(db_url);
-        let inserted_id = db_service.save_connection(input.clone())?;
-        let mut result = input;
-        result.id = Some(inserted_id);
-        Ok(result)
-    }
-
+impl Dozer {
     pub fn test_connection(input: Connection) -> Result<(), Box<dyn Error>> {
         let connection_service = ConnectionService::new(input);
         return connection_service.test_connection();
@@ -33,14 +21,9 @@ impl Builder {
         let connection_service = ConnectionService::new(input);
         return connection_service.get_schema();
     }
-
-    pub fn read_connection(input: String, db_url: String) -> Result<Connection, Box<dyn Error>> {
-        let db_service = DbPersistentService::new(db_url);
-        db_service.read_connection(input)
-    }
 }
 
-impl Builder {
+impl Dozer {
     pub fn new() -> Self {
         Self {
             sources: None,

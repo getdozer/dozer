@@ -1,4 +1,4 @@
 mod services;
-mod db;
+pub mod db;
 pub mod builder;
 pub mod models;

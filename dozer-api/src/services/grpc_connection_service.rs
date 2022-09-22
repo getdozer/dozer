@@ -1,20 +1,20 @@
+use dozer_orchestrator::orchestration::{
+    builder::Dozer, db::service::DbPersistentService, models::connection::Connection,
+};
+
 use crate::server::dozer_api_grpc::{
     ConnectionDetails, ConnectionInfo, CreateConnectionRequest, CreateConnectionResponse,
     ErrorResponse, GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
     GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, Pagination, TableInfo,
     TestConnectionRequest, TestConnectionResponse,
 };
-use dozer_orchestrator::adapter::{
-    components::connection::{service::ConnectionSvc, traits::ConnectionSvcTrait},
-    db::models::connection::Connection,
-};
 pub struct GRPCConnectionService {
-    connection_svc: ConnectionSvc,
+    persistent_service: DbPersistentService,
 }
 impl GRPCConnectionService {
     pub fn new(database_url: String) -> Self {
         Self {
-            connection_svc: ConnectionSvc::new(database_url),
+            persistent_service: DbPersistentService::new(database_url),
         }
     }
 }
@@ -27,8 +27,8 @@ impl GRPCConnectionService {
             message: op.to_string(),
             details: None,
         })?;
-        self.connection_svc
-            .create_connection(connection.clone())
+        self.persistent_service
+            .save_connection(connection.clone())
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
@@ -41,8 +41,8 @@ impl GRPCConnectionService {
         _input: GetAllConnectionRequest,
     ) -> Result<GetAllConnectionResponse, ErrorResponse> {
         let result = self
-            .connection_svc
-            .get_all_connections()
+            .persistent_service
+            .get_connections()
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
@@ -67,17 +67,21 @@ impl GRPCConnectionService {
         &self,
         input: GetSchemaRequest,
     ) -> Result<GetSchemaResponse, ErrorResponse> {
-        let result = self
-            .connection_svc
-            .get_schema(input.connection_id.clone())
+        let connection = self
+            .persistent_service
+            .read_connection(input.connection_id.clone())
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
             })?;
+        let schema = Dozer::get_schema(connection).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+            details: None,
+        })?;
         Ok(GetSchemaResponse {
             connection_id: input.connection_id,
             details: Some(ConnectionDetails {
-                table_info: result.iter().map(|x| TableInfo::from(x.clone())).collect(),
+                table_info: schema.iter().map(|x| TableInfo::from(x.clone())).collect(),
             }),
         })
     }
@@ -87,19 +91,16 @@ impl GRPCConnectionService {
         input: GetConnectionDetailsRequest,
     ) -> Result<GetConnectionDetailsResponse, ErrorResponse> {
         let connection = self
-            .connection_svc
-            .get_connection_by_id(input.connection_id.clone())
+            .persistent_service
+            .read_connection(input.connection_id.clone())
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
             })?;
-        let schema = self
-            .connection_svc
-            .get_schema(input.connection_id)
-            .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-                details: None,
-            })?;
+        let schema = Dozer::get_schema(connection.clone()).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+            details: None,
+        })?;
         Ok(GetConnectionDetailsResponse {
             info: Some(ConnectionInfo::from(connection)),
             details: Some(ConnectionDetails {
@@ -116,12 +117,10 @@ impl GRPCConnectionService {
             message: op.to_string(),
             details: None,
         })?;
-        self.connection_svc
-            .test_connection(connection)
-            .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-                details: None,
-            })?;
+        Dozer::test_connection(connection).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+            details: None,
+        })?;
         Ok(TestConnectionResponse { success: true })
     }
 }

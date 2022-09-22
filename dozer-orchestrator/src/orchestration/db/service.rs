@@ -29,6 +29,13 @@ impl DbPersistentService {
         return self.connection_db_service.save(connection);
     }
 
+    pub fn get_connections(&self) -> Result<Vec<Connection>, Box<dyn Error>> {
+        return self
+            .connection_db_service
+            .get_multiple()
+            .map(|op| op.iter().map(|x| Connection::try_from(x.clone())).collect())?;
+    }
+
     pub fn read_connection(&self, id: String) -> Result<Connection, Box<dyn Error>> {
         self.connection_db_service
             .get_by_id(id)

@@ -1,9 +1,9 @@
 use crate::server::dozer_api_grpc::{
-    self, connection_info, ConnectionInfo, ConnectionType, CreateConnectionRequest,
+    self, connection_info::Authentication, ConnectionInfo, ConnectionType, CreateConnectionRequest,
     CreateConnectionResponse, PostgresAuthentication, TestConnectionRequest,
 };
 use core::panic;
-use dozer_orchestrator::adapter::db::models::connection::Connection;
+use dozer_orchestrator::orchestration::models::connection::{Connection, DBType, self};
 use dozer_shared::types::{ColumnInfo, TableInfo};
 use std::convert::From;
 
@@ -31,15 +31,26 @@ impl From<TableInfo> for dozer_api_grpc::TableInfo {
     }
 }
 
-impl From<Connection> for connection_info::Authentication {
+impl From<Connection> for Authentication {
     fn from(item: Connection) -> Self {
-        match item.db_type.as_str() {
-            "postgres" => {
-                let postgres_authentication: PostgresAuthentication =
-                    serde_json::from_str::<PostgresAuthentication>(&item.auth).unwrap();
-                return connection_info::Authentication::Postgres(postgres_authentication);
+        match item.authentication {
+            connection::Authentication::PostgresAuthentication {
+                user,
+                password,
+                host,
+                port,
+                database,
+            } => {
+                let postgres_authentication: PostgresAuthentication = PostgresAuthentication {
+                    database,
+                    user,
+                    host,
+                    port: port.to_string(),
+                    name: item.name,
+                    password,
+                };
+                return Authentication::Postgres(postgres_authentication);
             }
-            _ => panic!("No db_type match"),
         }
     }
 }
@@ -48,9 +59,9 @@ impl From<Connection> for CreateConnectionResponse {
     fn from(item: Connection) -> Self {
         CreateConnectionResponse {
             info: Some(ConnectionInfo {
-                id: item.id.clone(),
+                id: item.to_owned().id.unwrap(),
                 r#type: 0,
-                authentication: Some(item.into()),
+                authentication: Some(Authentication::from(item)),
             }),
         }
     }
@@ -59,9 +70,9 @@ impl From<Connection> for CreateConnectionResponse {
 impl From<Connection> for ConnectionInfo {
     fn from(item: Connection) -> Self {
         ConnectionInfo {
-            id: item.id.clone(),
+            id: item.to_owned().id.unwrap(),
             r#type: 0,
-            authentication: Some(item.into()),
+            authentication: Some(Authentication::from(item)),
         }
     }
 }
@@ -92,11 +103,17 @@ impl TryFrom<TestConnectionRequest> for Connection {
                         return Err(json_string.err().unwrap());
                     }
 
-                    let new_id = uuid::Uuid::new_v4().to_string();
                     Ok(Connection {
-                        id: new_id,
-                        auth: json_string.unwrap(),
-                        db_type: "postgres".to_string(),
+                        id: None,
+                        db_type: DBType::Postgres,
+                        authentication: connection::Authentication::PostgresAuthentication {
+                            user: postgres_auth.user,
+                            password: postgres_auth.password,
+                            host: postgres_auth.host,
+                            port: postgres_auth.port.parse::<u32>().unwrap(),
+                            database: postgres_auth.database,
+                        },
+                        name: postgres_auth.name,
                     })
                 }
             },
@@ -104,6 +121,9 @@ impl TryFrom<TestConnectionRequest> for Connection {
         }
     }
 }
+
+
+
 
 impl TryFrom<CreateConnectionRequest> for Connection {
     type Error = &'static str;
@@ -114,12 +134,17 @@ impl TryFrom<CreateConnectionRequest> for Connection {
                 dozer_api_grpc::create_connection_request::Authentication::Postgres(
                     postgres_auth,
                 ) => {
-                    let json_string = serde_json::to_string(&postgres_auth)
-                        .map_err(|err| string_to_static_str(err.to_string()));
-                    json_string.map(|op| Connection {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        auth: op,
-                        db_type: "postgres".to_string(),
+                    return Ok(Connection {
+                        db_type: DBType::Postgres,
+                        authentication: connection::Authentication::PostgresAuthentication {
+                            user: postgres_auth.user,
+                            password: postgres_auth.password,
+                            host: postgres_auth.host,
+                            port: postgres_auth.port.parse::<u32>().unwrap(),
+                            database: postgres_auth.database,
+                        },
+                        name: postgres_auth.name,
+                        id: None,
                     })
                 }
             },
