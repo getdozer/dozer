@@ -1,5 +1,4 @@
 use super::super::models as DBModels;
-use super::db_persistent::DbPersistent;
 use super::helper::{DbPool, establish_connection};
 use super::super::models::schema::connections::dsl::*;
 use diesel::prelude::*;
@@ -43,6 +42,7 @@ impl DbPersistent<DBModels::connection::Connection> for ConnectionDbService {
             .values((
                 auth.eq(&input.auth),
                 db_type.eq("postgres"),
+                name.eq(input.name),
                 id.eq(input.id.clone()),
             ))
             .execute(db);

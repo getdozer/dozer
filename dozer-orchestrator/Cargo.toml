@@ -9,7 +9,7 @@ edition = "2021"
 dozer-ingestion = {version = "0.1.0", path = "../dozer-ingestion"}
 dozer-core = {version = "0.1.0", path = "../dozer-core"}
 dozer-shared = {version = "0.1.0", path = "../dozer-shared"}
-diesel = { version = "1.4.1", features = ["sqlite", "serde_json"] }
+diesel = { version = "2.0.0", features = ["sqlite", "serde_json"] }
 dotenvy = "0.15.3"
 r2d2 = "0.8.10"
 r2d2-diesel = "1.0.0"
