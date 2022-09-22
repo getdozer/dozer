@@ -1,20 +1,57 @@
+use dozer_shared::types::TableInfo;
 use std::error::Error;
-use super::models::{endpoint::Endpoint, source::Source};
 
-pub struct Dozer {
+use super::{
+    db::service::DbPersistentService,
+    models::{connection::Connection, endpoint::Endpoint, source::Source},
+    services::connection::ConnectionService,
+};
+
+pub struct Builder {
     sources: Option<Vec<Source>>,
     endpoints: Option<Vec<Endpoint>>,
 }
 
-impl Dozer {
+impl Builder {
+    pub fn save_connection(
+        input: Connection,
+        db_url: String,
+    ) -> Result<Connection, Box<dyn Error>> {
+        let db_service = DbPersistentService::new(db_url);
+        let inserted_id = db_service.save_connection(input.clone())?;
+        let mut result = input;
+        result.id = Some(inserted_id);
+        Ok(result)
+    }
+
+    pub fn test_connection(input: Connection) -> Result<(), Box<dyn Error>> {
+        let connection_service = ConnectionService::new(input);
+        return connection_service.test_connection();
+    }
+
+    pub fn get_schema(input: Connection) -> Result<Vec<TableInfo>, Box<dyn Error>> {
+        let connection_service = ConnectionService::new(input);
+        return connection_service.get_schema();
+    }
+
+    pub fn read_connection(input: String, db_url: String) -> Result<Connection, Box<dyn Error>> {
+        let db_service = DbPersistentService::new(db_url);
+        db_service.read_connection(input)
+    }
+}
+
+impl Builder {
     pub fn new() -> Self {
-        Self { sources: None, endpoints: None }
+        Self {
+            sources: None,
+            endpoints: None,
+        }
     }
     pub fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self {
         let my_source = self.sources.clone();
         match my_source {
             Some(current_data) => {
-                let new_source =  [current_data, sources.clone()].concat();
+                let new_source = [current_data, sources.clone()].concat();
                 self.sources = Some(new_source);
                 return self;
             }
@@ -28,7 +65,7 @@ impl Dozer {
         let my_endpoint = self.endpoints.clone();
         match my_endpoint {
             Some(current_data) => {
-                let new_endponts =  [current_data, endpoints.clone()].concat();
+                let new_endponts = [current_data, endpoints.clone()].concat();
                 self.endpoints = Some(new_endponts);
                 return self;
             }

@@ -7,17 +7,19 @@ use dozer_core::dag::{
 };
 use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
 use dozer_orchestrator::orchestration::{
-    builder::Dozer,
+    builder::Builder,
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
-        source::{HistoryType, MasterHistoryConfig, Source, RefreshConfig},
+        source::{HistoryType, MasterHistoryConfig, RefreshConfig, Source},
     },
 };
+
 use orchestrator::PgSource;
 use sample::{SampleProcessor, SampleSink};
-use std::{rc::Rc, sync::Arc};
+use std::{error::Error, rc::Rc, sync::Arc};
 
 fn main() {
+    let db_url = "dozer.db";
     let connection: Connection = Connection {
         db_type: DBType::Postgres,
         authentication: PostgresAuthentication {
@@ -30,6 +32,10 @@ fn main() {
         name: "postgres connection".to_string(),
         id: None,
     };
+    Builder::test_connection(connection.clone());
+    let connection = Builder::save_connection(connection.clone(), db_url.to_string()).unwrap();
+    let connection = Builder::read_connection(connection.id.unwrap(), db_url.to_string()).unwrap();
+    
     let source = Source {
         id: None,
         name: "source name".to_string(),
@@ -42,49 +48,49 @@ fn main() {
         }),
         refresh_config: RefreshConfig::RealTime,
     };
-    let mut dozer = Dozer::new();
+    let mut dozer = Builder::new();
     let mut sources = Vec::new();
     sources.push(source);
     dozer.add_sources(sources);
     dozer.run();
 
-    let storage_config = RocksConfig {
-        path: "./db/embedded".to_string(),
-    };
-    let postgres_config = PostgresConfig {
-        name: "test_c".to_string(),
-        // tables: Some(vec!["actor".to_string()]),
-        tables: None,
-        conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
-        // conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=large_film".to_string(),
-    };
+    // let storage_config = RocksConfig {
+    //     path: "./db/embedded".to_string(),
+    // };
+    // let postgres_config = PostgresConfig {
+    //     name: "test_c".to_string(),
+    //     // tables: Some(vec!["actor".to_string()]),
+    //     tables: None,
+    //     conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
+    //     // conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=large_film".to_string(),
+    // };
 
-    let src = PgSource::new(storage_config, postgres_config);
-    let proc = SampleProcessor::new(2, None, None);
-    let sink = SampleSink::new(2, None);
+    // let src = PgSource::new(storage_config, postgres_config);
+    // let proc = SampleProcessor::new(2, None, None);
+    // let sink = SampleSink::new(2, None);
 
-    let mut dag = Dag::new();
+    // let mut dag = Dag::new();
 
-    let src_handle = dag.add_node(NodeType::Source(Arc::new(src)));
-    let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
-    let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
+    // let src_handle = dag.add_node(NodeType::Source(Arc::new(src)));
+    // let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
+    // let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
 
-    dag.connect(
-        Endpoint::new(src_handle, None),
-        Endpoint::new(proc_handle, None),
-        Box::new(LocalNodeChannel::new(10000)),
-    )
-    .unwrap();
+    // dag.connect(
+    //     Endpoint::new(src_handle, None),
+    //     Endpoint::new(proc_handle, None),
+    //     Box::new(LocalNodeChannel::new(10000)),
+    // )
+    // .unwrap();
 
-    dag.connect(
-        Endpoint::new(proc_handle, None),
-        Endpoint::new(sink_handle, None),
-        Box::new(LocalNodeChannel::new(10000)),
-    )
-    .unwrap();
+    // dag.connect(
+    //     Endpoint::new(proc_handle, None),
+    //     Endpoint::new(sink_handle, None),
+    //     Box::new(LocalNodeChannel::new(10000)),
+    // )
+    // .unwrap();
 
-    let exec = MultiThreadedDagExecutor::new(Rc::new(dag));
-    let ctx = Arc::new(MemoryExecutionContext::new());
+    // let exec = MultiThreadedDagExecutor::new(Rc::new(dag));
+    // let ctx = Arc::new(MemoryExecutionContext::new());
 
-    let _res = exec.start(ctx);
+    // let _res = exec.start(ctx);
 }
