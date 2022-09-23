@@ -4,16 +4,19 @@ mod accumulators;
 use std::sync::Arc;
 use dozer_shared::types::{Field};
 
+#[derive(Debug)]
 pub enum StateStoreErrorType {
     InternalError,
     OpenOrCreateError,
     TransactionError,
     SchemaMismatchError,
-    AccumulationError,
+    AggregatorError,
     StoreOperationError,
     GetOperationError
 }
 
+
+#[derive(Debug)]
 pub struct StateStoreError {
     err_code: StateStoreErrorType,
     desc: String
@@ -25,23 +28,21 @@ impl StateStoreError {
     }
 }
 
-trait StateStoresManager<'a> {
-    fn init_state_store(&'a self, id: String) -> Result<Box<dyn StateStore<'a>>, StateStoreError>;
+trait StateStoresManager {
+    fn init_state_store<'a> (&'a self, id: String) -> Result<Box<dyn StateStore + 'a>, StateStoreError>;
 }
 
-trait StateStore<'a> {
+trait StateStore {
     fn checkpoint(&mut self) -> Result<(), StateStoreError>;
-    fn init_accumulation_dataset(&'a mut self, dataset: u8, acc: Box<dyn Accumulator>) -> Result<Box<dyn AccumulationDataset<'a>>, StateStoreError>;
+    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError>;
+    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError>;
 }
 
-trait AccumulationDataset<'a> {
-    fn accumulate(&mut self, key: &[u8], values: Field, retrieve: bool) -> Result<Option<Field>, StateStoreError>;
-    fn get_accumulated(&self, key: &[u8]) -> Result<Option<Field>, StateStoreError>;
-}
-
-trait Accumulator {
+trait Aggregator {
     fn get_type(&self) -> u8;
-    fn accumulate(&self, prev: Option<&[u8]>, curr: Field) -> Result<Vec<u8>, StateStoreError>;
+    fn get_state_size(&self) -> usize;
+    fn insert(&self, bool: initial, prev: &mut [u8], curr: Field) -> Result<(), StateStoreError>;
+    fn delete(&self, bool: initial, prev: &mut [u8], curr: Field) -> Result<(), StateStoreError>;
     fn get_value(&self, f: &[u8]) -> Field;
 }
 
