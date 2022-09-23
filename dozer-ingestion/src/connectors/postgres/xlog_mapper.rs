@@ -10,7 +10,6 @@ use postgres_protocol::message::backend::{
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 use postgres_types::Type;
 
 struct MessageBody<'a> {
@@ -106,7 +105,7 @@ impl XlogMapper {
                 let table = self.relations_map.get(&insert.rel_id()).unwrap();
                 let new_values = insert.tuple().tuple_data();
 
-                let values = Self::convert_values_to_vec(table, new_values);
+                let values = Self::convert_values_to_fields(table, new_values);
 
                 let event = OperationEvent {
                     operation: Operation::Insert {
@@ -125,7 +124,7 @@ impl XlogMapper {
                 let table = self.relations_map.get(&update.rel_id()).unwrap();
                 let new_values = update.new_tuple().tuple_data();
 
-                let values = Self::convert_values_to_vec(table, new_values);
+                let values = Self::convert_values_to_fields(table, new_values);
                 let event = OperationEvent {
                     operation: Operation::Update {
                         table_name: table.name.clone(),
@@ -148,7 +147,7 @@ impl XlogMapper {
                 let table = self.relations_map.get(&delete.rel_id()).unwrap();
                 let key_values = delete.key_tuple().unwrap().tuple_data();
 
-                let values = Self::convert_values_to_vec(table, key_values);
+                let values = Self::convert_values_to_fields(table, key_values);
 
                 let event = OperationEvent {
                     operation: Operation::Delete {

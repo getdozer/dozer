@@ -5,7 +5,6 @@ use dozer_shared::types::*;
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
 use std::error::Error;
-use std::sync::Arc;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
