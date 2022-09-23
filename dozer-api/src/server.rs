@@ -13,7 +13,7 @@ use dozer_api_grpc::{
 };
 
 pub struct GrpcService {
-    grpc_connection_svc: GRPCConnectionService,
+    grpc_connection_svc: ConnectionService,
 }
 
 #[tonic::async_trait]
@@ -83,7 +83,7 @@ pub async fn get_server() -> Result<(), tonic::transport::Error> {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let grpc_service = GrpcService {
-        grpc_connection_svc: GRPCConnectionService::new(database_url),
+        grpc_connection_svc: ConnectionService::new(database_url),
     };
     let server = DozerApiServer::new(grpc_service);
     let server =  tonic_web::config()

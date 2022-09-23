@@ -1,48 +1,47 @@
-use dozer_orchestrator::orchestration::{
-    builder::Dozer, db::service::DbPersistentService, models::connection::Connection,
-};
+use dozer_orchestrator::orchestration::{builder::Dozer, models::connection::Connection};
 
-use crate::server::dozer_api_grpc::{
-    ConnectionDetails, ConnectionInfo, CreateConnectionRequest, CreateConnectionResponse,
-    ErrorResponse, GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
-    GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, Pagination, TableInfo,
-    TestConnectionRequest, TestConnectionResponse,
+use crate::{
+    persistent::{
+        pool::{establish_connection, DbPool}, persistable::Persistable,
+    },
+    server::dozer_api_grpc::{
+        ConnectionDetails, ConnectionInfo, CreateConnectionRequest, CreateConnectionResponse,
+        ErrorResponse, GetAllConnectionRequest, GetAllConnectionResponse,
+        GetConnectionDetailsRequest, GetConnectionDetailsResponse, GetSchemaRequest,
+        GetSchemaResponse, Pagination, TableInfo, TestConnectionRequest, TestConnectionResponse,
+    },
 };
 pub struct ConnectionService {
-    persistent_service: DbPersistentService,
+    db_pool: DbPool,
 }
-impl GRPCConnectionService {
+impl ConnectionService {
     pub fn new(database_url: String) -> Self {
         Self {
-            persistent_service: DbPersistentService::new(database_url),
+            db_pool: establish_connection(database_url),
         }
     }
 }
-impl GRPCConnectionService {
+impl ConnectionService {
     pub fn create_connection(
         &self,
         input: CreateConnectionRequest,
     ) -> Result<CreateConnectionResponse, ErrorResponse> {
-        let connection = Connection::try_from(input).map_err(|op| ErrorResponse {
+        let mut connection = Connection::try_from(input).map_err(|op| ErrorResponse {
             message: op.to_string(),
             details: None,
         })?;
-        self.persistent_service
-            .save_connection(connection.clone())
-            .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-                details: None,
-            })?;
-        Ok(CreateConnectionResponse::from(connection))
+        connection.save(self.db_pool.clone()).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+            details: None,
+        })?;
+        Ok(CreateConnectionResponse::from(connection.clone()))
     }
 
     pub fn get_all_connections(
         &self,
         _input: GetAllConnectionRequest,
     ) -> Result<GetAllConnectionResponse, ErrorResponse> {
-        let result = self
-            .persistent_service
-            .get_connections()
+        let result = Connection::get_multiple(self.db_pool.clone())
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
@@ -67,9 +66,7 @@ impl GRPCConnectionService {
         &self,
         input: GetSchemaRequest,
     ) -> Result<GetSchemaResponse, ErrorResponse> {
-        let connection = self
-            .persistent_service
-            .read_connection(input.connection_id.clone())
+        let connection = Connection::get_by_id(self.db_pool.clone(), input.connection_id.clone())
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
@@ -90,9 +87,7 @@ impl GRPCConnectionService {
         &self,
         input: GetConnectionDetailsRequest,
     ) -> Result<GetConnectionDetailsResponse, ErrorResponse> {
-        let connection = self
-            .persistent_service
-            .read_connection(input.connection_id.clone())
+        let connection = Connection::get_by_id(self.db_pool.clone(), input.connection_id)
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
