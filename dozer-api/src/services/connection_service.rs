@@ -1,7 +1,7 @@
 use dozer_orchestrator::orchestration::{builder::Dozer, models::connection::Connection};
 
 use crate::{
-    persistent::{
+    db::{
         pool::{establish_connection, DbPool}, persistable::Persistable,
     },
     server::dozer_api_grpc::{

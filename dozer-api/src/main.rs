@@ -1,7 +1,7 @@
 extern crate diesel;
 pub mod server;
 pub mod services;
-pub mod persistent;
+pub mod db;
 
 #[tokio::main]
 async fn main() {

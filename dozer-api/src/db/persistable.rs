@@ -1,9 +1,8 @@
 use std::error::Error;
 use std::str::FromStr;
-
 use super::pool::DbPool;
 use super::schema::{self};
-use crate::persistent::schema::connections::dsl::connections;
+use crate::db::schema::connections::dsl::connections;
 use diesel::insert_into;
 use diesel::prelude::*;
 use dozer_orchestrator::orchestration::models::connection::{Authentication, Connection, DBType};
