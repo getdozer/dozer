@@ -21,19 +21,24 @@ impl Aggregator for IntegerSumAggregator {
         IntegerSumAggregatorId
     }
 
-    fn get_state_size(&self) -> Option<u32> {
+    fn get_state_size(&self) -> Option<usize> {
         Some(8)
     }
 
 
-    fn insert(&self, bool: initial, prev: &mut [u8], curr: Field) -> Result<(), StateStoreError> {
+    fn insert(&self, prev: Option<&[u8]>, curr: &Field) -> Result<Vec<u8>, StateStoreError> {
 
-       Ok(())
+       // let r = if prev.is_none() { 0_i64.to_ne_bytes() } else { (from_bytes::<i64>(prev.unwrap()) + 1).to_ne_bytes() };
+
+        let r = 0_i64.to_ne_bytes();
+        Ok(Vec::from(r))
     }
 
-    fn delete(&self, bool: initial, prev: &mut [u8], curr: Field) -> Result<(), StateStoreError> {
+    fn delete(&self, prev: Option<&[u8]>, curr: &Field) -> Result<Vec<u8>, StateStoreError> {
 
-        Ok(())
+        let r = if prev.is_none() { 0_i64.to_ne_bytes() } else { (from_bytes::<i64>(prev.unwrap()) + 1).to_ne_bytes() };
+
+        Ok(Vec::from(r))
     }
 
 

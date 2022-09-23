@@ -11,7 +11,8 @@ use lmdb::Error::NotFound;
 use dozer_shared::types::{Field, Operation, Record};
 use dozer_shared::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
 use crate::state::{Aggregator, StateStore, StateStoreError, StateStoreErrorType, StateStoresManager};
-use crate::state::lmdb_state::AggrParams::{Delete, Insert, Update};
+use crate::state::lmdb_state::AggrOperation::{Delete, Insert, Update};
+use crate::state::lmdb_state::FieldReference::{Ref, Val};
 use crate::state::StateStoreErrorType::{AggregatorError, GetOperationError, OpenOrCreateError, SchemaMismatchError, StoreOperationError, TransactionError};
 
 struct LmdbStateStoreManager {
@@ -94,45 +95,98 @@ impl <'a> StateStore for LmdbStateStore<'a> {
     fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
         let r = self.tx.get(self.db, &key);
         if r.is_ok() { return Ok(Some(r.unwrap())); }
-        else { return Err(StateStoreError::new(GetOperationError, r.unwrap_err().to_string())) }
+        else {
+            if r.unwrap_err() == NotFound {
+                Ok(None)
+            }
+            else {
+                Err(StateStoreError::new(GetOperationError, r.unwrap_err().to_string()))
+            }
+        }
     }
 
 }
 
-pub struct AggregationRule {
-    index: u32,
-    aggr: Box<dyn Aggregator>
+
+pub enum FieldRule {
+    Dimension(usize),
+    Measure(usize, Box<dyn Aggregator>),
+    Value(usize)
 }
 
-impl AggregationRule {
-    pub fn new(index: u32, aggr: Box<dyn Aggregator>) -> Self {
-        Self { index, aggr }
-    }
-}
 
 struct SizedAggregationDataset {
     dataset_id: u8,
-    dimensions: Vec<Vec<u32>>,
-    measures: Vec<AggregationRule>,
+    out_fields_count: usize,
+    out_dimensions: Vec<(usize, usize)>,
+    out_measures: Vec<(usize, usize, Box<dyn Aggregator>)>,
+    out_values: Vec<(usize, usize)>,
     state_size: usize,
     state_offsets: Vec<usize>
 }
 
-pub enum AggrParams<'a> {
-    Delete { hash: u64, dims: Vec<&'a Field>, vals: Vec<&'a Field> },
-    Insert { hash: u64, dims: Vec<&'a Field>, vals: Vec<&'a Field> },
-    Update { old_hash: u64, old_dims: Vec<&'a Field>, old_vals: Vec<&'a Field>, new_hash: u64, new_dims: Vec<&'a Field>, new_vals: Vec<&'a Field> }
+#[derive(Clone)]
+enum FieldReference<'a> {
+    Ref(&'a Field),
+    Val(Field)
+}
+
+struct HashedRecord<'a> {
+    hash: u64,
+    fields: Vec<Option<FieldReference<'a>>>
+}
+
+impl <'a> HashedRecord<'a> {
+
+    pub fn new(hash: u64, sz: usize) -> Self {
+        Self { hash, fields: vec![None; sz] }
+    }
+
+    pub fn set_ref(&mut self, idx: usize, f: &'a Field) {
+        self.fields[idx] = Some(Ref(f));
+    }
+
+    pub fn set_val(& mut self, idx: usize, f: Field) {
+        self.fields[idx] = Some(Val(f));
+    }
+}
+
+pub enum AggrOperation<'a> {
+    Delete(HashedRecord<'a>),
+    Insert(HashedRecord<'a>),
+    Update(HashedRecord<'a>, HashedRecord<'a>)
 }
 
 impl SizedAggregationDataset {
 
-    pub fn new(dataset_id: u8, store: &mut dyn StateStore, dimensions: Vec<Vec<u32>>, measures: Vec<AggregationRule>) -> Result<SizedAggregationDataset, StateStoreError> {
+    pub fn new(dataset_id: u8, store: &mut dyn StateStore, output_fields: Vec<FieldRule>) -> Result<SizedAggregationDataset, StateStoreError> {
+
+        let out_fields_count = output_fields.len();
+        let mut out_measures: Vec<(usize, usize, Box<dyn Aggregator>)> = Vec::new();
+        let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
+        let mut out_values: Vec<(usize, usize)> = Vec::new();
+        let mut ctr = 0;
+
+        for rule in output_fields.into_iter() {
+            match rule {
+                FieldRule::Measure(idx, aggr) => {
+                    out_measures.push((idx, ctr, aggr));
+                }
+                FieldRule::Dimension(idx) => {
+                    out_dimensions.push((idx, ctr));
+                }
+                FieldRule::Value(idx) => {
+                    out_values.push((idx, ctr));
+                }
+            }
+            ctr += 1;
+        }
 
         let mut state_size: usize = 0;
-        let mut state_offsets: Vec<usize> = Vec::with_capacity(measures.len());
+        let mut state_offsets: Vec<usize> = Vec::with_capacity(out_measures.len());
 
-        for ai in &measures {
-            let sz = ai.aggr.get_state_size();
+        for ai in &out_measures {
+            let sz = ai.2.get_state_size();
             if sz.is_none() {
                 return Err(StateStoreError::new(AggregatorError, "Aggregator is not sized".to_string()));
             }
@@ -143,7 +197,7 @@ impl SizedAggregationDataset {
         store.put(&dataset_id.to_ne_bytes(), &0_u8.to_ne_bytes())?;
 
         Ok(SizedAggregationDataset {
-            dataset_id, dimensions, measures,
+            dataset_id, out_measures, out_dimensions, out_values, out_fields_count,
             state_size, state_offsets
         })
     }
@@ -172,58 +226,29 @@ impl SizedAggregationDataset {
         Ok(hasher.finish())
     }
 
-    fn get_op_hash(&self, r: &Record, fields_idx: &Vec<u32>) -> Result<u64, StateStoreError> {
+    fn get_op_hash(&self, r: &Record) -> Result<u64, StateStoreError> {
 
-        let mut v = Vec::<&Field>::with_capacity(fields_idx.len());
-        for i in fields_idx {
-            v.push(&r.values[(*i) as usize])
+        let mut v = Vec::<&Field>::with_capacity(self.out_dimensions.len());
+        for i in &self.out_dimensions {
+            v.push(&r.values[i.0])
         }
         self.get_fields_hash(v)
     }
 
-    fn get_measure_vals<'a>(&self, r: &'a Record, aggrs: &Vec<AggregationRule>) -> Vec<&'a Field> {
+    fn prepare_record<'a>(&self, r: &'a Record) -> Result<HashedRecord<'a>, StateStoreError> {
 
-        let mut v = Vec::<&Field>::new();
-        for aggr in aggrs {
-            v.push(&r.values[aggr.index as usize])
+        let mut out_rec = HashedRecord::new(self.get_op_hash(r)?, self.out_fields_count);
+        for v in &self.out_values {
+            out_rec.set_ref(v.1, &r.values[v.0]);
         }
-        v
+        for v in &self.out_dimensions {
+            out_rec.set_ref(v.1, &r.values[v.0]);
+        }
 
+        Ok(out_rec)
     }
 
-    fn get_op_hashes<'a>(&self, op: &'a Operation, fields_idx: &Vec<Vec<u32>>, aggrs: &Vec<AggregationRule>, v: &'a mut Vec<AggrParams<'a>>) -> Result<(), StateStoreError> {
-
-        match *op {
-            Operation::Insert {ref table_name, ref new} => {
-                for idx in fields_idx {
-                    let hash = self.get_op_hash(new, idx)?;
-                    v.push(AggrParams::Insert {hash: hash, vals: self.get_measure_vals(new, aggrs) });
-                }
-            }
-            Operation::Delete {ref table_name, ref old} => {
-                for idx in fields_idx {
-                    let hash = self.get_op_hash(old, idx)?;
-                    v.push(AggrParams::Delete {hash: hash, vals: self.get_measure_vals(old, aggrs) });
-                }
-            }
-            Operation::Update {ref table_name, ref old, ref new} => {
-                for idx in fields_idx {
-                    let old_hash = self.get_op_hash(old, idx)?;
-                    let new_hash = self.get_op_hash(new, idx)?;
-                    v.push(AggrParams::Update {
-                        old_hash, new_hash,
-                        old_vals: self.get_measure_vals(old, aggrs),
-                        new_vals: self.get_measure_vals(new, aggrs)
-                    });
-                }
-            }
-            _ => { return Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid operation".to_string())); }
-        };
-
-        Ok(())
-    }
-
-    fn compose_full_key(&self, hash: u64) -> Vec<u8> {
+    fn get_full_key(&self, hash: u64) -> Vec<u8> {
 
         let mut vec = Vec::with_capacity(9);
         vec.extend_from_slice(&self.dataset_id.to_ne_bytes());
@@ -231,73 +256,101 @@ impl SizedAggregationDataset {
         vec
     }
 
-    fn execute_aggregation(
-        &self, store: &mut dyn StateStore, key: Vec<u8>, measures: &Vec<AggregationRule>,
-        del_vals: Option<Vec<&Field>>,
-        add_vals: Option<Vec<&Field>>) -> Result<Option<Vec<Operation>>, StateStoreError> {
+    fn calc_and_fill_measures<'a>(&self, value: Option<&[u8]>, r: &'a Record, out_rec: &'a mut HashedRecord<'a>, delete: bool) -> Result<Vec<u8>, StateStoreError> {
 
-        let value = store.get(&key.as_slice())?;
-        let mut new_value = if value.is_none() { Vec::<u8>::with_capacity(self.state_size) } else { Vec::<u8>::from(value.unwrap()); };
+        let mut new_val = Vec::<u8>::with_capacity(self.state_size);
         let mut offset: usize = 0;
         let mut idx: i32 = 0;
 
-        let mut final_vals = Vec::<Operation>::new();
+        for measure in &self.out_measures {
 
-        for measure in measures {
-
-            let slice = new_value.slice(offset, offset + measure.aggr.get_state_size());
-            if del_vals.is_some() {
-                measure.aggr.delete(slice, del_vals[idx])
+            let mut slice = if value.is_some() { Some(&value.unwrap()[offset .. offset + measure.2.get_state_size().unwrap()]) } else { None };
+            if delete {
+                let r = measure.2.delete(slice, &r.values[measure.0])?;
+                out_rec.set_val(measure.1, measure.2.get_value(&r[0..]));
+                new_val.extend(r);
             }
-            if add_vals.is_some() {
-                measure.aggr.insert(slice, add_vals[idx])
+            else{
+                let r = measure.2.insert( slice, &r.values[measure.0])?;
+                out_rec.set_val(measure.1, measure.2.get_value(&r[0..]));
+                new_val.extend(r);
             }
-
-            final_vals.push(measure.aggr.get_value(slice));
-
 
             idx += 1;
-            offset += measure.aggr.get_state_size();
+            offset += measure.2.get_state_size().unwrap();
         }
 
-        Ok(if get_values {Some(final_vals)} else { None })
+        Ok(new_val)
+
     }
 
-    fn aggregate(&self, store: &mut dyn StateStore, op: &Operation, retrieve: bool) -> Result<Option<Vec<Record>>, StateStoreError> {
+    fn aggregate(&self, store: &mut dyn StateStore, op: &Operation) -> Result<Option<Vec<Record>>, StateStoreError> {
 
-        let mut aggr_params : Vec<AggrParams> = Vec::with_capacity(self.dimensions.len());
-        self.get_op_hashes(op, &self.dimensions, &self.measures, &mut aggr_params);
+        match op {
+            Operation::Insert {table_name, new} => {
+                let mut out_rec = self.prepare_record(new)?;
+                let full_key = self.get_full_key(out_rec.hash);
 
-        let fields: Vec<Record>
-
-
-        for aggr_param in aggr_params {
-            match aggr_param {
-                Delete { hash, vals } => {
-                    let full_key = self.compose_full_key(hash);
-                    self.execute_aggregation(store, full_key, &self.measures, retrieve, Some(vals), None)
-                },
-                Insert { hash, vals } => {
-                    let full_key = self.compose_full_key(hash);
-                    self.execute_aggregation(store, full_key, &self.measures, retrieve, None, Some(vals))
-                },
-                Update { old_hash, old_vals, new_hash, new_vals} => {
-                    if old_hash == new_hash {
-                        let full_key = self.compose_full_key(old_hash);
-                        self.execute_aggregation(store, full_key, &self.measures, retrieve, Some(old_vals), Some(new_vals))
-                    }
-                    else {
-                        let old_full_key = self.compose_full_key(old_hash);
-                        self.execute_aggregation(store, old_full_key, &self.measures, retrieve, Some(old_vals), None);
-                        let new_full_key = self.compose_full_key(new_hash);
-                        self.execute_aggregation(store, new_full_key, &self.measures, retrieve, None, Some(new_vals));
-                    }
-                }
+                let data = store.get(full_key.as_slice())?;
+                let curr_state = self.calc_and_fill_measures(
+                    store.get(&full_key.as_slice())?, new, &mut out_rec, false
+                )?;
+                store.put(&full_key[0..], &curr_state[0..]);
+                Ok(None)
             }
+            Operation::Delete {ref table_name, ref old} => {
+                let out_rec = self.prepare_record(old)?;
+                Ok(None)
+
+            }
+            Operation::Update {ref table_name, ref old, ref new} => {
+                let old_out_rec = self.prepare_record(old)?;
+                let new_out_rec = self.prepare_record(new)?;
+                Ok(None)
+
+            }
+            _ => { return Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid operation".to_string())); }
         }
 
-
     }
+
+
+
+    // fn aggregate2(&self, store: &mut dyn StateStore, op: &Operation) -> Result<Option<Vec<Record>>, StateStoreError> {
+    //
+    //     let mut aggr_params : Vec<AggrOperation> = Vec::with_capacity(self.output_fields.len());
+    //     self.get_op_hashes(op, &mut aggr_params);
+    //
+    //     let fields: Vec<Record>
+    //
+    //
+    //     for aggr_param in aggr_params {
+    //         match aggr_param {
+    //             Delete { hash, vals } => {
+    //                 let full_key = self.compose_full_key(hash);
+    //                 self.execute_aggregation(store, full_key, &self.measures, retrieve, Some(vals), None)
+    //             },
+    //             Insert { hash, vals } => {
+    //                 let full_key = self.compose_full_key(hash);
+    //                 self.execute_aggregation(store, full_key, &self.measures, retrieve, None, Some(vals))
+    //             },
+    //             Update { old_hash, old_vals, new_hash, new_vals} => {
+    //                 if old_hash == new_hash {
+    //                     let full_key = self.compose_full_key(old_hash);
+    //                     self.execute_aggregation(store, full_key, &self.measures, retrieve, Some(old_vals), Some(new_vals))
+    //                 }
+    //                 else {
+    //                     let old_full_key = self.compose_full_key(old_hash);
+    //                     self.execute_aggregation(store, old_full_key, &self.measures, retrieve, Some(old_vals), None);
+    //                     let new_full_key = self.compose_full_key(new_hash);
+    //                     self.execute_aggregation(store, new_full_key, &self.measures, retrieve, None, Some(new_vals));
+    //                 }
+    //             }
+    //         }
+    //     }
+    //
+    //
+    // }
 
     fn get_accumulated(&self, store: &mut dyn StateStore, key: &[u8]) -> Result<Option<Field>, StateStoreError> {
 
@@ -320,7 +373,7 @@ mod tests {
     use bytemuck::{from_bytes, from_bytes_mut};
     use dozer_shared::types::{Field, Operation, Record};
     use crate::state::accumulators::IntegerSumAggregator;
-    use crate::state::lmdb_state::{AggregationRule, LmdbStateStoreManager, SizedAggregationDataset};
+    use crate::state::lmdb_state::{FieldRule, LmdbStateStoreManager, SizedAggregationDataset};
 
     #[test]
     fn test() {
@@ -330,21 +383,28 @@ mod tests {
         let mut store = ss.init_state_store("test".to_string()).unwrap();
 
         let agg = SizedAggregationDataset::new(
-          0x02_u8, store.as_mut(),
-            vec![vec![0], vec![1], vec![0,1]],
-            vec![AggregationRule::new(2, Box::new(IntegerSumAggregator::new()))]
+            0x02_u8, store.as_mut(),
+            vec![
+                FieldRule::Dimension(0), // City
+                FieldRule::Dimension(1), // Country
+                FieldRule::Measure(2, Box::new(IntegerSumAggregator::new())),
+                FieldRule::Measure(3, Box::new(IntegerSumAggregator::new()))
+            ]
         ).unwrap();
 
         let op = Operation::Insert {
             table_name: "test".to_string(),
             new: Record::new(0, vec![
-                Field::String("M".to_string()),
-                Field::Int(40),
-                Field::Int(10)
+                Field::String("Milan".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10),
+                Field::Int(20)
             ])
         };
 
-        agg.aggregate(store.as_mut(), &op, true);
+        for i in 0..5000000 {
+            agg.aggregate(store.as_mut(), &op);
+        }
 
         println!("ciao")
 
