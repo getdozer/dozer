@@ -28,10 +28,10 @@ impl Aggregator for IntegerSumAggregator {
 
     fn insert(&self, prev: Option<&[u8]>, curr: &Field) -> Result<Vec<u8>, StateStoreError> {
 
-       // let r = if prev.is_none() { 0_i64.to_ne_bytes() } else { (from_bytes::<i64>(prev.unwrap()) + 1).to_ne_bytes() };
+      //  let r = if prev.is_none() {0_i64} else { (i64::from_ne_bytes(prev.unwrap().try_into().unwrap()) + 1) };
 
-        let r = 0_i64.to_ne_bytes();
-        Ok(Vec::from(r))
+        let r = 0_i64;
+        Ok(Vec::from(r.to_ne_bytes()))
     }
 
     fn delete(&self, prev: Option<&[u8]>, curr: &Field) -> Result<Vec<u8>, StateStoreError> {

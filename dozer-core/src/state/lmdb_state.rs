@@ -315,43 +315,6 @@ impl SizedAggregationDataset {
     }
 
 
-
-    // fn aggregate2(&self, store: &mut dyn StateStore, op: &Operation) -> Result<Option<Vec<Record>>, StateStoreError> {
-    //
-    //     let mut aggr_params : Vec<AggrOperation> = Vec::with_capacity(self.output_fields.len());
-    //     self.get_op_hashes(op, &mut aggr_params);
-    //
-    //     let fields: Vec<Record>
-    //
-    //
-    //     for aggr_param in aggr_params {
-    //         match aggr_param {
-    //             Delete { hash, vals } => {
-    //                 let full_key = self.compose_full_key(hash);
-    //                 self.execute_aggregation(store, full_key, &self.measures, retrieve, Some(vals), None)
-    //             },
-    //             Insert { hash, vals } => {
-    //                 let full_key = self.compose_full_key(hash);
-    //                 self.execute_aggregation(store, full_key, &self.measures, retrieve, None, Some(vals))
-    //             },
-    //             Update { old_hash, old_vals, new_hash, new_vals} => {
-    //                 if old_hash == new_hash {
-    //                     let full_key = self.compose_full_key(old_hash);
-    //                     self.execute_aggregation(store, full_key, &self.measures, retrieve, Some(old_vals), Some(new_vals))
-    //                 }
-    //                 else {
-    //                     let old_full_key = self.compose_full_key(old_hash);
-    //                     self.execute_aggregation(store, old_full_key, &self.measures, retrieve, Some(old_vals), None);
-    //                     let new_full_key = self.compose_full_key(new_hash);
-    //                     self.execute_aggregation(store, new_full_key, &self.measures, retrieve, None, Some(new_vals));
-    //                 }
-    //             }
-    //         }
-    //     }
-    //
-    //
-    // }
-
     fn get_accumulated(&self, store: &mut dyn StateStore, key: &[u8]) -> Result<Option<Field>, StateStoreError> {
 
         // let mut full_key = Vec::<u8>::with_capacity(key.len() + 1);
@@ -402,7 +365,7 @@ mod tests {
             ])
         };
 
-        for i in 0..5000000 {
+        for i in 0..1000000 {
             agg.aggregate(store.as_mut(), &op);
         }
 
