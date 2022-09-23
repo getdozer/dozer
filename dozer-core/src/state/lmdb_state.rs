@@ -337,6 +337,7 @@ mod tests {
     use dozer_shared::types::{Field, Operation, Record};
     use crate::state::accumulators::IntegerSumAggregator;
     use crate::state::lmdb_state::{FieldRule, LmdbStateStoreManager, SizedAggregationDataset};
+    use rand::Rng; // 0.8.5
 
     #[test]
     fn test() {
@@ -350,24 +351,41 @@ mod tests {
             vec![
                 FieldRule::Dimension(0), // City
                 FieldRule::Dimension(1), // Country
-                FieldRule::Measure(2, Box::new(IntegerSumAggregator::new())),
-                FieldRule::Measure(3, Box::new(IntegerSumAggregator::new()))
+                FieldRule::Dimension(2), // Country
+                FieldRule::Measure(3, Box::new(IntegerSumAggregator::new())),
+                FieldRule::Measure(4, Box::new(IntegerSumAggregator::new())),
+                FieldRule::Measure(5, Box::new(IntegerSumAggregator::new())),
+                FieldRule::Measure(6, Box::new(IntegerSumAggregator::new())),
+                FieldRule::Measure(7, Box::new(IntegerSumAggregator::new())),
+                FieldRule::Measure(8, Box::new(IntegerSumAggregator::new()))
             ]
         ).unwrap();
 
-        let op = Operation::Insert {
-            table_name: "test".to_string(),
-            new: Record::new(0, vec![
-                Field::String("Milan".to_string()),
-                Field::String("Italy".to_string()),
-                Field::Int(10),
-                Field::Int(20)
-            ])
-        };
+
 
         for i in 0..1000000 {
+
+            let num = rand::thread_rng().gen_range(0..100000);
+
+            let op = Operation::Insert {
+                table_name: "test".to_string(),
+                new: Record::new(0, vec![
+                    Field::String(format!("Milan{}", 1).to_string()),
+                    Field::String("Italy".to_string()),
+                    Field::String("Lombardy".to_string()),
+                    Field::Int(10),
+                    Field::Int(20),
+                    Field::Int(20),
+                    Field::Int(20),
+                    Field::Int(20),
+                    Field::Int(20)
+                ])
+            };
+
             agg.aggregate(store.as_mut(), &op);
         }
+
+
 
         println!("ciao")
 
