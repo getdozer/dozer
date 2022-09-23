@@ -1,8 +1,11 @@
+use std::thread;
+
 use dozer_orchestrator::orchestration::{builder::Dozer, models::connection::Connection};
 
 use crate::{
     db::{
-        pool::{establish_connection, DbPool}, persistable::Persistable,
+        persistable::Persistable,
+        pool::{establish_connection, DbPool},
     },
     server::dozer_api_grpc::{
         ConnectionDetails, ConnectionInfo, CreateConnectionRequest, CreateConnectionResponse,
@@ -21,6 +24,22 @@ impl ConnectionService {
         }
     }
 }
+
+impl ConnectionService {
+    async fn _get_schema(
+        &self,
+        connection: Connection,
+    ) -> Result<Vec<dozer_shared::types::TableInfo>, ErrorResponse> {
+        let get_schema_res = thread::spawn(|| {
+            let result = Dozer::get_schema(connection).map_err(|err| err.to_string());
+            return result;
+        });
+        get_schema_res.join().unwrap().map_err(|err| ErrorResponse {
+            message: err,
+            details: None,
+        })
+    }
+}
 impl ConnectionService {
     pub fn create_connection(
         &self,
@@ -30,10 +49,12 @@ impl ConnectionService {
             message: op.to_string(),
             details: None,
         })?;
-        connection.save(self.db_pool.clone()).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-            details: None,
-        })?;
+        connection
+            .save(self.db_pool.clone())
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+                details: None,
+            })?;
         Ok(CreateConnectionResponse::from(connection.clone()))
     }
 
@@ -41,8 +62,8 @@ impl ConnectionService {
         &self,
         _input: GetAllConnectionRequest,
     ) -> Result<GetAllConnectionResponse, ErrorResponse> {
-        let result = Connection::get_multiple(self.db_pool.clone())
-            .map_err(|op| ErrorResponse {
+        let result =
+            Connection::get_multiple(self.db_pool.clone()).map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
             })?;
@@ -68,13 +89,10 @@ impl ConnectionService {
     ) -> Result<GetSchemaResponse, ErrorResponse> {
         let connection = Connection::get_by_id(self.db_pool.clone(), input.connection_id.clone())
             .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-                details: None,
-            })?;
-        let schema = Dozer::get_schema(connection).map_err(|op| ErrorResponse {
             message: op.to_string(),
             details: None,
         })?;
+        let schema = self._get_schema(connection).await?;
         Ok(GetSchemaResponse {
             connection_id: input.connection_id,
             details: Some(ConnectionDetails {
@@ -87,15 +105,14 @@ impl ConnectionService {
         &self,
         input: GetConnectionDetailsRequest,
     ) -> Result<GetConnectionDetailsResponse, ErrorResponse> {
-        let connection = Connection::get_by_id(self.db_pool.clone(), input.connection_id)
-            .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-                details: None,
+        let connection =
+            Connection::get_by_id(self.db_pool.clone(), input.connection_id).map_err(|op| {
+                ErrorResponse {
+                    message: op.to_string(),
+                    details: None,
+                }
             })?;
-        let schema = Dozer::get_schema(connection.clone()).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-            details: None,
-        })?;
+        let schema = self._get_schema(connection.clone()).await?;
         Ok(GetConnectionDetailsResponse {
             info: Some(ConnectionInfo::from(connection)),
             details: Some(ConnectionDetails {
@@ -104,7 +121,7 @@ impl ConnectionService {
         })
     }
 
-    pub fn test_connection(
+    pub async fn test_connection(
         &self,
         input: TestConnectionRequest,
     ) -> Result<TestConnectionResponse, ErrorResponse> {
@@ -112,10 +129,17 @@ impl ConnectionService {
             message: op.to_string(),
             details: None,
         })?;
-        Dozer::test_connection(connection).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-            details: None,
-        })?;
-        Ok(TestConnectionResponse { success: true })
+        let connection_test = thread::spawn(|| {
+            let result = Dozer::test_connection(connection).map_err(|err| err.to_string());
+            return result;
+        });
+        connection_test
+            .join()
+            .unwrap()
+            .map(|_op| TestConnectionResponse { success: true })
+            .map_err(|err| ErrorResponse {
+                message: err,
+                details: None,
+            })
     }
 }

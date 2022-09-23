@@ -24,7 +24,7 @@ impl DozerApi for GrpcService {
     ) -> Result<Response<TestConnectionResponse>, Status> {
         let result = self
             .grpc_connection_svc
-            .test_connection(request.into_inner());
+            .test_connection(request.into_inner()).await;
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),

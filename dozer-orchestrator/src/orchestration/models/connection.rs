@@ -32,7 +32,6 @@ impl Display for DBType {
 impl FromStr for DBType {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<DBType, Self::Err> {
-        println!("DBType from_str input {:?}", s);
         match s {
             "Postgres" | "postgres" => Ok(DBType::Postgres),
             "Databricks" | "databricks" => Ok(DBType::Databricks),
