@@ -5,7 +5,6 @@ use chrono::{TimeZone, Utc};
 use futures::StreamExt;
 use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
-use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use postgres_types::PgLsn;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -42,16 +41,18 @@ impl CDCHandler {
         let copy_stream = client.copy_both_simple::<bytes::Bytes>(&query).await?;
 
         let stream = LogicalReplicationStream::new(copy_stream);
+        let mut mapper = XlogMapper::new();
 
         tokio::pin!(stream);
         loop {
             let message = stream.next().await;
-            let mut mapper = XlogMapper::new();
-            let mut messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>> = vec![];
 
             match message {
                 Some(Ok(XLogData(body))) => {
-                    mapper.handle_message(body, self.ingestor.clone(), &mut messages_buffer);
+                    let message = mapper.handle_message(body);
+                    if let Some(ingestion_message) = message {
+                        self.ingestor.lock().unwrap().handle_message(ingestion_message);
+                    }
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
                     // println!("keep alive: {}", k.reply());

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 use rocksdb::WriteBatch;
 use crate::connectors::storage::RocksStorage;
 
@@ -32,8 +33,14 @@ impl Writer<RocksStorage> for BatchedRocksDbWriter {
     }
 
     fn commit(&mut self, storage_client: &Arc<RocksStorage>) {
+        let before = Instant::now();
+        const BACKSPACE: char = 8u8 as char;
         let batch = self.batch.take().unwrap();
         storage_client.get_db().write(batch).expect("TODO: panic message");
         self.batch = Option::from(WriteBatch::default());
+        println!(
+            "Batch flush took: {:.2?}",
+            before.elapsed(),
+        );
     }
 }

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use super::storage::RocksStorage;
 use dozer_shared::types::{OperationEvent, Schema};
@@ -7,9 +8,10 @@ use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum IngestionMessage {
+    Begin(),
     OperationEvent(OperationEvent),
     Schema(Schema),
-    Commit()
+    Commit(),
 }
 pub trait IngestorForwarder: Send + Sync {
     fn forward(&self, msg: OperationEvent);
@@ -35,7 +37,8 @@ impl IngestorForwarder for ChannelForwarder {
 pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
-    writer: BatchedRocksDbWriter
+    writer: BatchedRocksDbWriter,
+    timer: Instant
 }
 
 impl Ingestor {
@@ -46,7 +49,8 @@ impl Ingestor {
         Self {
             storage_client,
             sender,
-            writer: BatchedRocksDbWriter::new()
+            writer: BatchedRocksDbWriter::new(),
+            timer: Instant::now()
         }
     }
 
@@ -65,6 +69,11 @@ impl Ingestor {
             },
             IngestionMessage::Commit() => {
                 self.writer.commit(&self.storage_client);
+                println!("Batch processing took: {:.2?}", self.timer.elapsed());
+            }
+            IngestionMessage::Begin() => {
+                self.writer.begin();
+                self.timer = Instant::now();
             }
         }
     }
