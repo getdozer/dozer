@@ -129,7 +129,7 @@ struct SizedAggregationDataset {
 }
 
 enum AggregatorOperation {
-    Insert, Delete
+    Insert, Delete, Update
 }
 
 
@@ -211,7 +211,7 @@ impl SizedAggregationDataset {
     }
 
     fn calc_and_fill_measures(
-        &self, curr_state: Option<&[u8]>, in_record: &Record,
+        &self, curr_state: Option<&[u8]>, deleted_record: Option<&Record>, inserted_record: Option<&Record>,
         out_rec_delete: &mut Record, out_rec_insert: &mut Record,
         op: AggregatorOperation) -> Result<Option<Vec<u8>>, StateStoreError> {
 
@@ -234,8 +234,9 @@ impl SizedAggregationDataset {
             }
 
             let next_state_slice = match op {
-                AggregatorOperation::Insert => { Some(measure.0.insert(curr_state_slice, &in_record)?) }
-                AggregatorOperation::Delete => { measure.0.delete(curr_state_slice, &in_record)? }
+                AggregatorOperation::Insert => { Some(measure.0.insert(curr_state_slice, &inserted_record.unwrap())?) }
+                AggregatorOperation::Delete => { measure.0.delete(curr_state_slice, &deleted_record.unwrap())? }
+                AggregatorOperation::Update => { Some(measure.0.update(curr_state_slice, &deleted_record.unwrap(), &inserted_record.unwrap())?) }
             };
 
             if next_state_slice.is_some() {
@@ -272,7 +273,8 @@ impl SizedAggregationDataset {
 
                 let curr_state = store.get(record_key.as_slice())?;
                 let new_state = self.calc_and_fill_measures(
-                    curr_state, &new, &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Insert
+                    curr_state, None, Some(&new),
+                    &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Insert
                 )?;
 
                 let res = vec![
@@ -291,13 +293,40 @@ impl SizedAggregationDataset {
                 Ok(res)
             }
             Operation::Delete {ref table_name, ref old} => {
-              //  let out_rec = self.prepare_record(old)?;
-               Ok(vec![])
+
+                let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
+                let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+                let record_key = self.get_record_key(&old)?;
+
+                let curr_state = store.get(record_key.as_slice())?;
+                let new_state = self.calc_and_fill_measures(
+                    curr_state, Some(&old), None,
+                    &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Delete
+                )?;
+
+                let res = vec![
+                    if new_state.is_none() {
+                        self.fill_dims_and_values(&old, &mut out_rec_delete);
+                        Operation::Delete {table_name: "".to_string(), old: out_rec_delete}
+                    }
+                    else {
+                        self.fill_dims_and_values(&old, &mut out_rec_insert);
+                        self.fill_dims_and_values(&old, &mut out_rec_delete);
+                        Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
+                    }
+                ];
+
+                if new_state.is_some() {
+                    store.put(record_key.as_slice(), new_state.unwrap().as_slice())?;
+                }
+                else {
+                    store.del(record_key.as_slice())?
+                }
+                Ok(res)
 
             }
             Operation::Update {ref table_name, ref old, ref new} => {
-               // let old_out_rec = self.prepare_record(old)?;
-               // let new_out_rec = self.prepare_record(new)?;
+
                 Ok(vec![])
 
             }
@@ -344,12 +373,12 @@ mod tests {
                 FieldRule::Dimension(0), // City
                 FieldRule::Dimension(1), // Country
                 FieldRule::Dimension(2), // Country
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new())),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new())),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new())),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new())),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new())),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new()))
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(3))),
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(4))),
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(5))),
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(6))),
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(7))),
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(8)))
             ]
         ).unwrap();
 

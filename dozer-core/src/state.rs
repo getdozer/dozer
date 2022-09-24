@@ -41,8 +41,9 @@ trait StateStore {
 
 trait Aggregator {
     fn get_type(&self) -> u8;
-    fn insert(&self, prev: Option<&[u8]>, curr: &Record) -> Result<Vec<u8>, StateStoreError>;
-    fn delete(&self, prev: Option<&[u8]>, curr: &Record) -> Result<Option<Vec<u8>>, StateStoreError>;
+    fn insert(&self, curr_state: Option<&[u8]>, new: &Record) -> Result<Vec<u8>, StateStoreError>;
+    fn update(&self, curr_state: Option<&[u8]>, old: &Record, new: &Record) -> Result<Vec<u8>, StateStoreError>;
+    fn delete(&self, curr_state: Option<&[u8]>, old: &Record) -> Result<Option<Vec<u8>>, StateStoreError>;
     fn get_value(&self, f: &[u8]) -> Field;
 }
 
