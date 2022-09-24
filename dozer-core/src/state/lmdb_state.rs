@@ -338,7 +338,7 @@ impl SizedAggregationDataset {
                 )?;
 
                 let res = vec![
-                    if prev_count == 0 {
+                    if prev_count == 1 {
                         self.fill_dimensions(&old, &mut out_rec_delete);
                         Operation::Delete {table_name: "".to_string(), old: out_rec_delete}
                     }
@@ -497,11 +497,13 @@ mod tests {
             old: Record::new(0, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
                 Field::Int(10)
             ]),
             new: Record::new(0, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
                 Field::Int(5)
             ])
         };
@@ -517,6 +519,52 @@ mod tests {
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(15)
+            ])
+        });
+
+
+        // Delete 5
+        let i = Operation::Delete {
+            table_name: "test".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(5)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+        assert_eq!(o.unwrap()[0], Operation::Update {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(15)
+            ]),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(10)
+            ])
+        });
+
+        // Delete last 10
+        let i = Operation::Delete {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+        assert_eq!(o.unwrap()[0], Operation::Delete {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(10)
             ])
         });
 

@@ -57,7 +57,7 @@ impl Aggregator for IntegerSumAggregator {
             _ => {return  Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid data type".to_string())); }
         };
 
-        Ok(Vec::from((prev + *curr).to_ne_bytes()))
+        Ok(Vec::from((prev - *curr).to_ne_bytes()))
     }
 
 
