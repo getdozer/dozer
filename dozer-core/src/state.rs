@@ -2,7 +2,7 @@ mod lmdb_state;
 mod accumulators;
 
 use std::sync::Arc;
-use dozer_shared::types::{Field};
+use dozer_shared::types::{Field, Record};
 
 #[derive(Debug)]
 pub enum StateStoreErrorType {
@@ -35,14 +35,14 @@ trait StateStoresManager {
 trait StateStore {
     fn checkpoint(&mut self) -> Result<(), StateStoreError>;
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError>;
-    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError>;
+    fn get(&mut self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError>;
+    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError>;
 }
 
 trait Aggregator {
     fn get_type(&self) -> u8;
-    fn get_state_size(&self) -> Option<usize>;
-    fn insert(&self, prev: Option<&[u8]>, curr: &Field) -> Result<Vec<u8>, StateStoreError>;
-    fn delete(&self, prev: Option<&[u8]>, curr: &Field) -> Result<Vec<u8>, StateStoreError>;
+    fn insert(&self, prev: Option<&[u8]>, curr: &Record) -> Result<Vec<u8>, StateStoreError>;
+    fn delete(&self, prev: Option<&[u8]>, curr: &Record) -> Result<Option<Vec<u8>>, StateStoreError>;
     fn get_value(&self, f: &[u8]) -> Field;
 }
 
