@@ -23,6 +23,10 @@ tonic-web = "0.4.0"
 dozer-orchestrator = {version = "0.1.0", path = "../dozer-orchestrator"}
 dozer-shared = {version = "0.1.0", path = "../dozer-shared"}
 tonic-build = "0.8.0"
+prost-wkt = "0.3.3"
+prost-wkt-types = "0.3.3"
+mockall = "0.11.2"
 
 [build-dependencies]
 tonic-build = "0.8"
+prost-wkt-build = "0.3.3"

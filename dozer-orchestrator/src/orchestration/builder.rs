@@ -1,21 +1,9 @@
 use core::fmt;
-use dozer_core::dag::{
-    channel::LocalNodeChannel,
-    dag::{Dag, Endpoint, NodeType},
-    executor::{MemoryExecutionContext, MultiThreadedDagExecutor},
-};
-use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
 use dozer_shared::types::TableInfo;
-use std::{error::Error, rc::Rc, sync::Arc};
+use std::error::Error;
 
 use super::{
-    models::{
-        connection::{Authentication, Connection},
-        endpoint::Endpoint as EndpointModel,
-        source::Source,
-    },
-    orchestrator::PgSource,
-    sample::{SampleProcessor, SampleSink},
+    models::{connection::Connection, endpoint::Endpoint as EndpointModel, source::Source},
     services::connection::ConnectionService,
 };
 
@@ -83,17 +71,69 @@ impl Dozer {
     }
 
     pub fn run(&mut self) -> Result<&mut Self, Box<dyn Error>> {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{rc::Rc, sync::Arc};
+
+    use crate::orchestration::models::{
+        connection::Authentication::PostgresAuthentication,
+        source::{MasterHistoryConfig, RefreshConfig},
+    };
+    use crate::orchestration::{
+        models::{
+            connection::{Authentication, Connection, DBType},
+            source::{HistoryType, Source},
+        },
+        orchestrator::PgSource,
+        sample::{SampleProcessor, SampleSink},
+    };
+    use dozer_core::dag::{
+        channel::LocalNodeChannel,
+        dag::{Dag, Endpoint, NodeType},
+        executor::{MemoryExecutionContext, MultiThreadedDagExecutor},
+    };
+    use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
+    #[test]
+    fn run_workflow() {
+        let connection: Connection = Connection {
+            db_type: DBType::Postgres,
+            authentication: PostgresAuthentication {
+                user: "postgres".to_string(),
+                password: "postgres".to_string(),
+                host: "localhost".to_string(),
+                port: 5432,
+                database: "pagila".to_string(),
+            },
+            name: "postgres connection".to_string(),
+            id: None,
+        };
+        let source = Source {
+            id: None,
+            name: "actor_source".to_string(),
+            dest_table_name: "ACTOR_SOURCE".to_string(),
+            source_table_name: "actor".to_string(),
+            connection,
+            history_type: HistoryType::Master(MasterHistoryConfig::AppendOnly {
+                unique_key_field: "actor_id".to_string(),
+                open_date_field: "last_updated".to_string(),
+                closed_date_field: "last_updated".to_string(),
+            }),
+            refresh_config: RefreshConfig::RealTime,
+        };
         let storage_config = RocksConfig {
             path: "./db/embedded".to_string(),
         };
-        if self.sources.is_none() {
-            return Err(Box::new(OrchestratorError {
-                message: "No source provided".to_owned(),
-            }));
-        }
+        let mut sources = Vec::new();
+        sources.push(source);
         let mut pg_sources = Vec::new();
-        self.sources.clone().unwrap().iter().for_each(|source| {
-            match source.connection.authentication.clone() {
+        sources
+            .clone()
+            .iter()
+            .for_each(|source| match source.connection.authentication.clone() {
                 Authentication::PostgresAuthentication {
                     user,
                     password,
@@ -112,12 +152,10 @@ impl Dozer {
                     };
                     pg_sources.push(PgSource::new(storage_config.clone(), postgres_config))
                 }
-            }
-        });
+            });
         let proc = SampleProcessor::new(2, None, None);
         let sink = SampleSink::new(2, None);
         let mut dag = Dag::new();
-
         let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
         let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
 
@@ -141,8 +179,6 @@ impl Dozer {
         let exec = MultiThreadedDagExecutor::new(Rc::new(dag));
         let ctx = Arc::new(MemoryExecutionContext::new());
         let _res = exec.start(ctx);
-        todo!()
-
-        // let src = PgSource::new(storage_config, postgres_config);
+        // assert!(_res.is_ok());
     }
 }

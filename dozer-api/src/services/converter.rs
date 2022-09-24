@@ -2,8 +2,7 @@ use crate::server::dozer_api_grpc::{
     self, connection_info::Authentication, ConnectionInfo, ConnectionType, CreateConnectionRequest,
     CreateConnectionResponse, PostgresAuthentication, TestConnectionRequest,
 };
-use core::panic;
-use dozer_orchestrator::orchestration::models::connection::{Connection, DBType, self};
+use dozer_orchestrator::orchestration::models::connection::{self, Connection, DBType};
 use dozer_shared::types::{ColumnInfo, TableInfo};
 use std::convert::From;
 
@@ -77,11 +76,12 @@ impl From<Connection> for ConnectionInfo {
     }
 }
 
-impl From<i32> for ConnectionType {
-    fn from(item: i32) -> Self {
+impl TryFrom<i32> for ConnectionType {
+    type Error = &'static str;
+    fn try_from(item: i32) -> Result<Self, Self::Error> {
         match item {
-            0 => ConnectionType::Postgres,
-            _ => panic!("ConnectionType enum not match"),
+            0 => Ok(ConnectionType::Postgres),
+            _ => Err("ConnectionType enum not match"),
         }
     }
 }
@@ -122,9 +122,6 @@ impl TryFrom<TestConnectionRequest> for Connection {
     }
 }
 
-
-
-
 impl TryFrom<CreateConnectionRequest> for Connection {
     type Error = &'static str;
     fn try_from(item: CreateConnectionRequest) -> Result<Self, Self::Error> {
@@ -150,5 +147,51 @@ impl TryFrom<CreateConnectionRequest> for Connection {
             },
             None => Err("Missing Authentication"),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::server::dozer_api_grpc::{CreateConnectionRequest, PostgresAuthentication,
+        create_connection_request::Authentication, ConnectionType,
+    };
+    use dozer_orchestrator::orchestration::models::connection::Connection;
+
+    #[test]
+    fn success_connection_from_request() {
+        let test_connection_request: CreateConnectionRequest = CreateConnectionRequest {
+            r#type: 0,
+            authentication: Some(Authentication::Postgres(PostgresAuthentication {
+                database: "pagila".to_owned(),
+                user: "postgres".to_owned(),
+                host: "localhost".to_owned(),
+                port: "5432".to_owned(),
+                name: "postgres".to_owned(),
+                password: "postgres".to_owned(),
+            })),
+        };
+        let converted = Connection::try_from(test_connection_request);
+        assert!(converted.is_ok())
+    }
+    #[test]
+    fn err_connection_from_request() {
+        let test_connection_request: CreateConnectionRequest = CreateConnectionRequest {
+            r#type: 0,
+            authentication: None
+        };
+        let converted = Connection::try_from(test_connection_request);
+        assert!(converted.is_err())
+    }
+    #[test]
+    fn success_from_i32_to_connection_type() {
+        let converted = ConnectionType::try_from(0);
+        assert!(converted.is_ok());
+        assert_eq!(converted.unwrap(), ConnectionType::Postgres);
+    }
+    #[test]
+    fn err_from_i32_to_connection_type() {
+        let converted = ConnectionType::try_from(100).map_err(|err| err.to_string());
+        assert!(converted.is_err());
+        assert_eq!(converted.err().unwrap(), "ConnectionType enum not match");
     }
 }
