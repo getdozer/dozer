@@ -2,6 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hasher;
+use std::mem::{size_of, size_of_val};
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -111,21 +112,51 @@ impl <'a> StateStore for LmdbStateStore<'a> {
 
 }
 
+pub struct MemoryStateStore {
+    data: HashMap<Vec<u8>,Vec<u8>>
+}
+
+impl MemoryStateStore {
+    pub fn new() -> Self {
+        Self { data: HashMap::new() }
+    }
+}
+
+impl StateStore for MemoryStateStore {
+
+    fn checkpoint(&mut self) -> Result<(), StateStoreError> {
+        todo!()
+    }
+
+    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
+        self.data.insert(Vec::from(key), Vec::from(value));
+        Ok(())
+    }
+
+    fn get(&mut self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
+        let r = self.data.get(key);
+        Ok(if r.is_none() { None } else { Some(r.unwrap().as_slice()) })
+    }
+
+    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
+        self.data.remove(key);
+        Ok(())
+    }
+}
+
 
 pub enum FieldRule {
     Dimension(usize),
-    Measure(Box<dyn Aggregator>),
-    Value(usize)
+    Measure(Box<dyn Aggregator>)
 }
 
 
 struct SizedAggregationDataset {
-    dataset_id: u8,
+    dataset_id: u16,
     output_schema_id: u64,
     out_fields_count: usize,
     out_dimensions: Vec<(usize, usize)>,
-    out_measures: Vec<(Box<dyn Aggregator>, usize)>,
-    out_values: Vec<(usize, usize)>
+    out_measures: Vec<(Box<dyn Aggregator>, usize)>
 }
 
 enum AggregatorOperation {
@@ -136,13 +167,12 @@ enum AggregatorOperation {
 impl SizedAggregationDataset {
 
     pub fn new(
-        dataset_id: u8, store: &mut dyn StateStore,
+        dataset_id: u16, store: &mut dyn StateStore,
         output_schema_id: u64, output_fields: Vec<FieldRule>) -> Result<SizedAggregationDataset, StateStoreError> {
 
         let out_fields_count = output_fields.len();
         let mut out_measures: Vec<(Box<dyn Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
-        let mut out_values: Vec<(usize, usize)> = Vec::new();
         let mut ctr = 0;
 
         for rule in output_fields.into_iter() {
@@ -153,17 +183,14 @@ impl SizedAggregationDataset {
                 FieldRule::Dimension(idx) => {
                     out_dimensions.push((idx, ctr));
                 }
-                FieldRule::Value(idx) => {
-                    out_values.push((idx, ctr));
-                }
             }
             ctr += 1;
         }
 
-        store.put(&dataset_id.to_ne_bytes(), &0_u8.to_ne_bytes())?;
+        store.put(&dataset_id.to_ne_bytes(), &0_u16.to_ne_bytes())?;
 
         Ok(SizedAggregationDataset {
-            dataset_id, out_measures, out_dimensions, out_values, out_fields_count, output_schema_id
+            dataset_id, out_measures, out_dimensions, out_fields_count, output_schema_id
         })
     }
 
@@ -191,21 +218,16 @@ impl SizedAggregationDataset {
         Ok(hasher.finish())
     }
 
-    fn fill_dims_and_values(&self, in_rec: &Record, out_rec: &mut Record) {
+    fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) {
 
-        for v in &self.out_values {
-            out_rec.values[v.1] = in_rec.values[v.0].clone();
-        }
         for v in &self.out_dimensions {
             out_rec.values[v.1] = in_rec.values[v.0].clone();
         }
     }
 
-    fn get_record_key(&self, r: &Record) -> Result<Vec<u8>, StateStoreError> {
-
-        let hash = self.get_record_hash(r)?;
-        let mut vec = Vec::with_capacity(9);
-        vec.extend_from_slice(&self.dataset_id.to_ne_bytes());
+    fn get_record_key(&self, hash: u64, database_id: u16) -> Result<Vec<u8>, StateStoreError> {
+        let mut vec = Vec::with_capacity(size_of_val(&hash) + size_of_val(&database_id));
+        vec.extend_from_slice(&database_id.to_ne_bytes());
         vec.extend_from_slice(&hash.to_ne_bytes());
         Ok(vec)
     }
@@ -213,11 +235,10 @@ impl SizedAggregationDataset {
     fn calc_and_fill_measures(
         &self, curr_state: Option<&[u8]>, deleted_record: Option<&Record>, inserted_record: Option<&Record>,
         out_rec_delete: &mut Record, out_rec_insert: &mut Record,
-        op: AggregatorOperation) -> Result<Option<Vec<u8>>, StateStoreError> {
+        op: AggregatorOperation) -> Result<Vec<u8>, StateStoreError> {
 
         let mut next_state = Vec::<u8>::new();
         let mut offset: usize = 0;
-        let mut null_count = 0;
 
         for measure in &self.out_measures {
 
@@ -234,33 +255,36 @@ impl SizedAggregationDataset {
             }
 
             let next_state_slice = match op {
-                AggregatorOperation::Insert => { Some(measure.0.insert(curr_state_slice, &inserted_record.unwrap())?) }
+                AggregatorOperation::Insert => { measure.0.insert(curr_state_slice, &inserted_record.unwrap())? }
                 AggregatorOperation::Delete => { measure.0.delete(curr_state_slice, &deleted_record.unwrap())? }
-                AggregatorOperation::Update => { Some(measure.0.update(curr_state_slice, &deleted_record.unwrap(), &inserted_record.unwrap())?) }
+                AggregatorOperation::Update => { measure.0.update(curr_state_slice, &deleted_record.unwrap(), &inserted_record.unwrap())? }
             };
 
-            if next_state_slice.is_some() {
+            next_state.extend((next_state_slice.len() as u16).to_ne_bytes());
+            offset += (next_state_slice.len() + 2);
 
-                let next_state_slice_val = next_state_slice.unwrap();
-
-                next_state.extend((next_state_slice_val.len() as u16).to_ne_bytes());
-                offset += (next_state_slice_val.len() + 2);
-                let next_value = measure.0.get_value(next_state_slice_val.as_slice());
-                next_state.extend(next_state_slice_val);
+            if (next_state_slice.len() > 0) {
+                let next_value = measure.0.get_value(next_state_slice.as_slice());
+                next_state.extend(next_state_slice);
                 out_rec_insert.values[measure.1] = next_value;
             }
             else {
-                next_state.extend(0_u16.to_ne_bytes());
-                offset += 2;
                 out_rec_insert.values[measure.1] = Field::Null;
-                null_count += 1;
             }
-
         }
 
-        Ok( if null_count == self.out_measures.len() { None } else { Some(next_state) })
+        Ok(next_state)
 
     }
+
+    fn update_segment_count(&self, store: &mut dyn StateStore, key: Vec<u8>, delta: u64, decr: bool) -> Result<u64, StateStoreError> {
+
+        let bytes = store.get(key.as_slice())?;
+        let curr_count = if bytes.is_some() { u64::from_ne_bytes(bytes.unwrap().try_into().unwrap()) } else {0_u64};
+        store.put(key.as_slice(), (if decr {curr_count - delta} else {curr_count + delta}).to_ne_bytes().as_slice());
+        Ok(curr_count)
+    }
+
 
     fn aggregate(&self, store: &mut dyn StateStore, op: Operation) -> Result<Vec<Operation>, StateStoreError> {
 
@@ -269,7 +293,11 @@ impl SizedAggregationDataset {
 
                 let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
                 let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
-                let record_key = self.get_record_key(&new)?;
+                let record_hash = self.get_record_hash(&new)?;
+                let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+
+                let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
+                let prev_count = self.update_segment_count(store, record_count_key, 1, false)?;
 
                 let curr_state = store.get(record_key.as_slice())?;
                 let new_state = self.calc_and_fill_measures(
@@ -279,24 +307,29 @@ impl SizedAggregationDataset {
 
                 let res = vec![
                     if curr_state.is_none() {
-                        self.fill_dims_and_values(&new, &mut out_rec_insert);
+                        self.fill_dimensions(&new, &mut out_rec_insert);
                         Operation::Insert {table_name: "".to_string(), new: out_rec_insert}
                     }
                     else {
-                        self.fill_dims_and_values(&new, &mut out_rec_insert);
-                        self.fill_dims_and_values(&new, &mut out_rec_delete);
+                        self.fill_dimensions(&new, &mut out_rec_insert);
+                        self.fill_dimensions(&new, &mut out_rec_delete);
                         Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
                     }
                 ];
 
-                store.put(record_key.as_slice(), new_state.unwrap().as_slice())?;
+                store.put(record_key.as_slice(), new_state.as_slice())?;
+
                 Ok(res)
             }
             Operation::Delete {ref table_name, ref old} => {
 
                 let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
                 let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
-                let record_key = self.get_record_key(&old)?;
+                let record_hash = self.get_record_hash(&old)?;
+                let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+
+                let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
+                let prev_count = self.update_segment_count(store, record_count_key, 1, true)?;
 
                 let curr_state = store.get(record_key.as_slice())?;
                 let new_state = self.calc_and_fill_measures(
@@ -305,19 +338,19 @@ impl SizedAggregationDataset {
                 )?;
 
                 let res = vec![
-                    if new_state.is_none() {
-                        self.fill_dims_and_values(&old, &mut out_rec_delete);
+                    if prev_count == 0 {
+                        self.fill_dimensions(&old, &mut out_rec_delete);
                         Operation::Delete {table_name: "".to_string(), old: out_rec_delete}
                     }
                     else {
-                        self.fill_dims_and_values(&old, &mut out_rec_insert);
-                        self.fill_dims_and_values(&old, &mut out_rec_delete);
+                        self.fill_dimensions(&old, &mut out_rec_insert);
+                        self.fill_dimensions(&old, &mut out_rec_delete);
                         Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
                     }
                 ];
 
-                if new_state.is_some() {
-                    store.put(record_key.as_slice(), new_state.unwrap().as_slice())?;
+                if prev_count > 0 {
+                    store.put(record_key.as_slice(), new_state.as_slice())?;
                 }
                 else {
                     store.del(record_key.as_slice())?
@@ -327,7 +360,42 @@ impl SizedAggregationDataset {
             }
             Operation::Update {ref table_name, ref old, ref new} => {
 
-                Ok(vec![])
+                let old_record_hash = self.get_record_hash(&old)?;
+                let new_record_hash = self.get_record_hash(&new)?;
+
+                if (old_record_hash == new_record_hash) {
+                    // Dimension values were not changed
+
+                    let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
+                    let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+                    let record_key = self.get_record_key(old_record_hash, self.dataset_id)?;
+
+                    let curr_state = store.get(record_key.as_slice())?;
+                    let new_state = self.calc_and_fill_measures(
+                        curr_state, Some(&old), Some(&new),
+                        &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Update
+                    )?;
+
+                    self.fill_dimensions(&new, &mut out_rec_insert);
+                    self.fill_dimensions(&old, &mut out_rec_delete);
+
+                    let res = vec![
+                        Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
+                    ];
+
+                    store.put(record_key.as_slice(), new_state.as_slice())?;
+
+                    Ok(res)
+
+                }
+                else {
+                    Ok(vec![])
+                    // Dimension values changed
+
+                }
+
+
+                //Ok(vec![])
 
             }
             _ => { return Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid operation".to_string())); }
@@ -353,12 +421,115 @@ impl SizedAggregationDataset {
 
 
 mod tests {
+
+    use std::collections::HashMap;
     use std::path::Path;
     use bytemuck::{from_bytes, from_bytes_mut};
     use dozer_shared::types::{Field, Operation, Record};
     use crate::state::accumulators::IntegerSumAggregator;
-    use crate::state::lmdb_state::{FieldRule, LmdbStateStoreManager, SizedAggregationDataset};
-    use rand::Rng; // 0.8.5
+    use crate::state::lmdb_state::{FieldRule, LmdbStateStoreManager, MemoryStateStore, SizedAggregationDataset};
+    use rand::Rng;
+    use crate::state::StateStore;
+
+
+    #[test]
+    fn test_insert() {
+
+        let mut store = MemoryStateStore::new();
+
+        let agg = SizedAggregationDataset::new(
+            0x02_u16, &mut store, 0,
+            vec![
+                FieldRule::Dimension(0), // City
+                FieldRule::Dimension(1), // Country
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(3))) // People
+            ]
+        ).unwrap();
+
+        // Insert 10
+        let i = Operation::Insert {
+            table_name: "test".to_string(),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+        assert_eq!(o.unwrap()[0], Operation::Insert {
+            table_name: "".to_string(),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(10)
+            ])
+        });
+
+        // Insert another 10
+        let i = Operation::Insert {
+            table_name: "test".to_string(),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+        assert_eq!(o.unwrap()[0], Operation::Update {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(10)
+            ]),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(20)
+            ])
+        });
+
+        // update from 10 to 5
+        let i = Operation::Update {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(10)
+            ]),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(5)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+        assert_eq!(o.unwrap()[0], Operation::Update {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(20)
+            ]),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::Int(15)
+            ])
+        });
+
+
+
+        println!("ciao")
+
+
+
+
+
+    }
+
 
     #[test]
     fn test() {
@@ -368,17 +539,12 @@ mod tests {
         let mut store = ss.init_state_store("test".to_string()).unwrap();
 
         let agg = SizedAggregationDataset::new(
-            0x02_u8, store.as_mut(), 100,
+            0x02_u16, store.as_mut(), 100,
             vec![
                 FieldRule::Dimension(0), // City
-                FieldRule::Dimension(1), // Country
+                FieldRule::Dimension(1), // Region
                 FieldRule::Dimension(2), // Country
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new(3))),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new(4))),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new(5))),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new(6))),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new(7))),
-                FieldRule::Measure(Box::new(IntegerSumAggregator::new(8)))
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(3)))
             ]
         ).unwrap();
 

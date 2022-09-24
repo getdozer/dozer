@@ -35,13 +35,29 @@ impl Aggregator for IntegerSumAggregator {
 
     fn update(&self, curr_state: Option<&[u8]>, old: &Record, new: &Record) -> Result<Vec<u8>, StateStoreError> {
 
+        let prev = if curr_state.is_none() {0_i64} else { i64::from_ne_bytes(curr_state.unwrap().try_into().unwrap()) };
 
-        Ok(Vec::from(1_i64.to_ne_bytes()))
+        let curr_del = match &old.values[self.input_idx] {
+            Int(i) => { i }
+            _ => {return  Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid data type".to_string())); }
+        };
+        let curr_added = match &new.values[self.input_idx] {
+            Int(i) => { i }
+            _ => {return  Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid data type".to_string())); }
+        };
+
+        Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
     }
 
-    fn delete(&self, curr_state: Option<&[u8]>, old: &Record) -> Result<Option<Vec<u8>>, StateStoreError> {
+    fn delete(&self, curr_state: Option<&[u8]>, old: &Record) -> Result<Vec<u8>, StateStoreError> {
 
-        Ok(Some(Vec::from((1_i64).to_ne_bytes())))
+        let prev = if curr_state.is_none() {0_i64} else { i64::from_ne_bytes(curr_state.unwrap().try_into().unwrap()) };
+        let curr = match &old.values[self.input_idx] {
+            Int(i) => { i }
+            _ => {return  Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid data type".to_string())); }
+        };
+
+        Ok(Vec::from((prev + *curr).to_ne_bytes()))
     }
 
 

@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Field {
     Int(i64),
     Float(f64),
@@ -28,7 +28,7 @@ pub struct Schema {
     pub _ctr: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Record {
     pub values: Vec<Field>,
     pub schema_id: u64,
@@ -55,7 +55,7 @@ impl OperationEvent {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Operation {
     Delete {
         table_name: String,
