@@ -32,7 +32,7 @@ fn main() {
     let mut i = 0;
     loop {
         let _msg = iterator.next().unwrap();
-
+        // println!("{:?}", _msg);
         if i % 100 == 0 {
             print!(
                 "{}\rCount: {}, Elapsed time: {:.2?}",

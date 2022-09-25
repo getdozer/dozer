@@ -1,13 +1,12 @@
-use crate::connectors::ingestor::{Ingestor, IngestorForwarder};
+use crate::connectors::ingestor::Ingestor;
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use chrono::{TimeZone, Utc};
 use futures::StreamExt;
 use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
-use postgres_protocol::message::backend::{LogicalReplicationMessage, XLogDataBody};
 use postgres_types::PgLsn;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 
@@ -16,8 +15,9 @@ pub struct CDCHandler {
     pub publication_name: String,
     pub slot_name: String,
     pub lsn: String,
-    pub ingestor: Arc<Ingestor>,
+    pub ingestor: Arc<Mutex<Ingestor>>,
 }
+
 impl CDCHandler {
     pub async fn start(&self) -> Result<(), Error> {
         let conn_str = self.conn_str.clone();
@@ -41,16 +41,21 @@ impl CDCHandler {
         let copy_stream = client.copy_both_simple::<bytes::Bytes>(&query).await?;
 
         let stream = LogicalReplicationStream::new(copy_stream);
+        let mut mapper = XlogMapper::new();
 
         tokio::pin!(stream);
         loop {
             let message = stream.next().await;
-            let mut mapper = XlogMapper::new();
-            let mut messages_buffer: Vec<XLogDataBody<LogicalReplicationMessage>> = vec![];
 
             match message {
                 Some(Ok(XLogData(body))) => {
-                    mapper.handle_message(body, self.ingestor.clone(), &mut messages_buffer);
+                    let message = mapper.handle_message(body);
+                    if let Some(ingestion_message) = message {
+                        self.ingestor
+                            .lock()
+                            .unwrap()
+                            .handle_message(ingestion_message);
+                    }
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
                     // println!("keep alive: {}", k.reply());

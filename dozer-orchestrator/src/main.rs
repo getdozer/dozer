@@ -1,53 +1,40 @@
-mod orchestrator;
-mod sample;
-use std::{rc::Rc, sync::Arc};
-
-use dozer_core::dag::{
-    channel::LocalNodeChannel,
-    dag::{Dag, Endpoint, NodeType},
-    executor::{MemoryExecutionContext, MultiThreadedDagExecutor},
+use dozer_orchestrator::orchestration::{
+    builder::Dozer,
+    models::{
+        connection::{Authentication::PostgresAuthentication, Connection, DBType},
+        source::{HistoryType, MasterHistoryConfig, RefreshConfig, Source},
+    },
 };
-use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
-use orchestrator::PgSource;
-use sample::{SampleProcessor, SampleSink};
 fn main() {
-    let storage_config = RocksConfig {
-        path: "./db/embedded".to_string(),
+    let connection: Connection = Connection {
+        db_type: DBType::Postgres,
+        authentication: PostgresAuthentication {
+            user: "postgres".to_string(),
+            password: "postgres".to_string(),
+            host: "localhost".to_string(),
+            port: 5432,
+            database: "pagila".to_string(),
+        },
+        name: "postgres connection".to_string(),
+        id: None,
     };
-    let postgres_config = PostgresConfig {
-        name: "test_c".to_string(),
-        // tables: Some(vec!["actor".to_string()]),
-        tables: None,
-        conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
-        // conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=large_film".to_string(),
+    Dozer::test_connection(connection.to_owned()).unwrap();
+    let source = Source {
+        id: None,
+        name: "actor_source".to_string(),
+        dest_table_name: "ACTOR_SOURCE".to_string(),
+        source_table_name: "actor".to_string(),
+        connection,
+        history_type: HistoryType::Master(MasterHistoryConfig::AppendOnly {
+            unique_key_field: "actor_id".to_string(),
+            open_date_field: "last_updated".to_string(),
+            closed_date_field: "last_updated".to_string(),
+        }),
+        refresh_config: RefreshConfig::RealTime,
     };
-
-    let src = PgSource::new(storage_config, postgres_config);
-    let proc = SampleProcessor::new(2, None, None);
-    let sink = SampleSink::new(2, None);
-
-    let mut dag = Dag::new();
-
-    let src_handle = dag.add_node(NodeType::Source(Arc::new(src)));
-    let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
-    let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
-
-    dag.connect(
-        Endpoint::new(src_handle, None),
-        Endpoint::new(proc_handle, None),
-        Box::new(LocalNodeChannel::new(10000)),
-    )
-    .unwrap();
-
-    dag.connect(
-        Endpoint::new(proc_handle, None),
-        Endpoint::new(sink_handle, None),
-        Box::new(LocalNodeChannel::new(10000)),
-    )
-    .unwrap();
-
-    let exec = MultiThreadedDagExecutor::new(Rc::new(dag));
-    let ctx = Arc::new(MemoryExecutionContext::new());
-
-    let _res = exec.start(ctx);
+    let mut dozer = Dozer::new();
+    let mut sources = Vec::new();
+    sources.push(source);
+    dozer.add_sources(sources);
+    dozer.run();
 }

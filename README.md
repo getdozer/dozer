@@ -7,7 +7,7 @@ dozer
 |-- dozer-ingestion       # Ingestion & Connectors
 |-- dozer-storage         # Initial checkpointing of data from ingestion
 |-- dozer-api             # APIs to be consumed by clients 
-|-- dozer-shared          # Library with shared utilities
+|-- dozer-types          # Library with shared utilities
 |-- dozer-pipeline         # Library with shared utilities
 ```
 
@@ -18,7 +18,7 @@ cargo new --vcs none dozer-storage
 
 2) Adding a new package as a library
 ```
-cargo new --vcs none --lib dozer-shared
+cargo new --vcs none --lib dozer-types
 ```
 
 ### Running
