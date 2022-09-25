@@ -76,6 +76,7 @@ impl RocksStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
 
     #[test]
     fn serialize_and_deserialize() {
@@ -91,8 +92,12 @@ mod tests {
         let storage_config = RocksConfig {
             path: "./db/test".to_string(),
         };
-        let mut storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
-        storage_client.insert_operation_event(&op);
+        let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
+
+        let (key, encoded) = storage_client.map_operation_event(&op);
+        let mut writer = BatchedRocksDbWriter::new();
+        writer.insert(key.as_ref(), encoded);
+        writer.commit(&storage_client);
 
         let op2 = storage_client.get_operation_event(1);
         assert_eq!(op2.id, op.id);
