@@ -23,34 +23,38 @@ pub struct PostgresConnector {
     tables: Option<Vec<String>>,
     storage_client: Option<Arc<RocksStorage>>,
 }
-
-impl Connector<PostgresConfig, postgres::Error> for PostgresConnector {
-    fn new(config: PostgresConfig) -> PostgresConnector {
+impl PostgresConnector {
+    pub fn new(config: PostgresConfig) -> PostgresConnector {
         let mut conn_str = config.conn_str.to_owned();
         conn_str.push_str(" replication=database");
 
         PostgresConnector {
             name: config.name,
-            conn_str_plain: config.conn_str,
             conn_str,
+            conn_str_plain: config.conn_str,
             tables: config.tables,
             storage_client: None,
         }
     }
+}
 
-    fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> Result<(), postgres::Error> {
+impl Connector for PostgresConnector {
+    fn initialize(
+        &mut self,
+        storage_client: Arc<RocksStorage>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let client = helper::connect(self.conn_str.clone())?;
         self.create_publication(client).unwrap();
         self.storage_client = Some(storage_client);
         Ok(())
     }
 
-    fn test_connection(&self) -> Result<(), postgres::Error> {
-        helper::connect(self.conn_str.clone())?;
+    fn test_connection(&self) -> Result<(), Box<dyn std::error::Error>> {
+        helper::connect(self.conn_str.clone()).map_err(|e| Box::new(e))?;
         Ok(())
     }
 
-    fn get_schema(&self) -> Vec<TableInfo> {
+    fn get_schema(&self) -> Result<Vec<TableInfo>, Box::<dyn std::error::Error>> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };

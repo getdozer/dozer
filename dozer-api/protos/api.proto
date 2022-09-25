@@ -1,6 +1,6 @@
 syntax = "proto3";
 package dozer_api_grpc;
-import "google/protobuf/struct.proto";
+import "google/protobuf/any.proto";
 
 service DozerApi {
   rpc test_connection(TestConnectionRequest) returns (TestConnectionResponse);
@@ -37,7 +37,7 @@ message PostgresAuthentication {
 
 message ErrorResponse {
   string message = 1;
-  google.protobuf.Value details = 2;
+  google.protobuf.Any details = 2;
 }
 
 message CreateConnectionRequest {

@@ -1,20 +1,19 @@
+use std::env;
+use dotenvy::dotenv;
 use tonic::{transport::Server, Request, Response, Status};
+use crate::{services::{connection_service::ConnectionService}};
 pub mod dozer_api_grpc {
     tonic::include_proto!("dozer_api_grpc");
 }
-use self::dozer_api_grpc::{
-    GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
-    GetConnectionDetailsResponse,
-};
-use crate::{db::pool::establish_connection, services::connections_svc::ConnectionSvc};
 use dozer_api_grpc::{
     dozer_api_server::{DozerApi, DozerApiServer},
+    GetConnectionDetailsRequest,
     CreateConnectionRequest, CreateConnectionResponse, GetSchemaRequest, GetSchemaResponse,
-    TestConnectionRequest, TestConnectionResponse,
+    TestConnectionRequest, TestConnectionResponse,GetAllConnectionResponse,GetAllConnectionRequest,GetConnectionDetailsResponse
 };
 
 pub struct GrpcService {
-    connection_svc: ConnectionSvc,
+    grpc_connection_svc: ConnectionService,
 }
 
 #[tonic::async_trait]
@@ -24,9 +23,8 @@ impl DozerApi for GrpcService {
         request: Request<TestConnectionRequest>,
     ) -> Result<Response<TestConnectionResponse>, Status> {
         let result = self
-            .connection_svc
-            .test_connection(request.into_inner())
-            .await;
+            .grpc_connection_svc
+            .test_connection(request.into_inner()).await;
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -37,7 +35,7 @@ impl DozerApi for GrpcService {
         &self,
         request: Request<CreateConnectionRequest>,
     ) -> Result<Response<CreateConnectionResponse>, Status> {
-        let result = self.connection_svc.create_connection(request.into_inner());
+        let result = self.grpc_connection_svc.create_connection(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -48,7 +46,7 @@ impl DozerApi for GrpcService {
         &self,
         request: Request<GetConnectionDetailsRequest>,
     ) -> Result<Response<GetConnectionDetailsResponse>, Status> {
-        let result = self.connection_svc.get_connection_details(request.into_inner()).await;
+        let result = self.grpc_connection_svc.get_connection_details(request.into_inner()).await;
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -60,7 +58,7 @@ impl DozerApi for GrpcService {
         request: Request<GetAllConnectionRequest>,
     ) -> Result<Response<GetAllConnectionResponse>, Status> {
         let result = self
-            .connection_svc
+            .grpc_connection_svc
             .get_all_connections(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
@@ -72,7 +70,7 @@ impl DozerApi for GrpcService {
         &self,
         request: Request<GetSchemaRequest>,
     ) -> Result<Response<GetSchemaResponse>, Status> {
-        let result = self.connection_svc.get_schema(request.into_inner()).await;
+        let result = self.grpc_connection_svc.get_schema(request.into_inner()).await;
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -82,9 +80,10 @@ impl DozerApi for GrpcService {
 
 pub async fn get_server() -> Result<(), tonic::transport::Error> {
     let addr = "[::1]:8081".parse().unwrap();
-    let db_connection = establish_connection();
+    dotenv().ok();
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let grpc_service = GrpcService {
-        connection_svc: ConnectionSvc::new(db_connection),
+        grpc_connection_svc: ConnectionService::new(database_url),
     };
     let server = DozerApiServer::new(grpc_service);
     let server =  tonic_web::config()

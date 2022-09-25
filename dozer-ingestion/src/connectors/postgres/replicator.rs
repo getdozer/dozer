@@ -1,4 +1,4 @@
-use crate::connectors::ingestor::{Ingestor, IngestorForwarder};
+use crate::connectors::ingestor::{Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use chrono::{TimeZone, Utc};

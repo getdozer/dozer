@@ -1,5 +1,4 @@
 use std::time::Instant;
-
 use dozer_core::dag::{
     dag::PortHandle,
     node::{ChannelForwarder, ExecutionContext, NextStep, Processor, Sink},

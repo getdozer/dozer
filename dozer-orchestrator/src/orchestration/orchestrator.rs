@@ -9,7 +9,7 @@ use dozer_ingestion::connectors::{
     postgres::connector::{PostgresConfig, PostgresConnector},
     storage::{RocksConfig, RocksStorage, Storage},
 };
-
+#[derive(Clone, Debug)]
 pub struct PgSource {
     storage_config: RocksConfig,
     pg_config: PostgresConfig,

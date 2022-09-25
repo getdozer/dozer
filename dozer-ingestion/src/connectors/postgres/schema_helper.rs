@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use super::helper;
 use dozer_shared::types::{ColumnInfo, TableInfo};
 
@@ -5,8 +7,8 @@ pub struct SchemaHelper {
     pub conn_str: String,
 }
 impl SchemaHelper {
-    pub fn get_schema(&mut self) -> Vec<TableInfo> {
-        let mut client = helper::connect(self.conn_str.clone()).unwrap();
+    pub fn get_schema(&mut self) -> Result<Vec<TableInfo>, Box<dyn Error>> {
+        let mut client = helper::connect(self.conn_str.clone())?;
         let query = "select genericInfo.table_name, genericInfo.column_name, case when genericInfo.is_nullable = 'NO' then false else true end as is_nullable , genericInfo.udt_name, keyInfo.constraint_type is not null as is_primary_key
         FROM
         (SELECT table_schema, table_catalog, table_name, column_name, is_nullable , data_type , numeric_precision , udt_name, character_maximum_length from  information_schema.columns 
@@ -22,7 +24,7 @@ impl SchemaHelper {
        order by genericInfo.table_schema, genericInfo.table_catalog, genericInfo.table_name, genericInfo.column_name";
         let mut table_schema: Vec<TableInfo> = vec![];
 
-        let results = client.query(query, &[]).unwrap();
+        let results = client.query(query, &[])?;
 
         let mut current_table: String = String::from("");
 
@@ -53,6 +55,6 @@ impl SchemaHelper {
                 table_schema.push(current_table_info);
             }
         }
-        table_schema
+        Ok(table_schema)
     }
 }
