@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "dozer-api",
+  "dozer-cache",
   "dozer-ingestion",
   "dozer-shared",
   "dozer-core",
