@@ -24,7 +24,7 @@ pub struct Schema {
     pub id: String,
     pub field_names: Vec<String>,
     pub field_types: Vec<Field>,
-    pub _idx: HashMap<String, u16>,
+    pub _idx: HashMap<String, usize>,
     pub _ctr: u16,
 }
 
@@ -84,12 +84,22 @@ impl Record {
 
 impl Schema {
     pub fn new(id: String, field_names: Vec<String>, field_types: Vec<Field>) -> Schema {
+        let mut indexes = HashMap::new();
+        let mut c = 0;
+        for i in field_names.iter() {
+            indexes.insert(i.clone(), c);
+            c = c + 1;
+        }
         Schema {
-            id: id,
-            field_names: field_names,
-            field_types: field_types,
-            _idx: HashMap::new(),
+            id,
+            field_names,
+            field_types,
+            _idx: indexes,
             _ctr: 0,
         }
+    }
+
+    pub fn get_column_index(&self, name: String) -> Option<&usize> {
+        self._idx.get(&name)
     }
 }
