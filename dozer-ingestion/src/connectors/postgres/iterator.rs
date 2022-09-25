@@ -6,7 +6,7 @@ use crossbeam::channel::unbounded;
 use dozer_shared::types::OperationEvent;
 use postgres::Error;
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use tokio::runtime::Runtime;
 
@@ -26,7 +26,7 @@ pub struct PostgresIteratorHandler {
     details: Arc<Details>,
     lsn: RefCell<Option<String>>,
     state: RefCell<ReplicationState>,
-    ingestor: Arc<Ingestor>,
+    ingestor: Arc<Mutex<Ingestor>>,
 }
 
 pub struct PostgresIterator {
@@ -80,7 +80,7 @@ impl PostgresIterator {
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         // ingestor.initialize(forwarder);
         let storage_client = self.storage_client.clone();
-        let ingestor = Arc::new(Ingestor::new(storage_client, forwarder));
+        let ingestor = Arc::new(Mutex::new(Ingestor::new(storage_client, forwarder)));
 
         Ok(thread::spawn(move || {
             let mut stream_inner = PostgresIteratorHandler {

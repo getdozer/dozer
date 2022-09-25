@@ -6,7 +6,6 @@ pub trait Storage<T> {
     fn new(storage_config: T) -> Self;
 }
 
-#[derive(Clone, Debug)]
 pub struct RocksStorage {
     _config: RocksConfig,
     db: Arc<DBWithThreadMode<SingleThreaded>>,
@@ -25,15 +24,8 @@ impl Storage<RocksConfig> for RocksStorage {
         }
     }
 }
-impl RocksStorage {
-    pub fn insert_operation_event(&self, op: &OperationEvent) {
-        let db = Arc::clone(&self.db);
-        let key = self._get_operation_key(op).to_owned();
-        let key: &[u8] = key.as_ref();
-        let encoded: Vec<u8> = bincode::serialize(op).unwrap();
-        db.put(key, encoded).unwrap();
-    }
 
+impl RocksStorage {
     pub fn get_estimate_key_count(&self) -> u64 {
         let db = Arc::clone(&self.db);
         let count: u64 = db
@@ -48,12 +40,16 @@ impl RocksStorage {
         let _ = DB::destroy(&Options::default(), path);
     }
 
-    pub fn insert_schema(&self, schema: &Schema) {
-        let db = Arc::clone(&self.db);
+    pub fn map_schema(&self, schema: &Schema) -> (Vec<u8>, Vec<u8>) {
         let key = self.get_schema_key(schema).to_owned();
-        let key: &[u8] = key.as_ref();
         let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
-        db.put(key, encoded).unwrap();
+        (key, encoded)
+    }
+
+    pub fn map_operation_event(&self, op: &OperationEvent) -> (Vec<u8>, Vec<u8>) {
+        let key = self._get_operation_key(op).to_owned();
+        let encoded: Vec<u8> = bincode::serialize(op).unwrap();
+        (key, encoded)
     }
 
     pub fn get_operation_event(&self, id: i32) -> OperationEvent {
@@ -62,6 +58,10 @@ impl RocksStorage {
         let returned_bytes = db.get(key).unwrap().unwrap();
         let op: OperationEvent = bincode::deserialize(returned_bytes.as_ref()).unwrap();
         op
+    }
+
+    pub fn get_db(&self) -> Arc<DBWithThreadMode<SingleThreaded>> {
+        Arc::clone(&self.db)
     }
 
     fn _get_operation_key(&self, op: &OperationEvent) -> Vec<u8> {
@@ -91,7 +91,7 @@ mod tests {
         let storage_config = RocksConfig {
             path: "./db/test".to_string(),
         };
-        let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
+        let mut storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
         storage_client.insert_operation_event(&op);
 
         let op2 = storage_client.get_operation_event(1);
