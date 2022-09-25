@@ -1,5 +1,5 @@
 use core::fmt;
-use dozer_shared::types::TableInfo;
+use dozer_types::types::TableInfo;
 use std::error::Error;
 
 use super::{

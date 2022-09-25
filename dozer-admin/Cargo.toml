@@ -21,7 +21,7 @@ prost-types = "0.11.1"
 prost = "0.11.0"
 tonic-web = "0.4.0"
 dozer-orchestrator = {version = "0.1.0", path = "../dozer-orchestrator"}
-dozer-shared = {version = "0.1.0", path = "../dozer-shared"}
+dozer-types = {version = "0.1.0", path = "../dozer-types"}
 tonic-build = "0.8.0"
 prost-wkt = "0.3.3"
 prost-wkt-types = "0.3.3"

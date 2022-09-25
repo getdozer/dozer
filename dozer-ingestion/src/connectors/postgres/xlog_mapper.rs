@@ -1,16 +1,16 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
-use dozer_shared::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
 use postgres_protocol::message::backend::{
     LogicalReplicationMessage, RelationBody, TupleData, XLogDataBody,
 };
+use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use postgres_types::Type;
 
 struct MessageBody<'a> {
     message: &'a RelationBody,
@@ -88,7 +88,6 @@ impl XlogMapper {
                         }
                     }
                 }
-
             }
             Commit(commit) => {
                 println!("commit:");
@@ -162,7 +161,7 @@ impl XlogMapper {
 
                 return Option::from(IngestionMessage::OperationEvent(event));
             }
-            _ => { }
+            _ => {}
         }
 
         return None;
@@ -177,8 +176,8 @@ impl XlogMapper {
                 name: String::from(column.name().unwrap()),
                 type_id: column.type_id(),
                 flags: column.flags(),
-                    r#type: Type::from_oid(column.type_id() as u32)
-                })
+                r#type: Type::from_oid(column.type_id() as u32),
+            })
             .collect();
 
         let table = Table {

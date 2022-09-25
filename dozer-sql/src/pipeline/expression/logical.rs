@@ -1,12 +1,12 @@
+use crate::pipeline::expression::operator::{Expression, Timestamp};
+use dozer_types::types::Field::{Boolean, Invalid};
+use dozer_types::types::{Field, Record};
 use num_traits::cast::*;
 use num_traits::Bounded;
-use crate::pipeline::expression::operator::{Timestamp, Expression};
-use dozer_shared::types::{Field, Record};
-use dozer_shared::types::Field::{Invalid, Boolean};
 
 pub struct And {
     left: Box<dyn Expression>,
-    right: Box<dyn Expression>
+    right: Box<dyn Expression>,
 }
 
 impl And {
@@ -26,10 +26,8 @@ impl Expression for And {
                 }
                 let right_p = self.right.get_result(&record);
                 match right_p {
-                    Field::Boolean(right_v) => {
-                        Field::Boolean(left_v && right_v)
-                    }
-                    _ => { Field::Boolean(false) }
+                    Field::Boolean(right_v) => Field::Boolean(left_v && right_v),
+                    _ => Field::Boolean(false),
                 }
             }
             _ => {
@@ -41,7 +39,7 @@ impl Expression for And {
 
 pub struct Or {
     left: Box<dyn Expression>,
-    right: Box<dyn Expression>
+    right: Box<dyn Expression>,
 }
 
 impl Or {
@@ -61,10 +59,8 @@ impl Expression for Or {
                 }
                 let right_p = self.right.get_result(&record);
                 match right_p {
-                    Field::Boolean(right_v) => {
-                        Field::Boolean(left_v && right_v)
-                    }
-                    _ => { Field::Boolean(false) }
+                    Field::Boolean(right_v) => Field::Boolean(left_v && right_v),
+                    _ => Field::Boolean(false),
                 }
             }
             _ => {
@@ -75,7 +71,7 @@ impl Expression for Or {
 }
 
 pub struct Not {
-    value: Box<dyn Expression>
+    value: Box<dyn Expression>,
 }
 
 impl Not {
@@ -89,9 +85,7 @@ impl Expression for Not {
         let value_p = self.value.get_result(&record);
 
         match value_p {
-            Field::Boolean(value_v) => {
-                Field::Boolean(!value_v)
-            }
+            Field::Boolean(value_v) => Field::Boolean(!value_v),
             _ => {
                 return Invalid(format!("Cannot apply {} to this values", "$id".to_string()));
             }
@@ -133,11 +127,3 @@ fn test_int_bool_and() {
     let op = And::new(l, r);
     assert!(matches!(op.get_result(&row), Invalid(_)));
 }
-
-
-
-
-
-
-
-

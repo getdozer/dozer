@@ -3,7 +3,7 @@ use crate::server::dozer_api_grpc::{
     CreateConnectionResponse, PostgresAuthentication, TestConnectionRequest,
 };
 use dozer_orchestrator::orchestration::models::connection::{self, Connection, DBType};
-use dozer_shared::types::{ColumnInfo, TableInfo};
+use dozer_types::types::{ColumnInfo, TableInfo};
 use std::convert::From;
 
 impl From<ColumnInfo> for dozer_api_grpc::ColumnInfo {
@@ -152,8 +152,9 @@ impl TryFrom<CreateConnectionRequest> for Connection {
 
 #[cfg(test)]
 mod test {
-    use crate::server::dozer_api_grpc::{CreateConnectionRequest, PostgresAuthentication,
-        create_connection_request::Authentication, ConnectionType,
+    use crate::server::dozer_api_grpc::{
+        create_connection_request::Authentication, ConnectionType, CreateConnectionRequest,
+        PostgresAuthentication,
     };
     use dozer_orchestrator::orchestration::models::connection::Connection;
 
@@ -177,7 +178,7 @@ mod test {
     fn err_connection_from_request() {
         let test_connection_request: CreateConnectionRequest = CreateConnectionRequest {
             r#type: 0,
-            authentication: None
+            authentication: None,
         };
         let converted = Connection::try_from(test_connection_request);
         assert!(converted.is_err())

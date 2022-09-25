@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dozer_shared::types::*;
+use dozer_types::types::*;
 use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
 pub trait Storage<T> {
     fn new(storage_config: T) -> Self;

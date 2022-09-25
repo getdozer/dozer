@@ -1,14 +1,14 @@
+use crate::pipeline::expression::operator::{Expression, Timestamp};
+use dozer_types::types::Field::{Boolean, Invalid};
+use dozer_types::types::{Field, Record};
 use num_traits::cast::*;
 use num_traits::Bounded;
-use crate::pipeline::expression::operator::{Timestamp, Expression};
-use dozer_shared::types::{Field, Record};
-use dozer_shared::types::Field::{Invalid, Boolean};
 
 macro_rules! define_cmp_oper {
     ($id:ident, $fct:expr) => {
         pub struct $id {
             left: Box<dyn Expression>,
-            right: Box<dyn Expression>
+            right: Box<dyn Expression>,
         }
 
         impl $id {
@@ -18,75 +18,63 @@ macro_rules! define_cmp_oper {
         }
 
         impl Expression for $id {
-
             fn get_result(&self, record: &Record) -> Field {
-
                 let left_p = self.left.get_result(&record);
                 let right_p = self.right.get_result(&record);
 
                 match left_p {
-                    Field::Boolean(left_v) => {
-                        match right_p {
-                            Field::Boolean(right_v) => {
-                                Field::Boolean($fct(left_v,right_v))
-                            }
-                            _ => { Field::Boolean(false) }
+                    Field::Boolean(left_v) => match right_p {
+                        Field::Boolean(right_v) => Field::Boolean($fct(left_v, right_v)),
+                        _ => Field::Boolean(false),
+                    },
+                    Field::Int(left_v) => match right_p {
+                        Field::Int(right_v) => Field::Boolean($fct(left_v, right_v)),
+                        Field::Float(right_v) => {
+                            let left_v_f = f64::from_i64(left_v).unwrap();
+                            Field::Boolean($fct(left_v_f, right_v))
                         }
-                    }
-                    Field::Int(left_v) => {
-                      match right_p {
-                          Field::Int(right_v) => {
-                              Field::Boolean($fct(left_v,right_v))
-                          }
-                          Field::Float(right_v) => {
-                              let left_v_f = f64::from_i64(left_v).unwrap();
-                              Field::Boolean($fct(left_v_f,right_v))
-                          }
-                          _ => {
-                              return Invalid(format!("Cannot compare int value {} to the current value", left_v));
-                          }
-
-                      }
-
-                    }
-                    Field::Float(left_v) => {
-                        match right_p {
-                            Field::Float(right_v) => {
-                                Field::Boolean($fct(left_v,right_v))
-                            }
-                            Field::Int(right_v) => {
-                                let right_v_f = f64::from_i64(right_v).unwrap();
-                                Field::Boolean($fct(left_v,right_v_f))
-                            }
-                            _ => {
-                                return Invalid(format!("Cannot compare float value {} to the current value", left_v));
-                            }
+                        _ => {
+                            return Invalid(format!(
+                                "Cannot compare int value {} to the current value",
+                                left_v
+                            ));
                         }
-                    }
-                    Field::String(left_v) => {
-                        match right_p {
-                            Field::String(right_v) => {
-                                Field::Boolean($fct(left_v,right_v))
-                            }
-                            _ => {
-                                return Invalid(format!("Cannot compare string value {} to the current value", left_v));
-                            }
+                    },
+                    Field::Float(left_v) => match right_p {
+                        Field::Float(right_v) => Field::Boolean($fct(left_v, right_v)),
+                        Field::Int(right_v) => {
+                            let right_v_f = f64::from_i64(right_v).unwrap();
+                            Field::Boolean($fct(left_v, right_v_f))
                         }
-
-                    }
-                    Field::Timestamp(left_v) => {
-                        match right_p {
-                            Field::Timestamp(right_v) => {
-                                Field::Boolean($fct(left_v,right_v))
-                            }
-                            _ => {
-                                return Invalid(format!("Cannot compare timestamp value {} to the current value", left_v));
-                            }
+                        _ => {
+                            return Invalid(format!(
+                                "Cannot compare float value {} to the current value",
+                                left_v
+                            ));
                         }
-
-                    }
+                    },
+                    Field::String(left_v) => match right_p {
+                        Field::String(right_v) => Field::Boolean($fct(left_v, right_v)),
+                        _ => {
+                            return Invalid(format!(
+                                "Cannot compare string value {} to the current value",
+                                left_v
+                            ));
+                        }
+                    },
+                    Field::Timestamp(left_v) => match right_p {
+                        Field::Timestamp(right_v) => Field::Boolean($fct(left_v, right_v)),
+                        _ => {
+                            return Invalid(format!(
+                                "Cannot compare timestamp value {} to the current value",
+                                left_v
+                            ));
+                        }
+                    },
                     Field::Binary(left_v) => {
-                        return Invalid(format!("Cannot compare binary value to the current value"));
+                        return Invalid(format!(
+                            "Cannot compare binary value to the current value"
+                        ));
                     }
                     Field::Invalid(cause) => {
                         return Invalid(cause);
@@ -95,19 +83,17 @@ macro_rules! define_cmp_oper {
                         return Invalid(format!("Cannot compare this values"));
                     }
                 }
-
             }
         }
-    }
+    };
 }
 
-define_cmp_oper!(Eq, |l,r| { l == r});
-define_cmp_oper!(Ne, |l,r| { l != r});
-define_cmp_oper!(Lt, |l,r| { l < r});
-define_cmp_oper!(Lte, |l,r| { l <= r});
-define_cmp_oper!(Gt, |l,r| { l > r});
-define_cmp_oper!(Gte, |l,r| { l >= r});
-
+define_cmp_oper!(Eq, |l, r| { l == r });
+define_cmp_oper!(Ne, |l, r| { l != r });
+define_cmp_oper!(Lt, |l, r| { l < r });
+define_cmp_oper!(Lte, |l, r| { l <= r });
+define_cmp_oper!(Gt, |l, r| { l > r });
+define_cmp_oper!(Gte, |l, r| { l >= r });
 
 #[test]
 fn test_float_float_eq() {
@@ -161,6 +147,3 @@ fn test_str_str_eq() {
 //     let eq = Eq::new(f0, f1);
 //     assert!(matches!(eq.get_value(), Field::Boolean(true)));
 // }
-
-
-

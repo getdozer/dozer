@@ -3,7 +3,7 @@ use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
-use dozer_shared::types::{OperationEvent, TableInfo};
+use dozer_types::types::{OperationEvent, TableInfo};
 use postgres::Client;
 use std::sync::Arc;
 
@@ -54,7 +54,7 @@ impl Connector for PostgresConnector {
         Ok(())
     }
 
-    fn get_schema(&self) -> Result<Vec<TableInfo>, Box::<dyn std::error::Error>> {
+    fn get_schema(&self) -> Result<Vec<TableInfo>, Box<dyn std::error::Error>> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };

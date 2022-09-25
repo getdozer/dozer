@@ -1,9 +1,9 @@
-use std::time::Instant;
 use dozer_core::dag::{
     dag::PortHandle,
     node::{ChannelForwarder, ExecutionContext, NextStep, Processor, Sink},
 };
-use dozer_shared::types::OperationEvent;
+use dozer_types::types::OperationEvent;
+use std::time::Instant;
 
 pub struct SampleSink {
     id: i32,

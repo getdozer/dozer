@@ -1,40 +1,56 @@
 use bytes::Bytes;
 
 use crate::connectors::postgres::xlog_mapper::TableColumn;
-use dozer_shared::types::*;
+use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
+use dozer_types::types::*;
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
-use std::error::Error;
-use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
+use std::error::Error;
 
-pub fn postgres_type_to_field(
-    value: &Bytes,
-    column: &TableColumn,
-) -> Field {
+pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     if let Some(column_type) = &column.r#type {
         match column_type {
             &Type::INT2 | &Type::INT4 | &Type::INT8 => {
                 Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap())
             }
-            &Type::FLOAT4 | &Type::FLOAT8 => {
-                Field::Float(String::from_utf8(value.to_vec()).unwrap().parse::<f64>().unwrap())
-            },
+            &Type::FLOAT4 | &Type::FLOAT8 => Field::Float(
+                String::from_utf8(value.to_vec())
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap(),
+            ),
             &Type::TEXT => Field::String(String::from_utf8(value.to_vec()).unwrap()),
             &Type::BYTEA => Field::Binary(value.to_vec()),
-            &Type::NUMERIC => Field::Decimal(Decimal::from_f64(String::from_utf8(value.to_vec()).unwrap().parse::<f64>().unwrap()).unwrap()),
+            &Type::NUMERIC => Field::Decimal(
+                Decimal::from_f64(
+                    String::from_utf8(value.to_vec())
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap(),
+                )
+                .unwrap(),
+            ),
             &Type::TIMESTAMP => {
-                let date = NaiveDateTime::parse_from_str(String::from_utf8(value.to_vec()).unwrap().as_str(), "%Y-%m-%d %H:%M:%S").unwrap();
+                let date = NaiveDateTime::parse_from_str(
+                    String::from_utf8(value.to_vec()).unwrap().as_str(),
+                    "%Y-%m-%d %H:%M:%S",
+                )
+                .unwrap();
                 Field::Timestamp(DateTime::<Utc>::from_utc(date, Utc))
-            },
+            }
             &Type::TIMESTAMPTZ => {
-                let date: DateTime<FixedOffset> = DateTime::parse_from_str(String::from_utf8(value.to_vec()).unwrap().as_str(), "%Y-%m-%d %H:%M:%S%.f%#z").unwrap();
+                let date: DateTime<FixedOffset> = DateTime::parse_from_str(
+                    String::from_utf8(value.to_vec()).unwrap().as_str(),
+                    "%Y-%m-%d %H:%M:%S%.f%#z",
+                )
+                .unwrap();
                 Field::Timestamp(DateTime::<Utc>::from_utc(date.naive_utc(), Utc))
-            },
+            }
             &Type::JSONB | &Type::JSON => Field::Bson(value.to_vec()),
             &Type::BOOL => Field::Boolean(value.slice(0..1) == "t"),
-            _ => Field::Null
+            _ => Field::Null,
         }
     } else {
         Field::Null
@@ -50,7 +66,7 @@ pub fn postgres_type_to_dozer_type(column: &TableColumn) -> Field {
             &Type::BOOL => Field::Boolean(false),
             &Type::BIT => Field::Binary(vec![]),
             &Type::TIMESTAMP | &Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
-            _ => Field::Null
+            _ => Field::Null,
         }
     } else {
         Field::Null
@@ -190,18 +206,21 @@ pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, p
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveDate;
     use super::*;
+    use chrono::NaiveDate;
 
     #[macro_export]
     macro_rules! test_conversion {
         ($a:expr,$b:expr,$c:expr) => {
-            let value = postgres_type_to_field(&Bytes::from($a), &TableColumn {
-                name: "column".to_string(),
-                type_id: $b.oid() as i32,
-                flags: 0,
-                r#type: Some($b)
-            });
+            let value = postgres_type_to_field(
+                &Bytes::from($a),
+                &TableColumn {
+                    name: "column".to_string(),
+                    type_id: $b.oid() as i32,
+                    flags: 0,
+                    r#type: Some($b),
+                },
+            );
             println!("{:?}", value);
             assert_eq!(value, $c);
         };
@@ -221,17 +240,23 @@ mod tests {
         let value = Decimal::from_f64(8.28).unwrap();
         test_conversion!("8.28", Type::NUMERIC, Field::Decimal(value));
 
-        let value = DateTime::<Utc>::from_utc(
-            NaiveDate::from_ymd(2022, 9, 16).and_hms(5, 56, 29),
-            Utc
+        let value =
+            DateTime::<Utc>::from_utc(NaiveDate::from_ymd(2022, 9, 16).and_hms(5, 56, 29), Utc);
+        test_conversion!(
+            "2022-09-16 05:56:29",
+            Type::TIMESTAMP,
+            Field::Timestamp(value)
         );
-        test_conversion!("2022-09-16 05:56:29", Type::TIMESTAMP, Field::Timestamp(value));
 
         let value = DateTime::<Utc>::from_utc(
             NaiveDate::from_ymd(2022, 9, 16).and_hms_micro(3, 56, 30, 959787),
-            Utc
+            Utc,
         );
-        test_conversion!("2022-09-16 10:56:30.959787+07", Type::TIMESTAMPTZ, Field::Timestamp(value));
+        test_conversion!(
+            "2022-09-16 10:56:30.959787+07",
+            Type::TIMESTAMPTZ,
+            Field::Timestamp(value)
+        );
 
         // UTF-8 bytes representation of json (https://www.charset.org/utf-8)
         let value = vec![123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125];

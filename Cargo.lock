@@ -505,7 +505,7 @@ dependencies = [
  "diesel",
  "dotenvy",
  "dozer-orchestrator",
- "dozer-shared",
+ "dozer-types",
  "env_logger",
  "futures",
  "json",
@@ -527,15 +527,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dozer-cache"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "dozer-shared",
- "lmdb",
-]
-
-[[package]]
 name = "dozer-core"
 version = "0.1.0"
 dependencies = [
@@ -543,7 +534,7 @@ dependencies = [
  "blockingqueue",
  "chrono",
  "crossbeam",
- "dozer-shared",
+ "dozer-types",
  "futures",
  "log",
  "log4rs",
@@ -561,7 +552,7 @@ dependencies = [
  "bytes",
  "chrono",
  "crossbeam",
- "dozer-shared",
+ "dozer-types",
  "futures",
  "postgres 0.19.3",
  "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
@@ -581,7 +572,7 @@ dependencies = [
  "dotenvy",
  "dozer-core",
  "dozer-ingestion",
- "dozer-shared",
+ "dozer-types",
  "env_logger",
  "serde",
  "serde_json",
@@ -589,7 +580,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dozer-shared"
+name = "dozer-types"
 version = "0.1.0"
 dependencies = [
  "bincode",
@@ -1084,28 +1075,6 @@ name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
-
-[[package]]
-name = "lmdb"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b0908efb5d6496aa977d96f91413da2635a902e5e31dbef0bfb88986c248539"
-dependencies = [
- "bitflags",
- "libc",
- "lmdb-sys",
-]
-
-[[package]]
-name = "lmdb-sys"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5b392838cfe8858e86fac37cf97a0e8c55cc60ba0a18365cadc33092f128ce9"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
-]
 
 [[package]]
 name = "lock_api"
@@ -1959,7 +1928,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "dozer-core",
- "dozer-shared",
+ "dozer-types",
  "log",
  "log4rs",
  "num-traits",

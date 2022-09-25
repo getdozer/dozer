@@ -30,7 +30,7 @@ impl ConnectionService {
     async fn _get_schema(
         &self,
         connection: Connection,
-    ) -> Result<Vec<dozer_shared::types::TableInfo>, ErrorResponse> {
+    ) -> Result<Vec<dozer_types::types::TableInfo>, ErrorResponse> {
         let get_schema_res = thread::spawn(|| {
             let result = Dozer::get_schema(connection).map_err(|err| err.to_string());
             return result;
@@ -146,9 +146,12 @@ impl ConnectionService {
 }
 #[cfg(test)]
 mod test {
-    use mockall::mock;
-    use crate::server::dozer_api_grpc::{CreateConnectionRequest, create_connection_request::Authentication, PostgresAuthentication, GetAllConnectionRequest};
     use super::ConnectionService;
+    use crate::server::dozer_api_grpc::{
+        create_connection_request::Authentication, CreateConnectionRequest,
+        GetAllConnectionRequest, PostgresAuthentication,
+    };
+    use mockall::mock;
     #[test]
     fn success_save_connection() {
         let create_connection_request: CreateConnectionRequest = CreateConnectionRequest {
@@ -176,5 +179,4 @@ mod test {
         let result = service.get_all_connections(create_connection_request);
         assert!(result.is_ok())
     }
-
 }

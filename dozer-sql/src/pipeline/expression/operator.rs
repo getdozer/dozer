@@ -1,10 +1,10 @@
 use crate::common::error::DozerSqlError;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use dozer_shared::types::{Field, Record};
+use dozer_types::types::{Field, Record};
 use num_traits::FromPrimitive;
 use sqlparser::ast::BinaryOperator;
 
-pub trait Expression : Send + Sync {
+pub trait Expression: Send + Sync {
     fn get_result(&self, record: &Record) -> Field;
 }
 

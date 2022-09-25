@@ -1,5 +1,3 @@
-use std::rc::Rc;
-use std::sync::Arc;
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
 use crate::pipeline::expression::logical::{And, Not, Or};
@@ -9,23 +7,27 @@ use crate::pipeline::processor::selection::SelectionProcessor;
 use dozer_core::dag::channel::LocalNodeChannel;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
-use dozer_core::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, Source, Sink};
-use dozer_core::dag::node::NextStep::Continue;
 use dozer_core::dag::dag::{Endpoint, NodeHandle, PortHandle, TestSink, TestSource};
 use dozer_core::dag::executor::{MemoryExecutionContext, MultiThreadedDagExecutor};
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator, Value as SqlValue};
-use dozer_shared::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_core::dag::node::NextStep::Continue;
+use dozer_core::dag::node::{
+    ChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source,
+};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
+use sqlparser::ast::{
+    BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator,
+    Value as SqlValue,
+};
+use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct PipelineBuilder {
-    schema: Schema
+    schema: Schema,
 }
 
 impl PipelineBuilder {
-
     pub fn new(schema: Schema) -> PipelineBuilder {
-        Self {
-            schema
-        }
+        Self { schema }
     }
 
     pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, NodeHandle)> {
@@ -85,19 +87,17 @@ impl PipelineBuilder {
 
     fn parse_sql_expression(&self, expression: SqlExpr) -> Result<Box<dyn Expression>> {
         match expression {
-            SqlExpr::Identifier(ident) => {
-                Ok(Box::new(Column::new(*self.schema.get_column_index(ident.value).unwrap())))
-            },
+            SqlExpr::Identifier(ident) => Ok(Box::new(Column::new(
+                *self.schema.get_column_index(ident.value).unwrap(),
+            ))),
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(s))
-            },
+            }
             SqlExpr::BinaryOp { left, op, right } => {
                 Ok(self.parse_sql_binary_op(*left, op, *right)?)
-            },
-            SqlExpr::UnaryOp { op, expr } => {
-                Ok(self.parse_sql_unary_op(op, *expr)?)
-            },
+            }
+            SqlExpr::UnaryOp { op, expr } => Ok(self.parse_sql_unary_op(op, *expr)?),
             SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(*expr)?),
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported Expression.".to_string(),
@@ -117,27 +117,26 @@ impl PipelineBuilder {
         }
     }
 
-    fn parse_sql_unary_op(&self,
-                           op: UnaryOperator,
-                           expr: SqlExpr,
-    ) -> Result<Box<dyn Expression>> {
+    fn parse_sql_unary_op(&self, op: UnaryOperator, expr: SqlExpr) -> Result<Box<dyn Expression>> {
         let expr_op = self.parse_sql_expression(expr)?;
 
-            match op {
-                UnaryOperator::Not => Ok(Box::new(Not::new(expr_op))),
-                UnaryOperator::Plus => Err(DozerSqlError::NotImplemented(
-                    "Unsupported operator PLUS.".to_string(),
-                )),
-                UnaryOperator::Minus => Err(DozerSqlError::NotImplemented(
-                    "Unsupported operator MINUS.".to_string(),
-                )),
-                _ => Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported SQL unary operator {:?}", op
-                ))),
-            }
+        match op {
+            UnaryOperator::Not => Ok(Box::new(Not::new(expr_op))),
+            UnaryOperator::Plus => Err(DozerSqlError::NotImplemented(
+                "Unsupported operator PLUS.".to_string(),
+            )),
+            UnaryOperator::Minus => Err(DozerSqlError::NotImplemented(
+                "Unsupported operator MINUS.".to_string(),
+            )),
+            _ => Err(DozerSqlError::NotImplemented(format!(
+                "Unsupported SQL unary operator {:?}",
+                op
+            ))),
+        }
     }
 
-    fn parse_sql_binary_op(&self,
+    fn parse_sql_binary_op(
+        &self,
         left: SqlExpr,
         op: BinaryOperator,
         right: SqlExpr,
@@ -174,7 +173,8 @@ impl PipelineBuilder {
             // BinaryOperator::PGBitwiseShiftRight => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
             // BinaryOperator::PGBitwiseShiftLeft => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
             _ => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported SQL binary operator {:?}", op
+                "Unsupported SQL binary operator {:?}",
+                op
             ))),
         }
     }
@@ -183,10 +183,9 @@ impl PipelineBuilder {
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
-
 pub struct SqlTestSource {
     id: i32,
-    output_ports: Option<Vec<PortHandle>>
+    output_ports: Option<Vec<PortHandle>>,
 }
 
 impl SqlTestSource {
@@ -205,13 +204,18 @@ impl Source for SqlTestSource {
         Ok(())
     }
 
-    fn start(&self, fw: &ChannelForwarder) -> std::result::Result<(), String>{
+    fn start(&self, fw: &ChannelForwarder) -> std::result::Result<(), String> {
         for n in 0..10000000 {
             //   println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(
-                    n, Operation::Insert { table_name: "test".to_string(), new: Record::new(1, vec![Field::Int(2000)]) }
-                ), None
+                    n,
+                    Operation::Insert {
+                        table_name: "test".to_string(),
+                        new: Record::new(1, vec![Field::Int(2000)]),
+                    },
+                ),
+                None,
             );
         }
         fw.terminate();
@@ -221,7 +225,7 @@ impl Source for SqlTestSource {
 
 pub struct SqlTestSink {
     id: i32,
-    input_ports: Option<Vec<PortHandle>>
+    input_ports: Option<Vec<PortHandle>>,
 }
 
 impl SqlTestSink {
@@ -240,7 +244,12 @@ impl Sink for SqlTestSink {
         Ok(())
     }
 
-    fn process(&self, from_port: Option<PortHandle>, op: OperationEvent, ctx: & dyn ExecutionContext) -> std::result::Result<NextStep, String> {
+    fn process(
+        &self,
+        from_port: Option<PortHandle>,
+        op: OperationEvent,
+        ctx: &dyn ExecutionContext,
+    ) -> std::result::Result<NextStep, String> {
         // println!("SINK {}: Message {} received", self.id, op.id);
         Ok(Continue)
     }
@@ -259,30 +268,32 @@ fn test_pipeline_builder() {
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
     println!("AST: {:?}", ast);
 
-
     let statement: &Statement = &ast[0];
 
-    let builder = PipelineBuilder::new(Schema::new(String::from("schema"), vec![String::from("Spending")], vec![Field::Int(2000)]));
+    let builder = PipelineBuilder::new(Schema::new(
+        String::from("schema"),
+        vec![String::from("Spending")],
+        vec![Field::Int(2000)],
+    ));
     let (mut dag, proc_handle) = builder.statement_to_pipeline(statement.clone()).unwrap();
 
-    let source = SqlTestSource::new(1,None);
+    let source = SqlTestSource::new(1, None);
     let sink = SqlTestSink::new(1, None);
 
     let src_handle = dag.add_node(NodeType::Source(Arc::new(source)));
     //let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
     let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
 
-
     let src_to_proc1 = dag.connect(
         Endpoint::new(src_handle, None),
         Endpoint::new(proc_handle, None),
-        Box::new(LocalNodeChannel::new(5000000))
+        Box::new(LocalNodeChannel::new(5000000)),
     );
 
     let proc1_to_sink = dag.connect(
         Endpoint::new(proc_handle, None),
         Endpoint::new(sink_handle, None),
-        Box::new(LocalNodeChannel::new(5000000))
+        Box::new(LocalNodeChannel::new(5000000)),
     );
 
     let exec = MultiThreadedDagExecutor::new(Rc::new(dag));
@@ -293,6 +304,4 @@ fn test_pipeline_builder() {
     exec.start(ctx);
     let elapsed = now.elapsed();
     println!("Elapsed: {:.2?}", elapsed);
-
-
 }

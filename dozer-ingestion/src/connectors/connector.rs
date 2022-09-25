@@ -1,5 +1,5 @@
-use dozer_shared::types::{OperationEvent, TableInfo};
-use std::{sync::Arc, error::Error};
+use dozer_types::types::{OperationEvent, TableInfo};
+use std::{error::Error, sync::Arc};
 
 use super::storage::RocksStorage;
 

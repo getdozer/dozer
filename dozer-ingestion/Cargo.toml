@@ -14,7 +14,7 @@ tokio = { version = "1", features = ["full"] }
 futures = "*"
 async-trait = "*"
 bytes = "*"
-dozer-shared = {version = "0.1.0", path = "../dozer-shared"}
+dozer-types = {version = "0.1.0", path = "../dozer-types"}
 chrono = "0.4.0"
 serde = { version = "1.0.104", features = ["derive"] }
 serde_json = "1.0.85"

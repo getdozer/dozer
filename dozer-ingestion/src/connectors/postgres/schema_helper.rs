@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use super::helper;
-use dozer_shared::types::{ColumnInfo, TableInfo};
+use dozer_types::types::{ColumnInfo, TableInfo};
 
 pub struct SchemaHelper {
     pub conn_str: String,

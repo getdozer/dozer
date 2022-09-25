@@ -1,18 +1,20 @@
+use crate::dag::channel::{LocalNodeChannel, NodeReceiver, NodeSender};
+use crate::dag::dag::{
+    Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestSink, TestSource,
+};
+use crate::dag::node::{
+    ChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorExecutor, Sink, SinkExecutor,
+    Source,
+};
+use dozer_types::types::{Operation, OperationEvent};
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::{JoinHandle, Thread};
-use dozer_shared::types::{OperationEvent, Operation};
-use crate::dag::channel::{LocalNodeChannel, NodeReceiver, NodeSender};
-use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestSink, TestSource};
-use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorExecutor, Sink, SinkExecutor, Source};
 
-
-pub struct MemoryExecutionContext {
-
-}
+pub struct MemoryExecutionContext {}
 
 impl MemoryExecutionContext {
     pub fn new() -> Self {
@@ -20,33 +22,31 @@ impl MemoryExecutionContext {
     }
 }
 
-impl ExecutionContext for MemoryExecutionContext {
+impl ExecutionContext for MemoryExecutionContext {}
 
-}
-
-pub const DEFAULT_PORT_ID : u8 = 0xffu8;
+pub const DEFAULT_PORT_ID: u8 = 0xffu8;
 
 pub struct MultiThreadedDagExecutor {
-    dag: Rc<Dag>
+    dag: Rc<Dag>,
 }
 
-
 impl MultiThreadedDagExecutor {
-
     pub fn new(dag: Rc<Dag>) -> Self {
         Self { dag }
     }
 
-    fn index_edges(&self) -> (
+    fn index_edges(
+        &self,
+    ) -> (
         HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeSender>>>>,
-        HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>>
+        HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>>,
     ) {
-
-        let mut senders : HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeSender>>>> = HashMap::new();
-        let mut receivers : HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>>  = HashMap::new();
+        let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeSender>>>> =
+            HashMap::new();
+        let mut receivers: HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>> =
+            HashMap::new();
 
         for edge in self.dag.edges.iter() {
-
             if !senders.contains_key(&edge.from.node) {
                 senders.insert(edge.from.node, HashMap::new());
             }
@@ -56,60 +56,97 @@ impl MultiThreadedDagExecutor {
 
             let (mut tx, mut rx) = edge.channel.build();
 
-            let rcv_port: PortHandle = if (edge.to.port.is_none()) {DEFAULT_PORT_ID} else {edge.to.port.unwrap()};
-            if receivers.get(&edge.to.node).unwrap().contains_key(&rcv_port) {
-                let mut s = receivers.get_mut(&edge.to.node).unwrap().get_mut(&rcv_port).unwrap().push(rx);
-            }
-            else {
-                receivers.get_mut(&edge.to.node).unwrap().insert(rcv_port, vec![rx]);
+            let rcv_port: PortHandle = if (edge.to.port.is_none()) {
+                DEFAULT_PORT_ID
+            } else {
+                edge.to.port.unwrap()
+            };
+            if receivers
+                .get(&edge.to.node)
+                .unwrap()
+                .contains_key(&rcv_port)
+            {
+                let mut s = receivers
+                    .get_mut(&edge.to.node)
+                    .unwrap()
+                    .get_mut(&rcv_port)
+                    .unwrap()
+                    .push(rx);
+            } else {
+                receivers
+                    .get_mut(&edge.to.node)
+                    .unwrap()
+                    .insert(rcv_port, vec![rx]);
             }
 
-            let snd_port: PortHandle = if (edge.from.port.is_none()) {DEFAULT_PORT_ID} else {edge.from.port.unwrap()};
-            if senders.get(&edge.from.node).unwrap().contains_key(&snd_port) {
-                let mut s = senders.get_mut(&edge.from.node).unwrap().get_mut(&snd_port).unwrap().push(tx);
-            }
-            else {
-                senders.get_mut(&edge.from.node).unwrap().insert(snd_port, vec![tx]);
+            let snd_port: PortHandle = if (edge.from.port.is_none()) {
+                DEFAULT_PORT_ID
+            } else {
+                edge.from.port.unwrap()
+            };
+            if senders
+                .get(&edge.from.node)
+                .unwrap()
+                .contains_key(&snd_port)
+            {
+                let mut s = senders
+                    .get_mut(&edge.from.node)
+                    .unwrap()
+                    .get_mut(&snd_port)
+                    .unwrap()
+                    .push(tx);
+            } else {
+                senders
+                    .get_mut(&edge.from.node)
+                    .unwrap()
+                    .insert(snd_port, vec![tx]);
             }
         }
 
         (senders, receivers)
     }
 
-
-    fn get_node_types(&self) -> (
-        Vec<(NodeHandle, Arc<dyn Source>)>, Vec<(NodeHandle, Arc<dyn Processor>)>, Vec<(NodeHandle, Arc<dyn Sink>)>
+    fn get_node_types(
+        &self,
+    ) -> (
+        Vec<(NodeHandle, Arc<dyn Source>)>,
+        Vec<(NodeHandle, Arc<dyn Processor>)>,
+        Vec<(NodeHandle, Arc<dyn Sink>)>,
     ) {
-
         let mut sources = Vec::new();
         let mut processors = Vec::new();
         let mut sinks = Vec::new();
 
         for node in self.dag.nodes.iter() {
             match node.1 {
-                NodeType::Source(s) => { sources.push((node.0.clone(), s.clone())) }
-                NodeType::Processor(p) => {  processors.push((node.0.clone(), p.clone())); }
-                NodeType::Sink(s) => { sinks.push((node.0.clone(), s.clone())); }
+                NodeType::Source(s) => sources.push((node.0.clone(), s.clone())),
+                NodeType::Processor(p) => {
+                    processors.push((node.0.clone(), p.clone()));
+                }
+                NodeType::Sink(s) => {
+                    sinks.push((node.0.clone(), s.clone()));
+                }
             }
         }
         (sources, processors, sinks)
     }
 
-    fn start_source(&self, src: Arc<dyn Source>, senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>) -> JoinHandle<Result<(), String>> {
-
+    fn start_source(
+        &self,
+        src: Arc<dyn Source>,
+        senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>,
+    ) -> JoinHandle<Result<(), String>> {
         let fw = ChannelForwarder::new(senders, false);
-        return thread::spawn(move || -> Result<(), String> {
-            src.start(&fw)
-        });
+        return thread::spawn(move || -> Result<(), String> { src.start(&fw) });
     }
 
     fn start_sink(
-        &self, snk: Arc<dyn Sink>,
+        &self,
+        snk: Arc<dyn Sink>,
         receivers: HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>,
-        ctx: Arc<dyn ExecutionContext>
+        ctx: Arc<dyn ExecutionContext>,
     ) -> Vec<JoinHandle<(Result<(), String>)>> {
-
-        let receivers_count : i32 = receivers.values().map(|e| e.len() as i32).sum();
+        let receivers_count: i32 = receivers.values().map(|e| e.len() as i32).sum();
         let thread_safe = receivers_count > 1;
         let mut handles = Vec::new();
 
@@ -117,32 +154,32 @@ impl MultiThreadedDagExecutor {
 
         for port_receivers in receivers {
             for receiver in port_receivers.1 {
-
                 let local_ctx = ctx.clone();
                 let local_se = se.clone();
 
                 handles.push(thread::spawn(move || -> Result<(), String> {
-
                     loop {
-
                         let rcv = receiver.receive();
                         if rcv.is_err() {
-                            return Err("Channel closed".to_string());;
+                            return Err("Channel closed".to_string());
                         }
                         let rcv_u = rcv.unwrap();
                         if matches!(rcv_u.operation, Operation::Terminate) {
-                            return Ok(())
+                            return Ok(());
                         }
 
                         let res = local_se.process(
-                            if port_receivers.0 == DEFAULT_PORT_ID { None } else { Some(port_receivers.0) },
+                            if port_receivers.0 == DEFAULT_PORT_ID {
+                                None
+                            } else {
+                                Some(port_receivers.0)
+                            },
                             rcv_u,
-                            local_ctx.as_ref()
+                            local_ctx.as_ref(),
                         );
                         if res.is_err() {
                             return Err(format!("Sink returned an error: {}", res.err().unwrap()));
-                        }
-                        else if matches!(res.unwrap(), NextStep::Stop) {
+                        } else if matches!(res.unwrap(), NextStep::Stop) {
                             return Ok(());
                         }
                     }
@@ -158,10 +195,9 @@ impl MultiThreadedDagExecutor {
         proc: Arc<dyn Processor>,
         mut senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>,
         mut receivers: HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>,
-        ctx: Arc<dyn ExecutionContext>
+        ctx: Arc<dyn ExecutionContext>,
     ) -> Vec<JoinHandle<(Result<(), String>)>> {
-
-        let receivers_count : i32 = receivers.values().map(|e| e.len() as i32).sum();
+        let receivers_count: i32 = receivers.values().map(|e| e.len() as i32).sum();
         let thread_safe = receivers_count > 1;
         let mut handles = Vec::new();
 
@@ -170,13 +206,11 @@ impl MultiThreadedDagExecutor {
 
         for port_receivers in receivers {
             for receiver in port_receivers.1 {
-
                 let local_ctx = ctx.clone();
                 let local_pe = pe.clone();
                 let local_fw = fw.clone();
 
                 handles.push(thread::spawn(move || -> Result<(), String> {
-
                     loop {
                         let rcv = receiver.receive();
                         if rcv.is_err() {
@@ -188,14 +222,21 @@ impl MultiThreadedDagExecutor {
                         }
 
                         let res = local_pe.process(
-                            if port_receivers.0 == DEFAULT_PORT_ID { None } else { Some(port_receivers.0) },
+                            if port_receivers.0 == DEFAULT_PORT_ID {
+                                None
+                            } else {
+                                Some(port_receivers.0)
+                            },
                             rcv_u,
-                            local_ctx.as_ref(), local_fw.as_ref()
+                            local_ctx.as_ref(),
+                            local_fw.as_ref(),
                         );
                         if res.is_err() {
-                            return Err(format!("Processor returned an error: {}", res.err().unwrap()));
-                        }
-                        else if matches!(res.unwrap(), NextStep::Stop) {
+                            return Err(format!(
+                                "Processor returned an error: {}",
+                                res.err().unwrap()
+                            ));
+                        } else if matches!(res.unwrap(), NextStep::Stop) {
                             return Ok(());
                         }
                     }
@@ -206,9 +247,7 @@ impl MultiThreadedDagExecutor {
         handles
     }
 
-
-    pub fn start(&self, ctx: Arc<dyn ExecutionContext>) -> Result<(), String>{
-
+    pub fn start(&self, ctx: Arc<dyn ExecutionContext>) -> Result<(), String> {
         let (mut senders, mut receivers) = self.index_edges();
         let (mut sources, mut processors, mut sinks) = self.get_node_types();
 
@@ -222,50 +261,57 @@ impl MultiThreadedDagExecutor {
             sink.1.init();
         }
 
-
         let mut source_handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
         let mut processor_handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
         let mut sink_handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
 
         for source in &sources {
-            source_handles.push(self.start_source(
-                source.1.clone(), senders.remove(&source.0.clone()).unwrap()
-            ));
+            source_handles.push(
+                self.start_source(source.1.clone(), senders.remove(&source.0.clone()).unwrap()),
+            );
         }
 
         for processor in &processors {
-
             let proc_receivers = receivers.remove(&processor.0.clone());
             if (proc_receivers.is_none()) {
-                return Err(format!("The node {} does not have any input", &processor.0.clone().to_string()));
+                return Err(format!(
+                    "The node {} does not have any input",
+                    &processor.0.clone().to_string()
+                ));
             }
             let proc_senders = senders.remove(&processor.0.clone());
             if (proc_senders.is_none()) {
-                return Err(format!("The node {} does not have any output", &processor.0.clone().to_string()));
+                return Err(format!(
+                    "The node {} does not have any output",
+                    &processor.0.clone().to_string()
+                ));
             }
 
             let mut local_handles = self.start_processor(
                 processor.1.clone(),
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
-                ctx.clone()
+                ctx.clone(),
             );
-            for h in local_handles { processor_handles.push(h); }
+            for h in local_handles {
+                processor_handles.push(h);
+            }
         }
 
         for snk in &sinks {
-
             let snk_receivers = receivers.remove(&snk.0.clone());
             if (snk_receivers.is_none()) {
-                return Err(format!("The node {} does not have any input", &snk.0.clone().to_string()));
+                return Err(format!(
+                    "The node {} does not have any input",
+                    &snk.0.clone().to_string()
+                ));
             }
 
-            let mut local_handles = self.start_sink(
-                snk.1.clone(),
-                snk_receivers.unwrap(),
-                ctx.clone()
-            );
-            for h in local_handles { sink_handles.push(h); }
+            let mut local_handles =
+                self.start_sink(snk.1.clone(), snk_receivers.unwrap(), ctx.clone());
+            for h in local_handles {
+                sink_handles.push(h);
+            }
         }
 
         for sh in source_handles {
@@ -281,19 +327,14 @@ impl MultiThreadedDagExecutor {
         }
 
         Ok(())
-
     }
-
 }
-
-
 
 #[test]
 fn test_run_dag() {
-
-    let src = TestSource::new(1,None);
+    let src = TestSource::new(1, None);
     let proc = TestProcessor::new(1, None, None);
-    let sink = TestSink::new(1,None);
+    let sink = TestSink::new(1, None);
 
     let mut dag = Dag::new();
 
@@ -304,18 +345,16 @@ fn test_run_dag() {
     let src_to_proc1 = dag.connect(
         Endpoint::new(src_handle, None),
         Endpoint::new(proc_handle, None),
-        Box::new(LocalNodeChannel::new(5000000))
+        Box::new(LocalNodeChannel::new(5000000)),
     );
 
     let proc1_to_sink = dag.connect(
         Endpoint::new(proc_handle, None),
         Endpoint::new(sink_handle, None),
-        Box::new(LocalNodeChannel::new(5000000))
+        Box::new(LocalNodeChannel::new(5000000)),
     );
 
     let exec = MultiThreadedDagExecutor::new(Rc::new(dag));
     let ctx = Arc::new(MemoryExecutionContext::new());
     exec.start(ctx);
-
 }
-
