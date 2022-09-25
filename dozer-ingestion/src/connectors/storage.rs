@@ -14,6 +14,13 @@ pub struct RocksStorage {
 pub struct RocksConfig {
     pub path: String,
 }
+impl RocksConfig {
+    pub fn default() -> Self {
+        Self {
+            path: "target/ingestion-storage".to_string(),
+        }
+    }
+}
 impl Storage<RocksConfig> for RocksStorage {
     fn new(config: RocksConfig) -> RocksStorage {
         let db: Arc<DBWithThreadMode<SingleThreaded>> =
@@ -90,7 +97,7 @@ mod tests {
         };
 
         let storage_config = RocksConfig {
-            path: "./db/test".to_string(),
+            path: "./target/ingestion-storage-test".to_string(),
         };
         let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
 

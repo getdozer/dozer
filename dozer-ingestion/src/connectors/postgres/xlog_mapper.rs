@@ -197,7 +197,7 @@ impl XlogMapper {
             field_types: table
                 .columns
                 .iter()
-                .map(|column| helper::postgres_type_to_dozer_type(&column))
+                .map(|column| helper::postgres_type_to_dozer_type(column.clone().r#type.as_ref()))
                 .collect(),
             _idx: Default::default(),
             _ctr: 0,

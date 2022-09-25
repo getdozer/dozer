@@ -3,8 +3,10 @@ use std::time::Instant;
 
 use super::storage::RocksStorage;
 use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
+use dozer_types::schema_registry::{context, get_client, SchemaRegistryClient};
 use dozer_types::types::{OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
+use tokio::runtime::Runtime;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum IngestionMessage {
@@ -45,6 +47,8 @@ impl Ingestor {
         storage_client: Arc<RocksStorage>,
         sender: Arc<Box<dyn IngestorForwarder + 'static>>,
     ) -> Self {
+        let rt = Runtime::new().unwrap();
+
         Self {
             storage_client,
             sender,
@@ -61,9 +65,13 @@ impl Ingestor {
                 self.sender.forward(event);
             }
             IngestionMessage::Schema(schema) => {
-                let (key, encoded) = self.storage_client.map_schema(&schema);
-                self.writer.insert(key.as_ref(), encoded);
-                // self.sender.forward(schema);
+                Runtime::new()
+                    .unwrap()
+                    .block_on(async {
+                        let client = get_client().await.unwrap();
+                        client.insert(context::current(), schema).await
+                    })
+                    .unwrap();
             }
             IngestionMessage::Commit() => {
                 self.writer.commit(&self.storage_client);

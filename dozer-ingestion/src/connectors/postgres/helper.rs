@@ -57,8 +57,8 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     }
 }
 
-pub fn postgres_type_to_dozer_type(column: &TableColumn) -> Field {
-    if let Some(column_type) = &column.r#type {
+pub fn postgres_type_to_dozer_type(col_type: Option<&Type>) -> Field {
+    if let Some(column_type) = col_type {
         match column_type {
             &Type::INT4 | &Type::INT8 | &Type::INT2 => Field::Int(0),
             &Type::TEXT => Field::String("".parse().unwrap()),
@@ -202,6 +202,21 @@ pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, p
         }
     });
     Ok(client)
+}
+
+pub fn map_schema(table_name: String, columns: &[Column]) -> Schema {
+    let field_names = columns.iter().map(|col| col.name().to_string()).collect();
+    let field_types = columns
+        .iter()
+        .map(|col| postgres_type_to_dozer_type(Some(col.type_())))
+        .collect();
+    Schema {
+        id: format!("{}_0", table_name),
+        field_names,
+        field_types,
+        _idx: Default::default(),
+        _ctr: 0,
+    }
 }
 
 #[cfg(test)]
