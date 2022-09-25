@@ -1,5 +1,5 @@
 use crossbeam::channel::{bounded, Receiver, Sender};
-use dozer_shared::types::OperationEvent;
+use dozer_types::types::OperationEvent;
 
 /*****************************************************************************
   Channel Traits
@@ -23,7 +23,7 @@ pub trait NodeChannel: Send + Sync {
 ******************************************************************************/
 
 pub struct LocalNodeSender {
-    sender: Sender<OperationEvent>
+    sender: Sender<OperationEvent>,
 }
 
 impl LocalNodeSender {
@@ -36,9 +36,9 @@ impl NodeSender for LocalNodeSender {
     fn send(&self, op: OperationEvent) -> Result<(), String> {
         let sent = self.sender.send(op);
         if sent.is_err() {
-            Err(sent.err().unwrap().to_string()) }
-        else {
-            return Ok(())
+            Err(sent.err().unwrap().to_string())
+        } else {
+            return Ok(());
         }
     }
 
@@ -52,13 +52,17 @@ impl NodeSender for LocalNodeSender {
 ******************************************************************************/
 
 pub struct LocalNodeReceiver {
-    receiver: Receiver<OperationEvent>
+    receiver: Receiver<OperationEvent>,
 }
 
 impl NodeReceiver for LocalNodeReceiver {
     fn receive(&self) -> Result<OperationEvent, String> {
         let received = self.receiver.recv();
-        if received.is_err() { Err(received.err().unwrap().to_string())} else { Ok(received.unwrap())}
+        if received.is_err() {
+            Err(received.err().unwrap().to_string())
+        } else {
+            Ok(received.unwrap())
+        }
     }
 }
 
@@ -73,7 +77,7 @@ impl LocalNodeReceiver {
 ******************************************************************************/
 
 pub struct LocalNodeChannel {
-    size: usize
+    size: usize,
 }
 
 impl LocalNodeChannel {
@@ -82,15 +86,12 @@ impl LocalNodeChannel {
     }
 }
 
-
 impl NodeChannel for LocalNodeChannel {
-
     fn build(&self) -> (Box<dyn NodeSender>, Box<dyn NodeReceiver>) {
         let (s, r) = bounded::<OperationEvent>(self.size);
         (
             Box::new(LocalNodeSender::new(s)),
-            Box::new(LocalNodeReceiver::new(r))
+            Box::new(LocalNodeReceiver::new(r)),
         )
     }
 }
-

@@ -5,13 +5,13 @@ use postgres::Error;
 use postgres::SimpleQueryMessage::Row;
 use postgres::{Client, NoTls};
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use super::helper; // 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<String>>,
     pub conn_str: String,
-    pub ingestor: Arc<Ingestor>,
+    pub ingestor: Arc<Mutex<Ingestor>>,
 }
 
 impl PostgresSnapshotter {
@@ -69,7 +69,7 @@ impl PostgresSnapshotter {
                             idx,
                         );
                         self.ingestor
-                            .handle_message(IngestionMessage::OperationEvent(evt));
+                            .lock().unwrap().handle_message(IngestionMessage::OperationEvent(evt));
                     }
                     Err(e) => {
                         println!("{:?}", e);
@@ -78,6 +78,8 @@ impl PostgresSnapshotter {
                 }
                 idx = idx + 1;
             }
+
+            self.ingestor.lock().unwrap().handle_message(IngestionMessage::Commit());
         }
         Ok(tables)
     }

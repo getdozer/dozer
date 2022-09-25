@@ -12,5 +12,5 @@ log4rs = "1.1.1"
 num-traits = "0.2.15"
 sqlparser = "0.22"
 
-dozer-shared = {path = "../dozer-shared"}
+dozer-types = {path = "../dozer-types"}
 dozer-core = {path = "../dozer-core"}
