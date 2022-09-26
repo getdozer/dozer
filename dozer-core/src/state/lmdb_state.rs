@@ -356,76 +356,39 @@ impl SizedAggregationDataset {
 
     }
 
+    fn agg_update(&self, store: &mut dyn StateStore, old: &Record, new: &Record, record_hash: u64) -> Result<Operation, StateStoreError> {
+
+        let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+
+        let curr_state = store.get(record_key.as_slice())?;
+        let new_state = self.calc_and_fill_measures(
+            curr_state, Some(&old), Some(&new),
+            &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Update
+        )?;
+
+        self.fill_dimensions(&new, &mut out_rec_insert);
+        self.fill_dimensions(&old, &mut out_rec_delete);
+
+        let res =
+            Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete};
+
+        store.put(record_key.as_slice(), new_state.as_slice())?;
+
+        Ok(res)
+
+    }
+
 
     fn aggregate(&self, store: &mut dyn StateStore, op: Operation) -> Result<Vec<Operation>, StateStoreError> {
 
         match op {
             Operation::Insert {table_name, new} => {
-
-                let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
-                let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
-                let record_hash = self.get_record_hash(&new)?;
-                let record_key = self.get_record_key(record_hash, self.dataset_id)?;
-
-                let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
-                let prev_count = self.update_segment_count(store, record_count_key, 1, false)?;
-
-                let curr_state = store.get(record_key.as_slice())?;
-                let new_state = self.calc_and_fill_measures(
-                    curr_state, None, Some(&new),
-                    &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Insert
-                )?;
-
-                let res =
-                    if curr_state.is_none() {
-                        self.fill_dimensions(&new, &mut out_rec_insert);
-                        Operation::Insert {table_name: "".to_string(), new: out_rec_insert}
-                    }
-                    else {
-                        self.fill_dimensions(&new, &mut out_rec_insert);
-                        self.fill_dimensions(&new, &mut out_rec_delete);
-                        Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
-                    };
-
-                store.put(record_key.as_slice(), new_state.as_slice())?;
-
-                Ok(vec![res])
+                Ok(vec![self.agg_insert(store, &new)?])
             }
             Operation::Delete {ref table_name, ref old} => {
-
-                let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
-                let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
-                let record_hash = self.get_record_hash(&old)?;
-                let record_key = self.get_record_key(record_hash, self.dataset_id)?;
-
-                let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
-                let prev_count = self.update_segment_count(store, record_count_key, 1, true)?;
-
-                let curr_state = store.get(record_key.as_slice())?;
-                let new_state = self.calc_and_fill_measures(
-                    curr_state, Some(&old), None,
-                    &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Delete
-                )?;
-
-                let res =
-                    if prev_count == 1 {
-                        self.fill_dimensions(&old, &mut out_rec_delete);
-                        Operation::Delete {table_name: "".to_string(), old: out_rec_delete}
-                    }
-                    else {
-                        self.fill_dimensions(&old, &mut out_rec_insert);
-                        self.fill_dimensions(&old, &mut out_rec_delete);
-                        Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
-                    };
-
-                if prev_count > 0 {
-                    store.put(record_key.as_slice(), new_state.as_slice())?;
-                }
-                else {
-                    store.del(record_key.as_slice())?
-                }
-                Ok(vec![res])
-
+                Ok(vec![self.agg_delete(store, &old)?])
             }
             Operation::Update {ref table_name, ref old, ref new} => {
 
@@ -433,38 +396,11 @@ impl SizedAggregationDataset {
                 let new_record_hash = self.get_record_hash(&new)?;
 
                 if (old_record_hash == new_record_hash) {
-                    // Dimension values were not changed
-
-                    let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
-                    let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
-                    let record_key = self.get_record_key(old_record_hash, self.dataset_id)?;
-
-                    let curr_state = store.get(record_key.as_slice())?;
-                    let new_state = self.calc_and_fill_measures(
-                        curr_state, Some(&old), Some(&new),
-                        &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Update
-                    )?;
-
-                    self.fill_dimensions(&new, &mut out_rec_insert);
-                    self.fill_dimensions(&old, &mut out_rec_delete);
-
-                    let res =
-                        Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
-                    ;
-
-                    store.put(record_key.as_slice(), new_state.as_slice())?;
-
-                    Ok(vec![res])
-
+                    Ok(vec![self.agg_update(store, old, new, old_record_hash)?])
                 }
                 else {
-
-                    let delete_op = self.agg_delete(store, old)?;
-                    let insert_op = self.agg_insert(store, &new)?;
-                    Ok(vec![delete_op, insert_op])
-
+                    Ok(vec![self.agg_delete(store, old)?, self.agg_insert(store, &new)?])
                 }
-
             }
             _ => { return Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid operation".to_string())); }
         }
@@ -473,15 +409,7 @@ impl SizedAggregationDataset {
 
 
     fn get_accumulated(&self, store: &mut dyn StateStore, key: &[u8]) -> Result<Option<Field>, StateStoreError> {
-
-        // let mut full_key = Vec::<u8>::with_capacity(key.len() + 1);
-        // full_key[0] = self.dataset;
-        // full_key[1..].copy_from_slice(key);
-        //
-        // let existing = self.tx.get(&full_key)?;
-        // Ok(if existing.is_some() { Some(self.acc.get_value(existing.unwrap())) } else { None })
-
-        Ok(None)
+       todo!();
     }
 }
 
@@ -768,7 +696,7 @@ mod tests {
 
 
     #[test]
-    fn test() {
+    fn perf_test() {
 
         let sm = LmdbStateStoreManager::new(Path::new("data"), 1024*1024*1024*10);
         let ss = sm.unwrap();
