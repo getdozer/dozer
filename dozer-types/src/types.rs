@@ -17,9 +17,11 @@ pub enum Field {
     Bson(Vec<u8>),
     Null,
     Invalid(String),
+    Record(Record),
+    RecordArray(Vec<Record>),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Schema {
     pub id: String,
     pub field_names: Vec<String>,
@@ -28,7 +30,7 @@ pub struct Schema {
     pub _ctr: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Record {
     pub values: Vec<Field>,
     pub schema_id: u64,
