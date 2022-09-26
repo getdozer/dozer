@@ -285,6 +285,77 @@ impl SizedAggregationDataset {
         Ok(curr_count)
     }
 
+    fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> Result<Operation, StateStoreError> {
+
+        let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+
+        let record_hash = self.get_record_hash(&old)?;
+        let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+
+        let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
+        let prev_count = self.update_segment_count(store, record_count_key, 1, true)?;
+
+        let curr_state = store.get(record_key.as_slice())?;
+        let new_state = self.calc_and_fill_measures(
+            curr_state, Some(&old), None,
+            &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Delete
+        )?;
+
+        let res =
+            if prev_count == 1 {
+                self.fill_dimensions(&old, &mut out_rec_delete);
+                Operation::Delete {table_name: "".to_string(), old: out_rec_delete}
+            }
+            else {
+                self.fill_dimensions(&old, &mut out_rec_insert);
+                self.fill_dimensions(&old, &mut out_rec_delete);
+                Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
+            };
+
+        if prev_count > 0 {
+            store.put(record_key.as_slice(), new_state.as_slice())?;
+        }
+        else {
+            store.del(record_key.as_slice())?
+        }
+        Ok(res)
+
+    }
+
+    fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> Result<Operation, StateStoreError> {
+
+        let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let record_hash = self.get_record_hash(&new)?;
+        let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+
+        let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
+        let prev_count = self.update_segment_count(store, record_count_key, 1, false)?;
+
+        let curr_state = store.get(record_key.as_slice())?;
+        let new_state = self.calc_and_fill_measures(
+            curr_state, None, Some(&new),
+            &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Insert
+        )?;
+
+        let res =
+            if curr_state.is_none() {
+                self.fill_dimensions(&new, &mut out_rec_insert);
+                Operation::Insert {table_name: "".to_string(), new: out_rec_insert}
+            }
+            else {
+                self.fill_dimensions(&new, &mut out_rec_insert);
+                self.fill_dimensions(&new, &mut out_rec_delete);
+                Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
+            };
+
+        store.put(record_key.as_slice(), new_state.as_slice())?;
+
+        Ok(res)
+
+    }
+
 
     fn aggregate(&self, store: &mut dyn StateStore, op: Operation) -> Result<Vec<Operation>, StateStoreError> {
 
@@ -305,7 +376,7 @@ impl SizedAggregationDataset {
                     &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Insert
                 )?;
 
-                let res = vec![
+                let res =
                     if curr_state.is_none() {
                         self.fill_dimensions(&new, &mut out_rec_insert);
                         Operation::Insert {table_name: "".to_string(), new: out_rec_insert}
@@ -314,12 +385,11 @@ impl SizedAggregationDataset {
                         self.fill_dimensions(&new, &mut out_rec_insert);
                         self.fill_dimensions(&new, &mut out_rec_delete);
                         Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
-                    }
-                ];
+                    };
 
                 store.put(record_key.as_slice(), new_state.as_slice())?;
 
-                Ok(res)
+                Ok(vec![res])
             }
             Operation::Delete {ref table_name, ref old} => {
 
@@ -337,7 +407,7 @@ impl SizedAggregationDataset {
                     &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Delete
                 )?;
 
-                let res = vec![
+                let res =
                     if prev_count == 1 {
                         self.fill_dimensions(&old, &mut out_rec_delete);
                         Operation::Delete {table_name: "".to_string(), old: out_rec_delete}
@@ -346,8 +416,7 @@ impl SizedAggregationDataset {
                         self.fill_dimensions(&old, &mut out_rec_insert);
                         self.fill_dimensions(&old, &mut out_rec_delete);
                         Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
-                    }
-                ];
+                    };
 
                 if prev_count > 0 {
                     store.put(record_key.as_slice(), new_state.as_slice())?;
@@ -355,7 +424,7 @@ impl SizedAggregationDataset {
                 else {
                     store.del(record_key.as_slice())?
                 }
-                Ok(res)
+                Ok(vec![res])
 
             }
             Operation::Update {ref table_name, ref old, ref new} => {
@@ -379,23 +448,22 @@ impl SizedAggregationDataset {
                     self.fill_dimensions(&new, &mut out_rec_insert);
                     self.fill_dimensions(&old, &mut out_rec_delete);
 
-                    let res = vec![
+                    let res =
                         Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
-                    ];
+                    ;
 
                     store.put(record_key.as_slice(), new_state.as_slice())?;
 
-                    Ok(res)
+                    Ok(vec![res])
 
                 }
                 else {
-                    Ok(vec![])
-                    // Dimension values changed
+
+                    let delete_op = self.agg_delete(store, old)?;
+                    let insert_op = self.agg_insert(store, &new)?;
+                    Ok(vec![delete_op, insert_op])
 
                 }
-
-
-                //Ok(vec![])
 
             }
             _ => { return Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid operation".to_string())); }
@@ -433,7 +501,7 @@ mod tests {
 
 
     #[test]
-    fn test_insert() {
+    fn test_insert_update_delete() {
 
         let mut store = MemoryStateStore::new();
 
@@ -573,7 +641,127 @@ mod tests {
         println!("ciao")
 
 
+    }
 
+    #[test]
+    fn test_insert_update_change_dims() {
+
+        let mut store = MemoryStateStore::new();
+
+        let agg = SizedAggregationDataset::new(
+            0x02_u16, &mut store, 0,
+            vec![
+                FieldRule::Dimension(0), // City
+                FieldRule::Dimension(1), // Country
+                FieldRule::Measure(Box::new(IntegerSumAggregator::new(3))) // People
+            ]
+        ).unwrap();
+
+        // Insert 10
+        let i = Operation::Insert {
+            table_name: "test".to_string(),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+
+        // Insert 10
+        let i = Operation::Insert {
+            table_name: "test".to_string(),
+            new: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+
+
+        let i = Operation::Update {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ]),
+            new: Record::new(0, vec![
+                Field::String("Brescia".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+        assert_eq!(o.unwrap(), vec![
+            Operation::Update {
+                table_name: "".to_string(),
+                old: Record::new(0, vec![
+                    Field::String("Milan".to_string()),
+                    Field::String("Lombardy".to_string()),
+                    Field::Int(20)
+                ]),
+                new: Record::new(0, vec![
+                    Field::String("Milan".to_string()),
+                    Field::String("Lombardy".to_string()),
+                    Field::Int(10)
+                ])
+            },
+            Operation::Insert {
+                table_name: "".to_string(),
+                new: Record::new(0, vec![
+                    Field::String("Brescia".to_string()),
+                    Field::String("Lombardy".to_string()),
+                    Field::Int(10)
+                ])
+            }
+        ]);
+
+
+        let i = Operation::Update {
+            table_name: "".to_string(),
+            old: Record::new(0, vec![
+                Field::String("Milan".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ]),
+            new: Record::new(0, vec![
+                Field::String("Brescia".to_string()),
+                Field::String("Lombardy".to_string()),
+                Field::String("Italy".to_string()),
+                Field::Int(10)
+            ])
+        };
+        let o = agg.aggregate(&mut store, i);
+        assert_eq!(o.unwrap(), vec![
+            Operation::Delete {
+                table_name: "".to_string(),
+                old: Record::new(0, vec![
+                    Field::String("Milan".to_string()),
+                    Field::String("Lombardy".to_string()),
+                    Field::Int(10)
+                ])
+            },
+            Operation::Update {
+                table_name: "".to_string(),
+                old: Record::new(0, vec![
+                    Field::String("Brescia".to_string()),
+                    Field::String("Lombardy".to_string()),
+                    Field::Int(10)
+                ]),
+                new: Record::new(0, vec![
+                    Field::String("Brescia".to_string()),
+                    Field::String("Lombardy".to_string()),
+                    Field::Int(20)
+                ])
+            }
+        ]);
 
 
     }
@@ -597,7 +785,6 @@ mod tests {
         ).unwrap();
 
 
-
         for i in 0..1000000 {
 
             let num = rand::thread_rng().gen_range(0..100000);
@@ -618,7 +805,6 @@ mod tests {
             };
 
             let v = agg.aggregate(store.as_mut(), op);
-         //   println!("ciao")
 
         }
 
