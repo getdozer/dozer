@@ -17,8 +17,9 @@ pub enum Field {
     Bson(Vec<u8>),
     Null,
     Invalid(String),
-    Record(Record),
-    RecordArray(Vec<Record>),
+    Record,
+    RecordMap,
+    RecordArray,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -104,4 +105,21 @@ impl Schema {
     pub fn get_column_index(&self, name: String) -> Option<&usize> {
         self._idx.get(&name)
     }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub enum FieldType {
+    Int,
+    Float,
+    Boolean,
+    String,
+    Binary,
+    Decimal,
+    Timestamp,
+    Bson,
+    Null,
+    Invalid,
+    Record,
+    RecordMap,
+    RecordArray,
 }

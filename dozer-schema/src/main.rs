@@ -1,8 +1,10 @@
 mod registry;
 mod storage;
-use registry::serve;
+use registry::_serve;
+use storage::RocksConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    serve().await
+    let config = RocksConfig::_target();
+    _serve(Some(config)).await
 }

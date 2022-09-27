@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use super::storage::RocksStorage;
 use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
-use dozer_types::schema_registry::{context, get_client, SchemaRegistryClient};
+use dozer_schema::registry::{_get_client, context};
 use dozer_types::types::{OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
@@ -47,8 +47,6 @@ impl Ingestor {
         storage_client: Arc<RocksStorage>,
         sender: Arc<Box<dyn IngestorForwarder + 'static>>,
     ) -> Self {
-        let rt = Runtime::new().unwrap();
-
         Self {
             storage_client,
             sender,
@@ -68,7 +66,7 @@ impl Ingestor {
                 Runtime::new()
                     .unwrap()
                     .block_on(async {
-                        let client = get_client().await.unwrap();
+                        let client = _get_client().await.unwrap();
                         client.insert(context::current(), schema).await
                     })
                     .unwrap();
