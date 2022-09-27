@@ -9,140 +9,11 @@ use std::sync::Arc;
 use ahash::AHasher;
 use lmdb::{Database, DatabaseFlags, Environment, Error, RwTransaction, Transaction, WriteFlags};
 use lmdb::Error::NotFound;
-use dozer_shared::types::{Field, Operation, Record};
-use dozer_shared::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
-use crate::state::{Aggregator, StateStore, StateStoreError, StateStoreErrorType, StateStoresManager};
+use dozer_types::types::{Field, Operation, Record};
+use dozer_types::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
+use crate::aggregation::Aggregator;
+use crate::state::{StateStore, StateStoreError, StateStoreErrorType};
 use crate::state::StateStoreErrorType::{AggregatorError, GetOperationError, OpenOrCreateError, SchemaMismatchError, StoreOperationError, TransactionError};
-
-struct LmdbStateStoreManager {
-    env: Arc<Environment>
-}
-
-impl LmdbStateStoreManager {
-    pub fn new(path: &Path, max_size: usize) -> Result<Box<dyn StateStoresManager>, StateStoreError> {
-
-        let res = Environment::new()
-            .set_map_size(max_size)
-            .set_max_dbs(256)
-            .set_max_readers(256)
-            .open(path);
-
-        if res.is_err() {
-            return Err(StateStoreError::new(OpenOrCreateError, res.err().unwrap().to_string()));
-        }
-        Ok(Box::new(LmdbStateStoreManager { env: Arc::new(res.unwrap()) }))
-    }
-}
-
-impl StateStoresManager for LmdbStateStoreManager {
-
-    fn init_state_store<'a> (&'a self, id: String) -> Result<Box<dyn StateStore + 'a>, StateStoreError> {
-
-        let r_db = self.env.create_db(Some(id.as_str()), DatabaseFlags::empty());
-        if r_db.is_err() {
-            return Err(StateStoreError::new(OpenOrCreateError, r_db.err().unwrap().to_string()));
-        }
-
-        let r_tx = self.env.begin_rw_txn();
-        if r_tx.is_err() {
-            return Err(StateStoreError::new(TransactionError, r_tx.err().unwrap().to_string()));
-        }
-
-        return Ok(Box::new(LmdbStateStore::new(
-            id, r_db.unwrap(), r_tx.unwrap()
-        )));
-    }
-
-}
-
-
-struct LmdbStateStore<'a> {
-    id: String,
-    db: Database,
-    tx: RwTransaction<'a>
-}
-
-impl <'a> LmdbStateStore<'a> {
-    pub fn new(id: String, db: Database, tx: RwTransaction<'a>) -> Self {
-        Self { id, db, tx }
-    }
-}
-
-
-macro_rules! db_check {
-    ($e:expr) => {
-        if $e.is_err() {
-            return Err(StateStoreError::new(TransactionError, "put / del / get internal error".to_string()));
-        }
-    }
-}
-
-
-
-impl <'a> StateStore for LmdbStateStore<'a> {
-
-    fn checkpoint(&mut self) -> Result<(), StateStoreError> {
-        todo!()
-    }
-
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
-        let r = self.tx.put(self.db, &key, &value, WriteFlags::empty());
-        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, r.unwrap_err().to_string())); }
-        Ok(())
-    }
-
-    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
-        let r = self.tx.del(self.db, &key, None);
-        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, r.unwrap_err().to_string())); }
-        Ok(())
-    }
-
-    fn get(&mut self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
-        let r = self.tx.get(self.db, &key);
-        if r.is_ok() { return Ok(Some(r.unwrap())); }
-        else {
-            if r.unwrap_err() == NotFound {
-                Ok(None)
-            }
-            else {
-                Err(StateStoreError::new(GetOperationError, r.unwrap_err().to_string()))
-            }
-        }
-    }
-
-}
-
-pub struct MemoryStateStore {
-    data: HashMap<Vec<u8>,Vec<u8>>
-}
-
-impl MemoryStateStore {
-    pub fn new() -> Self {
-        Self { data: HashMap::new() }
-    }
-}
-
-impl StateStore for MemoryStateStore {
-
-    fn checkpoint(&mut self) -> Result<(), StateStoreError> {
-        todo!()
-    }
-
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
-        self.data.insert(Vec::from(key), Vec::from(value));
-        Ok(())
-    }
-
-    fn get(&mut self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
-        let r = self.data.get(key);
-        Ok(if r.is_none() { None } else { Some(r.unwrap().as_slice()) })
-    }
-
-    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
-        self.data.remove(key);
-        Ok(())
-    }
-}
 
 
 pub enum FieldRule {
@@ -205,7 +76,7 @@ impl SizedAggregationDataset {
                 Int(i) => { hasher.write_u8(1); hasher.write_i64(*i); }
                 Float(f) => { hasher.write_u8(2); hasher.write(&((*f).to_ne_bytes())); }
                 Boolean(b) => { hasher.write_u8(3); hasher.write_u8(if *b { 1_u8} else { 0_u8 }); }
-                dozer_shared::types::Field::String(s) => { hasher.write_u8(4); hasher.write(s.as_str().as_bytes()); }
+                Field::String(s) => { hasher.write_u8(4); hasher.write(s.as_str().as_bytes()); }
                 Binary(b) => { hasher.write_u8(5); hasher.write(b.as_ref()); }
                 Decimal(d) => { hasher.write_u8(6); hasher.write(&d.serialize()); }
                 Timestamp(t) => { hasher.write_u8(7); hasher.write_i64(t.timestamp()) }
@@ -409,7 +280,7 @@ impl SizedAggregationDataset {
 
 
     fn get_accumulated(&self, store: &mut dyn StateStore, key: &[u8]) -> Result<Option<Field>, StateStoreError> {
-       todo!();
+        todo!();
     }
 }
 
@@ -419,12 +290,15 @@ impl SizedAggregationDataset {
 mod tests {
 
     use std::collections::HashMap;
+    use std::fs;
     use std::path::Path;
     use bytemuck::{from_bytes, from_bytes_mut};
-    use dozer_shared::types::{Field, Operation, Record};
-    use crate::state::accumulators::IntegerSumAggregator;
-    use crate::state::lmdb_state::{FieldRule, LmdbStateStoreManager, MemoryStateStore, SizedAggregationDataset};
+    use dozer_types::types::{Field, Operation, Record};
     use rand::Rng;
+    use crate::aggregation::groupby::{FieldRule, SizedAggregationDataset};
+    use crate::aggregation::operators::IntegerSumAggregator;
+    use crate::state::lmdb::LmdbStateStoreManager;
+    use crate::state::memory::MemoryStateStore;
     use crate::state::StateStore;
 
 
@@ -698,7 +572,10 @@ mod tests {
     #[test]
     fn perf_test() {
 
-        let sm = LmdbStateStoreManager::new(Path::new("data"), 1024*1024*1024*10);
+        fs::remove_dir_all(".data");
+        fs::create_dir(".data");
+
+        let sm = LmdbStateStoreManager::new(Path::new(".data"), 1024*1024*1024*10);
         let ss = sm.unwrap();
         let mut store = ss.init_state_store("test".to_string()).unwrap();
 
@@ -733,6 +610,7 @@ mod tests {
             };
 
             let v = agg.aggregate(store.as_mut(), op);
+            fs::remove_dir_all(".data");
 
         }
 
@@ -743,4 +621,3 @@ mod tests {
 
 
 }
-

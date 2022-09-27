@@ -3,5 +3,6 @@
 extern crate core;
 
 pub mod dag;
-mod state;
+pub mod state;
+pub mod aggregation;
 

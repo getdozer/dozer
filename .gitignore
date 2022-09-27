@@ -6,4 +6,5 @@ db/embedded/
 db/test
 dozer-ingestion/db/test/
 Cargo.lock
+dozer-core/.data
 
