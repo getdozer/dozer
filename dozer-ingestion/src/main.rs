@@ -6,9 +6,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 fn main() {
-    let storage_config = RocksConfig {
-        path: "./db/embedded".to_string(),
-    };
+    let storage_config = RocksConfig::default();
     let storage_client = Arc::new(Storage::new(storage_config));
 
     let postgres_config = PostgresConfig {

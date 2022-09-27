@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
+use std::collections::HashMap;
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
 use crate::pipeline::expression::logical::{And, Not, Or};
@@ -10,21 +11,29 @@ use crate::pipeline::processor::projection::ProjectionBuilder;
 use dozer_core::dag::channel::LocalNodeChannel;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
-use dozer_core::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, Source, Sink};
-use dozer_core::dag::node::NextStep::Continue;
 use dozer_core::dag::dag::{Endpoint, NodeHandle, PortHandle, TestSink, TestSource};
 use dozer_core::dag::executor::{MemoryExecutionContext, MultiThreadedDagExecutor};
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator, Value as SqlValue};
+use dozer_core::dag::node::NextStep::Continue;
+use dozer_core::dag::node::{
+    ChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source,
+};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema as DozerSchema};
+use sqlparser::ast::{
+    BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator,
+    Value as SqlValue,
+};
+use sqlparser::ast::ObjectType::Schema;
 use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
 
 pub struct PipelineBuilder {
-    schema: Schema,
+    schema: DozerSchema,
+    schema_idx: HashMap<String, usize>
 }
 
 impl PipelineBuilder {
-
-    pub fn new(schema: Schema) -> PipelineBuilder {
+    pub fn new(schema: DozerSchema) -> PipelineBuilder {
         Self {
+            schema_idx: schema.fields.iter().enumerate().map(|e| (e.1.name.clone(), e.0)).collect(),
             schema
         }
     }
@@ -79,10 +88,9 @@ impl PipelineBuilder {
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
-
 pub struct SqlTestSource {
     id: i32,
-    output_ports: Option<Vec<PortHandle>>
+    output_ports: Option<Vec<PortHandle>>,
 }
 
 impl SqlTestSource {
@@ -101,13 +109,17 @@ impl Source for SqlTestSource {
         Ok(())
     }
 
-    fn start(&self, fw: &ChannelForwarder) -> std::result::Result<(), String>{
+    fn start(&self, fw: &ChannelForwarder) -> std::result::Result<(), String> {
         for n in 0..10000000 {
             //   println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(
-                    n, Operation::Insert { table_name: "test".to_string(), new: Record::new(1, vec![Field::Int(2000)]) }
-                ), None
+                    n,
+                    Operation::Insert {
+                        new: Record::new(None, vec![Field::Int(2000)]),
+                    },
+                ),
+                None,
             );
         }
         fw.terminate();
@@ -117,7 +129,7 @@ impl Source for SqlTestSource {
 
 pub struct SqlTestSink {
     id: i32,
-    input_ports: Option<Vec<PortHandle>>
+    input_ports: Option<Vec<PortHandle>>,
 }
 
 impl SqlTestSink {
@@ -158,7 +170,14 @@ fn test_pipeline_builder() {
 
     let statement: &Statement = &ast[0];
 
-    let builder = PipelineBuilder::new(Schema::new(String::from("schema"), vec![String::from("Country"), String::from("CustomerID"), String::from("Spending")], vec![Field::String("Italy".to_string()), Field::Int(101), Field::Int(2000)]));
+    let schema = DozerSchema {
+        fields: vec![
+            FieldDefinition {name: String::from("Spending"), typ: FieldType::Int, nullable: false}
+        ],
+        values: vec![0], primary_index: vec![], secondary_indexes: vec![], identifier: None
+    };
+
+    let builder = PipelineBuilder::new(schema);
     let (mut dag, in_handle, out_handle) = builder.statement_to_pipeline(statement.clone()).unwrap();
 
     let source = SqlTestSource::new(1,None);
@@ -167,7 +186,6 @@ fn test_pipeline_builder() {
     let src_handle = dag.add_node(NodeType::Source(Arc::new(source)));
     //let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
     let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
-
 
     let src_to_proc1 = dag.connect(
         Endpoint::new(src_handle, None),
@@ -189,6 +207,4 @@ fn test_pipeline_builder() {
     exec.start(ctx);
     let elapsed = now.elapsed();
     println!("Elapsed: {:.2?}", elapsed);
-
-
 }

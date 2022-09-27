@@ -1,6 +1,6 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
@@ -108,13 +108,15 @@ impl XlogMapper {
 
                 let event = OperationEvent {
                     operation: Operation::Insert {
-                        table_name: table.name.clone(),
                         new: Record {
                             values,
-                            schema_id: table.rel_id as u64,
+                            schema_id: Some(dozer_types::types::SchemaIdentifier {
+                                id: table.rel_id as u32,
+                                version: table.rel_id as u16,
+                            }),
                         },
                     },
-                    id: 0,
+                    seq_no: 0,
                 };
 
                 return Option::from(IngestionMessage::OperationEvent(event));
@@ -126,17 +128,22 @@ impl XlogMapper {
                 let values = Self::convert_values_to_fields(table, new_values);
                 let event = OperationEvent {
                     operation: Operation::Update {
-                        table_name: table.name.clone(),
                         old: Record {
                             values: vec![],
-                            schema_id: table.rel_id as u64,
+                            schema_id: Some(dozer_types::types::SchemaIdentifier {
+                                id: table.rel_id as u32,
+                                version: table.rel_id as u16,
+                            }),
                         },
                         new: Record {
                             values,
-                            schema_id: table.rel_id as u64,
+                            schema_id: Some(dozer_types::types::SchemaIdentifier {
+                                id: table.rel_id as u32,
+                                version: table.rel_id as u16,
+                            }),
                         },
                     },
-                    id: 0,
+                    seq_no: 0,
                 };
 
                 return Option::from(IngestionMessage::OperationEvent(event));
@@ -150,13 +157,15 @@ impl XlogMapper {
 
                 let event = OperationEvent {
                     operation: Operation::Delete {
-                        table_name: table.name.clone(),
                         old: Record {
                             values,
-                            schema_id: table.rel_id as u64,
+                            schema_id: Some(dozer_types::types::SchemaIdentifier {
+                                id: table.rel_id as u32,
+                                version: table.rel_id as u16,
+                            }),
                         },
                     },
-                    id: 0,
+                    seq_no: 0,
                 };
 
                 return Option::from(IngestionMessage::OperationEvent(event));
@@ -188,19 +197,22 @@ impl XlogMapper {
         };
 
         let schema = Schema {
-            id: table.rel_id.to_string(),
-            field_names: table
+            identifier: Some(dozer_types::types::SchemaIdentifier {
+                id: table.rel_id as u32,
+                version: table.rel_id as u16,
+            }),
+            fields: table
                 .columns
                 .iter()
-                .map(|column| column.name.to_string())
+                .map(|c| FieldDefinition {
+                    name: c.name.to_string(),
+                    typ: helper::postgres_type_to_dozer_type(c.clone().r#type.as_ref()),
+                    nullable: true,
+                })
                 .collect(),
-            field_types: table
-                .columns
-                .iter()
-                .map(|column| helper::postgres_type_to_dozer_type(&column))
-                .collect(),
-            _idx: Default::default(),
-            _ctr: 0,
+            values: vec![0],
+            primary_index: vec![0],
+            secondary_indexes: vec![],
         };
 
         self.relations_map.insert(rel_id, table);

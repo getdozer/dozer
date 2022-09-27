@@ -17,3 +17,7 @@ sqlparser = "0.22"
 chrono = "0.4.22"
 uuid = {version = "1.1.2", features = ["v1", "v4", "fast-rng"]}
 crossbeam = "0.8.2"
+lmdb = "0.8.0"
+bytemuck = "1.12.1"
+ahash = "0.8.0"
+rand = "0.8.5"

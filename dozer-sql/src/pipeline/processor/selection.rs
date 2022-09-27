@@ -56,23 +56,16 @@ impl Processor for SelectionProcessor {
         //println!("PROC {}: Message {} received", self.id, op.id);
 
         match op.operation {
-            Operation::Delete { table_name, old } => {
+            Operation::Delete { old } => {
                 Err("DELETE Operation not supported.".to_string())
             }
-            Operation::Insert {
-                ref table_name,
-                ref new,
-            } => {
+            Operation::Insert { ref new} => {
                 if self.operator.get_result(&new) == Field::Boolean(true) {
                     fw.send(op, None);
                 }
                 Ok(NextStep::Continue)
             }
-            Operation::Update {
-                table_name,
-                old,
-                new,
-            } => Err("UPDATE Operation not supported.".to_string()),
+            Operation::Update { old, new} => Err("UPDATE Operation not supported.".to_string()),
             Operation::Terminate => Err("TERMINATE Operation not supported.".to_string()),
             _ => Err("TERMINATE Operation not supported.".to_string()),
         }
