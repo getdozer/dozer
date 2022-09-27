@@ -1,9 +1,6 @@
 pub mod lmdb;
 pub mod memory;
 
-use std::sync::Arc;
-use dozer_types::types::{Field, Record};
-
 #[derive(Debug)]
 pub enum StateStoreErrorType {
     InternalError,

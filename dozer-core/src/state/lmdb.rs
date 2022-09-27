@@ -1,18 +1,9 @@
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::hash::Hasher;
-use std::mem::{size_of, size_of_val};
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::Arc;
-use ahash::AHasher;
-use lmdb::{Database, DatabaseFlags, Environment, Error, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Database, DatabaseFlags, Environment, RwTransaction, Transaction, WriteFlags};
 use lmdb::Error::NotFound;
-use dozer_types::types::{Field, Operation, Record};
-use dozer_types::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
-use crate::state::{StateStore, StateStoreError, StateStoreErrorType, StateStoresManager};
-use crate::state::StateStoreErrorType::{AggregatorError, GetOperationError, OpenOrCreateError, SchemaMismatchError, StoreOperationError, TransactionError};
+use crate::state::{StateStore, StateStoreError, StateStoresManager};
+use crate::state::StateStoreErrorType::{GetOperationError, OpenOrCreateError, StoreOperationError, TransactionError};
 
 pub struct LmdbStateStoreManager {
     env: Arc<Environment>
@@ -67,16 +58,6 @@ impl <'a> LmdbStateStore<'a> {
         Self { id, db, tx }
     }
 }
-
-
-macro_rules! db_check {
-    ($e:expr) => {
-        if $e.is_err() {
-            return Err(StateStoreError::new(TransactionError, "put / del / get internal error".to_string()));
-        }
-    }
-}
-
 
 
 impl <'a> StateStore for LmdbStateStore<'a> {
