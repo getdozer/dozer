@@ -5,8 +5,6 @@ use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, 
 use dozer_types::types::{Operation, OperationEvent, Record};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
 use std::vec;
 use uuid::Uuid;
 
@@ -84,7 +82,7 @@ impl Dag {
         port: Option<PortHandle>,
         port_list: Option<Vec<PortHandle>>,
     ) -> Result<(), String> {
-        if (!port.is_none()) {
+        if !port.is_none() {
             if port_list.is_none()
                 || port_list
                     .unwrap()
@@ -106,21 +104,21 @@ impl Dag {
     fn get_ports(&self, n: &NodeType, d: PortDirection) -> Result<Option<Vec<PortHandle>>, ()> {
         match n {
             NodeType::Processor(p) => {
-                if (matches!(d, Output)) {
+                if matches!(d, Output) {
                     Ok(p.get_output_ports())
                 } else {
                     Ok(p.get_input_ports())
                 }
             }
             NodeType::Sink(s) => {
-                if (matches!(d, Output)) {
+                if matches!(d, Output) {
                     Err(())
                 } else {
                     Ok(s.get_input_ports())
                 }
             }
             NodeType::Source(s) => {
-                if (matches!(d, Output)) {
+                if matches!(d, Output) {
                     Ok(s.get_output_ports())
                 } else {
                     Err(())
@@ -155,7 +153,7 @@ impl Dag {
         if src_output_ports.is_err() {
             return Err("The node type does not support output ports".to_string());
         }
-        let mut res = self.check_port_for_node(from.port, src_output_ports.unwrap());
+        let res = self.check_port_for_node(from.port, src_output_ports.unwrap());
         if res.is_err() {
             return res;
         }
@@ -164,7 +162,7 @@ impl Dag {
         if dst_input_ports.is_err() {
             return Err("The node type does not support input ports".to_string());
         }
-        let mut res = self.check_port_for_node(to.port, dst_input_ports.unwrap());
+        let res = self.check_port_for_node(to.port, dst_input_ports.unwrap());
         if res.is_err() {
             return res;
         }
@@ -202,9 +200,9 @@ impl Sink for TestSink {
 
     fn process(
         &self,
-        from_port: Option<PortHandle>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
+        _from_port: Option<PortHandle>,
+        _op: OperationEvent,
+        _ctx: &dyn ExecutionContext,
     ) -> Result<NextStep, String> {
         //    println!("SINK {}: Message {} received", self.id, op.id);
         Ok(Continue)
@@ -247,13 +245,13 @@ impl Processor for TestProcessor {
 
     fn process(
         &self,
-        from_port: Option<PortHandle>,
+        _from_port: Option<PortHandle>,
         op: OperationEvent,
-        ctx: &dyn ExecutionContext,
+        _ctx: &dyn ExecutionContext,
         fw: &ChannelForwarder,
     ) -> Result<NextStep, String> {
         //  println!("PROC {}: Message {} received", self.id, op.id);
-        fw.send(op, None);
+        fw.send(op, None)?;
         Ok(Continue)
     }
 }

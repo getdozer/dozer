@@ -1,10 +1,9 @@
-use bytemuck::from_bytes;
 use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::{ Int };
 use crate::aggregation::Aggregator;
 use crate::state::{StateStoreError, StateStoreErrorType};
 
-const IntegerSumAggregatorId : u8  = 0x01;
+const INTEGER_SUM_AGGREGATOR_ID: u8  = 0x01;
 
 pub struct IntegerSumAggregator {
     input_idx: usize
@@ -20,7 +19,7 @@ impl IntegerSumAggregator {
 impl Aggregator for IntegerSumAggregator {
 
     fn get_type(&self) -> u8 {
-        IntegerSumAggregatorId
+        INTEGER_SUM_AGGREGATOR_ID
     }
 
     fn insert(&self, curr_state: Option<&[u8]>, new: &Record) -> Result<Vec<u8>, StateStoreError> {
