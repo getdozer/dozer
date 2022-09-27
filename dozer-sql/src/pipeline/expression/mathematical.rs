@@ -74,7 +74,7 @@ define_math_oper!(Mod, |a, b| { a % b }, 0);
 
 #[test]
 fn test_int_int_div() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let l = Box::new(1);
     let r = Box::new(2);
     let op = Div::new(l, r);
@@ -83,7 +83,7 @@ fn test_int_int_div() {
 
 #[test]
 fn test_float_int_sum() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let l = Box::new(1.3);
     let r = Box::new(1);
     let op = Add::new(l, r);
@@ -92,7 +92,7 @@ fn test_float_int_sum() {
 
 #[test]
 fn test_int_int_sum() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let l = Box::new(1);
     let r = Box::new(1);
     let op = Add::new(l, r);
@@ -101,7 +101,7 @@ fn test_int_int_sum() {
 
 #[test]
 fn test_int_float_sum() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let l = Box::new(1.3);
     let r = Box::new(1);
     let op = Add::new(l, r);
@@ -110,7 +110,7 @@ fn test_int_float_sum() {
 
 #[test]
 fn test_composite_sum() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let ll = Box::new(1);
     let rl = Box::new(1);
     let rr = Box::new(2.5);

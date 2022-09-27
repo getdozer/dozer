@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
+use std::vec;
 use uuid::Uuid;
 
 /*****************************************************************************
@@ -285,14 +286,14 @@ impl Source for TestSource {
                 OperationEvent::new(
                     n,
                     Operation::Insert {
-                        table_name: "test".to_string(),
-                        new: Record::new(1, vec![]),
+                        new: Record::new(None, vec![]),
                     },
                 ),
                 None,
-            );
+            )
+            .unwrap();
         }
-        fw.terminate();
+        fw.terminate().unwrap();
         Ok(())
     }
 }
