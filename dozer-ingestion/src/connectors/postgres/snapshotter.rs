@@ -1,5 +1,6 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::ingestor::Ingestor;
+use dozer_types::types::Schema;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::SimpleQueryMessage::Row;
@@ -51,7 +52,13 @@ impl PostgresSnapshotter {
             let query = format!("select * from {}", table);
             let stmt = client_plain.clone().borrow_mut().prepare(&query)?;
             let columns = stmt.columns();
-            // println!("{:?}", columns);
+
+            // Ingest schema for every table
+            let schema = helper::map_schema(table.to_string(), columns);
+            self.ingestor
+                .lock()
+                .unwrap()
+                .handle_message(IngestionMessage::Schema(schema));
 
             let empty_vec: Vec<String> = Vec::new();
             for msg in client_plain
@@ -69,7 +76,9 @@ impl PostgresSnapshotter {
                             idx,
                         );
                         self.ingestor
-                            .lock().unwrap().handle_message(IngestionMessage::OperationEvent(evt));
+                            .lock()
+                            .unwrap()
+                            .handle_message(IngestionMessage::OperationEvent(evt));
                     }
                     Err(e) => {
                         println!("{:?}", e);
@@ -79,7 +88,10 @@ impl PostgresSnapshotter {
                 idx = idx + 1;
             }
 
-            self.ingestor.lock().unwrap().handle_message(IngestionMessage::Commit());
+            self.ingestor
+                .lock()
+                .unwrap()
+                .handle_message(IngestionMessage::Commit());
         }
         Ok(tables)
     }

@@ -5,5 +5,7 @@ members = [
   "dozer-types",
   "dozer-core",
   "dozer-orchestrator",
-  "dozer-sql"
+  "dozer-sql",
+  "dozer-cache",
+  "dozer-schema",
 ]

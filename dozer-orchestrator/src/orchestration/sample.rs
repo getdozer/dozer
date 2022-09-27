@@ -38,7 +38,7 @@ impl Sink for SampleSink {
         ctx: &dyn ExecutionContext,
     ) -> Result<NextStep, String> {
         const BACKSPACE: char = 8u8 as char;
-        if op.id % 1000 == 0 {
+        if op.seq_no % 1000 == 0 {
             println!(
                 "{}\r Sampled Event from Sink: {:.2?}",
                 BACKSPACE,

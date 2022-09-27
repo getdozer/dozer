@@ -125,7 +125,7 @@ mod tests {
             refresh_config: RefreshConfig::RealTime,
         };
         let storage_config = RocksConfig {
-            path: "./db/embedded".to_string(),
+            path: "target/orchestrator-test".to_string(),
         };
         let mut sources = Vec::new();
         sources.push(source);

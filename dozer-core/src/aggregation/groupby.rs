@@ -9,7 +9,7 @@ use std::sync::Arc;
 use ahash::AHasher;
 use lmdb::{Database, DatabaseFlags, Environment, Error, RwTransaction, Transaction, WriteFlags};
 use lmdb::Error::NotFound;
-use dozer_types::types::{Field, Operation, Record};
+use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
 use dozer_types::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
 use crate::aggregation::Aggregator;
 use crate::state::{StateStore, StateStoreError, StateStoreErrorType};
@@ -24,7 +24,7 @@ pub enum FieldRule {
 
 struct SizedAggregationDataset {
     dataset_id: u16,
-    output_schema_id: u64,
+    output_schema_id: Option<SchemaIdentifier>,
     out_fields_count: usize,
     out_dimensions: Vec<(usize, usize)>,
     out_measures: Vec<(Box<dyn Aggregator>, usize)>
@@ -39,7 +39,7 @@ impl SizedAggregationDataset {
 
     pub fn new(
         dataset_id: u16, store: &mut dyn StateStore,
-        output_schema_id: u64, output_fields: Vec<FieldRule>) -> Result<SizedAggregationDataset, StateStoreError> {
+        output_schema_id: Option<SchemaIdentifier>, output_fields: Vec<FieldRule>) -> Result<SizedAggregationDataset, StateStoreError> {
 
         let out_fields_count = output_fields.len();
         let mut out_measures: Vec<(Box<dyn Aggregator>, usize)> = Vec::new();
@@ -158,8 +158,8 @@ impl SizedAggregationDataset {
 
     fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> Result<Operation, StateStoreError> {
 
-        let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
 
         let record_hash = self.get_record_hash(&old)?;
         let record_key = self.get_record_key(record_hash, self.dataset_id)?;
@@ -176,12 +176,12 @@ impl SizedAggregationDataset {
         let res =
             if prev_count == 1 {
                 self.fill_dimensions(&old, &mut out_rec_delete);
-                Operation::Delete {table_name: "".to_string(), old: out_rec_delete}
+                Operation::Delete {old: out_rec_delete}
             }
             else {
                 self.fill_dimensions(&old, &mut out_rec_insert);
                 self.fill_dimensions(&old, &mut out_rec_delete);
-                Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
+                Operation::Update {new: out_rec_insert, old: out_rec_delete}
             };
 
         if prev_count > 0 {
@@ -196,8 +196,8 @@ impl SizedAggregationDataset {
 
     fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> Result<Operation, StateStoreError> {
 
-        let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let record_hash = self.get_record_hash(&new)?;
         let record_key = self.get_record_key(record_hash, self.dataset_id)?;
 
@@ -213,12 +213,12 @@ impl SizedAggregationDataset {
         let res =
             if curr_state.is_none() {
                 self.fill_dimensions(&new, &mut out_rec_insert);
-                Operation::Insert {table_name: "".to_string(), new: out_rec_insert}
+                Operation::Insert {new: out_rec_insert}
             }
             else {
                 self.fill_dimensions(&new, &mut out_rec_insert);
                 self.fill_dimensions(&new, &mut out_rec_delete);
-                Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete}
+                Operation::Update {new: out_rec_insert, old: out_rec_delete}
             };
 
         store.put(record_key.as_slice(), new_state.as_slice())?;
@@ -229,8 +229,8 @@ impl SizedAggregationDataset {
 
     fn agg_update(&self, store: &mut dyn StateStore, old: &Record, new: &Record, record_hash: u64) -> Result<Operation, StateStoreError> {
 
-        let mut out_rec_insert = Record::nulls(self.output_schema_id, self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(self.output_schema_id, self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let record_key = self.get_record_key(record_hash, self.dataset_id)?;
 
         let curr_state = store.get(record_key.as_slice())?;
@@ -243,7 +243,7 @@ impl SizedAggregationDataset {
         self.fill_dimensions(&old, &mut out_rec_delete);
 
         let res =
-            Operation::Update {table_name: "".to_string(), new: out_rec_insert, old: out_rec_delete};
+            Operation::Update {new: out_rec_insert, old: out_rec_delete};
 
         store.put(record_key.as_slice(), new_state.as_slice())?;
 
@@ -255,13 +255,13 @@ impl SizedAggregationDataset {
     fn aggregate(&self, store: &mut dyn StateStore, op: Operation) -> Result<Vec<Operation>, StateStoreError> {
 
         match op {
-            Operation::Insert {table_name, new} => {
+            Operation::Insert {ref new} => {
                 Ok(vec![self.agg_insert(store, &new)?])
             }
-            Operation::Delete {ref table_name, ref old} => {
+            Operation::Delete {ref old} => {
                 Ok(vec![self.agg_delete(store, &old)?])
             }
-            Operation::Update {ref table_name, ref old, ref new} => {
+            Operation::Update {ref old, ref new} => {
 
                 let old_record_hash = self.get_record_hash(&old)?;
                 let new_record_hash = self.get_record_hash(&new)?;
@@ -308,7 +308,7 @@ mod tests {
         let mut store = MemoryStateStore::new();
 
         let agg = SizedAggregationDataset::new(
-            0x02_u16, &mut store, 0,
+            0x02_u16, &mut store, None,
             vec![
                 FieldRule::Dimension(0), // City
                 FieldRule::Dimension(1), // Country
@@ -318,8 +318,7 @@ mod tests {
 
         // Insert 10
         let i = Operation::Insert {
-            table_name: "test".to_string(),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -328,8 +327,7 @@ mod tests {
         };
         let o = agg.aggregate(&mut store, i);
         assert_eq!(o.unwrap()[0], Operation::Insert {
-            table_name: "".to_string(),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(10)
@@ -338,8 +336,7 @@ mod tests {
 
         // Insert another 10
         let i = Operation::Insert {
-            table_name: "test".to_string(),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -348,13 +345,12 @@ mod tests {
         };
         let o = agg.aggregate(&mut store, i);
         assert_eq!(o.unwrap()[0], Operation::Update {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(10)
             ]),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(20)
@@ -363,14 +359,13 @@ mod tests {
 
         // update from 10 to 5
         let i = Operation::Update {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
                 Field::Int(10)
             ]),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -379,13 +374,12 @@ mod tests {
         };
         let o = agg.aggregate(&mut store, i);
         assert_eq!(o.unwrap()[0], Operation::Update {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(20)
             ]),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(15)
@@ -395,8 +389,7 @@ mod tests {
 
         // Delete 5
         let i = Operation::Delete {
-            table_name: "test".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -405,13 +398,12 @@ mod tests {
         };
         let o = agg.aggregate(&mut store, i);
         assert_eq!(o.unwrap()[0], Operation::Update {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(15)
             ]),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(10)
@@ -420,8 +412,7 @@ mod tests {
 
         // Delete last 10
         let i = Operation::Delete {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -430,8 +421,7 @@ mod tests {
         };
         let o = agg.aggregate(&mut store, i);
         assert_eq!(o.unwrap()[0], Operation::Delete {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::Int(10)
@@ -451,7 +441,7 @@ mod tests {
         let mut store = MemoryStateStore::new();
 
         let agg = SizedAggregationDataset::new(
-            0x02_u16, &mut store, 0,
+            0x02_u16, &mut store, None,
             vec![
                 FieldRule::Dimension(0), // City
                 FieldRule::Dimension(1), // Country
@@ -461,8 +451,7 @@ mod tests {
 
         // Insert 10
         let i = Operation::Insert {
-            table_name: "test".to_string(),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -473,8 +462,7 @@ mod tests {
 
         // Insert 10
         let i = Operation::Insert {
-            table_name: "test".to_string(),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -485,14 +473,13 @@ mod tests {
 
 
         let i = Operation::Update {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
                 Field::Int(10)
             ]),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Brescia".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -502,21 +489,19 @@ mod tests {
         let o = agg.aggregate(&mut store, i);
         assert_eq!(o.unwrap(), vec![
             Operation::Update {
-                table_name: "".to_string(),
-                old: Record::new(0, vec![
+                old: Record::new(None, vec![
                     Field::String("Milan".to_string()),
                     Field::String("Lombardy".to_string()),
                     Field::Int(20)
                 ]),
-                new: Record::new(0, vec![
+                new: Record::new(None, vec![
                     Field::String("Milan".to_string()),
                     Field::String("Lombardy".to_string()),
                     Field::Int(10)
                 ])
             },
             Operation::Insert {
-                table_name: "".to_string(),
-                new: Record::new(0, vec![
+                new: Record::new(None, vec![
                     Field::String("Brescia".to_string()),
                     Field::String("Lombardy".to_string()),
                     Field::Int(10)
@@ -526,14 +511,13 @@ mod tests {
 
 
         let i = Operation::Update {
-            table_name: "".to_string(),
-            old: Record::new(0, vec![
+            old: Record::new(None, vec![
                 Field::String("Milan".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
                 Field::Int(10)
             ]),
-            new: Record::new(0, vec![
+            new: Record::new(None, vec![
                 Field::String("Brescia".to_string()),
                 Field::String("Lombardy".to_string()),
                 Field::String("Italy".to_string()),
@@ -543,21 +527,19 @@ mod tests {
         let o = agg.aggregate(&mut store, i);
         assert_eq!(o.unwrap(), vec![
             Operation::Delete {
-                table_name: "".to_string(),
-                old: Record::new(0, vec![
+                old: Record::new(None, vec![
                     Field::String("Milan".to_string()),
                     Field::String("Lombardy".to_string()),
                     Field::Int(10)
                 ])
             },
             Operation::Update {
-                table_name: "".to_string(),
-                old: Record::new(0, vec![
+                old: Record::new(None, vec![
                     Field::String("Brescia".to_string()),
                     Field::String("Lombardy".to_string()),
                     Field::Int(10)
                 ]),
-                new: Record::new(0, vec![
+                new: Record::new(None, vec![
                     Field::String("Brescia".to_string()),
                     Field::String("Lombardy".to_string()),
                     Field::Int(20)
@@ -580,7 +562,7 @@ mod tests {
         let mut store = ss.init_state_store("test".to_string()).unwrap();
 
         let agg = SizedAggregationDataset::new(
-            0x02_u16, store.as_mut(), 100,
+            0x02_u16, store.as_mut(), None,
             vec![
                 FieldRule::Dimension(0), // City
                 FieldRule::Dimension(1), // Region
@@ -595,8 +577,7 @@ mod tests {
             let num = rand::thread_rng().gen_range(0..100000);
 
             let op = Operation::Insert {
-                table_name: "test".to_string(),
-                new: Record::new(0, vec![
+                new: Record::new(None, vec![
                     Field::String(format!("Milan{}", 1).to_string()),
                     Field::String("Italy".to_string()),
                     Field::String("Lombardy".to_string()),
