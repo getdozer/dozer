@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Field {
     Int(i64),
     Float(f64),
@@ -15,63 +15,117 @@ pub enum Field {
     #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     Timestamp(DateTime<Utc>),
     Bson(Vec<u8>),
+    RecordArray(Vec<Record>),
     Null,
-    Invalid(String),
+    Invalid
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum FieldType {
+    Int,
+    Float,
+    Boolean,
+    String,
+    Binary,
+    Decimal,
+    Timestamp,
+    Bson,
+    RecordArray(Schema),
+    Null,
+    Invalid
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct FieldDefinition {
+    name: String,
+    typ: FieldType,
+    nullable: bool
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct SchemaIdentifier {
+    id: u32,
+    version: u16
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Schema {
-    pub id: String,
-    pub field_names: Vec<String>,
-    pub field_types: Vec<Field>,
-    pub _idx: HashMap<String, usize>,
-    pub _ctr: u16,
+
+    /// Unique identifier and version for this schema. This value is required only if teh schema
+    /// is represented by a valid entry in teh schema registry. For nested schemas, this field
+    /// is not applicable
+    id: Option<SchemaIdentifier>,
+
+    /// fields contains a list of FieldDefinition for all teh fields that appear in a record.
+    /// Not necessarily all these fields will end up in teh final object structure stored in
+    /// the cache. Some fields might only be used for indexing purposes only.
+    fields: Vec<FieldDefinition>,
+
+    /// Indexes of the fields representing values that will appear in teh final object stored
+    /// in teh cache
+    values: Vec<usize>,
+
+    /// Indexes of the fields forming the primary key for this schema. If the value is empty
+    /// only Insert Operation are supported. Updates and Deletes are not supported without a
+    /// primary key definition
+    primary_index: Vec<usize>,
+
+    // Secondary indexes definitions
+    secondary_indexes: Vec<IndexDefinition>
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum IndexType {
+    SortedInverted,
+    HashInverted
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct IndexDefinition {
+    /// Indexes of the fields forming the index key
+    fields: Vec<usize>,
+    /// Type of index (i.e. hash inverted index, tree inverted index, full-text index, geo index, facet index, etc)
+    typ: IndexType
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Record {
-    pub values: Vec<Field>,
-    pub schema_id: u64,
+    /// Schema implemented by this Record
+    schema_id: Option<SchemaIdentifier>,
+    /// List of values, following the definitions of `fields` of the asscoiated schema
+    values: Vec<Field>,
 }
 
+
 impl Record {
-    pub fn new(schema_id: u64, values: Vec<Field>) -> Record {
+    pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
         Record { schema_id, values }
     }
-    pub fn nulls(schema_id: u64, size: usize) -> Record { Record { schema_id, values: vec![Field::Null; size] } }
+    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize) -> Record { Record { schema_id, values: vec![Field::Null; size] } }
     pub fn set_value(&mut self, idx: usize, value: Field) { self.values[idx] = value; }
 }
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OperationEvent {
-    pub id: u32,
+    pub seq_no: u64,
     pub operation: Operation,
 }
 
 impl OperationEvent {
-    pub fn new(id: u32, operation: Operation) -> Self {
-        Self { id, operation }
+    pub fn new(seq_no: u64, operation: Operation) -> Self {
+        Self { seq_no, operation }
     }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Operation {
-    Delete {
-        table_name: String,
-        old: Record,
-    },
-    Insert {
-        table_name: String,
-        new: Record,
-    },
-    Update {
-        table_name: String,
-        old: Record,
-        new: Record,
-    },
-    Terminate,
+    Delete { old: Record },
+    Insert { new: Record },
+    Update { old: Record, new: Record },
+    Terminate
 }
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TableInfo {
     pub table_name: String,
@@ -86,24 +140,4 @@ pub struct ColumnInfo {
 }
 
 
-impl Schema {
-    pub fn new(id: String, field_names: Vec<String>, field_types: Vec<Field>) -> Schema {
-        let mut indexes = HashMap::new();
-        let mut c = 0;
-        for i in field_names.iter() {
-            indexes.insert(i.clone(), c);
-            c = c + 1;
-        }
-        Schema {
-            id,
-            field_names,
-            field_types,
-            _idx: indexes,
-            _ctr: 0,
-        }
-    }
 
-    pub fn get_column_index(&self, name: String) -> Option<&usize> {
-        self._idx.get(&name)
-    }
-}
