@@ -1,16 +1,16 @@
-use crate::connectors::ingestor::{IngestionMessage, Ingestor};
+use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
-use dozer_shared::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
 use postgres_protocol::message::backend::{
     LogicalReplicationMessage, RelationBody, TupleData, XLogDataBody,
 };
+use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 
 struct MessageBody<'a> {
     message: &'a RelationBody,
@@ -33,6 +33,7 @@ pub struct TableColumn {
     pub name: String,
     pub type_id: i32,
     pub flags: i8,
+    pub r#type: Option<Type>,
 }
 
 impl Hash for MessageBody<'_> {
@@ -62,9 +63,7 @@ impl XlogMapper {
     pub fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
-        ingestor: Arc<Ingestor>,
-        messages_buffer: &mut Vec<XLogDataBody<LogicalReplicationMessage>>,
-    ) {
+    ) -> Option<IngestionMessage> {
         match &message.data() {
             Relation(relation) => {
                 println!("relation:");
@@ -79,11 +78,13 @@ impl XlogMapper {
                 let table_option = self.relations_map.get(&relation.rel_id());
                 match table_option {
                     None => {
-                        self.ingest_schema(relation, ingestor, hash);
+                        let schema_change = self.ingest_schema(relation, hash);
+                        return Option::from(schema_change);
                     }
                     Some(table) => {
                         if table.hash != hash {
-                            self.ingest_schema(relation, ingestor, hash);
+                            let schema_change = self.ingest_schema(relation, hash);
+                            return Option::from(schema_change);
                         }
                     }
                 }
@@ -91,22 +92,82 @@ impl XlogMapper {
             Commit(commit) => {
                 println!("commit:");
                 println!("[Commit] End lsn: {}", commit.end_lsn());
-                let operation_events = self.map_operation_events(messages_buffer);
-                for event in operation_events {
-                    ingestor.handle_message(IngestionMessage::OperationEvent(event));
-                }
+
+                return Option::from(IngestionMessage::Commit());
             }
             Begin(begin) => {
                 println!("begin:");
                 println!("[Begin] Transaction id: {}", begin.xid());
-                messages_buffer.clear();
+                return Option::from(IngestionMessage::Begin());
+            }
+            Insert(insert) => {
+                let table = self.relations_map.get(&insert.rel_id()).unwrap();
+                let new_values = insert.tuple().tuple_data();
+
+                let values = Self::convert_values_to_fields(table, new_values);
+
+                let event = OperationEvent {
+                    operation: Operation::Insert {
+                        table_name: table.name.clone(),
+                        new: Record {
+                            values,
+                            schema_id: table.rel_id as u64,
+                        },
+                    },
+                    id: 0,
+                };
+
+                return Option::from(IngestionMessage::OperationEvent(event));
+            }
+            Update(update) => {
+                let table = self.relations_map.get(&update.rel_id()).unwrap();
+                let new_values = update.new_tuple().tuple_data();
+
+                let values = Self::convert_values_to_fields(table, new_values);
+                let event = OperationEvent {
+                    operation: Operation::Update {
+                        table_name: table.name.clone(),
+                        old: Record {
+                            values: vec![],
+                            schema_id: table.rel_id as u64,
+                        },
+                        new: Record {
+                            values,
+                            schema_id: table.rel_id as u64,
+                        },
+                    },
+                    id: 0,
+                };
+
+                return Option::from(IngestionMessage::OperationEvent(event));
+            }
+            Delete(delete) => {
+                // TODO: Use only columns with .flags() = 0
+                let table = self.relations_map.get(&delete.rel_id()).unwrap();
+                let key_values = delete.key_tuple().unwrap().tuple_data();
+
+                let values = Self::convert_values_to_fields(table, key_values);
+
+                let event = OperationEvent {
+                    operation: Operation::Delete {
+                        table_name: table.name.clone(),
+                        old: Record {
+                            values,
+                            schema_id: table.rel_id as u64,
+                        },
+                    },
+                    id: 0,
+                };
+
+                return Option::from(IngestionMessage::OperationEvent(event));
             }
             _ => {}
         }
-        messages_buffer.push(message);
+
+        return None;
     }
 
-    fn ingest_schema(&mut self, relation: &RelationBody, ingestor: Arc<Ingestor>, hash: u64) {
+    fn ingest_schema(&mut self, relation: &RelationBody, hash: u64) -> IngestionMessage {
         let rel_id = relation.rel_id();
         let columns: Vec<TableColumn> = relation
             .columns()
@@ -115,6 +176,7 @@ impl XlogMapper {
                 name: String::from(column.name().unwrap()),
                 type_id: column.type_id(),
                 flags: column.flags(),
+                r#type: Type::from_oid(column.type_id() as u32),
             })
             .collect();
 
@@ -143,89 +205,20 @@ impl XlogMapper {
 
         self.relations_map.insert(rel_id, table);
 
-        ingestor.handle_message(IngestionMessage::Schema(schema));
+        IngestionMessage::Schema(schema)
     }
 
-    fn convert_values_to_vec(table: &Table, new_values: &[TupleData]) -> Vec<Field> {
+    fn convert_values_to_fields(table: &Table, new_values: &[TupleData]) -> Vec<Field> {
         let mut values: Vec<Field> = vec![];
 
         for i in 0..new_values.len() {
             let value = new_values.get(i).unwrap();
             let column = table.columns.get(i).unwrap();
             if let TupleData::Text(text) = value {
-                values.push(helper::postgres_type_to_bytes(text, column));
+                values.push(helper::postgres_type_to_field(text, column));
             }
         }
 
         values
-    }
-
-    fn map_operation_events(
-        &mut self,
-        buffer: &Vec<XLogDataBody<LogicalReplicationMessage>>,
-    ) -> Vec<OperationEvent> {
-        let mut operations: Vec<OperationEvent> = vec![];
-        for message in buffer.iter() {
-            match message.data() {
-                Insert(insert) => {
-                    let table = self.relations_map.get(&insert.rel_id()).unwrap();
-                    let new_values = insert.tuple().tuple_data();
-
-                    let values = Self::convert_values_to_vec(table, new_values);
-
-                    operations.push(OperationEvent {
-                        operation: Operation::Insert {
-                            table_name: table.name.clone(),
-                            new: Record {
-                                values,
-                                schema_id: table.rel_id as u64,
-                            },
-                        },
-                        id: 0,
-                    });
-                }
-                Update(update) => {
-                    let table = self.relations_map.get(&update.rel_id()).unwrap();
-                    let new_values = update.new_tuple().tuple_data();
-
-                    let values = Self::convert_values_to_vec(table, new_values);
-                    operations.push(OperationEvent {
-                        operation: Operation::Update {
-                            table_name: table.name.clone(),
-                            old: Record {
-                                values: vec![],
-                                schema_id: table.rel_id as u64,
-                            },
-                            new: Record {
-                                values,
-                                schema_id: table.rel_id as u64,
-                            },
-                        },
-                        id: 0,
-                    });
-                }
-                Delete(delete) => {
-                    // TODO: Use only columns with .flags() = 0
-                    let table = self.relations_map.get(&delete.rel_id()).unwrap();
-                    let key_values = delete.key_tuple().unwrap().tuple_data();
-
-                    let values = Self::convert_values_to_vec(table, key_values);
-
-                    operations.push(OperationEvent {
-                        operation: Operation::Delete {
-                            table_name: table.name.clone(),
-                            old: Record {
-                                values,
-                                schema_id: table.rel_id as u64,
-                            },
-                        },
-                        id: 0,
-                    });
-                }
-                _ => {}
-            }
-        }
-
-        operations
     }
 }

@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use dozer_shared::types::*;
+use dozer_types::types::*;
 use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
 pub trait Storage<T> {
     fn new(storage_config: T) -> Self;
 }
 
-#[derive(Clone, Debug)]
 pub struct RocksStorage {
     _config: RocksConfig,
     db: Arc<DBWithThreadMode<SingleThreaded>>,
@@ -25,15 +24,8 @@ impl Storage<RocksConfig> for RocksStorage {
         }
     }
 }
-impl RocksStorage {
-    pub fn insert_operation_event(&self, op: &OperationEvent) {
-        let db = Arc::clone(&self.db);
-        let key = self._get_operation_key(op).to_owned();
-        let key: &[u8] = key.as_ref();
-        let encoded: Vec<u8> = bincode::serialize(op).unwrap();
-        db.put(key, encoded).unwrap();
-    }
 
+impl RocksStorage {
     pub fn get_estimate_key_count(&self) -> u64 {
         let db = Arc::clone(&self.db);
         let count: u64 = db
@@ -48,12 +40,16 @@ impl RocksStorage {
         let _ = DB::destroy(&Options::default(), path);
     }
 
-    pub fn insert_schema(&self, schema: &Schema) {
-        let db = Arc::clone(&self.db);
+    pub fn map_schema(&self, schema: &Schema) -> (Vec<u8>, Vec<u8>) {
         let key = self.get_schema_key(schema).to_owned();
-        let key: &[u8] = key.as_ref();
         let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
-        db.put(key, encoded).unwrap();
+        (key, encoded)
+    }
+
+    pub fn map_operation_event(&self, op: &OperationEvent) -> (Vec<u8>, Vec<u8>) {
+        let key = self._get_operation_key(op).to_owned();
+        let encoded: Vec<u8> = bincode::serialize(op).unwrap();
+        (key, encoded)
     }
 
     pub fn get_operation_event(&self, id: i32) -> OperationEvent {
@@ -62,6 +58,10 @@ impl RocksStorage {
         let returned_bytes = db.get(key).unwrap().unwrap();
         let op: OperationEvent = bincode::deserialize(returned_bytes.as_ref()).unwrap();
         op
+    }
+
+    pub fn get_db(&self) -> Arc<DBWithThreadMode<SingleThreaded>> {
+        Arc::clone(&self.db)
     }
 
     fn _get_operation_key(&self, op: &OperationEvent) -> Vec<u8> {
@@ -76,6 +76,7 @@ impl RocksStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
 
     #[test]
     fn serialize_and_deserialize() {
@@ -92,7 +93,11 @@ mod tests {
             path: "./db/test".to_string(),
         };
         let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
-        storage_client.insert_operation_event(&op);
+
+        let (key, encoded) = storage_client.map_operation_event(&op);
+        let mut writer = BatchedRocksDbWriter::new();
+        writer.insert(key.as_ref(), encoded);
+        writer.commit(&storage_client);
 
         let op2 = storage_client.get_operation_event(1);
         assert_eq!(op2.id, op.id);
