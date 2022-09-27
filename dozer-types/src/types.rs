@@ -16,7 +16,7 @@ pub enum Field {
     Bson(Vec<u8>),
     RecordArray(Vec<Record>),
     Null,
-    Invalid,
+    Invalid(String),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -29,9 +29,7 @@ pub enum FieldType {
     Decimal,
     Timestamp,
     Bson,
-    RecordArray(Schema),
-    Null,
-    Invalid,
+    RecordArray(Schema)
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]

@@ -95,7 +95,7 @@ impl Expression for Not {
 
 #[test]
 fn test_bool_bool_and() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let l = Box::new(true);
     let r = Box::new(false);
     let op = And::new(l, r);
@@ -104,7 +104,7 @@ fn test_bool_bool_and() {
 
 #[test]
 fn test_bool_bool_or() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let l = Box::new(true);
     let r = Box::new(false);
     let op = Or::new(l, r);
@@ -113,7 +113,7 @@ fn test_bool_bool_or() {
 
 #[test]
 fn test_bool_not() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let v = Box::new(true);
     let op = Not::new(v);
     assert!(matches!(op.get_result(&row), Field::Boolean(false)));
@@ -121,7 +121,7 @@ fn test_bool_not() {
 
 #[test]
 fn test_int_bool_and() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let l = Box::new(1);
     let r = Box::new(true);
     let op = And::new(l, r);

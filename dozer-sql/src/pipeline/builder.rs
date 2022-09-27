@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
 use crate::pipeline::expression::logical::{And, Not, Or};
@@ -13,21 +14,26 @@ use dozer_core::dag::node::NextStep::Continue;
 use dozer_core::dag::node::{
     ChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source,
 };
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema as DozerSchema};
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator,
     Value as SqlValue,
 };
 use std::rc::Rc;
 use std::sync::Arc;
+use sqlparser::ast::ObjectType::Schema;
 
 pub struct PipelineBuilder {
-    schema: Schema,
+    schema: DozerSchema,
+    schema_idx: HashMap<String, usize>
 }
 
 impl PipelineBuilder {
-    pub fn new(schema: Schema) -> PipelineBuilder {
-        Self { schema }
+    pub fn new(schema: DozerSchema) -> PipelineBuilder {
+        Self {
+            schema_idx: schema.fields.iter().enumerate().map(|e| (e.1.name.clone(), e.0)).collect(),
+            schema
+        }
     }
 
     pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, NodeHandle)> {
@@ -88,7 +94,7 @@ impl PipelineBuilder {
     fn parse_sql_expression(&self, expression: SqlExpr) -> Result<Box<dyn Expression>> {
         match expression {
             SqlExpr::Identifier(ident) => Ok(Box::new(Column::new(
-                *self.schema.get_column_index(ident.value).unwrap(),
+                *self.schema_idx.get(&ident.value).unwrap(),
             ))),
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
@@ -211,8 +217,7 @@ impl Source for SqlTestSource {
                 OperationEvent::new(
                     n,
                     Operation::Insert {
-                        table_name: "test".to_string(),
-                        new: Record::new(1, vec![Field::Int(2000)]),
+                        new: Record::new(None, vec![Field::Int(2000)]),
                     },
                 ),
                 None,
@@ -270,11 +275,14 @@ fn test_pipeline_builder() {
 
     let statement: &Statement = &ast[0];
 
-    let builder = PipelineBuilder::new(Schema::new(
-        String::from("schema"),
-        vec![String::from("Spending")],
-        vec![Field::Int(2000)],
-    ));
+    let schema = DozerSchema {
+        fields: vec![
+            FieldDefinition {name: String::from("Spending"), typ: FieldType::Int, nullable: false}
+        ],
+        values: vec![0], primary_index: vec![], secondary_indexes: vec![], identifier: None
+    };
+
+    let builder = PipelineBuilder::new(schema);
     let (mut dag, proc_handle) = builder.statement_to_pipeline(statement.clone()).unwrap();
 
     let source = SqlTestSource::new(1, None);
