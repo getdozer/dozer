@@ -5,15 +5,15 @@ use std::{
 
 use crate::cache::utils;
 use dozer_types::types::Record;
-use lmdb::{Database, DatabaseFlags, Environment, RwTransaction, WriteFlags};
+use lmdb::{Database, Environment, RwTransaction, WriteFlags};
 
 struct Cache<'a> {
     env: Environment,
     db: Database,
-    txn: RefCell<Option<Arc<Mutex<RwTransaction<'a>>>>>,
+    txn: RefCell<Option<Mutex<RwTransaction<'a>>>>,
 }
 
-impl Cache<'_> {
+impl<'a> Cache<'a> {
     fn new() -> Self {
         let (env, db) = utils::init_db();
         Self {
@@ -23,13 +23,13 @@ impl Cache<'_> {
         }
     }
 
-    pub fn begin_rw_txn<'env>(&'env self) {
+    pub fn begin(&'a self) {
         let txn = self.env.begin_rw_txn().unwrap();
 
-        // self.txn.replace(Some(Arc::new(Mutex::new(txn))));
+        self.txn.replace(Some(Mutex::new(txn)));
     }
 
-    pub fn insert_record(&self, rec: Record) {
+    pub fn insert(&self, rec: Record) {
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
 
         self.txn
@@ -45,5 +45,15 @@ impl Cache<'_> {
                 WriteFlags::default(),
             )
             .unwrap();
+    }
+
+    pub fn delete(&self, key: String) {}
+
+    pub fn get(&self, key: String) -> Record {
+        todo!()
+    }
+
+    pub fn query(&self, key: String) -> Vec<Record> {
+        todo!()
     }
 }
