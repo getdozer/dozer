@@ -6,6 +6,8 @@ diesel::table! {
         auth -> Text,
         name -> Text,
         db_type -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -21,6 +23,8 @@ diesel::table! {
         source_ids -> Text,
         history_type -> Text,
         refresh_config -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -30,9 +34,11 @@ diesel::table! {
         name -> Text,
         dest_table_name -> Text,
         source_table_name -> Text,
-        connection_id -> Nullable<Text>,
+        connection_id -> Text,
         history_type -> Text,
         refresh_config -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 

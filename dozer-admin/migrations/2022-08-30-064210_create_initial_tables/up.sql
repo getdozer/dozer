@@ -4,7 +4,10 @@ create table connections
     id TEXT NOT NULL PRIMARY KEY,
     auth TEXT default '{}' not null,
     name TEXT not null,
-    db_type text not null
+    db_type text not null,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+
 );
 
 create table sources
@@ -13,11 +16,13 @@ create table sources
     name TEXT NOT NULL,
     dest_table_name  TEXT NOT NULL,
     source_table_name TEXT NOT NULL,
-    connection_id         TEXT
+    connection_id     TEXT NOT NULL
         constraint foreign_key_name
             references connections (id),
     history_type TEXT NOT NULL,
-    refresh_config TEXT NOT NULL
+    refresh_config TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 create table endpoints
@@ -31,5 +36,7 @@ create table endpoints
     data_maper TEXT NOT NULL,
     source_ids TEXT NOT NULL,
     history_type TEXT NOT NULL,
-    refresh_config TEXT NOT NULL
+    refresh_config TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

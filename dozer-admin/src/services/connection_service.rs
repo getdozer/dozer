@@ -151,7 +151,6 @@ mod test {
         create_connection_request::Authentication, CreateConnectionRequest,
         GetAllConnectionRequest, PostgresAuthentication,
     };
-    use mockall::mock;
     #[test]
     fn success_save_connection() {
         let create_connection_request: CreateConnectionRequest = CreateConnectionRequest {
