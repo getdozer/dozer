@@ -1,19 +1,10 @@
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hasher;
-use std::mem::{size_of, size_of_val};
-use std::path::Path;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::mem::size_of_val;
 use ahash::AHasher;
-use lmdb::{Database, DatabaseFlags, Environment, Error, RwTransaction, Transaction, WriteFlags};
-use lmdb::Error::NotFound;
 use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
 use dozer_types::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
 use crate::aggregation::Aggregator;
 use crate::state::{StateStore, StateStoreError, StateStoreErrorType};
-use crate::state::StateStoreErrorType::{AggregatorError, GetOperationError, OpenOrCreateError, SchemaMismatchError, StoreOperationError, TransactionError};
 
 
 pub enum FieldRule {
@@ -113,7 +104,7 @@ impl SizedAggregationDataset {
 
         for measure in &self.out_measures {
 
-            let mut curr_state_slice = if curr_state.is_none() { None } else {
+            let curr_state_slice = if curr_state.is_none() { None } else {
                 let len = u16::from_ne_bytes(curr_state.unwrap()[offset .. offset + 2].try_into().unwrap());
                 if len == 0 { None } else {
                     Some(&curr_state.unwrap()[offset + 2..offset + 2 + len as usize])
@@ -132,9 +123,9 @@ impl SizedAggregationDataset {
             };
 
             next_state.extend((next_state_slice.len() as u16).to_ne_bytes());
-            offset += (next_state_slice.len() + 2);
+            offset += next_state_slice.len() + 2;
 
-            if (next_state_slice.len() > 0) {
+            if next_state_slice.len() > 0 {
                 let next_value = measure.0.get_value(next_state_slice.as_slice());
                 next_state.extend(next_state_slice);
                 out_rec_insert.values[measure.1] = next_value;
@@ -152,7 +143,7 @@ impl SizedAggregationDataset {
 
         let bytes = store.get(key.as_slice())?;
         let curr_count = if bytes.is_some() { u64::from_ne_bytes(bytes.unwrap().try_into().unwrap()) } else {0_u64};
-        store.put(key.as_slice(), (if decr {curr_count - delta} else {curr_count + delta}).to_ne_bytes().as_slice());
+        store.put(key.as_slice(), (if decr {curr_count - delta} else {curr_count + delta}).to_ne_bytes().as_slice())?;
         Ok(curr_count)
     }
 
@@ -202,7 +193,7 @@ impl SizedAggregationDataset {
         let record_key = self.get_record_key(record_hash, self.dataset_id)?;
 
         let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
-        let prev_count = self.update_segment_count(store, record_count_key, 1, false)?;
+        self.update_segment_count(store, record_count_key, 1, false)?;
 
         let curr_state = store.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
@@ -266,7 +257,7 @@ impl SizedAggregationDataset {
                 let old_record_hash = self.get_record_hash(&old)?;
                 let new_record_hash = self.get_record_hash(&new)?;
 
-                if (old_record_hash == new_record_hash) {
+                if old_record_hash == new_record_hash {
                     Ok(vec![self.agg_update(store, old, new, old_record_hash)?])
                 }
                 else {
@@ -279,7 +270,7 @@ impl SizedAggregationDataset {
     }
 
 
-    fn get_accumulated(&self, store: &mut dyn StateStore, key: &[u8]) -> Result<Option<Field>, StateStoreError> {
+    fn get_accumulated(&self, _store: &mut dyn StateStore, _key: &[u8]) -> Result<Option<Field>, StateStoreError> {
         todo!();
     }
 }
@@ -289,17 +280,13 @@ impl SizedAggregationDataset {
 
 mod tests {
 
-    use std::collections::HashMap;
     use std::fs;
     use std::path::Path;
-    use bytemuck::{from_bytes, from_bytes_mut};
     use dozer_types::types::{Field, Operation, Record};
-    use rand::Rng;
     use crate::aggregation::groupby::{FieldRule, SizedAggregationDataset};
     use crate::aggregation::operators::IntegerSumAggregator;
     use crate::state::lmdb::LmdbStateStoreManager;
     use crate::state::memory::MemoryStateStore;
-    use crate::state::StateStore;
 
 
     #[test]
@@ -427,9 +414,6 @@ mod tests {
                 Field::Int(10)
             ])
         });
-
-
-
         println!("ciao")
 
 
@@ -458,7 +442,7 @@ mod tests {
                 Field::Int(10)
             ])
         };
-        let o = agg.aggregate(&mut store, i);
+        assert!(agg.aggregate(&mut store, i).is_ok());
 
         // Insert 10
         let i = Operation::Insert {
@@ -469,7 +453,7 @@ mod tests {
                 Field::Int(10)
             ])
         };
-        let o = agg.aggregate(&mut store, i);
+        assert!(agg.aggregate(&mut store, i).is_ok());
 
 
         let i = Operation::Update {
@@ -554,8 +538,7 @@ mod tests {
     #[test]
     fn perf_test() {
 
-        fs::remove_dir_all(".data");
-        fs::create_dir(".data");
+        fs::create_dir(".data").is_ok();
 
         let sm = LmdbStateStoreManager::new(Path::new(".data"), 1024*1024*1024*10);
         let ss = sm.unwrap();
@@ -572,9 +555,7 @@ mod tests {
         ).unwrap();
 
 
-        for i in 0..1000000 {
-
-            let num = rand::thread_rng().gen_range(0..100000);
+        for _i in 0..1000000 {
 
             let op = Operation::Insert {
                 new: Record::new(None, vec![
@@ -590,10 +571,10 @@ mod tests {
                 ])
             };
 
-            let v = agg.aggregate(store.as_mut(), op);
-            fs::remove_dir_all(".data");
+            assert!(agg.aggregate(store.as_mut(), op).is_ok());
 
         }
+        fs::remove_dir_all(".data").is_ok();
 
 
 
