@@ -97,7 +97,7 @@ define_cmp_oper!(Gte, |l, r| { l >= r });
 
 #[test]
 fn test_float_float_eq() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let f0 = Box::new(1.3);
     let f1 = Box::new(1.3);
     let eq = Eq::new(f0, f1);
@@ -106,7 +106,7 @@ fn test_float_float_eq() {
 
 #[test]
 fn test_float_int_eq() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let f0 = Box::new(1.0);
     let f1 = Box::new(1);
     let eq = Eq::new(f0, f1);
@@ -115,7 +115,7 @@ fn test_float_int_eq() {
 
 #[test]
 fn test_int_float_eq() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let f0 = Box::new(1);
     let f1 = Box::new(1.0);
     let eq = Eq::new(f0, f1);
@@ -124,7 +124,7 @@ fn test_int_float_eq() {
 
 #[test]
 fn test_bool_bool_eq() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let f0 = Box::new(false);
     let f1 = Box::new(false);
     let eq = Eq::new(f0, f1);
@@ -133,7 +133,7 @@ fn test_bool_bool_eq() {
 
 #[test]
 fn test_str_str_eq() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let f0 = Box::new("abc".to_string());
     let f1 = Box::new("abc".to_string());
     let eq = Eq::new(f0, f1);

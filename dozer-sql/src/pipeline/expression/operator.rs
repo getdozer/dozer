@@ -78,14 +78,14 @@ impl Expression for Column {
 
 #[test]
 fn test_bool() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let v = true;
     assert!(matches!(v.get_result(&row), Field::Boolean(true)));
 }
 
 #[test]
 fn test_i32() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let v = i32::MAX;
     let c = Field::Int(i64::from_i32(i32::MAX).unwrap());
     assert!(matches!(v.get_result(&row), c));
@@ -93,14 +93,14 @@ fn test_i32() {
 
 #[test]
 fn test_i64() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let v = i64::MAX;
     assert!(matches!(v.get_result(&row), Field::Int(i64::MAX)));
 }
 
 #[test]
 fn test_f32() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let v = f32::MAX;
     let c = Field::Float(f64::from_f32(f32::MAX).unwrap());
     assert!(matches!(v.get_result(&row), c));
@@ -108,14 +108,14 @@ fn test_f32() {
 
 #[test]
 fn test_f64() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let v = f64::MAX;
     assert!(matches!(v.get_result(&row), Field::Float(f64::MAX)));
 }
 
 #[test]
 fn test_string() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let v = "Hello".to_string();
     let c = Field::String("Hello".to_string());
     assert!(matches!(v.get_result(&row), c));
@@ -123,7 +123,7 @@ fn test_string() {
 
 #[test]
 fn test_timestamp() {
-    let row = Record::new(0, vec![]);
+    let row = Record::new(None, vec![]);
     let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(61, 0), Utc);
     let v = Timestamp::new(time);
     assert!(matches!(v.get_result(&row), Field::Timestamp(time)));
@@ -131,7 +131,7 @@ fn test_timestamp() {
 
 #[test]
 fn test_column() {
-    let row = Record::new(0, vec![Field::Int(101), Field::Float(3.1337)]);
+    let row = Record::new(None, vec![Field::Int(101), Field::Float(3.1337)]);
     let v = Column::new(1);
     assert!(matches!(v.get_result(&row), Field::Float(3.1337)));
 }
