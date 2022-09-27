@@ -2,10 +2,10 @@ use crate::services::{connection_service::ConnectionService, source_service::Sou
 use dotenvy::dotenv;
 use std::env;
 use tonic::{transport::Server, Request, Response, Status};
-pub mod dozer_api_grpc {
-    tonic::include_proto!("dozer_api_grpc");
+pub mod dozer_admin_grpc {
+    tonic::include_proto!("dozer_admin_grpc");
 }
-use dozer_api_grpc::{
+use dozer_admin_grpc::{
     dozer_api_server::{DozerApi, DozerApiServer},
     CreateConnectionRequest, CreateConnectionResponse, CreateSourceRequest, CreateSourceResponse,
     GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,

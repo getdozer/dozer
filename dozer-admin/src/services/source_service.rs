@@ -3,7 +3,7 @@ use crate::{
         persistable::Persistable,
         pool::{establish_connection, DbPool},
     },
-    server::dozer_api_grpc::{
+    server::dozer_admin_grpc::{
         self,
         create_source_request::{self},
         CreateSourceRequest, CreateSourceResponse, ErrorResponse, GetSourceRequest,
@@ -55,7 +55,7 @@ impl SourceService {
                 connection
             }
         };
-        let history_type_value: dozer_api_grpc::HistoryType =
+        let history_type_value: dozer_admin_grpc::HistoryType =
             input.history_type.ok_or_else(|| ErrorResponse {
                 message: "Missing history type".to_owned(),
                 details: None,
@@ -90,7 +90,7 @@ impl SourceService {
                 details: None,
             })?;
         let source_info =
-            dozer_api_grpc::SourceInfo::try_from(source.clone()).map_err(|op| ErrorResponse {
+            dozer_admin_grpc::SourceInfo::try_from(source.clone()).map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
             })?;
@@ -105,7 +105,7 @@ impl SourceService {
             details: None,
         })?;
         let source_info =
-            dozer_api_grpc::SourceInfo::try_from(result.clone()).map_err(|op| ErrorResponse {
+            dozer_admin_grpc::SourceInfo::try_from(result.clone()).map_err(|op| ErrorResponse {
                 message: op.to_string(),
                 details: None,
             })?;

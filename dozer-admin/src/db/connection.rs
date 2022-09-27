@@ -81,7 +81,7 @@ impl Persistable<'_, Connection> for Connection {
         return Ok(response);
     }
 
-    fn update(pool: DbPool) -> Result<Connection, Box<dyn Error>> {
+    fn update(_pool: DbPool) -> Result<Connection, Box<dyn Error>> {
         todo!()
     }
 }

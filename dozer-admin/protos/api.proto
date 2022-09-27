@@ -1,5 +1,5 @@
 syntax = "proto3";
-package dozer_api_grpc;
+package dozer_admin_grpc;
 import "google/protobuf/any.proto";
 service DozerApi {
   rpc test_connection(TestConnectionRequest) returns (TestConnectionResponse);

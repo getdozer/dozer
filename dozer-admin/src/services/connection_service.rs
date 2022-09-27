@@ -7,7 +7,7 @@ use crate::{
         persistable::Persistable,
         pool::{establish_connection, DbPool},
     },
-    server::dozer_api_grpc::{
+    server::dozer_admin_grpc::{
         ConnectionDetails, ConnectionInfo, CreateConnectionRequest, CreateConnectionResponse,
         ErrorResponse, GetAllConnectionRequest, GetAllConnectionResponse,
         GetConnectionDetailsRequest, GetConnectionDetailsResponse, GetSchemaRequest,
@@ -147,7 +147,7 @@ impl ConnectionService {
 #[cfg(test)]
 mod test {
     use super::ConnectionService;
-    use crate::server::dozer_api_grpc::{
+    use crate::server::dozer_admin_grpc::{
         create_connection_request::Authentication, CreateConnectionRequest,
         GetAllConnectionRequest, PostgresAuthentication,
     };
