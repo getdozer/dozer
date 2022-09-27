@@ -28,11 +28,20 @@ pub struct Schema {
     pub _ctr: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Record {
     pub values: Vec<Field>,
     pub schema_id: u64,
 }
+
+impl Record {
+    pub fn new(schema_id: u64, values: Vec<Field>) -> Record {
+        Record { schema_id, values }
+    }
+    pub fn nulls(schema_id: u64, size: usize) -> Record { Record { schema_id, values: vec![Field::Null; size] } }
+    pub fn set_value(&mut self, idx: usize, value: Field) { self.values[idx] = value; }
+}
+
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OperationEvent {
@@ -46,7 +55,7 @@ impl OperationEvent {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Operation {
     Delete {
         table_name: String,
@@ -76,11 +85,6 @@ pub struct ColumnInfo {
     pub is_primary_key: bool,
 }
 
-impl Record {
-    pub fn new(schema_id: u64, values: Vec<Field>) -> Record {
-        Record { schema_id, values }
-    }
-}
 
 impl Schema {
     pub fn new(id: String, field_names: Vec<String>, field_types: Vec<Field>) -> Schema {
