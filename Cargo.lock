@@ -2092,19 +2092,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sql"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "dozer-core",
- "dozer-types",
- "log",
- "log4rs",
- "num-traits",
- "sqlparser",
-]
-
-[[package]]
 name = "sqlparser"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

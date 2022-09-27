@@ -8,6 +8,7 @@ use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
+use std::vec;
 
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     if let Some(column_type) = &column.r#type {
@@ -57,19 +58,19 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     }
 }
 
-pub fn postgres_type_to_dozer_type(col_type: Option<&Type>) -> Field {
+pub fn postgres_type_to_dozer_type(col_type: Option<&Type>) -> FieldType {
     if let Some(column_type) = col_type {
         match column_type {
-            &Type::INT4 | &Type::INT8 | &Type::INT2 => Field::Int(0),
-            &Type::TEXT => Field::String("".parse().unwrap()),
-            &Type::FLOAT4 | &Type::FLOAT8 => Field::Float(0.0),
-            &Type::BOOL => Field::Boolean(false),
-            &Type::BIT => Field::Binary(vec![]),
-            &Type::TIMESTAMP | &Type::TIMESTAMPTZ => Field::Timestamp(DateTime::default()),
-            _ => Field::Null,
+            &Type::INT4 | &Type::INT8 | &Type::INT2 => FieldType::Int,
+            &Type::TEXT => FieldType::String,
+            &Type::FLOAT4 | &Type::FLOAT8 => FieldType::Float,
+            &Type::BOOL => FieldType::Boolean,
+            &Type::BIT => FieldType::Binary,
+            &Type::TIMESTAMP | &Type::TIMESTAMPTZ => FieldType::Timestamp,
+            _ => FieldType::Null,
         }
     } else {
-        Field::Null
+        FieldType::Null
     }
 }
 
@@ -170,17 +171,14 @@ pub fn map_row_to_operation_event(
     idx: u32,
 ) -> OperationEvent {
     let rec = Record {
+        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
         values: get_values(row, columns),
-        schema_id: 1,
     };
 
-    let op = Operation::Insert {
-        table_name,
-        new: rec,
-    };
+    let op = Operation::Insert { new: rec };
     let evt: OperationEvent = OperationEvent {
         operation: op,
-        id: idx,
+        seq_no: idx as u64,
     };
     evt
 }
@@ -204,18 +202,22 @@ pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, p
     Ok(client)
 }
 
-pub fn map_schema(table_name: String, columns: &[Column]) -> Schema {
-    let field_names = columns.iter().map(|col| col.name().to_string()).collect();
-    let field_types = columns
+pub fn map_schema(_table_name: String, columns: &[Column]) -> Schema {
+    let field_defs = columns
         .iter()
-        .map(|col| postgres_type_to_dozer_type(Some(col.type_())))
+        .map(|col| FieldDefinition {
+            name: col.name().to_string(),
+            typ: postgres_type_to_dozer_type(Some(col.type_())),
+            nullable: true,
+        })
         .collect();
+
     Schema {
-        id: format!("{}_0", table_name),
-        field_names,
-        field_types,
-        _idx: Default::default(),
-        _ctr: 0,
+        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+        fields: field_defs,
+        values: vec![],
+        primary_index: vec![0],
+        secondary_indexes: vec![],
     }
 }
 

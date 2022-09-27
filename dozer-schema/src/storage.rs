@@ -67,7 +67,7 @@ impl RocksStorage {
         db.put(key, encoded).unwrap();
     }
 
-    pub fn get_schema(&self, schema_id: String) -> Schema {
+    pub fn get_schema(&self, schema_id: u32) -> Schema {
         let db = Arc::clone(&self.db);
         let key = format!("schema_{}", schema_id).as_bytes().to_owned();
 
@@ -77,6 +77,6 @@ impl RocksStorage {
     }
 
     fn get_schema_key(&self, schema: &Schema) -> Vec<u8> {
-        format!("schema_{}", schema.id).as_bytes().to_vec()
+        format!("schema_{}", schema.get_id()).as_bytes().to_vec()
     }
 }

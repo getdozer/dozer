@@ -47,12 +47,6 @@ impl RocksStorage {
         let _ = DB::destroy(&Options::default(), path);
     }
 
-    pub fn map_schema(&self, schema: &Schema) -> (Vec<u8>, Vec<u8>) {
-        let key = self.get_schema_key(schema).to_owned();
-        let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
-        (key, encoded)
-    }
-
     pub fn map_operation_event(&self, op: &OperationEvent) -> (Vec<u8>, Vec<u8>) {
         let key = self._get_operation_key(op).to_owned();
         let encoded: Vec<u8> = bincode::serialize(op).unwrap();
@@ -72,11 +66,7 @@ impl RocksStorage {
     }
 
     fn _get_operation_key(&self, op: &OperationEvent) -> Vec<u8> {
-        format!("operation_{}", op.id).as_bytes().to_vec()
-    }
-
-    fn get_schema_key(&self, schema: &Schema) -> Vec<u8> {
-        format!("schema_{}", schema.id).as_bytes().to_vec()
+        format!("operation_{}", op.seq_no).as_bytes().to_vec()
     }
 }
 
@@ -87,13 +77,13 @@ mod tests {
 
     #[test]
     fn serialize_and_deserialize() {
-        let record = Record::new(1, vec![Field::Int(1), Field::String("hello".to_string())]);
+        let record = Record::new(
+            Some(SchemaIdentifier { id: 1, version: 0 }),
+            vec![Field::Int(1), Field::String("hello".to_string())],
+        );
         let op = OperationEvent {
-            operation: Operation::Insert {
-                table_name: "actor".to_string(),
-                new: record,
-            },
-            id: 1,
+            operation: Operation::Insert { new: record },
+            seq_no: 1,
         };
 
         let storage_config = RocksConfig {
@@ -107,6 +97,6 @@ mod tests {
         writer.commit(&storage_client);
 
         let op2 = storage_client.get_operation_event(1);
-        assert_eq!(op2.id, op.id);
+        assert_eq!(op2.seq_no, op.seq_no);
     }
 }

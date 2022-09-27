@@ -17,7 +17,7 @@ pub const SCHEMA_PORT: u16 = 9005;
 pub trait SchemaRegistry {
     async fn ping() -> String;
     async fn insert(schema: Schema);
-    async fn get(schema_id: String) -> Schema;
+    async fn get(schema_id: u32) -> Schema;
 }
 
 pub async fn _get_client() -> anyhow::Result<SchemaRegistryClient> {
@@ -44,7 +44,7 @@ impl SchemaRegistry for SchemaRegistryServer {
         client.insert_schema(&schema);
     }
 
-    async fn get(self, _: tarpc::context::Context, schema_id: String) -> Schema {
+    async fn get(self, _: tarpc::context::Context, schema_id: u32) -> Schema {
         let client = self.storage_client.clone();
         client.get_schema(schema_id)
     }
@@ -104,23 +104,29 @@ pub async fn _serve(config: Option<RocksConfig>) -> anyhow::Result<()> {
 mod tests {
 
     use super::{client, context, SchemaRegistryClient};
-    use dozer_types::types::{Field, Schema};
+    use dozer_types::types::{Field, FieldDefinition, Schema, SchemaIdentifier};
     use std::{thread, time};
     use tokio::runtime::Runtime;
 
     use super::{_get_client, _serve, _serve_channel};
 
     async fn _run_test(client: SchemaRegistryClient) {
-        let schema = Schema::new(
-            "1".to_string(),
-            vec!["foo".to_string()],
-            vec![Field::String("bar".to_string())],
-        );
+        let schema = Schema {
+            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+            fields: vec![FieldDefinition {
+                name: "foo".to_string(),
+                typ: dozer_types::types::FieldType::String,
+                nullable: true,
+            }],
+            values: vec![0],
+            primary_index: vec![0],
+            secondary_indexes: vec![],
+        };
         // insert schema
         let ctx = context::current();
         client.insert(ctx, schema.clone()).await.unwrap();
 
-        let result = client.get(ctx, schema.clone().id).await.unwrap();
+        let result = client.get(ctx, schema.get_id()).await.unwrap();
         assert_eq!(result, schema.clone());
     }
 
