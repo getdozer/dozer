@@ -14,6 +14,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e6e951cfbb2db8de1828d49073a113a29fd7117b1596caa781a258c7e38d72"
+dependencies = [
+ "cfg-if",
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -213,7 +225,7 @@ version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d76085681585d39016f4d3841eb019201fc54d2dd0d92ad1e4fab3bfb32754"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "base64",
  "chrono",
  "hex",
@@ -232,6 +244,12 @@ name = "bumpalo"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1ad822118d20d2c234f427000d5acc36eabe1e29a348c89b63dd60b13f28e5d"
+
+[[package]]
+name = "bytemuck"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f5715e491b5a1598fc2bef5a606847b5dc1d48ea625bd3c02c00de8285591da"
 
 [[package]]
 name = "byteorder"
@@ -539,15 +557,19 @@ dependencies = [
 name = "dozer-core"
 version = "0.1.0"
 dependencies = [
+ "ahash 0.8.0",
  "async-trait",
  "blockingqueue",
+ "bytemuck",
  "chrono",
  "crossbeam",
  "dozer-types",
  "futures",
+ "lmdb",
  "log",
  "log4rs",
  "num-traits",
+ "rand 0.8.5",
  "sqlparser",
  "uuid",
 ]
@@ -2089,6 +2111,19 @@ checksum = "02e2d2db9033d13a1567121ddd7a095ee144db4e1ca1b1bda3419bc0da294ebd"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "sql"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dozer-core",
+ "dozer-types",
+ "log",
+ "log4rs",
+ "num-traits",
+ "sqlparser",
 ]
 
 [[package]]
