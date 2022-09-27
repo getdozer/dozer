@@ -1,11 +1,11 @@
 use crate::common::error::{DozerSqlError, Result};
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator, Value as SqlValue};
+use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator, Value as SqlValue};
 use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
 use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
 use crate::pipeline::expression::logical::{And, Not, Or};
 use crate::pipeline::expression::mathematical::{Add, Div, Mod, Mul, Sub};
-use crate::pipeline::expression::operator::{Column, Expression};
-
+use crate::pipeline::expression::operator::{Column, Expression, Function};
+use crate::pipeline::expression::scalar::ScalarFunction;
 
 pub struct ExpressionBuilder {
     schema: Schema,
@@ -38,6 +38,34 @@ impl ExpressionBuilder {
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported Expression.".to_string(),
             )),
+        }
+    }
+
+
+    fn parse_sql_function_arg(&self, argument: &FunctionArg) -> Result<Box<dyn Expression>> {
+        match argument {
+            FunctionArg::Named {
+                name: _,
+                arg: FunctionArgExpr::Expr(arg),
+            } => self.parse_sql_expression(arg),
+            FunctionArg::Named {
+                name: _,
+                arg: FunctionArgExpr::Wildcard,
+            } => Err(DozerSqlError::NotImplemented(format!(
+                "Unsupported qualified wildcard argument: {:?}",
+                argument
+            ))),
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
+                self.parse_sql_expression(arg)
+            }
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Err(DozerSqlError::NotImplemented(format!(
+                "Unsupported qualified wildcard argument: {:?}",
+                argument
+            ))),
+            _ => Err(DozerSqlError::NotImplemented(format!(
+                "Unsupported qualified wildcard argument: {:?}",
+                argument
+            )))
         }
     }
 

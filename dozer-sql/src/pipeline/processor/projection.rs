@@ -55,15 +55,15 @@ impl ProjectionBuilder {
     }
 
     pub fn get_processor(&self, projection: Vec<SelectItem>) -> Result<Arc<dyn Processor>> {
-        // let expression = projection.into_iter()
-        //     .map(|expr| {
-        //         self.sql_select_to_expression(&expr)
-        //     })
-        //     .flat_map(|result| match result {
-        //         Ok(vec) => vec.into_iter().map(Ok).collect(),
-        //         Err(err) => vec![Err(err)],
-        //     })
-        //     .collect::<Result<Vec<Box<dyn Expression>>>>();
+        let expression = projection.into_iter()
+            .map(|expr| {
+                self.sql_select_to_expression(&expr)
+            })
+            .flat_map(|result| match result {
+                Ok(vec) => vec.into_iter().map(Ok).collect(),
+                Err(err) => vec![Err(err)],
+            })
+            .collect::<Result<Vec<Box<dyn Expression>>>>();
         Ok(Arc::new(ProjectionProcessor::new(0, None, None)))
     }
 
@@ -72,7 +72,7 @@ impl ProjectionBuilder {
         sql: &SelectItem,
     ) -> Result<Vec<Box<dyn Expression>>> {
 
-        match sql {//self.expression_builder.parse_sql_expression(expr)
+        match sql {
             SelectItem::UnnamedExpr(sql_expr) => {
                 let expr = self.expression_builder.parse_sql_expression(sql_expr);
                 Ok(vec![expr.unwrap()])

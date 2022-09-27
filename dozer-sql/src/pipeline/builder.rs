@@ -144,9 +144,9 @@ impl Sink for SqlTestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, COUNT(CustomerID), SUM(Spending) \
+    let sql = "SELECT 1, 1+1, Country+1, COUNT(CustomerID), ROUND(SUM(ROUND(Spending))) \
                             FROM Customers \
-                            WHERE NOT (Spending >= 1000 AND Spending < 5000-Spending) \
+                            WHERE Spending >= 1000 \
                             GROUP BY Country \
                             HAVING COUNT(CustomerID) > 1;";
 
@@ -158,7 +158,7 @@ fn test_pipeline_builder() {
 
     let statement: &Statement = &ast[0];
 
-    let builder = PipelineBuilder::new(Schema::new(String::from("schema"), vec![String::from("Spending")], vec![Field::Int(2000)]));
+    let builder = PipelineBuilder::new(Schema::new(String::from("schema"), vec![String::from("Country"), String::from("CustomerID"), String::from("Spending")], vec![Field::String("Italy".to_string()), Field::Int(101), Field::Int(2000)]));
     let (mut dag, in_handle, out_handle) = builder.statement_to_pipeline(statement.clone()).unwrap();
 
     let source = SqlTestSource::new(1,None);
