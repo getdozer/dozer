@@ -1,4 +1,7 @@
-use crate::services::{connection_service::ConnectionService, source_service::SourceService};
+use crate::services::{
+    connection_service::ConnectionService, endpoint_service::EndpointService,
+    source_service::SourceService,
+};
 use dotenvy::dotenv;
 use std::env;
 use tonic::{transport::Server, Request, Response, Status};
@@ -7,17 +10,19 @@ pub mod dozer_admin_grpc {
 }
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
-    CreateConnectionRequest, CreateConnectionResponse, CreateSourceRequest, CreateSourceResponse,
-    GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
-    GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, GetSourceRequest,
-    GetSourceResponse, TestConnectionRequest, TestConnectionResponse,
-    UpdateConnectionRequest, UpdateConnectionResponse,
-    UpdateSourceRequest, UpdateSourceResponse
+    CreateConnectionRequest, CreateConnectionResponse, CreateEndpointRequest,
+    CreateEndpointResponse, CreateSourceRequest, CreateSourceResponse, GetAllConnectionRequest,
+    GetAllConnectionResponse, GetConnectionDetailsRequest, GetConnectionDetailsResponse,
+    GetEndpointRequest, GetEndpointResponse, GetSchemaRequest, GetSchemaResponse, GetSourceRequest,
+    GetSourceResponse, TestConnectionRequest, TestConnectionResponse, UpdateConnectionRequest,
+    UpdateConnectionResponse, UpdateEndpointRequest, UpdateEndpointResponse, UpdateSourceRequest,
+    UpdateSourceResponse,
 };
 
 pub struct GrpcService {
     connection_service: ConnectionService,
     source_service: SourceService,
+    endpoint_service: EndpointService,
 }
 
 #[tonic::async_trait]
@@ -48,18 +53,6 @@ impl DozerAdmin for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
-    async fn update_connection(
-        &self,
-        request: Request<UpdateConnectionRequest>,
-    ) -> Result<Response<UpdateConnectionResponse>, Status> {
-        let result = self
-            .connection_service
-            .update(request.into_inner());
-        match result {
-            Ok(response) => Ok(Response::new(response)),
-            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
-        }
-    }
     async fn get_connection_details(
         &self,
         request: Request<GetConnectionDetailsRequest>,
@@ -73,7 +66,6 @@ impl DozerAdmin for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
-
     async fn get_all_connections(
         &self,
         request: Request<GetAllConnectionRequest>,
@@ -100,11 +92,12 @@ impl DozerAdmin for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
-    async fn get_source(
+
+    async fn update_connection(
         &self,
-        request: Request<GetSourceRequest>,
-    ) -> Result<Response<GetSourceResponse>, Status> {
-        let result = self.source_service.get_source(request.into_inner());
+        request: Request<UpdateConnectionRequest>,
+    ) -> Result<Response<UpdateConnectionResponse>, Status> {
+        let result = self.connection_service.update(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -120,11 +113,53 @@ impl DozerAdmin for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
+    async fn get_source(
+        &self,
+        request: Request<GetSourceRequest>,
+    ) -> Result<Response<GetSourceResponse>, Status> {
+        let result = self.source_service.get_source(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
     async fn update_source(
         &self,
         request: Request<UpdateSourceRequest>,
     ) -> Result<Response<UpdateSourceResponse>, Status> {
-        let result =  self.source_service.update_source(request.into_inner());
+        let result = self.source_service.update_source(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+    async fn create_endpoint(
+        &self,
+        request: tonic::Request<CreateEndpointRequest>,
+    ) -> Result<tonic::Response<CreateEndpointResponse>, tonic::Status> {
+        let result = self.endpoint_service.create_endpoint(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn get_endpoint(
+        &self,
+        request: tonic::Request<GetEndpointRequest>,
+    ) -> Result<tonic::Response<GetEndpointResponse>, tonic::Status> {
+        let result = self.endpoint_service.get_endpoint(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn update_endpoint(
+        &self,
+        request: tonic::Request<UpdateEndpointRequest>,
+    ) -> Result<tonic::Response<UpdateEndpointResponse>, tonic::Status> {
+        let result = self.endpoint_service.update_endpoint(request.into_inner());
         match result {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
@@ -137,8 +172,9 @@ pub async fn get_server() -> Result<(), tonic::transport::Error> {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let grpc_service = GrpcService {
-        connection_service: ConnectionService::new(database_url.clone()),
-        source_service: SourceService::new(database_url),
+        connection_service: ConnectionService::new(database_url.to_owned()),
+        source_service: SourceService::new(database_url.to_owned()),
+        endpoint_service: EndpointService::new(database_url.to_owned()),
     };
     let server = DozerAdminServer::new(grpc_service);
     let server = tonic_web::config()

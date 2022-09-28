@@ -3,6 +3,8 @@ package dozer_admin_grpc;
 import "protos/connection/connection_info.proto";
 import "protos/connection/details.proto";
 import "protos/source/source_info.proto";
+import "protos/endpoint/endpoint_info.proto";
+
 service DozerAdmin {
   rpc test_connection(TestConnectionRequest) returns (TestConnectionResponse);
   rpc create_connection(CreateConnectionRequest) returns (CreateConnectionResponse);
@@ -14,6 +16,33 @@ service DozerAdmin {
   rpc create_source(CreateSourceRequest) returns (CreateSourceResponse);
   rpc get_source(GetSourceRequest) returns (GetSourceResponse);
   rpc update_source(UpdateSourceRequest) returns (UpdateSourceResponse);
+
+  rpc create_endpoint(CreateEndpointRequest) returns (CreateEndpointResponse);
+  rpc get_endpoint(GetEndpointRequest) returns (GetEndpointResponse);
+  rpc update_endpoint(UpdateEndpointRequest) returns (UpdateEndpointResponse);
+}
+
+message CreateEndpointRequest {
+  EndpointInfo info = 1;
+}
+
+message CreateEndpointResponse {
+  EndpointInfo info = 1;
+}
+
+message GetEndpointRequest {
+  string endpoint_id = 1;
+}
+message GetEndpointResponse {
+  EndpointInfo info = 1;
+}
+
+message UpdateEndpointRequest {
+  EndpointInfo info = 1;
+}
+
+message UpdateEndpointResponse {
+  EndpointInfo info = 1;
 }
 
 message TestConnectionRequest {

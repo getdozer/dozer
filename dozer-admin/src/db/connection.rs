@@ -1,10 +1,6 @@
 use crate::server::dozer_admin_grpc::{ConnectionInfo, ConnectionType, self};
-
-use super::persistable::Persistable;
-use super::pool::DbPool;
-use super::schema::{self, connections};
-use diesel::prelude::*;
-use diesel::{insert_into, ExpressionMethods};
+use super::{persistable::Persistable, pool::DbPool, schema::{self, connections}};
+use diesel::{prelude::*, insert_into, ExpressionMethods};
 use schema::connections::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
