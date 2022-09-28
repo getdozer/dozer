@@ -2,7 +2,7 @@ use crate::common::error::{DozerSqlError, Result};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
-pub enum AggregateFunction {
+pub enum AggregateFunctionType {
     Avg,
     Count,
     Max,
@@ -13,21 +13,21 @@ pub enum AggregateFunction {
     Variance,
 }
 
-impl AggregateFunction {
+impl AggregateFunctionType {
 
-    fn from_str(name: &str) -> Result<AggregateFunction> {
+    pub(crate) fn new(name: &str) -> Result<AggregateFunctionType> {
         Ok(match name {
-            "avg" => AggregateFunction::Avg,
-            "count" => AggregateFunction::Count,
-            "max" => AggregateFunction::Max,
-            "median" => AggregateFunction::Median,
-            "min" => AggregateFunction::Min,
-            "sum" => AggregateFunction::Sum,
-            "stddev" => AggregateFunction::Stddev,
-            "variance" => AggregateFunction::Variance,
+            "avg" => AggregateFunctionType::Avg,
+            "count" => AggregateFunctionType::Count,
+            "max" => AggregateFunctionType::Max,
+            "median" => AggregateFunctionType::Median,
+            "min" => AggregateFunctionType::Min,
+            "sum" => AggregateFunctionType::Sum,
+            "stddev" => AggregateFunctionType::Stddev,
+            "variance" => AggregateFunctionType::Variance,
             _ => {
                 return Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported aggregate function: {}",
+                    "Unsupported Aggregate function: {}",
                     name
                 )));
             }

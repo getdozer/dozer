@@ -1,39 +1,44 @@
-use crate::common::error::{DozerSqlError, Result};
+use std::collections::HashMap;
+
 use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator, Value as SqlValue};
+
 use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
+
+use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
+use crate::pipeline::expression::expression::{Column, PhysicalExpression};
 use crate::pipeline::expression::logical::{And, Not, Or};
 use crate::pipeline::expression::mathematical::{Add, Div, Mod, Mul, Sub};
-use crate::pipeline::expression::operator::{Column, Expression, Function};
-use crate::pipeline::expression::scalar::ScalarFunction;
+use crate::pipeline::expression::scalar::ScalarFunctionType;
 
 pub struct ExpressionBuilder {
     schema: Schema,
+    schema_idx: HashMap<String, usize>,
 }
 
 impl ExpressionBuilder {
-
     pub fn new(schema: Schema) -> ExpressionBuilder {
         Self {
-            schema
+            schema_idx: schema.fields.iter().enumerate().map(|e| (e.1.name.clone(), e.0)).collect(),
+            schema,
         }
     }
 
-    pub fn parse_sql_expression(&self, expression: &SqlExpr) -> Result<Box<dyn Expression>> {
+    pub fn parse_sql_expression(&self, expression: &SqlExpr) -> Result<Box<dyn PhysicalExpression>> {
         match expression {
             SqlExpr::Identifier(ident) => {
-                Ok(Box::new(Column::new(*self.schema.get_column_index(ident.clone().value).unwrap())))
-            },
+                Ok(Box::new(Column::new(*self.schema_idx.get(&ident.value).unwrap())))
+            }
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(s.clone()))
-            },
+            }
             SqlExpr::BinaryOp { left, op, right } => {
                 Ok(self.parse_sql_binary_op(left, op, right)?)
-            },
+            }
             SqlExpr::UnaryOp { op, expr } => {
                 Ok(self.parse_sql_unary_op(op, expr)?)
-            },
+            }
             SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr)?),
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported Expression.".to_string(),
@@ -42,7 +47,7 @@ impl ExpressionBuilder {
     }
 
 
-    fn parse_sql_function_arg(&self, argument: &FunctionArg) -> Result<Box<dyn Expression>> {
+    fn parse_sql_function_arg(&self, argument: &FunctionArg) -> Result<Box<dyn PhysicalExpression>> {
         match argument {
             FunctionArg::Named {
                 name: _,
@@ -69,7 +74,7 @@ impl ExpressionBuilder {
         }
     }
 
-    fn parse_sql_number(&self, n: &str) -> Result<Box<dyn Expression>> {
+    fn parse_sql_number(&self, n: &str) -> Result<Box<dyn PhysicalExpression>> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Box::new(n)),
             Err(_) => match n.parse::<f64>() {
@@ -81,8 +86,7 @@ impl ExpressionBuilder {
         }
     }
 
-    fn parse_sql_unary_op(&self, op: &UnaryOperator, expr: &SqlExpr) -> Result<Box<dyn Expression>> {
-
+    fn parse_sql_unary_op(&self, op: &UnaryOperator, expr: &SqlExpr) -> Result<Box<dyn PhysicalExpression>> {
         let expr_op = self.parse_sql_expression(expr)?;
 
         match op {
@@ -103,7 +107,7 @@ impl ExpressionBuilder {
                            left: &SqlExpr,
                            op: &BinaryOperator,
                            right: &SqlExpr,
-    ) -> Result<Box<dyn Expression>> {
+    ) -> Result<Box<dyn PhysicalExpression>> {
         let left_op = self.parse_sql_expression(left)?;
         let right_op = self.parse_sql_expression(right)?;
         match op {

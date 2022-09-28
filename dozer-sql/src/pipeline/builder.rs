@@ -5,7 +5,7 @@ use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
 use crate::pipeline::expression::logical::{And, Not, Or};
 use crate::pipeline::expression::mathematical::{Add, Div, Mod, Mul, Sub};
-use crate::pipeline::expression::operator::{Column, Expression};
+use crate::pipeline::expression::expression::{Column, PhysicalExpression};
 use crate::pipeline::processor::selection::{SelectionBuilder, SelectionProcessor};
 use crate::pipeline::processor::projection::ProjectionBuilder;
 use dozer_core::dag::channel::LocalNodeChannel;
@@ -23,17 +23,14 @@ use sqlparser::ast::{
     Value as SqlValue,
 };
 use sqlparser::ast::ObjectType::Schema;
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
 
 pub struct PipelineBuilder {
     schema: DozerSchema,
-    schema_idx: HashMap<String, usize>
 }
 
 impl PipelineBuilder {
     pub fn new(schema: DozerSchema) -> PipelineBuilder {
         Self {
-            schema_idx: schema.fields.iter().enumerate().map(|e| (e.1.name.clone(), e.0)).collect(),
             schema
         }
     }
@@ -116,7 +113,7 @@ impl Source for SqlTestSource {
                 OperationEvent::new(
                     n,
                     Operation::Insert {
-                        new: Record::new(None, vec![Field::Int(2000)]),
+                        new: Record::new(None, vec![Field::Int(0), Field::String("Italy".to_string()), Field::Int(2000)]),
                     },
                 ),
                 None,
@@ -172,7 +169,9 @@ fn test_pipeline_builder() {
 
     let schema = DozerSchema {
         fields: vec![
-            FieldDefinition {name: String::from("Spending"), typ: FieldType::Int, nullable: false}
+            FieldDefinition {name: String::from("CustomerID"), typ: FieldType::Int, nullable: false},
+            FieldDefinition {name: String::from("Country"), typ: FieldType::String, nullable: false},
+            FieldDefinition {name: String::from("Spending"), typ: FieldType::Int, nullable: false},
         ],
         values: vec![0], primary_index: vec![], secondary_indexes: vec![], identifier: None
     };

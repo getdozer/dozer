@@ -1,23 +1,23 @@
 use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::operator::Expression;
+use crate::pipeline::expression::expression::PhysicalExpression;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
-pub enum ScalarFunction {
+pub enum ScalarFunctionType {
     Abs,
     Power,
     Round,
 }
 
-impl ScalarFunction {
+impl ScalarFunctionType {
 
-    pub fn new(name: &str, args: Vec<Box<dyn Expression>>) -> Result<ScalarFunction> {
+    pub fn new(name: &str) -> Result<ScalarFunctionType> {
         Ok(match name {
-            "abs" => ScalarFunction::Abs,
-            "power" => ScalarFunction::Power,
-            "round" => ScalarFunction::Round,
+            "abs" => ScalarFunctionType::Abs,
+            "power" => ScalarFunctionType::Power,
+            "round" => ScalarFunctionType::Round,
             _ => {
                 return Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported scalar function: {}",
+                    "Unsupported Scalar function: {}",
                     name
                 )));
             }
