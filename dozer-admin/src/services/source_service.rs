@@ -4,17 +4,10 @@ use crate::{
         pool::{establish_connection, DbPool},
     },
     server::dozer_admin_grpc::{
-        self,
-        create_source_request::{self},
-        CreateSourceRequest, CreateSourceResponse, ErrorResponse, GetSourceRequest,
-        GetSourceResponse,
+        self, CreateSourceRequest, CreateSourceResponse, ErrorResponse, GetSourceRequest,
+        GetSourceResponse, UpdateSourceRequest, UpdateSourceResponse,
     },
 };
-use dozer_orchestrator::orchestration::models::{
-    connection::Connection,
-    source::{HistoryType, RefreshConfig, Source},
-};
-
 pub struct SourceService {
     db_pool: DbPool,
 }
@@ -30,88 +23,52 @@ impl SourceService {
         &self,
         input: CreateSourceRequest,
     ) -> Result<CreateSourceResponse, ErrorResponse> {
-        let connection = input.connection.ok_or_else(|| ErrorResponse {
-            message: "Missing connection info".to_owned(),
-            details: None,
-        })?;
-
-        let valid_connection: Connection;
-        valid_connection = match connection {
-            create_source_request::Connection::ConnectionId(connection_id) => {
-                let exist_connection =
-                    Connection::get_by_id(self.db_pool.clone(), connection_id.clone()).map_err(
-                        |op| ErrorResponse {
-                            message: op.to_string(),
-                            details: None,
-                        },
-                    )?;
-                exist_connection
-            }
-            create_source_request::Connection::ConnectionInfo(connection) => {
-                let connection = Connection::try_from(connection).map_err(|op| ErrorResponse {
-                    message: op.to_string(),
-                    details: None,
-                })?;
-                connection
-            }
-        };
-        let history_type_value: dozer_admin_grpc::HistoryType =
-            input.history_type.ok_or_else(|| ErrorResponse {
-                message: "Missing history type".to_owned(),
-                details: None,
+        if input.info.is_none() {
+            return Err(ErrorResponse {
+                message: "Missing source info".to_owned(),
             })?;
-        let history_type_value =
-            HistoryType::try_from(history_type_value).map_err(|err| ErrorResponse {
-                message: err.to_string(),
-                details: None,
-            })?;
-        let refresh_config_value = input.refresh_config.ok_or_else(|| ErrorResponse {
-            message: "Missing refresh config".to_owned(),
-            details: None,
-        })?;
-        let refresh_config_value =
-            RefreshConfig::try_from(refresh_config_value).map_err(|err| ErrorResponse {
-                message: err.to_string(),
-                details: None,
-            })?;
-        let mut source = Source {
-            id: None,
-            name: input.name,
-            dest_table_name: input.dest_table_name,
-            source_table_name: input.source_table_name,
-            connection: valid_connection,
-            history_type: history_type_value,
-            refresh_config: refresh_config_value,
-        };
-        source
-            .save(self.db_pool.clone())
+        }
+        let mut source_info = input.info.unwrap();
+        source_info
+            .upsert(self.db_pool.to_owned())
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
-                details: None,
-            })?;
-        let source_info =
-            dozer_admin_grpc::SourceInfo::try_from(source.clone()).map_err(|op| ErrorResponse {
-                message: op.to_string(),
-                details: None,
             })?;
         return Ok(CreateSourceResponse {
             info: Some(source_info),
-            id: source.id.unwrap(),
         });
     }
     pub fn get_source(&self, input: GetSourceRequest) -> Result<GetSourceResponse, ErrorResponse> {
-        let result = Source::get_by_id(self.db_pool.clone(), input.id).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-            details: None,
-        })?;
         let source_info =
-            dozer_admin_grpc::SourceInfo::try_from(result.clone()).map_err(|op| ErrorResponse {
-                message: op.to_string(),
-                details: None,
-            })?;
+            dozer_admin_grpc::SourceInfo::get_by_id(self.db_pool.to_owned(), input.id).map_err(
+                |op| ErrorResponse {
+                    message: op.to_string(),
+                },
+            )?;
         return Ok(GetSourceResponse {
-            info: Some(source_info),
-            id: result.id.unwrap(),
+            info: Some(source_info.to_owned()),
+            id: source_info.id.unwrap(),
+        });
+    }
+
+    pub fn update_source(
+        &self,
+        input: UpdateSourceRequest,
+    ) -> Result<UpdateSourceResponse, ErrorResponse> {
+        if input.info.is_none() {
+            return Err(ErrorResponse {
+                message: "Missing source info".to_owned(),
+            })?;
+        }
+        let mut source_info = input.info.unwrap();
+        source_info
+            .upsert(self.db_pool.to_owned())
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+            })?;
+        return Ok(UpdateSourceResponse {
+            info: Some(source_info.to_owned()),
+            id: source_info.id.unwrap(),
         });
     }
 }

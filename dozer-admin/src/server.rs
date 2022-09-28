@@ -6,11 +6,13 @@ pub mod dozer_admin_grpc {
     tonic::include_proto!("dozer_admin_grpc");
 }
 use dozer_admin_grpc::{
-    dozer_api_server::{DozerApi, DozerApiServer},
+    dozer_admin_server::{DozerAdmin, DozerAdminServer},
     CreateConnectionRequest, CreateConnectionResponse, CreateSourceRequest, CreateSourceResponse,
     GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
     GetConnectionDetailsResponse, GetSchemaRequest, GetSchemaResponse, GetSourceRequest,
     GetSourceResponse, TestConnectionRequest, TestConnectionResponse,
+    UpdateConnectionRequest, UpdateConnectionResponse,
+    UpdateSourceRequest, UpdateSourceResponse
 };
 
 pub struct GrpcService {
@@ -19,7 +21,7 @@ pub struct GrpcService {
 }
 
 #[tonic::async_trait]
-impl DozerApi for GrpcService {
+impl DozerAdmin for GrpcService {
     async fn test_connection(
         &self,
         request: Request<TestConnectionRequest>,
@@ -46,7 +48,18 @@ impl DozerApi for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
-
+    async fn update_connection(
+        &self,
+        request: Request<UpdateConnectionRequest>,
+    ) -> Result<Response<UpdateConnectionResponse>, Status> {
+        let result = self
+            .connection_service
+            .update(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
     async fn get_connection_details(
         &self,
         request: Request<GetConnectionDetailsRequest>,
@@ -107,6 +120,16 @@ impl DozerApi for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
+    async fn update_source(
+        &self,
+        request: Request<UpdateSourceRequest>,
+    ) -> Result<Response<UpdateSourceResponse>, Status> {
+        let result =  self.source_service.update_source(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
 }
 
 pub async fn get_server() -> Result<(), tonic::transport::Error> {
@@ -117,7 +140,7 @@ pub async fn get_server() -> Result<(), tonic::transport::Error> {
         connection_service: ConnectionService::new(database_url.clone()),
         source_service: SourceService::new(database_url),
     };
-    let server = DozerApiServer::new(grpc_service);
+    let server = DozerAdminServer::new(grpc_service);
     let server = tonic_web::config()
         .allow_origins(vec![
             "127.0.0.1",
