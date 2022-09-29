@@ -1,14 +1,13 @@
-use dozer_types::types::Schema;
+use crate::storage::{RocksConfig, RocksStorage, Storage};
+use anyhow::Result;
+use dozer_types::types::{Schema, SchemaIdentifier};
 use futures::{future, prelude::*};
 use std::net::{IpAddr, Ipv6Addr};
-pub use tarpc::{client, context, tokio_serde::formats::Json};
-
 use std::{net::SocketAddr, sync::Arc};
 use tarpc::server::{self, incoming::Incoming, Channel};
 use tarpc::transport::channel::UnboundedChannel;
+pub use tarpc::{client, context, tokio_serde::formats::Json};
 use tarpc::{ClientMessage, Response};
-
-use crate::storage::{RocksConfig, RocksStorage, Storage};
 
 pub const SCHEMA_ADDR: IpAddr = IpAddr::V6(Ipv6Addr::LOCALHOST);
 pub const SCHEMA_PORT: u16 = 9005;
@@ -17,7 +16,7 @@ pub const SCHEMA_PORT: u16 = 9005;
 pub trait SchemaRegistry {
     async fn ping() -> String;
     async fn insert(schema: Schema);
-    async fn get(schema_id: u32) -> Schema;
+    async fn get(schema_id: SchemaIdentifier) -> Schema;
 }
 
 pub async fn _get_client() -> anyhow::Result<SchemaRegistryClient> {
@@ -44,7 +43,7 @@ impl SchemaRegistry for SchemaRegistryServer {
         client.insert_schema(&schema);
     }
 
-    async fn get(self, _: tarpc::context::Context, schema_id: u32) -> Schema {
+    async fn get(self, _: tarpc::context::Context, schema_id: SchemaIdentifier) -> Schema {
         let client = self.storage_client.clone();
         client.get_schema(schema_id)
     }
@@ -61,7 +60,9 @@ pub fn _serve_channel() -> anyhow::Result<
         _addr: None,
         storage_client,
     };
+
     tokio::spawn(channel.execute(server.serve()));
+
     Ok(client_transport)
 }
 
@@ -104,7 +105,7 @@ pub async fn _serve(config: Option<RocksConfig>) -> anyhow::Result<()> {
 mod tests {
 
     use super::{client, context, SchemaRegistryClient};
-    use dozer_types::types::{Field, FieldDefinition, Schema, SchemaIdentifier};
+    use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
     use std::{thread, time};
     use tokio::runtime::Runtime;
 
@@ -123,10 +124,17 @@ mod tests {
             secondary_indexes: vec![],
         };
         // insert schema
-        let ctx = context::current();
-        client.insert(ctx, schema.clone()).await.unwrap();
 
-        let result = client.get(ctx, schema.get_id()).await.unwrap();
+        let str = client.ping(context::current()).await.unwrap();
+        client
+            .insert(context::current(), schema.clone())
+            .await
+            .unwrap();
+
+        let result = client
+            .get(context::current(), schema.identifier.clone().unwrap())
+            .await
+            .unwrap();
         assert_eq!(result, schema.clone());
     }
 
