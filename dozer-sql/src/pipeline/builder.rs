@@ -7,7 +7,7 @@ use crate::pipeline::expression::logical::{And, Not, Or};
 use crate::pipeline::expression::mathematical::{Add, Div, Mod, Mul, Sub};
 use crate::pipeline::expression::expression::{Column, PhysicalExpression};
 use crate::pipeline::processor::selection::{SelectionBuilder, SelectionProcessor};
-use crate::pipeline::processor::projection::ProjectionBuilder;
+use crate::pipeline::processor::projection_builder::ProjectionBuilder;
 use dozer_core::dag::channel::LocalNodeChannel;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
@@ -71,7 +71,7 @@ impl PipelineBuilder {
         let projection_handle = dag.add_node(NodeType::Processor(projection_processor));
         let selection_handle = dag.add_node(NodeType::Processor(selection_processor));
 
-        let projection_to_selection = dag.connect(
+        let _ = dag.connect(
             Endpoint::new(projection_handle, None),
             Endpoint::new(selection_handle, None),
             Box::new(LocalNodeChannel::new(5000000))
@@ -153,7 +153,7 @@ impl Sink for SqlTestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT 1, 1+1, Country+1, COUNT(CustomerID), ROUND(SUM(ROUND(Spending))) \
+    let sql = "SELECT 1, 1+1, Country+1, COUNT(Spending), ROUND(SUM(ROUND(Spending))) \
                             FROM Customers \
                             WHERE Spending >= 1000 \
                             GROUP BY Country \
@@ -183,7 +183,6 @@ fn test_pipeline_builder() {
     let sink = SqlTestSink::new(1, None);
 
     let src_handle = dag.add_node(NodeType::Source(Arc::new(source)));
-    //let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
     let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
 
     let src_to_proc1 = dag.connect(
