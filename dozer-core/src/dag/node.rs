@@ -20,7 +20,7 @@ pub trait Processor: Send + Sync {
     fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
     fn init(&self) -> Result<(), String>;
     fn process(
-        &self,
+        &mut self,
         from_port: Option<PortHandle>,
         op: OperationEvent,
         ctx: &dyn ExecutionContext,
@@ -44,43 +44,6 @@ pub trait Sink: Send + Sync {
         ctx: &dyn ExecutionContext,
     ) -> Result<NextStep, String>;
 }
-
-
-pub struct ProcessorExecutor {
-    processor: Arc<dyn Processor>,
-    thread_safe: bool,
-    sync: Option<Mutex<()>>,
-}
-
-impl ProcessorExecutor {
-    pub fn new(processor: Arc<dyn Processor>, thread_safe: bool) -> Self {
-        Self {
-            processor: processor.clone(),
-            thread_safe,
-            sync: if thread_safe {
-                Some(Mutex::new(()))
-            } else {
-                None
-            },
-        }
-    }
-
-    pub fn process(
-        &self,
-        port: Option<u8>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-        fw: &dyn ChannelForwarder,
-    ) -> Result<NextStep, String> {
-        if self.thread_safe {
-            self.sync.as_ref().unwrap().lock().unwrap();
-            return self.processor.process(port, op, ctx, fw);
-        } else {
-            return self.processor.process(port, op, ctx, fw);
-        }
-    }
-}
-
 
 pub struct SinkExecutor {
     processor: Arc<dyn Sink>,
@@ -115,7 +78,6 @@ impl SinkExecutor {
         }
     }
 }
-
 
 pub trait ChannelForwarder {
     fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String>;

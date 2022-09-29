@@ -1,5 +1,5 @@
 use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestSink, TestSource};
-use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorExecutor, Sink, SinkExecutor, Source, ChannelForwarder};
+use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, Sink, SinkExecutor, Source, ChannelForwarder};
 use dozer_types::types::{Operation, OperationEvent};
 
 use std::collections::HashMap;
@@ -24,17 +24,16 @@ impl ExecutionContext for MemoryExecutionContext {}
 pub const DEFAULT_PORT_ID: u8 = 0xffu8;
 
 pub struct MultiThreadedDagExecutor {
-    dag: Rc<Dag>,
     channel_buf_sz: usize
 }
 
 impl MultiThreadedDagExecutor {
-    pub fn new(dag: Rc<Dag>, channel_buf_sz: usize) -> Self {
-        Self { dag, channel_buf_sz }
+    pub fn new(channel_buf_sz: usize) -> Self {
+        Self { channel_buf_sz }
     }
 
     fn index_edges(
-        &self,
+        &self, dag: &Dag
     ) -> (
         HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<OperationEvent>>>>,
         HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<OperationEvent>>>>
@@ -44,7 +43,7 @@ impl MultiThreadedDagExecutor {
         let mut receivers: HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<OperationEvent>>>> =
             HashMap::new();
 
-        for edge in self.dag.edges.iter() {
+        for edge in dag.edges.iter() {
             if !senders.contains_key(&edge.from.node) {
                 senders.insert(edge.from.node, HashMap::new());
             }
@@ -105,24 +104,24 @@ impl MultiThreadedDagExecutor {
     }
 
     fn get_node_types(
-        &self,
+        &self, dag: Dag
     ) -> (
-        Vec<(NodeHandle, Arc<dyn Source>)>,
-        Vec<(NodeHandle, Arc<dyn Processor>)>,
-        Vec<(NodeHandle, Arc<dyn Sink>)>,
+        Vec<(NodeHandle, Box<dyn Source>)>,
+        Vec<(NodeHandle, Box<dyn Processor>)>,
+        Vec<(NodeHandle, Box<dyn Sink>)>,
     ) {
         let mut sources = Vec::new();
         let mut processors = Vec::new();
         let mut sinks = Vec::new();
 
-        for node in self.dag.nodes.iter() {
+        for node in dag.nodes.into_iter() {
             match node.1 {
-                NodeType::Source(s) => sources.push((node.0.clone(), s.clone())),
+                NodeType::Source(s) => sources.push((node.0, s)),
                 NodeType::Processor(p) => {
-                    processors.push((node.0.clone(), p.clone()));
+                    processors.push((node.0, p));
                 }
                 NodeType::Sink(s) => {
-                    sinks.push((node.0.clone(), s.clone()));
+                    sinks.push((node.0, s));
                 }
             }
         }
@@ -131,7 +130,7 @@ impl MultiThreadedDagExecutor {
 
     fn start_source(
         &self,
-        src: Arc<dyn Source>,
+        mut src: Box<dyn Source>,
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
     ) -> JoinHandle<Result<(), String>> {
         let fw = LocalChannelForwarder::new(senders);
@@ -154,7 +153,7 @@ impl MultiThreadedDagExecutor {
 
     fn start_sink(
         &self,
-        snk: Arc<dyn Sink>,
+        mut snk: Box<dyn Sink>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
         ctx: Arc<dyn ExecutionContext>,
     ) -> JoinHandle<Result<(), String>> {
@@ -190,7 +189,7 @@ impl MultiThreadedDagExecutor {
 
     fn start_processor(
         &self,
-        proc: Arc<dyn Processor>,
+        mut proc: Box<dyn Processor>,
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
         ctx: Arc<dyn ExecutionContext>,
@@ -227,9 +226,10 @@ impl MultiThreadedDagExecutor {
         })
     }
 
-    pub fn start(&self, ctx: Arc<dyn ExecutionContext>) -> Result<(), String> {
-        let (mut senders, mut receivers) = self.index_edges();
-        let (sources, processors, sinks) = self.get_node_types();
+    pub fn start(&self, dag: Dag, ctx: Arc<dyn ExecutionContext>) -> Result<(), String> {
+
+        let (mut senders, mut receivers) = self.index_edges(&dag);
+        let (sources, processors, sinks) = self.get_node_types(dag);
 
         for source in &sources {
             source.1.init()?;
@@ -243,13 +243,13 @@ impl MultiThreadedDagExecutor {
 
         let mut handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
 
-        for source in &sources {
+        for source in sources {
             handles.push(
-                self.start_source(source.1.clone(), senders.remove(&source.0.clone()).unwrap()),
+                self.start_source(source.1, senders.remove(&source.0.clone()).unwrap()),
             );
         }
 
-        for processor in &processors {
+        for processor in processors {
 
             let proc_receivers = receivers.remove(&processor.0.clone());
             if proc_receivers.is_none() {
@@ -262,7 +262,7 @@ impl MultiThreadedDagExecutor {
             }
 
             let proc_handle = self.start_processor(
-                processor.1.clone(),
+                processor.1,
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
                 ctx.clone(),
@@ -271,7 +271,7 @@ impl MultiThreadedDagExecutor {
 
         }
 
-        for snk in &sinks {
+        for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
             if snk_receivers.is_none() {
                 return Err(format!(
@@ -281,7 +281,7 @@ impl MultiThreadedDagExecutor {
             }
 
             let snk_handle =
-                self.start_sink(snk.1.clone(), snk_receivers.unwrap(), ctx.clone());
+                self.start_sink(snk.1, snk_receivers.unwrap(), ctx.clone());
             handles.push(snk_handle);
 
         }
@@ -302,9 +302,9 @@ fn test_run_dag() {
 
     let mut dag = Dag::new();
 
-    let src_handle = dag.add_node(NodeType::Source(Arc::new(src)));
-    let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
-    let sink_handle = dag.add_node(NodeType::Sink(Arc::new(sink)));
+    let src_handle = dag.add_node(NodeType::Source(Box::new(src)));
+    let proc_handle = dag.add_node(NodeType::Processor(Box::new(proc)));
+    let sink_handle = dag.add_node(NodeType::Sink(Box::new(sink)));
 
     let src_to_proc1 = dag.connect(
         Endpoint::new(src_handle, None),
@@ -318,7 +318,7 @@ fn test_run_dag() {
     );
     assert!(proc1_to_sink.is_ok());
 
-    let exec = MultiThreadedDagExecutor::new(Rc::new(dag), 100000);
+    let exec = MultiThreadedDagExecutor::new( 100000);
     let ctx = Arc::new(MemoryExecutionContext::new());
-    assert!(exec.start(ctx).is_ok());
+    assert!(exec.start(dag, ctx).is_ok());
 }

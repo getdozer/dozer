@@ -34,9 +34,9 @@ impl Edge {
 }
 
 pub enum NodeType {
-    Source(Arc<dyn Source>),
-    Sink(Arc<dyn Sink>),
-    Processor(Arc<dyn Processor>),
+    Source(Box<dyn Source>),
+    Sink(Box<dyn Sink>),
+    Processor(Box<dyn Processor>),
 }
 
 pub struct Node {
@@ -192,7 +192,7 @@ impl Sink for TestSink {
         _op: OperationEvent,
         _ctx: &dyn ExecutionContext,
     ) -> Result<NextStep, String> {
-       //  println!("SINK {}: Message {} received", self.id, _op.seq_no);
+         println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
     }
 }
@@ -232,13 +232,13 @@ impl Processor for TestProcessor {
     }
 
     fn process(
-        &self,
+        &mut self,
         _from_port: Option<PortHandle>,
         op: OperationEvent,
         _ctx: &dyn ExecutionContext,
         fw: &dyn ChannelForwarder,
     ) -> Result<NextStep, String> {
-     //   println!("PROC {}: Message {} received", self.id, op.seq_no);
+        println!("PROC {}: Message {} received", self.id, op.seq_no);
         fw.send(op, None)?;
         Ok(Continue)
     }
@@ -267,7 +267,7 @@ impl Source for TestSource {
 
     fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String> {
         for n in 0..1000 {
-            //   println!("SRC {}: Message {} received", self.id, n);
+               println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(
                     n,
@@ -293,8 +293,8 @@ macro_rules! test_ports {
 
             let mut dag = Dag::new();
 
-            let src_handle = dag.add_node(NodeType::Source(Arc::new(src)));
-            let proc_handle = dag.add_node(NodeType::Processor(Arc::new(proc)));
+            let src_handle = dag.add_node(NodeType::Source(Box::new(src)));
+            let proc_handle = dag.add_node(NodeType::Processor(Box::new(proc)));
 
             let res = dag.connect(
                 Endpoint::new(src_handle, $from_port),
