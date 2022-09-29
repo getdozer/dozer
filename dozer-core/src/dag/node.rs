@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 use crossbeam::channel::Sender;
+use crate::state::StateStoresManager;
 
 pub trait ExecutionContext: Send + Sync {}
 
@@ -15,69 +16,42 @@ pub enum NextStep {
     Stop,
 }
 
-pub trait Processor: Send + Sync {
+pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Option<Vec<PortHandle>>;
     fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
-    fn init(&self) -> Result<(), String>;
-    fn process(
-        &mut self,
-        from_port: Option<PortHandle>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-        fw: &dyn ChannelForwarder,
-    ) -> Result<NextStep, String>;
+    fn build(&self) -> Box<dyn Processor>;
 }
 
-pub trait Source: Send + Sync {
+pub trait Processor {
+    fn init(&mut self, state_manager: &dyn StateStoresManager) -> Result<(), String>;
+    fn process(&mut self, from_port: Option<PortHandle>, op: OperationEvent, fw: &dyn ChannelForwarder)
+        -> Result<NextStep, String>;
+}
+
+pub trait SourceFactory: Send + Sync {
     fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
-    fn init(&self) -> Result<(), String>;
+    fn build(&self) -> Box<dyn Source>;
+}
+
+pub trait Source {
+    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String>;
     fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String>;
 }
 
-pub trait Sink: Send + Sync {
+pub trait SinkFactory: Send + Sync {
     fn get_input_ports(&self) -> Option<Vec<PortHandle>>;
-    fn init(&self) -> Result<(), String>;
+    fn build(&self) -> Box<dyn Sink>;
+}
+
+pub trait Sink {
+    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String>;
     fn process(
         &self,
         from_port: Option<PortHandle>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
+        op: OperationEvent
     ) -> Result<NextStep, String>;
 }
 
-pub struct SinkExecutor {
-    processor: Arc<dyn Sink>,
-    thread_safe: bool,
-    sync: Option<Mutex<()>>,
-}
-
-impl SinkExecutor {
-    pub fn new(processor: Arc<dyn Sink>, thread_safe: bool) -> Self {
-        Self {
-            processor: processor.clone(),
-            thread_safe,
-            sync: if thread_safe {
-                Some(Mutex::new(()))
-            } else {
-                None
-            },
-        }
-    }
-
-    pub fn process(
-        &self,
-        port: Option<u8>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-    ) -> Result<NextStep, String> {
-        if self.thread_safe {
-            self.sync.as_ref().unwrap().lock().unwrap();
-            return self.processor.process(port, op, ctx);
-        } else {
-            return self.processor.process(port, op, ctx);
-        }
-    }
-}
 
 pub trait ChannelForwarder {
     fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String>;

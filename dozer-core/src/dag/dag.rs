@@ -1,11 +1,12 @@
 use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::node::NextStep::Continue;
-use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source};
+use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use dozer_types::types::{Operation, OperationEvent, Record};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::vec;
 use uuid::Uuid;
+use crate::state::{StateStore, StateStoresManager};
 
 
 pub type NodeHandle = Uuid;
@@ -34,9 +35,9 @@ impl Edge {
 }
 
 pub enum NodeType {
-    Source(Box<dyn Source>),
-    Sink(Box<dyn Sink>),
-    Processor(Box<dyn Processor>),
+    Source(Box<dyn SourceFactory>),
+    Sink(Box<dyn SinkFactory>),
+    Processor(Box<dyn ProcessorFactory>),
 }
 
 pub struct Node {
@@ -164,24 +165,36 @@ impl Dag {
     }
 }
 
-
-pub struct TestSink {
+pub struct TestSinkFactory {
     id: i32,
     input_ports: Option<Vec<PortHandle>>,
 }
 
-impl TestSink {
+impl TestSinkFactory {
     pub fn new(id: i32, input_ports: Option<Vec<PortHandle>>) -> Self {
         Self { id, input_ports }
     }
 }
 
-impl Sink for TestSink {
+
+impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Option<Vec<PortHandle>> {
         self.input_ports.clone()
     }
 
-    fn init(&self) -> Result<(), String> {
+    fn build(&self) -> Box<dyn Sink> {
+        Box::new(TestSink { id: self.id })
+    }
+}
+
+
+pub struct TestSink {
+    id: i32
+}
+
+impl Sink for TestSink {
+    
+    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String> {
         println!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -189,35 +202,26 @@ impl Sink for TestSink {
     fn process(
         &self,
         _from_port: Option<PortHandle>,
-        _op: OperationEvent,
-        _ctx: &dyn ExecutionContext,
+        _op: OperationEvent
     ) -> Result<NextStep, String> {
-         println!("SINK {}: Message {} received", self.id, _op.seq_no);
+     //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
     }
 }
 
-pub struct TestProcessor {
+pub struct TestProcessorFactory {
     id: i32,
     input_ports: Option<Vec<PortHandle>>,
-    output_ports: Option<Vec<PortHandle>>,
+    output_ports: Option<Vec<PortHandle>>
 }
 
-impl TestProcessor {
-    pub fn new(
-        id: i32,
-        input_ports: Option<Vec<PortHandle>>,
-        output_ports: Option<Vec<PortHandle>>,
-    ) -> Self {
-        Self {
-            id,
-            input_ports,
-            output_ports,
-        }
+impl TestProcessorFactory {
+    pub fn new(id: i32, input_ports: Option<Vec<PortHandle>>, output_ports: Option<Vec<PortHandle>>) -> Self {
+        Self { id, input_ports, output_ports }
     }
 }
 
-impl Processor for TestProcessor {
+impl ProcessorFactory for TestProcessorFactory {
     fn get_input_ports(&self) -> Option<Vec<PortHandle>> {
         self.input_ports.clone()
     }
@@ -226,8 +230,22 @@ impl Processor for TestProcessor {
         self.output_ports.clone()
     }
 
-    fn init(&self) -> Result<(), String> {
+    fn build(&self) -> Box<dyn Processor> {
+        Box::new(TestProcessor { state: None, id: self.id })
+    }
+}
+
+pub struct TestProcessor {
+    state: Option<Box<dyn StateStore>>,
+    id: i32
+}
+
+
+impl Processor for TestProcessor {
+
+    fn init<'a>(&'a mut self, state_manager: &'a dyn StateStoresManager) -> Result<(), String> {
         println!("PROC {}: Initialising TestProcessor", self.id);
+     //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
     }
 
@@ -235,39 +253,51 @@ impl Processor for TestProcessor {
         &mut self,
         _from_port: Option<PortHandle>,
         op: OperationEvent,
-        _ctx: &dyn ExecutionContext,
         fw: &dyn ChannelForwarder,
     ) -> Result<NextStep, String> {
-        println!("PROC {}: Message {} received", self.id, op.seq_no);
+     //   println!("PROC {}: Message {} received", self.id, op.seq_no);
+    //    self.state.unwrap().put(&op.seq_no.to_ne_bytes(), &self.id.to_ne_bytes());
         fw.send(op, None)?;
         Ok(Continue)
     }
 }
 
-pub struct TestSource {
+pub struct TestSourceFactory {
     id: i32,
-    output_ports: Option<Vec<PortHandle>>,
+    output_ports: Option<Vec<PortHandle>>
 }
 
-impl TestSource {
+impl TestSourceFactory {
     pub fn new(id: i32, output_ports: Option<Vec<PortHandle>>) -> Self {
         Self { id, output_ports }
     }
 }
 
-impl Source for TestSource {
+impl SourceFactory for TestSourceFactory {
+
     fn get_output_ports(&self) -> Option<Vec<PortHandle>> {
         self.output_ports.clone()
     }
 
-    fn init(&self) -> Result<(), String> {
+    fn build(&self) -> Box<dyn Source> {
+        Box::new(TestSource {id: self.id})
+    }
+}
+
+pub struct TestSource {
+    id: i32
+}
+
+impl Source for TestSource {
+
+    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String> {
         println!("SRC {}: Initialising TestProcessor", self.id);
         Ok(())
     }
 
     fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String> {
-        for n in 0..1000 {
-               println!("SRC {}: Message {} received", self.id, n);
+        for n in 0..10000000 {
+             //  println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(
                     n,
@@ -288,8 +318,8 @@ macro_rules! test_ports {
     ($id:ident, $out_ports:expr, $in_ports:expr, $from_port:expr, $to_port:expr, $expect:expr) => {
         #[test]
         fn $id() {
-            let src = TestSource::new(1, $out_ports);
-            let proc = TestProcessor::new(2, $in_ports, None);
+            let src = TestSourceFactory::new(1, $out_ports);
+            let proc = TestProcessorFactory::new(2, $in_ports, None);
 
             let mut dag = Dag::new();
 

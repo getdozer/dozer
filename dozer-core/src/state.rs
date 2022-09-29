@@ -25,7 +25,7 @@ impl StateStoreError {
     }
 }
 
-pub trait StateStoresManager {
+pub trait StateStoresManager : Send + Sync {
     fn init_state_store<'a> (&'a self, id: String) -> Result<Box<dyn StateStore + 'a>, StateStoreError>;
 }
 

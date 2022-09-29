@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
+use std::{fs, thread};
 use lmdb::{Database, DatabaseFlags, Environment, RwTransaction, Transaction, WriteFlags};
 use lmdb::Error::NotFound;
 use crate::state::{StateStore, StateStoreError, StateStoresManager};
@@ -11,6 +12,8 @@ pub struct LmdbStateStoreManager {
 
 impl LmdbStateStoreManager {
     pub fn new(path: &Path, max_size: usize) -> Result<Box<dyn StateStoresManager>, StateStoreError> {
+
+        fs::create_dir(path);
 
         let res = Environment::new()
             .set_map_size(max_size)
@@ -90,6 +93,20 @@ impl <'a> StateStore for LmdbStateStore<'a> {
             }
         }
     }
+
+}
+
+#[test]
+fn test_mt_lmdb_store() {
+
+    // let sm = LmdbStateStoreManager::new(Path::new("./data"), 1024*1024*1024*5).unwrap();
+    //
+    // let h = thread::spawn(|| {
+    //     let ss1 = sm.init_state_store("test1".to_string());
+    // });
+    // let h = thread::spawn(|| {
+    //     let ss2 = sm.init_state_store("test2".to_string());
+    // });
 
 }
 

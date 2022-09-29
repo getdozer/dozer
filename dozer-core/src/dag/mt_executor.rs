@@ -1,14 +1,17 @@
-use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestSink, TestSource};
-use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, Sink, SinkExecutor, Source, ChannelForwarder};
+use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestProcessorFactory, TestSink, TestSinkFactory, TestSource, TestSourceFactory};
+use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source, ChannelForwarder, SourceFactory, ProcessorFactory, SinkFactory};
 use dozer_types::types::{Operation, OperationEvent};
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc};
 use std::thread;
 use std::thread::{JoinHandle};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use crossbeam::select;
+use crate::state::lmdb::LmdbStateStoreManager;
+use crate::state::StateStoresManager;
 
 pub struct MemoryExecutionContext {
 }
@@ -106,9 +109,9 @@ impl MultiThreadedDagExecutor {
     fn get_node_types(
         &self, dag: Dag
     ) -> (
-        Vec<(NodeHandle, Box<dyn Source>)>,
-        Vec<(NodeHandle, Box<dyn Processor>)>,
-        Vec<(NodeHandle, Box<dyn Sink>)>,
+        Vec<(NodeHandle, Box<dyn SourceFactory>)>,
+        Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
+        Vec<(NodeHandle, Box<dyn SinkFactory>)>,
     ) {
         let mut sources = Vec::new();
         let mut processors = Vec::new();
@@ -130,11 +133,18 @@ impl MultiThreadedDagExecutor {
 
     fn start_source(
         &self,
-        mut src: Box<dyn Source>,
+        mut src_factory: Box<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
     ) -> JoinHandle<Result<(), String>> {
+
         let fw = LocalChannelForwarder::new(senders);
-        return thread::spawn(move || -> Result<(), String> { src.start(&fw) });
+        return thread::spawn(move || -> Result<(), String> {
+
+            let mut src = src_factory.build();
+            src.start(&fw)
+
+        });
+
     }
 
     fn build_receivers_lists(receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>)
@@ -153,12 +163,15 @@ impl MultiThreadedDagExecutor {
 
     fn start_sink(
         &self,
-        mut snk: Box<dyn Sink>,
+        mut snk_factory: Box<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
-        ctx: Arc<dyn ExecutionContext>,
+        state_manager: Arc<dyn StateStoresManager>
     ) -> JoinHandle<Result<(), String>> {
 
+        let local_sm = state_manager.clone();
         thread::spawn(move || -> Result<(), String> {
+
+            let mut snk = snk_factory.build();
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -173,7 +186,7 @@ impl MultiThreadedDagExecutor {
                     _ => {
                         let r = snk.process(
                             if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
-                            op, ctx.as_ref()
+                            op
                         )?;
                         match r {
                             NextStep::Stop => { return Ok(()); }
@@ -189,13 +202,17 @@ impl MultiThreadedDagExecutor {
 
     fn start_processor(
         &self,
-        mut proc: Box<dyn Processor>,
+        mut proc_factory: Box<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
-        ctx: Arc<dyn ExecutionContext>,
+        state_manager: Arc<dyn StateStoresManager>
     ) -> JoinHandle<Result<(), String>> {
 
+        let local_sm = state_manager.clone();
+
         thread::spawn(move || -> Result<(), String> {
+
+            let mut proc = proc_factory.build();
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -203,6 +220,8 @@ impl MultiThreadedDagExecutor {
             let fw = LocalChannelForwarder::new(senders);
             let mut sel = Select::new();
             for r in &receivers_ls { sel.recv(r); }
+
+            proc.init(local_sm.as_ref())?;
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index].recv().map_err(|e| {e.to_string()})?;
@@ -214,7 +233,7 @@ impl MultiThreadedDagExecutor {
                     _ => {
                         let r = proc.process(
                             if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
-                            op, ctx.as_ref(), &fw
+                            op, &fw
                         )?;
                         match r {
                             NextStep::Stop => { return Ok(()); }
@@ -226,22 +245,13 @@ impl MultiThreadedDagExecutor {
         })
     }
 
-    pub fn start(&self, dag: Dag, ctx: Arc<dyn ExecutionContext>) -> Result<(), String> {
+    pub fn start(&self, dag: Dag, state_manager: Box<dyn StateStoresManager>) -> Result<(), String> {
 
         let (mut senders, mut receivers) = self.index_edges(&dag);
         let (sources, processors, sinks) = self.get_node_types(dag);
-
-        for source in &sources {
-            source.1.init()?;
-        }
-        for processor in &processors {
-            processor.1.init()?;
-        }
-        for sink in &sinks {
-            sink.1.init()?;
-        }
-
         let mut handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
+        let global_sm : Arc<dyn StateStoresManager> = Arc::from(state_manager);
+
 
         for source in sources {
             handles.push(
@@ -265,9 +275,9 @@ impl MultiThreadedDagExecutor {
                 processor.1,
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
-                ctx.clone(),
+                global_sm.clone()
             );
-            handles.push(proc_handle);
+           handles.push(proc_handle);
 
         }
 
@@ -281,7 +291,7 @@ impl MultiThreadedDagExecutor {
             }
 
             let snk_handle =
-                self.start_sink(snk.1, snk_receivers.unwrap(), ctx.clone());
+                self.start_sink(snk.1, snk_receivers.unwrap(), global_sm.clone());
             handles.push(snk_handle);
 
         }
@@ -296,9 +306,9 @@ impl MultiThreadedDagExecutor {
 
 #[test]
 fn test_run_dag() {
-    let src = TestSource::new(1, None);
-    let proc = TestProcessor::new(1, None, None);
-    let sink = TestSink::new(1, None);
+    let src = TestSourceFactory::new(1, None);
+    let proc = TestProcessorFactory::new(1, None, None);
+    let sink = TestSinkFactory::new(1, None);
 
     let mut dag = Dag::new();
 
@@ -320,5 +330,7 @@ fn test_run_dag() {
 
     let exec = MultiThreadedDagExecutor::new( 100000);
     let ctx = Arc::new(MemoryExecutionContext::new());
-    assert!(exec.start(dag, ctx).is_ok());
+    let sm = LmdbStateStoreManager::new(Path::new("./test"), 1024*1024*1024*5).unwrap();
+
+    assert!(exec.start(dag, sm).is_ok());
 }
