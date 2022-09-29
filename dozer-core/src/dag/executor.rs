@@ -1,18 +1,16 @@
-use crate::dag::channel::{LocalNodeChannel, NodeReceiver, NodeSender};
 use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestSink, TestSource};
-use crate::dag::node::{
-    ChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorExecutor, Sink, SinkExecutor,
-    Source,
-};
-use dozer_types::types::{Operation};
+use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorExecutor, Sink, SinkExecutor, Source, ChannelForwarder};
+use dozer_types::types::{Operation, OperationEvent};
 
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc};
 use std::thread;
 use std::thread::{JoinHandle};
+use crossbeam::channel::{bounded, Receiver, Sender};
 
-pub struct MemoryExecutionContext {}
+pub struct MemoryExecutionContext {
+}
 
 impl MemoryExecutionContext {
     pub fn new() -> Self {
@@ -26,22 +24,23 @@ pub const DEFAULT_PORT_ID: u8 = 0xffu8;
 
 pub struct MultiThreadedDagExecutor {
     dag: Rc<Dag>,
+    channel_buf_sz: usize
 }
 
 impl MultiThreadedDagExecutor {
-    pub fn new(dag: Rc<Dag>) -> Self {
-        Self { dag }
+    pub fn new(dag: Rc<Dag>, channel_buf_sz: usize) -> Self {
+        Self { dag, channel_buf_sz }
     }
 
     fn index_edges(
         &self,
     ) -> (
-        HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeSender>>>>,
-        HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>>,
+        HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<OperationEvent>>>>,
+        HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<OperationEvent>>>>
     ) {
-        let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeSender>>>> =
+        let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<OperationEvent>>>> =
             HashMap::new();
-        let mut receivers: HashMap<NodeHandle, HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>> =
+        let mut receivers: HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<OperationEvent>>>> =
             HashMap::new();
 
         for edge in self.dag.edges.iter() {
@@ -52,7 +51,7 @@ impl MultiThreadedDagExecutor {
                 receivers.insert(edge.to.node, HashMap::new());
             }
 
-            let (tx, rx) = edge.channel.build();
+            let (tx, rx) = bounded(self.channel_buf_sz);
 
             let rcv_port: PortHandle = if edge.to.port.is_none() {
                 DEFAULT_PORT_ID
@@ -132,16 +131,16 @@ impl MultiThreadedDagExecutor {
     fn start_source(
         &self,
         src: Arc<dyn Source>,
-        senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>,
+        senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
     ) -> JoinHandle<Result<(), String>> {
-        let fw = ChannelForwarder::new(senders, false);
+        let fw = LocalChannelForwarder::new(senders);
         return thread::spawn(move || -> Result<(), String> { src.start(&fw) });
     }
 
     fn start_sink(
         &self,
         snk: Arc<dyn Sink>,
-        receivers: HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>,
+        receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
         ctx: Arc<dyn ExecutionContext>,
     ) -> Vec<JoinHandle<Result<(), String>>> {
         let receivers_count: i32 = receivers.values().map(|e| e.len() as i32).sum();
@@ -157,7 +156,7 @@ impl MultiThreadedDagExecutor {
 
                 handles.push(thread::spawn(move || -> Result<(), String> {
                     loop {
-                        let rcv = receiver.receive();
+                        let rcv = receiver.recv();
                         if rcv.is_err() {
                             return Err("Channel closed".to_string());
                         }
@@ -191,18 +190,19 @@ impl MultiThreadedDagExecutor {
     fn start_processor(
         &self,
         proc: Arc<dyn Processor>,
-        senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>,
-        receivers: HashMap<PortHandle, Vec<Box<dyn NodeReceiver>>>,
+        senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
+        receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
         ctx: Arc<dyn ExecutionContext>,
     ) -> Vec<JoinHandle<Result<(), String>>> {
         let receivers_count: i32 = receivers.values().map(|e| e.len() as i32).sum();
         let thread_safe = receivers_count > 1;
         let mut handles = Vec::new();
 
-        let fw = Arc::new(ChannelForwarder::new(senders, thread_safe));
+        let fw = Arc::new(LocalChannelForwarder::new(senders));
         let pe = Arc::new(ProcessorExecutor::new(proc, thread_safe));
 
         for port_receivers in receivers {
+
             for receiver in port_receivers.1 {
                 let local_ctx = ctx.clone();
                 let local_pe = pe.clone();
@@ -210,7 +210,7 @@ impl MultiThreadedDagExecutor {
 
                 handles.push(thread::spawn(move || -> Result<(), String> {
                     loop {
-                        let rcv = receiver.receive();
+                        let rcv = receiver.recv();
                         if rcv.is_err() {
                             return Err("Channel closed".to_string());
                         }
@@ -342,19 +342,17 @@ fn test_run_dag() {
 
     let src_to_proc1 = dag.connect(
         Endpoint::new(src_handle, None),
-        Endpoint::new(proc_handle, None),
-        Box::new(LocalNodeChannel::new(5000000)),
+        Endpoint::new(proc_handle, None)
     );
     assert!(src_to_proc1.is_ok());
 
     let proc1_to_sink = dag.connect(
         Endpoint::new(proc_handle, None),
-        Endpoint::new(sink_handle, None),
-        Box::new(LocalNodeChannel::new(5000000)),
+        Endpoint::new(sink_handle, None)
     );
     assert!(proc1_to_sink.is_ok());
 
-    let exec = MultiThreadedDagExecutor::new(Rc::new(dag));
+    let exec = MultiThreadedDagExecutor::new(Rc::new(dag), 100000);
     let ctx = Arc::new(MemoryExecutionContext::new());
     assert!(exec.start(ctx).is_ok());
 }

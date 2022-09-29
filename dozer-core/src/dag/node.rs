@@ -1,4 +1,3 @@
-use crate::dag::channel::NodeSender;
 use crate::dag::dag::PortHandle;
 use crate::dag::executor::DEFAULT_PORT_ID;
 use dozer_types::types::{Operation, OperationEvent};
@@ -6,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use crossbeam::channel::Sender;
 
 pub trait ExecutionContext: Send + Sync {}
 
@@ -27,14 +27,14 @@ pub trait Processor: Send + Sync {
         from_port: Option<PortHandle>,
         op: OperationEvent,
         ctx: &dyn ExecutionContext,
-        fw: &ChannelForwarder,
+        fw: &dyn ChannelForwarder,
     ) -> Result<NextStep, String>;
 }
 
 pub trait Source: Send + Sync {
     fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
     fn init(&self) -> Result<(), String>;
-    fn start(&self, fw: &ChannelForwarder) -> Result<(), String>;
+    fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String>;
 }
 
 pub trait Sink: Send + Sync {
@@ -76,7 +76,7 @@ impl ProcessorExecutor {
         port: Option<u8>,
         op: OperationEvent,
         ctx: &dyn ExecutionContext,
-        fw: &ChannelForwarder,
+        fw: &dyn ChannelForwarder,
     ) -> Result<NextStep, String> {
         if self.thread_safe {
             self.sync.as_ref().unwrap().lock().unwrap();
@@ -129,26 +129,30 @@ impl SinkExecutor {
   ChannelForwarder
 ******************************************************************************/
 
-pub struct ChannelForwarder {
-    senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>,
-    thread_safe: bool,
-    sync: HashMap<PortHandle, Mutex<()>>,
+pub trait ChannelForwarder {
+    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String>;
+    fn terminate(&self) -> Result<(), String>;
 }
 
-impl ChannelForwarder {
-    pub fn new(senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>, thread_safe: bool) -> Self {
+pub struct LocalChannelForwarder {
+    senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>
+}
+
+impl LocalChannelForwarder {
+    pub fn new(senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>) -> Self {
         let mut sync = HashMap::<PortHandle, Mutex<()>>::new();
         for e in &senders {
             sync.insert(*e.0, Mutex::<()>::new(()));
         }
-        Self {
-            senders,
-            thread_safe,
-            sync,
-        }
+        Self { senders }
     }
+}
 
-    pub fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String> {
+
+impl ChannelForwarder for LocalChannelForwarder {
+
+    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String> {
+
         let port_id = if port.is_none() {
             DEFAULT_PORT_ID
         } else {
@@ -160,30 +164,24 @@ impl ChannelForwarder {
             return Err("Invalid output port".to_string());
         }
 
-        if self.thread_safe {
-            self.sync.get(&port_id).unwrap().lock().unwrap();
+        if senders.unwrap().len() == 1 {
+            senders.unwrap()[0].send(op).map_err(|e| e.to_string())?;
+        }
+        else {
             for sender in senders.unwrap() {
-                sender.send(op.clone())?;
-            }
-        } else {
-            for sender in senders.unwrap() {
-                sender.send(op.clone())?;
+                sender.send(op.clone()).map_err(|e| e.to_string())?;
             }
         }
+
         return Ok(());
     }
 
-    pub fn terminate(&self) -> Result<(), String> {
+    fn terminate(&self) -> Result<(), String> {
         for senders in &self.senders {
-            if self.thread_safe {
-                self.sync.get(senders.0).unwrap().lock().unwrap();
-                for sender in senders.1 {
-                    sender.send(OperationEvent::new(0, Operation::Terminate))?;
-                }
-            } else {
-                for sender in senders.1 {
-                    sender.send(OperationEvent::new(0, Operation::Terminate))?;
-                }
+
+            for sender in senders.1 {
+                sender.send(OperationEvent::new(0, Operation::Terminate))
+                    .map_err(|e| e.to_string())?;
             }
 
             loop {

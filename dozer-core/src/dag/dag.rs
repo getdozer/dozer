@@ -1,4 +1,3 @@
-use crate::dag::channel::{LocalNodeChannel, NodeChannel};
 use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::node::NextStep::Continue;
 use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source};
@@ -28,13 +27,12 @@ impl Endpoint {
 
 pub struct Edge {
     pub from: Endpoint,
-    pub to: Endpoint,
-    pub channel: Box<dyn NodeChannel>,
+    pub to: Endpoint
 }
 
 impl Edge {
-    pub fn new(from: Endpoint, to: Endpoint, channel: Box<dyn NodeChannel>) -> Self {
-        Self { from, to, channel }
+    pub fn new(from: Endpoint, to: Endpoint) -> Self {
+        Self { from, to }
     }
 }
 
@@ -130,8 +128,7 @@ impl Dag {
     pub fn connect(
         &mut self,
         from: Endpoint,
-        to: Endpoint,
-        channel: Box<dyn NodeChannel>,
+        to: Endpoint
     ) -> Result<(), String> {
         let src_node = self.nodes.get(&from.node);
         if src_node.is_none() {
@@ -167,7 +164,7 @@ impl Dag {
             return res;
         }
 
-        self.edges.push(Edge::new(from, to, channel));
+        self.edges.push(Edge::new(from, to));
 
         Ok(())
     }
@@ -204,7 +201,7 @@ impl Sink for TestSink {
         _op: OperationEvent,
         _ctx: &dyn ExecutionContext,
     ) -> Result<NextStep, String> {
-        //    println!("SINK {}: Message {} received", self.id, op.id);
+         //   println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
     }
 }
@@ -248,7 +245,7 @@ impl Processor for TestProcessor {
         _from_port: Option<PortHandle>,
         op: OperationEvent,
         _ctx: &dyn ExecutionContext,
-        fw: &ChannelForwarder,
+        fw: &dyn ChannelForwarder,
     ) -> Result<NextStep, String> {
         //  println!("PROC {}: Message {} received", self.id, op.id);
         fw.send(op, None)?;
@@ -277,7 +274,7 @@ impl Source for TestSource {
         Ok(())
     }
 
-    fn start(&self, fw: &ChannelForwarder) -> Result<(), String> {
+    fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String> {
         for n in 0..10000000 {
             //   println!("SRC {}: Message {} received", self.id, n);
             fw.send(
@@ -310,8 +307,7 @@ macro_rules! test_ports {
 
             let res = dag.connect(
                 Endpoint::new(src_handle, $from_port),
-                Endpoint::new(proc_handle, $to_port),
-                Box::new(LocalNodeChannel::new(10)),
+                Endpoint::new(proc_handle, $to_port)
             );
 
             assert!(res.is_ok() == $expect)
