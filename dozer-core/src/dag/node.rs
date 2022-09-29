@@ -1,5 +1,5 @@
 use crate::dag::dag::PortHandle;
-use crate::dag::executor::DEFAULT_PORT_ID;
+use crate::dag::mt_executor::DEFAULT_PORT_ID;
 use dozer_types::types::{Operation, OperationEvent};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -9,9 +9,6 @@ use crossbeam::channel::Sender;
 
 pub trait ExecutionContext: Send + Sync {}
 
-/*****************************************************************************
-  Processor traits
-******************************************************************************/
 
 pub enum NextStep {
     Continue,
@@ -48,9 +45,6 @@ pub trait Sink: Send + Sync {
     ) -> Result<NextStep, String>;
 }
 
-/*****************************************************************************
-  ProcessorExecutor
-******************************************************************************/
 
 pub struct ProcessorExecutor {
     processor: Arc<dyn Processor>,
@@ -87,9 +81,6 @@ impl ProcessorExecutor {
     }
 }
 
-/*****************************************************************************
-  SinkExecutor
-******************************************************************************/
 
 pub struct SinkExecutor {
     processor: Arc<dyn Sink>,
@@ -125,9 +116,6 @@ impl SinkExecutor {
     }
 }
 
-/*****************************************************************************
-  ChannelForwarder
-******************************************************************************/
 
 pub trait ChannelForwarder {
     fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String>;

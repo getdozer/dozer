@@ -9,7 +9,7 @@ use dozer_core::dag::channel::LocalNodeChannel;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::dag::{Endpoint, NodeHandle, PortHandle, TestSink, TestSource};
-use dozer_core::dag::executor::{MemoryExecutionContext, MultiThreadedDagExecutor};
+use dozer_core::dag::mt_executor::{MemoryExecutionContext, MultiThreadedDagExecutor};
 use dozer_core::dag::node::NextStep::Continue;
 use dozer_core::dag::node::{
     ChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source,
