@@ -208,7 +208,10 @@ impl MultiThreadedDagExecutor {
                 let index = sel.ready();
                 let op = receivers_ls[index].recv().map_err(|e| {e.to_string()})?;
                 match op.operation {
-                    Operation::Terminate => { fw.terminate()?; }
+                    Operation::Terminate => {
+                        fw.terminate()?;
+                        return Ok(());
+                    }
                     _ => {
                         let r = proc.process(
                             if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
@@ -238,30 +241,24 @@ impl MultiThreadedDagExecutor {
             sink.1.init()?;
         }
 
-        let mut source_handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
-        let mut processor_handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
-        let mut sink_handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
+        let mut handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
 
         for source in &sources {
-            source_handles.push(
+            handles.push(
                 self.start_source(source.1.clone(), senders.remove(&source.0.clone()).unwrap()),
             );
         }
 
         for processor in &processors {
+
             let proc_receivers = receivers.remove(&processor.0.clone());
             if proc_receivers.is_none() {
-                return Err(format!(
-                    "The node {} does not have any input",
-                    &processor.0.clone().to_string()
-                ));
+                return Err(format!("The node {} does not have any input", &processor.0.clone().to_string()));
             }
+
             let proc_senders = senders.remove(&processor.0.clone());
             if proc_senders.is_none() {
-                return Err(format!(
-                    "The node {} does not have any output",
-                    &processor.0.clone().to_string()
-                ));
+                return Err(format!("The node {} does not have any output", &processor.0.clone().to_string()));
             }
 
             let proc_handle = self.start_processor(
@@ -270,7 +267,7 @@ impl MultiThreadedDagExecutor {
                 proc_receivers.unwrap(),
                 ctx.clone(),
             );
-            processor_handles.push(proc_handle);
+            handles.push(proc_handle);
 
         }
 
@@ -285,22 +282,14 @@ impl MultiThreadedDagExecutor {
 
             let snk_handle =
                 self.start_sink(snk.1.clone(), snk_receivers.unwrap(), ctx.clone());
-            sink_handles.push(snk_handle);
+            handles.push(snk_handle);
 
         }
 
-        for sh in source_handles {
-            sh.join().unwrap();
+        for sh in handles {
+            sh.join().unwrap()?;
         }
-
-        for sh in processor_handles {
-            sh.join().unwrap();
-        }
-
-        for sh in sink_handles {
-            sh.join().unwrap();
-        }
-
+        
         Ok(())
     }
 }
