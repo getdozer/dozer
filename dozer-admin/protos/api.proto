@@ -82,8 +82,8 @@ message GetConnectionDetailsResponse {
 }
 
 message GetAllConnectionRequest {
-  uint64 page = 1;
-  uint64 page_size = 2;
+  optional uint32 limit = 1;
+  optional uint32 offset = 2;
 }
 
 message UpdateConnectionRequest {
@@ -106,11 +106,9 @@ message GetAllConnectionResponse {
 }
 
 message Pagination {
-  uint64 limit = 1;
-  uint64 page = 2;
-  uint64 page_size = 3;
-  uint64 total_records = 4;
-  uint64 total_pages = 5;
+  uint32 limit = 1;
+  uint32 offset = 2;
+  uint32 total = 3;
 }
 
 message CreateSourceRequest {

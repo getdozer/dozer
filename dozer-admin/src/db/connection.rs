@@ -1,6 +1,11 @@
-use crate::server::dozer_admin_grpc::{ConnectionInfo, ConnectionType, self};
-use super::{persistable::Persistable, pool::DbPool, schema::{self, connections}};
-use diesel::{prelude::*, insert_into, ExpressionMethods};
+use super::{
+    constants,
+    persistable::Persistable,
+    pool::DbPool,
+    schema::{self, connections},
+};
+use crate::server::dozer_admin_grpc::{self, ConnectionInfo, ConnectionType, Pagination};
+use diesel::{insert_into, prelude::*, ExpressionMethods};
 use schema::connections::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -91,26 +96,40 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
 
     fn get_by_id(pool: DbPool, input_id: String) -> Result<ConnectionInfo, Box<dyn Error>> {
         let mut db = pool.get()?;
-        let result: DbConnection = connections.filter(id.eq(input_id)).first(&mut db)?;
+        let result: DbConnection = connections.find(input_id).first(&mut db)?;
         let connection = ConnectionInfo::try_from(result);
         return connection;
     }
 
-    fn get_multiple(pool: DbPool) -> Result<Vec<ConnectionInfo>, Box<dyn Error>> {
+    fn get_multiple(
+        pool: DbPool,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<(Vec<ConnectionInfo>, Pagination), Box<dyn Error>> {
         let mut db = pool.get()?;
+        let offset = offset.unwrap_or(constants::OFFSET);
+        let limit = limit.unwrap_or(constants::LIMIT);
         let results: Vec<DbConnection> = connections
-            .offset(0)
+            .offset(offset.into())
             .order_by(connections::id.asc())
-            .limit(100)
+            .limit(limit.into())
             .load(&mut db)?;
-
-        let response = results
+        let total: i64 = connections.count().get_result(&mut db)?;
+        let connection_info: Vec<ConnectionInfo> = results
             .iter()
             .map(|result| {
                 return ConnectionInfo::try_from(result.clone()).unwrap();
             })
             .collect();
-        return Ok(response);
+
+        return Ok((
+            connection_info,
+            Pagination {
+                limit: limit,
+                total: total.try_into().unwrap(),
+                offset: offset,
+            },
+        ));
     }
 
     fn upsert(&mut self, pool: DbPool) -> Result<&mut ConnectionInfo, Box<dyn Error>> {

@@ -81,21 +81,17 @@ impl ConnectionService {
 
     pub fn get_all_connections(
         &self,
-        _input: GetAllConnectionRequest,
+        input: GetAllConnectionRequest,
     ) -> Result<GetAllConnectionResponse, ErrorResponse> {
-        let vec_connection_info: Vec<ConnectionInfo> =
-            ConnectionInfo::get_multiple(self.db_pool.clone()).map_err(|op| ErrorResponse {
-                message: op.to_string(),
-            })?;
+        let connection_infos: (Vec<ConnectionInfo>, Pagination) =
+            ConnectionInfo::get_multiple(self.db_pool.clone(), input.limit, input.offset).map_err(
+                |op| ErrorResponse {
+                    message: op.to_string(),
+                },
+            )?;
         Ok(GetAllConnectionResponse {
-            data: vec_connection_info,
-            pagination: Some(Pagination {
-                limit: 100,
-                page: 1,
-                page_size: 100,
-                total_records: 100,
-                total_pages: 33,
-            }),
+            data: connection_infos.0,
+            pagination: Some(connection_infos.1),
         })
     }
 

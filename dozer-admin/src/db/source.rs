@@ -1,12 +1,13 @@
-use crate::server::dozer_admin_grpc::{
-    source_info, ConnectionInfo, HistoryType, RefreshConfig, SourceInfo,
+use super::{
+    constants,
+    persistable::Persistable,
+    pool::DbPool,
+    schema::{self, sources},
 };
-
-use super::persistable::Persistable;
-use super::pool::DbPool;
-use super::schema::{self, sources};
-use diesel::prelude::*;
-use diesel::{insert_into, Connection, ExpressionMethods};
+use crate::server::dozer_admin_grpc::{
+    source_info, ConnectionInfo, HistoryType, Pagination, RefreshConfig, SourceInfo,
+};
+use diesel::{insert_into, prelude::*, Connection, ExpressionMethods};
 use schema::sources::dsl::*;
 use std::error::Error;
 #[derive(Queryable, PartialEq, Debug, Clone)]
@@ -86,27 +87,39 @@ impl TryFrom<DBSource> for SourceInfo {
 impl Persistable<'_, SourceInfo> for SourceInfo {
     fn get_by_id(pool: DbPool, input_id: String) -> Result<SourceInfo, Box<dyn Error>> {
         let mut db = pool.get()?;
-        let db_source: DBSource = sources
-            .filter(sources::columns::id.eq(input_id))
-            .first(&mut db)?;
+        let db_source: DBSource = sources.find(input_id).first(&mut db)?;
         let source_info = SourceInfo::try_from(db_source)?;
         Ok(source_info)
     }
 
-    fn get_multiple(pool: DbPool) -> Result<Vec<SourceInfo>, Box<dyn Error>> {
+    fn get_multiple(
+        pool: DbPool,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<(Vec<SourceInfo>, Pagination), Box<dyn Error>> {
+        let offset = offset.unwrap_or(constants::OFFSET);
+        let limit = limit.unwrap_or(constants::LIMIT);
         let mut db = pool.get()?;
         let results: Vec<DBSource> = sources
-            .offset(0)
+            .offset(offset.into())
             .order_by(sources::id.asc())
-            .limit(100)
+            .limit(limit.into())
             .load(&mut db)?;
-        let response = results
+        let total: i64 = sources.count().get_result(&mut db)?;
+        let response: Vec<SourceInfo> = results
             .iter()
             .map(|result| {
                 return SourceInfo::try_from(result.clone()).unwrap();
             })
             .collect();
-        return Ok(response);
+        return Ok((
+            response,
+            Pagination {
+                limit: limit,
+                total: total.try_into().unwrap(),
+                offset: offset,
+            },
+        ));
     }
 
     fn save(&mut self, pool: DbPool) -> Result<&mut SourceInfo, Box<dyn Error>> {

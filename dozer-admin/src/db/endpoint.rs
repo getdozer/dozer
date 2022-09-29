@@ -3,7 +3,7 @@ use super::{
     pool::DbPool,
     schema::{self, endpoints, source_endpoints, sources},
 };
-use crate::server::dozer_admin_grpc::EndpointInfo;
+use crate::server::dozer_admin_grpc::{EndpointInfo, Pagination};
 use diesel::{delete, insert_into, prelude::*, ExpressionMethods};
 use schema::{endpoints::dsl::*, source_endpoints::dsl::*, sources::dsl::*};
 use serde::{Deserialize, Serialize};
@@ -102,10 +102,6 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
         return Ok(endpoint_info);
     }
 
-    fn get_multiple(_pool: DbPool) -> Result<Vec<EndpointInfo>, Box<dyn Error>> {
-        todo!()
-    }
-
     fn upsert(&mut self, pool: DbPool) -> Result<&mut EndpointInfo, Box<dyn Error>> {
         let mut db = pool.get()?;
         let source_ids = self.source_ids.to_owned();
@@ -149,5 +145,9 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
             return Ok(());
         })?;
         return Ok(self);
+    }
+
+    fn get_multiple(pool: DbPool, limit: Option<u32>, offset: Option<u32>) -> Result<(Vec<EndpointInfo>, Pagination), Box<dyn Error>> {
+        todo!()
     }
 }
