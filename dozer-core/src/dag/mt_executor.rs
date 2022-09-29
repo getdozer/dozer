@@ -7,7 +7,8 @@ use std::rc::Rc;
 use std::sync::{Arc};
 use std::thread;
 use std::thread::{JoinHandle};
-use crossbeam::channel::{bounded, Receiver, Sender};
+use crossbeam::channel::{bounded, Receiver, Select, Sender};
+use crossbeam::select;
 
 pub struct MemoryExecutionContext {
 }
@@ -137,55 +138,55 @@ impl MultiThreadedDagExecutor {
         return thread::spawn(move || -> Result<(), String> { src.start(&fw) });
     }
 
+    fn build_receivers_lists(receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>)
+        -> (Vec<PortHandle>, Vec<Receiver<OperationEvent>>)
+    {
+        let mut handles_ls : Vec<PortHandle> = Vec::new();
+        let mut receivers_ls: Vec<Receiver<OperationEvent>> = Vec::new();
+        for e in receivers {
+            for r in e.1 {
+                receivers_ls.push(r);
+                handles_ls.push(e.0);
+            }
+        }
+        (handles_ls, receivers_ls)
+    }
+
     fn start_sink(
         &self,
         snk: Arc<dyn Sink>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
         ctx: Arc<dyn ExecutionContext>,
-    ) -> Vec<JoinHandle<Result<(), String>>> {
-        let receivers_count: i32 = receivers.values().map(|e| e.len() as i32).sum();
-        let thread_safe = receivers_count > 1;
-        let mut handles = Vec::new();
+    ) -> JoinHandle<Result<(), String>> {
 
-        let se = Arc::new(SinkExecutor::new(snk, thread_safe));
+        thread::spawn(move || -> Result<(), String> {
 
-        for port_receivers in receivers {
-            for receiver in port_receivers.1 {
-                let local_ctx = ctx.clone();
-                let local_se = se.clone();
+            let (mut handles_ls, mut receivers_ls) =
+                MultiThreadedDagExecutor::build_receivers_lists(receivers);
 
-                handles.push(thread::spawn(move || -> Result<(), String> {
-                    loop {
-                        let rcv = receiver.recv();
-                        if rcv.is_err() {
-                            return Err("Channel closed".to_string());
-                        }
-                        let rcv_u = rcv.unwrap();
-                        if matches!(rcv_u.operation, Operation::Terminate) {
-                            return Ok(());
-                        }
-
-                        let res = local_se.process(
-                            if port_receivers.0 == DEFAULT_PORT_ID {
-                                None
-                            } else {
-                                Some(port_receivers.0)
-                            },
-                            rcv_u,
-                            local_ctx.as_ref(),
-                        );
-                        if res.is_err() {
-                            return Err(format!("Sink returned an error: {}", res.err().unwrap()));
-                        } else if matches!(res.unwrap(), NextStep::Stop) {
-                            return Ok(());
+            let mut sel = Select::new();
+            for r in &receivers_ls { sel.recv(r); }
+            loop {
+                let index = sel.ready();
+                let op = receivers_ls[index].recv().map_err(|e| {e.to_string()})?;
+                match op.operation {
+                    Operation::Terminate => { return Ok(()); }
+                    _ => {
+                        let r = snk.process(
+                            if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
+                            op, ctx.as_ref()
+                        )?;
+                        match r {
+                            NextStep::Stop => { return Ok(()); }
+                            _ => { continue; }
                         }
                     }
-                }));
+                }
             }
-        }
+        })
 
-        handles
     }
+
 
     fn start_processor(
         &self,
@@ -193,56 +194,34 @@ impl MultiThreadedDagExecutor {
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
         ctx: Arc<dyn ExecutionContext>,
-    ) -> Vec<JoinHandle<Result<(), String>>> {
-        let receivers_count: i32 = receivers.values().map(|e| e.len() as i32).sum();
-        let thread_safe = receivers_count > 1;
-        let mut handles = Vec::new();
+    ) -> JoinHandle<Result<(), String>> {
 
-        let fw = Arc::new(LocalChannelForwarder::new(senders));
-        let pe = Arc::new(ProcessorExecutor::new(proc, thread_safe));
+        thread::spawn(move || -> Result<(), String> {
 
-        for port_receivers in receivers {
+            let (mut handles_ls, mut receivers_ls) =
+                MultiThreadedDagExecutor::build_receivers_lists(receivers);
 
-            for receiver in port_receivers.1 {
-                let local_ctx = ctx.clone();
-                let local_pe = pe.clone();
-                let local_fw = fw.clone();
-
-                handles.push(thread::spawn(move || -> Result<(), String> {
-                    loop {
-                        let rcv = receiver.recv();
-                        if rcv.is_err() {
-                            return Err("Channel closed".to_string());
-                        }
-                        let rcv_u = rcv.unwrap();
-                        if matches!(rcv_u.operation, Operation::Terminate) {
-                            local_fw.terminate()?
-                        }
-
-                        let res = local_pe.process(
-                            if port_receivers.0 == DEFAULT_PORT_ID {
-                                None
-                            } else {
-                                Some(port_receivers.0)
-                            },
-                            rcv_u,
-                            local_ctx.as_ref(),
-                            local_fw.as_ref(),
-                        );
-                        if res.is_err() {
-                            return Err(format!(
-                                "Processor returned an error: {}",
-                                res.err().unwrap()
-                            ));
-                        } else if matches!(res.unwrap(), NextStep::Stop) {
-                            return Ok(());
+            let fw = LocalChannelForwarder::new(senders);
+            let mut sel = Select::new();
+            for r in &receivers_ls { sel.recv(r); }
+            loop {
+                let index = sel.ready();
+                let op = receivers_ls[index].recv().map_err(|e| {e.to_string()})?;
+                match op.operation {
+                    Operation::Terminate => { fw.terminate()?; }
+                    _ => {
+                        let r = proc.process(
+                            if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
+                            op, ctx.as_ref(), &fw
+                        )?;
+                        match r {
+                            NextStep::Stop => { return Ok(()); }
+                            _ => { continue; }
                         }
                     }
-                }));
+                }
             }
-        }
-
-        handles
+        })
     }
 
     pub fn start(&self, ctx: Arc<dyn ExecutionContext>) -> Result<(), String> {
@@ -285,15 +264,14 @@ impl MultiThreadedDagExecutor {
                 ));
             }
 
-            let local_handles = self.start_processor(
+            let proc_handle = self.start_processor(
                 processor.1.clone(),
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
                 ctx.clone(),
             );
-            for h in local_handles {
-                processor_handles.push(h);
-            }
+            processor_handles.push(proc_handle);
+
         }
 
         for snk in &sinks {
@@ -305,11 +283,10 @@ impl MultiThreadedDagExecutor {
                 ));
             }
 
-            let local_handles =
+            let snk_handle =
                 self.start_sink(snk.1.clone(), snk_receivers.unwrap(), ctx.clone());
-            for h in local_handles {
-                sink_handles.push(h);
-            }
+            sink_handles.push(snk_handle);
+
         }
 
         for sh in source_handles {

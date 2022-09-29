@@ -192,7 +192,7 @@ impl Sink for TestSink {
         _op: OperationEvent,
         _ctx: &dyn ExecutionContext,
     ) -> Result<NextStep, String> {
-         //   println!("SINK {}: Message {} received", self.id, _op.seq_no);
+         println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
     }
 }
@@ -238,7 +238,7 @@ impl Processor for TestProcessor {
         _ctx: &dyn ExecutionContext,
         fw: &dyn ChannelForwarder,
     ) -> Result<NextStep, String> {
-        //  println!("PROC {}: Message {} received", self.id, op.id);
+        println!("PROC {}: Message {} received", self.id, op.seq_no);
         fw.send(op, None)?;
         Ok(Continue)
     }
@@ -266,7 +266,7 @@ impl Source for TestSource {
     }
 
     fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String> {
-        for n in 0..10000000 {
+        for n in 0..1000 {
             //   println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(
