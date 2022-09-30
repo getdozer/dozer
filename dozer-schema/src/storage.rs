@@ -62,7 +62,7 @@ impl RocksStorage {
         let db = Arc::clone(&self.db);
         let key = get_schema_key(schema.identifier.clone().unwrap()).to_owned();
         let key: &[u8] = key.as_ref();
-        println!("{:?}", schema);
+        // println!("{:?}", schema);
         let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
         db.put(key, encoded).unwrap();
     }
