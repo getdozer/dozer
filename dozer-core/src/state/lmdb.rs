@@ -1,6 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 use std::{fs, thread};
+use std::time::Duration;
+use crossbeam::channel::bounded;
+use futures::{AsyncReadExt, SinkExt};
 use lmdb::{Database, DatabaseFlags, Environment, RwTransaction, Transaction, WriteFlags};
 use lmdb::Error::NotFound;
 use crate::state::{StateStore, StateStoreError, StateStoresManager};
@@ -11,7 +14,7 @@ pub struct LmdbStateStoreManager {
 }
 
 impl LmdbStateStoreManager {
-    pub fn new(path: &Path, max_size: usize) -> Result<Box<dyn StateStoresManager>, StateStoreError> {
+    pub fn new(path: &Path, max_size: usize) -> Result<Arc<dyn StateStoresManager>, StateStoreError> {
 
         fs::create_dir(path);
 
@@ -24,7 +27,7 @@ impl LmdbStateStoreManager {
         if res.is_err() {
             return Err(StateStoreError::new(OpenOrCreateError, res.err().unwrap().to_string()));
         }
-        Ok(Box::new(LmdbStateStoreManager { env: Arc::new(res.unwrap()) }))
+        Ok(Arc::new(LmdbStateStoreManager { env: Arc::new(res.unwrap()) }))
     }
 }
 
@@ -96,22 +99,34 @@ impl <'a> StateStore for LmdbStateStore<'a> {
 
 }
 
-// #[test]
-// fn test_mt_lmdb_store() {
-//
-//     let sm : Arc<LmdbStateStoreManager> = LmdbStateStoreManager::new(Path::new("./data"), 1024*1024*1024*5).unwrap();
-//
-//     let sm_t1 = sm.clone();
-//     let h = thread::spawn(|| {
-//         let ss1 = sm_t1.init_state_store("test1".to_string());
-//     });
-//
-//     let sm_t2 = sm.clone();
-//     let h = thread::spawn(|| {
-//         let ss2 = sm_t2.init_state_store("test2".to_string());
-//     });
-//
-// }
+#[test]
+fn test_mt_lmdb_store() {
+
+    let sm = LmdbStateStoreManager::new(Path::new("./data"), 1024*1024*1024*5).unwrap();
+
+    let (mut tx1, mut rx1) = bounded::<i32>(1000);
+    let sm_t1 = sm.clone();
+    let h1 = thread::spawn(move || {
+        let ss1 = sm_t1.init_state_store("test1".to_string());
+        rx1.recv();
+    });
+
+    let (mut tx2, mut rx2) = bounded(1000);
+    let sm_t2 = sm.clone();
+    let h2 = thread::spawn(move || {
+        let ss2 = sm_t2.init_state_store("test2".to_string());
+        rx2.recv();
+    });
+
+    thread::sleep(Duration::from_secs(2));
+    tx1.send(1);
+    tx2.send(2);
+
+    h1.join();
+    h2.join();
+
+
+}
 
 
 

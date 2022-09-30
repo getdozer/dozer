@@ -144,10 +144,10 @@ impl MultiThreadedDagExecutor {
 
         return thread::spawn(move || -> Result<(), String> {
 
-            let mut state_store = local_sm.init_state_store(handle.to_string())
+            let mut state_store2 = local_sm.init_state_store(handle.to_string())
                 .map_err(|e| { e.desc })?;
 
-        //    let mut state_store = Box::new(MemoryStateStore::new());
+            let mut state_store = Box::new(MemoryStateStore::new());
 
             let mut src = src_factory.build();
             src.start(&fw, state_store.as_mut())
@@ -181,8 +181,8 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> Result<(), String> {
 
             let mut snk = snk_factory.build();
-            // let mut state_store = local_sm.init_state_store(handle.to_string())
-            //     .map_err(|e| { e.desc })?;
+             let mut state_store2 = local_sm.init_state_store(handle.to_string())
+                 .map_err(|e| { e.desc })?;
 
             let mut state_store = Box::new(MemoryStateStore::new());
 
@@ -225,9 +225,9 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> Result<(), String> {
 
             let mut proc = proc_factory.build();
-            let mut state_store = local_sm.init_state_store(handle.to_string())
+            let mut state_store2 = local_sm.init_state_store(handle.to_string())
                 .map_err(|e| { e.desc })?;
-          //  let mut state_store = Box::new(MemoryStateStore::new());
+            let mut state_store = Box::new(MemoryStateStore::new());
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -260,12 +260,12 @@ impl MultiThreadedDagExecutor {
         })
     }
 
-    pub fn start(&self, dag: Dag, state_manager: Box<dyn StateStoresManager>) -> Result<(), String> {
+    pub fn start(&self, dag: Dag, state_manager: Arc<dyn StateStoresManager>) -> Result<(), String> {
 
         let (mut senders, mut receivers) = self.index_edges(&dag);
         let (sources, processors, sinks) = self.get_node_types(dag);
         let mut handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
-        let global_sm : Arc<dyn StateStoresManager> = Arc::from(state_manager);
+        let global_sm = state_manager.clone();
 
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
@@ -356,3 +356,4 @@ fn test_run_dag() {
 
     assert!(exec.start(dag, sm).is_ok());
 }
+
