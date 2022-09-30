@@ -1,5 +1,6 @@
 use anyhow::Ok;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use dozer_cache::cache::expression::{self, Expression};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -30,6 +31,17 @@ async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn query(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Result<()> {
+    let exp = Expression::Simple(
+        "foo".to_string(),
+        expression::Comparator::EQ,
+        Field::String(format!("bar_{}", n).to_string()),
+    );
+
+    let _get_record = cache.query(schema.identifier.unwrap(), exp).await?;
+    Ok(())
+}
+
 fn cache(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
@@ -55,6 +67,13 @@ fn cache(c: &mut Criterion) {
     c.bench_with_input(BenchmarkId::new("cache_get", size), &size, |b, &s| {
         b.iter(|| {
             rt.block_on(async { get(Arc::clone(&cache), s).await })
+                .unwrap();
+        })
+    });
+
+    c.bench_with_input(BenchmarkId::new("cache_query", size), &size, |b, &s| {
+        b.iter(|| {
+            rt.block_on(async { query(Arc::clone(&cache), schema.clone(), s).await })
                 .unwrap();
         })
     });
