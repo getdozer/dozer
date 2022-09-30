@@ -154,7 +154,7 @@ mod tests {
     use super::LmdbCache;
     use crate::cache::{
         expression::{self, Expression},
-        Cache,
+        get_primary_key, Cache,
     };
     use dozer_schema::{
         registry::{SchemaRegistryClient, _serve_channel, client},
@@ -171,33 +171,33 @@ mod tests {
         let cache = LmdbCache::new(client.clone(), true);
         (cache, schema)
     }
-    // #[tokio::test]
-    // async fn insert_and_get_schema() -> anyhow::Result<()> {
-    //     let (cache, schema) = _setup().await;
-    //     cache.insert_schema(schema.clone()).await?;
+    #[tokio::test]
+    async fn insert_and_get_schema() -> anyhow::Result<()> {
+        let (cache, schema) = _setup().await;
+        cache.insert_schema(schema.clone()).await?;
 
-    //     let get_schema = cache.get_schema(schema.identifier.clone().unwrap()).await?;
-    //     assert_eq!(get_schema, schema, "must be equal");
-    //     Ok(())
-    // }
-    // #[tokio::test]
-    // async fn insert_get_and_delete_record() -> anyhow::Result<()> {
-    //     let val = "bar".to_string();
-    //     let (cache, schema) = _setup().await;
-    //     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
-    //     cache.insert(record.clone()).await?;
+        let get_schema = cache.get_schema(schema.identifier.clone().unwrap()).await?;
+        assert_eq!(get_schema, schema, "must be equal");
+        Ok(())
+    }
+    #[tokio::test]
+    async fn insert_get_and_delete_record() -> anyhow::Result<()> {
+        let val = "bar".to_string();
+        let (cache, schema) = _setup().await;
+        let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
+        cache.insert(record.clone()).await?;
 
-    //     let key = cache.get_key(vec![0], vec![Field::String(val)]);
+        let key = get_primary_key(vec![0], vec![Field::String(val)]);
 
-    //     let get_record = cache.get(key.clone()).await?;
-    //     assert_eq!(get_record, record.clone(), "must be equal");
+        let get_record = cache.get(key.clone()).await?;
+        assert_eq!(get_record, record.clone(), "must be equal");
 
-    //     cache.delete(key.clone()).await?;
+        cache.delete(key.clone()).await?;
 
-    //     cache.get(key).await.expect_err("Must not find a record");
+        cache.get(key).await.expect_err("Must not find a record");
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     #[tokio::test]
     async fn insert_and_query_record() -> anyhow::Result<()> {
