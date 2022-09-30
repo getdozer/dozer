@@ -1,4 +1,3 @@
-use anyhow::{bail, Ok};
 use lmdb::{Cursor, Database, Environment, Transaction};
 
 use dozer_types::types::{Field, FieldDefinition, IndexType, Schema, SchemaIdentifier};
@@ -13,13 +12,11 @@ pub struct QueryHandler<'a> {
     env: &'a Environment,
     db: &'a Database,
 }
+
+// http://www.lmdb.tech/doc/group__mdb.html#ga1206b2af8b95e7f6b0ef6b28708c9127
 pub const MDB_NEXT: u32 = 8;
-pub const MDB_NEXT_DUP: u32 = 9;
-pub const MDB_NEXT_MULTIPLE: u32 = 10;
-pub const MDB_NEXT_NODUP: u32 = 11;
 pub const MDB_PREV: u32 = 12;
-pub const MDB_PREV_DUP: u32 = 13;
-pub const MDB_PREV_NODUP: u32 = 14;
+pub const MDB_SET: u32 = 16;
 
 impl<'a> QueryHandler<'a> {
     pub fn new(env: &'a Environment, db: &'a Database) -> Self {
@@ -62,28 +59,37 @@ impl<'a> QueryHandler<'a> {
         let txn = self.env.begin_ro_txn()?;
         let cursor = txn.open_ro_cursor(*self.db)?;
 
-        let op = match comparator {
-            Comparator::LT | Comparator::LTE => MDB_PREV_DUP,
-            Comparator::GT | Comparator::GTE | Comparator::EQ => MDB_NEXT_DUP,
+        let next_op = match comparator {
+            Comparator::LT | Comparator::LTE => MDB_PREV,
+            Comparator::GT | Comparator::GTE | Comparator::EQ => MDB_NEXT,
         };
 
         let mut pkeys = vec![];
+        let mut idx = 0;
+
         loop {
-            let (key, val) = cursor.get(Some(&indx), None, op)?;
-            match key {
-                Some(key) => {
-                    if let Some(_idx) = gs_find(key, &field_val) {
-                        pkeys.push(val.to_vec())
-                    } else {
+            let op = if idx > 0 { next_op } else { MDB_SET };
+            let res = cursor.get(Some(&indx), None, op);
+            match res {
+                Ok((key, val)) => match key {
+                    Some(key) => {
+                        if let Some(_idx) = gs_find(key, &field_val) {
+                            // println!("idx: {}, key... {:?}, val... {:?}", idx, key, val);
+                            pkeys.push(val.to_vec());
+                        } else {
+                            break;
+                        }
+                    }
+                    None => {
                         break;
                     }
-                }
-                None => {
-                    bail!("key not found")
+                },
+                Err(_) => {
+                    break;
                 }
             }
+            idx += 1;
         }
-
         Ok(pkeys)
     }
 

@@ -62,7 +62,7 @@ impl LmdbCache {
         let txn: RoTransaction = self.env.begin_ro_txn().unwrap();
         let cursor = txn.open_ro_cursor(self.db)?;
         loop {
-            if let Ok((key, val)) = cursor.get(None, None, 9) {
+            if let Ok((key, val)) = cursor.get(None, None, 8) {
                 println!("key: {:?}, val: {:?}", key.unwrap(), val);
             } else {
                 break;
@@ -207,7 +207,6 @@ mod tests {
 
         cache.insert(record.clone()).await?;
 
-        cache._debug_dump()?;
         let exp = Expression::Simple(
             "foo".to_string(),
             expression::Comparator::EQ,
@@ -215,6 +214,7 @@ mod tests {
         );
         let records = cache.query(schema.identifier.unwrap(), exp).await?;
 
+        println!("records: {:?}", records);
         assert_eq!(records[0], record.clone(), "must be equal");
 
         Ok(())

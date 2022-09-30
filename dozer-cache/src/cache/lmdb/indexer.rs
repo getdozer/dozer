@@ -22,15 +22,12 @@ impl<'a> Indexer<'a> {
         let mut txn = parent_txn.begin_nested_txn()?;
 
         let identifier = &schema.identifier.unwrap();
-        println!("building indexes...");
         for index in schema.secondary_indexes.iter() {
-            println!("index... {:?}", index);
             let keys = self._build_index(index, &rec, &identifier)?;
 
             for secondary_key in keys.iter() {
                 let _typ = &index.typ;
 
-                println!("secondary_index_key... {:?}", secondary_key);
                 txn.put::<Vec<u8>, Vec<u8>>(
                     *self.db,
                     &secondary_key,
@@ -40,7 +37,6 @@ impl<'a> Indexer<'a> {
             }
         }
         txn.commit()?;
-        println!("committed");
         Ok(())
     }
 
