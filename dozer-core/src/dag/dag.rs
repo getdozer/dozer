@@ -194,7 +194,7 @@ pub struct TestSink {
 
 impl Sink for TestSink {
     
-    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String> {
+    fn init(&self, state_store: &mut dyn StateStore) -> Result<(), String> {
         println!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -202,7 +202,8 @@ impl Sink for TestSink {
     fn process(
         &self,
         _from_port: Option<PortHandle>,
-        _op: OperationEvent
+        _op: OperationEvent,
+        _state: &mut dyn StateStore
     ) -> Result<NextStep, String> {
      //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
@@ -243,7 +244,7 @@ pub struct TestProcessor {
 
 impl Processor for TestProcessor {
 
-    fn init<'a>(&'a mut self, state_manager: &'a dyn StateStoresManager) -> Result<(), String> {
+    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore) -> Result<(), String> {
         println!("PROC {}: Initialising TestProcessor", self.id);
      //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
@@ -254,9 +255,10 @@ impl Processor for TestProcessor {
         _from_port: Option<PortHandle>,
         op: OperationEvent,
         fw: &dyn ChannelForwarder,
+        state_store: &mut dyn StateStore
     ) -> Result<NextStep, String> {
      //   println!("PROC {}: Message {} received", self.id, op.seq_no);
-    //    self.state.unwrap().put(&op.seq_no.to_ne_bytes(), &self.id.to_ne_bytes());
+        state_store.put(&op.seq_no.to_ne_bytes(), &self.id.to_ne_bytes());
         fw.send(op, None)?;
         Ok(Continue)
     }
@@ -290,13 +292,8 @@ pub struct TestSource {
 
 impl Source for TestSource {
 
-    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String> {
-        println!("SRC {}: Initialising TestProcessor", self.id);
-        Ok(())
-    }
-
-    fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String> {
-        for n in 0..10000000 {
+    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> Result<(), String> {
+        for n in 0..1000000 {
              //  println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(

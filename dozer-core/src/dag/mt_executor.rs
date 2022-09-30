@@ -11,6 +11,7 @@ use std::thread::{JoinHandle};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use crossbeam::select;
 use crate::state::lmdb::LmdbStateStoreManager;
+use crate::state::memory::MemoryStateStore;
 use crate::state::StateStoresManager;
 
 pub struct MemoryExecutionContext {
@@ -132,16 +133,24 @@ impl MultiThreadedDagExecutor {
     }
 
     fn start_source(
-        &self,
+        &self, handle: NodeHandle,
         mut src_factory: Box<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
+        state_manager: Arc<dyn StateStoresManager>
     ) -> JoinHandle<Result<(), String>> {
 
+        let local_sm = state_manager.clone();
         let fw = LocalChannelForwarder::new(senders);
+
         return thread::spawn(move || -> Result<(), String> {
 
+            let mut state_store = local_sm.init_state_store(handle.to_string())
+                .map_err(|e| { e.desc })?;
+
+        //    let mut state_store = Box::new(MemoryStateStore::new());
+
             let mut src = src_factory.build();
-            src.start(&fw)
+            src.start(&fw, state_store.as_mut())
 
         });
 
@@ -162,7 +171,7 @@ impl MultiThreadedDagExecutor {
     }
 
     fn start_sink(
-        &self,
+        &self, handle: NodeHandle,
         mut snk_factory: Box<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
         state_manager: Arc<dyn StateStoresManager>
@@ -172,6 +181,10 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> Result<(), String> {
 
             let mut snk = snk_factory.build();
+            // let mut state_store = local_sm.init_state_store(handle.to_string())
+            //     .map_err(|e| { e.desc })?;
+
+            let mut state_store = Box::new(MemoryStateStore::new());
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -186,7 +199,7 @@ impl MultiThreadedDagExecutor {
                     _ => {
                         let r = snk.process(
                             if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
-                            op
+                            op, state_store.as_mut()
                         )?;
                         match r {
                             NextStep::Stop => { return Ok(()); }
@@ -201,7 +214,7 @@ impl MultiThreadedDagExecutor {
 
 
     fn start_processor(
-        &self,
+        &self, handle: NodeHandle,
         mut proc_factory: Box<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
@@ -209,10 +222,12 @@ impl MultiThreadedDagExecutor {
     ) -> JoinHandle<Result<(), String>> {
 
         let local_sm = state_manager.clone();
-
         thread::spawn(move || -> Result<(), String> {
 
             let mut proc = proc_factory.build();
+            let mut state_store = local_sm.init_state_store(handle.to_string())
+                .map_err(|e| { e.desc })?;
+          //  let mut state_store = Box::new(MemoryStateStore::new());
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -221,7 +236,7 @@ impl MultiThreadedDagExecutor {
             let mut sel = Select::new();
             for r in &receivers_ls { sel.recv(r); }
 
-            proc.init(local_sm.as_ref())?;
+            proc.init(state_store.as_mut())?;
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index].recv().map_err(|e| {e.to_string()})?;
@@ -233,7 +248,7 @@ impl MultiThreadedDagExecutor {
                     _ => {
                         let r = proc.process(
                             if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
-                            op, &fw
+                            op, &fw, state_store.as_mut()
                         )?;
                         match r {
                             NextStep::Stop => { return Ok(()); }
@@ -252,11 +267,22 @@ impl MultiThreadedDagExecutor {
         let mut handles: Vec<JoinHandle<Result<(), String>>> = Vec::new();
         let global_sm : Arc<dyn StateStoresManager> = Arc::from(state_manager);
 
+        for snk in sinks {
+            let snk_receivers = receivers.remove(&snk.0.clone());
+            if snk_receivers.is_none() {
+                return Err(format!(
+                    "The node {} does not have any input",
+                    &snk.0.clone().to_string()
+                ));
+            }
 
-        for source in sources {
-            handles.push(
-                self.start_source(source.1, senders.remove(&source.0.clone()).unwrap()),
-            );
+            let snk_handle =
+                self.start_sink(
+                    snk.0, snk.1,
+                    snk_receivers.unwrap(), global_sm.clone()
+                );
+            handles.push(snk_handle);
+
         }
 
         for processor in processors {
@@ -272,28 +298,24 @@ impl MultiThreadedDagExecutor {
             }
 
             let proc_handle = self.start_processor(
+                processor.0,
                 processor.1,
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
                 global_sm.clone()
             );
-           handles.push(proc_handle);
+            handles.push(proc_handle);
 
         }
 
-        for snk in sinks {
-            let snk_receivers = receivers.remove(&snk.0.clone());
-            if snk_receivers.is_none() {
-                return Err(format!(
-                    "The node {} does not have any input",
-                    &snk.0.clone().to_string()
-                ));
-            }
-
-            let snk_handle =
-                self.start_sink(snk.1, snk_receivers.unwrap(), global_sm.clone());
-            handles.push(snk_handle);
-
+        for source in sources {
+            handles.push(
+                self.start_source(
+                    source.0, source.1,
+                    senders.remove(&source.0.clone()).unwrap(),
+                    global_sm.clone()
+                ),
+            );
         }
 
         for sh in handles {

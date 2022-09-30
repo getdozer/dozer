@@ -15,8 +15,8 @@ pub enum StateStoreErrorType {
 
 #[derive(Debug)]
 pub struct StateStoreError {
-    err_code: StateStoreErrorType,
-    desc: String
+    pub err_code: StateStoreErrorType,
+    pub desc: String
 }
 
 impl StateStoreError {

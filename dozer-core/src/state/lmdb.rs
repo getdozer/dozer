@@ -96,19 +96,22 @@ impl <'a> StateStore for LmdbStateStore<'a> {
 
 }
 
-#[test]
-fn test_mt_lmdb_store() {
-
-    // let sm = LmdbStateStoreManager::new(Path::new("./data"), 1024*1024*1024*5).unwrap();
-    //
-    // let h = thread::spawn(|| {
-    //     let ss1 = sm.init_state_store("test1".to_string());
-    // });
-    // let h = thread::spawn(|| {
-    //     let ss2 = sm.init_state_store("test2".to_string());
-    // });
-
-}
+// #[test]
+// fn test_mt_lmdb_store() {
+//
+//     let sm : Arc<LmdbStateStoreManager> = LmdbStateStoreManager::new(Path::new("./data"), 1024*1024*1024*5).unwrap();
+//
+//     let sm_t1 = sm.clone();
+//     let h = thread::spawn(|| {
+//         let ss1 = sm_t1.init_state_store("test1".to_string());
+//     });
+//
+//     let sm_t2 = sm.clone();
+//     let h = thread::spawn(|| {
+//         let ss2 = sm_t2.init_state_store("test2".to_string());
+//     });
+//
+// }
 
 
 

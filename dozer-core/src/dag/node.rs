@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 use crossbeam::channel::Sender;
-use crate::state::StateStoresManager;
+use crate::state::{StateStore, StateStoresManager};
 
 pub trait ExecutionContext: Send + Sync {}
 
@@ -23,8 +23,8 @@ pub trait ProcessorFactory: Send + Sync {
 }
 
 pub trait Processor {
-    fn init(&mut self, state_manager: &dyn StateStoresManager) -> Result<(), String>;
-    fn process(&mut self, from_port: Option<PortHandle>, op: OperationEvent, fw: &dyn ChannelForwarder)
+    fn init(&mut self, state: &mut dyn StateStore) -> Result<(), String>;
+    fn process(&mut self, from_port: Option<PortHandle>, op: OperationEvent, fw: &dyn ChannelForwarder, state: &mut dyn StateStore)
         -> Result<NextStep, String>;
 }
 
@@ -34,8 +34,7 @@ pub trait SourceFactory: Send + Sync {
 }
 
 pub trait Source {
-    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String>;
-    fn start(&self, fw: &dyn ChannelForwarder) -> Result<(), String>;
+    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> Result<(), String>;
 }
 
 pub trait SinkFactory: Send + Sync {
@@ -44,11 +43,12 @@ pub trait SinkFactory: Send + Sync {
 }
 
 pub trait Sink {
-    fn init(&self, state_manager: &dyn StateStoresManager) -> Result<(), String>;
+    fn init(&self, state: &mut dyn StateStore) -> Result<(), String>;
     fn process(
         &self,
         from_port: Option<PortHandle>,
-        op: OperationEvent
+        op: OperationEvent,
+        state: &mut dyn StateStore
     ) -> Result<NextStep, String>;
 }
 
