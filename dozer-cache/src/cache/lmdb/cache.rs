@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
+use crate::cache::expression::Expression;
+
 use super::super::Cache;
+use super::indexer::Indexer;
+use super::query::QueryHandler;
 use super::utils;
 use async_trait::async_trait;
 use dozer_schema::registry::context::Context;
@@ -9,7 +13,6 @@ use dozer_schema::storage::get_schema_key;
 use dozer_types::types::{Field, Schema, SchemaIdentifier};
 use dozer_types::types::{Operation, Record};
 use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
-
 pub struct LmdbCache {
     env: Environment,
     db: Database,
@@ -45,7 +48,11 @@ impl LmdbCache {
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;
 
-        txn.commit().unwrap();
+        let indexer = Indexer::new(&self.db);
+
+        indexer.build_indexes(&mut txn, rec, schema, key)?;
+
+        txn.commit()?;
 
         Ok(())
     }
@@ -98,8 +105,22 @@ impl Cache for LmdbCache {
         Ok(rec)
     }
 
-    async fn query(&self, _key: Vec<u8>) -> anyhow::Result<Vec<Record>> {
-        todo!()
+    async fn query(
+        &self,
+        schema_identifier: SchemaIdentifier,
+        exp: Expression,
+    ) -> anyhow::Result<Vec<Record>> {
+        let schema = self.get_schema(schema_identifier.clone()).await?;
+
+        let handler = QueryHandler::new(&self.env, &self.db);
+        let pkeys = handler.query(schema, exp)?;
+        let mut records = vec![];
+        for key in pkeys.iter() {
+            let key = key.clone();
+            let rec = self.get(key).await?;
+            records.push(rec);
+        }
+        Ok(records)
     }
 
     async fn handle_batch(&self, _operations: Vec<Operation>) -> anyhow::Result<()> {
