@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::registry::{context, SchemaRegistryClient};
-use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
+use dozer_types::types::{FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier};
 
 pub async fn init_schema(client: Arc<SchemaRegistryClient>) -> Schema {
     // Initialize Schema Registry
@@ -14,7 +14,10 @@ pub async fn init_schema(client: Arc<SchemaRegistryClient>) -> Schema {
         }],
         values: vec![0],
         primary_index: vec![0],
-        secondary_indexes: vec![],
+        secondary_indexes: vec![IndexDefinition {
+            fields: vec![0],
+            typ: IndexType::SortedInverted,
+        }],
     };
 
     // Insert Schema

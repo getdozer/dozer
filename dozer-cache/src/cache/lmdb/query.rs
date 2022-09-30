@@ -1,15 +1,13 @@
 use anyhow::{bail, Ok};
 use lmdb::{Cursor, Database, Environment, Transaction};
 
-use dozer_types::types::{Field, FieldDefinition, IndexType, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{Field, FieldDefinition, IndexType, Schema, SchemaIdentifier};
 
 use crate::cache::{
     expression::{Comparator, Expression},
-    Cache,
+    get_secondary_index,
 };
 
-use super::cache::LmdbCache;
-use super::indexer::get_secondary_index;
 use galil_seiferas::gs_find;
 pub struct QueryHandler<'a> {
     env: &'a Environment,
@@ -31,16 +29,18 @@ impl<'a> QueryHandler<'a> {
     pub fn query(&self, schema: Schema, exp: Expression) -> anyhow::Result<Vec<Vec<u8>>> {
         let pkeys = match exp {
             Expression::Simple(column, comparator, field) => {
-                let field_defs: Vec<&FieldDefinition> = schema
+                let field_defs: Vec<(usize, &FieldDefinition)> = schema
                     .fields
                     .iter()
-                    .filter(|fd| fd.name == column)
+                    .enumerate()
+                    .filter(|(_field_idx, fd)| fd.name == column)
                     .collect();
                 let field_def = field_defs.get(0).unwrap();
-                let pkeys = self._query(schema.identifier.unwrap(), comparator, field)?;
+                let pkeys =
+                    self._query(schema.identifier.unwrap(), field_def.0, comparator, field)?;
                 pkeys
             }
-            Expression::Combination(operator, exp1, exp2) => todo!(),
+            Expression::Combination(_operator, _exp1, _exp2) => todo!(),
         };
         Ok(pkeys)
     }
@@ -48,17 +48,19 @@ impl<'a> QueryHandler<'a> {
     fn _query(
         &self,
         schema_identifier: SchemaIdentifier,
+        field_idx: usize,
         comparator: Comparator,
         field: Field,
     ) -> anyhow::Result<Vec<Vec<u8>>> {
-        let typ = Self::get_index_type(&comparator);
-        let field_key = bincode::serialize(&field).unwrap();
-        let indx = get_secondary_index(&schema_identifier, &typ, &field_key);
+        // TODO: Change logic based on typ
+        let _typ = Self::get_index_type(&comparator);
+
+        let field_val = bincode::serialize(&field).unwrap();
+
+        let indx = get_secondary_index(schema_identifier.id, &field_idx, &field_val);
 
         let txn = self.env.begin_ro_txn()?;
         let cursor = txn.open_ro_cursor(*self.db)?;
-
-        cursor.cursor();
 
         let op = match comparator {
             Comparator::LT | Comparator::LTE => MDB_PREV_DUP,
@@ -66,21 +68,26 @@ impl<'a> QueryHandler<'a> {
         };
 
         let mut pkeys = vec![];
-        while let (key, val) = cursor.get(None, None, op).unwrap() {
+        loop {
+            let (key, val) = cursor.get(Some(&indx), None, op)?;
             match key {
                 Some(key) => {
-                    if let Some(_idx) = gs_find(key, &field_key) {
+                    if let Some(_idx) = gs_find(key, &field_val) {
                         pkeys.push(val.to_vec())
+                    } else {
+                        break;
                     }
                 }
-                None => bail!("key not found"),
+                None => {
+                    bail!("key not found")
+                }
             }
         }
 
         Ok(pkeys)
     }
 
-    fn get_index_type(comparator: &Comparator) -> IndexType {
+    fn get_index_type(_comparator: &Comparator) -> IndexType {
         IndexType::SortedInverted
     }
 }

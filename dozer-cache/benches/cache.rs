@@ -1,10 +1,10 @@
 use anyhow::Ok;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 use dozer_cache::cache::lmdb::cache::LmdbCache;
-use dozer_cache::cache::Cache;
+use dozer_cache::cache::{get_primary_key, Cache};
 use dozer_schema::{
     registry::{SchemaRegistryClient, _serve_channel, client},
     test_helper::init_schema,
@@ -17,7 +17,7 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
 
     cache.insert(record.clone()).await?;
-    let key = cache.get_key(vec![0], vec![Field::String(val)]);
+    let key = get_primary_key(vec![0], vec![Field::String(val)]);
 
     let _get_record = cache.get(key).await?;
     Ok(())
@@ -25,7 +25,7 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
 
 async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n).to_string();
-    let key = cache.get_key(vec![0], vec![Field::String(val)]);
+    let key = get_primary_key(vec![0], vec![Field::String(val)]);
     let _get_record = cache.get(key).await?;
     Ok(())
 }
