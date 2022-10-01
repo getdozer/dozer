@@ -11,18 +11,6 @@ use std::error::Error;
 use std::vec;
 use postgres_types::FromSql;
 
-fn handle_error(e: postgres::error::Error) -> Field {
-    if let Some(e) = e.source() {
-        if let Some(_e) = e.downcast_ref::<WasNull>() {
-            Field::Null
-        } else {
-            panic!("Conversion error: {:?}", e);
-        }
-    } else {
-        panic!("Conversion error: {:?}", e);
-    }
-}
-
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     if let Some(column_type) = &column.r#type {
         match column_type {
@@ -84,6 +72,18 @@ pub fn postgres_type_to_dozer_type(col_type: Option<&Type>) -> FieldType {
         }
     } else {
         FieldType::Null
+    }
+}
+
+fn handle_error(e: postgres::error::Error) -> Field {
+    if let Some(e) = e.source() {
+        if let Some(_e) = e.downcast_ref::<WasNull>() {
+            Field::Null
+        } else {
+            panic!("Conversion error: {:?}", e);
+        }
+    } else {
+        panic!("Conversion error: {:?}", e);
     }
 }
 
