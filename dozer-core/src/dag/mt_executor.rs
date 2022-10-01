@@ -352,7 +352,7 @@ fn test_run_dag() {
 
     let exec = MultiThreadedDagExecutor::new( 100000);
     let ctx = Arc::new(MemoryExecutionContext::new());
-    let sm = LmdbStateStoreManager::new(Path::new("./test"), 1024*1024*1024*5).unwrap();
+    let sm = LmdbStateStoreManager::new("./test".to_string(), 1024*1024*1024*5).unwrap();
 
     assert!(exec.start(dag, sm).is_ok());
 }

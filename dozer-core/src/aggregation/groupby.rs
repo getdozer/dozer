@@ -540,7 +540,7 @@ mod tests {
 
         fs::create_dir(".data").is_ok();
 
-        let sm = LmdbStateStoreManager::new(Path::new(".data"), 1024*1024*1024*10);
+        let sm = LmdbStateStoreManager::new(".data".to_string(), 1024*1024*1024*10);
         let ss = sm.unwrap();
         let mut store = ss.init_state_store("test".to_string()).unwrap();
 

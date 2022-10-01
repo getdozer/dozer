@@ -1,5 +1,6 @@
 pub mod lmdb;
 pub mod memory;
+mod lmdb_sys;
 
 #[derive(Debug)]
 pub enum StateStoreErrorType {
@@ -26,7 +27,7 @@ impl StateStoreError {
 }
 
 pub trait StateStoresManager : Send + Sync {
-    fn init_state_store<'a> (&'a self, id: String) -> Result<Box<dyn StateStore + 'a>, StateStoreError>;
+    fn init_state_store(&self, id: String) -> Result<Box<dyn StateStore>, StateStoreError>;
 }
 
 pub trait StateStore {

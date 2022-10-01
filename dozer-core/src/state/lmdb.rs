@@ -4,96 +4,77 @@ use std::{fs, thread};
 use std::time::Duration;
 use crossbeam::channel::bounded;
 use futures::{AsyncReadExt, SinkExt};
-use lmdb::{Database, DatabaseFlags, Environment, RwTransaction, Transaction, WriteFlags};
-use lmdb::Error::NotFound;
 use crate::state::{StateStore, StateStoreError, StateStoresManager};
+use crate::state::lmdb_sys::{Database, DatabaseOptions, Environment, EnvOptions, Transaction};
 use crate::state::StateStoreErrorType::{GetOperationError, OpenOrCreateError, StoreOperationError, TransactionError};
 
 pub struct LmdbStateStoreManager {
-    env: Arc<Environment>
+    path: String,
+    max_size: usize
 }
 
 impl LmdbStateStoreManager {
-    pub fn new(path: &Path, max_size: usize) -> Result<Arc<dyn StateStoresManager>, StateStoreError> {
+    pub fn new(path: String, max_size: usize) -> Result<Arc<dyn StateStoresManager>, StateStoreError> {
 
-        fs::create_dir(path);
-
-        let res = Environment::new()
-            .set_map_size(max_size)
-            .set_max_dbs(256)
-            .set_max_readers(256)
-            .open(path);
-
-        if res.is_err() {
-            return Err(StateStoreError::new(OpenOrCreateError, res.err().unwrap().to_string()));
-        }
-        Ok(Arc::new(LmdbStateStoreManager { env: Arc::new(res.unwrap()) }))
+        fs::create_dir(path.clone());
+        Ok(Arc::new(LmdbStateStoreManager {path: path.clone() , max_size }))
     }
 }
 
 impl StateStoresManager for LmdbStateStoreManager {
 
-     fn init_state_store<'a> (&'a self, id: String) -> Result<Box<dyn StateStore + 'a>, StateStoreError> {
+     fn init_state_store (&self, id: String) -> Result<Box<dyn StateStore>, StateStoreError> {
 
-        let r_db = self.env.create_db(Some(id.as_str()), DatabaseFlags::empty());
-        if r_db.is_err() {
-            return Err(StateStoreError::new(OpenOrCreateError, r_db.err().unwrap().to_string()));
-        }
+         fs::create_dir(id.clone());
 
-        let r_tx = self.env.begin_rw_txn();
-        if r_tx.is_err() {
-            return Err(StateStoreError::new(TransactionError, r_tx.err().unwrap().to_string()));
-        }
+         let mut env_opt = EnvOptions::default();
+         env_opt.no_sync = true;
+         env_opt.max_dbs = Some(10);
+         env_opt.map_size = Some(self.max_size);
 
-        return Ok(Box::new(LmdbStateStore::new(
-            id, r_db.unwrap(), r_tx.unwrap()
-        )));
+         let env = Arc::new(Environment::new(id.clone(), Some(env_opt)).unwrap());
+         let mut tx = Transaction::begin(env.clone()).unwrap();
+         let db = Database::open(env.clone(), &tx, id.to_string(), Some(DatabaseOptions::default()) ).unwrap();
+
+         Ok(Box::new(LmdbStateStore { env: env.clone(), tx, db}))
+
     }
 
 }
 
 
-struct LmdbStateStore<'a> {
-    id: String,
+struct LmdbStateStore {
+    env: Arc<Environment>,
     db: Database,
-    tx: RwTransaction<'a>
-}
-
-impl <'a> LmdbStateStore<'a> {
-    pub fn new(id: String, db: Database, tx: RwTransaction<'a>) -> Self {
-        Self { id, db, tx }
-    }
+    tx: Transaction
 }
 
 
-impl <'a> StateStore for LmdbStateStore<'a> {
+impl StateStore for LmdbStateStore {
 
     fn checkpoint(&mut self) -> Result<(), StateStoreError> {
         todo!()
     }
 
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
-        let r = self.tx.put(self.db, &key, &value, WriteFlags::empty());
-        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, r.unwrap_err().to_string())); }
+        let r = self.db.put(&self.tx, &key, &value, None);
+        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, "Error during put operation".to_string())) }
         Ok(())
     }
 
     fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
-        let r = self.tx.del(self.db, &key, None);
-        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, r.unwrap_err().to_string())); }
+         let r = self.db.del(&self.tx, &key, None);
+         if r.is_err() { return Err(StateStoreError::new(StoreOperationError, "Error during del operation".to_string())); }
         Ok(())
     }
 
     fn get(&mut self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
-        let r = self.tx.get(self.db, &key);
-        if r.is_ok() { return Ok(Some(r.unwrap())); }
+        let r = self.db.get(&   self.tx, &key);
+        if r.is_ok() {
+            Ok(r.unwrap())
+        }
         else {
-            if r.unwrap_err() == NotFound {
-                Ok(None)
-            }
-            else {
-                Err(StateStoreError::new(GetOperationError, r.unwrap_err().to_string()))
-            }
+            Err(StateStoreError::new(GetOperationError, "Error during get operation".to_string()))
         }
     }
 
@@ -102,7 +83,7 @@ impl <'a> StateStore for LmdbStateStore<'a> {
 #[test]
 fn test_mt_lmdb_store() {
 
-    let sm = LmdbStateStoreManager::new(Path::new("./data"), 1024*1024*1024*5).unwrap();
+    let sm = LmdbStateStoreManager::new("./data".to_string(), 1024*1024*1024*5).unwrap();
 
     let (mut tx1, mut rx1) = bounded::<i32>(1000);
     let sm_t1 = sm.clone();

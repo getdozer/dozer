@@ -293,7 +293,7 @@ pub struct TestSource {
 impl Source for TestSource {
 
     fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> Result<(), String> {
-        for n in 0..1000000 {
+        for n in 0..10000000 {
              //  println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(
