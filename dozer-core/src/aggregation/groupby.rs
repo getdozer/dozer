@@ -285,7 +285,7 @@ mod tests {
     use std::path::Path;
     use dozer_types::types::{Field, Operation, Record};
     use crate::aggregation::groupby::{FieldRule, SizedAggregationDataset};
-    use crate::aggregation::operators::IntegerSumAggregator;
+    use crate::aggregation::sum::IntegerSumAggregator;
     use crate::state::lmdb::LmdbStateStoreManager;
     use crate::state::memory::MemoryStateStore;
 

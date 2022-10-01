@@ -1,25 +1,26 @@
 use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::node::NextStep::Continue;
 use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
-use dozer_types::types::{Operation, OperationEvent, Record};
+use dozer_types::types::{Operation, OperationEvent, Record, Schema};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::vec;
 use anyhow::{anyhow, Error};
 use uuid::Uuid;
+use crate::dag::mt_executor::DefaultPortHandle;
 use crate::state::{StateStore, StateStoresManager};
 
 
-pub type NodeHandle = Uuid;
+pub type NodeHandle = u16;
 pub type PortHandle = u8;
 
 pub struct Endpoint {
     pub node: NodeHandle,
-    pub port: Option<PortHandle>,
+    pub port: PortHandle,
 }
 
 impl Endpoint {
-    pub fn new(node: NodeHandle, port: Option<PortHandle>) -> Self {
+    pub fn new(node: NodeHandle, port: PortHandle) -> Self {
         Self { node, port }
     }
 }
@@ -65,37 +66,11 @@ impl Dag {
         }
     }
 
-    pub fn add_node(&mut self, node_builder: NodeType) -> NodeHandle {
-        let handle = Uuid::new_v4();
+    pub fn add_node(&mut self, node_builder: NodeType, handle: NodeHandle) {
         self.nodes.insert(handle, node_builder);
-        return handle;
     }
 
-    fn check_port_for_node(
-        &self,
-        port: Option<PortHandle>,
-        port_list: Option<Vec<PortHandle>>,
-    ) -> anyhow::Result<()> {
-        if !port.is_none() {
-            if port_list.is_none()
-                || port_list
-                    .unwrap()
-                    .iter()
-                    .find(|e| e == &&port.unwrap())
-                    .is_none()
-            {
-                return Err(anyhow!("Unable to find port {}", port.unwrap()));
-            }
-            return Ok(());
-        } else {
-            if !port_list.is_none() {
-                return Err(anyhow!("Node does not support default port"));
-            }
-            return Ok(());
-        }
-    }
-
-    fn get_ports(&self, n: &NodeType, d: PortDirection) -> anyhow::Result<Option<Vec<PortHandle>>> {
+    fn get_ports(&self, n: &NodeType, d: PortDirection) -> anyhow::Result<Vec<PortHandle>> {
         match n {
             NodeType::Processor(p) => {
                 if matches!(d, Output) {
@@ -126,6 +101,7 @@ impl Dag {
         from: Endpoint,
         to: Endpoint
     ) -> anyhow::Result<()> {
+
         let src_node = self.nodes.get(&from.node);
         if src_node.is_none() {
             return Err(anyhow!(
@@ -142,44 +118,35 @@ impl Dag {
             ));
         }
 
-        let src_output_ports = self.get_ports(src_node.unwrap(), Output);
-        if src_output_ports.is_err() {
-            return Err(anyhow!("The node type does not support output ports".to_string()));
-        }
-        let res = self.check_port_for_node(from.port, src_output_ports.unwrap());
-        if res.is_err() {
-            return res;
+        let src_output_ports = self.get_ports(src_node.unwrap(), Output)?;
+        if !src_output_ports.contains(&from.port) {
+            return Err(anyhow!("Unable to connect port"));
         }
 
-        let dst_input_ports = self.get_ports(dst_node.unwrap(), Input);
-        if dst_input_ports.is_err() {
-            return Err(anyhow!("The node type does not support input ports".to_string()));
-        }
-        let res = self.check_port_for_node(to.port, dst_input_ports.unwrap());
-        if res.is_err() {
-            return res;
+        let dst_input_ports = self.get_ports(dst_node.unwrap(), Input)?;
+        if !dst_input_ports.contains(&to.port) {
+            return Err(anyhow!("Unable to connect port"));
         }
 
         self.edges.push(Edge::new(from, to));
-
         Ok(())
     }
 }
 
 pub struct TestSinkFactory {
     id: i32,
-    input_ports: Option<Vec<PortHandle>>,
+    input_ports: Vec<PortHandle>,
 }
 
 impl TestSinkFactory {
-    pub fn new(id: i32, input_ports: Option<Vec<PortHandle>>) -> Self {
+    pub fn new(id: i32, input_ports: Vec<PortHandle>) -> Self {
         Self { id, input_ports }
     }
 }
 
 
 impl SinkFactory for TestSinkFactory {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>> {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
 
@@ -202,7 +169,7 @@ impl Sink for TestSink {
 
     fn process(
         &self,
-        _from_port: Option<PortHandle>,
+        _from_port: PortHandle,
         _op: OperationEvent,
         _state: &mut dyn StateStore
     ) -> anyhow::Result<NextStep> {
@@ -213,22 +180,22 @@ impl Sink for TestSink {
 
 pub struct TestProcessorFactory {
     id: i32,
-    input_ports: Option<Vec<PortHandle>>,
-    output_ports: Option<Vec<PortHandle>>
+    input_ports: Vec<PortHandle>,
+    output_ports: Vec<PortHandle>
 }
 
 impl TestProcessorFactory {
-    pub fn new(id: i32, input_ports: Option<Vec<PortHandle>>, output_ports: Option<Vec<PortHandle>>) -> Self {
+    pub fn new(id: i32, input_ports: Vec<PortHandle>, output_ports: Vec<PortHandle>) -> Self {
         Self { id, input_ports, output_ports }
     }
 }
 
 impl ProcessorFactory for TestProcessorFactory {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>> {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
 
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>> {
+    fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
 
@@ -253,32 +220,32 @@ impl Processor for TestProcessor {
 
     fn process(
         &mut self,
-        _from_port: Option<PortHandle>,
+        _from_port: PortHandle,
         op: OperationEvent,
         fw: &dyn ChannelForwarder,
         state_store: &mut dyn StateStore
     ) -> anyhow::Result<NextStep> {
      //   println!("PROC {}: Message {} received", self.id, op.seq_no);
         state_store.put(&op.seq_no.to_ne_bytes(), &self.id.to_ne_bytes());
-        fw.send(op, None)?;
+        fw.send(op, DefaultPortHandle)?;
         Ok(Continue)
     }
 }
 
 pub struct TestSourceFactory {
     id: i32,
-    output_ports: Option<Vec<PortHandle>>
+    output_ports: Vec<PortHandle>
 }
 
 impl TestSourceFactory {
-    pub fn new(id: i32, output_ports: Option<Vec<PortHandle>>) -> Self {
+    pub fn new(id: i32, output_ports: Vec<PortHandle>) -> Self {
         Self { id, output_ports }
     }
 }
 
 impl SourceFactory for TestSourceFactory {
 
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>> {
+    fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
 
@@ -303,7 +270,7 @@ impl Source for TestSource {
                         new: Record::new(None, vec![]),
                     },
                 ),
-                None,
+                DefaultPortHandle,
             )
             .unwrap();
         }
@@ -317,16 +284,17 @@ macro_rules! test_ports {
         #[test]
         fn $id() {
             let src = TestSourceFactory::new(1, $out_ports);
-            let proc = TestProcessorFactory::new(2, $in_ports, None);
+            let proc = TestProcessorFactory::new(2, $in_ports, vec![DefaultPortHandle]);
 
             let mut dag = Dag::new();
 
-            let src_handle = dag.add_node(NodeType::Source(Box::new(src)));
-            let proc_handle = dag.add_node(NodeType::Processor(Box::new(proc)));
+            dag.add_node(NodeType::Source(Box::new(src)), 1);
+            dag.add_node(NodeType::Processor(Box::new(proc)), 2);
 
             let res = dag.connect(
-                Endpoint::new(src_handle, $from_port),
-                Endpoint::new(proc_handle, $to_port)
+                Endpoint::new(1, $from_port),
+                Endpoint::new(2, $to_port)
+
             );
 
             assert!(res.is_ok() == $expect)
@@ -334,37 +302,51 @@ macro_rules! test_ports {
     };
 }
 
-test_ports!(test_none_ports, None, None, None, None, true);
+test_ports!(
+    test_none_ports,
+    vec![DefaultPortHandle],
+    vec![DefaultPortHandle],
+    DefaultPortHandle,
+    DefaultPortHandle,
+    true);
+
 test_ports!(
     test_matching_ports,
-    Some(vec![1]),
-    Some(vec![2]),
-    Some(1),
-    Some(2),
+    vec![1],
+    vec![2],
+    1,
+    2,
     true
 );
 test_ports!(
     test_not_matching_ports,
-    Some(vec![2]),
-    Some(vec![1]),
-    Some(1),
-    Some(2),
+    vec![2],
+    vec![1],
+    1,
+    2,
     false
 );
 test_ports!(
     test_not_default_port,
-    Some(vec![2]),
-    Some(vec![1]),
-    None,
-    Some(2),
+    vec![2],
+    vec![1],
+    DefaultPortHandle,
+    2,
     false
 );
 test_ports!(
     test_not_default_port2,
-    None,
-    Some(vec![1]),
-    Some(1),
-    Some(2),
+    vec![DefaultPortHandle],
+    vec![1],
+    1,
+    2,
     false
 );
-test_ports!(test_not_default_port3, None, None, None, Some(2), false);
+test_ports!(
+    test_not_default_port3,
+    vec![DefaultPortHandle],
+    vec![DefaultPortHandle],
+    DefaultPortHandle,
+    2,
+    false
+);

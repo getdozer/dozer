@@ -1,7 +1,7 @@
 use dozer_types::types::{Field, Record};
 
 mod groupby;
-mod operators;
+mod sum;
 
 
 pub trait Aggregator {

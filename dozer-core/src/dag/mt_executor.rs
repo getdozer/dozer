@@ -1,6 +1,6 @@
 use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestProcessorFactory, TestSink, TestSinkFactory, TestSource, TestSourceFactory};
 use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source, ChannelForwarder, SourceFactory, ProcessorFactory, SinkFactory};
-use dozer_types::types::{Operation, OperationEvent};
+use dozer_types::types::{Operation, OperationEvent, Schema};
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -26,7 +26,7 @@ impl MemoryExecutionContext {
 
 impl ExecutionContext for MemoryExecutionContext {}
 
-pub const DEFAULT_PORT_ID: u8 = 0xffu8;
+pub const DefaultPortHandle: u8 = 0xffu8;
 
 pub struct MultiThreadedDagExecutor {
     channel_buf_sz: usize
@@ -58,11 +58,7 @@ impl MultiThreadedDagExecutor {
 
             let (tx, rx) = bounded(self.channel_buf_sz);
 
-            let rcv_port: PortHandle = if edge.to.port.is_none() {
-                DEFAULT_PORT_ID
-            } else {
-                edge.to.port.unwrap()
-            };
+            let rcv_port: PortHandle = edge.to.port;
             if receivers
                 .get(&edge.to.node)
                 .unwrap()
@@ -81,11 +77,7 @@ impl MultiThreadedDagExecutor {
                     .insert(rcv_port, vec![rx]);
             }
 
-            let snd_port: PortHandle = if edge.from.port.is_none() {
-                DEFAULT_PORT_ID
-            } else {
-                edge.from.port.unwrap()
-            };
+            let snd_port: PortHandle = edge.from.port;
             if senders
                 .get(&edge.from.node)
                 .unwrap()
@@ -193,7 +185,7 @@ impl MultiThreadedDagExecutor {
                     Operation::Terminate => { return Ok(()); }
                     _ => {
                         let r = snk.process(
-                            if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
+                            handles_ls[index],
                             op, state_store.as_mut()
                         )?;
                         match r {
@@ -240,7 +232,7 @@ impl MultiThreadedDagExecutor {
                     }
                     _ => {
                         let r = proc.process(
-                            if handles_ls[index] == DEFAULT_PORT_ID { None } else { Some(handles_ls[index]) },
+                            handles_ls[index],
                             op, &fw, state_store.as_mut()
                         )?;
                         match r {
@@ -321,30 +313,29 @@ impl MultiThreadedDagExecutor {
 
 #[test]
 fn test_run_dag() {
-    let src = TestSourceFactory::new(1, None);
-    let proc = TestProcessorFactory::new(1, None, None);
-    let sink = TestSinkFactory::new(1, None);
+    let src = TestSourceFactory::new(1, vec![DefaultPortHandle]);
+    let proc = TestProcessorFactory::new(1, vec![DefaultPortHandle], vec![DefaultPortHandle]);
+    let sink = TestSinkFactory::new(1, vec![DefaultPortHandle]);
 
     let mut dag = Dag::new();
 
-    let src_handle = dag.add_node(NodeType::Source(Box::new(src)));
-    let proc_handle = dag.add_node(NodeType::Processor(Box::new(proc)));
-    let sink_handle = dag.add_node(NodeType::Sink(Box::new(sink)));
+    dag.add_node(NodeType::Source(Box::new(src)), 1);
+    dag.add_node(NodeType::Processor(Box::new(proc)), 2);
+    dag.add_node(NodeType::Sink(Box::new(sink)), 3);
 
     let src_to_proc1 = dag.connect(
-        Endpoint::new(src_handle, None),
-        Endpoint::new(proc_handle, None)
+        Endpoint::new(1, DefaultPortHandle),
+        Endpoint::new(2, DefaultPortHandle)
     );
     assert!(src_to_proc1.is_ok());
 
     let proc1_to_sink = dag.connect(
-        Endpoint::new(proc_handle, None),
-        Endpoint::new(sink_handle, None)
+        Endpoint::new(2, DefaultPortHandle),
+        Endpoint::new(3, DefaultPortHandle)
     );
     assert!(proc1_to_sink.is_ok());
 
     let exec = MultiThreadedDagExecutor::new( 100000);
-    let ctx = Arc::new(MemoryExecutionContext::new());
     let sm = LmdbStateStoreManager::new("data".to_string(), 1024*1024*1024*5).unwrap();
 
     assert!(exec.start(dag, sm).is_ok());

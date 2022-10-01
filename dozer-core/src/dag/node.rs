@@ -1,6 +1,5 @@
 use crate::dag::dag::PortHandle;
-use crate::dag::mt_executor::DEFAULT_PORT_ID;
-use dozer_types::types::{Operation, OperationEvent};
+use dozer_types::types::{Operation, OperationEvent, Schema};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -18,19 +17,21 @@ pub enum NextStep {
 }
 
 pub trait ProcessorFactory: Send + Sync {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>>;
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
+    fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn get_output_ports(&self) -> Vec<PortHandle>;
+  //  fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> Schema;
     fn build(&self) -> Box<dyn Processor>;
 }
 
 pub trait Processor {
     fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()>;
-    fn process(&mut self, from_port: Option<PortHandle>, op: OperationEvent, fw: &dyn ChannelForwarder, state: &mut dyn StateStore)
+    fn process(&mut self, from_port: PortHandle, op: OperationEvent, fw: &dyn ChannelForwarder, state: &mut dyn StateStore)
         -> anyhow::Result<NextStep>;
 }
 
 pub trait SourceFactory: Send + Sync {
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
+    fn get_output_ports(&self) -> Vec<PortHandle>;
+ //   fn get_output_schema(&self, port: PortHandle) -> Schema;
     fn build(&self) -> Box<dyn Source>;
 }
 
@@ -39,7 +40,7 @@ pub trait Source {
 }
 
 pub trait SinkFactory: Send + Sync {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>>;
+    fn get_input_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Sink>;
 }
 
@@ -47,7 +48,7 @@ pub trait Sink {
     fn init(&self, state: &mut dyn StateStore) -> anyhow::Result<()>;
     fn process(
         &self,
-        from_port: Option<PortHandle>,
+        from_port: PortHandle,
         op: OperationEvent,
         state: &mut dyn StateStore
     ) -> anyhow::Result<NextStep>;
@@ -55,7 +56,7 @@ pub trait Sink {
 
 
 pub trait ChannelForwarder {
-    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> anyhow::Result<()>;
+    fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()>;
     fn terminate(&self) -> anyhow::Result<()>;
 }
 
@@ -65,10 +66,6 @@ pub struct LocalChannelForwarder {
 
 impl LocalChannelForwarder {
     pub fn new(senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>) -> Self {
-        let mut sync = HashMap::<PortHandle, Mutex<()>>::new();
-        for e in &senders {
-            sync.insert(*e.0, Mutex::<()>::new(()));
-        }
         Self { senders }
     }
 }
@@ -76,13 +73,7 @@ impl LocalChannelForwarder {
 
 impl ChannelForwarder for LocalChannelForwarder {
 
-    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> anyhow::Result<()> {
-
-        let port_id = if port.is_none() {
-            DEFAULT_PORT_ID
-        } else {
-            port.unwrap()
-        };
+    fn send(&self, op: OperationEvent, port_id: PortHandle) -> anyhow::Result<()> {
 
         let senders = self.senders.get(&port_id);
         if senders.is_none() {

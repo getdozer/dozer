@@ -71,10 +71,30 @@ pub struct Schema {
 }
 
 impl Schema {
+
+    pub fn empty() -> Schema {
+        Self {
+            identifier: None, fields: Vec::new(),
+            values: Vec::new(), primary_index: Vec::new(),
+            secondary_indexes: Vec::new()
+        }
+    }
+
+    pub fn field(&mut self, f: FieldDefinition, value: bool, pk: bool) -> &Self {
+        self.fields.push(f);
+        if value { self.values.push(&self.fields.len()-1) }
+        if pk { self.primary_index.push(&self.fields.len()-1) }
+        self
+
+    }
+
+
     pub fn get_id(&self) -> u32 {
         self.identifier.clone().unwrap().id
     }
 }
+
+
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum IndexType {
