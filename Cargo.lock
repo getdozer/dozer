@@ -558,6 +558,7 @@ name = "dozer-core"
 version = "0.1.0"
 dependencies = [
  "ahash 0.8.0",
+ "anyhow",
  "async-trait",
  "blockingqueue",
  "bytemuck",

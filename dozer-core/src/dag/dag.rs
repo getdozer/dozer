@@ -5,6 +5,7 @@ use dozer_types::types::{Operation, OperationEvent, Record};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::vec;
+use anyhow::{anyhow, Error};
 use uuid::Uuid;
 use crate::state::{StateStore, StateStoresManager};
 
@@ -74,7 +75,7 @@ impl Dag {
         &self,
         port: Option<PortHandle>,
         port_list: Option<Vec<PortHandle>>,
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         if !port.is_none() {
             if port_list.is_none()
                 || port_list
@@ -83,18 +84,18 @@ impl Dag {
                     .find(|e| e == &&port.unwrap())
                     .is_none()
             {
-                return Err(format!("Unable to find port {}", port.unwrap()));
+                return Err(anyhow!("Unable to find port {}", port.unwrap()));
             }
             return Ok(());
         } else {
             if !port_list.is_none() {
-                return Err(format!("Node does not support default port"));
+                return Err(anyhow!("Node does not support default port"));
             }
             return Ok(());
         }
     }
 
-    fn get_ports(&self, n: &NodeType, d: PortDirection) -> Result<Option<Vec<PortHandle>>, ()> {
+    fn get_ports(&self, n: &NodeType, d: PortDirection) -> anyhow::Result<Option<Vec<PortHandle>>> {
         match n {
             NodeType::Processor(p) => {
                 if matches!(d, Output) {
@@ -105,7 +106,7 @@ impl Dag {
             }
             NodeType::Sink(s) => {
                 if matches!(d, Output) {
-                    Err(())
+                    Err(anyhow!("Invalid node type"))
                 } else {
                     Ok(s.get_input_ports())
                 }
@@ -114,7 +115,7 @@ impl Dag {
                 if matches!(d, Output) {
                     Ok(s.get_output_ports())
                 } else {
-                    Err(())
+                    Err(anyhow!("Invalid node type"))
                 }
             }
         }
@@ -124,10 +125,10 @@ impl Dag {
         &mut self,
         from: Endpoint,
         to: Endpoint
-    ) -> Result<(), String> {
+    ) -> anyhow::Result<()> {
         let src_node = self.nodes.get(&from.node);
         if src_node.is_none() {
-            return Err(format!(
+            return Err(anyhow!(
                 "Unable to find source node with id = {}",
                 from.node.to_string()
             ));
@@ -135,7 +136,7 @@ impl Dag {
 
         let dst_node = self.nodes.get(&to.node);
         if dst_node.is_none() {
-            return Err(format!(
+            return Err(anyhow!(
                 "Unable to find source node with id = {}",
                 to.node.to_string()
             ));
@@ -143,7 +144,7 @@ impl Dag {
 
         let src_output_ports = self.get_ports(src_node.unwrap(), Output);
         if src_output_ports.is_err() {
-            return Err("The node type does not support output ports".to_string());
+            return Err(anyhow!("The node type does not support output ports".to_string()));
         }
         let res = self.check_port_for_node(from.port, src_output_ports.unwrap());
         if res.is_err() {
@@ -152,7 +153,7 @@ impl Dag {
 
         let dst_input_ports = self.get_ports(dst_node.unwrap(), Input);
         if dst_input_ports.is_err() {
-            return Err("The node type does not support input ports".to_string());
+            return Err(anyhow!("The node type does not support input ports".to_string()));
         }
         let res = self.check_port_for_node(to.port, dst_input_ports.unwrap());
         if res.is_err() {
@@ -194,7 +195,7 @@ pub struct TestSink {
 
 impl Sink for TestSink {
     
-    fn init(&self, state_store: &mut dyn StateStore) -> Result<(), String> {
+    fn init(&self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -204,7 +205,7 @@ impl Sink for TestSink {
         _from_port: Option<PortHandle>,
         _op: OperationEvent,
         _state: &mut dyn StateStore
-    ) -> Result<NextStep, String> {
+    ) -> anyhow::Result<NextStep> {
      //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
     }
@@ -244,7 +245,7 @@ pub struct TestProcessor {
 
 impl Processor for TestProcessor {
 
-    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore) -> Result<(), String> {
+    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
      //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
@@ -256,7 +257,7 @@ impl Processor for TestProcessor {
         op: OperationEvent,
         fw: &dyn ChannelForwarder,
         state_store: &mut dyn StateStore
-    ) -> Result<NextStep, String> {
+    ) -> anyhow::Result<NextStep> {
      //   println!("PROC {}: Message {} received", self.id, op.seq_no);
         state_store.put(&op.seq_no.to_ne_bytes(), &self.id.to_ne_bytes());
         fw.send(op, None)?;
@@ -292,7 +293,7 @@ pub struct TestSource {
 
 impl Source for TestSource {
 
-    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> Result<(), String> {
+    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> anyhow::Result<()> {
         for n in 0..10000000 {
              //  println!("SRC {}: Message {} received", self.id, n);
             fw.send(

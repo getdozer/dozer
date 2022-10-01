@@ -1,10 +1,11 @@
 use std::hash::Hasher;
 use std::mem::size_of_val;
 use ahash::AHasher;
+use anyhow::anyhow;
 use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
 use dozer_types::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
 use crate::aggregation::Aggregator;
-use crate::state::{StateStore, StateStoreError, StateStoreErrorType};
+use crate::state::{StateStore};
 
 
 pub enum FieldRule {
@@ -30,7 +31,7 @@ impl SizedAggregationDataset {
 
     pub fn new(
         dataset_id: u16, store: &mut dyn StateStore,
-        output_schema_id: Option<SchemaIdentifier>, output_fields: Vec<FieldRule>) -> Result<SizedAggregationDataset, StateStoreError> {
+        output_schema_id: Option<SchemaIdentifier>, output_fields: Vec<FieldRule>) -> anyhow::Result<SizedAggregationDataset> {
 
         let out_fields_count = output_fields.len();
         let mut out_measures: Vec<(Box<dyn Aggregator>, usize)> = Vec::new();
@@ -56,7 +57,7 @@ impl SizedAggregationDataset {
         })
     }
 
-    fn get_record_hash(&self, r: &Record) -> Result<u64, StateStoreError> {
+    fn get_record_hash(&self, r: &Record) -> anyhow::Result<u64> {
 
         let mut hasher = AHasher::default();
         let mut ctr = 0;
@@ -73,7 +74,7 @@ impl SizedAggregationDataset {
                 Timestamp(t) => { hasher.write_u8(7); hasher.write_i64(t.timestamp()) }
                 Bson(b) => { hasher.write_u8(8); hasher.write(b.as_ref()); }
                 Null => {  hasher.write_u8(0); },
-                _ => { return Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid field type".to_string())) }
+                _ => { return Err(anyhow!("Invalid field type")); }
             }
             ctr += 1;
         }
@@ -87,7 +88,7 @@ impl SizedAggregationDataset {
         }
     }
 
-    fn get_record_key(&self, hash: u64, database_id: u16) -> Result<Vec<u8>, StateStoreError> {
+    fn get_record_key(&self, hash: u64, database_id: u16) -> anyhow::Result<Vec<u8>> {
         let mut vec = Vec::with_capacity(size_of_val(&hash) + size_of_val(&database_id));
         vec.extend_from_slice(&database_id.to_ne_bytes());
         vec.extend_from_slice(&hash.to_ne_bytes());
@@ -97,7 +98,7 @@ impl SizedAggregationDataset {
     fn calc_and_fill_measures(
         &self, curr_state: Option<&[u8]>, deleted_record: Option<&Record>, inserted_record: Option<&Record>,
         out_rec_delete: &mut Record, out_rec_insert: &mut Record,
-        op: AggregatorOperation) -> Result<Vec<u8>, StateStoreError> {
+        op: AggregatorOperation) -> anyhow::Result<Vec<u8>> {
 
         let mut next_state = Vec::<u8>::new();
         let mut offset: usize = 0;
@@ -139,7 +140,7 @@ impl SizedAggregationDataset {
 
     }
 
-    fn update_segment_count(&self, store: &mut dyn StateStore, key: Vec<u8>, delta: u64, decr: bool) -> Result<u64, StateStoreError> {
+    fn update_segment_count(&self, store: &mut dyn StateStore, key: Vec<u8>, delta: u64, decr: bool) -> anyhow::Result<u64> {
 
         let bytes = store.get(key.as_slice())?;
         let curr_count = if bytes.is_some() { u64::from_ne_bytes(bytes.unwrap().try_into().unwrap()) } else {0_u64};
@@ -147,7 +148,7 @@ impl SizedAggregationDataset {
         Ok(curr_count)
     }
 
-    fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> Result<Operation, StateStoreError> {
+    fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> anyhow::Result<Operation> {
 
         let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
@@ -185,7 +186,7 @@ impl SizedAggregationDataset {
 
     }
 
-    fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> Result<Operation, StateStoreError> {
+    fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> anyhow::Result<Operation> {
 
         let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
@@ -218,7 +219,7 @@ impl SizedAggregationDataset {
 
     }
 
-    fn agg_update(&self, store: &mut dyn StateStore, old: &Record, new: &Record, record_hash: u64) -> Result<Operation, StateStoreError> {
+    fn agg_update(&self, store: &mut dyn StateStore, old: &Record, new: &Record, record_hash: u64) -> anyhow::Result<Operation> {
 
         let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
@@ -243,7 +244,7 @@ impl SizedAggregationDataset {
     }
 
 
-    fn aggregate(&self, store: &mut dyn StateStore, op: Operation) -> Result<Vec<Operation>, StateStoreError> {
+    fn aggregate(&self, store: &mut dyn StateStore, op: Operation) -> anyhow::Result<Vec<Operation>> {
 
         match op {
             Operation::Insert {ref new} => {
@@ -264,13 +265,13 @@ impl SizedAggregationDataset {
                     Ok(vec![self.agg_delete(store, old)?, self.agg_insert(store, &new)?])
                 }
             }
-            _ => { return Err(StateStoreError::new(StateStoreErrorType::AggregatorError, "Invalid operation".to_string())); }
+            _ => { return Err(anyhow!("Invalid operation".to_string())); }
         }
 
     }
 
 
-    fn get_accumulated(&self, _store: &mut dyn StateStore, _key: &[u8]) -> Result<Option<Field>, StateStoreError> {
+    fn get_accumulated(&self, _store: &mut dyn StateStore, _key: &[u8]) -> anyhow::Result<Option<Field>> {
         todo!();
     }
 }

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use anyhow::anyhow;
 use crossbeam::channel::Sender;
 use crate::state::{StateStore, StateStoresManager};
 
@@ -23,9 +24,9 @@ pub trait ProcessorFactory: Send + Sync {
 }
 
 pub trait Processor {
-    fn init(&mut self, state: &mut dyn StateStore) -> Result<(), String>;
+    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()>;
     fn process(&mut self, from_port: Option<PortHandle>, op: OperationEvent, fw: &dyn ChannelForwarder, state: &mut dyn StateStore)
-        -> Result<NextStep, String>;
+        -> anyhow::Result<NextStep>;
 }
 
 pub trait SourceFactory: Send + Sync {
@@ -34,7 +35,7 @@ pub trait SourceFactory: Send + Sync {
 }
 
 pub trait Source {
-    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> Result<(), String>;
+    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> anyhow::Result<()>;
 }
 
 pub trait SinkFactory: Send + Sync {
@@ -43,19 +44,19 @@ pub trait SinkFactory: Send + Sync {
 }
 
 pub trait Sink {
-    fn init(&self, state: &mut dyn StateStore) -> Result<(), String>;
+    fn init(&self, state: &mut dyn StateStore) -> anyhow::Result<()>;
     fn process(
         &self,
         from_port: Option<PortHandle>,
         op: OperationEvent,
         state: &mut dyn StateStore
-    ) -> Result<NextStep, String>;
+    ) -> anyhow::Result<NextStep>;
 }
 
 
 pub trait ChannelForwarder {
-    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String>;
-    fn terminate(&self) -> Result<(), String>;
+    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> anyhow::Result<()>;
+    fn terminate(&self) -> anyhow::Result<()>;
 }
 
 pub struct LocalChannelForwarder {
@@ -75,7 +76,7 @@ impl LocalChannelForwarder {
 
 impl ChannelForwarder for LocalChannelForwarder {
 
-    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String> {
+    fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> anyhow::Result<()> {
 
         let port_id = if port.is_none() {
             DEFAULT_PORT_ID
@@ -85,27 +86,26 @@ impl ChannelForwarder for LocalChannelForwarder {
 
         let senders = self.senders.get(&port_id);
         if senders.is_none() {
-            return Err("Invalid output port".to_string());
+            return Err(anyhow!("Invalid output port".to_string()));
         }
 
         if senders.unwrap().len() == 1 {
-            senders.unwrap()[0].send(op).map_err(|e| e.to_string())?;
+            senders.unwrap()[0].send(op)?;
         }
         else {
             for sender in senders.unwrap() {
-                sender.send(op.clone()).map_err(|e| e.to_string())?;
+                sender.send(op.clone())?;
             }
         }
 
         return Ok(());
     }
 
-    fn terminate(&self) -> Result<(), String> {
+    fn terminate(&self) -> anyhow::Result<()> {
         for senders in &self.senders {
 
             for sender in senders.1 {
-                sender.send(OperationEvent::new(0, Operation::Terminate))
-                    .map_err(|e| e.to_string())?;
+                sender.send(OperationEvent::new(0, Operation::Terminate))?;
             }
 
             loop {

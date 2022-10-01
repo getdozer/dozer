@@ -4,9 +4,8 @@ use std::{fs, thread};
 use std::time::Duration;
 use crossbeam::channel::bounded;
 use futures::{AsyncReadExt, SinkExt};
-use crate::state::{StateStore, StateStoreError, StateStoresManager};
+use crate::state::{StateStore, StateStoresManager};
 use crate::state::lmdb_sys::{Database, DatabaseOptions, Environment, EnvOptions, Transaction};
-use crate::state::StateStoreErrorType::{GetOperationError, InvalidPath, OpenOrCreateError, StoreOperationError, TransactionError};
 
 pub struct LmdbStateStoreManager {
     path: String,
@@ -14,7 +13,7 @@ pub struct LmdbStateStoreManager {
 }
 
 impl LmdbStateStoreManager {
-    pub fn new(path: String, max_size: usize) -> Result<Arc<dyn StateStoresManager>, StateStoreError> {
+    pub fn new(path: String, max_size: usize) -> anyhow::Result<Arc<dyn StateStoresManager>> {
 
         fs::create_dir(path.clone());
         Ok(Arc::new(LmdbStateStoreManager {path: path.clone() , max_size }))
@@ -23,22 +22,19 @@ impl LmdbStateStoreManager {
 
 impl StateStoresManager for LmdbStateStoreManager {
 
-     fn init_state_store (&self, id: String) -> Result<Box<dyn StateStore>, StateStoreError> {
+     fn init_state_store (&self, id: String) -> anyhow::Result<Box<dyn StateStore>> {
 
          let full_path = Path::new(&self.path).join(&id);
-         let r = fs::create_dir(&full_path);
-         if r.is_err() {
-             return Err(StateStoreError::new(InvalidPath, "Unable to create path".to_string()));
-         }
+         fs::create_dir(&full_path)?;
 
          let mut env_opt = EnvOptions::default();
          env_opt.no_sync = true;
          env_opt.max_dbs = Some(10);
          env_opt.map_size = Some(self.max_size);
 
-         let env = Arc::new(Environment::new(full_path.to_str().unwrap().to_string(), Some(env_opt)).unwrap());
-         let mut tx = Transaction::begin(env.clone()).unwrap();
-         let db = Database::open(env.clone(), &tx, id.to_string(), Some(DatabaseOptions::default()) ).unwrap();
+         let env = Arc::new(Environment::new(full_path.to_str().unwrap().to_string(), Some(env_opt))?);
+         let mut tx = Transaction::begin(env.clone())?;
+         let db = Database::open(env.clone(), &tx, id.to_string(), Some(DatabaseOptions::default()) )?;
 
          Ok(Box::new(LmdbStateStore { env: env.clone(), tx, db}))
 
@@ -56,30 +52,23 @@ struct LmdbStateStore {
 
 impl StateStore for LmdbStateStore {
 
-    fn checkpoint(&mut self) -> Result<(), StateStoreError> {
+    fn checkpoint(&mut self) -> anyhow::Result<()> {
         todo!()
     }
 
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
-        let r = self.db.put(&self.tx, &key, &value, None);
-        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, "Error during put operation".to_string())) }
+    fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {
+        self.db.put(&self.tx, &key, &value, None)?;
         Ok(())
     }
 
-    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
-         let r = self.db.del(&self.tx, &key, None);
-         if r.is_err() { return Err(StateStoreError::new(StoreOperationError, "Error during del operation".to_string())); }
+    fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
+        self.db.del(&self.tx, &key, None)?;
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
-        let r = self.db.get(&   self.tx, &key);
-        if r.is_ok() {
-            Ok(r.unwrap())
-        }
-        else {
-            Err(StateStoreError::new(GetOperationError, "Error during get operation".to_string()))
-        }
+    fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
+        let r = self.db.get(&   self.tx, &key)?;
+        Ok(r)
     }
 
 }

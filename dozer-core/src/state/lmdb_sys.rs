@@ -1,4 +1,7 @@
 use std::{ptr, slice};
+use std::any::TypeId;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::ptr::addr_of_mut;
 use std::sync::{Arc, RwLock};
 use libc::{ENOENT, EACCES, EAGAIN, ENOMEM, EINVAL, ENOSPC, EIO, mode_t, size_t, c_uint, c_void, c_int};
@@ -7,12 +10,20 @@ use lmdb_sys::{MDB_env, mdb_env_create, MDB_VERSION_MISMATCH, MDB_INVALID, mdb_e
 
 
 #[derive(Debug, Clone)]
-pub struct Error {
+pub struct LmdbError {
     err_no: i32,
     err_str: String
 }
 
-impl Error {
+impl Display for LmdbError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("LMDB Error: {} - {}", self.err_no, self.err_str.as_str()).as_str())
+    }
+}
+
+impl Error for LmdbError {}
+
+impl LmdbError {
     pub fn new(err_no: i32, err_str: String) -> Self {
         Self { err_no, err_str }
     }
@@ -46,7 +57,7 @@ impl EnvOptions {
 
 impl Environment {
 
-    pub fn new(path: String, opts: Option<EnvOptions>) -> Result<Environment, Error> {
+    pub fn new(path: String, opts: Option<EnvOptions>) -> Result<Environment, LmdbError> {
 
         unsafe {
 
@@ -54,12 +65,12 @@ impl Environment {
 
             let mut r = mdb_env_create(addr_of_mut!(env_ptr));
             match r {
-                MDB_VERSION_MISMATCH => { return Err(Error::new(r, "The version of the LMDB library doesn't match the version that created the database environment".to_string())) }
-                MDB_INVALID => { return Err(Error::new(r, "The environment file headers are corrupted".to_string())) }
-                ENOENT => { return Err(Error::new(r, "The directory specified by the path parameter doesn't exist".to_string())) }
-                EACCES => { return Err(Error::new(r, "The user didn't have permission to access the environment files".to_string())) }
-                EAGAIN => { return Err(Error::new(r, "The environment was locked by another process".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                MDB_VERSION_MISMATCH => { return Err(LmdbError::new(r, "The version of the LMDB library doesn't match the version that created the database environment".to_string())) }
+                MDB_INVALID => { return Err(LmdbError::new(r, "The environment file headers are corrupted".to_string())) }
+                ENOENT => { return Err(LmdbError::new(r, "The directory specified by the path parameter doesn't exist".to_string())) }
+                EACCES => { return Err(LmdbError::new(r, "The user didn't have permission to access the environment files".to_string())) }
+                EAGAIN => { return Err(LmdbError::new(r, "The environment was locked by another process".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
@@ -68,12 +79,12 @@ impl Environment {
             if !opts.is_none() {
                 if opts.unwrap().map_size.is_some() {
                     if mdb_env_set_mapsize(env_ptr, opts.unwrap().map_size.unwrap()) != 0 {
-                        return Err(Error::new(r, "Invalid map size specified".to_string()));
+                        return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
                     }
                 }
                 if opts.unwrap().max_dbs.is_some() {
                     if mdb_env_set_maxdbs(env_ptr, opts.unwrap().max_dbs.unwrap()) != 0 {
-                        return Err(Error::new(r, "Invalid map size specified".to_string()));
+                        return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
                     }
                 }
                 if opts.unwrap().no_sync { flags |= MDB_NOSYNC; }
@@ -87,12 +98,12 @@ impl Environment {
                 flags, 0o664
             );
             match r {
-                MDB_VERSION_MISMATCH => { return Err(Error::new(r, "The version of the LMDB library doesn't match the version that created the database environment".to_string())) }
-                MDB_INVALID => { return Err(Error::new(r, "The environment file headers are corrupted".to_string())) }
-                ENOENT => { return Err(Error::new(r, "The directory specified by the path parameter doesn't exist".to_string())) }
-                EACCES => { return Err(Error::new(r, "The user didn't have permission to access the environment files".to_string())) }
-                EAGAIN => { return Err(Error::new(r, "The environment was locked by another process".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                MDB_VERSION_MISMATCH => { return Err(LmdbError::new(r, "The version of the LMDB library doesn't match the version that created the database environment".to_string())) }
+                MDB_INVALID => { return Err(LmdbError::new(r, "The environment file headers are corrupted".to_string())) }
+                ENOENT => { return Err(LmdbError::new(r, "The directory specified by the path parameter doesn't exist".to_string())) }
+                EACCES => { return Err(LmdbError::new(r, "The user didn't have permission to access the environment files".to_string())) }
+                EAGAIN => { return Err(LmdbError::new(r, "The environment was locked by another process".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
@@ -128,7 +139,7 @@ unsafe impl Sync for Transaction {}
 impl Transaction {
 
 
-    pub fn begin(env: Arc<Environment>) -> Result<Transaction, Error> {
+    pub fn begin(env: Arc<Environment>) -> Result<Transaction, LmdbError> {
 
         unsafe {
 
@@ -136,11 +147,11 @@ impl Transaction {
 
             let r = mdb_txn_begin(env.env_ptr,  ptr::null_mut(), 0, addr_of_mut!(txn_ptr));
             match r {
-                MDB_PANIC => { return Err(Error::new(r, "A fatal error occurred earlier and the environment must be shut down".to_string())) }
-                MDB_MAP_RESIZED => { return Err(Error::new(r, "Another process wrote data beyond this MDB_env's mapsize and this environment's map must be resized as well. See mdb_env_set_mapsize()".to_string())) }
-                MDB_READERS_FULL => { return Err(Error::new(r, "A read-only transaction was requested and the reader lock table is full. See mdb_env_set_maxreaders()".to_string())) }
-                ENOMEM => { return Err(Error::new(r, "Out of Memory".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                MDB_PANIC => { return Err(LmdbError::new(r, "A fatal error occurred earlier and the environment must be shut down".to_string())) }
+                MDB_MAP_RESIZED => { return Err(LmdbError::new(r, "Another process wrote data beyond this MDB_env's mapsize and this environment's map must be resized as well. See mdb_env_set_mapsize()".to_string())) }
+                MDB_READERS_FULL => { return Err(LmdbError::new(r, "A read-only transaction was requested and the reader lock table is full. See mdb_env_set_maxreaders()".to_string())) }
+                ENOMEM => { return Err(LmdbError::new(r, "Out of Memory".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
@@ -150,7 +161,7 @@ impl Transaction {
 
     }
 
-    pub fn child(env: Arc<Environment>, parent: Arc<Transaction>) -> Result<Transaction, Error> {
+    pub fn child(env: Arc<Environment>, parent: Arc<Transaction>) -> Result<Transaction, LmdbError> {
 
         unsafe {
 
@@ -158,11 +169,11 @@ impl Transaction {
 
             let r = mdb_txn_begin(env.env_ptr,  parent.txn, 0, addr_of_mut!(txn_ptr));
             match r {
-                MDB_PANIC => { return Err(Error::new(r, "A fatal error occurred earlier and the environment must be shut down".to_string())) }
-                MDB_MAP_RESIZED => { return Err(Error::new(r, "Another process wrote data beyond this MDB_env's mapsize and this environment's map must be resized as well. See mdb_env_set_mapsize()".to_string())) }
-                MDB_READERS_FULL => { return Err(Error::new(r, "A read-only transaction was requested and the reader lock table is full. See mdb_env_set_maxreaders()".to_string())) }
-                ENOMEM => { return Err(Error::new(r, "Out of Memory".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                MDB_PANIC => { return Err(LmdbError::new(r, "A fatal error occurred earlier and the environment must be shut down".to_string())) }
+                MDB_MAP_RESIZED => { return Err(LmdbError::new(r, "Another process wrote data beyond this MDB_env's mapsize and this environment's map must be resized as well. See mdb_env_set_mapsize()".to_string())) }
+                MDB_READERS_FULL => { return Err(LmdbError::new(r, "A read-only transaction was requested and the reader lock table is full. See mdb_env_set_maxreaders()".to_string())) }
+                ENOMEM => { return Err(LmdbError::new(r, "Out of Memory".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
@@ -171,22 +182,22 @@ impl Transaction {
         }
     }
 
-    pub fn commit(&self) -> Result<(), Error> {
+    pub fn commit(&self) -> Result<(), LmdbError> {
         unsafe {
             let r = mdb_txn_commit(self.txn);
             match r {
-                EINVAL => { return Err(Error::new(r, "An invalid parameter was specified".to_string())) }
-                ENOSPC => { return Err(Error::new(r, "No more space on disk".to_string())) }
-                EIO => { return Err(Error::new(r, "S low-level I/O error occurred while writing".to_string())) }
-                ENOMEM => { return Err(Error::new(r, "Out of memory".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                EINVAL => { return Err(LmdbError::new(r, "An invalid parameter was specified".to_string())) }
+                ENOSPC => { return Err(LmdbError::new(r, "No more space on disk".to_string())) }
+                EIO => { return Err(LmdbError::new(r, "S low-level I/O error occurred while writing".to_string())) }
+                ENOMEM => { return Err(LmdbError::new(r, "Out of memory".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
             Ok(())
         }
     }
 
-    pub fn abort(&self) -> Result<(), Error> {
+    pub fn abort(&self) -> Result<(), LmdbError> {
         unsafe {
             mdb_txn_abort(self.txn);
             Ok(())
@@ -245,7 +256,7 @@ pub struct PutOptions {
 
 impl Database {
 
-    pub fn open(env: Arc<Environment>, txn: &Transaction, name: String, opts: Option<DatabaseOptions>) -> Result<Database, Error> {
+    pub fn open(env: Arc<Environment>, txn: &Transaction, name: String, opts: Option<DatabaseOptions>) -> Result<Database, LmdbError> {
 
         unsafe {
 
@@ -266,9 +277,9 @@ impl Database {
             );
 
             match r {
-                MDB_NOTFOUND => { return Err(Error::new(r, "The specified database doesn't exist in the environment and MDB_CREATE was not specified".to_string())) }
-                MDB_DBS_FULL => { return Err(Error::new(r, "Too many databases have been opened. See mdb_env_set_maxdbs()".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                MDB_NOTFOUND => { return Err(LmdbError::new(r, "The specified database doesn't exist in the environment and MDB_CREATE was not specified".to_string())) }
+                MDB_DBS_FULL => { return Err(LmdbError::new(r, "Too many databases have been opened. See mdb_env_set_maxdbs()".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
@@ -278,7 +289,7 @@ impl Database {
     }
 
 
-    pub fn put(&self, txn: &Transaction, key: &[u8], value: &[u8], opts: Option<PutOptions>) -> Result<(), Error> {
+    pub fn put(&self, txn: &Transaction, key: &[u8], value: &[u8], opts: Option<PutOptions>) -> Result<(), LmdbError> {
 
         unsafe {
 
@@ -294,11 +305,11 @@ impl Database {
 
             let r = mdb_put(txn.txn, self.dbi, addr_of_mut!(key_data), addr_of_mut!(val_data), opt_flags);
             match r {
-                MDB_MAP_FULL => { return Err(Error::new(r, "The database is full, see mdb_env_set_mapsize()".to_string())) }
-                MDB_TXN_FULL => { return Err(Error::new(r, "the transaction has too many dirty pages".to_string())) }
-                EACCES => { return Err(Error::new(r, "An attempt was made to write in a read-only transaction".to_string())) }
-                EINVAL => { return Err(Error::new(r, "Invalid parameter".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                MDB_MAP_FULL => { return Err(LmdbError::new(r, "The database is full, see mdb_env_set_mapsize()".to_string())) }
+                MDB_TXN_FULL => { return Err(LmdbError::new(r, "the transaction has too many dirty pages".to_string())) }
+                EACCES => { return Err(LmdbError::new(r, "An attempt was made to write in a read-only transaction".to_string())) }
+                EINVAL => { return Err(LmdbError::new(r, "Invalid parameter".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
@@ -307,7 +318,7 @@ impl Database {
 
     }
 
-    pub fn get(&self, txn: &Transaction, mut key: &[u8]) -> Result<Option<&[u8]>, Error> {
+    pub fn get(&self, txn: &Transaction, mut key: &[u8]) -> Result<Option<&[u8]>, LmdbError> {
 
         unsafe {
 
@@ -317,8 +328,8 @@ impl Database {
             let r = mdb_get(txn.txn, self.dbi, addr_of_mut!(key_data), addr_of_mut!(val_data));
             match r {
                 MDB_NOTFOUND => { return Ok(None) }
-                EINVAL => { return Err(Error::new(r, "Invalid parameter".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                EINVAL => { return Err(LmdbError::new(r, "Invalid parameter".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
@@ -327,7 +338,7 @@ impl Database {
 
     }
 
-    pub fn del(&self, txn: &Transaction, mut key: &[u8], mut value: Option<&[u8]>) -> Result<bool, Error> {
+    pub fn del(&self, txn: &Transaction, mut key: &[u8], mut value: Option<&[u8]>) -> Result<bool, LmdbError> {
 
         unsafe {
 
@@ -345,9 +356,9 @@ impl Database {
 
             match r {
                 MDB_NOTFOUND => { return Ok(false) }
-                EACCES => { return Err(Error::new(r, "An attempt was made to write in a read-only transaction".to_string())) }
-                EINVAL => { return Err(Error::new(r, "Invalid parameter".to_string())) }
-                x if x != 0 => { return Err(Error::new(r, "Unknown error".to_string())) }
+                EACCES => { return Err(LmdbError::new(r, "An attempt was made to write in a read-only transaction".to_string())) }
+                EINVAL => { return Err(LmdbError::new(r, "Invalid parameter".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
