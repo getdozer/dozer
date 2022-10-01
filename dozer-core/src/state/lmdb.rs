@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::{fs, thread};
 use std::time::Duration;
 use crossbeam::channel::bounded;
-use futures::{AsyncReadExt, SinkExt};
 use crate::state::{StateStore, StateStoresManager};
 use crate::state::lmdb_sys::{Database, DatabaseOptions, Environment, EnvOptions, Transaction};
 

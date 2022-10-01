@@ -214,12 +214,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blockingqueue"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "763bb38f196c65b369c68796e6d15b83d7eb63c354f2ab7c03c13edd13f2c4ff"
-
-[[package]]
 name = "bson"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -244,12 +238,6 @@ name = "bumpalo"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1ad822118d20d2c234f427000d5acc36eabe1e29a348c89b63dd60b13f28e5d"
-
-[[package]]
-name = "bytemuck"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f5715e491b5a1598fc2bef5a606847b5dc1d48ea625bd3c02c00de8285591da"
 
 [[package]]
 name = "byteorder"
@@ -559,21 +547,13 @@ version = "0.1.0"
 dependencies = [
  "ahash 0.8.0",
  "anyhow",
- "async-trait",
- "blockingqueue",
- "bytemuck",
  "chrono",
  "crossbeam",
  "dozer-types",
- "futures",
  "libc",
- "lmdb",
  "lmdb-sys",
  "log",
  "log4rs",
- "num-traits",
- "rand 0.8.5",
- "sqlparser",
  "unixstring",
  "uuid",
 ]
