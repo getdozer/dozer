@@ -10,7 +10,8 @@ pub enum StateStoreErrorType {
     SchemaMismatchError,
     AggregatorError,
     StoreOperationError,
-    GetOperationError
+    GetOperationError,
+    InvalidPath
 }
 
 

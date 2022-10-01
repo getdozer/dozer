@@ -3,7 +3,7 @@ use std::ptr::addr_of_mut;
 use std::sync::{Arc, RwLock};
 use libc::{ENOENT, EACCES, EAGAIN, ENOMEM, EINVAL, ENOSPC, EIO, mode_t, size_t, c_uint, c_void, c_int};
 use unixstring::UnixString;
-use lmdb_sys::{MDB_env, mdb_env_create, MDB_VERSION_MISMATCH, MDB_INVALID, mdb_env_open, mdb_env_set_mapsize, MDB_txn, mdb_txn_begin, MDB_RDONLY, MDB_PANIC, MDB_MAP_RESIZED, MDB_READERS_FULL, MDB_dbi, mdb_dbi_open, MDB_CREATE, MDB_DUPSORT, MDB_INTEGERKEY, MDB_DUPFIXED, MDB_NOTFOUND, MDB_DBS_FULL, mdb_put, MDB_val, MDB_NODUPDATA, MDB_NOOVERWRITE, MDB_MAP_FULL, MDB_TXN_FULL, mdb_get, mdb_env_set_maxdbs, mdb_dbi_close, mdb_txn_commit, mdb_txn_abort, mdb_del, mdb_env_close, MDB_NOSYNC, MDB_NOMETASYNC};
+use lmdb_sys::{MDB_env, mdb_env_create, MDB_VERSION_MISMATCH, MDB_INVALID, mdb_env_open, mdb_env_set_mapsize, MDB_txn, mdb_txn_begin, MDB_RDONLY, MDB_PANIC, MDB_MAP_RESIZED, MDB_READERS_FULL, MDB_dbi, mdb_dbi_open, MDB_CREATE, MDB_DUPSORT, MDB_INTEGERKEY, MDB_DUPFIXED, MDB_NOTFOUND, MDB_DBS_FULL, mdb_put, MDB_val, MDB_NODUPDATA, MDB_NOOVERWRITE, MDB_MAP_FULL, MDB_TXN_FULL, mdb_get, mdb_env_set_maxdbs, mdb_dbi_close, mdb_txn_commit, mdb_txn_abort, mdb_del, mdb_env_close, MDB_NOSYNC, MDB_NOMETASYNC, MDB_NOSUBDIR};
 
 
 #[derive(Debug, Clone)]
@@ -34,12 +34,13 @@ pub struct EnvOptions {
     pub map_size: Option<size_t>,
     pub max_dbs: Option<u32>,
     pub no_sync: bool,
-    pub no_meta_sync: bool
+    pub no_meta_sync: bool,
+    pub no_subdir: bool
 }
 
 impl EnvOptions {
     pub fn default() -> Self {
-        Self { map_size: None, max_dbs: None, no_sync: false, no_meta_sync: false }
+        Self { map_size: None, max_dbs: None, no_sync: false, no_meta_sync: false, no_subdir: false }
     }
 }
 
@@ -77,6 +78,7 @@ impl Environment {
                 }
                 if opts.unwrap().no_sync { flags |= MDB_NOSYNC; }
                 if opts.unwrap().no_meta_sync { flags |= MDB_NOMETASYNC; }
+                if opts.unwrap().no_subdir { flags |= MDB_NOSUBDIR; }
             }
 
             let r = mdb_env_open(

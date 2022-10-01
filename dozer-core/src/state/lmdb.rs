@@ -6,7 +6,7 @@ use crossbeam::channel::bounded;
 use futures::{AsyncReadExt, SinkExt};
 use crate::state::{StateStore, StateStoreError, StateStoresManager};
 use crate::state::lmdb_sys::{Database, DatabaseOptions, Environment, EnvOptions, Transaction};
-use crate::state::StateStoreErrorType::{GetOperationError, OpenOrCreateError, StoreOperationError, TransactionError};
+use crate::state::StateStoreErrorType::{GetOperationError, InvalidPath, OpenOrCreateError, StoreOperationError, TransactionError};
 
 pub struct LmdbStateStoreManager {
     path: String,
@@ -25,14 +25,18 @@ impl StateStoresManager for LmdbStateStoreManager {
 
      fn init_state_store (&self, id: String) -> Result<Box<dyn StateStore>, StateStoreError> {
 
-         fs::create_dir(id.clone());
+         let full_path = Path::new(&self.path).join(&id);
+         let r = fs::create_dir(&full_path);
+         if r.is_err() {
+             return Err(StateStoreError::new(InvalidPath, "Unable to create path".to_string()));
+         }
 
          let mut env_opt = EnvOptions::default();
          env_opt.no_sync = true;
          env_opt.max_dbs = Some(10);
          env_opt.map_size = Some(self.max_size);
 
-         let env = Arc::new(Environment::new(id.clone(), Some(env_opt)).unwrap());
+         let env = Arc::new(Environment::new(full_path.to_str().unwrap().to_string(), Some(env_opt)).unwrap());
          let mut tx = Transaction::begin(env.clone()).unwrap();
          let db = Database::open(env.clone(), &tx, id.to_string(), Some(DatabaseOptions::default()) ).unwrap();
 

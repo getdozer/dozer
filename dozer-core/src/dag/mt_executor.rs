@@ -144,10 +144,8 @@ impl MultiThreadedDagExecutor {
 
         return thread::spawn(move || -> Result<(), String> {
 
-            let mut state_store2 = local_sm.init_state_store(handle.to_string())
+            let mut state_store = local_sm.init_state_store(handle.to_string())
                 .map_err(|e| { e.desc })?;
-
-            let mut state_store = Box::new(MemoryStateStore::new());
 
             let mut src = src_factory.build();
             src.start(&fw, state_store.as_mut())
@@ -181,10 +179,8 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> Result<(), String> {
 
             let mut snk = snk_factory.build();
-             let mut state_store2 = local_sm.init_state_store(handle.to_string())
+             let mut state_store = local_sm.init_state_store(handle.to_string())
                  .map_err(|e| { e.desc })?;
-
-            let mut state_store = Box::new(MemoryStateStore::new());
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -225,9 +221,8 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> Result<(), String> {
 
             let mut proc = proc_factory.build();
-            let mut state_store2 = local_sm.init_state_store(handle.to_string())
+            let mut state_store = local_sm.init_state_store(handle.to_string())
                 .map_err(|e| { e.desc })?;
-            let mut state_store = Box::new(MemoryStateStore::new());
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -352,7 +347,7 @@ fn test_run_dag() {
 
     let exec = MultiThreadedDagExecutor::new( 100000);
     let ctx = Arc::new(MemoryExecutionContext::new());
-    let sm = LmdbStateStoreManager::new("./test".to_string(), 1024*1024*1024*5).unwrap();
+    let sm = LmdbStateStoreManager::new("data".to_string(), 1024*1024*1024*5).unwrap();
 
     assert!(exec.start(dag, sm).is_ok());
 }
