@@ -3,7 +3,7 @@ use std::sync::Arc;
 use dozer_core::dag::node::NextStep;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{ChannelForwarder, ExecutionContext, Processor};
-use dozer_types::types::{Field, OperationEvent, Schema};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
 use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem, Value as SqlValue};
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
@@ -42,7 +42,32 @@ impl Processor for ProjectionProcessor {
 
     fn process(&self, from_port: Option<PortHandle>, op: OperationEvent, ctx: & dyn ExecutionContext, fw: &ChannelForwarder) -> core::result::Result<NextStep, String> {
 
-        fw.send(op, None);
-        Ok(NextStep::Continue)
+        match op.operation {
+            Operation::Delete { old } => {
+                Err("DELETE Operation not supported.".to_string())
+            }
+            Operation::Insert { ref new } => {
+
+                let mut results = vec![];
+                for expr in &self.expressions {
+                    results.push(expr.evaluate(&new));
+                }
+                fw.send(OperationEvent::new(
+                    op.seq_no,
+                    Operation::Insert {
+                        new: Record::new(None, results),
+                    },
+                ),
+                    None,
+                );
+
+                Ok(NextStep::Continue)
+            }
+            Operation::Update { old, new} => Err("UPDATE Operation not supported.".to_string()),
+            Operation::Terminate => Err("TERMINATE Operation not supported.".to_string()),
+            _ => Err("TERMINATE Operation not supported.".to_string()),
+        }
+
+
     }
 }

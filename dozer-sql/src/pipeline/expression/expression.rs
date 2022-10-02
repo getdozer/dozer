@@ -37,6 +37,48 @@ pub trait PhysicalExpression: Send + Sync {
     fn evaluate(&self, record: &Record) -> Field;
 }
 
+impl PhysicalExpression for Expression {
+    fn evaluate(&self, record: &Record) -> Field {
+
+        match self {
+            Expression::Column{index} => evaluate_column(*index, record),
+            Expression::ScalarFunction{fun, args} => evaluate_scalar(fun, args, record),
+            _ => Field::Int(99)
+        }
+    }
+}
+
+fn evaluate_column(index: usize, record: &Record) -> Field {
+    record.values.get(index).unwrap().clone()
+}
+
+fn evaluate_scalar(function: &ScalarFunctionType, args: &Vec<Box<Expression>>, record: &Record) -> Field {
+    match function {
+        ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
+        ScalarFunctionType::Round => evaluate_round(&args[0], record),
+        _ => Field::Int(999)
+    }
+}
+
+fn evaluate_abs(arg: &Box<Expression>, record: &Record) -> Field {
+    let value = arg.evaluate(record);
+    match value {
+        Field::Int(i) => Field::Int(i.abs()),
+        Field::Float(f) => Field::Float(f.abs()),
+        _ => Field::Int(998)
+    }
+
+}
+
+fn evaluate_round(arg: &Box<Expression>, record: &Record) -> Field {
+    let value = arg.evaluate(record);
+    match value {
+        Field::Int(i) => Field::Int(i),
+        Field::Float(f) => Field::Float((f * 100.0).round() / 100.0),
+        _ => Field::Int(998)
+    }
+}
+
 impl PhysicalExpression for bool {
     fn evaluate(&self, record: &Record) -> Field {
         return Field::Boolean(*self);
