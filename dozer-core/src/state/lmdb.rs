@@ -30,10 +30,13 @@ impl StateStoresManager for LmdbStateStoreManager {
          env_opt.no_sync = true;
          env_opt.max_dbs = Some(10);
          env_opt.map_size = Some(self.max_size);
+         env_opt.writable_mem_map = true;
 
          let env = Arc::new(Environment::new(full_path.to_str().unwrap().to_string(), Some(env_opt))?);
          let mut tx = Transaction::begin(env.clone())?;
-         let db = Database::open(env.clone(), &tx, id.to_string(), Some(DatabaseOptions::default()) )?;
+
+         let mut db_opt = DatabaseOptions::default();
+         let db = Database::open(env.clone(), &tx, id.to_string(), Some(db_opt) )?;
 
          Ok(Box::new(LmdbStateStore { env: env.clone(), tx, db}))
 
