@@ -19,7 +19,7 @@ pub enum NextStep {
 pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
-  //  fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> Schema;
+    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema>;
     fn build(&self) -> Box<dyn Processor>;
 }
 
@@ -31,7 +31,7 @@ pub trait Processor {
 
 pub trait SourceFactory: Send + Sync {
     fn get_output_ports(&self) -> Vec<PortHandle>;
- //   fn get_output_schema(&self, port: PortHandle) -> Schema;
+    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema>;
     fn build(&self) -> Box<dyn Source>;
 }
 

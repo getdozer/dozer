@@ -1,4 +1,4 @@
-use crate::dag::dag::{Dag, Endpoint, NodeHandle, NodeType, PortHandle, TestProcessor, TestProcessorFactory, TestSink, TestSinkFactory, TestSource, TestSourceFactory};
+use crate::dag::dag::{Dag, Edge, Endpoint, NodeHandle, NodeType, PortDirection, PortHandle};
 use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source, ChannelForwarder, SourceFactory, ProcessorFactory, SinkFactory};
 use dozer_types::types::{Operation, OperationEvent, Schema};
 
@@ -8,25 +8,27 @@ use std::rc::Rc;
 use std::sync::{Arc};
 use std::thread;
 use std::thread::{JoinHandle};
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use crossbeam::select;
 use crate::state::lmdb::LmdbStateStoreManager;
 use crate::state::memory::MemoryStateStore;
 use crate::state::StateStoresManager;
 
-pub struct MemoryExecutionContext {
+pub const DefaultPortHandle: u16 = 0xffff_u16;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SchemaKey {
+    pub node_handle: NodeHandle,
+    pub port_handle: PortHandle,
+    pub direction: PortDirection
 }
 
-impl MemoryExecutionContext {
-    pub fn new() -> Self {
-        Self {}
+impl SchemaKey {
+    pub fn new(node_handle: NodeHandle, port_handle: PortHandle, direction: PortDirection) -> Self {
+        Self { node_handle, port_handle, direction }
     }
 }
-
-impl ExecutionContext for MemoryExecutionContext {}
-
-pub const DefaultPortHandle: u8 = 0xffu8;
 
 pub struct MultiThreadedDagExecutor {
     channel_buf_sz: usize
@@ -123,6 +125,138 @@ impl MultiThreadedDagExecutor {
             }
         }
         (sources, processors, sinks)
+    }
+
+
+    fn index_node_schemas(&self,
+                          node_handle: NodeHandle,
+                          node: &NodeType,
+                          node_input_schemas: Option<HashMap<PortHandle, Schema>>,
+                          dag: &Dag,
+                          res: &mut HashMap<SchemaKey, Schema>
+    ) -> anyhow::Result<()> {
+
+        /// Get all output schemas of the current node
+        let output_schemas = self.get_node_output_schemas(node, node_input_schemas)?;
+        /// If no output schemas, it's a SNK so nothing to do
+        if output_schemas.is_none() {
+            return Ok(())
+        }
+
+        /// Iterate all output schemas for this node
+        for s in output_schemas.unwrap() {
+
+            /// Index (Node, Port, Output) -> Schema
+            res.insert(SchemaKey::new(node_handle, s.0, PortDirection::Output), s.1.clone());
+
+            /// Now get all edges connecting this (Node,Port) to the next nodes
+            let out_edges : Vec<Endpoint> =
+                dag.edges.iter()
+                    .filter(|e| e.from.node == node_handle && e.from.port == s.0)
+                    .map(|e| (e.to.clone()))
+                    .collect();
+
+            if out_edges.len() == 0 {
+                return Err(anyhow!("The output port {} of the node {} is not connected", s.0, node_handle));
+            }
+
+            for out_e in out_edges {
+                /// Register the target of the edge (Node, Port, Input) -> Schema
+                res.insert(SchemaKey::new(out_e.node, out_e.port, PortDirection::Input), s.1.clone());
+
+                /// find the next node in teh chain
+                let next_node_handle = out_e.node;
+                let next_node = dag.nodes.get(&out_e.node)
+                    .context(anyhow!("Unable to find node {}", out_e.node))?;
+
+                /// Get all input schemas for the next node
+                let next_node_input_schemas = self.get_node_input_schemas(
+                    next_node_handle, next_node, res
+                );
+                if next_node_input_schemas.is_none() {
+                    return Ok(());
+                }
+
+                let r = self.index_node_schemas(
+                    next_node_handle, next_node, next_node_input_schemas, dag, res
+                );
+
+                if r.is_err() {
+                    return r;
+                }
+
+            }
+        }
+        Ok(())
+    }
+
+    fn get_node_output_schemas(&self, n: &NodeType, input_schemas: Option<HashMap<PortHandle, Schema>>) -> anyhow::Result<Option<HashMap<PortHandle, Schema>>> {
+
+        match n {
+            NodeType::Source(src) => {
+                let mut schemas : HashMap<PortHandle, Schema> = HashMap::new();
+                for p in src.get_output_ports() {
+                    schemas.insert(p, src.get_output_schema(p)?);
+                }
+                Ok(Some(schemas))
+            }
+            NodeType::Processor(proc) => {
+                let mut schemas : HashMap<PortHandle, Schema> = HashMap::new();
+                for p in proc.get_output_ports() {
+                    schemas.insert(p, proc.get_output_schema(p, input_schemas.clone().unwrap())?);
+                }
+                Ok(Some(schemas))
+            }
+            NodeType::Sink(snk) => { Ok(None) }
+        }
+
+    }
+
+    fn get_node_input_schemas(
+        &self, h: NodeHandle, n: &NodeType,
+        res: &HashMap<SchemaKey, Schema>) -> Option<HashMap<PortHandle, Schema>> {
+
+        match n {
+            NodeType::Source(src) => {
+                None
+            }
+            NodeType::Processor(proc) => {
+                let mut schemas : HashMap<PortHandle, Schema> = HashMap::new();
+                for p in proc.get_input_ports() {
+                    let s = res.get(&SchemaKey::new(h, p, PortDirection::Input));
+                    if s.is_none() { return None }
+                    schemas.insert(p, s.unwrap().clone());
+                }
+                Some(schemas)
+            }
+            NodeType::Sink(snk) => {
+                let mut schemas : HashMap<PortHandle, Schema> = HashMap::new();
+                for p in snk.get_input_ports() {
+                    let s = res.get(&SchemaKey::new(h, p, PortDirection::Input));
+                    if s.is_none() { return None }
+                    schemas.insert(p, s.unwrap().clone());
+                }
+                Some(schemas)
+            }
+        }
+
+    }
+
+    pub fn get_schemas_map(&self, dag: &Dag) -> anyhow::Result<HashMap<SchemaKey, Schema>> {
+
+
+        let source: _ =
+            dag.nodes.iter().find(|e| { matches!(e.1, NodeType::Source(_)) })
+                .context("Unable to find a source node")?;
+
+        let mut schemas: HashMap<SchemaKey, Schema> = HashMap::new();
+
+        let r = self.index_node_schemas(
+            *source.0, source.1, None, dag, &mut schemas
+        )?;
+
+        Ok(schemas)
+
     }
 
     fn start_source(
@@ -311,33 +445,4 @@ impl MultiThreadedDagExecutor {
     }
 }
 
-#[test]
-fn test_run_dag() {
-    let src = TestSourceFactory::new(1, vec![DefaultPortHandle]);
-    let proc = TestProcessorFactory::new(1, vec![DefaultPortHandle], vec![DefaultPortHandle]);
-    let sink = TestSinkFactory::new(1, vec![DefaultPortHandle]);
-
-    let mut dag = Dag::new();
-
-    dag.add_node(NodeType::Source(Box::new(src)), 1);
-    dag.add_node(NodeType::Processor(Box::new(proc)), 2);
-    dag.add_node(NodeType::Sink(Box::new(sink)), 3);
-
-    let src_to_proc1 = dag.connect(
-        Endpoint::new(1, DefaultPortHandle),
-        Endpoint::new(2, DefaultPortHandle)
-    );
-    assert!(src_to_proc1.is_ok());
-
-    let proc1_to_sink = dag.connect(
-        Endpoint::new(2, DefaultPortHandle),
-        Endpoint::new(3, DefaultPortHandle)
-    );
-    assert!(proc1_to_sink.is_ok());
-
-    let exec = MultiThreadedDagExecutor::new( 100000);
-    let sm = LmdbStateStoreManager::new("data".to_string(), 1024*1024*1024*5).unwrap();
-
-    assert!(exec.start(dag, sm).is_ok());
-}
 

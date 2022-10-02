@@ -12,8 +12,9 @@ use crate::state::{StateStore, StateStoresManager};
 
 
 pub type NodeHandle = u16;
-pub type PortHandle = u8;
+pub type PortHandle = u16;
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Endpoint {
     pub node: NodeHandle,
     pub port: PortHandle,
@@ -25,6 +26,7 @@ impl Endpoint {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edge {
     pub from: Endpoint,
     pub to: Endpoint
@@ -53,7 +55,8 @@ pub struct Dag {
     pub edges: Vec<Edge>,
 }
 
-enum PortDirection {
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PortDirection {
     Input,
     Output,
 }
@@ -132,221 +135,3 @@ impl Dag {
         Ok(())
     }
 }
-
-pub struct TestSinkFactory {
-    id: i32,
-    input_ports: Vec<PortHandle>,
-}
-
-impl TestSinkFactory {
-    pub fn new(id: i32, input_ports: Vec<PortHandle>) -> Self {
-        Self { id, input_ports }
-    }
-}
-
-
-impl SinkFactory for TestSinkFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
-    }
-
-    fn build(&self) -> Box<dyn Sink> {
-        Box::new(TestSink { id: self.id })
-    }
-}
-
-
-pub struct TestSink {
-    id: i32
-}
-
-impl Sink for TestSink {
-    
-    fn init(&self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
-        println!("SINK {}: Initialising TestSink", self.id);
-        Ok(())
-    }
-
-    fn process(
-        &self,
-        _from_port: PortHandle,
-        _op: OperationEvent,
-        _state: &mut dyn StateStore
-    ) -> anyhow::Result<NextStep> {
-     //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
-        Ok(Continue)
-    }
-}
-
-pub struct TestProcessorFactory {
-    id: i32,
-    input_ports: Vec<PortHandle>,
-    output_ports: Vec<PortHandle>
-}
-
-impl TestProcessorFactory {
-    pub fn new(id: i32, input_ports: Vec<PortHandle>, output_ports: Vec<PortHandle>) -> Self {
-        Self { id, input_ports, output_ports }
-    }
-}
-
-impl ProcessorFactory for TestProcessorFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
-    }
-
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
-    }
-
-    fn build(&self) -> Box<dyn Processor> {
-        Box::new(TestProcessor { state: None, id: self.id })
-    }
-}
-
-pub struct TestProcessor {
-    state: Option<Box<dyn StateStore>>,
-    id: i32
-}
-
-
-impl Processor for TestProcessor {
-
-    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
-        println!("PROC {}: Initialising TestProcessor", self.id);
-     //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
-        Ok(())
-    }
-
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        op: OperationEvent,
-        fw: &dyn ChannelForwarder,
-        state_store: &mut dyn StateStore
-    ) -> anyhow::Result<NextStep> {
-     //   println!("PROC {}: Message {} received", self.id, op.seq_no);
-        state_store.put(&op.seq_no.to_ne_bytes(), &self.id.to_ne_bytes());
-        fw.send(op, DefaultPortHandle)?;
-        Ok(Continue)
-    }
-}
-
-pub struct TestSourceFactory {
-    id: i32,
-    output_ports: Vec<PortHandle>
-}
-
-impl TestSourceFactory {
-    pub fn new(id: i32, output_ports: Vec<PortHandle>) -> Self {
-        Self { id, output_ports }
-    }
-}
-
-impl SourceFactory for TestSourceFactory {
-
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
-    }
-
-    fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource {id: self.id})
-    }
-}
-
-pub struct TestSource {
-    id: i32
-}
-
-impl Source for TestSource {
-
-    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> anyhow::Result<()> {
-        for n in 0..10000000 {
-             //  println!("SRC {}: Message {} received", self.id, n);
-            fw.send(
-                OperationEvent::new(
-                    n,
-                    Operation::Insert {
-                        new: Record::new(None, vec![]),
-                    },
-                ),
-                DefaultPortHandle,
-            )
-            .unwrap();
-        }
-        fw.terminate().unwrap();
-        Ok(())
-    }
-}
-
-macro_rules! test_ports {
-    ($id:ident, $out_ports:expr, $in_ports:expr, $from_port:expr, $to_port:expr, $expect:expr) => {
-        #[test]
-        fn $id() {
-            let src = TestSourceFactory::new(1, $out_ports);
-            let proc = TestProcessorFactory::new(2, $in_ports, vec![DefaultPortHandle]);
-
-            let mut dag = Dag::new();
-
-            dag.add_node(NodeType::Source(Box::new(src)), 1);
-            dag.add_node(NodeType::Processor(Box::new(proc)), 2);
-
-            let res = dag.connect(
-                Endpoint::new(1, $from_port),
-                Endpoint::new(2, $to_port)
-
-            );
-
-            assert!(res.is_ok() == $expect)
-        }
-    };
-}
-
-test_ports!(
-    test_none_ports,
-    vec![DefaultPortHandle],
-    vec![DefaultPortHandle],
-    DefaultPortHandle,
-    DefaultPortHandle,
-    true);
-
-test_ports!(
-    test_matching_ports,
-    vec![1],
-    vec![2],
-    1,
-    2,
-    true
-);
-test_ports!(
-    test_not_matching_ports,
-    vec![2],
-    vec![1],
-    1,
-    2,
-    false
-);
-test_ports!(
-    test_not_default_port,
-    vec![2],
-    vec![1],
-    DefaultPortHandle,
-    2,
-    false
-);
-test_ports!(
-    test_not_default_port2,
-    vec![DefaultPortHandle],
-    vec![1],
-    1,
-    2,
-    false
-);
-test_ports!(
-    test_not_default_port3,
-    vec![DefaultPortHandle],
-    vec![DefaultPortHandle],
-    DefaultPortHandle,
-    2,
-    false
-);

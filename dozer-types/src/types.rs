@@ -19,7 +19,7 @@ pub enum Field {
     Invalid(String),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum FieldType {
     Int,
     Float,
@@ -32,20 +32,26 @@ pub enum FieldType {
     RecordArray(Schema)
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FieldDefinition {
     pub name: String,
     pub typ: FieldType,
     pub nullable: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+impl FieldDefinition {
+    pub fn new(name: String, typ: FieldType, nullable: bool) -> Self {
+        Self { name, typ, nullable }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct SchemaIdentifier {
     pub id: u32,
     pub version: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Schema {
     /// Unique identifier and version for this schema. This value is required only if teh schema
     /// is represented by a valid entry in teh schema registry. For nested schemas, this field
@@ -80,7 +86,7 @@ impl Schema {
         }
     }
 
-    pub fn field(&mut self, f: FieldDefinition, value: bool, pk: bool) -> &Self {
+    pub fn field(&mut self, f: FieldDefinition, value: bool, pk: bool) -> &mut Self {
         self.fields.push(f);
         if value { self.values.push(&self.fields.len()-1) }
         if pk { self.primary_index.push(&self.fields.len()-1) }
@@ -96,13 +102,13 @@ impl Schema {
 
 
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum IndexType {
     SortedInverted,
     HashInverted,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct IndexDefinition {
     /// Indexes of the fields forming the index key
     pub fields: Vec<usize>,
