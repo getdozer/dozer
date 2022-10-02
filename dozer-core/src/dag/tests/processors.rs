@@ -91,7 +91,7 @@ pub struct TestSink {
 
 impl Sink for TestSink {
 
-    fn init(&self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init(&self, state_store: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
         println!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -157,7 +157,7 @@ pub struct TestProcessor {
 
 impl Processor for TestProcessor {
 
-    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())

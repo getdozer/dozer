@@ -298,7 +298,8 @@ impl MultiThreadedDagExecutor {
         &self, handle: NodeHandle,
         mut snk_factory: Box<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
-        state_manager: Arc<dyn StateStoresManager>
+        state_manager: Arc<dyn StateStoresManager>,
+        input_schemas: HashMap<PortHandle, Schema>
     ) -> JoinHandle<anyhow::Result<()>> {
 
         let local_sm = state_manager.clone();
@@ -309,6 +310,8 @@ impl MultiThreadedDagExecutor {
 
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
+
+            snk.init(state_store.as_mut(), input_schemas)?;
 
             let mut sel = Select::new();
             for r in &receivers_ls { sel.recv(r); }
@@ -339,7 +342,8 @@ impl MultiThreadedDagExecutor {
         mut proc_factory: Box<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
-        state_manager: Arc<dyn StateStoresManager>
+        state_manager: Arc<dyn StateStoresManager>,
+        input_schemas: HashMap<PortHandle, Schema>
     ) -> JoinHandle<anyhow::Result<()>> {
 
         let local_sm = state_manager.clone();
@@ -355,7 +359,7 @@ impl MultiThreadedDagExecutor {
             let mut sel = Select::new();
             for r in &receivers_ls { sel.recv(r); }
 
-            proc.init(state_store.as_mut())?;
+            proc.init(state_store.as_mut(), input_schemas)?;
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index].recv()?;
@@ -382,6 +386,7 @@ impl MultiThreadedDagExecutor {
     pub fn start(&self, dag: Dag, state_manager: Arc<dyn StateStoresManager>) -> anyhow::Result<()> {
 
         let (mut senders, mut receivers) = self.index_edges(&dag);
+        let schemas = self.get_schemas_map(&dag)?;
         let (sources, processors, sinks) = self.get_node_types(dag);
         let mut handles: Vec<JoinHandle<anyhow::Result<()>>> = Vec::new();
         let global_sm = state_manager.clone();
@@ -395,10 +400,16 @@ impl MultiThreadedDagExecutor {
                 ));
             }
 
+            let input_schemas : HashMap<PortHandle, Schema> = schemas.iter()
+                .filter(|e| e.0.node_handle == snk.0 && e.0.direction == PortDirection::Input)
+                .map(|e| (e.0.port_handle, e.1.clone()))
+                .collect();
+
             let snk_handle =
                 self.start_sink(
                     snk.0, snk.1,
-                    snk_receivers.unwrap(), global_sm.clone()
+                    snk_receivers.unwrap(), global_sm.clone(),
+                    input_schemas
                 );
             handles.push(snk_handle);
 
@@ -416,12 +427,18 @@ impl MultiThreadedDagExecutor {
                 return Err(anyhow!("The node {} does not have any output", &processor.0.clone().to_string()));
             }
 
+            let input_schemas : HashMap<PortHandle, Schema> = schemas.iter()
+                .filter(|e| e.0.node_handle == processor.0 && e.0.direction == PortDirection::Input)
+                .map(|e| (e.0.port_handle, e.1.clone()))
+                .collect();
+
             let proc_handle = self.start_processor(
                 processor.0,
                 processor.1,
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
-                global_sm.clone()
+                global_sm.clone(),
+                input_schemas
             );
             handles.push(proc_handle);
 

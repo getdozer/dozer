@@ -24,7 +24,7 @@ pub trait ProcessorFactory: Send + Sync {
 }
 
 pub trait Processor {
-    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()>;
+    fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
     fn process(&mut self, from_port: PortHandle, op: OperationEvent, fw: &dyn ChannelForwarder, state: &mut dyn StateStore)
         -> anyhow::Result<NextStep>;
 }
@@ -45,7 +45,7 @@ pub trait SinkFactory: Send + Sync {
 }
 
 pub trait Sink {
-    fn init(&self, state: &mut dyn StateStore) -> anyhow::Result<()>;
+    fn init(&self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
     fn process(
         &self,
         from_port: PortHandle,
