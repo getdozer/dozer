@@ -57,29 +57,6 @@ impl SizedAggregationDataset {
         })
     }
 
-    fn get_record_hash(&self, r: &Record) -> anyhow::Result<u64> {
-
-        let mut hasher = AHasher::default();
-        let mut ctr = 0;
-
-        for dimension in &self.out_dimensions {
-            hasher.write_i32(ctr);
-            match &r.values[dimension.0] {
-                Int(i) => { hasher.write_u8(1); hasher.write_i64(*i); }
-                Float(f) => { hasher.write_u8(2); hasher.write(&((*f).to_ne_bytes())); }
-                Boolean(b) => { hasher.write_u8(3); hasher.write_u8(if *b { 1_u8} else { 0_u8 }); }
-                Field::String(s) => { hasher.write_u8(4); hasher.write(s.as_str().as_bytes()); }
-                Binary(b) => { hasher.write_u8(5); hasher.write(b.as_ref()); }
-                Decimal(d) => { hasher.write_u8(6); hasher.write(&d.serialize()); }
-                Timestamp(t) => { hasher.write_u8(7); hasher.write_i64(t.timestamp()) }
-                Bson(b) => { hasher.write_u8(8); hasher.write(b.as_ref()); }
-                Null => {  hasher.write_u8(0); },
-                _ => { return Err(anyhow!("Invalid field type")); }
-            }
-            ctr += 1;
-        }
-        Ok(hasher.finish())
-    }
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) {
 
@@ -88,10 +65,10 @@ impl SizedAggregationDataset {
         }
     }
 
-    fn get_record_key(&self, hash: u64, database_id: u16) -> anyhow::Result<Vec<u8>> {
-        let mut vec = Vec::with_capacity(size_of_val(&hash) + size_of_val(&database_id));
+    fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> anyhow::Result<Vec<u8>> {
+        let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
         vec.extend_from_slice(&database_id.to_ne_bytes());
-        vec.extend_from_slice(&hash.to_ne_bytes());
+        vec.extend(hash);
         Ok(vec)
     }
 
@@ -153,10 +130,10 @@ impl SizedAggregationDataset {
         let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
 
-        let record_hash = self.get_record_hash(&old)?;
-        let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+        let record_hash = old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?;
+        let record_key = self.get_record_key(&record_hash, self.dataset_id)?;
 
-        let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
+        let record_count_key = self.get_record_key(&record_hash, self.dataset_id + 1)?;
         let prev_count = self.update_segment_count(store, record_count_key, 1, true)?;
 
         let curr_state = store.get(record_key.as_slice())?;
@@ -190,10 +167,10 @@ impl SizedAggregationDataset {
 
         let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
-        let record_hash = self.get_record_hash(&new)?;
-        let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+        let record_hash = &new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?;
+        let record_key = self.get_record_key(&record_hash, self.dataset_id)?;
 
-        let record_count_key = self.get_record_key(record_hash, self.dataset_id + 1)?;
+        let record_count_key = self.get_record_key(&record_hash, self.dataset_id + 1)?;
         self.update_segment_count(store, record_count_key, 1, false)?;
 
         let curr_state = store.get(record_key.as_slice())?;
@@ -219,11 +196,11 @@ impl SizedAggregationDataset {
 
     }
 
-    fn agg_update(&self, store: &mut dyn StateStore, old: &Record, new: &Record, record_hash: u64) -> anyhow::Result<Operation> {
+    fn agg_update(&self, store: &mut dyn StateStore, old: &Record, new: &Record, record_hash: Vec<u8>) -> anyhow::Result<Operation> {
 
         let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
         let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
-        let record_key = self.get_record_key(record_hash, self.dataset_id)?;
+        let record_key = self.get_record_key(&record_hash, self.dataset_id)?;
 
         let curr_state = store.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
@@ -255,8 +232,9 @@ impl SizedAggregationDataset {
             }
             Operation::Update {ref old, ref new} => {
 
-                let old_record_hash = self.get_record_hash(&old)?;
-                let new_record_hash = self.get_record_hash(&new)?;
+                let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
+                let old_record_hash = old.get_key(record_keys.clone())?;
+                let new_record_hash = new.get_key(record_keys)?;
 
                 if old_record_hash == new_record_hash {
                     Ok(vec![self.agg_update(store, old, new, old_record_hash)?])
