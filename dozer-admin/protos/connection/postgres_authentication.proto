@@ -5,6 +5,5 @@ message PostgresAuthentication {
   string user = 2;
   string host = 3;
   string port = 4;
-  string name = 5;
-  string password = 6;
+  string password = 5;
 }

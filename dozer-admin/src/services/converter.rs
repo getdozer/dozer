@@ -81,7 +81,6 @@ impl TryFrom<Connection> for dozer_admin_grpc::Authentication {
                 user,
                 host,
                 port: port.to_string(),
-                name: item.name,
                 password,
             }),
         };
