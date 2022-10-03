@@ -4,18 +4,19 @@ use std::{fs, thread};
 use std::time::Duration;
 use crossbeam::channel::bounded;
 use crate::state::{StateStore, StateStoresManager};
-use crate::state::lmdb_sys::{Database, DatabaseOptions, Environment, EnvOptions, Transaction};
+use crate::state::lmdb_sys::{Database, DatabaseOptions, Environment, EnvOptions, LmdbError, Transaction};
 
 pub struct LmdbStateStoreManager {
     path: String,
-    max_size: usize
+    max_size: usize,
+    commit_threshold: u32
 }
 
 impl LmdbStateStoreManager {
-    pub fn new(path: String, max_size: usize) -> anyhow::Result<Arc<dyn StateStoresManager>> {
+    pub fn new(path: String, max_size: usize, commit_threshold: u32) -> anyhow::Result<Arc<dyn StateStoresManager>> {
 
         fs::create_dir(path.clone());
-        Ok(Arc::new(LmdbStateStoreManager {path: path.clone() , max_size }))
+        Ok(Arc::new(LmdbStateStoreManager {path: path.clone() , max_size, commit_threshold }))
     }
 }
 
@@ -38,17 +39,34 @@ impl StateStoresManager for LmdbStateStoreManager {
          let mut db_opt = DatabaseOptions::default();
          let db = Database::open(env.clone(), &tx, id.to_string(), Some(db_opt) )?;
 
-         Ok(Box::new(LmdbStateStore { env: env.clone(), tx, db}))
-
+         Ok(Box::new(LmdbStateStore {
+             env: env.clone(), tx, db, commit_counter: 0,
+             commit_threshold: self.commit_threshold
+         }))
     }
-
 }
 
 
 struct LmdbStateStore {
     env: Arc<Environment>,
     db: Database,
-    tx: Transaction
+    tx: Transaction,
+    commit_counter: u32,
+    commit_threshold: u32
+}
+
+impl LmdbStateStore {
+
+    fn renew_tx(&mut self) -> Result<(), LmdbError>{
+
+        self.commit_counter +=1;
+        if self.commit_counter >= self.commit_threshold {
+            self.tx.commit()?;
+            self.tx = Transaction::begin(self.env.clone())?;
+            self.commit_counter = 0;
+        }
+        Ok(())
+    }
 }
 
 
@@ -59,11 +77,13 @@ impl StateStore for LmdbStateStore {
     }
 
     fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {
+        self.renew_tx()?;
         self.db.put(&self.tx, &key, &value, None)?;
         Ok(())
     }
 
     fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
+        self.renew_tx()?;
         self.db.del(&self.tx, &key, None)?;
         Ok(())
     }
@@ -78,7 +98,11 @@ impl StateStore for LmdbStateStore {
 #[test]
 fn test_mt_lmdb_store() {
 
-    let sm = LmdbStateStoreManager::new("./data".to_string(), 1024*1024*1024*5).unwrap();
+    let sm = LmdbStateStoreManager::new(
+        "./data".to_string(),
+        1024*1024*1024*5,
+        20_000
+    ).unwrap();
 
     let (mut tx1, mut rx1) = bounded::<i32>(1000);
     let sm_t1 = sm.clone();
