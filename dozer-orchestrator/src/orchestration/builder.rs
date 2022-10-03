@@ -94,7 +94,7 @@ mod tests {
     use dozer_core::dag::{
         channel::LocalNodeChannel,
         dag::{Dag, Endpoint, NodeType},
-        executor::{MemoryExecutionContext, MultiThreadedDagExecutor},
+        mt_executor::{MemoryExecutionContext, MultiThreadedDagExecutor},
     };
     use dozer_ingestion::connectors::{postgres::connector::PostgresConfig, storage::RocksConfig};
     #[test]

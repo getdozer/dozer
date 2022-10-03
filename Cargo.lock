@@ -220,12 +220,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blockingqueue"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "763bb38f196c65b369c68796e6d15b83d7eb63c354f2ab7c03c13edd13f2c4ff"
-
-[[package]]
 name = "bson"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,12 +244,6 @@ name = "bumpalo"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1ad822118d20d2c234f427000d5acc36eabe1e29a348c89b63dd60b13f28e5d"
-
-[[package]]
-name = "bytemuck"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f5715e491b5a1598fc2bef5a606847b5dc1d48ea625bd3c02c00de8285591da"
 
 [[package]]
 name = "byteorder"
@@ -668,19 +656,15 @@ name = "dozer-core"
 version = "0.1.0"
 dependencies = [
  "ahash 0.8.0",
- "async-trait",
- "blockingqueue",
- "bytemuck",
+ "anyhow",
  "chrono",
  "crossbeam",
  "dozer-types",
- "futures",
- "lmdb",
+ "libc",
+ "lmdb-sys",
  "log",
  "log4rs",
- "num-traits",
- "rand 0.8.5",
- "sqlparser",
+ "unixstring",
  "uuid",
 ]
 
@@ -739,6 +723,8 @@ dependencies = [
 name = "dozer-types"
 version = "0.1.0"
 dependencies = [
+ "ahash 0.8.0",
+ "anyhow",
  "bincode",
  "bson",
  "chrono",
@@ -1224,9 +1210,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.133"
+version = "0.2.134"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0f80d65747a3e43d1596c7c5492d95d5edddaabd45a7fcdb02b95f644164966"
+checksum = "329c933548736bc49fd575ee68c89e8be4d260064184389a5b77517cddd99ffb"
 
 [[package]]
 name = "libloading"
@@ -2935,6 +2921,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c5713f0fc4b5db668a2ac63cdb7bb4469d8c9fed047b1d0292cc7b0ce2ba921"
 dependencies = [
  "tinyvec",
+]
+
+[[package]]
+name = "unixstring"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "366c5c5657cbe7a684b3476acc7b96d4087e953bf750b1eab4dfbffeda32b2f3"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
