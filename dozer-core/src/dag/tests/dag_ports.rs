@@ -20,7 +20,6 @@ macro_rules! test_ports {
             let res = dag.connect(
                 Endpoint::new(1, $from_port),
                 Endpoint::new(2, $to_port)
-
             );
 
             assert!(res.is_ok() == $expect)

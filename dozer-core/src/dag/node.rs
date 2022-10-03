@@ -36,7 +36,7 @@ pub trait SourceFactory: Send + Sync {
 }
 
 pub trait Source {
-    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> anyhow::Result<()>;
+    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore, from_seq: Option<u64>) -> anyhow::Result<()>;
 }
 
 pub trait SinkFactory: Send + Sync {

@@ -274,7 +274,7 @@ impl MultiThreadedDagExecutor {
             let mut state_store = local_sm.init_state_store(handle.to_string())?;
 
             let mut src = src_factory.build();
-            src.start(&fw, state_store.as_mut())
+            src.start(&fw, state_store.as_mut(), None)
 
         });
 

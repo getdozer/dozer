@@ -42,7 +42,7 @@ pub struct TestSource {
 
 impl Source for TestSource {
 
-    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore, from_seq: Option<u64>) -> anyhow::Result<()> {
         for n in 0..1_000_000 {
             //  println!("SRC {}: Message {} received", self.id, n);
             fw.send(
