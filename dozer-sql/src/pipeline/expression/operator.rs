@@ -1,137 +1,104 @@
-use crate::common::error::DozerSqlError;
-use chrono::{DateTime, NaiveDateTime, Utc};
-use dozer_types::types::{Field, Record};
 use num_traits::FromPrimitive;
-use sqlparser::ast::BinaryOperator;
+use crate::common::error::{DozerSqlError, Result};
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use dozer_types::types::{Field, Record};
+use dozer_types::types::Field::Invalid;
 
-pub trait Expression: Send + Sync {
-    fn get_result(&self, record: &Record) -> Field;
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+pub enum UnaryOperatorType {
+    Not,
 }
 
-impl Expression for bool {
-    fn get_result(&self, record: &Record) -> Field {
-        return Field::Boolean(*self);
+impl UnaryOperatorType {
+
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+pub enum BinaryOperatorType {
+    // Comparison
+    Gte,
+
+    // Mathematical
+    Sum,
+}
+
+
+impl BinaryOperatorType {
+
+    pub(crate) fn evaluate(&self, left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
+        match self {
+            BinaryOperatorType::Gte => BinaryOperatorType::evaluate_gte(left, right, record),
+            _ => Field::Int(999)
+        }
     }
-}
 
-impl Expression for i32 {
-    fn get_result(&self, record: &Record) -> Field {
-        return Field::Int(i64::from_i32(*self).unwrap());
+
+
+    fn evaluate_gte(left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
+        let left_p = left.evaluate(&record);
+        let right_p = right.evaluate(&record);
+
+        match left_p {
+            Field::Boolean(left_v) => match right_p {
+                Field::Boolean(right_v) => Field::Boolean(left_v >= right_v),
+                _ => Field::Boolean(false),
+            },
+            Field::Int(left_v) => match right_p {
+                Field::Int(right_v) => Field::Boolean(left_v >= right_v),
+                Field::Float(right_v) => {
+                    let left_v_f = f64::from_i64(left_v).unwrap();
+                    Field::Boolean(left_v_f >= right_v)
+                }
+                _ => {
+                    return Invalid(format!(
+                        "Cannot compare int value {} to the current value",
+                        left_v
+                    ));
+                }
+            },
+            Field::Float(left_v) => match right_p {
+                Field::Float(right_v) => Field::Boolean(left_v >= right_v),
+                Field::Int(right_v) => {
+                    let right_v_f = f64::from_i64(right_v).unwrap();
+                    Field::Boolean(left_v >= right_v_f)
+                }
+                _ => {
+                    return Invalid(format!(
+                        "Cannot compare float value {} to the current value",
+                        left_v
+                    ));
+                }
+            },
+            Field::String(left_v) => match right_p {
+                Field::String(right_v) => Field::Boolean(left_v >= right_v),
+                _ => {
+                    return Invalid(format!(
+                        "Cannot compare string value {} to the current value",
+                        left_v
+                    ));
+                }
+            },
+            Field::Timestamp(left_v) => match right_p {
+                Field::Timestamp(right_v) => Field::Boolean(left_v >= right_v),
+                _ => {
+                    return Invalid(format!(
+                        "Cannot compare timestamp value {} to the current value",
+                        left_v
+                    ));
+                }
+            },
+            Field::Binary(left_v) => {
+                return Invalid(format!(
+                    "Cannot compare binary value to the current value"
+                ));
+            }
+            Field::Invalid(cause) => {
+                return Invalid(cause);
+            }
+            _ => {
+                return Invalid(format!("Cannot compare this values"));
+            }
+        }
     }
-}
 
-impl Expression for i64 {
-    fn get_result(&self, record: &Record) -> Field {
-        return Field::Int(*self);
-    }
-}
-
-impl Expression for f32 {
-    fn get_result(&self, record: &Record) -> Field {
-        return Field::Float(f64::from_f32(*self).unwrap());
-    }
-}
-
-impl Expression for f64 {
-    fn get_result(&self, record: &Record) -> Field {
-        return Field::Float(*self);
-    }
-}
-
-impl Expression for String {
-    fn get_result(&self, record: &Record) -> Field {
-        return Field::String((*self).clone());
-    }
-}
-
-pub struct Timestamp {
-    value: DateTime<Utc>,
-}
-
-impl Timestamp {
-    pub fn new(value: DateTime<Utc>) -> Self {
-        Self { value }
-    }
-}
-
-impl Expression for Timestamp {
-    fn get_result(&self, record: &Record) -> Field {
-        return Field::Timestamp(self.value);
-    }
-}
-
-pub struct Column {
-    index: usize,
-}
-
-impl Column {
-    pub fn new(index: usize) -> Self {
-        Self { index }
-    }
-}
-
-impl Expression for Column {
-    fn get_result(&self, record: &Record) -> Field {
-        record.values.get(self.index).unwrap().clone()
-    }
-}
-
-#[test]
-fn test_bool() {
-    let row = Record::new(None, vec![]);
-    let v = true;
-    assert!(matches!(v.get_result(&row), Field::Boolean(true)));
-}
-
-#[test]
-fn test_i32() {
-    let row = Record::new(None, vec![]);
-    let v = i32::MAX;
-    let c = Field::Int(i64::from_i32(i32::MAX).unwrap());
-    assert!(matches!(v.get_result(&row), c));
-}
-
-#[test]
-fn test_i64() {
-    let row = Record::new(None, vec![]);
-    let v = i64::MAX;
-    assert!(matches!(v.get_result(&row), Field::Int(i64::MAX)));
-}
-
-#[test]
-fn test_f32() {
-    let row = Record::new(None, vec![]);
-    let v = f32::MAX;
-    let c = Field::Float(f64::from_f32(f32::MAX).unwrap());
-    assert!(matches!(v.get_result(&row), c));
-}
-
-#[test]
-fn test_f64() {
-    let row = Record::new(None, vec![]);
-    let v = f64::MAX;
-    assert!(matches!(v.get_result(&row), Field::Float(f64::MAX)));
-}
-
-#[test]
-fn test_string() {
-    let row = Record::new(None, vec![]);
-    let v = "Hello".to_string();
-    let c = Field::String("Hello".to_string());
-    assert!(matches!(v.get_result(&row), c));
-}
-
-#[test]
-fn test_timestamp() {
-    let row = Record::new(None, vec![]);
-    let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(61, 0), Utc);
-    let v = Timestamp::new(time);
-    assert!(matches!(v.get_result(&row), Field::Timestamp(time)));
-}
-
-#[test]
-fn test_column() {
-    let row = Record::new(None, vec![Field::Int(101), Field::Float(3.1337)]);
-    let v = Column::new(1);
-    assert!(matches!(v.get_result(&row), Field::Float(3.1337)));
 }

@@ -1,15 +1,19 @@
-use crate::pipeline::expression::operator::Expression;
+use crate::common::error::{DozerSqlError, Result};
+use std::sync::Arc;
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::NextStep;
 use dozer_core::dag::node::{ChannelForwarder, ExecutionContext, Processor};
-use dozer_types::types::{Field, Operation, OperationEvent};
+use dozer_types::types::{Field, Operation, OperationEvent, Schema};
 use num_traits::FloatErrorKind::Invalid;
+use sqlparser::ast::{Expr as SqlExpr, SelectItem};
+use crate::pipeline::expression::builder::ExpressionBuilder;
 
 pub struct SelectionProcessor {
     id: i32,
     input_ports: Option<Vec<PortHandle>>,
     output_ports: Option<Vec<PortHandle>>,
-    operator: Box<dyn Expression>,
+    operator: Box<Expression>,
 }
 
 impl SelectionProcessor {
@@ -17,7 +21,7 @@ impl SelectionProcessor {
         id: i32,
         input_ports: Option<Vec<PortHandle>>,
         output_ports: Option<Vec<PortHandle>>,
-        operator: Box<dyn Expression>,
+        operator: Box<Expression>,
     ) -> Self {
         Self {
             id,
@@ -37,7 +41,7 @@ impl Processor for SelectionProcessor {
         self.output_ports.clone()
     }
 
-    fn init(&self) -> Result<(), String> {
+    fn init(&self) -> core::result::Result<(), String> {
         println!("PROC {}: Initialising SelectionProcessor", self.id);
         Ok(())
     }
@@ -48,7 +52,7 @@ impl Processor for SelectionProcessor {
         op: OperationEvent,
         ctx: &dyn ExecutionContext,
         fw: &ChannelForwarder,
-    ) -> Result<NextStep, String> {
+    ) -> core::result::Result<NextStep, String> {
         //println!("PROC {}: Message {} received", self.id, op.id);
 
         match op.operation {
@@ -56,8 +60,8 @@ impl Processor for SelectionProcessor {
                 Err("DELETE Operation not supported.".to_string())
             }
             Operation::Insert { ref new} => {
-                if self.operator.get_result(&new) == Field::Boolean(true) {
-                    fw.send(op, None);
+                if self.operator.evaluate(&new) == Field::Boolean(true) {
+                    let _ = fw.send(op, None);
                 }
                 Ok(NextStep::Continue)
             }
@@ -66,4 +70,31 @@ impl Processor for SelectionProcessor {
             _ => Err("TERMINATE Operation not supported.".to_string()),
         }
     }
+}
+
+pub struct SelectionBuilder {
+    expression_builder: ExpressionBuilder,
+}
+
+impl SelectionBuilder {
+
+    pub fn new(schema: &Schema) -> SelectionBuilder {
+        Self {
+            expression_builder: ExpressionBuilder::new(schema.clone())
+        }
+    }
+
+    pub fn get_processor(&self, selection: Option<SqlExpr>) -> Result<Arc<dyn Processor>> {
+        match selection {
+            Some(expression) => {
+                let operator = self.expression_builder.parse_sql_expression(&expression)?;
+                Ok(Arc::new(SelectionProcessor::new(0, None, None, operator)))
+            }
+            _ => Err(DozerSqlError::NotImplemented(
+                "Unsupported WHERE clause.".to_string(),
+            )),
+        }
+    }
+
+
 }

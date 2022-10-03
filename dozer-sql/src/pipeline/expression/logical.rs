@@ -1,30 +1,30 @@
-use crate::pipeline::expression::operator::{Expression, Timestamp};
+use crate::pipeline::expression::expression::{PhysicalExpression, Timestamp};
 use dozer_types::types::Field::{Boolean, Invalid};
 use dozer_types::types::{Field, Record};
 use num_traits::cast::*;
 use num_traits::Bounded;
 
 pub struct And {
-    left: Box<dyn Expression>,
-    right: Box<dyn Expression>,
+    left: Box<dyn PhysicalExpression>,
+    right: Box<dyn PhysicalExpression>,
 }
 
 impl And {
-    pub fn new(left: Box<dyn Expression>, right: Box<dyn Expression>) -> Self {
+    pub fn new(left: Box<dyn PhysicalExpression>, right: Box<dyn PhysicalExpression>) -> Self {
         Self { left, right }
     }
 }
 
-impl Expression for And {
-    fn get_result(&self, record: &Record) -> Field {
-        let left_p = self.left.get_result(&record);
+impl PhysicalExpression for And {
+    fn evaluate(&self, record: &Record) -> Field {
+        let left_p = self.left.evaluate(&record);
 
         match left_p {
             Field::Boolean(left_v) => {
                 if left_p == Field::Boolean(false) {
                     return Field::Boolean(false);
                 }
-                let right_p = self.right.get_result(&record);
+                let right_p = self.right.evaluate(&record);
                 match right_p {
                     Field::Boolean(right_v) => Field::Boolean(left_v && right_v),
                     _ => Field::Boolean(false),
@@ -38,26 +38,26 @@ impl Expression for And {
 }
 
 pub struct Or {
-    left: Box<dyn Expression>,
-    right: Box<dyn Expression>,
+    left: Box<dyn PhysicalExpression>,
+    right: Box<dyn PhysicalExpression>,
 }
 
 impl Or {
-    pub fn new(left: Box<dyn Expression>, right: Box<dyn Expression>) -> Self {
+    pub fn new(left: Box<dyn PhysicalExpression>, right: Box<dyn PhysicalExpression>) -> Self {
         Self { left, right }
     }
 }
 
-impl Expression for Or {
-    fn get_result(&self, record: &Record) -> Field {
-        let left_p = self.left.get_result(&record);
+impl PhysicalExpression for Or {
+    fn evaluate(&self, record: &Record) -> Field {
+        let left_p = self.left.evaluate(&record);
 
         match left_p {
             Field::Boolean(left_v) => {
                 if left_p == Field::Boolean(true) {
                     return Field::Boolean(true);
                 }
-                let right_p = self.right.get_result(&record);
+                let right_p = self.right.evaluate(&record);
                 match right_p {
                     Field::Boolean(right_v) => Field::Boolean(left_v && right_v),
                     _ => Field::Boolean(false),
@@ -71,18 +71,18 @@ impl Expression for Or {
 }
 
 pub struct Not {
-    value: Box<dyn Expression>,
+    value: Box<dyn PhysicalExpression>,
 }
 
 impl Not {
-    pub fn new(value: Box<dyn Expression>) -> Self {
+    pub fn new(value: Box<dyn PhysicalExpression>) -> Self {
         Self { value }
     }
 }
 
-impl Expression for Not {
-    fn get_result(&self, record: &Record) -> Field {
-        let value_p = self.value.get_result(&record);
+impl PhysicalExpression for Not {
+    fn evaluate(&self, record: &Record) -> Field {
+        let value_p = self.value.evaluate(&record);
 
         match value_p {
             Field::Boolean(value_v) => Field::Boolean(!value_v),
@@ -99,7 +99,7 @@ fn test_bool_bool_and() {
     let l = Box::new(true);
     let r = Box::new(false);
     let op = And::new(l, r);
-    assert!(matches!(op.get_result(&row), Field::Boolean(false)));
+    assert!(matches!(op.evaluate(&row), Field::Boolean(false)));
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn test_bool_bool_or() {
     let l = Box::new(true);
     let r = Box::new(false);
     let op = Or::new(l, r);
-    assert!(matches!(op.get_result(&row), Field::Boolean(true)));
+    assert!(matches!(op.evaluate(&row), Field::Boolean(true)));
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn test_bool_not() {
     let row = Record::new(None, vec![]);
     let v = Box::new(true);
     let op = Not::new(v);
-    assert!(matches!(op.get_result(&row), Field::Boolean(false)));
+    assert!(matches!(op.evaluate(&row), Field::Boolean(false)));
 }
 
 #[test]
@@ -125,5 +125,5 @@ fn test_int_bool_and() {
     let l = Box::new(1);
     let r = Box::new(true);
     let op = And::new(l, r);
-    assert!(matches!(op.get_result(&row), Invalid(_)));
+    assert!(matches!(op.evaluate(&row), Invalid(_)));
 }
