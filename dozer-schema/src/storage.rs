@@ -60,23 +60,28 @@ impl RocksStorage {
 
     pub fn insert_schema(&self, schema: &Schema) {
         let db = Arc::clone(&self.db);
-        let key = self.get_schema_key(schema).to_owned();
+        let key = get_schema_key(schema.identifier.clone().unwrap()).to_owned();
         let key: &[u8] = key.as_ref();
-        println!("{:?}", schema);
+        // println!("{:?}", schema);
         let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
         db.put(key, encoded).unwrap();
     }
 
-    pub fn get_schema(&self, schema_id: u32) -> Schema {
+    pub fn get_schema(&self, schema_id: SchemaIdentifier) -> Schema {
         let db = Arc::clone(&self.db);
-        let key = format!("schema_{}", schema_id).as_bytes().to_owned();
+        let key = get_schema_key(schema_id);
 
         let returned_bytes = db.get(key).unwrap().unwrap();
         let schema: Schema = bincode::deserialize(returned_bytes.as_ref()).unwrap();
         schema
     }
+}
 
-    fn get_schema_key(&self, schema: &Schema) -> Vec<u8> {
-        format!("schema_{}", schema.get_id()).as_bytes().to_vec()
-    }
+pub fn get_schema_key(schema_id: SchemaIdentifier) -> Vec<u8> {
+    [
+        "sc".as_bytes(),
+        &schema_id.id.to_be_bytes().to_vec(),
+        &schema_id.version.to_be_bytes().to_vec(),
+    ]
+    .join("#".as_bytes())
 }

@@ -29,7 +29,8 @@ pub enum FieldType {
     Decimal,
     Timestamp,
     Bson,
-    RecordArray(Schema)
+    Null,
+    RecordArray(Schema),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
