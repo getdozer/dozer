@@ -6,6 +6,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use anyhow::anyhow;
 use crossbeam::channel::Sender;
+use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::state::{StateStore, StateStoresManager};
 
 pub trait ExecutionContext: Send + Sync {}
@@ -25,7 +26,7 @@ pub trait ProcessorFactory: Send + Sync {
 
 pub trait Processor {
     fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
-    fn process(&mut self, from_port: PortHandle, op: OperationEvent, fw: &dyn ChannelForwarder, state: &mut dyn StateStore)
+    fn process(&mut self, from_port: PortHandle, op: Operation, fw: &dyn ProcessorChannelForwarder, state: &mut dyn StateStore)
         -> anyhow::Result<NextStep>;
 }
 
@@ -36,7 +37,9 @@ pub trait SourceFactory: Send + Sync {
 }
 
 pub trait Source {
-    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore, from_seq: Option<u64>) -> anyhow::Result<()>;
+    fn start(&self, fw: &dyn SourceChannelForwarder, cm: &dyn ChannelManager,
+             state: &mut dyn StateStore, from_seq: Option<u64>
+    ) -> anyhow::Result<()>;
 }
 
 pub trait SinkFactory: Send + Sync {
@@ -52,69 +55,4 @@ pub trait Sink {
         op: OperationEvent,
         state: &mut dyn StateStore
     ) -> anyhow::Result<NextStep>;
-}
-
-
-pub trait ChannelForwarder {
-    fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()>;
-    fn terminate(&self) -> anyhow::Result<()>;
-}
-
-pub struct LocalChannelForwarder {
-    senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>
-}
-
-impl LocalChannelForwarder {
-    pub fn new(senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>) -> Self {
-        Self { senders }
-    }
-}
-
-
-impl ChannelForwarder for LocalChannelForwarder {
-
-    fn send(&self, op: OperationEvent, port_id: PortHandle) -> anyhow::Result<()> {
-
-        let senders = self.senders.get(&port_id);
-        if senders.is_none() {
-            return Err(anyhow!("Invalid output port".to_string()));
-        }
-
-        if senders.unwrap().len() == 1 {
-            senders.unwrap()[0].send(op)?;
-        }
-        else {
-            for sender in senders.unwrap() {
-                sender.send(op.clone())?;
-            }
-        }
-
-        return Ok(());
-    }
-
-    fn terminate(&self) -> anyhow::Result<()> {
-        for senders in &self.senders {
-
-            for sender in senders.1 {
-                sender.send(OperationEvent::new(0, Operation::Terminate))?;
-            }
-
-            loop {
-                let mut is_empty = true;
-                for senders in &self.senders {
-                    for sender in senders.1 {
-                        is_empty |= sender.is_empty();
-                    }
-                }
-
-                if !is_empty {
-                    sleep(Duration::from_millis(250));
-                } else {
-                    break;
-                }
-            }
-        }
-
-        return Ok(());
-    }
 }

@@ -1,5 +1,5 @@
 use crate::dag::dag::{Dag, Edge, Endpoint, NodeHandle, NodeType, PortDirection, PortHandle};
-use crate::dag::node::{LocalChannelForwarder, ExecutionContext, NextStep, Processor, Sink, Source, ChannelForwarder, SourceFactory, ProcessorFactory, SinkFactory};
+use crate::dag::node::{ExecutionContext, NextStep, Processor, Sink, Source, SourceFactory, ProcessorFactory, SinkFactory};
 use dozer_types::types::{Operation, OperationEvent, Schema};
 
 use std::collections::HashMap;
@@ -11,6 +11,7 @@ use std::thread::{JoinHandle};
 use anyhow::{anyhow, Context};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use crossbeam::select;
+use crate::dag::forwarder::{LocalChannelForwarder};
 use crate::state::lmdb::LmdbStateStoreManager;
 use crate::state::memory::MemoryStateStore;
 use crate::state::StateStoresManager;
@@ -274,7 +275,7 @@ impl MultiThreadedDagExecutor {
             let mut state_store = local_sm.init_state_store(handle.to_string())?;
 
             let mut src = src_factory.build();
-            src.start(&fw, state_store.as_mut(), None)
+            src.start(&fw, &fw, state_store.as_mut(), None)
 
         });
 
@@ -355,7 +356,7 @@ impl MultiThreadedDagExecutor {
             let (mut handles_ls, mut receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
 
-            let fw = LocalChannelForwarder::new(senders);
+            let mut fw = LocalChannelForwarder::new(senders);
             let mut sel = Select::new();
             for r in &receivers_ls { sel.recv(r); }
 
@@ -369,9 +370,10 @@ impl MultiThreadedDagExecutor {
                         return Ok(());
                     }
                     _ => {
+                        fw.update_seq_no(op.seq_no);
                         let r = proc.process(
                             handles_ls[index],
-                            op, &fw, state_store.as_mut()
+                            op.operation, &fw, state_store.as_mut()
                         )?;
                         match r {
                             NextStep::Stop => { return Ok(()); }

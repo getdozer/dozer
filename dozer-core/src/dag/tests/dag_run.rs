@@ -35,7 +35,11 @@ fn test_run_dag() {
     assert!(proc1_to_sink.is_ok());
 
     let exec = MultiThreadedDagExecutor::new( 100000);
-    let sm = LmdbStateStoreManager::new("data".to_string(), 1024*1024*1024*5).unwrap();
+    let sm = LmdbStateStoreManager::new(
+        "data".to_string(),
+        1024*1024*1024*5,
+        20_000
+    ).unwrap();
 
     assert!(exec.start(dag, sm).is_ok());
 
