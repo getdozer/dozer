@@ -1,11 +1,12 @@
 use crate::common::error::DozerSqlError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use dozer_types::types::{Field, Record};
+use dozer_types::types::Field::{Boolean, Invalid};
 use num_traits::FromPrimitive;
-use sqlparser::ast::BinaryOperator;
+use sqlparser::ast::{BinaryOperator, DateTimeField};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::scalar::ScalarFunctionType;
-use crate::pipeline::expression::operator::OperatorType;
+use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 
 #[derive(Clone, PartialEq)]
 pub enum Expression {
@@ -13,13 +14,13 @@ pub enum Expression {
         index: usize
     },
     Literal(Field),
-    Unary {
-        operator: OperatorType,
+    UnaryOperator {
+        operator: UnaryOperatorType,
         arg: Box<Expression>,
     },
-    Binary {
+    BinaryOperator {
         left: Box<Expression>,
-        operator: OperatorType,
+        operator: BinaryOperatorType,
         right: Box<Expression>,
     },
     ScalarFunction {
@@ -39,43 +40,12 @@ pub trait PhysicalExpression: Send + Sync {
 
 impl PhysicalExpression for Expression {
     fn evaluate(&self, record: &Record) -> Field {
-
         match self {
-            Expression::Column{index} => evaluate_column(*index, record),
-            Expression::ScalarFunction{fun, args} => evaluate_scalar(fun, args, record),
+            Expression::Column{index} => record.values.get(*index).unwrap().clone(),
+            Expression::BinaryOperator {left, operator, right} => operator.evaluate(left, right, record),
+            Expression::ScalarFunction{fun, args} => fun.evaluate( args, record),
             _ => Field::Int(99)
         }
-    }
-}
-
-fn evaluate_column(index: usize, record: &Record) -> Field {
-    record.values.get(index).unwrap().clone()
-}
-
-fn evaluate_scalar(function: &ScalarFunctionType, args: &Vec<Box<Expression>>, record: &Record) -> Field {
-    match function {
-        ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
-        ScalarFunctionType::Round => evaluate_round(&args[0], record),
-        _ => Field::Int(999)
-    }
-}
-
-fn evaluate_abs(arg: &Box<Expression>, record: &Record) -> Field {
-    let value = arg.evaluate(record);
-    match value {
-        Field::Int(i) => Field::Int(i.abs()),
-        Field::Float(f) => Field::Float(f.abs()),
-        _ => Field::Int(998)
-    }
-
-}
-
-fn evaluate_round(arg: &Box<Expression>, record: &Record) -> Field {
-    let value = arg.evaluate(record);
-    match value {
-        Field::Int(i) => Field::Int(i),
-        Field::Float(f) => Field::Float((f * 100.0).round() / 100.0),
-        _ => Field::Int(998)
     }
 }
 

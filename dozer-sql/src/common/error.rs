@@ -1,4 +1,4 @@
-use std::{error, fmt, result};
+use std::{error, result};
 use std::fmt::{Display, Formatter};
 
 pub type Result<T> = result::Result<T, DozerSqlError>;

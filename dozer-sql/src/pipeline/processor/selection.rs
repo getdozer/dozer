@@ -1,6 +1,6 @@
 use crate::common::error::{DozerSqlError, Result};
 use std::sync::Arc;
-use crate::pipeline::expression::expression::PhysicalExpression;
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::NextStep;
 use dozer_core::dag::node::{ChannelForwarder, ExecutionContext, Processor};
@@ -13,7 +13,7 @@ pub struct SelectionProcessor {
     id: i32,
     input_ports: Option<Vec<PortHandle>>,
     output_ports: Option<Vec<PortHandle>>,
-    operator: Box<dyn PhysicalExpression>,
+    operator: Box<Expression>,
 }
 
 impl SelectionProcessor {
@@ -21,7 +21,7 @@ impl SelectionProcessor {
         id: i32,
         input_ports: Option<Vec<PortHandle>>,
         output_ports: Option<Vec<PortHandle>>,
-        operator: Box<dyn PhysicalExpression>,
+        operator: Box<Expression>,
     ) -> Self {
         Self {
             id,
@@ -61,7 +61,7 @@ impl Processor for SelectionProcessor {
             }
             Operation::Insert { ref new} => {
                 if self.operator.evaluate(&new) == Field::Boolean(true) {
-                    fw.send(op, None);
+                    let _ = fw.send(op, None);
                 }
                 Ok(NextStep::Continue)
             }

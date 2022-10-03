@@ -7,7 +7,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::expression::Expression;
 use crate::pipeline::expression::expression::Expression::{AggregateFunction, ScalarFunction};
-use crate::pipeline::expression::operator::OperatorType;
+use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::ScalarFunctionType;
 use crate::pipeline::processor::projection::ProjectionProcessor;
 use dozer_types::types::Schema;
@@ -181,9 +181,9 @@ impl ProjectionBuilder {
         }
         match op {
 
-            BinaryOperator::Plus => Ok((Box::new(Expression::Binary {
+            BinaryOperator::Plus => Ok((Box::new(Expression::BinaryOperator {
                 left:left_op,
-                operator: OperatorType::Sum,
+                operator: BinaryOperatorType::Sum,
                 right:right_op}), false)),
 
             _ => Err(DozerSqlError::NotImplemented(format!(

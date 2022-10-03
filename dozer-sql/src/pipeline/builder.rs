@@ -1,10 +1,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
-use std::collections::HashMap;
 use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
-use crate::pipeline::expression::logical::{And, Not, Or};
-use crate::pipeline::expression::mathematical::{Add, Div, Mod, Mul, Sub};
 use crate::pipeline::expression::expression::{Column, PhysicalExpression};
 use crate::pipeline::processor::selection::{SelectionBuilder, SelectionProcessor};
 use crate::pipeline::processor::projection_builder::ProjectionBuilder;

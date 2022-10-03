@@ -10,7 +10,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::expression::Expression::{AggregateFunction, ScalarFunction};
-use crate::pipeline::expression::operator::OperatorType;
+use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::ScalarFunctionType;
 
 pub struct ProjectionProcessor {
@@ -52,7 +52,7 @@ impl Processor for ProjectionProcessor {
                 for expr in &self.expressions {
                     results.push(expr.evaluate(&new));
                 }
-                fw.send(OperationEvent::new(
+                let _ = fw.send(OperationEvent::new(
                     op.seq_no,
                     Operation::Insert {
                         new: Record::new(None, results),
