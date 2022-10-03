@@ -1,8 +1,10 @@
-use crate::pipeline::expression::expression::{PhysicalExpression, Timestamp};
-use dozer_types::types::Field::{Boolean, Invalid};
-use dozer_types::types::{Field, Record};
-use num_traits::cast::*;
 use num_traits::Bounded;
+use num_traits::cast::*;
+
+use dozer_types::types::{Field, Record};
+use dozer_types::types::Field::{Boolean, Invalid};
+
+use crate::pipeline::expression::expression::{PhysicalExpression, Timestamp};
 
 macro_rules! define_cmp_oper {
     ($id:ident, $fct:expr) => {
@@ -140,7 +142,7 @@ fn test_str_str_eq() {
     assert!(matches!(eq.evaluate(&row), Field::Boolean(true)));
 }
 
-// #[test]
+// #[tests]
 // fn test_ts_ts_eq() {
 //     let f0 = Box::new(Timestamp::new(1));
 //     let f1 = Box::new(Timestamp::new(1));

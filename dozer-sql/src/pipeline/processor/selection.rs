@@ -1,73 +1,86 @@
-use crate::common::error::{DozerSqlError, Result};
+use std::collections::HashMap;
 use std::sync::Arc;
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
-use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::node::NextStep;
-use dozer_core::dag::node::{ChannelForwarder, ExecutionContext, Processor};
-use dozer_types::types::{Field, Operation, OperationEvent, Schema};
+
 use num_traits::FloatErrorKind::Invalid;
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
-use crate::pipeline::expression::builder::ExpressionBuilder;
 
-pub struct SelectionProcessor {
+use anyhow::bail;
+use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::forwarder::ProcessorChannelForwarder;
+use dozer_core::dag::mt_executor::DefaultPortHandle;
+use dozer_core::dag::node::{ExecutionContext, Processor, ProcessorFactory};
+use dozer_core::dag::node::NextStep;
+use dozer_core::state::StateStore;
+use dozer_types::types::{Field, Operation, OperationEvent, Schema};
+
+use crate::common::error::{DozerSqlError, Result};
+use crate::pipeline::expression::builder::ExpressionBuilder;
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+
+pub struct SelectionProcessorFactory {
     id: i32,
-    input_ports: Option<Vec<PortHandle>>,
-    output_ports: Option<Vec<PortHandle>>,
-    operator: Box<Expression>,
+    input_ports: Vec<PortHandle>,
+    output_ports: Vec<PortHandle>,
+    expression: Box<Expression>,
 }
 
-impl SelectionProcessor {
-    pub fn new(
-        id: i32,
-        input_ports: Option<Vec<PortHandle>>,
-        output_ports: Option<Vec<PortHandle>>,
-        operator: Box<Expression>,
-    ) -> Self {
-        Self {
-            id,
-            input_ports,
-            output_ports,
-            operator,
-        }
+impl SelectionProcessorFactory {
+    pub fn new(id: i32, input_ports: Vec<PortHandle>, output_ports: Vec<PortHandle>, expression: Box<Expression>) -> Self {
+        Self { id, input_ports, output_ports, expression }
     }
 }
 
-impl Processor for SelectionProcessor {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>> {
+
+impl ProcessorFactory for SelectionProcessorFactory {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
 
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>> {
+    fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
 
-    fn init(&self) -> core::result::Result<(), String> {
-        println!("PROC {}: Initialising SelectionProcessor", self.id);
+    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+        bail!("Output Schema transformation is not implemented for the Projection Processor.");
+    }
+
+    fn build(&self) -> Box<dyn Processor> {
+        Box::new(SelectionProcessor { id: self.id, expression: self.expression.clone() })
+    }
+}
+
+pub struct SelectionProcessor {
+    id: i32,
+    expression: Box<Expression>,
+}
+
+impl Processor for SelectionProcessor {
+    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+        println!("PROC {}: Initialising TestProcessor", self.id);
+        //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
     }
 
     fn process(
-        &self,
-        from_port: Option<PortHandle>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-        fw: &ChannelForwarder,
-    ) -> core::result::Result<NextStep, String> {
-        //println!("PROC {}: Message {} received", self.id, op.id);
-
-        match op.operation {
+        &mut self,
+        _from_port: PortHandle,
+        op: Operation,
+        fw: &dyn ProcessorChannelForwarder,
+        state_store: &mut dyn StateStore,
+    ) -> anyhow::Result<NextStep> {
+        match op {
             Operation::Delete { old } => {
-                Err("DELETE Operation not supported.".to_string())
+                bail!("DELETE Operation not supported.")
             }
-            Operation::Insert { ref new} => {
-                if self.operator.evaluate(&new) == Field::Boolean(true) {
-                    let _ = fw.send(op, None);
+            Operation::Insert { ref new } => {
+                if self.expression.evaluate(&new) == Field::Boolean(true) {
+                    let _ = fw.send(op, DefaultPortHandle);
                 }
                 Ok(NextStep::Continue)
             }
-            Operation::Update { old, new} => Err("UPDATE Operation not supported.".to_string()),
-            Operation::Terminate => Err("TERMINATE Operation not supported.".to_string()),
-            _ => Err("TERMINATE Operation not supported.".to_string()),
+            Operation::Update { old, new } => bail!("UPDATE Operation not supported."),
+            Operation::Terminate => bail!("TERMINATE Operation not supported."),
+            _ => bail!("TERMINATE Operation not supported."),
         }
     }
 }
@@ -77,24 +90,21 @@ pub struct SelectionBuilder {
 }
 
 impl SelectionBuilder {
-
     pub fn new(schema: &Schema) -> SelectionBuilder {
         Self {
             expression_builder: ExpressionBuilder::new(schema.clone())
         }
     }
 
-    pub fn get_processor(&self, selection: Option<SqlExpr>) -> Result<Arc<dyn Processor>> {
+    pub fn get_processor(&self, selection: Option<SqlExpr>) -> Result<SelectionProcessorFactory> {
         match selection {
             Some(expression) => {
-                let operator = self.expression_builder.parse_sql_expression(&expression)?;
-                Ok(Arc::new(SelectionProcessor::new(0, None, None, operator)))
+                let expression = self.expression_builder.parse_sql_expression(&expression)?;
+                Ok(SelectionProcessorFactory::new(1, vec![DefaultPortHandle], vec![DefaultPortHandle], expression))
             }
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported WHERE clause.".to_string(),
             )),
         }
     }
-
-
 }

@@ -1,8 +1,10 @@
-use crate::pipeline::expression::expression::PhysicalExpression;
-use dozer_types::types::Field::{Boolean, Invalid};
-use dozer_types::types::{Field, Record};
-use num_traits::cast::*;
 use num_traits::Bounded;
+use num_traits::cast::*;
+
+use dozer_types::types::{Field, Record};
+use dozer_types::types::Field::{Boolean, Invalid};
+
+use crate::pipeline::expression::expression::PhysicalExpression;
 
 macro_rules! define_math_oper {
     ($id:ident, $fct:expr, $t: expr) => {

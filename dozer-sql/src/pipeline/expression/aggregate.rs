@@ -1,6 +1,5 @@
 use crate::common::error::{DozerSqlError, Result};
 
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum AggregateFunctionType {
     Avg,
@@ -14,7 +13,6 @@ pub enum AggregateFunctionType {
 }
 
 impl AggregateFunctionType {
-
     pub(crate) fn new(name: &str) -> Result<AggregateFunctionType> {
         Ok(match name {
             "avg" => AggregateFunctionType::Avg,

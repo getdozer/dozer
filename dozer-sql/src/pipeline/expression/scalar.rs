@@ -1,7 +1,8 @@
-use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::Invalid;
+
+use crate::common::error::{DozerSqlError, Result};
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
@@ -10,7 +11,6 @@ pub enum ScalarFunctionType {
 }
 
 impl ScalarFunctionType {
-
     pub fn new(name: &str) -> Result<ScalarFunctionType> {
         Ok(match name {
             "abs" => ScalarFunctionType::Abs,
@@ -39,7 +39,6 @@ impl ScalarFunctionType {
             Field::Float(f) => Field::Float(f.abs()),
             _ => Field::Int(998)
         }
-
     }
 
     fn evaluate_round(arg: &Box<Expression>, record: &Record) -> Field {

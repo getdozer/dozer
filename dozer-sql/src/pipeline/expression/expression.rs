@@ -1,12 +1,14 @@
-use crate::common::error::DozerSqlError;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use dozer_types::types::{Field, Record};
-use dozer_types::types::Field::{Boolean, Invalid};
 use num_traits::FromPrimitive;
 use sqlparser::ast::{BinaryOperator, DateTimeField};
+
+use dozer_types::types::{Field, Record};
+use dozer_types::types::Field::{Boolean, Invalid};
+
+use crate::common::error::DozerSqlError;
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::scalar::ScalarFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
+use crate::pipeline::expression::scalar::ScalarFunctionType;
 
 #[derive(Clone, PartialEq)]
 pub enum Expression {
@@ -30,7 +32,7 @@ pub enum Expression {
     AggregateFunction {
         fun: AggregateFunctionType,
         args: Vec<Box<Expression>>,
-    }
+    },
 }
 
 
@@ -41,9 +43,9 @@ pub trait PhysicalExpression: Send + Sync {
 impl PhysicalExpression for Expression {
     fn evaluate(&self, record: &Record) -> Field {
         match self {
-            Expression::Column{index} => record.values.get(*index).unwrap().clone(),
-            Expression::BinaryOperator {left, operator, right} => operator.evaluate(left, right, record),
-            Expression::ScalarFunction{fun, args} => fun.evaluate( args, record),
+            Expression::Column { index } => record.values.get(*index).unwrap().clone(),
+            Expression::BinaryOperator { left, operator, right } => operator.evaluate(left, right, record),
+            Expression::ScalarFunction { fun, args } => fun.evaluate(args, record),
             _ => Field::Int(99)
         }
     }

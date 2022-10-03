@@ -29,8 +29,8 @@ impl ExpressionBuilder {
         match expression {
             SqlExpr::Identifier(ident) => {
                 Ok(Box::new(
-                    Expression::Column{ index: *self.schema_idx.get(&ident.value).unwrap()}))
-            },
+                    Expression::Column { index: *self.schema_idx.get(&ident.value).unwrap() }))
+            }
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
             // SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
             //     Ok(Box::new(s.clone()))
@@ -114,7 +114,10 @@ impl ExpressionBuilder {
         let right_op = self.parse_sql_expression(right)?;
         match op {
             BinaryOperator::GtEq => Ok(Box::new(Expression::BinaryOperator {
-                left:left_op, operator: BinaryOperatorType::Gte, right:right_op })),
+                left: left_op,
+                operator: BinaryOperatorType::Gte,
+                right: right_op,
+            })),
             // BinaryOperator::Lt => Ok(Box::new(Lt::new(left_op, right_op))),
             // BinaryOperator::LtEq => Ok(Box::new(Lte::new(left_op, right_op))),
             // BinaryOperator::Eq => Ok(Box::new(Eq::new(left_op, right_op))),

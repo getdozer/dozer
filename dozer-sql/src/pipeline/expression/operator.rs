@@ -1,17 +1,17 @@
 use num_traits::FromPrimitive;
-use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+
 use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::Invalid;
+
+use crate::common::error::{DozerSqlError, Result};
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum UnaryOperatorType {
     Not,
 }
 
-impl UnaryOperatorType {
-
-}
+impl UnaryOperatorType {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum BinaryOperatorType {
@@ -24,14 +24,12 @@ pub enum BinaryOperatorType {
 
 
 impl BinaryOperatorType {
-
     pub(crate) fn evaluate(&self, left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
         match self {
             BinaryOperatorType::Gte => BinaryOperatorType::evaluate_gte(left, right, record),
             _ => Field::Int(999)
         }
     }
-
 
 
     fn evaluate_gte(left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
@@ -100,5 +98,4 @@ impl BinaryOperatorType {
             }
         }
     }
-
 }
