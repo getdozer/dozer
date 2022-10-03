@@ -1,6 +1,6 @@
 use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::node::NextStep::Continue;
-use crate::dag::node::{ChannelForwarder, ExecutionContext, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
+use crate::dag::node::{ExecutionContext, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use dozer_types::types::{Operation, OperationEvent, Record, Schema};
 use std::collections::HashMap;
 use std::sync::Arc;

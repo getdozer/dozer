@@ -4,8 +4,9 @@ use std::ops::Deref;
 use anyhow::{anyhow, Context};
 use dozer_types::types::{FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema};
 use crate::dag::dag::{NodeHandle, PortHandle};
+use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DefaultPortHandle;
-use crate::dag::node::{ChannelForwarder, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
+use crate::dag::node::{NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use crate::dag::node::NextStep::Continue;
 use crate::state::StateStore;
 
@@ -42,7 +43,7 @@ pub struct TestSource {
 
 impl Source for TestSource {
 
-    fn start(&self, fw: &dyn ChannelForwarder, state: &mut dyn StateStore, from_seq: Option<u64>) -> anyhow::Result<()> {
+    fn start(&self, fw: &dyn SourceChannelForwarder, cm: &dyn ChannelManager, state: &mut dyn StateStore, from_seq: Option<u64>) -> anyhow::Result<()> {
         for n in 0..1_000_000 {
             //  println!("SRC {}: Message {} received", self.id, n);
             fw.send(
@@ -56,7 +57,7 @@ impl Source for TestSource {
             )
                 .unwrap();
         }
-        fw.terminate().unwrap();
+        cm.terminate().unwrap();
         Ok(())
     }
 }
@@ -145,13 +146,14 @@ impl ProcessorFactory for TestProcessorFactory {
     }
 
     fn build(&self) -> Box<dyn Processor> {
-        Box::new(TestProcessor { state: None, id: self.id })
+        Box::new(TestProcessor { state: None, id: self.id, ctr: 0 })
     }
 }
 
 pub struct TestProcessor {
     state: Option<Box<dyn StateStore>>,
-    id: i32
+    id: i32,
+    ctr: u64
 }
 
 
@@ -166,14 +168,17 @@ impl Processor for TestProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: OperationEvent,
-        fw: &dyn ChannelForwarder,
+        op: Operation,
+        fw: &dyn ProcessorChannelForwarder,
         state_store: &mut dyn StateStore
     ) -> anyhow::Result<NextStep> {
+
         //   println!("PROC {}: Message {} received", self.id, op.seq_no);
-        state_store.put(&op.seq_no.to_ne_bytes(), &self.id.to_ne_bytes());
+        self.ctr += 1;
+        state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes());
         fw.send(op, DefaultPortHandle)?;
         Ok(Continue)
+
     }
 }
 
