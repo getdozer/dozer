@@ -18,7 +18,7 @@ use super::replicator::CDCHandler;
 pub struct Details {
     publication_name: String,
     slot_name: String,
-    tables: Option<Vec<String>>,
+    tables: Option<Vec<(String, u32)>>,
     conn_str: String,
     conn_str_plain: String,
 }
@@ -46,7 +46,7 @@ impl PostgresIterator {
     pub fn new(
         publication_name: String,
         slot_name: String,
-        tables: Option<Vec<String>>,
+        tables: Option<Vec<(String, u32)>>,
         conn_str: String,
         conn_str_plain: String,
         storage_client: Arc<RocksStorage>,

@@ -10,7 +10,7 @@ use crate::orchestration::models::connection::{Authentication, Connection};
 pub struct ConnectionService {
     connector: Box<dyn Connector>,
 }
-impl ConnectionService {}
+
 impl ConnectionService {
     pub fn get_schema(&self) -> Result<Vec<TableInfo>, Box<dyn Error>> {
         return self.connector.get_schema();

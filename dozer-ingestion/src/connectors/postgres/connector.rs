@@ -12,7 +12,7 @@ use super::helper;
 #[derive(Clone, Debug)]
 pub struct PostgresConfig {
     pub name: String,
-    pub tables: Option<Vec<String>>,
+    pub tables: Option<Vec<(String, u32)>>,
     pub conn_str: String,
 }
 
@@ -20,7 +20,7 @@ pub struct PostgresConnector {
     name: String,
     conn_str: String,
     conn_str_plain: String,
-    tables: Option<Vec<String>>,
+    tables: Option<Vec<(String, u32)>>,
     storage_client: Option<Arc<RocksStorage>>,
 }
 impl PostgresConnector {
@@ -92,7 +92,10 @@ impl PostgresConnector {
         let publication_name = self.get_publication_name();
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
-            Some(arr) => format!("TABLE {}", arr.join(" ")).to_string(),
+            Some(arr) => {
+                let (table_names, _): (Vec<String>, Vec<_>) = arr.clone().into_iter().unzip();
+                format!("TABLE {}", table_names.join(" ")).to_string()
+            },
         };
 
         client.simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())?;
