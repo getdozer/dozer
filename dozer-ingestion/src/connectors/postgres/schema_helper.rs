@@ -7,7 +7,7 @@ pub struct SchemaHelper {
     pub conn_str: String,
 }
 impl SchemaHelper {
-    pub fn get_schema(&mut self) -> Result<Vec<TableInfo>, Box<dyn Error>> {
+    pub fn get_schema(&mut self) -> anyhow::Result<Vec<TableInfo>> {
         let mut client = helper::connect(self.conn_str.clone())?;
         let query = "select genericInfo.table_name, genericInfo.column_name, case when genericInfo.is_nullable = 'NO' then false else true end as is_nullable , genericInfo.udt_name, keyInfo.constraint_type is not null as is_primary_key
         FROM
