@@ -24,8 +24,8 @@ jobs:
             components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
-      - name: Test
-        run: cargo test
+      #- name: Test
+      #  run: cargo test
       - name: Set up cargo cache
         uses: actions/cache@v3
         continue-on-error: false
@@ -42,5 +42,3 @@ jobs:
         run: |
           cargo fmt --all -- --check
           cargo clippy -- -D warnings
-      #- name: Test
-      #  run: cargo test
