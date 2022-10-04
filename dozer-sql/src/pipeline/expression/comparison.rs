@@ -1,26 +1,28 @@
-use crate::pipeline::expression::operator::{Expression, Timestamp};
-use dozer_types::types::Field::{Boolean, Invalid};
-use dozer_types::types::{Field, Record};
-use num_traits::cast::*;
 use num_traits::Bounded;
+use num_traits::cast::*;
+
+use dozer_types::types::{Field, Record};
+use dozer_types::types::Field::{Boolean, Invalid};
+
+use crate::pipeline::expression::expression::{PhysicalExpression, Timestamp};
 
 macro_rules! define_cmp_oper {
     ($id:ident, $fct:expr) => {
         pub struct $id {
-            left: Box<dyn Expression>,
-            right: Box<dyn Expression>,
+            left: Box<dyn PhysicalExpression>,
+            right: Box<dyn PhysicalExpression>,
         }
 
         impl $id {
-            pub fn new(left: Box<dyn Expression>, right: Box<dyn Expression>) -> Self {
+            pub fn new(left: Box<dyn PhysicalExpression>, right: Box<dyn PhysicalExpression>) -> Self {
                 Self { left, right }
             }
         }
 
-        impl Expression for $id {
-            fn get_result(&self, record: &Record) -> Field {
-                let left_p = self.left.get_result(&record);
-                let right_p = self.right.get_result(&record);
+        impl PhysicalExpression for $id {
+            fn evaluate(&self, record: &Record) -> Field {
+                let left_p = self.left.evaluate(&record);
+                let right_p = self.right.evaluate(&record);
 
                 match left_p {
                     Field::Boolean(left_v) => match right_p {
@@ -101,7 +103,7 @@ fn test_float_float_eq() {
     let f0 = Box::new(1.3);
     let f1 = Box::new(1.3);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
+    assert!(matches!(eq.evaluate(&row), Field::Boolean(true)));
 }
 
 #[test]
@@ -110,7 +112,7 @@ fn test_float_int_eq() {
     let f0 = Box::new(1.0);
     let f1 = Box::new(1);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
+    assert!(matches!(eq.evaluate(&row), Field::Boolean(true)));
 }
 
 #[test]
@@ -119,7 +121,7 @@ fn test_int_float_eq() {
     let f0 = Box::new(1);
     let f1 = Box::new(1.0);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
+    assert!(matches!(eq.evaluate(&row), Field::Boolean(true)));
 }
 
 #[test]
@@ -128,7 +130,7 @@ fn test_bool_bool_eq() {
     let f0 = Box::new(false);
     let f1 = Box::new(false);
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
+    assert!(matches!(eq.evaluate(&row), Field::Boolean(true)));
 }
 
 #[test]
@@ -137,13 +139,13 @@ fn test_str_str_eq() {
     let f0 = Box::new("abc".to_string());
     let f1 = Box::new("abc".to_string());
     let eq = Eq::new(f0, f1);
-    assert!(matches!(eq.get_result(&row), Field::Boolean(true)));
+    assert!(matches!(eq.evaluate(&row), Field::Boolean(true)));
 }
 
-// #[test]
+// #[tests]
 // fn test_ts_ts_eq() {
 //     let f0 = Box::new(Timestamp::new(1));
 //     let f1 = Box::new(Timestamp::new(1));
 //     let eq = Eq::new(f0, f1);
-//     assert!(matches!(eq.get_value(), Field::Boolean(true)));
+//     assert!(matches!(eq.evaluate(), Field::Boolean(true)));
 // }
