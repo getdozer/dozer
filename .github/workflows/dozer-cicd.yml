@@ -28,39 +28,15 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
 
-      #- name: Test
-      #  run: cargo test
-
-      #- name: Lint
-      #  run: |
-      #    cargo fmt --all -- --check
-      #    cargo clippy -- -D warnings
-
-  publish_docs:
-    needs: run_test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
-
-      - name: Cache cargo registry
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: cargo-doc-cargo-${{ hashFiles('**/Cargo.toml') }}
-
-      - name: Get the branch name
-        id: current_branch
-        shell: bash
+      - name: Test
         run: |
-          echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+          cargo install diesel_cli --no-default-features --features sqlite
+          cargo test
 
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+      - name: Lint
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy -- -D warnings
 
       - name: Build documentation
         env:
@@ -68,18 +44,3 @@ jobs:
           RUSTDOCFLAGS: "--cfg doc_cfg"
         run:
           cargo +nightly doc --manifest-path ./Cargo.toml --workspace
-
-      - name: Publish documentation
-        if: success() && ${{ github.ref == 'ref/heads/main' }}
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: gh-pages-test
-          folder: target/doc # The folder the action should deploy.
-          # Store documentation for each branch in a different folder
-          # This allows us to differentiate between docs for master
-          # and docs for already released versions
-          target-folder: ${{ steps.current_branch.outputs.branch }}
-          single-commit: true
-
-      #TODO: Push docs to S3 origin of CDN
