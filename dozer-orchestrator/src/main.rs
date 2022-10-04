@@ -1,8 +1,11 @@
-use dozer_orchestrator::models::{
-    connection::{Authentication::PostgresAuthentication, Connection, DBType},
-    source::{HistoryType, MasterHistoryConfig, RefreshConfig, Source},
+use dozer_orchestrator::simple::Simple as Dozer;
+use dozer_orchestrator::{
+    models::{
+        connection::{Authentication::PostgresAuthentication, Connection, DBType},
+        source::{HistoryType, MasterHistoryConfig, RefreshConfig, Source},
+    },
+    Orchestrator,
 };
-use dozer_orchestrator::simple::builder::Dozer;
 fn main() {
     let connection: Connection = Connection {
         db_type: DBType::Postgres,
