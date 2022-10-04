@@ -59,6 +59,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@nightly
 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+
       - name: Build documentation
         env:
           RUSTFLAGS: "--cfg doc_cfg"
@@ -67,7 +70,7 @@ jobs:
           cargo +nightly doc --manifest-path ./Cargo.toml --workspace
 
       - name: Publish documentation
-        if: success()
+        if: success() && ${{ github.ref == 'ref/heads/main' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
