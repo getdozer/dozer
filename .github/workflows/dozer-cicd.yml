@@ -1,4 +1,4 @@
-name: dozer-cicd
+name: Dozer Test
 
 on:
   push:

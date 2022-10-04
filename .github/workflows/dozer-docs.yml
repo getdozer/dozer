@@ -2,11 +2,10 @@ name: Publish Docs
 
 on:
   workflow_run:
-    workflows: [dozer-cicd]
-    types: [completed]
-
-env:
-  CARGO_TERM_COLOR: always
+    workflows:
+      - Dozer Test
+    types:
+      - completed
 
 jobs:
   publish_docs:
