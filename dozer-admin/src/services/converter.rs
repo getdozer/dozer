@@ -2,7 +2,7 @@ use crate::server::dozer_api_grpc::{
     self, connection_info::Authentication, ConnectionInfo, ConnectionType, CreateConnectionRequest,
     CreateConnectionResponse, PostgresAuthentication, TestConnectionRequest,
 };
-use dozer_orchestrator::orchestration::models::connection::{self, Connection, DBType};
+use dozer_orchestrator::models::connection::{self, Connection, DBType};
 use dozer_types::types::{ColumnInfo, TableInfo};
 use std::convert::From;
 
@@ -156,7 +156,7 @@ mod test {
         create_connection_request::Authentication, ConnectionType, CreateConnectionRequest,
         PostgresAuthentication,
     };
-    use dozer_orchestrator::orchestration::models::connection::Connection;
+    use dozer_orchestrator::models::connection::Connection;
 
     #[test]
     fn success_connection_from_request() {

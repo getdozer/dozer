@@ -673,6 +673,7 @@ dependencies = [
 name = "dozer-ingestion"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "bincode",
  "bytes",
@@ -696,6 +697,7 @@ dependencies = [
 name = "dozer-orchestrator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "dotenvy",
  "dozer-core",
  "dozer-ingestion",
