@@ -3,7 +3,6 @@ name: Publish Docs
 on:
   workflow_run:
     workflows: [dozer-cicd]
-    branches: [test-cicd]
     types: [completed]
 
 env:
