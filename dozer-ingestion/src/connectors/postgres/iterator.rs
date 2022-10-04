@@ -3,6 +3,7 @@ use crate::connectors::postgres::helper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::connectors::storage::RocksStorage;
 use crossbeam::channel::unbounded;
+use dozer_schema::registry::SchemaRegistryClient;
 use dozer_types::types::OperationEvent;
 use postgres::Error;
 use std::cell::RefCell;
@@ -33,6 +34,7 @@ pub struct PostgresIterator {
     receiver: RefCell<Option<crossbeam::channel::Receiver<OperationEvent>>>,
     details: Arc<Details>,
     storage_client: Arc<RocksStorage>,
+    schema_client: Arc<SchemaRegistryClient>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -50,6 +52,7 @@ impl PostgresIterator {
         conn_str: String,
         conn_str_plain: String,
         storage_client: Arc<RocksStorage>,
+        schema_client: Arc<SchemaRegistryClient>,
     ) -> Self {
         let details = Arc::new(Details {
             publication_name,
@@ -62,6 +65,7 @@ impl PostgresIterator {
             receiver: RefCell::new(None),
             details,
             storage_client,
+            schema_client,
         }
     }
 }
@@ -80,7 +84,12 @@ impl PostgresIterator {
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         // ingestor.initialize(forwarder);
         let storage_client = self.storage_client.clone();
-        let ingestor = Arc::new(Mutex::new(Ingestor::new(storage_client, forwarder)));
+        let schema_client = self.schema_client.clone();
+        let ingestor = Arc::new(Mutex::new(Ingestor::new(
+            storage_client,
+            schema_client,
+            forwarder,
+        )));
 
         Ok(thread::spawn(move || {
             let mut stream_inner = PostgresIteratorHandler {

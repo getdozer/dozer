@@ -1,9 +1,10 @@
-use dozer_orchestrator::orchestration::{
-    builder::Dozer,
+use dozer_orchestrator::simple::Simple as Dozer;
+use dozer_orchestrator::{
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
         source::{HistoryType, MasterHistoryConfig, RefreshConfig, Source},
     },
+    Orchestrator,
 };
 fn main() {
     let connection: Connection = Connection {
