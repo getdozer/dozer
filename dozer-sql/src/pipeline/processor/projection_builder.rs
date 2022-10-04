@@ -203,7 +203,7 @@ impl ProjectionBuilder {
             BinaryOperator::Plus => Ok((
                 Box::new(Expression::BinaryOperator {
                     left: left_op,
-                    operator: BinaryOperatorType::Sum,
+                    operator: BinaryOperatorType::Add,
                     right: right_op,
                 }),
                 false,
