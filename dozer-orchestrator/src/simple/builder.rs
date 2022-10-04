@@ -2,7 +2,7 @@ use core::fmt;
 use dozer_types::types::TableInfo;
 use std::error::Error;
 
-use super::{
+use super::super::{
     models::{connection::Connection, endpoint::Endpoint as EndpointModel, source::Source},
     services::connection::ConnectionService,
 };

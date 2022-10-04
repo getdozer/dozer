@@ -1,14 +1,14 @@
-use std::error::Error;
-use std::str::FromStr;
 use super::pool::DbPool;
 use super::schema::{self};
 use crate::db::schema::connections::dsl::connections;
 use diesel::insert_into;
 use diesel::prelude::*;
-use dozer_orchestrator::orchestration::models::connection::{Authentication, Connection, DBType};
-use dozer_orchestrator::orchestration::models::source::Source;
+use dozer_orchestrator::models::connection::{Authentication, Connection, DBType};
+use dozer_orchestrator::models::source::Source;
 use schema::connections::dsl::*;
 use serde::Serialize;
+use std::error::Error;
+use std::str::FromStr;
 
 fn string_to_static_str(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())

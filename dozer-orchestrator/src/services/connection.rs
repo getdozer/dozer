@@ -5,7 +5,7 @@ use dozer_ingestion::connectors::{
 use dozer_types::types::TableInfo;
 use std::error::Error;
 
-use crate::orchestration::models::connection::{Authentication, Connection};
+use super::super::models::connection::{Authentication, Connection};
 
 pub struct ConnectionService {
     connector: Box<dyn Connector>,

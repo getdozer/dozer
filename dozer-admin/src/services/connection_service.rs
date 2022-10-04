@@ -1,6 +1,7 @@
 use std::thread;
 
-use dozer_orchestrator::orchestration::{builder::Dozer, models::connection::Connection};
+use dozer_orchestrator::models::connection::Connection;
+use dozer_orchestrator::simple::builder::Dozer;
 
 use crate::{
     db::{
