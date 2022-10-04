@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - test-cicd
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -16,17 +17,6 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v3
-
-      - name: Set up cargo cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
@@ -41,9 +31,7 @@ jobs:
       #- name: Test
       #  run: cargo test
 
-
-
-      - name: Lint
-        run: |
-          cargo fmt --all -- --check
-          cargo clippy -- -D warnings
+      #- name: Lint
+      #  run: |
+      #    cargo fmt --all -- --check
+      #    cargo clippy -- -D warnings
