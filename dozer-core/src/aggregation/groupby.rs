@@ -1,60 +1,141 @@
+use std::collections::HashMap;
 use std::hash::Hasher;
 use std::mem::size_of_val;
 use ahash::AHasher;
-use anyhow::anyhow;
-use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
+use anyhow::{anyhow, Context};
+use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
 use dozer_types::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
 use crate::aggregation::Aggregator;
+use crate::dag::dag::PortHandle;
+use crate::dag::mt_executor::DefaultPortHandle;
+use crate::dag::node::{NextStep, Processor, ProcessorFactory};
 use crate::state::{StateStore};
+use dyn_clone::DynClone;
 
 
+#[derive(Clone)]
 pub enum FieldRule {
-    Dimension(usize),
-    Measure(Box<dyn Aggregator>)
+    /// Represents a dimension field, generally used in the GROUP BY clause
+    Dimension(
+        /// Positional index of the field to be used as a dimension in the source schema
+        usize,
+        /// true of this field should be included in the list of values of the
+        /// output schema, otherwise false. Generally, this value is true if the field appears
+        /// in the output results in addition to being in the list of the GROUP BY fields
+        bool,
+        /// Name of the field, if renaming is required. If `None` the original name is retained
+        Option<String>
+    ),
+    /// Represents an aggregated field that will be calculated using the appropriate aggregator
+    Measure(
+        /// Positional index of the field to be aggregated in the source schema
+        usize,
+        /// Aggregator implementation for this measure
+        Box<dyn Aggregator>,
+        /// true if this field should be included in the list of values of the
+        /// output schema, otherwise false. Generally this value is true if the field appears
+        /// in the output results in addition of being a condition for the HAVING condition
+        bool,
+        /// Name of the field, if renaming is required. If `None` the original name is retained
+        Option<String>
+    )
 }
 
 
-pub struct SizedAggregationDataset {
-    dataset_id: u16,
-    output_schema_id: Option<SchemaIdentifier>,
+pub struct AggregationProcessorFactory {
+    output_field_rules: Vec<FieldRule>
+}
+
+impl AggregationProcessorFactory {
+    pub fn new(output_field_rules: Vec<FieldRule>) -> Self {
+        Self { output_field_rules }
+    }
+}
+
+impl ProcessorFactory for AggregationProcessorFactory {
+
+    fn get_input_ports(&self) -> Vec<PortHandle> { vec![DefaultPortHandle] }
+
+    fn get_output_ports(&self) -> Vec<PortHandle> { vec![DefaultPortHandle] }
+
+    fn build(&self) -> Box<dyn Processor> {
+        Box::new(AggregationProcessor::new(self.output_field_rules.clone()))
+    }
+    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+
+        let input_schema = input_schemas.get(&DefaultPortHandle).context("Invalid port handle")?;
+        let mut output_schema = Schema::empty();
+
+        for e in self.output_field_rules.iter().enumerate() {
+            match e.1 {
+                FieldRule::Dimension(idx, is_value, name) => {
+                    let src_fld = input_schema.fields.get(*idx)
+                        .context(anyhow!("Invalid field index: {}", idx))?;
+                    output_schema.fields.push(FieldDefinition::new(
+                        if name.is_some() { name.as_ref().unwrap().clone() } else { src_fld.name.clone() },
+                        src_fld.typ.clone(), false
+                    ));
+                    if *is_value { output_schema.values.push(e.0); }
+                    output_schema.primary_index.push(e.0);
+                }
+                FieldRule::Measure(idx, aggr, is_value, name) => {
+                    let src_fld = input_schema.fields.get(*idx)
+                        .context(anyhow!("Invalid field index: {}", idx))?;
+                    output_schema.fields.push(FieldDefinition::new(
+                        if name.is_some() { name.as_ref().unwrap().clone() } else { src_fld.name.clone() },
+                        aggr.get_return_type(), false
+                    ));
+                    if *is_value { output_schema.values.push(e.0); }
+                }
+
+            }
+        }
+        Ok(output_schema)
+
+    }
+}
+
+
+pub struct AggregationProcessor {
     out_fields_count: usize,
     out_dimensions: Vec<(usize, usize)>,
-    out_measures: Vec<(Box<dyn Aggregator>, usize)>
+    out_measures: Vec<(usize, Box<dyn Aggregator>, usize)>
 }
 
 enum AggregatorOperation {
     Insert, Delete, Update
 }
 
+const AGG_VALUES_DATASET_ID : u16 = 0x0000_u16;
+const AGG_COUNT_DATASET_ID : u16 = 0x0001_u16;
 
-impl SizedAggregationDataset {
 
-    pub fn new(
-        dataset_id: u16, store: &mut dyn StateStore,
-        output_schema_id: Option<SchemaIdentifier>, output_fields: Vec<FieldRule>) -> anyhow::Result<SizedAggregationDataset> {
+impl AggregationProcessor {
+
+    pub fn new(output_fields: Vec<FieldRule>) -> AggregationProcessor {
 
         let out_fields_count = output_fields.len();
-        let mut out_measures: Vec<(Box<dyn Aggregator>, usize)> = Vec::new();
+        let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
         let mut ctr = 0;
 
         for rule in output_fields.into_iter() {
             match rule {
-                FieldRule::Measure(aggr) => {
-                    out_measures.push((aggr, ctr));
+                FieldRule::Measure(idx, aggr, nullable, name) => {
+                    out_measures.push((idx, aggr, ctr));
                 }
-                FieldRule::Dimension(idx) => {
+                FieldRule::Dimension(idx, nullable, name) => {
                     out_dimensions.push((idx, ctr));
                 }
             }
             ctr += 1;
         }
 
-        store.put(&dataset_id.to_ne_bytes(), &0_u16.to_ne_bytes())?;
+        AggregationProcessor { out_measures, out_dimensions, out_fields_count }
+    }
 
-        Ok(SizedAggregationDataset {
-            dataset_id, out_measures, out_dimensions, out_fields_count, output_schema_id
-        })
+    fn init_store(&self, store: &mut dyn StateStore) -> anyhow::Result<()> {
+        store.put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
     }
 
 
@@ -90,26 +171,40 @@ impl SizedAggregationDataset {
             };
 
             if curr_state_slice.is_some() {
-                let curr_value = measure.0.get_value(curr_state_slice.unwrap());
-                out_rec_delete.values[measure.1] = curr_value;
+                let curr_value = measure.1.get_value(curr_state_slice.unwrap());
+                out_rec_delete.values[measure.2] = curr_value;
             }
 
             let next_state_slice = match op {
-                AggregatorOperation::Insert => { measure.0.insert(curr_state_slice, &inserted_record.unwrap())? }
-                AggregatorOperation::Delete => { measure.0.delete(curr_state_slice, &deleted_record.unwrap())? }
-                AggregatorOperation::Update => { measure.0.update(curr_state_slice, &deleted_record.unwrap(), &inserted_record.unwrap())? }
+                AggregatorOperation::Insert => {
+                    let field = inserted_record.unwrap().values.get(measure.0)
+                        .context(anyhow!("Invalid field"))?;
+                    measure.1.insert(curr_state_slice, field)?
+                }
+                AggregatorOperation::Delete => {
+                    let field = deleted_record.unwrap().values.get(measure.0)
+                        .context(anyhow!("Invalid field"))?;
+                    measure.1.delete(curr_state_slice, field)?
+                }
+                AggregatorOperation::Update => {
+                    let old = deleted_record.unwrap().values.get(measure.0)
+                        .context(anyhow!("Invalid field"))?;
+                    let new = inserted_record.unwrap().values.get(measure.0)
+                        .context(anyhow!("Invalid field"))?;
+                    measure.1.update(curr_state_slice, old, new)?
+                }
             };
 
             next_state.extend((next_state_slice.len() as u16).to_ne_bytes());
             offset += next_state_slice.len() + 2;
 
             if next_state_slice.len() > 0 {
-                let next_value = measure.0.get_value(next_state_slice.as_slice());
+                let next_value = measure.1.get_value(next_state_slice.as_slice());
                 next_state.extend(next_state_slice);
-                out_rec_insert.values[measure.1] = next_value;
+                out_rec_insert.values[measure.2] = next_value;
             }
             else {
-                out_rec_insert.values[measure.1] = Field::Null;
+                out_rec_insert.values[measure.2] = Field::Null;
             }
         }
 
@@ -127,13 +222,13 @@ impl SizedAggregationDataset {
 
     fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> anyhow::Result<Operation> {
 
-        let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
 
         let record_hash = old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?;
-        let record_key = self.get_record_key(&record_hash, self.dataset_id)?;
+        let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
-        let record_count_key = self.get_record_key(&record_hash, self.dataset_id + 1)?;
+        let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
         let prev_count = self.update_segment_count(store, record_count_key, 1, true)?;
 
         let curr_state = store.get(record_key.as_slice())?;
@@ -165,12 +260,12 @@ impl SizedAggregationDataset {
 
     fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> anyhow::Result<Operation> {
 
-        let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
         let record_hash = &new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?;
-        let record_key = self.get_record_key(&record_hash, self.dataset_id)?;
+        let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
-        let record_count_key = self.get_record_key(&record_hash, self.dataset_id + 1)?;
+        let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
         self.update_segment_count(store, record_count_key, 1, false)?;
 
         let curr_state = store.get(record_key.as_slice())?;
@@ -198,9 +293,9 @@ impl SizedAggregationDataset {
 
     fn agg_update(&self, store: &mut dyn StateStore, old: &Record, new: &Record, record_hash: Vec<u8>) -> anyhow::Result<Operation> {
 
-        let mut out_rec_insert = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(self.output_schema_id.clone(), self.out_fields_count);
-        let record_key = self.get_record_key(&record_hash, self.dataset_id)?;
+        let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
+        let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
+        let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let curr_state = store.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
@@ -251,6 +346,21 @@ impl SizedAggregationDataset {
 
     fn get_accumulated(&self, _store: &mut dyn StateStore, _key: &[u8]) -> anyhow::Result<Option<Field>> {
         todo!();
+    }
+}
+
+impl Processor for AggregationProcessor {
+
+    fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+        self.init_store(state)
+    }
+
+    fn process(&mut self, from_port: PortHandle, op: Operation, fw: &dyn crate::dag::forwarder::ProcessorChannelForwarder, state: &mut dyn StateStore) -> anyhow::Result<NextStep> {
+        let ops = self.aggregate(state, op)?;
+        for op in ops {
+            fw.send(op, DefaultPortHandle)?;
+        }
+        Ok(NextStep::Continue)
     }
 }
 
