@@ -59,7 +59,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         output_port: PortHandle,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
-        bail!("Output Schema transformation is not implemented for the Projection Processor.");
+        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
     }
 
     fn build(&self) -> Box<dyn Processor> {
@@ -100,7 +100,7 @@ impl Processor for ProjectionProcessor {
                 bail!("DELETE Operation not supported.")
             }
             Operation::Insert { ref new } => {
-                println!("PROC {}: Message {} received", self.id, self.ctr);
+                // println!("PROC {}: Message {} received", self.id, self.ctr);
                 self.ctr += 1;
                 let mut results = vec![];
                 for expr in &self.expressions {

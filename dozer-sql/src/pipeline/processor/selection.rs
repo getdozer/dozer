@@ -41,7 +41,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
     }
 
     fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
-        bail!("Output Schema transformation is not implemented for the Projection Processor.");
+        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
     }
 
     fn build(&self) -> Box<dyn Processor> {

@@ -44,11 +44,17 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema> {
         Ok(Schema::empty()
             .field(
-                FieldDefinition::new(
-                    format!("node_{}_port_{}", self.id, port).to_string(),
-                    FieldType::String,
-                    false,
-                ),
+                FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
+                false,
+                false,
+            )
+            .field(
+                FieldDefinition::new(String::from("Country"), FieldType::String, false),
+                false,
+                false,
+            )
+            .field(
+                FieldDefinition::new(String::from("Spending"), FieldType::Int, false),
                 false,
                 false,
             )

@@ -121,7 +121,6 @@ impl ProjectionBuilder {
                         }
                     }
 
-                    println!("here");
                     return Ok((
                         Box::new(ScalarFunction {
                             fun: function,
