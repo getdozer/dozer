@@ -1,0 +1,19 @@
+name: dozer-cicd
+
+on:
+  push:
+    branches:
+      - test-cicd
+  pull_request:
+    branches:
+      - test-cicd
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run tests
+      run: cargo test --verbose
