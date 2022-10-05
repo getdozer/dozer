@@ -1,6 +1,5 @@
 use std::thread;
-
-use dozer_orchestrator::simple::Simple as Dozer;
+use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::{models::connection::Connection, Orchestrator};
 
 use crate::{
@@ -31,7 +30,7 @@ impl ConnectionService {
     async fn _get_schema(
         &self,
         connection: Connection,
-    ) -> Result<Vec<dozer_types::types::TableInfo>, ErrorResponse> {
+    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ErrorResponse> {
         let get_schema_res = thread::spawn(|| {
             let result = Dozer::get_schema(connection).map_err(|err| err.to_string());
             return result;

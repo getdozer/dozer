@@ -1,11 +1,10 @@
-use dozer_schema::registry::SchemaRegistryClient;
-use dozer_types::types::{OperationEvent, TableInfo};
-use std::{error::Error, sync::Arc};
-
 use super::storage::RocksStorage;
-
+use dozer_schema::registry::SchemaRegistryClient;
+use dozer_types::types::{OperationEvent, Schema};
+use std::{error::Error, sync::Arc};
 pub trait Connector {
-    fn get_schema(&self) -> anyhow::Result<Vec<TableInfo>>;
+    fn get_schema(&self, name: String) -> anyhow::Result<Schema>;
+    fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>>;
     fn initialize(
         &mut self,
         storage_client: Arc<RocksStorage>,

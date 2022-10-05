@@ -1,10 +1,10 @@
-use crate::Orchestrator;
-use dozer_types::types::TableInfo;
+use dozer_types::types::Schema;
 
 use super::super::{
     models::{connection::Connection, endpoint::Endpoint, source::Source},
     services::connection::ConnectionService,
 };
+use crate::Orchestrator;
 
 pub struct SimpleOrchestrator {
     sources: Vec<Source>,
@@ -18,9 +18,9 @@ impl Orchestrator for SimpleOrchestrator {
         return connection_service.test_connection();
     }
 
-    fn get_schema(input: Connection) -> anyhow::Result<Vec<TableInfo>> {
+    fn get_schema(input: Connection) -> Result<Vec<(String, Schema)>, anyhow::Error> {
         let connection_service = ConnectionService::new(input);
-        return connection_service.get_schema();
+        return connection_service.get_all_schema();
     }
 
     fn sql(&mut self, sql: String) -> &mut Self {
