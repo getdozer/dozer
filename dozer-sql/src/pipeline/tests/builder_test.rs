@@ -195,6 +195,7 @@ fn test_pipeline_builder() {
 
     let _selection_to_sink = dag.connect(
         Endpoint::new(out_handle.node, out_handle.port),
+
         Endpoint::new(4.to_string(), DefaultPortHandle),
     );
 
