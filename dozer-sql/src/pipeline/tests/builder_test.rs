@@ -1,19 +1,16 @@
 use std::collections::HashMap;
-use std::iter::Map;
-use std::ops::Deref;
 
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
-use anyhow::{anyhow, Context};
-use dozer_core::dag::dag::{Endpoint, NodeHandle, NodeType, PortHandle};
+use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
 use dozer_core::dag::forwarder::{
-    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
+    ChannelManager, SourceChannelForwarder,
 };
 use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
 use dozer_core::dag::node::{
-    NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
+    NextStep, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::dag::node::NextStep::Continue;
 use dozer_core::state::lmdb::LmdbStateStoreManager;
@@ -23,17 +20,15 @@ use dozer_types::types::{
 };
 
 use crate::pipeline::builder::PipelineBuilder;
-use crate::pipeline::processor::projection::ProjectionProcessorFactory;
 
 /// Test Source
 pub struct TestSourceFactory {
-    id: i32,
     output_ports: Vec<PortHandle>,
 }
 
 impl TestSourceFactory {
-    pub fn new(id: i32, output_ports: Vec<PortHandle>) -> Self {
-        Self { id, output_ports }
+    pub fn new(output_ports: Vec<PortHandle>) -> Self {
+        Self { output_ports }
     }
 }
 
@@ -61,13 +56,11 @@ impl SourceFactory for TestSourceFactory {
             .clone())
     }
     fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource { id: self.id })
+        Box::new(TestSource {})
     }
 }
 
-pub struct TestSource {
-    id: i32,
-}
+pub struct TestSource {}
 
 impl Source for TestSource {
     fn start(
@@ -102,13 +95,12 @@ impl Source for TestSource {
 }
 
 pub struct TestSinkFactory {
-    id: i32,
     input_ports: Vec<PortHandle>,
 }
 
 impl TestSinkFactory {
-    pub fn new(id: i32, input_ports: Vec<PortHandle>) -> Self {
-        Self { id, input_ports }
+    pub fn new(input_ports: Vec<PortHandle>) -> Self {
+        Self { input_ports }
     }
 }
 
@@ -117,13 +109,11 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
     fn build(&self) -> Box<dyn Sink> {
-        Box::new(TestSink { id: self.id })
+        Box::new(TestSink {})
     }
 }
 
-pub struct TestSink {
-    id: i32,
-}
+pub struct TestSink {}
 
 impl Sink for TestSink {
     fn init(
@@ -131,7 +121,7 @@ impl Sink for TestSink {
         state_store: &mut dyn StateStore,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<()> {
-        println!("SINK {}: Initialising TestSink", self.id);
+        println!("SINK: Initialising TestSink");
         Ok(())
     }
 
@@ -141,16 +131,16 @@ impl Sink for TestSink {
         _op: OperationEvent,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
-        //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
+        //    println!("SINK: Message {} received", _op.seq_no);
         Ok(Continue)
     }
 }
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, COUNT(Spending), ROUND(SUM(ROUND(Spending))) \
+    let sql = "SELECT Country, COUNT(Spending+2000), ROUND(SUM(ROUND(Spending))) \
                             FROM Customers \
-                            WHERE Spending >= 1000 \
+                            WHERE Spending+500 >= 1000 \
                             GROUP BY Country \
                             HAVING COUNT(CustomerID) > 1;";
 
@@ -186,22 +176,25 @@ fn test_pipeline_builder() {
     };
 
     let builder = PipelineBuilder::new(schema);
-    let (mut dag, in_handle, out_handle) =
+    let (mut dag, mut in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 
-    let source = TestSourceFactory::new(1, vec![DefaultPortHandle]);
-    let sink = TestSinkFactory::new(1, vec![DefaultPortHandle]);
+    let source = TestSourceFactory::new(vec![DefaultPortHandle]);
+    let sink = TestSinkFactory::new(vec![DefaultPortHandle]);
 
     dag.add_node(NodeType::Source(Box::new(source)), 1);
     dag.add_node(NodeType::Sink(Box::new(sink)), 4);
 
-    let source_to_projection = dag.connect(
+
+    let input_point = in_handle.remove("default").unwrap();
+
+    let _source_to_projection = dag.connect(
         Endpoint::new(1, DefaultPortHandle),
-        Endpoint::new(2, DefaultPortHandle),
+        Endpoint::new(input_point.node, input_point.port),
     );
 
-    let selection_to_sink = dag.connect(
-        Endpoint::new(3, DefaultPortHandle),
+    let _selection_to_sink = dag.connect(
+        Endpoint::new(out_handle.node, out_handle.port),
         Endpoint::new(4, DefaultPortHandle),
     );
 
@@ -211,7 +204,7 @@ fn test_pipeline_builder() {
 
     use std::time::Instant;
     let now = Instant::now();
-    exec.start(dag, sm);
+    let _ = exec.start(dag, sm);
     let elapsed = now.elapsed();
     println!("Elapsed: {:.2?}", elapsed);
 }

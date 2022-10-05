@@ -1,26 +1,15 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-
-use sqlparser::ast::{
-    BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem, Value as SqlValue,
-};
 
 use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::{ExecutionContext, Processor, ProcessorFactory};
+use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::dag::node::NextStep;
 use dozer_core::state::StateStore;
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{Operation, Record, Schema};
 
-use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
-use crate::pipeline::expression::expression::Expression::{AggregateFunction, ScalarFunction};
-use crate::pipeline::expression::operator::BinaryOperatorType;
-use crate::pipeline::expression::scalar::ScalarFunctionType;
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 pub struct ProjectionProcessorFactory {
     id: i32,
@@ -116,8 +105,7 @@ impl Processor for ProjectionProcessor {
                 Ok(NextStep::Continue)
             }
             Operation::Update { old, new } => bail!("UPDATE Operation not supported."),
-            Operation::Terminate => bail!("TERMINATE Operation not supported."),
-            _ => bail!("TERMINATE Operation not supported."),
+            Operation::Terminate => bail!("TERMINATE Operation not supported.")
         }
     }
 }

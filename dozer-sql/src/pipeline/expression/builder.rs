@@ -1,16 +1,12 @@
 use std::collections::HashMap;
 
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator, Value as SqlValue};
+use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, UnaryOperator, Value as SqlValue};
 
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{Field, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::comparison::{Eq, Gt, Gte, Lt, Lte, Ne};
-use crate::pipeline::expression::expression::{Column, Expression, PhysicalExpression};
-use crate::pipeline::expression::logical::{And, Not, Or};
-use crate::pipeline::expression::mathematical::{Add, Div, Mod, Mul, Sub};
-use crate::pipeline::expression::operator::BinaryOperatorType;
-use crate::pipeline::expression::scalar::ScalarFunctionType;
+use crate::pipeline::expression::expression::Expression;
+use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 
 pub struct ExpressionBuilder {
     schema: Schema,
@@ -48,34 +44,6 @@ impl ExpressionBuilder {
         }
     }
 
-
-    fn parse_sql_function_arg(&self, argument: &FunctionArg) -> Result<Box<Expression>> {
-        match argument {
-            FunctionArg::Named {
-                name: _,
-                arg: FunctionArgExpr::Expr(arg),
-            } => self.parse_sql_expression(arg),
-            FunctionArg::Named {
-                name: _,
-                arg: FunctionArgExpr::Wildcard,
-            } => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported qualified wildcard argument: {:?}",
-                argument
-            ))),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                self.parse_sql_expression(arg)
-            }
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported qualified wildcard argument: {:?}",
-                argument
-            ))),
-            _ => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported qualified wildcard argument: {:?}",
-                argument
-            )))
-        }
-    }
-
     fn parse_sql_number(&self, n: &str) -> Result<Box<Expression>> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
@@ -92,7 +60,10 @@ impl ExpressionBuilder {
         let expr_op = self.parse_sql_expression(expr)?;
 
         match op {
-            // UnaryOperator::Not => Ok(Box::new(Not::new(expr_op))),
+            UnaryOperator::Not => Ok(Box::new(Expression::UnaryOperator {
+                operator: UnaryOperatorType::Not,
+                arg: expr_op,
+            })),
             UnaryOperator::Plus => Err(DozerSqlError::NotImplemented(
                 "Unsupported operator PLUS.".to_string(),
             )),
@@ -113,22 +84,73 @@ impl ExpressionBuilder {
         let left_op = self.parse_sql_expression(left)?;
         let right_op = self.parse_sql_expression(right)?;
         match op {
+            BinaryOperator::Gt => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Gt,
+                right: right_op,
+            })),
             BinaryOperator::GtEq => Ok(Box::new(Expression::BinaryOperator {
                 left: left_op,
                 operator: BinaryOperatorType::Gte,
                 right: right_op,
             })),
-            // BinaryOperator::Lt => Ok(Box::new(Lt::new(left_op, right_op))),
-            // BinaryOperator::LtEq => Ok(Box::new(Lte::new(left_op, right_op))),
-            // BinaryOperator::Eq => Ok(Box::new(Eq::new(left_op, right_op))),
-            // BinaryOperator::NotEq => Ok(Box::new(Ne::new(left_op, right_op))),
-            // BinaryOperator::Plus => Ok(Box::new(Add::new(left_op, right_op))),
-            // BinaryOperator::Minus => Ok(Box::new(Sub::new(left_op, right_op))),
-            // BinaryOperator::Multiply => Ok(Box::new(Mul::new(left_op, right_op))),
-            // BinaryOperator::Divide => Ok(Box::new(Div::new(left_op, right_op))),
-            // BinaryOperator::Modulo => Ok(Box::new(Mod::new(left_op, right_op))),
-            // BinaryOperator::And => Ok(Box::new(And::new(left_op, right_op))),
-            // BinaryOperator::Or => Ok(Box::new(Or::new(left_op, right_op))),
+            BinaryOperator::Lt => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Lt,
+                right: right_op,
+            })),
+            BinaryOperator::LtEq => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Lte,
+                right: right_op,
+            })),
+            BinaryOperator::Eq => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Eq,
+                right: right_op,
+            })),
+            BinaryOperator::NotEq => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Ne,
+                right: right_op,
+            })),
+
+            BinaryOperator::Plus => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Add,
+                right: right_op,
+            })),
+            BinaryOperator::Minus => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Sub,
+                right: right_op,
+            })),
+            BinaryOperator::Multiply => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Mul,
+                right: right_op,
+            })),
+            BinaryOperator::Divide => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Div,
+                right: right_op,
+            })),
+            BinaryOperator::Modulo => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Mod,
+                right: right_op,
+            })),
+
+            BinaryOperator::And => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::And,
+                right: right_op,
+            })),
+            BinaryOperator::Or => Ok(Box::new(Expression::BinaryOperator {
+                left: left_op,
+                operator: BinaryOperatorType::Or,
+                right: right_op,
+            })),
             // BinaryOperator::BitwiseAnd => Err(DozerSqlError::NotImplemented(
             //     "Unsupported operator BITWISE AND.".to_string(),
             // )),

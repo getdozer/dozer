@@ -1,21 +1,19 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use num_traits::FloatErrorKind::Invalid;
-use sqlparser::ast::{Expr as SqlExpr, SelectItem};
+use sqlparser::ast::Expr as SqlExpr;
 
 use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::{ExecutionContext, Processor, ProcessorFactory};
+use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::dag::node::NextStep;
 use dozer_core::state::StateStore;
-use dozer_types::types::{Field, Operation, OperationEvent, Schema};
+use dozer_types::types::{Field, Operation, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 pub struct SelectionProcessorFactory {
     id: i32,
@@ -80,7 +78,6 @@ impl Processor for SelectionProcessor {
             }
             Operation::Update { old, new } => bail!("UPDATE Operation not supported."),
             Operation::Terminate => bail!("TERMINATE Operation not supported."),
-            _ => bail!("TERMINATE Operation not supported."),
         }
     }
 }
