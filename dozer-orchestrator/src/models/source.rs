@@ -1,4 +1,5 @@
 use super::connection::Connection;
+use dozer_types::types::Schema;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Source {
@@ -6,6 +7,7 @@ pub struct Source {
     pub name: String,
     pub dest_table_name: String,
     pub source_table_name: String,
+    pub schema: Option<Schema>,
     pub connection: Connection,
     pub history_type: HistoryType,
     pub refresh_config: RefreshConfig,

@@ -1,4 +1,4 @@
-use dozer_orchestrator::simple::Simple as Dozer;
+use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::{
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
@@ -6,7 +6,7 @@ use dozer_orchestrator::{
     },
     Orchestrator,
 };
-fn main() {
+fn main() -> anyhow::Result<()> {
     let connection: Connection = Connection {
         db_type: DBType::Postgres,
         authentication: PostgresAuthentication {
@@ -26,6 +26,7 @@ fn main() {
         dest_table_name: "ACTOR_SOURCE".to_string(),
         source_table_name: "actor".to_string(),
         connection,
+        schema: None,
         history_type: HistoryType::Master(MasterHistoryConfig::AppendOnly {
             unique_key_field: "actor_id".to_string(),
             open_date_field: "last_updated".to_string(),
@@ -37,5 +38,6 @@ fn main() {
     let mut sources = Vec::new();
     sources.push(source);
     dozer.add_sources(sources);
-    dozer.run();
+    dozer.run()?;
+    Ok(())
 }

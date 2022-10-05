@@ -1,4 +1,4 @@
-mod builder;
-mod processor;
+pub mod builder;
 mod expression;
+mod processor;
 mod tests;
