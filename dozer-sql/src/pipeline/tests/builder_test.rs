@@ -192,17 +192,17 @@ fn test_pipeline_builder() {
     let source = TestSourceFactory::new(1, vec![DefaultPortHandle]);
     let sink = TestSinkFactory::new(1, vec![DefaultPortHandle]);
 
-    dag.add_node(NodeType::Source(Box::new(source)), 1);
-    dag.add_node(NodeType::Sink(Box::new(sink)), 4);
+    dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
     let source_to_projection = dag.connect(
-        Endpoint::new(1, DefaultPortHandle),
-        Endpoint::new(2, DefaultPortHandle),
+        Endpoint::new(1.to_string(), DefaultPortHandle),
+        Endpoint::new(2.to_string(), DefaultPortHandle),
     );
 
     let selection_to_sink = dag.connect(
-        Endpoint::new(3, DefaultPortHandle),
-        Endpoint::new(4, DefaultPortHandle),
+        Endpoint::new(3.to_string(), DefaultPortHandle),
+        Endpoint::new(4.to_string(), DefaultPortHandle),
     );
 
     let exec = MultiThreadedDagExecutor::new(100000);

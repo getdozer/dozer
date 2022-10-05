@@ -65,15 +65,15 @@ impl PipelineBuilder {
 
         let mut dag = Dag::new();
 
-        dag.add_node(NodeType::Processor(Box::new(projection)), 2);
-        dag.add_node(NodeType::Processor(Box::new(selection)), 3);
+        dag.add_node(NodeType::Processor(Box::new(projection)), 2.to_string());
+        dag.add_node(NodeType::Processor(Box::new(selection)), 3.to_string());
 
         let projection_to_selection = dag.connect(
-            Endpoint::new(2, DefaultPortHandle),
-            Endpoint::new(3, DefaultPortHandle),
+            Endpoint::new(2.to_string(), DefaultPortHandle),
+            Endpoint::new(3.to_string(), DefaultPortHandle),
         );
 
-        Ok((dag, 2, 3))
+        Ok((dag, 2.to_string(), 3.to_string()))
     }
 }
 
