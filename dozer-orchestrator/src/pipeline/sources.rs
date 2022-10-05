@@ -13,7 +13,9 @@ use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
 };
 
-use super::super::models::{endpoint::Endpoint as EndpointModel, source::Source as SourceModel};
+use super::super::models::{
+    api_endpoint::ApiEndpoint as EndpointModel, source::Source as SourceModel,
+};
 
 pub struct OSourceFactory {
     id: i32,
@@ -47,9 +49,7 @@ impl OSourceFactory {
         let mut output_schemas: Vec<Schema> = vec![];
         for source in sources.iter() {
             let table_infos = SimpleOrchestrator::get_schema(source.connection.to_owned())?;
-            let ti = table_infos
-                .iter()
-                .find(|t| t.0 == source.dest_table_name);
+            let ti = table_infos.iter().find(|t| t.0 == source.dest_table_name);
 
             match ti {
                 Some(ti) => {
