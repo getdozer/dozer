@@ -1,11 +1,7 @@
-use num_traits::FromPrimitive;
-
 use dozer_types::types::{Field, Record};
-use dozer_types::types::Field::Invalid;
 
-use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 use crate::pipeline::expression::comparison::*;
+use crate::pipeline::expression::expression::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
 
@@ -14,7 +10,13 @@ pub enum UnaryOperatorType {
     Not,
 }
 
-impl UnaryOperatorType {}
+impl UnaryOperatorType {
+    pub fn evaluate(&self, value: &Box<Expression>, record: &Record) -> Field {
+        match self {
+            UnaryOperatorType::Not => evaluate_not(value, record),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum BinaryOperatorType {
@@ -35,12 +37,12 @@ pub enum BinaryOperatorType {
     Sub,
     Mul,
     Div,
-    Mod
+    Mod,
 }
 
 
 impl BinaryOperatorType {
-    pub(crate) fn evaluate(&self, left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
+    pub fn evaluate(&self, left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
         match self {
             BinaryOperatorType::Eq => evaluate_eq(left, right, record),
             BinaryOperatorType::Ne => evaluate_ne(left, right, record),
@@ -57,9 +59,6 @@ impl BinaryOperatorType {
             BinaryOperatorType::Mul => evaluate_mul(left, right, record),
             BinaryOperatorType::Div => evaluate_div(left, right, record),
             BinaryOperatorType::Mod => evaluate_mod(left, right, record),
-
-
-            _ => Field::Invalid(format!("Invalid Comparison Operator: {:?}", &self))
         }
     }
 }

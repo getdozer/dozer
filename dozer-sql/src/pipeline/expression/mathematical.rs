@@ -1,7 +1,5 @@
 use num_traits::cast::*;
-use num_traits::Bounded;
 
-use dozer_types::types::Field::{Boolean, Invalid};
 use dozer_types::types::{Field, Record};
 
 use crate::pipeline::expression::expression::{Expression, PhysicalExpression};

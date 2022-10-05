@@ -1,10 +1,9 @@
-use num_traits::Bounded;
 use num_traits::cast::*;
 
 use dozer_types::types::{Field, Record};
-use dozer_types::types::Field::{Boolean, Invalid};
+use dozer_types::types::Field::Invalid;
 
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression, Timestamp};
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 use crate::pipeline::expression::expression::Expression::Literal;
 
 macro_rules! define_comparison {
@@ -64,14 +63,14 @@ macro_rules! define_comparison {
             },
             Field::Binary(left_v) => {
                 return Invalid(format!(
-                    "Cannot compare binary value to the current value"
+                    "Cannot compare binary value to the current value "
                 ));
             }
             Field::Invalid(cause) => {
                 return Invalid(cause);
             }
             _ => {
-                return Invalid(format!("Cannot compare this values"));
+                return Invalid(format!("Cannot compare these values"));
             }
         }
     }

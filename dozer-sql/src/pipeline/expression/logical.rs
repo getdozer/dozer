@@ -1,11 +1,8 @@
-use num_traits::cast::*;
-use num_traits::Bounded;
-
-use dozer_types::types::Field::{Boolean, Invalid};
 use dozer_types::types::{Field, Record};
+use dozer_types::types::Field::Invalid;
 
+use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
 use crate::pipeline::expression::expression::Expression::Literal;
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression, Timestamp};
 
 pub fn evaluate_and(left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
     let left_p = left.evaluate(&record);

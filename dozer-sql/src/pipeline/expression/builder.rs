@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator, Value as SqlValue};
+use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, UnaryOperator, Value as SqlValue};
 
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{Field, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::expression::{Column, Expression, PhysicalExpression};
-use crate::pipeline::expression::operator::BinaryOperatorType;
-use crate::pipeline::expression::scalar::ScalarFunctionType;
+use crate::pipeline::expression::expression::Expression;
+use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 
 pub struct ExpressionBuilder {
     schema: Schema,
@@ -45,34 +44,6 @@ impl ExpressionBuilder {
         }
     }
 
-
-    fn parse_sql_function_arg(&self, argument: &FunctionArg) -> Result<Box<Expression>> {
-        match argument {
-            FunctionArg::Named {
-                name: _,
-                arg: FunctionArgExpr::Expr(arg),
-            } => self.parse_sql_expression(arg),
-            FunctionArg::Named {
-                name: _,
-                arg: FunctionArgExpr::Wildcard,
-            } => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported qualified wildcard argument: {:?}",
-                argument
-            ))),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                self.parse_sql_expression(arg)
-            }
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported qualified wildcard argument: {:?}",
-                argument
-            ))),
-            _ => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported qualified wildcard argument: {:?}",
-                argument
-            )))
-        }
-    }
-
     fn parse_sql_number(&self, n: &str) -> Result<Box<Expression>> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
@@ -89,9 +60,10 @@ impl ExpressionBuilder {
         let expr_op = self.parse_sql_expression(expr)?;
 
         match op {
-            UnaryOperator::Not => Err(DozerSqlError::NotImplemented(
-                "Unsupported operator NOT.".to_string(),
-            )),
+            UnaryOperator::Not => Ok(Box::new(Expression::UnaryOperator {
+                operator: UnaryOperatorType::Not,
+                arg: expr_op,
+            })),
             UnaryOperator::Plus => Err(DozerSqlError::NotImplemented(
                 "Unsupported operator PLUS.".to_string(),
             )),

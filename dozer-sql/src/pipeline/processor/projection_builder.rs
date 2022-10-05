@@ -1,28 +1,24 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem, Value as SqlValue,
 };
 
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::Processor;
 use dozer_types::types::Field;
 use dozer_types::types::Schema;
 
 use crate::common::error;
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::expression::Expression;
-use crate::pipeline::expression::expression::Expression::{AggregateFunction, ScalarFunction};
+use crate::pipeline::expression::expression::Expression::ScalarFunction;
 use crate::pipeline::expression::operator::BinaryOperatorType;
 use crate::pipeline::expression::scalar::ScalarFunctionType;
-use crate::pipeline::processor::projection::{ProjectionProcessor, ProjectionProcessorFactory};
+use crate::pipeline::processor::projection::ProjectionProcessorFactory;
 
 pub struct ProjectionBuilder {
     schema_idx: HashMap<String, usize>,
-    expression_builder: ExpressionBuilder,
 }
 
 impl ProjectionBuilder {
@@ -34,7 +30,6 @@ impl ProjectionBuilder {
                 .enumerate()
                 .map(|e| (e.1.name.clone(), e.0))
                 .collect(),
-            expression_builder: ExpressionBuilder::new(schema.clone()),
         }
     }
 
@@ -71,7 +66,7 @@ impl ProjectionBuilder {
                 };
             }
             SelectItem::ExprWithAlias { expr, alias } => Err(DozerSqlError::NotImplemented(
-                format!("Unsupported Expression {}", expr),
+                format!("Unsupported Expression {}:{}", expr, alias),
             )),
             SelectItem::Wildcard => Err(DozerSqlError::NotImplemented(format!(
                 "Unsupported Wildcard"
@@ -103,7 +98,6 @@ impl ProjectionBuilder {
                 let name = sql_function.name.to_string().to_lowercase();
 
                 if let Ok(function) = ScalarFunctionType::new(&name) {
-                    let f = &function;
                     let mut arg_exprs = vec![];
                     for arg in &sql_function.args {
                         let r = self.parse_sql_function_arg(arg);
@@ -130,9 +124,7 @@ impl ProjectionBuilder {
                     ));
                 };
 
-                if let Ok(function) = AggregateFunctionType::new(&name) {
-                    let f = &function;
-
+                if let Ok(_) = AggregateFunctionType::new(&name) {
                     for arg in &sql_function.args {
                         let r = self.parse_sql_function_arg(arg);
                         match r {
