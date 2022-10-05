@@ -28,25 +28,25 @@ fn test_schemas_compute() {
 
     let mut dag = Dag::new();
 
-    dag.add_node(NodeType::Source(Box::new(src_100)), 100);
-    dag.add_node(NodeType::Processor(Box::new(proc_200)), 200);
-    dag.add_node(NodeType::Processor(Box::new(proc_300)), 300);
-    dag.add_node(NodeType::Processor(Box::new(proc_400)), 400);
-    dag.add_node(NodeType::Processor(Box::new(proc_500)), 500);
-    dag.add_node(NodeType::Sink(Box::new(sink_600)), 600);
+    dag.add_node(NodeType::Source(Box::new(src_100)), 100.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc_200)), 200.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc_300)), 300.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc_400)), 400.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc_500)), 500.to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink_600)), 600.to_string());
 
-    assert!(dag.connect(Endpoint::new(100, 110), Endpoint::new(200, 201)).is_ok());
-    assert!(dag.connect(Endpoint::new(100, 120), Endpoint::new(300, 301)).is_ok());
-    assert!(dag.connect(Endpoint::new(200, 210), Endpoint::new(400, 401)).is_ok());
-    assert!(dag.connect(Endpoint::new(300, 310), Endpoint::new(500, 502)).is_ok());
-    assert!(dag.connect(Endpoint::new(400, 410), Endpoint::new(500, 501)).is_ok());
-    assert!(dag.connect(Endpoint::new(500, 510), Endpoint::new(600, 601)).is_ok());
+    assert!(dag.connect(Endpoint::new(100.to_string(), 110), Endpoint::new(200.to_string(), 201)).is_ok());
+    assert!(dag.connect(Endpoint::new(100.to_string(), 120), Endpoint::new(300.to_string(), 301)).is_ok());
+    assert!(dag.connect(Endpoint::new(200.to_string(), 210), Endpoint::new(400.to_string(), 401)).is_ok());
+    assert!(dag.connect(Endpoint::new(300.to_string(), 310), Endpoint::new(500.to_string(), 502)).is_ok());
+    assert!(dag.connect(Endpoint::new(400.to_string(), 410), Endpoint::new(500.to_string(), 501)).is_ok());
+    assert!(dag.connect(Endpoint::new(500.to_string(), 510), Endpoint::new(600.to_string(), 601)).is_ok());
 
     let exec = MultiThreadedDagExecutor::new( 100000);
     let r = exec.get_schemas_map(&dag).unwrap();
 
     assert_eq!(
-        r.get(&SchemaKey::new(200, 210, PortDirection::Output)).unwrap().clone(),
+        r.get(&SchemaKey::new(200.to_string(), 210, PortDirection::Output)).unwrap().clone(),
         Schema::empty()
             .field(FieldDefinition::new("node_100_port_110".to_string(), FieldType::String, false), false, false)
             .field(FieldDefinition::new("node_200_port_210".to_string(), FieldType::String, false), false, false)
@@ -54,7 +54,7 @@ fn test_schemas_compute() {
     );
 
     assert_eq!(
-        r.get(&SchemaKey::new(600, 601, PortDirection::Input)).unwrap().clone(),
+        r.get(&SchemaKey::new(600.to_string(), 601, PortDirection::Input)).unwrap().clone(),
         Schema::empty()
 
             .field(FieldDefinition::new("node_100_port_110".to_string(), FieldType::String, false), false, false)

@@ -14,12 +14,12 @@ macro_rules! test_ports {
 
             let mut dag = Dag::new();
 
-            dag.add_node(NodeType::Source(Box::new(src)), 1);
-            dag.add_node(NodeType::Processor(Box::new(proc)), 2);
+            dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
+            dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
 
             let res = dag.connect(
-                Endpoint::new(1, $from_port),
-                Endpoint::new(2, $to_port)
+                Endpoint::new(1.to_string(), $from_port),
+                Endpoint::new(2.to_string(), $to_port)
             );
 
             assert!(res.is_ok() == $expect)
@@ -75,3 +75,35 @@ test_ports!(
     2,
     false
 );
+
+#[test]
+fn test_dag_merge() {
+
+    let src = TestSourceFactory::new(1, vec![DefaultPortHandle]);
+    let proc = TestProcessorFactory::new(2,vec![DefaultPortHandle], vec![DefaultPortHandle]);
+
+    let mut dag = Dag::new();
+
+    dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
+
+    let mut new_dag : Dag = Dag::new();
+    new_dag.merge("test".to_string(), dag);
+
+
+    let res = new_dag.connect(
+        Endpoint::new("1".to_string(), DefaultPortHandle),
+        Endpoint::new("2".to_string(), DefaultPortHandle)
+    );
+    assert!(res.is_err());
+
+    let res = new_dag.connect(
+        Endpoint::new("test/1".to_string(), DefaultPortHandle),
+        Endpoint::new("test/2".to_string(), DefaultPortHandle)
+    );
+    assert!(res.is_ok())
+
+
+
+
+}

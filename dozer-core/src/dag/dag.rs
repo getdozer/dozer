@@ -11,7 +11,7 @@ use crate::dag::mt_executor::DefaultPortHandle;
 use crate::state::{StateStore, StateStoresManager};
 
 
-pub type NodeHandle = u16;
+pub type NodeHandle = String;
 pub type PortHandle = u16;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -133,5 +133,20 @@ impl Dag {
 
         self.edges.push(Edge::new(from, to));
         Ok(())
+    }
+
+    pub fn merge(&mut self, namespace: String, other: Dag) {
+
+        for node in other.nodes {
+            self.nodes.insert(format!("{}/{}",namespace, node.0), node.1);
+        }
+
+        for edge in other.edges {
+            self.edges.push(Edge::new(
+               Endpoint::new(format!("{}/{}",namespace, edge.from.node), edge.from.port),
+               Endpoint::new(format!("{}/{}",namespace, edge.to.node), edge.to.port)
+            ));
+        }
+
     }
 }

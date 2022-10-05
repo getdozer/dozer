@@ -53,10 +53,10 @@ impl MultiThreadedDagExecutor {
 
         for edge in dag.edges.iter() {
             if !senders.contains_key(&edge.from.node) {
-                senders.insert(edge.from.node, HashMap::new());
+                senders.insert(edge.from.node.clone(), HashMap::new());
             }
             if !receivers.contains_key(&edge.to.node) {
-                receivers.insert(edge.to.node, HashMap::new());
+                receivers.insert(edge.to.node.clone(), HashMap::new());
             }
 
             let (tx, rx) = bounded(self.channel_buf_sz);
@@ -148,7 +148,7 @@ impl MultiThreadedDagExecutor {
         for s in output_schemas.unwrap() {
 
             /// Index (Node, Port, Output) -> Schema
-            res.insert(SchemaKey::new(node_handle, s.0, PortDirection::Output), s.1.clone());
+            res.insert(SchemaKey::new(node_handle.clone(), s.0, PortDirection::Output), s.1.clone());
 
             /// Now get all edges connecting this (Node,Port) to the next nodes
             let out_edges : Vec<Endpoint> =
@@ -163,23 +163,23 @@ impl MultiThreadedDagExecutor {
 
             for out_e in out_edges {
                 /// Register the target of the edge (Node, Port, Input) -> Schema
-                res.insert(SchemaKey::new(out_e.node, out_e.port, PortDirection::Input), s.1.clone());
+                res.insert(SchemaKey::new(out_e.node.clone(), out_e.port, PortDirection::Input), s.1.clone());
 
                 /// find the next node in teh chain
-                let next_node_handle = out_e.node;
-                let next_node = dag.nodes.get(&out_e.node)
-                    .context(anyhow!("Unable to find node {}", out_e.node))?;
+                let next_node_handle = out_e.node.clone();
+                let next_node = dag.nodes.get(&out_e.node.clone())
+                    .context(anyhow!("Unable to find node {}", out_e.node.clone()))?;
 
                 /// Get all input schemas for the next node
                 let next_node_input_schemas = self.get_node_input_schemas(
-                    next_node_handle, next_node, res
+                    next_node_handle.clone(), next_node, res
                 );
                 if next_node_input_schemas.is_none() {
                     return Ok(());
                 }
 
                 let r = self.index_node_schemas(
-                    next_node_handle, next_node, next_node_input_schemas, dag, res
+                    next_node_handle.clone(), next_node, next_node_input_schemas, dag, res
                 );
 
                 if r.is_err() {
@@ -224,7 +224,7 @@ impl MultiThreadedDagExecutor {
             NodeType::Processor(proc) => {
                 let mut schemas : HashMap<PortHandle, Schema> = HashMap::new();
                 for p in proc.get_input_ports() {
-                    let s = res.get(&SchemaKey::new(h, p, PortDirection::Input));
+                    let s = res.get(&SchemaKey::new(h.clone(), p, PortDirection::Input));
                     if s.is_none() { return None }
                     schemas.insert(p, s.unwrap().clone());
                 }
@@ -233,7 +233,7 @@ impl MultiThreadedDagExecutor {
             NodeType::Sink(snk) => {
                 let mut schemas : HashMap<PortHandle, Schema> = HashMap::new();
                 for p in snk.get_input_ports() {
-                    let s = res.get(&SchemaKey::new(h, p, PortDirection::Input));
+                    let s = res.get(&SchemaKey::new(h.clone(), p, PortDirection::Input));
                     if s.is_none() { return None }
                     schemas.insert(p, s.unwrap().clone());
                 }
@@ -253,7 +253,7 @@ impl MultiThreadedDagExecutor {
         let mut schemas: HashMap<SchemaKey, Schema> = HashMap::new();
 
         let r = self.index_node_schemas(
-            *source.0, source.1, None, dag, &mut schemas
+            source.0.clone(), source.1, None, dag, &mut schemas
         )?;
 
         Ok(schemas)
@@ -449,7 +449,7 @@ impl MultiThreadedDagExecutor {
         for source in sources {
             handles.push(
                 self.start_source(
-                    source.0, source.1,
+                    source.0.clone(), source.1,
                     senders.remove(&source.0.clone()).unwrap(),
                     global_sm.clone()
                 ),
