@@ -1,23 +1,33 @@
 use std::collections::HashMap;
-
-use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, UnaryOperator, Value as SqlValue};
-
-use dozer_types::types::{Field, Schema};
+use sqlparser::ast::{BinaryOperator, UnaryOperator, Expr as SqlExpr, Value as SqlValue};
+use dozer_core::dag::mt_executor::DefaultPortHandle;
+use dozer_types::types::{Field, Operation, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::expression::Expression;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
+use crate::pipeline::processor::selection::SelectionProcessorFactory;
 
-pub struct ExpressionBuilder {
-    schema: Schema,
+pub struct SelectionBuilder {
     schema_idx: HashMap<String, usize>,
 }
 
-impl ExpressionBuilder {
-    pub fn new(schema: Schema) -> ExpressionBuilder {
+impl SelectionBuilder {
+    pub fn new(schema: &Schema) -> SelectionBuilder {
         Self {
             schema_idx: schema.fields.iter().enumerate().map(|e| (e.1.name.clone(), e.0)).collect(),
-            schema,
+        }
+    }
+
+    pub fn get_processor(&self, selection: Option<SqlExpr>) -> Result<SelectionProcessorFactory> {
+        match selection {
+            Some(expression) => {
+                let expression = self.parse_sql_expression(&expression)?;
+                Ok(SelectionProcessorFactory::new(1, vec![DefaultPortHandle], vec![DefaultPortHandle], expression))
+            }
+            _ => Err(DozerSqlError::NotImplemented(
+                "Unsupported WHERE clause.".to_string(),
+            )),
         }
     }
 
@@ -171,4 +181,5 @@ impl ExpressionBuilder {
             ))),
         }
     }
+
 }
