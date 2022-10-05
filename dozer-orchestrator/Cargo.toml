@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0"
 dozer-ingestion = {version = "0.1.0", path = "../dozer-ingestion"}
 dozer-core = {version = "0.1.0", path = "../dozer-core"}
+dozer-sql = {version = "0.1.0", path = "../dozer-sql"}
 dozer-types = {version = "0.1.0", path = "../dozer-types"}
 dotenvy = "0.15.3"
 env_logger = "0.9.0"

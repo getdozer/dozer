@@ -1,21 +1,16 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-
-use num_traits::FloatErrorKind::Invalid;
-use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 
 use anyhow::bail;
+
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::{ExecutionContext, Processor, ProcessorFactory};
+use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::dag::node::NextStep;
 use dozer_core::state::StateStore;
-use dozer_types::types::{Field, Operation, OperationEvent, Schema};
+use dozer_types::types::{Field, Operation, Schema};
 
-use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 pub struct SelectionProcessorFactory {
     id: i32,
@@ -40,7 +35,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
         self.output_ports.clone()
     }
 
-    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+    fn get_output_schema(&self, _output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
         Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
     }
 
@@ -55,7 +50,7 @@ pub struct SelectionProcessor {
 }
 
 impl Processor for SelectionProcessor {
-    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore, _input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
@@ -66,10 +61,10 @@ impl Processor for SelectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        state_store: &mut dyn StateStore,
+        _state_store: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
         match op {
-            Operation::Delete { old } => {
+            Operation::Delete { old: _ } => {
                 bail!("DELETE Operation not supported.")
             }
             Operation::Insert { ref new } => {
@@ -78,33 +73,9 @@ impl Processor for SelectionProcessor {
                 }
                 Ok(NextStep::Continue)
             }
-            Operation::Update { old, new } => bail!("UPDATE Operation not supported."),
+            Operation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
             Operation::Terminate => bail!("TERMINATE Operation not supported."),
-            _ => bail!("TERMINATE Operation not supported."),
         }
     }
 }
 
-pub struct SelectionBuilder {
-    expression_builder: ExpressionBuilder,
-}
-
-impl SelectionBuilder {
-    pub fn new(schema: &Schema) -> SelectionBuilder {
-        Self {
-            expression_builder: ExpressionBuilder::new(schema.clone())
-        }
-    }
-
-    pub fn get_processor(&self, selection: Option<SqlExpr>) -> Result<SelectionProcessorFactory> {
-        match selection {
-            Some(expression) => {
-                let expression = self.expression_builder.parse_sql_expression(&expression)?;
-                Ok(SelectionProcessorFactory::new(1, vec![DefaultPortHandle], vec![DefaultPortHandle], expression))
-            }
-            _ => Err(DozerSqlError::NotImplemented(
-                "Unsupported WHERE clause.".to_string(),
-            )),
-        }
-    }
-}

@@ -1,5 +1,4 @@
 use bytes::Bytes;
-
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::types::*;
@@ -8,8 +7,25 @@ use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
-use std::vec;
-use postgres_types::FromSql;
+use std::{vec};
+
+pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
+   let postgres_type: Type  = match value {
+        "text" => Type::TEXT,
+        "int2" => Type::INT2,
+        "int4" => Type::INT4,
+        "int8" => Type::INT8,
+        "float4" => Type::FLOAT4,
+        "float8" => Type::FLOAT8,
+        "numeric" => Type::NUMERIC,
+        "timestamp" => Type::TIMESTAMP,
+        "timestampz" => Type::TIMESTAMPTZ,
+        "jsonb" => Type::JSONB,
+        "bool" => Type::BOOL,
+        _ => Type::ANY
+    };
+    return  postgres_type_to_dozer_type(Some(&postgres_type));
+}
 
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     if let Some(column_type) = &column.r#type {

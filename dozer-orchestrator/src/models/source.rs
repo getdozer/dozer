@@ -4,10 +4,9 @@ use serde::{Deserialize, Serialize};
 pub struct Source {
     pub id: Option<String>,
     pub name: String,
-    pub dest_table_name: String,
-    pub source_table_name: String,
+    pub table_name: String,
     pub connection: Connection,
-    pub history_type: HistoryType,
+    pub history_type: Option<HistoryType>,
     pub refresh_config: RefreshConfig,
 }
 
