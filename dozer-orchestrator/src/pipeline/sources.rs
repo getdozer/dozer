@@ -1,6 +1,5 @@
+use crate::get_schema;
 use crate::models::source;
-use crate::simple::SimpleOrchestrator;
-use crate::Orchestrator;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 use dozer_core::dag::mt_executor::DefaultPortHandle;
@@ -48,15 +47,15 @@ impl OSourceFactory {
     fn _get_schemas(sources: &Vec<SourceModel>) -> anyhow::Result<Vec<Schema>> {
         let mut output_schemas: Vec<Schema> = vec![];
         for source in sources.iter() {
-            let table_infos = SimpleOrchestrator::get_schema(source.connection.to_owned())?;
-            let ti = table_infos.iter().find(|t| t.0 == source.dest_table_name);
+            let table_infos = get_schema(source.connection.to_owned())?;
+            let ti = table_infos.iter().find(|t| t.0 == source.table_name);
 
             match ti {
                 Some(ti) => {
                     let schema = ti.to_owned().1;
                     output_schemas.push(schema);
                 }
-                None => panic!("Schema not found for {}", source.dest_table_name),
+                None => panic!("Schema not found for {}", source.table_name),
             }
         }
         Ok(output_schemas)

@@ -1,4 +1,5 @@
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
+use dozer_orchestrator::test_connection;
 use dozer_orchestrator::{
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
@@ -19,19 +20,17 @@ fn main() -> anyhow::Result<()> {
         name: "postgres connection".to_string(),
         id: None,
     };
-    Dozer::test_connection(connection.to_owned()).unwrap();
+    test_connection(connection.to_owned()).unwrap();
     let source = Source {
         id: None,
         name: "actor_source".to_string(),
-        dest_table_name: "ACTOR_SOURCE".to_string(),
-        source_table_name: "actor".to_string(),
+        table_name: "ACTOR_SOURCE".to_string(),
         connection,
-        schema: None,
-        history_type: HistoryType::Master(MasterHistoryConfig::AppendOnly {
+        history_type: Some(HistoryType::Master(MasterHistoryConfig::AppendOnly {
             unique_key_field: "actor_id".to_string(),
             open_date_field: "last_updated".to_string(),
             closed_date_field: "last_updated".to_string(),
-        }),
+        })),
         refresh_config: RefreshConfig::RealTime,
     };
     let mut dozer = Dozer::new();
