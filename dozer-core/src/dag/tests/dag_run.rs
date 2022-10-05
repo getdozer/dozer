@@ -18,19 +18,19 @@ fn test_run_dag() {
 
     let mut dag = Dag::new();
 
-    dag.add_node(NodeType::Source(Box::new(src)), 1);
-    dag.add_node(NodeType::Processor(Box::new(proc)), 2);
-    dag.add_node(NodeType::Sink(Box::new(sink)), 3);
+    dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink)), 3.to_string());
 
     let src_to_proc1 = dag.connect(
-        Endpoint::new(1, DefaultPortHandle),
-        Endpoint::new(2, DefaultPortHandle)
+        Endpoint::new(1.to_string(), DefaultPortHandle),
+        Endpoint::new(2.to_string(), DefaultPortHandle)
     );
     assert!(src_to_proc1.is_ok());
 
     let proc1_to_sink = dag.connect(
-        Endpoint::new(2, DefaultPortHandle),
-        Endpoint::new(3, DefaultPortHandle)
+        Endpoint::new(2.to_string(), DefaultPortHandle),
+        Endpoint::new(3.to_string(), DefaultPortHandle)
     );
     assert!(proc1_to_sink.is_ok());
 

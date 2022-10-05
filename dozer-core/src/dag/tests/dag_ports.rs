@@ -14,12 +14,12 @@ macro_rules! test_ports {
 
             let mut dag = Dag::new();
 
-            dag.add_node(NodeType::Source(Box::new(src)), 1);
-            dag.add_node(NodeType::Processor(Box::new(proc)), 2);
+            dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
+            dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
 
             let res = dag.connect(
-                Endpoint::new(1, $from_port),
-                Endpoint::new(2, $to_port)
+                Endpoint::new(1.to_string(), $from_port),
+                Endpoint::new(2.to_string(), $to_port)
             );
 
             assert!(res.is_ok() == $expect)

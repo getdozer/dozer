@@ -11,7 +11,7 @@ use crate::dag::mt_executor::DefaultPortHandle;
 use crate::state::{StateStore, StateStoresManager};
 
 
-pub type NodeHandle = u16;
+pub type NodeHandle = String;
 pub type PortHandle = u16;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
