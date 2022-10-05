@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use sqlparser::ast::{Query, Select, SetExpr, Statement};
 
 use dozer_core::dag::dag::{Endpoint, NodeHandle};
@@ -21,7 +22,7 @@ impl PipelineBuilder {
         }
     }
 
-    pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
         match statement {
             Statement::Query(query) => self.query_to_pipeline(*query),
             _ => Err(DozerSqlError::NotImplemented(
@@ -30,11 +31,11 @@ impl PipelineBuilder {
         }
     }
 
-    pub fn query_to_pipeline(&self, query: Query) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    pub fn query_to_pipeline(&self, query: Query) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
         self.set_expr_to_pipeline(*query.body)
     }
 
-    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
         match set_expr {
             SetExpr::Select(s) => self.select_to_pipeline(*s),
             SetExpr::Query(q) => self.query_to_pipeline(*q),
@@ -44,7 +45,7 @@ impl PipelineBuilder {
         }
     }
 
-    fn select_to_pipeline(&self, select: Select) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    fn select_to_pipeline(&self, select: Select) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
 
 
         // Select clause
@@ -63,6 +64,8 @@ impl PipelineBuilder {
             Endpoint::new(3, DefaultPortHandle),
         );
 
-        Ok((dag, 2, 3))
+        let input = HashMap::from([("default", Endpoint::new(2, DefaultPortHandle))]);
+
+        Ok((dag, input, Endpoint::new(3, DefaultPortHandle)))
     }
 }

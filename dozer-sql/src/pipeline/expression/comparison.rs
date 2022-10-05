@@ -3,7 +3,7 @@ use num_traits::cast::*;
 use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::Invalid;
 
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::expression::Expression::Literal;
 
 macro_rules! define_comparison {

@@ -2,7 +2,7 @@ use num_traits::cast::*;
 
 use dozer_types::types::{Field, Record};
 
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 macro_rules! define_math_operator {
     ($id:ident, $fct:expr, $t: expr) => {

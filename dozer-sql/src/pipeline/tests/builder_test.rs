@@ -176,7 +176,7 @@ fn test_pipeline_builder() {
     };
 
     let builder = PipelineBuilder::new(schema);
-    let (mut dag, in_handle, out_handle) =
+    let (mut dag, mut in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 
     let source = TestSourceFactory::new(vec![DefaultPortHandle]);
@@ -185,13 +185,16 @@ fn test_pipeline_builder() {
     dag.add_node(NodeType::Source(Box::new(source)), 1);
     dag.add_node(NodeType::Sink(Box::new(sink)), 4);
 
+
+    let input_point = in_handle.remove("default").unwrap();
+
     let _source_to_projection = dag.connect(
         Endpoint::new(1, DefaultPortHandle),
-        Endpoint::new(in_handle, DefaultPortHandle),
+        Endpoint::new(input_point.node, input_point.port),
     );
 
     let _selection_to_sink = dag.connect(
-        Endpoint::new(out_handle, DefaultPortHandle),
+        Endpoint::new(out_handle.node, out_handle.port),
         Endpoint::new(4, DefaultPortHandle),
     );
 

@@ -9,7 +9,7 @@ use dozer_core::dag::node::NextStep;
 use dozer_core::state::StateStore;
 use dozer_types::types::{Operation, Record, Schema};
 
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 pub struct ProjectionProcessorFactory {
     id: i32,

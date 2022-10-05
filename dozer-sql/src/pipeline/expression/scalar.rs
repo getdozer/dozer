@@ -1,7 +1,7 @@
 use dozer_types::types::{Field, Record};
 
 use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {

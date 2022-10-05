@@ -13,7 +13,7 @@ use dozer_types::types::{Field, Operation, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 pub struct SelectionProcessorFactory {
     id: i32,

@@ -1,7 +1,7 @@
 use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::Invalid;
 
-use crate::pipeline::expression::expression::{Expression, PhysicalExpression};
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::expression::Expression::Literal;
 
 pub fn evaluate_and(left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {

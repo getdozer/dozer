@@ -30,11 +30,11 @@ pub enum Expression {
 }
 
 
-pub trait PhysicalExpression: Send + Sync {
+pub trait ExpressionExecutor: Send + Sync {
     fn evaluate(&self, record: &Record) -> Field;
 }
 
-impl PhysicalExpression for Expression {
+impl ExpressionExecutor for Expression {
     fn evaluate(&self, record: &Record) -> Field {
         match self {
             Expression::Literal(field) => field.clone(),
