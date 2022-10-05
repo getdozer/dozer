@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+
 use sqlparser::ast::{Query, Select, SetExpr, Statement};
 
-use dozer_core::dag::dag::{Endpoint, NodeHandle};
+use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
@@ -67,6 +68,5 @@ impl PipelineBuilder {
         let input = HashMap::from([("default", Endpoint::new(2.to_string(), DefaultPortHandle))]);
 
         Ok((dag, input, Endpoint::new(3.to_string(), DefaultPortHandle)))
-
     }
 }

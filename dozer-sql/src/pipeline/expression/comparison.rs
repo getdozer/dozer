@@ -61,7 +61,7 @@ macro_rules! define_comparison {
                     ));
                 }
             },
-            Field::Binary(left_v) => {
+            Field::Binary(_left_v) => {
                 return Invalid(format!(
                     "Cannot compare binary value to the current value "
                 ));

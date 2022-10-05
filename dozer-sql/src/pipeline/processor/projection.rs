@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::bail;
+
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
@@ -45,7 +46,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
     fn get_output_schema(
         &self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
         Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
@@ -69,8 +70,8 @@ pub struct ProjectionProcessor {
 impl Processor for ProjectionProcessor {
     fn init<'a>(
         &'a mut self,
-        state_store: &mut dyn StateStore,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _: &mut dyn StateStore,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
@@ -82,10 +83,10 @@ impl Processor for ProjectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        state_store: &mut dyn StateStore,
+        _state_store: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
         match op {
-            Operation::Delete { old } => {
+            Operation::Delete { old: _ } => {
                 bail!("DELETE Operation not supported.")
             }
             Operation::Insert { ref new } => {
@@ -104,7 +105,7 @@ impl Processor for ProjectionProcessor {
 
                 Ok(NextStep::Continue)
             }
-            Operation::Update { old, new } => bail!("UPDATE Operation not supported."),
+            Operation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
             Operation::Terminate => bail!("TERMINATE Operation not supported.")
         }
     }

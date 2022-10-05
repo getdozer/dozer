@@ -1,7 +1,9 @@
 use std::collections::HashMap;
-use sqlparser::ast::{BinaryOperator, UnaryOperator, Expr as SqlExpr, Value as SqlValue};
+
+use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
+
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_types::types::{Field, Operation, Schema};
+use dozer_types::types::{Field, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::expression::Expression;
@@ -66,120 +68,58 @@ impl SelectionBuilder {
         }
     }
 
-    fn parse_sql_unary_op(&self, op: &UnaryOperator, expr: &SqlExpr) -> Result<Box<Expression>> {
-        let expr_op = self.parse_sql_expression(expr)?;
+    fn parse_sql_unary_op(&self, op: &SqlUnaryOperator, expr: &SqlExpr) -> Result<Box<Expression>> {
+        let arg = self.parse_sql_expression(expr)?;
 
-        match op {
-            UnaryOperator::Not => Ok(Box::new(Expression::UnaryOperator {
-                operator: UnaryOperatorType::Not,
-                arg: expr_op,
-            })),
-            UnaryOperator::Plus => Err(DozerSqlError::NotImplemented(
-                "Unsupported operator PLUS.".to_string(),
-            )),
-            UnaryOperator::Minus => Err(DozerSqlError::NotImplemented(
-                "Unsupported operator MINUS.".to_string(),
-            )),
-            _ => Err(DozerSqlError::NotImplemented(format!(
+        let operator = match op {
+            SqlUnaryOperator::Not => UnaryOperatorType::Not,
+            SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
+            SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
+            _ => return Err(DozerSqlError::NotImplemented(format!(
                 "Unsupported SQL unary operator {:?}", op
-            ))),
-        }
+            )))
+        };
+
+        Ok(Box::new(Expression::UnaryOperator { operator, arg }))
+
     }
 
     fn parse_sql_binary_op(&self,
-                           left: &SqlExpr,
-                           op: &BinaryOperator,
-                           right: &SqlExpr,
+                           left_expr: &SqlExpr,
+                           op: &SqlBinaryOperator,
+                           right_expr: &SqlExpr,
     ) -> Result<Box<Expression>> {
-        let left_op = self.parse_sql_expression(left)?;
-        let right_op = self.parse_sql_expression(right)?;
-        match op {
-            BinaryOperator::Gt => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Gt,
-                right: right_op,
-            })),
-            BinaryOperator::GtEq => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Gte,
-                right: right_op,
-            })),
-            BinaryOperator::Lt => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Lt,
-                right: right_op,
-            })),
-            BinaryOperator::LtEq => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Lte,
-                right: right_op,
-            })),
-            BinaryOperator::Eq => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Eq,
-                right: right_op,
-            })),
-            BinaryOperator::NotEq => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Ne,
-                right: right_op,
-            })),
+        let left = self.parse_sql_expression(left_expr)?;
+        let right = self.parse_sql_expression(right_expr)?;
 
-            BinaryOperator::Plus => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Add,
-                right: right_op,
-            })),
-            BinaryOperator::Minus => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Sub,
-                right: right_op,
-            })),
-            BinaryOperator::Multiply => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Mul,
-                right: right_op,
-            })),
-            BinaryOperator::Divide => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Div,
-                right: right_op,
-            })),
-            BinaryOperator::Modulo => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Mod,
-                right: right_op,
-            })),
 
-            BinaryOperator::And => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::And,
-                right: right_op,
-            })),
-            BinaryOperator::Or => Ok(Box::new(Expression::BinaryOperator {
-                left: left_op,
-                operator: BinaryOperatorType::Or,
-                right: right_op,
-            })),
-            // BinaryOperator::BitwiseAnd => Err(DozerSqlError::NotImplemented(
-            //     "Unsupported operator BITWISE AND.".to_string(),
-            // )),
-            // BinaryOperator::BitwiseOr => Err(DozerSqlError::NotImplemented(
-            //     "Unsupported operator BITWISE OR.".to_string(),
-            // )),
-            // BinaryOperator::StringConcat => Err(DozerSqlError::NotImplemented(
-            //     "Unsupported operator CONCAT.".to_string(),
-            // )),
-            // BinaryOperator::PGRegexMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::PGRegexIMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::PGRegexNotMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::PGRegexNotIMatch => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::PGBitwiseShiftRight => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
-            // BinaryOperator::PGBitwiseShiftLeft => Err(DozerSqlError::NotImplemented("Unsupported operator.".to_string())),
-            _ => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported SQL binary operator {:?}", op
+        let operator = match op {
+            SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
+            SqlBinaryOperator::GtEq => BinaryOperatorType::Gte,
+            SqlBinaryOperator::Lt => BinaryOperatorType::Lt,
+            SqlBinaryOperator::LtEq => BinaryOperatorType::Lte,
+            SqlBinaryOperator::Eq => BinaryOperatorType::Eq,
+            SqlBinaryOperator::NotEq => BinaryOperatorType::Ne,
+
+            SqlBinaryOperator::Plus => BinaryOperatorType::Add,
+            SqlBinaryOperator::Minus => BinaryOperatorType::Sub,
+            SqlBinaryOperator::Multiply => BinaryOperatorType::Mul,
+            SqlBinaryOperator::Divide => BinaryOperatorType::Div,
+            SqlBinaryOperator::Modulo => BinaryOperatorType::Mod,
+
+            SqlBinaryOperator::And => BinaryOperatorType::And,
+            SqlBinaryOperator::Or => BinaryOperatorType::Or,
+
+            // BinaryOperator::BitwiseAnd => ...
+            // BinaryOperator::BitwiseOr => ...
+            // BinaryOperator::StringConcat => ...
+
+            _ => return Err(DozerSqlError::NotImplemented(format!(
+                "Unsupported SQL Binary Operator {:?}", op
             ))),
-        }
-    }
+        };
 
+        Ok(Box::new(Expression::BinaryOperator { left, operator, right, }))
+
+    }
 }
