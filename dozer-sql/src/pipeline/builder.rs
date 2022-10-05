@@ -1,37 +1,29 @@
-use std::rc::Rc;
-use std::sync::Arc;
+use std::collections::HashMap;
 
-use sqlparser::ast::{
-    BinaryOperator, Expr as SqlExpr, Query, Select, SelectItem, SetExpr, Statement, UnaryOperator,
-    Value as SqlValue,
-};
-use sqlparser::ast::ObjectType::Schema;
+use sqlparser::ast::{Query, Select, SetExpr, Statement};
 
-use dozer_core::dag::dag::{Endpoint, NodeHandle, PortHandle};
+use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
-use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
-use dozer_core::dag::node::{ExecutionContext, NextStep, Processor, Sink, Source};
-use dozer_core::dag::node::NextStep::Continue;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema as DozerSchema};
+use dozer_core::dag::mt_executor::DefaultPortHandle;
+use dozer_types::types::Schema;
 
 use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::expression::{Column, PhysicalExpression};
 use crate::pipeline::processor::projection_builder::ProjectionBuilder;
-use crate::pipeline::processor::selection::{SelectionBuilder, SelectionProcessor};
+use crate::pipeline::processor::selection_builder::SelectionBuilder;
 
 pub struct PipelineBuilder {
-    schema: DozerSchema,
+    schema: Schema,
 }
 
 impl PipelineBuilder {
-    pub fn new(schema: DozerSchema) -> PipelineBuilder {
+    pub fn new(schema: Schema) -> PipelineBuilder {
         Self {
             schema
         }
     }
 
-    pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
         match statement {
             Statement::Query(query) => self.query_to_pipeline(*query),
             _ => Err(DozerSqlError::NotImplemented(
@@ -40,11 +32,11 @@ impl PipelineBuilder {
         }
     }
 
-    pub fn query_to_pipeline(&self, query: Query) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    pub fn query_to_pipeline(&self, query: Query) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
         self.set_expr_to_pipeline(*query.body)
     }
 
-    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
         match set_expr {
             SetExpr::Select(s) => self.select_to_pipeline(*s),
             SetExpr::Query(q) => self.query_to_pipeline(*q),
@@ -54,7 +46,7 @@ impl PipelineBuilder {
         }
     }
 
-    fn select_to_pipeline(&self, select: Select) -> Result<(Dag, NodeHandle, NodeHandle)> {
+    fn select_to_pipeline(&self, select: Select) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
 
 
         // Select clause
@@ -68,13 +60,14 @@ impl PipelineBuilder {
         dag.add_node(NodeType::Processor(Box::new(projection)), 2.to_string());
         dag.add_node(NodeType::Processor(Box::new(selection)), 3.to_string());
 
-        let projection_to_selection = dag.connect(
+        let _ = dag.connect(
+
             Endpoint::new(2.to_string(), DefaultPortHandle),
             Endpoint::new(3.to_string(), DefaultPortHandle),
         );
 
-        Ok((dag, 2.to_string(), 3.to_string()))
+        let input = HashMap::from([("default", Endpoint::new(2.to_string(), DefaultPortHandle))]);
+
+        Ok((dag, input, Endpoint::new(3.to_string(), DefaultPortHandle)))
     }
 }
-
-

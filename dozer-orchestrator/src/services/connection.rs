@@ -3,15 +3,15 @@ use dozer_ingestion::connectors::{
     connector::Connector,
     postgres::connector::{PostgresConfig, PostgresConnector},
 };
-use dozer_types::types::TableInfo;
+use dozer_types::types::Schema;
 
 pub struct ConnectionService {
     connector: Box<dyn Connector>,
 }
 
 impl ConnectionService {
-    pub fn get_schema(&self) -> anyhow::Result<Vec<TableInfo>> {
-        return self.connector.get_schema();
+    pub fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>> {
+        return self.connector.get_all_schema()
     }
 
     pub fn new(input: Connection) -> Self {

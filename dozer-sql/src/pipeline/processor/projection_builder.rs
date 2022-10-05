@@ -1,28 +1,22 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use sqlparser::ast::{
-    BinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem, Value as SqlValue,
-};
+use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
 
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::Processor;
 use dozer_types::types::Field;
 use dozer_types::types::Schema;
 
 use crate::common::error;
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::expression::Expression;
-use crate::pipeline::expression::expression::Expression::{AggregateFunction, ScalarFunction};
-use crate::pipeline::expression::operator::BinaryOperatorType;
+use crate::pipeline::expression::expression::Expression::ScalarFunction;
+use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
-use crate::pipeline::processor::projection::{ProjectionProcessor, ProjectionProcessorFactory};
+use crate::pipeline::processor::projection::ProjectionProcessorFactory;
 
 pub struct ProjectionBuilder {
     schema_idx: HashMap<String, usize>,
-    expression_builder: ExpressionBuilder,
 }
 
 impl ProjectionBuilder {
@@ -34,7 +28,6 @@ impl ProjectionBuilder {
                 .enumerate()
                 .map(|e| (e.1.name.clone(), e.0))
                 .collect(),
-            expression_builder: ExpressionBuilder::new(schema.clone()),
         }
     }
 
@@ -64,14 +57,13 @@ impl ProjectionBuilder {
             SelectItem::UnnamedExpr(sql_expr) => {
                 match self.parse_sql_expression(sql_expr) {
                     Ok(expr) => {
-                        let e = &expr;
                         return Ok(vec![expr.0]);
                     }
                     Err(error) => return Err(error),
                 };
             }
             SelectItem::ExprWithAlias { expr, alias } => Err(DozerSqlError::NotImplemented(
-                format!("Unsupported Expression {}", expr),
+                format!("Unsupported Expression {}:{}", expr, alias),
             )),
             SelectItem::Wildcard => Err(DozerSqlError::NotImplemented(format!(
                 "Unsupported Wildcard"
@@ -96,14 +88,14 @@ impl ProjectionBuilder {
                     Box::new(Expression::Literal(Field::String(s.clone()))),
                     false,
                 ))
-            }
+            },
+            SqlExpr::UnaryOp { expr, op } => Ok(self.parse_sql_unary_op(op, expr)?),
             SqlExpr::BinaryOp { left, op, right } => Ok(self.parse_sql_binary_op(left, op, right)?),
             SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr)?),
             SqlExpr::Function(sql_function) => {
                 let name = sql_function.name.to_string().to_lowercase();
 
                 if let Ok(function) = ScalarFunctionType::new(&name) {
-                    let f = &function;
                     let mut arg_exprs = vec![];
                     for arg in &sql_function.args {
                         let r = self.parse_sql_function_arg(arg);
@@ -130,9 +122,7 @@ impl ProjectionBuilder {
                     ));
                 };
 
-                if let Ok(function) = AggregateFunctionType::new(&name) {
-                    let f = &function;
-
+                if let Ok(_) = AggregateFunctionType::new(&name) {
                     for arg in &sql_function.args {
                         let r = self.parse_sql_function_arg(arg);
                         match r {
@@ -185,10 +175,30 @@ impl ProjectionBuilder {
         }
     }
 
+
+    fn parse_sql_unary_op(&self, op: &SqlUnaryOperator, expr: &SqlExpr) -> Result<(Box<Expression>, bool)> {
+        let (arg, bypass) = self.parse_sql_expression(expr)?;
+        if bypass {
+            return Ok((arg, bypass));
+        }
+
+        let operator = match op {
+            SqlUnaryOperator::Not => UnaryOperatorType::Not,
+            SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
+            SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
+            _ => return Err(DozerSqlError::NotImplemented(format!(
+                "Unsupported SQL unary operator {:?}", op
+            )))
+        };
+
+        Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
+
+    }
+
     fn parse_sql_binary_op(
         &self,
         left: &SqlExpr,
-        op: &BinaryOperator,
+        op: &SqlBinaryOperator,
         right: &SqlExpr,
     ) -> Result<(Box<Expression>, bool)> {
         let (left_op, bypass_left) = self.parse_sql_expression(left)?;
@@ -200,10 +210,10 @@ impl ProjectionBuilder {
             return Ok((right_op, bypass_right));
         }
         match op {
-            BinaryOperator::Plus => Ok((
+            SqlBinaryOperator::Plus => Ok((
                 Box::new(Expression::BinaryOperator {
                     left: left_op,
-                    operator: BinaryOperatorType::Sum,
+                    operator: BinaryOperatorType::Add,
                     right: right_op,
                 }),
                 false,

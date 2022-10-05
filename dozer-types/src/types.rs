@@ -208,15 +208,4 @@ pub enum Operation {
     Terminate,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TableInfo {
-    pub table_name: String,
-    pub columns: Vec<ColumnInfo>,
-}
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct ColumnInfo {
-    pub column_name: String,
-    pub is_nullable: bool,
-    pub udt_name: String,
-    pub is_primary_key: bool,
-}
+

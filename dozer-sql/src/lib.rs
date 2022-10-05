@@ -1,3 +1,6 @@
+// Re-export sqlparser
+pub use sqlparser;
+
 mod common;
-mod pipeline;
+pub mod pipeline;
 
