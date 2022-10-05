@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use sqlparser::ast::Expr as SqlExpr;
-
 use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
@@ -12,7 +10,6 @@ use dozer_core::state::StateStore;
 use dozer_types::types::{Field, Operation, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
-use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
 pub struct SelectionProcessorFactory {
@@ -82,26 +79,3 @@ impl Processor for SelectionProcessor {
     }
 }
 
-pub struct SelectionBuilder {
-    expression_builder: ExpressionBuilder,
-}
-
-impl SelectionBuilder {
-    pub fn new(schema: &Schema) -> SelectionBuilder {
-        Self {
-            expression_builder: ExpressionBuilder::new(schema.clone())
-        }
-    }
-
-    pub fn get_processor(&self, selection: Option<SqlExpr>) -> Result<SelectionProcessorFactory> {
-        match selection {
-            Some(expression) => {
-                let expression = self.expression_builder.parse_sql_expression(&expression)?;
-                Ok(SelectionProcessorFactory::new(1, vec![DefaultPortHandle], vec![DefaultPortHandle], expression))
-            }
-            _ => Err(DozerSqlError::NotImplemented(
-                "Unsupported WHERE clause.".to_string(),
-            )),
-        }
-    }
-}

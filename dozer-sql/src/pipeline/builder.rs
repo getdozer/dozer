@@ -9,7 +9,7 @@ use dozer_types::types::Schema;
 
 use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::processor::projection_builder::ProjectionBuilder;
-use crate::pipeline::processor::selection::SelectionBuilder;
+use crate::pipeline::processor::selection_builder::SelectionBuilder;
 
 pub struct PipelineBuilder {
     schema: Schema,
