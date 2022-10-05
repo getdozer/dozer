@@ -36,7 +36,7 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema> {
+    fn get_output_schema(&self, _port: PortHandle) -> anyhow::Result<Schema> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
@@ -67,8 +67,8 @@ impl Source for TestSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         cm: &dyn ChannelManager,
-        state: &mut dyn StateStore,
-        from_seq: Option<u64>,
+        _state: &mut dyn StateStore,
+        _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
         for n in 0..10_000_000 {
             fw.send(
@@ -118,8 +118,8 @@ pub struct TestSink {}
 impl Sink for TestSink {
     fn init(
         &self,
-        state_store: &mut dyn StateStore,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _state_store: &mut dyn StateStore,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<()> {
         println!("SINK: Initialising TestSink");
         Ok(())
@@ -138,7 +138,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, COUNT(Spending+2000), ROUND(SUM(ROUND(Spending))) \
+    let sql = "SELECT Country, COUNT(Spending+2000), ROUND(SUM(ROUND(-Spending))) \
                             FROM Customers \
                             WHERE Spending+500 >= 1000 \
                             GROUP BY Country \
@@ -196,7 +196,6 @@ fn test_pipeline_builder() {
     let _selection_to_sink = dag.connect(
         Endpoint::new(out_handle.node, out_handle.port),
         Endpoint::new(4.to_string(), DefaultPortHandle),
-
     );
 
     let exec = MultiThreadedDagExecutor::new(100000);

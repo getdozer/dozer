@@ -8,12 +8,17 @@ use crate::pipeline::expression::mathematical::*;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum UnaryOperatorType {
     Not,
+
+    Plus,
+    Minus,
 }
 
 impl UnaryOperatorType {
     pub fn evaluate(&self, value: &Box<Expression>, record: &Record) -> Field {
         match self {
             UnaryOperatorType::Not => evaluate_not(value, record),
+            UnaryOperatorType::Plus => evaluate_plus(value, record),
+            UnaryOperatorType::Minus => evaluate_minus(value, record),
         }
     }
 }

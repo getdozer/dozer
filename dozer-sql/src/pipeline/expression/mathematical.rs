@@ -58,3 +58,25 @@ define_math_operator!(evaluate_sub, |a, b| { a - b }, 0);
 define_math_operator!(evaluate_mul, |a, b| { a * b }, 0);
 define_math_operator!(evaluate_div, |a, b| { a / b }, 1);
 define_math_operator!(evaluate_mod, |a, b| { a % b }, 0);
+
+pub fn evaluate_plus(expression: &Box<Expression>, record: &Record) -> Field {
+    let expression_result = expression.evaluate(&record);
+
+    match expression_result {
+        Field::Int(v) => Field::Int(v),
+        Field::Float(v) => Field::Float(v),
+        Field::Invalid(cause) => Field::Invalid(cause),
+        _ => Field::Invalid(format!("Unary Plus Operator doesn't support non numeric types")),
+    }
+}
+
+pub fn evaluate_minus(expression: &Box<Expression>, record: &Record) -> Field {
+    let expression_result = expression.evaluate(&record);
+
+    match expression_result {
+        Field::Int(v) => Field::Int(-v),
+        Field::Float(v) => Field::Float(-v),
+        Field::Invalid(cause) => Field::Invalid(cause),
+        _ => Field::Invalid(format!("Unary Minus Operator doesn't support non numeric types")),
+    }
+}
