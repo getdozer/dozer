@@ -117,7 +117,7 @@ pub struct TestSink {}
 
 impl Sink for TestSink {
     fn init(
-        &self,
+        &mut self,
         state_store: &mut dyn StateStore,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<()> {

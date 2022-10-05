@@ -6,7 +6,7 @@ use crossbeam::channel::Sender;
 use dozer_types::types::{Operation, OperationEvent};
 use crate::dag::dag::PortHandle;
 
-pub trait SourceChannelForwarder {
+pub trait SourceChannelForwarder: Send + Sync {
     fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()>;
 }
 

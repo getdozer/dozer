@@ -1,9 +1,18 @@
-use super::super::models::{api_endpoint::ApiEndpoint, source::Source};
+use std::sync::Arc;
+
+use dozer_schema::registry::{_serve_channel, client, SchemaRegistryClient};
+use tokio::runtime::Runtime;
+
+use super::{
+    super::models::{api_endpoint::ApiEndpoint, source::Source},
+    executor::Executor,
+};
 use crate::Orchestrator;
 
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
     pub api_endpoint: Option<ApiEndpoint>,
+    pub schema_client: Arc<SchemaRegistryClient>,
 }
 
 impl Orchestrator for SimpleOrchestrator {
@@ -19,16 +28,17 @@ impl Orchestrator for SimpleOrchestrator {
         self
     }
 
-    fn run(&mut self) -> anyhow::Result<&mut Self> {
-        todo!()
+    fn run(&mut self) -> anyhow::Result<()> {
+        Executor::run(&self)
     }
 }
 
 impl SimpleOrchestrator {
-    pub fn new() -> Self {
+    pub fn new(schema_client: Arc<SchemaRegistryClient>) -> Self {
         Self {
             sources: vec![],
             api_endpoint: None,
+            schema_client,
         }
     }
 }

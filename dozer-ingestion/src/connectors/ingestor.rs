@@ -37,7 +37,6 @@ impl IngestorForwarder for ChannelForwarder {
 
 pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
-    pub schema_client: Arc<SchemaRegistryClient>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
     writer: BatchedRocksDbWriter,
     timer: Instant,
@@ -46,12 +45,10 @@ pub struct Ingestor {
 impl Ingestor {
     pub fn new(
         storage_client: Arc<RocksStorage>,
-        schema_client: Arc<SchemaRegistryClient>,
         sender: Arc<Box<dyn IngestorForwarder + 'static>>,
     ) -> Self {
         Self {
             storage_client,
-            schema_client,
             sender,
             writer: BatchedRocksDbWriter::new(),
             timer: Instant::now(),
@@ -59,7 +56,6 @@ impl Ingestor {
     }
 
     pub fn handle_message(&mut self, message: IngestionMessage) {
-        let schema_client = self.schema_client.clone();
         match message {
             IngestionMessage::OperationEvent(event) => {
                 let (key, encoded) = self.storage_client.map_operation_event(&event);
@@ -69,7 +65,10 @@ impl Ingestor {
             IngestionMessage::Schema(schema) => {
                 Runtime::new()
                     .unwrap()
-                    .block_on(async { schema_client.insert(context::current(), schema).await })
+                    .block_on(async {
+                        let client = _get_client().await.unwrap();
+                        client.insert(context::current(), schema).await
+                    })
                     .unwrap();
             }
             IngestionMessage::Commit() => {

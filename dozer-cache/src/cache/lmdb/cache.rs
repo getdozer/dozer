@@ -1,19 +1,22 @@
 use std::sync::Arc;
 
-use crate::cache::expression::Expression;
-use crate::cache::get_primary_key;
-
-use super::super::Cache;
-use super::indexer::Indexer;
-use super::query::QueryHandler;
-use super::utils;
 use async_trait::async_trait;
+use lmdb::{Cursor, Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
+
 use dozer_schema::registry::context::Context;
 use dozer_schema::registry::SchemaRegistryClient;
 use dozer_schema::storage::get_schema_key;
-use dozer_types::types::Record;
 use dozer_types::types::{Schema, SchemaIdentifier};
-use lmdb::{Cursor, Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
+use dozer_types::types::Record;
+
+use crate::cache::expression::Expression;
+use crate::cache::get_primary_key;
+
+use super::indexer::Indexer;
+use super::query::QueryHandler;
+use super::super::Cache;
+use super::utils;
+
 pub struct LmdbCache {
     env: Environment,
     db: Database,
@@ -71,7 +74,6 @@ impl LmdbCache {
     }
 }
 
-#[async_trait]
 impl Cache for LmdbCache {
     fn insert(&self, rec: Record, schema: Schema) -> anyhow::Result<()> {
         let mut txn: RwTransaction = self.env.begin_rw_txn()?;
@@ -79,12 +81,12 @@ impl Cache for LmdbCache {
         match self.get_schema(schema_identifier) {
             Ok(_schema) => {}
             Err(_) => {
-                self.insert_schema(schema.clone())?;
+                self._insert_schema(&mut txn, schema.clone())?;
             }
         };
 
-        self._insert(&mut txn, rec, schema)?;
-
+        self._insert(&mut txn, rec.clone(), schema)?;
+        println!("Insert: {:?}", rec);
         txn.commit()?;
         Ok(())
     }
@@ -150,16 +152,18 @@ impl Cache for LmdbCache {
 mod tests {
     use std::sync::Arc;
 
-    use super::LmdbCache;
-    use crate::cache::{
-        expression::{self, Expression},
-        get_primary_key, Cache,
-    };
     use dozer_schema::{
-        registry::{SchemaRegistryClient, _serve_channel, client},
+        registry::{_serve_channel, client, SchemaRegistryClient},
         test_helper::init_schema,
     };
     use dozer_types::types::{Field, Record, Schema};
+
+    use crate::cache::{
+        Cache,
+        expression::{self, Expression}, get_primary_key,
+    };
+
+    use super::LmdbCache;
 
     async fn _setup() -> (LmdbCache, Schema) {
         let client_transport = _serve_channel().unwrap();
@@ -170,6 +174,7 @@ mod tests {
         let cache = LmdbCache::new(true);
         (cache, schema)
     }
+
     #[tokio::test]
     async fn insert_and_get_schema() -> anyhow::Result<()> {
         let (cache, schema) = _setup().await;
@@ -179,6 +184,7 @@ mod tests {
         assert_eq!(get_schema, schema, "must be equal");
         Ok(())
     }
+
     #[tokio::test]
     async fn insert_get_and_delete_record() -> anyhow::Result<()> {
         let val = "bar".to_string();
