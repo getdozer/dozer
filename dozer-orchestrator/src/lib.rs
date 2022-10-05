@@ -9,7 +9,7 @@ use crate::models::{api_endpoint::ApiEndpoint, connection::Connection, source::S
 
 pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;
-    fn add_endpoints(&mut self, endpoints: Vec<ApiEndpoint>) -> &mut Self;
+    fn add_endpoint(&mut self, endpoint: ApiEndpoint) -> &mut Self;
     fn run(&mut self) -> anyhow::Result<&mut Self>;
 }
 
