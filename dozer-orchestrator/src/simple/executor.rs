@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use tempdir::TempDir;
 
+use dozer_cache::cache::lmdb::cache::LmdbCache;
 use dozer_core::aggregation::groupby::{AggregationProcessorFactory, FieldRule};
 use dozer_core::aggregation::sum::IntegerSumAggregator;
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
@@ -9,10 +12,10 @@ use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
+use dozer_types::models::connection::Connection;
 use dozer_types::types::{Schema, SchemaIdentifier};
 
 use crate::get_schema;
-use crate::models::connection::Connection;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 
 use super::SimpleOrchestrator;
@@ -20,7 +23,7 @@ use super::SimpleOrchestrator;
 pub struct Executor {}
 
 impl Executor {
-    pub fn run(orchestrator: &SimpleOrchestrator) -> anyhow::Result<()> {
+    pub fn run(orchestrator: &SimpleOrchestrator, cache: Arc<LmdbCache>) -> anyhow::Result<()> {
         let mut source_schemas: Vec<Schema> = vec![];
         let mut connections: Vec<Connection> = vec![];
         let mut table_names: Vec<String> = vec![];
@@ -63,10 +66,10 @@ impl Executor {
         let (mut dag, in_handle, out_handle) =
             builder.statement_to_pipeline(statement.clone()).unwrap();
 
-        let source = ConnectorSourceFactory::new(connections, table_names, source_schemas);
+        let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
-        let sink = CacheSinkFactory::new(vec![DefaultPortHandle]);
+        let sink = CacheSinkFactory::new(vec![DefaultPortHandle], cache);
 
         let source_table_map = source.table_map.clone();
 
@@ -75,7 +78,7 @@ impl Executor {
 
         for (_table_name, endpoint) in in_handle.into_iter() {
             // TODO: Use real table_name
-            let table_name = &"actor".to_string();
+            let table_name = &table_names[0];
             let port = source_table_map.get(table_name).unwrap();
             dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)?;
         }

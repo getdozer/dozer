@@ -4,12 +4,11 @@ use std::sync::Arc;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 
+use crate::services::connection::ConnectionService;
 use dozer_core::dag::node::{Source, SourceFactory};
 use dozer_core::state::StateStore;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
-
-use crate::models::connection::Connection;
-use crate::services::connection::ConnectionService;
+use dozer_types::models::connection::Connection;
 use dozer_types::types::{Operation, Schema};
 
 pub struct ConnectorSourceFactory {
@@ -90,7 +89,12 @@ impl Source for ConnectorSource {
         _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
         let connection = &self.connections[0];
-        let mut connector = ConnectionService::get_connector(connection.to_owned());
+        let tables: Vec<(String, u32)> = self
+            .table_names
+            .iter()
+            .map(|t| (t.clone(), 1 as u32))
+            .collect();
+        let mut connector = ConnectionService::get_connector(connection.to_owned(), Some(tables));
         let storage_config = RocksConfig::default();
         let storage_client = Arc::new(Storage::new(storage_config));
         connector.initialize(storage_client).unwrap();

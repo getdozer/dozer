@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use dozer_cache::cache::lmdb::cache::LmdbCache;
 use dozer_cache::cache::{get_primary_key, Cache};
@@ -14,12 +15,8 @@ pub struct CacheSinkFactory {
 }
 
 impl CacheSinkFactory {
-    pub fn new(input_ports: Vec<PortHandle>) -> Self {
-        let cache = LmdbCache::new(true);
-        Self {
-            input_ports,
-            cache: Arc::new(cache),
-        }
+    pub fn new(input_ports: Vec<PortHandle>, cache: Arc<LmdbCache>) -> Self {
+        Self { input_ports, cache }
     }
 }
 
@@ -30,6 +27,8 @@ impl SinkFactory for CacheSinkFactory {
     fn build(&self) -> Box<dyn Sink> {
         Box::new(CacheSink {
             cache: self.cache.clone(),
+            counter: 0,
+            before: Instant::now(),
             input_schemas: HashMap::new(),
         })
     }
@@ -37,6 +36,8 @@ impl SinkFactory for CacheSinkFactory {
 
 pub struct CacheSink {
     cache: Arc<LmdbCache>,
+    counter: i32,
+    before: Instant,
     input_schemas: HashMap<PortHandle, Schema>,
 }
 
@@ -52,12 +53,22 @@ impl Sink for CacheSink {
     }
 
     fn process(
-        &self,
+        &mut self,
         from_port: PortHandle,
         op: OperationEvent,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
         // println!("SINK: Message {} received", _op.seq_no);
+        self.counter = self.counter + 1;
+        const BACKSPACE: char = 8u8 as char;
+        if self.counter % 10 == 0 {
+            print!(
+                "{}\rCount: {}, Elapsed time: {:.2?}",
+                BACKSPACE,
+                self.counter,
+                self.before.elapsed(),
+            );
+        }
         let schema = &self.input_schemas[&from_port].clone();
         match op.operation {
             Operation::Delete { old } => {
@@ -66,7 +77,6 @@ impl Sink for CacheSink {
             }
             Operation::Insert { new } => {
                 self.cache.insert(new.clone(), schema.clone())?;
-                println!("Inserted: {:?}", new.clone());
             }
             Operation::Update { old, new } => {
                 let key = get_primary_key(schema.primary_index.clone(), old.values);

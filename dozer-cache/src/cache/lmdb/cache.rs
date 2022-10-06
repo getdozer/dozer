@@ -6,15 +6,15 @@ use lmdb::{Cursor, Database, Environment, RoTransaction, RwTransaction, Transact
 use dozer_schema::registry::context::Context;
 use dozer_schema::registry::SchemaRegistryClient;
 use dozer_schema::storage::get_schema_key;
-use dozer_types::types::{Schema, SchemaIdentifier};
 use dozer_types::types::Record;
+use dozer_types::types::{Schema, SchemaIdentifier};
 
 use crate::cache::expression::Expression;
 use crate::cache::get_primary_key;
 
+use super::super::Cache;
 use super::indexer::Indexer;
 use super::query::QueryHandler;
-use super::super::Cache;
 use super::utils;
 
 pub struct LmdbCache {
@@ -44,7 +44,6 @@ impl LmdbCache {
 
         let size = std::mem::size_of_val(&rec);
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
-
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;
 
@@ -91,7 +90,6 @@ impl Cache for LmdbCache {
         };
 
         self._insert(&mut txn, rec.clone(), schema)?;
-        println!("Insert: {:?}", rec);
         txn.commit()?;
         Ok(())
     }
@@ -164,8 +162,8 @@ mod tests {
     use dozer_types::types::{Field, Record, Schema};
 
     use crate::cache::{
-        Cache,
-        expression::{self, Expression}, get_primary_key,
+        expression::{self, Expression},
+        get_primary_key, Cache,
     };
 
     use super::LmdbCache;

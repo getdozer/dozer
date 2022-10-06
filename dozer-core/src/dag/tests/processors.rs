@@ -98,7 +98,7 @@ impl Sink for TestSink {
     }
 
     fn process(
-        &self,
+        &mut self,
         _from_port: PortHandle,
         _op: OperationEvent,
         _state: &mut dyn StateStore,

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use dozer_types::types::{FieldDefinition, Schema};
 
 use super::helper::{self, convert_str_to_dozer_field_type};
@@ -26,52 +28,57 @@ impl SchemaHelper {
 
         let results = client.query(query, &[])?;
 
-        let mut col_idx = 0;
+        let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>)> = HashMap::new();
+        results
+            .iter()
+            .map(|row| {
+                let table_name: String = row.get(0);
+                let column_name: String = row.get(1);
+                let is_nullable: bool = row.get(2);
+                let udt_name: String = row.get(3);
+                let is_primary_key: bool = row.get(4);
+                (
+                    table_name,
+                    FieldDefinition::new(
+                        column_name,
+                        convert_str_to_dozer_field_type(&udt_name),
+                        is_nullable,
+                    ),
+                    is_primary_key,
+                )
+            })
+            .for_each(|row| {
+                let (table_name, field_def, is_primary_key) = row;
 
-        let mut current_table_name = "".to_string();
-        let mut fields: Vec<FieldDefinition> = vec![];
-        let mut primary_index: Vec<usize> = vec![];
-        for row in results {
-            let table_name: String = row.get(0);
-            let column_name: String = row.get(1);
-            let is_nullable: bool = row.get(2);
-            let udt_name: String = row.get(3);
-            let is_primary_key: bool = row.get(4);
+                let vals = map.get(&table_name);
+                let (mut fields, mut primary_keys) = match vals {
+                    Some((fields, primary_keys)) => (fields.clone(), primary_keys.clone()),
+                    None => (vec![], vec![]),
+                };
 
-            if current_table_name == "" {
-                current_table_name = table_name.clone();
-            }
+                fields.push(field_def);
+                primary_keys.push(is_primary_key);
+                map.insert(table_name, (fields, primary_keys));
+            });
 
+        for (table_name, (fields, primary_keys)) in map.into_iter() {
+            let primary_index = primary_keys
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| **b)
+                .map(|(idx, _)| idx)
+                .collect();
 
-            if is_primary_key {
-                primary_index.push(col_idx);
-            }
-
-            if current_table_name == table_name {
-                col_idx += 1;
-            } else {
-                schemas.push((
-                    current_table_name.clone(),
-                    Schema {
-                        identifier: None,
-                        fields: fields.clone(),
-                        values: vec![],
-                        primary_index,
-                        secondary_indexes: vec![],
-                    },
-                ));
-                col_idx = 0;
-                primary_index = vec![];
-                fields = vec![];
-            }
-            current_table_name = table_name;
-            col_idx += 1;
-            fields.push(FieldDefinition::new(
-                column_name,
-                convert_str_to_dozer_field_type(&udt_name),
-                is_nullable,
-            ));
+            let schema = Schema {
+                identifier: None,
+                fields: fields.clone(),
+                values: vec![],
+                primary_index,
+                secondary_indexes: vec![],
+            };
+            schemas.push((table_name, schema));
         }
+
         Ok(schemas)
     }
 }

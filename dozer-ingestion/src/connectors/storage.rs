@@ -1,7 +1,7 @@
-use std::sync::Arc;
-
 use dozer_types::types::*;
 use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
+use std::sync::Arc;
+use tempdir::TempDir;
 pub trait Storage<T> {
     fn new(storage_config: T) -> Self;
 }
@@ -16,8 +16,18 @@ pub struct RocksConfig {
 }
 impl RocksConfig {
     pub fn default() -> Self {
+        let tmp_dir = TempDir::new("ingestion")
+            .unwrap()
+            .path()
+            .to_str()
+            .unwrap()
+            .to_string();
+        Self { path: tmp_dir }
+    }
+
+    pub fn _target() -> Self {
         Self {
-            path: "target/ingestion-storage".to_string(),
+            path: "target/schema-registry".to_string(),
         }
     }
 }
@@ -86,9 +96,7 @@ mod tests {
             seq_no: 1,
         };
 
-        let storage_config = RocksConfig {
-            path: "./target/ingestion-storage-test".to_string(),
-        };
+        let storage_config = RocksConfig::default();
         let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
 
         let (key, encoded) = storage_client.map_operation_event(&op);

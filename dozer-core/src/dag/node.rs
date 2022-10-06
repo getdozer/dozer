@@ -50,7 +50,7 @@ pub trait SinkFactory: Send + Sync {
 pub trait Sink {
     fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
     fn process(
-        &self,
+        &mut self,
         from_port: PortHandle,
         op: OperationEvent,
         state: &mut dyn StateStore
