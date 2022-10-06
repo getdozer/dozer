@@ -6,7 +6,8 @@ use connector::Connector;
 
 use dozer_types::types::{OperationEvent, Schema};
 use postgres::Client;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use crate::connectors::seq_no_resolver::SeqNoResolver;
 
 use super::helper;
 
@@ -23,6 +24,7 @@ pub struct PostgresConnector {
     conn_str_plain: String,
     tables: Option<Vec<TableInfo>>,
     storage_client: Option<Arc<RocksStorage>>,
+    seq_storage_client: Option<Arc<RocksStorage>>
 }
 impl PostgresConnector {
     pub fn new(config: PostgresConfig) -> PostgresConnector {
@@ -35,6 +37,7 @@ impl PostgresConnector {
             conn_str_plain: config.conn_str,
             tables: config.tables,
             storage_client: None,
+            seq_storage_client: None
         }
     }
 }
@@ -82,8 +85,9 @@ impl Connector for PostgresConnector {
         Ok(())
     }
 
-    fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
+    fn iterator(&mut self, seq_no_resolver: Arc<Mutex<SeqNoResolver>>) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
         let storage_client = self.storage_client.as_ref().unwrap().clone();
+        let seq_storage_client = self.seq_storage_client.as_ref().unwrap().clone();
         let iterator = PostgresIterator::new(
             self.get_publication_name(),
             self.get_slot_name(),
@@ -91,9 +95,10 @@ impl Connector for PostgresConnector {
             self.conn_str.clone(),
             self.conn_str_plain.clone(),
             storage_client,
+            seq_storage_client
         );
 
-        let _join_handle = iterator.start().unwrap();
+        let _join_handle = iterator.start(seq_no_resolver).unwrap();
         Box::new(iterator)
     }
 

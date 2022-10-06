@@ -5,6 +5,7 @@ use crate::connectors::ingestor::Ingestor;
 use super::helper;
 use super::schema_helper::SchemaHelper;
 use anyhow::Context;
+use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::{Client, NoTls};
@@ -96,7 +97,7 @@ impl PostgresSnapshotter {
             self.ingestor
                 .lock()
                 .unwrap()
-                .handle_message(IngestionMessage::Commit());
+                .handle_message(IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }));
         }
 
         let table_names = tables.iter().map(|t| t.name.clone()).collect();

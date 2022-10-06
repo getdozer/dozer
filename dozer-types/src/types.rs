@@ -246,6 +246,18 @@ impl OperationEvent {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Commit {
+    pub seq_no: u64,
+    pub lsn: u64,
+}
+
+impl Commit {
+    pub fn new(seq_no: u64, lsn: u64) -> Self {
+        Self { seq_no, lsn }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Operation {
     Delete { old: Record },
