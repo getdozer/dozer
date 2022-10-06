@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use crate::types::FieldType::Int;
+
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Field {

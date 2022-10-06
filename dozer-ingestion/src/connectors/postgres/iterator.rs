@@ -3,7 +3,7 @@ use crate::connectors::postgres::helper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::connectors::storage::RocksStorage;
 use crossbeam::channel::unbounded;
-use dozer_schema::registry::SchemaRegistryClient;
+
 use dozer_types::types::OperationEvent;
 use postgres::Error;
 use std::cell::RefCell;

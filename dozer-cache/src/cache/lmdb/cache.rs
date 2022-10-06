@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
+
 use lmdb::{Cursor, Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
 
 use dozer_schema::registry::context::Context;

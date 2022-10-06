@@ -1,12 +1,12 @@
 use connectors::connector::Connector;
 use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
-use dozer_schema::registry::{SchemaRegistryClient, _serve_channel, client};
+
 mod connectors;
 use crate::connectors::storage::{RocksConfig, Storage};
 use std::sync::Arc;
-use std::thread;
+
 use std::time::Instant;
-use tokio::runtime::Runtime;
+
 
 fn main() {
     let storage_config = RocksConfig::default();

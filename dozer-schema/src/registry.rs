@@ -125,7 +125,7 @@ mod tests {
         };
         // insert schema
 
-        let str = client.ping(context::current()).await.unwrap();
+        let _str = client.ping(context::current()).await.unwrap();
         client
             .insert(context::current(), schema.clone())
             .await
