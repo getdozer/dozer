@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
+use tokio::runtime::Runtime;
 
-
-use dozer_orchestrator::models::api_endpoint::ApiEndpoint;
-use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
-use dozer_orchestrator::test_connection;
 use dozer_orchestrator::{
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
@@ -12,8 +9,10 @@ use dozer_orchestrator::{
     },
     Orchestrator,
 };
-use dozer_schema::registry::{_get_client};
-use tokio::runtime::Runtime;
+use dozer_orchestrator::models::api_endpoint::ApiEndpoint;
+use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
+use dozer_orchestrator::test_connection;
+use dozer_schema::registry::_get_client;
 
 fn main() -> anyhow::Result<()> {
     // thread::spawn(|| {
@@ -36,14 +35,14 @@ fn main() -> anyhow::Result<()> {
             port: 5432,
             database: "pagila".to_string(),
         },
-        name: "postgres connection".to_string(),
+        name: "pagila".to_string(),
         id: None,
     };
     test_connection(connection.to_owned()).unwrap();
     let source = Source {
         id: None,
-        name: "payment_source".to_string(),
-        table_name: "payment".to_string(),
+        name: "actor_source".to_string(),
+        table_name: "actor".to_string(),
         connection,
         history_type: None,
         refresh_config: RefreshConfig::RealTime,

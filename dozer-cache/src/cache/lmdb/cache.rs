@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-
+use anyhow::bail;
 use lmdb::{Cursor, Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
 
 use dozer_schema::registry::context::Context;
@@ -33,7 +33,7 @@ async fn _get_schema_from_registry(
 
 impl LmdbCache {
     pub fn new(temp_storage: bool) -> Self {
-        let (env, db) = utils::init_db(temp_storage);
+        let (env, db) = utils::init_db(temp_storage).unwrap();
         Self { env, db }
     }
 
@@ -42,7 +42,9 @@ impl LmdbCache {
         let values = rec.values.clone();
         let key = get_primary_key(p_key, values.to_owned());
 
+        let size = std::mem::size_of_val(&rec);
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
+
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;
 
@@ -77,7 +79,10 @@ impl LmdbCache {
 impl Cache for LmdbCache {
     fn insert(&self, rec: Record, schema: Schema) -> anyhow::Result<()> {
         let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-        let schema_identifier = schema.identifier.clone().unwrap();
+        let schema_identifier = match schema.identifier.clone() {
+            Some(id) => id,
+            None => bail!("cache::Insert - Schema Id is not present"),
+        };
         match self.get_schema(schema_identifier) {
             Ok(_schema) => {}
             Err(_) => {

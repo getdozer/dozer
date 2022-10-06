@@ -60,13 +60,13 @@ impl Connector for PostgresConnector {
         Ok(result_vec)
     }
 
-    fn initialize(
-        &mut self,
-        storage_client: Arc<RocksStorage>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> anyhow::Result<()> {
         let client = helper::connect(self.conn_str.clone())?;
-        self.create_publication(client).unwrap();
+        self.create_publication(client)?;
         self.storage_client = Some(storage_client);
+
+        // TODO: handle this appropriately
+        self.drop_replication_slot_if_exists()?;
         Ok(())
     }
 
@@ -102,7 +102,7 @@ impl PostgresConnector {
         format!("dozer_slot_{}", self.name)
     }
 
-    fn create_publication(&self, mut client: Client) -> Result<(), postgres::Error> {
+    fn create_publication(&self, mut client: Client) -> anyhow::Result<()> {
         let publication_name = self.get_publication_name();
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
@@ -120,14 +120,15 @@ impl PostgresConnector {
         Ok(())
     }
 
-    pub fn drop_replication_slot_if_exists(&self) {
+    pub fn drop_replication_slot_if_exists(&self) -> anyhow::Result<()> {
         let slot = self.get_slot_name();
-        let mut client = helper::connect(self.conn_str.clone()).unwrap();
+        let mut client = helper::connect(self.conn_str.clone())?;
         let res =
             client.simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
         match res {
             Ok(_) => println!("dropped replication slot {}", slot),
             Err(_) => println!("failed to drop replication slot..."),
         }
+        Ok(())
     }
 }
