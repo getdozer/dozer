@@ -61,7 +61,7 @@ impl Sink for CacheSink {
         // println!("SINK: Message {} received", _op.seq_no);
         self.counter = self.counter + 1;
         const BACKSPACE: char = 8u8 as char;
-        if self.counter % 10 == 0 {
+        if self.counter % 1000 == 0 {
             print!(
                 "{}\rCount: {}, Elapsed time: {:.2?}",
                 BACKSPACE,

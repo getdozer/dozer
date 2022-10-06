@@ -1,8 +1,7 @@
-use std::sync::Arc;
-
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{rt::net, web, App, HttpResponse, HttpServer, Responder};
 use dozer_cache::cache::{get_primary_key, lmdb::cache::LmdbCache, Cache};
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::Field};
+use std::{net::Ipv4Addr, sync::Arc};
 
 async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
     let id_str = path.into_inner().0;
@@ -18,24 +17,44 @@ async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
 }
 
 #[derive(Clone)]
-pub struct ApiServer {}
+pub struct ApiServer {
+    shutdown_timeout: u64,
+    port: u16,
+}
 
 // #[async_trait]
 impl ApiServer {
-    pub async fn run(endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
+    pub fn default() -> Self {
+        Self {
+            shutdown_timeout: 0,
+            port: 8080,
+        }
+    }
+    pub fn new(shutdown_timeout: u64, port: u16) -> Self {
+        Self {
+            shutdown_timeout,
+            port,
+        }
+    }
+
+    pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
         let endpoints = endpoints.clone();
-        HttpServer::new(move || {
-            let app = App::new();
-            let app = app.app_data(web::Data::new(cache.clone()));
-            endpoints.iter().fold(app, |app, endpoint| {
-                let list_route = &endpoint.path.clone();
-                let get_route = format!("{}/{}", list_route, "{id}".to_string());
-                app.route(list_route, web::get().to(list))
-                    .route(&get_route, web::get().to(get))
+        let system = actix::System::new();
+        system.block_on(async move {
+            HttpServer::new(move || {
+                let app = App::new();
+                let app = app.app_data(web::Data::new(cache.clone()));
+                endpoints.iter().fold(app, |app, endpoint| {
+                    let list_route = &endpoint.path.clone();
+                    let get_route = format!("{}/{}", list_route, "{id}".to_string());
+                    app.route(list_route, web::get().to(list))
+                        .route(&get_route, web::get().to(get))
+                })
             })
+            .bind(("0.0.0.0", self.port.to_owned()))?
+            .shutdown_timeout(self.shutdown_timeout.to_owned())
+            .run()
+            .await
         })
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
     }
 }

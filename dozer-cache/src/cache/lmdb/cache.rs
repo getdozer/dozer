@@ -41,8 +41,6 @@ impl LmdbCache {
         let p_key = schema.primary_index.clone();
         let values = rec.values.clone();
         let key = get_primary_key(p_key, values.to_owned());
-
-        let size = std::mem::size_of_val(&rec);
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;

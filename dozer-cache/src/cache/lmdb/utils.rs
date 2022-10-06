@@ -1,6 +1,7 @@
-use lmdb::{Database, DatabaseFlags, Environment};
 use std::fs;
 use std::path::Path;
+
+use lmdb::{Database, DatabaseFlags, Environment};
 use tempdir::TempDir;
 
 pub fn init_db(temp: bool) -> anyhow::Result<(Environment, Database)> {
@@ -22,7 +23,6 @@ pub fn init_db(temp: bool) -> anyhow::Result<(Environment, Database)> {
     flags.set(DatabaseFlags::DUP_SORT, true);
 
     let db = env.create_db(None, flags)?;
-    // (&env, &db)
 
     let size = 1024 * 1024 * 1024 * 5;
     env.set_map_size(size)?;

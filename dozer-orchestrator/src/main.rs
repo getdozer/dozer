@@ -27,7 +27,7 @@ fn film_test() -> anyhow::Result<()> {
             password: "postgres".to_string(),
             host: "localhost".to_string(),
             port: 5432,
-            database: "pagila".to_string(),
+            database: "large_film".to_string(),
         },
         name: "film".to_string(),
         id: None,
@@ -51,7 +51,7 @@ fn film_test() -> anyhow::Result<()> {
         path: "/films".to_string(),
         enable_rest: false,
         enable_grpc: true,
-        sql: "select film_id from film where 1=1;".to_string(),
+        sql: "select description from film where 1=1;".to_string(),
     });
     dozer.run()?;
     Ok(())
