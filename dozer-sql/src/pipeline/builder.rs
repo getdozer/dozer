@@ -50,10 +50,10 @@ impl PipelineBuilder {
 
 
         // Select clause
-        let projection = ProjectionBuilder::new(&self.schema).get_processor(select.projection)?;
+        let projection = ProjectionBuilder::new(&self.schema).get_processor(&select.projection)?;
 
         // Where clause
-        let selection = SelectionBuilder::new(&self.schema).get_processor(select.selection)?;
+        let selection = SelectionBuilder::new(&self.schema).get_processor(&select.selection)?;
 
         let mut dag = Dag::new();
 

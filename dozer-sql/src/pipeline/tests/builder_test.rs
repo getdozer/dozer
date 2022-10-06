@@ -138,7 +138,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, COUNT(Spending+2000), ROUND(SUM(ROUND(-Spending))) \
+    let sql = "SELECT 1+1.0, Country, COUNT(Spending+2000), ROUND(SUM(ROUND(-Spending))) \
                             FROM Customers \
                             WHERE Spending+500 >= 1000 \
                             GROUP BY Country \

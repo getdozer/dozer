@@ -21,7 +21,7 @@ impl SelectionBuilder {
         }
     }
 
-    pub fn get_processor(&self, selection: Option<SqlExpr>) -> Result<SelectionProcessorFactory> {
+    pub fn get_processor(&self, selection: &Option<SqlExpr>) -> Result<SelectionProcessorFactory> {
         match selection {
             Some(expression) => {
                 let expression = self.parse_sql_expression(&expression)?;
