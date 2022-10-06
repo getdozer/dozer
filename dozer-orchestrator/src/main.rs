@@ -1,5 +1,4 @@
-use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
-use dozer_orchestrator::test_connection;
+use dozer_orchestrator::simple::Simple as Dozer;
 use dozer_orchestrator::{
     models::{
         connection::{Authentication::PostgresAuthentication, Connection, DBType},
@@ -7,7 +6,7 @@ use dozer_orchestrator::{
     },
     Orchestrator,
 };
-fn main() -> anyhow::Result<()> {
+fn main() {
     let connection: Connection = Connection {
         db_type: DBType::Postgres,
         authentication: PostgresAuthentication {
@@ -20,23 +19,23 @@ fn main() -> anyhow::Result<()> {
         name: "postgres connection".to_string(),
         id: None,
     };
-    test_connection(connection.to_owned()).unwrap();
+    Dozer::test_connection(connection.to_owned()).unwrap();
     let source = Source {
         id: None,
         name: "actor_source".to_string(),
-        table_name: "ACTOR_SOURCE".to_string(),
+        dest_table_name: "ACTOR_SOURCE".to_string(),
+        source_table_name: "actor".to_string(),
         connection,
-        history_type: Some(HistoryType::Master(MasterHistoryConfig::AppendOnly {
+        history_type: HistoryType::Master(MasterHistoryConfig::AppendOnly {
             unique_key_field: "actor_id".to_string(),
             open_date_field: "last_updated".to_string(),
             closed_date_field: "last_updated".to_string(),
-        })),
+        }),
         refresh_config: RefreshConfig::RealTime,
     };
     let mut dozer = Dozer::new();
     let mut sources = Vec::new();
     sources.push(source);
     dozer.add_sources(sources);
-    dozer.run()?;
-    Ok(())
+    dozer.run();
 }

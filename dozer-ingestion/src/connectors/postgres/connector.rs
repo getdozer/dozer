@@ -4,7 +4,7 @@ use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
 use dozer_schema::registry::SchemaRegistryClient;
-use dozer_types::types::{OperationEvent, Schema};
+use dozer_types::types::{OperationEvent, TableInfo};
 use postgres::Client;
 use std::sync::Arc;
 
@@ -42,26 +42,6 @@ impl PostgresConnector {
 }
 
 impl Connector for PostgresConnector {
-    fn get_schema(&self, name: String) -> Result<Schema, anyhow::Error> {
-        let result_vec = self.get_all_schema()?;
-        let result = result_vec
-            .iter()
-            .find(|&el| el.0 == name)
-            .map(|v| v.to_owned().1);
-        match result {
-            Some(schema) => Ok(schema),
-            None => panic!("No schema with input name"),
-        }
-    }
-
-    fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>> {
-        let mut helper = SchemaHelper {
-            conn_str: self.conn_str_plain.clone(),
-        };
-        let result_vec = helper.get_schema()?;
-        Ok(result_vec)
-    }
-
     fn initialize(
         &mut self,
         storage_client: Arc<RocksStorage>,
@@ -72,6 +52,18 @@ impl Connector for PostgresConnector {
         self.storage_client = Some(storage_client);
         self.schema_client = Some(schema_client);
         Ok(())
+    }
+
+    fn test_connection(&self) -> anyhow::Result<()> {
+        helper::connect(self.conn_str.clone()).map_err(|e| Box::new(e))?;
+        Ok(())
+    }
+
+    fn get_schema(&self) -> anyhow::Result<Vec<TableInfo>> {
+        let mut helper = SchemaHelper {
+            conn_str: self.conn_str_plain.clone(),
+        };
+        helper.get_schema()
     }
 
     fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
@@ -92,11 +84,6 @@ impl Connector for PostgresConnector {
     }
 
     fn stop(&self) {}
-
-    fn test_connection(&self) -> anyhow::Result<()> {
-        helper::connect(self.conn_str.clone()).map_err(|e| Box::new(e))?;
-        Ok(())
-    }
 }
 
 impl PostgresConnector {

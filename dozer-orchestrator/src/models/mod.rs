@@ -1,3 +1,3 @@
-pub mod api_endpoint;
 pub mod connection;
+pub mod endpoint;
 pub mod source;

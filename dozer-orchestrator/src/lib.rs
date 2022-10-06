@@ -1,24 +1,15 @@
 pub mod models;
-pub mod pipeline;
 mod services;
 pub mod simple;
-use dozer_types::types::Schema;
-use services::connection::ConnectionService;
 
-use crate::models::{api_endpoint::ApiEndpoint, connection::Connection, source::Source};
+use dozer_types::types::TableInfo;
+
+use crate::models::{connection::Connection, endpoint::Endpoint, source::Source};
 
 pub trait Orchestrator {
+    fn test_connection(input: Connection) -> anyhow::Result<()>;
+    fn get_schema(input: Connection) -> anyhow::Result<Vec<TableInfo>>;
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;
-    fn add_endpoints(&mut self, endpoints: Vec<ApiEndpoint>) -> &mut Self;
+    fn add_endpoints(&mut self, endpoints: Vec<Endpoint>) -> &mut Self;
     fn run(&mut self) -> anyhow::Result<&mut Self>;
-}
-
-pub fn test_connection(input: Connection) -> anyhow::Result<()> {
-    let connection_service = ConnectionService::new(input);
-    return connection_service.test_connection();
-}
-
-pub fn get_schema(input: Connection) -> Result<Vec<(String, Schema)>, anyhow::Error> {
-    let connection_service = ConnectionService::new(input);
-    return connection_service.get_all_schema();
 }

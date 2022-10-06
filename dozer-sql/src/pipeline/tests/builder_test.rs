@@ -1,16 +1,19 @@
 use std::collections::HashMap;
+use std::iter::Map;
+use std::ops::Deref;
 
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
-use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
+use anyhow::{anyhow, Context};
+use dozer_core::dag::dag::{Endpoint, NodeHandle, NodeType, PortHandle};
 use dozer_core::dag::forwarder::{
-    ChannelManager, SourceChannelForwarder,
+    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
 };
 use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
 use dozer_core::dag::node::{
-    NextStep, Sink, SinkFactory, Source, SourceFactory,
+    NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::dag::node::NextStep::Continue;
 use dozer_core::state::lmdb::LmdbStateStoreManager;
@@ -20,15 +23,17 @@ use dozer_types::types::{
 };
 
 use crate::pipeline::builder::PipelineBuilder;
+use crate::pipeline::processor::projection::ProjectionProcessorFactory;
 
 /// Test Source
 pub struct TestSourceFactory {
+    id: i32,
     output_ports: Vec<PortHandle>,
 }
 
 impl TestSourceFactory {
-    pub fn new(output_ports: Vec<PortHandle>) -> Self {
-        Self { output_ports }
+    pub fn new(id: i32, output_ports: Vec<PortHandle>) -> Self {
+        Self { id, output_ports }
     }
 }
 
@@ -36,7 +41,7 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn get_output_schema(&self, _port: PortHandle) -> anyhow::Result<Schema> {
+    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
@@ -56,19 +61,21 @@ impl SourceFactory for TestSourceFactory {
             .clone())
     }
     fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource {})
+        Box::new(TestSource { id: self.id })
     }
 }
 
-pub struct TestSource {}
+pub struct TestSource {
+    id: i32,
+}
 
 impl Source for TestSource {
     fn start(
         &self,
         fw: &dyn SourceChannelForwarder,
         cm: &dyn ChannelManager,
-        _state: &mut dyn StateStore,
-        _from_seq: Option<u64>,
+        state: &mut dyn StateStore,
+        from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
         for n in 0..10_000_000 {
             fw.send(
@@ -95,12 +102,13 @@ impl Source for TestSource {
 }
 
 pub struct TestSinkFactory {
+    id: i32,
     input_ports: Vec<PortHandle>,
 }
 
 impl TestSinkFactory {
-    pub fn new(input_ports: Vec<PortHandle>) -> Self {
-        Self { input_ports }
+    pub fn new(id: i32, input_ports: Vec<PortHandle>) -> Self {
+        Self { id, input_ports }
     }
 }
 
@@ -109,19 +117,21 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
     fn build(&self) -> Box<dyn Sink> {
-        Box::new(TestSink {})
+        Box::new(TestSink { id: self.id })
     }
 }
 
-pub struct TestSink {}
+pub struct TestSink {
+    id: i32,
+}
 
 impl Sink for TestSink {
     fn init(
         &self,
-        _state_store: &mut dyn StateStore,
-        _input_schemas: HashMap<PortHandle, Schema>,
+        state_store: &mut dyn StateStore,
+        input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<()> {
-        println!("SINK: Initialising TestSink");
+        println!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
 
@@ -131,16 +141,16 @@ impl Sink for TestSink {
         _op: OperationEvent,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
-        //    println!("SINK: Message {} received", _op.seq_no);
+        //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
     }
 }
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, COUNT(Spending+2000), ROUND(SUM(ROUND(-Spending))) \
+    let sql = "SELECT Country, COUNT(Spending), ROUND(SUM(ROUND(Spending))) \
                             FROM Customers \
-                            WHERE Spending+500 >= 1000 \
+                            WHERE Spending >= 1000 \
                             GROUP BY Country \
                             HAVING COUNT(CustomerID) > 1;";
 
@@ -176,26 +186,22 @@ fn test_pipeline_builder() {
     };
 
     let builder = PipelineBuilder::new(schema);
-    let (mut dag, mut in_handle, out_handle) =
+    let (mut dag, in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 
-    let source = TestSourceFactory::new(vec![DefaultPortHandle]);
-    let sink = TestSinkFactory::new(vec![DefaultPortHandle]);
+    let source = TestSourceFactory::new(1, vec![DefaultPortHandle]);
+    let sink = TestSinkFactory::new(1, vec![DefaultPortHandle]);
 
     dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
     dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
-
-    let input_point = in_handle.remove("default").unwrap();
-
-    let _source_to_projection = dag.connect(
+    let source_to_projection = dag.connect(
         Endpoint::new(1.to_string(), DefaultPortHandle),
-        Endpoint::new(input_point.node, input_point.port),
+        Endpoint::new(2.to_string(), DefaultPortHandle),
     );
 
-    let _selection_to_sink = dag.connect(
-        Endpoint::new(out_handle.node, out_handle.port),
-
+    let selection_to_sink = dag.connect(
+        Endpoint::new(3.to_string(), DefaultPortHandle),
         Endpoint::new(4.to_string(), DefaultPortHandle),
     );
 
@@ -205,7 +211,7 @@ fn test_pipeline_builder() {
 
     use std::time::Instant;
     let now = Instant::now();
-    let _ = exec.start(dag, sm);
+    exec.start(dag, sm);
     let elapsed = now.elapsed();
     println!("Elapsed: {:.2?}", elapsed);
 }
