@@ -1,7 +1,3 @@
-
-
-
-
 use dozer_types::types::{FieldDefinition, Schema};
 
 use super::helper::{self, convert_str_to_dozer_field_type};
@@ -45,12 +41,8 @@ impl SchemaHelper {
             if current_table_name == "" {
                 current_table_name = table_name.clone();
             }
-            fields.push(FieldDefinition::new(
-                column_name,
-                convert_str_to_dozer_field_type(&udt_name),
-                is_nullable,
-            ));
-            col_idx += 1;
+
+
             if is_primary_key {
                 primary_index.push(col_idx);
             }
@@ -73,6 +65,12 @@ impl SchemaHelper {
                 fields = vec![];
             }
             current_table_name = table_name;
+            col_idx += 1;
+            fields.push(FieldDefinition::new(
+                column_name,
+                convert_str_to_dozer_field_type(&udt_name),
+                is_nullable,
+            ));
         }
         Ok(schemas)
     }

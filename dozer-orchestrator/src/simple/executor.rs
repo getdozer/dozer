@@ -82,11 +82,6 @@ impl Executor {
 
         dag.connect(out_handle, Endpoint::new(4.to_string(), DefaultPortHandle))?;
 
-        // dag.connect(
-        //     Endpoint::new("1".to_string(), 1),
-        //     Endpoint::new(4.to_string(), DefaultPortHandle),
-        // )?;
-
         let exec = MultiThreadedDagExecutor::new(100000);
         let path = TempDir::new("state-store").unwrap();
 
