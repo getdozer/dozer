@@ -42,8 +42,8 @@ fn main() -> anyhow::Result<()> {
     test_connection(connection.to_owned()).unwrap();
     let source = Source {
         id: None,
-        name: "actor_source".to_string(),
-        table_name: "actor".to_string(),
+        name: "payment_source".to_string(),
+        table_name: "payment".to_string(),
         connection,
         history_type: None,
         refresh_config: RefreshConfig::RealTime,

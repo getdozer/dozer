@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use dozer_core::aggregation::groupby::{FieldRule, AggregationProcessor, AggregationProcessorFactory};
 use tempdir::TempDir;
 
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
@@ -11,7 +12,7 @@ use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
 use dozer_types::types::Schema;
-
+use dozer_core::aggregation::sum::IntegerSumAggregator;
 use crate::get_schema;
 use crate::models::connection::Connection;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
@@ -67,6 +68,17 @@ impl Executor {
         dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
         dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
+        let rules = vec![
+            FieldRule::Dimension(1, true, Some("customer_id".to_string())),
+            FieldRule::Measure(
+                0,
+                Box::new(IntegerSumAggregator::new()),
+                true,
+                Some("Sum".to_string()),
+            ),
+        ];
+        let agg = AggregationProcessorFactory::new(rules);
+        dag.add_node(NodeType::Processor(Box::new(agg)), 3.to_string());
         // for (_table_name, endpoint) in in_handle.into_iter() {
         //     // TODO: Use real table_name
         //     let table_name = &"actor".to_string();
@@ -78,6 +90,11 @@ impl Executor {
 
         dag.connect(
             Endpoint::new("1".to_string(), 1),
+            Endpoint::new(3.to_string(), DefaultPortHandle),
+        )?;
+
+        dag.connect(
+            Endpoint::new(3.to_string(), DefaultPortHandle),
             Endpoint::new(4.to_string(), DefaultPortHandle),
         )?;
 

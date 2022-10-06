@@ -9,6 +9,8 @@ use std::time::Instant;
 use tokio::runtime::Runtime;
 
 fn main() {
+    let storage_config = RocksConfig::default();
+    let storage_client = Arc::new(Storage::new(storage_config));
     let postgres_config = PostgresConfig {
         name: "test_c".to_string(),
         // tables: Some(vec!["actor".to_string()]),
