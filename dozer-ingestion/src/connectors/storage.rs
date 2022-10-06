@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use dozer_types::types::*;
 use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
+
 pub trait Storage<T> {
     fn new(storage_config: T) -> Self;
 }
@@ -61,6 +62,18 @@ impl RocksStorage {
         op
     }
 
+    pub fn map_ingestion_seq_message(&self, seq_no: &usize, connection_id: &u64, lsn: &u64) -> (Vec<u8>, Vec<u8>) {
+        let key = format!("{}_{}", connection_id, lsn).as_bytes().to_owned();
+        let encoded = bincode::serialize(seq_no).unwrap();
+        (key, encoded)
+    }
+
+    pub fn map_ingestion_checkpoint_message(&self, seq_no: &usize, connection_id: &u64) -> (Vec<u8>, Vec<u8>) {
+        let key = format!("checkpoint_{}", connection_id).as_bytes().to_owned();
+        let encoded = bincode::serialize(seq_no).unwrap();
+        (key, encoded)
+    }
+
     pub fn get_db(&self) -> Arc<DBWithThreadMode<SingleThreaded>> {
         Arc::clone(&self.db)
     }
@@ -83,7 +96,7 @@ mod tests {
         );
         let op = OperationEvent {
             operation: Operation::Insert { new: record },
-            seq_no: 1,
+            seq_no: 1
         };
 
         let storage_config = RocksConfig {

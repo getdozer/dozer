@@ -13,6 +13,7 @@ use tokio::runtime::Runtime;
 
 use postgres::Client;
 use postgres::SimpleQueryMessage::Row as SimpleRow;
+use crate::connectors::seq_no_resolver::SeqNoResolver;
 
 use super::replicator::CDCHandler;
 
@@ -34,6 +35,7 @@ pub struct PostgresIterator {
     receiver: RefCell<Option<crossbeam::channel::Receiver<OperationEvent>>>,
     details: Arc<Details>,
     storage_client: Arc<RocksStorage>,
+    seq_storage_client: Arc<RocksStorage>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,6 +53,7 @@ impl PostgresIterator {
         conn_str: String,
         conn_str_plain: String,
         storage_client: Arc<RocksStorage>,
+        seq_storage_client: Arc<RocksStorage>
     ) -> Self {
         let details = Arc::new(Details {
             publication_name,
@@ -63,12 +66,13 @@ impl PostgresIterator {
             receiver: RefCell::new(None),
             details,
             storage_client,
+            seq_storage_client
         }
     }
 }
 
 impl PostgresIterator {
-    pub fn start(&self) -> Result<JoinHandle<()>, Error> {
+    pub fn start(&self, seq_no_resolver: Arc<Mutex<SeqNoResolver>>) -> Result<JoinHandle<()>, Error> {
         let state = RefCell::new(ReplicationState::Pending);
         let lsn = RefCell::new(None);
         let details = self.details.clone();
@@ -81,7 +85,13 @@ impl PostgresIterator {
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         // ingestor.initialize(forwarder);
         let storage_client = self.storage_client.clone();
-        let ingestor = Arc::new(Mutex::new(Ingestor::new(storage_client, forwarder)));
+        let seq_storage_client = self.seq_storage_client.clone();
+        let ingestor = Arc::new(Mutex::new(Ingestor::new(
+            storage_client,
+            seq_storage_client,
+            forwarder,
+            seq_no_resolver
+        )));
 
         Ok(thread::spawn(move || {
             let mut stream_inner = PostgresIteratorHandler {

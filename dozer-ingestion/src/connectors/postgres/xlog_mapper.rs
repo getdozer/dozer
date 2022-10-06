@@ -93,7 +93,7 @@ impl XlogMapper {
                 println!("commit:");
                 println!("[Commit] End lsn: {}", commit.end_lsn());
 
-                return Option::from(IngestionMessage::Commit());
+                return Option::from(IngestionMessage::Commit(dozer_types::types::Commit { seq_no: 0, lsn: commit.end_lsn() }));
             }
             Begin(begin) => {
                 println!("begin:");

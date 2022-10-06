@@ -1,6 +1,6 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::ingestor::Ingestor;
-
+use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::SimpleQueryMessage::Row;
@@ -99,7 +99,7 @@ impl PostgresSnapshotter {
             self.ingestor
                 .lock()
                 .unwrap()
-                .handle_message(IngestionMessage::Commit());
+                .handle_message(IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }));
         }
 
         let (table_names, _): (Vec<String>, Vec<_>) = tables.clone().into_iter().unzip();

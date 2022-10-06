@@ -24,3 +24,4 @@ bincode= "1.3.3"
 rust_decimal =  {version = "1.26", features = ["tokio-pg","db-tokio-postgres", "db-postgres", "tokio-postgres"]}
 rocksdb = "*"
 crossbeam = "*"
+atomic-counter = "1.0.1"
