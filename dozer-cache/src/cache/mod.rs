@@ -7,17 +7,17 @@ pub mod expression;
 
 #[async_trait]
 pub trait Cache {
-    async fn insert(&self, rec: Record) -> anyhow::Result<()>;
-    async fn delete(&self, key: Vec<u8>) -> anyhow::Result<()>;
-    async fn get(&self, key: Vec<u8>) -> anyhow::Result<Record>;
-    async fn query(
+    fn insert(&self, rec: Record, schema: Schema) -> anyhow::Result<()>;
+    fn delete(&self, key: Vec<u8>) -> anyhow::Result<()>;
+    fn update(&self, key: Vec<u8>, rec: Record, schema: Schema) -> anyhow::Result<()>;
+    fn get(&self, key: Vec<u8>) -> anyhow::Result<Record>;
+    fn query(
         &self,
         schema_identifier: SchemaIdentifier,
         exp: Expression,
     ) -> anyhow::Result<Vec<Record>>;
-    async fn handle_batch(&self, operations: Vec<Operation>) -> anyhow::Result<()>;
-    async fn get_schema(&self, schema_identifier: SchemaIdentifier) -> anyhow::Result<Schema>;
-    async fn insert_schema(&self, schema: Schema) -> anyhow::Result<()>;
+    fn get_schema(&self, schema_identifier: SchemaIdentifier) -> anyhow::Result<Schema>;
+    fn insert_schema(&self, schema: Schema) -> anyhow::Result<()>;
 }
 
 pub fn get_primary_key(primary_index: Vec<usize>, values: Vec<Field>) -> Vec<u8> {

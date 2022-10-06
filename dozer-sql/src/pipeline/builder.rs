@@ -61,7 +61,6 @@ impl PipelineBuilder {
         dag.add_node(NodeType::Processor(Box::new(selection)), 3.to_string());
 
         let _ = dag.connect(
-
             Endpoint::new(2.to_string(), DefaultPortHandle),
             Endpoint::new(3.to_string(), DefaultPortHandle),
         );

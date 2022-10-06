@@ -34,7 +34,6 @@ pub struct PostgresIterator {
     receiver: RefCell<Option<crossbeam::channel::Receiver<OperationEvent>>>,
     details: Arc<Details>,
     storage_client: Arc<RocksStorage>,
-    schema_client: Arc<SchemaRegistryClient>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -52,7 +51,6 @@ impl PostgresIterator {
         conn_str: String,
         conn_str_plain: String,
         storage_client: Arc<RocksStorage>,
-        schema_client: Arc<SchemaRegistryClient>,
     ) -> Self {
         let details = Arc::new(Details {
             publication_name,
@@ -65,7 +63,6 @@ impl PostgresIterator {
             receiver: RefCell::new(None),
             details,
             storage_client,
-            schema_client,
         }
     }
 }
@@ -84,12 +81,7 @@ impl PostgresIterator {
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         // ingestor.initialize(forwarder);
         let storage_client = self.storage_client.clone();
-        let schema_client = self.schema_client.clone();
-        let ingestor = Arc::new(Mutex::new(Ingestor::new(
-            storage_client,
-            schema_client,
-            forwarder,
-        )));
+        let ingestor = Arc::new(Mutex::new(Ingestor::new(storage_client, forwarder)));
 
         Ok(thread::spawn(move || {
             let mut stream_inner = PostgresIteratorHandler {
