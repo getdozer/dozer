@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread;
+
 
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
-use dozer_core::dag::mt_executor::DefaultPortHandle;
+
 use dozer_core::dag::node::{Source, SourceFactory};
 use dozer_core::state::StateStore;
 use dozer_ingestion::connectors::connector::Connector;
 use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
-use dozer_schema::registry::SchemaRegistryClient;
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema, SchemaIdentifier};
+
+use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 
 use crate::get_schema;
 use crate::models::connection::{Connection, DBType};
@@ -99,9 +99,9 @@ impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &dyn SourceChannelForwarder,
-        cm: &dyn ChannelManager,
-        state: &mut dyn StateStore,
-        from_seq: Option<u64>,
+        _cm: &dyn ChannelManager,
+        _state: &mut dyn StateStore,
+        _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
         let connection = &self.connections[0];
         let mut connector = _get_connector(connection.to_owned());

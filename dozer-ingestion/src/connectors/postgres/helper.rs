@@ -215,7 +215,7 @@ pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
 }
 
 pub fn map_row_to_operation_event(
-    table_name: String,
+    _table_name: String,
     row: &Row,
     columns: &[Column],
     idx: u32,

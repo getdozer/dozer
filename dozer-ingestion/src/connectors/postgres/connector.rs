@@ -3,7 +3,7 @@ use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
-use dozer_schema::registry::SchemaRegistryClient;
+
 use dozer_types::types::{OperationEvent, Schema};
 use postgres::Client;
 use std::sync::Arc;

@@ -1,6 +1,6 @@
 pub mod lmdb;
 use async_trait::async_trait;
-use dozer_types::types::{Field, Operation, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{Field, Record, Schema, SchemaIdentifier};
 
 use self::expression::Expression;
 pub mod expression;
