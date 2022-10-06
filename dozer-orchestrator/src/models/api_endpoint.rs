@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ApiEndpoint {
-    id: Option<String>,
-    name: String,
-    path: String,
-    enable_rest: bool,
-    enable_grpc: bool,
-    sql: String,
+    pub id: Option<String>,
+    pub name: String,
+    pub path: String,
+    pub enable_rest: bool,
+    pub enable_grpc: bool,
+    pub sql: String,
 }

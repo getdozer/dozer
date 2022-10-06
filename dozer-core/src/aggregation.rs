@@ -1,8 +1,8 @@
 use dozer_types::types::{Field, FieldType, Record};
 use dyn_clone::DynClone;
 
-mod groupby;
-mod sum;
+pub mod groupby;
+pub mod sum;
 mod tests;
 
 

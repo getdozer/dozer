@@ -1,9 +1,15 @@
+use std::collections::HashMap;
+
+use postgres::Row;
+
+use dozer_types::types::{FieldDefinition, Schema};
+
 use super::helper::{self, convert_str_to_dozer_field_type};
-use dozer_types::types::{ FieldDefinition, Schema};
 
 pub struct SchemaHelper {
     pub conn_str: String,
 }
+
 impl SchemaHelper {
     pub fn get_schema(&mut self) -> anyhow::Result<Vec<(String, Schema)>> {
         let mut client = helper::connect(self.conn_str.clone())?;
@@ -24,8 +30,11 @@ impl SchemaHelper {
 
         let results = client.query(query, &[])?;
 
-        let mut current_table: String = String::from("");
+        let mut col_idx = 0;
 
+        let mut current_table_name = "".to_string();
+        let mut fields: Vec<FieldDefinition> = vec![];
+        let mut primary_index: Vec<usize> = vec![];
         for row in results {
             let table_name: String = row.get(0);
             let column_name: String = row.get(1);
@@ -33,17 +42,37 @@ impl SchemaHelper {
             let udt_name: String = row.get(3);
             let is_primary_key: bool = row.get(4);
 
-            if current_table != table_name {
-                let new_schema = Schema::empty();
-                schemas.push((table_name.clone(), new_schema))
+            if current_table_name == "" {
+                current_table_name = table_name.clone();
             }
-            let mut current_schema = schemas.pop().unwrap();
-            current_schema.1.field(
-                FieldDefinition::new(column_name, convert_str_to_dozer_field_type(&udt_name), is_nullable),
-                false,
-                is_primary_key,
-            );
-            schemas.push(current_schema);
+            fields.push(FieldDefinition::new(
+                column_name,
+                convert_str_to_dozer_field_type(&udt_name),
+                is_nullable,
+            ));
+            col_idx += 1;
+            if is_primary_key {
+                primary_index.push(col_idx);
+            }
+
+            if current_table_name == table_name {
+                col_idx += 1;
+            } else {
+                schemas.push((
+                    current_table_name.clone(),
+                    Schema {
+                        identifier: None,
+                        fields: fields.clone(),
+                        values: vec![],
+                        primary_index,
+                        secondary_indexes: vec![],
+                    },
+                ));
+                col_idx = 0;
+                primary_index = vec![];
+                fields = vec![];
+            }
+            current_table_name = table_name;
         }
         Ok(schemas)
     }
