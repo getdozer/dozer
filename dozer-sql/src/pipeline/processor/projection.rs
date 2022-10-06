@@ -55,7 +55,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
 
-        let input_schema = input_schemas.get(&DefaultPortHandle).context("Invalid port handle")?;
+        let input_schema = input_schemas.get(&DefaultPortHandle).unwrap();
         let mut output_schema = Schema::empty();
 
         let mut counter = 0;

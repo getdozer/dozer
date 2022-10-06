@@ -36,7 +36,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
     }
 
     fn get_output_schema(&self, _output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
-        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
+        Ok(input_schemas.get(&0).unwrap().clone())
     }
 
     fn build(&self) -> Box<dyn Processor> {

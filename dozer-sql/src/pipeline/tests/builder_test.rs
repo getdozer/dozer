@@ -186,7 +186,7 @@ fn test_pipeline_builder() {
     dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
 
-    let input_point = in_handle.remove("default").unwrap();
+    let input_point = in_handle.remove("customers").unwrap();
 
     let _source_to_projection = dag.connect(
         Endpoint::new(1.to_string(), DefaultPortHandle),

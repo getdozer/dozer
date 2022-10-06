@@ -25,7 +25,7 @@ impl PipelineBuilder {
         }
     }
 
-    pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
+    pub fn statement_to_pipeline(&self, statement: Statement) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
         match statement {
             Statement::Query(query) => self.query_to_pipeline(*query),
             _ => Err(DozerSqlError::NotImplemented(
@@ -34,11 +34,11 @@ impl PipelineBuilder {
         }
     }
 
-    pub fn query_to_pipeline(&self, query: Query) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
+    pub fn query_to_pipeline(&self, query: Query) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
         self.set_expr_to_pipeline(*query.body)
     }
 
-    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
+    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
         match set_expr {
             SetExpr::Select(s) => self.select_to_pipeline(*s),
             SetExpr::Query(q) => self.query_to_pipeline(*q),
@@ -48,7 +48,7 @@ impl PipelineBuilder {
         }
     }
 
-    fn select_to_pipeline(&self, select: Select) -> Result<(Dag, HashMap<&str, Endpoint>, Endpoint)> {
+    fn select_to_pipeline(&self, select: Select) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
 
         // From clause
         let input_endpoints = self.get_input_endpoints(&String::from("selection"), &select.from)?;
@@ -72,7 +72,7 @@ impl PipelineBuilder {
 
         let input = HashMap::from([("default", Endpoint::new(String::from("selection"), DefaultPortHandle))]);
 
-        Ok((dag, input, Endpoint::new(String::from("projection"), DefaultPortHandle)))
+        Ok((dag, input_endpoints, Endpoint::new(String::from("projection"), DefaultPortHandle)))
     }
 
 
