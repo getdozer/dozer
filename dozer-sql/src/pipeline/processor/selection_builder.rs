@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use anyhow::bail;
 
-use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
+use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Expr, TableFactor, TableWithJoins, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
 
 use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::{Field, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
+use crate::common::utils::normalize_ident;
 use crate::pipeline::expression::expression::Expression;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::processor::selection::SelectionProcessorFactory;
@@ -21,11 +23,13 @@ impl SelectionBuilder {
         }
     }
 
-    pub fn get_processor(&self, selection: &Option<SqlExpr>) -> Result<SelectionProcessorFactory> {
+    pub fn get_processor(&self, selection: &Option<SqlExpr>, from: &Vec<TableWithJoins>) -> Result<SelectionProcessorFactory> {
         match selection {
             Some(expression) => {
                 let expression = self.parse_sql_expression(&expression)?;
-                Ok(SelectionProcessorFactory::new(1, vec![DefaultPortHandle], vec![DefaultPortHandle], expression))
+                let input_ports = self.get_input_ports(from)?;
+
+                Ok(SelectionProcessorFactory::new(1, input_ports, vec![DefaultPortHandle], expression))
             }
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported WHERE clause.".to_string(),
@@ -121,5 +125,31 @@ impl SelectionBuilder {
 
         Ok(Box::new(Expression::BinaryOperator { left, operator, right, }))
 
+    }
+
+    fn get_input_ports(&self, from: &Vec<TableWithJoins>) -> Result<Vec<u16>> {
+        let mut input_ports = vec![];
+        let counter:u16 = 0;
+        for table in from.into_iter() {
+            if let Ok(_) = self.get_input_name(table) {
+                input_ports.push(counter);
+            }
+        }
+        Ok(input_ports)
+    }
+
+    fn get_input_name(&self, table: &TableWithJoins) -> anyhow::Result<String> {
+        match &table.relation {
+            TableFactor::Table { name, alias, .. } => {
+                let input_name = name.0.iter()
+                    .map(normalize_ident)
+                    .collect::<Vec<String>>()
+                    .join(".");
+
+                Ok(input_name)
+
+            }
+            _ => bail!("Unsupported Table Name.")
+        }
     }
 }
