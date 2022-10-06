@@ -27,7 +27,7 @@ impl RocksConfig {
 
     pub fn _target() -> Self {
         Self {
-            path: "target/schema-registry".to_string(),
+            path: "target/ingestion-storage".to_string(),
         }
     }
 }
