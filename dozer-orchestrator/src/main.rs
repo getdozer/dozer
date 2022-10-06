@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
+
+
 
 use dozer_orchestrator::models::api_endpoint::ApiEndpoint;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
@@ -12,7 +12,7 @@ use dozer_orchestrator::{
     },
     Orchestrator,
 };
-use dozer_schema::registry::{_get_client, _serve};
+use dozer_schema::registry::{_get_client};
 use tokio::runtime::Runtime;
 
 fn main() -> anyhow::Result<()> {

@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::iter::Map;
 use std::ops::Deref;
+
 use anyhow::{anyhow, Context};
+
 use dozer_types::types::{FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema};
+
 use crate::dag::dag::{NodeHandle, PortHandle};
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DefaultPortHandle;
@@ -13,7 +16,7 @@ use crate::state::StateStore;
 /// Test Source
 pub struct TestSourceFactory {
     id: i32,
-    output_ports: Vec<PortHandle>
+    output_ports: Vec<PortHandle>,
 }
 
 impl TestSourceFactory {
@@ -29,20 +32,19 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema> {
         Ok(Schema::empty().field(
             FieldDefinition::new(format!("node_{}_port_{}", self.id, port).to_string(), FieldType::String, false),
-            false, false
+            false, false,
         ).clone())
     }
     fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource {id: self.id})
+        Box::new(TestSource { id: self.id })
     }
 }
 
 pub struct TestSource {
-    id: i32
+    id: i32,
 }
 
 impl Source for TestSource {
-
     fn start(&self, fw: &dyn SourceChannelForwarder, cm: &dyn ChannelManager, state: &mut dyn StateStore, from_seq: Option<u64>) -> anyhow::Result<()> {
         for n in 0..1_000_000 {
             //  println!("SRC {}: Message {} received", self.id, n);
@@ -61,7 +63,6 @@ impl Source for TestSource {
         Ok(())
     }
 }
-
 
 
 pub struct TestSinkFactory {
@@ -87,12 +88,11 @@ impl SinkFactory for TestSinkFactory {
 
 
 pub struct TestSink {
-    id: i32
+    id: i32,
 }
 
 impl Sink for TestSink {
-
-    fn init(&self, _: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn init(&mut self, _: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
         println!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -101,7 +101,7 @@ impl Sink for TestSink {
         &self,
         _from_port: PortHandle,
         _op: OperationEvent,
-        _state: &mut dyn StateStore
+        _state: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
         //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(Continue)
@@ -111,7 +111,7 @@ impl Sink for TestSink {
 pub struct TestProcessorFactory {
     id: i32,
     input_ports: Vec<PortHandle>,
-    output_ports: Vec<PortHandle>
+    output_ports: Vec<PortHandle>,
 }
 
 impl TestProcessorFactory {
@@ -121,7 +121,6 @@ impl TestProcessorFactory {
 }
 
 impl ProcessorFactory for TestProcessorFactory {
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -129,8 +128,7 @@ impl ProcessorFactory for TestProcessorFactory {
         self.output_ports.clone()
     }
     fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
-
-        let mut sorted : Vec<PortHandle> = input_schemas.iter().map(|e| *e.0).collect();
+        let mut sorted: Vec<PortHandle> = input_schemas.iter().map(|e| *e.0).collect();
         sorted.sort();
         let mut out_schema = Schema::empty();
         for i in sorted {
@@ -140,7 +138,7 @@ impl ProcessorFactory for TestProcessorFactory {
             }
         }
         out_schema.fields.push(FieldDefinition::new(
-            format!("node_{}_port_{}", self.id, output_port), FieldType::String, false
+            format!("node_{}_port_{}", self.id, output_port), FieldType::String, false,
         ));
         Ok(out_schema)
     }
@@ -153,12 +151,11 @@ impl ProcessorFactory for TestProcessorFactory {
 pub struct TestProcessor {
     state: Option<Box<dyn StateStore>>,
     id: i32,
-    ctr: u64
+    ctr: u64,
 }
 
 
 impl Processor for TestProcessor {
-
     fn init<'a>(&'a mut self, state_store: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
@@ -170,7 +167,7 @@ impl Processor for TestProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        state_store: &mut dyn StateStore
+        state_store: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
 
         //   println!("PROC {}: Message {} received", self.id, op.seq_no);
@@ -178,7 +175,6 @@ impl Processor for TestProcessor {
         state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes());
         fw.send(op, DefaultPortHandle)?;
         Ok(Continue)
-
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::ingestor::Ingestor;
-use dozer_types::types::Schema;
+
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::SimpleQueryMessage::Row;

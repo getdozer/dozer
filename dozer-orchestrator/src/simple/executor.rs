@@ -1,13 +1,13 @@
-use std::sync::Arc;
 
-use dozer_core::aggregation::groupby::{FieldRule, AggregationProcessor, AggregationProcessorFactory};
+
+use dozer_core::aggregation::groupby::{FieldRule, AggregationProcessorFactory};
 use tempdir::TempDir;
 
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
 use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
-use dozer_schema::registry::SchemaRegistryClient;
-use dozer_sql::pipeline::builder::PipelineBuilder;
+
+
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
@@ -50,7 +50,7 @@ impl Executor {
         println!("AST: {:?}", ast);
         println!("Schemas: {:?}", source_schemas);
         println!("Query: {:?}", &api_endpoint.sql);
-        let statement: &Statement = &ast[0];
+        let _statement: &Statement = &ast[0];
 
         // let builder = PipelineBuilder::new(source_schemas[0].clone());
         //
@@ -62,7 +62,7 @@ impl Executor {
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
         let sink = CacheSinkFactory::new(vec![DefaultPortHandle]);
 
-        let source_table_map = source.table_map.clone();
+        let _source_table_map = source.table_map.clone();
 
         let mut dag = Dag::new();
         dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());

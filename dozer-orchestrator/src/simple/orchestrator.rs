@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use dozer_schema::registry::{_serve_channel, client, SchemaRegistryClient};
-use tokio::runtime::Runtime;
+use dozer_schema::registry::{SchemaRegistryClient};
+
 
 use super::{
     super::models::{api_endpoint::ApiEndpoint, source::Source},

@@ -43,7 +43,7 @@ pub struct CacheSink {
 impl Sink for CacheSink {
     fn init(
         &mut self,
-        state_store: &mut dyn StateStore,
+        _state_store: &mut dyn StateStore,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<()> {
         self.input_schemas = input_schemas.to_owned();
