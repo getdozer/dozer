@@ -63,7 +63,7 @@ impl Processor for SelectionProcessor {
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
-        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
+        Ok(input_schemas.get(&0).unwrap().clone())
     }
 
     fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {

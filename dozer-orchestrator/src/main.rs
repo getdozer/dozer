@@ -13,7 +13,7 @@ use dozer_types::models::{
 use tokio::runtime::Runtime;
 
 fn main() -> anyhow::Result<()> {
-    actor_test()
+    film_test()
 }
 
 fn film_test() -> anyhow::Result<()> {
@@ -52,7 +52,8 @@ fn film_test() -> anyhow::Result<()> {
         path: "/films".to_string(),
         enable_rest: false,
         enable_grpc: true,
-        sql: "select film_id, description from film where 1=1;".to_string(),
+        sql: "select film_id, description, rental_rate, release_year from film where 1=1;"
+            .to_string(),
         index: ApiIndex {
             primary_key: vec!["film_id".to_string()],
         },
