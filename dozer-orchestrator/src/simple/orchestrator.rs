@@ -33,14 +33,18 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn run(&mut self) -> anyhow::Result<()> {
         let cache = Arc::new(LmdbCache::new(true));
+
         let api_endpoint = self.api_endpoint.as_ref().unwrap().clone();
 
         let cache_2 = cache.clone();
+
+        Executor::run(&self, cache)?;
+
         let thread = thread::spawn(move || {
             let api_server = ApiServer::default();
             api_server.run(vec![api_endpoint], cache_2).unwrap();
         });
-        Executor::run(&self, cache)?;
+
         thread.join().unwrap();
         Ok(())
     }

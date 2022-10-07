@@ -3,30 +3,6 @@
 version = 3
 
 [[package]]
-name = "actix"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f728064aca1c318585bf4bb04ffcfac9e75e508ab4e8b1bd9ba5dfe04e2cbed5"
-dependencies = [
- "actix-rt",
- "actix_derive",
- "bitflags",
- "bytes",
- "crossbeam-channel",
- "futures-core",
- "futures-sink",
- "futures-task",
- "futures-util",
- "log",
- "once_cell",
- "parking_lot",
- "pin-project-lite",
- "smallvec",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -200,17 +176,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fa9362663c8643d67b2d5eafba49e4cb2c8a053a29ed00a0bea121f17c76b13"
 dependencies = [
  "actix-router",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "actix_derive"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d44b8fee1ced9671ba043476deddef739dd0959bf77030b26b738cc591737a7"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn",
@@ -942,11 +907,12 @@ dependencies = [
 name = "dozer-api"
 version = "0.1.0"
 dependencies = [
- "actix",
  "actix-web",
  "anyhow",
  "dozer-cache",
  "dozer-types",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

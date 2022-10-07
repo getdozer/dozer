@@ -1,7 +1,13 @@
-use actix_web::{rt::net, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
 use dozer_cache::cache::{get_primary_key, lmdb::cache::LmdbCache, Cache};
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::Field};
-use std::{net::Ipv4Addr, sync::Arc};
+use serde::Deserialize;
+use std::sync::Arc;
+
+#[derive(Deserialize)]
+struct CacheQuery {
+    q: String,
+}
 
 async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
     let id_str = path.into_inner().0;
@@ -12,7 +18,7 @@ async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> im
     HttpResponse::Ok().body(format!("key: {}, val: {:?}", id_str, val))
 }
 
-async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
+async fn list(cache: web::Data<Arc<LmdbCache>>, query: web::Json<CacheQuery>) -> impl Responder {
     HttpResponse::Ok().body("Hey there!")
 }
 
@@ -39,8 +45,8 @@ impl ApiServer {
 
     pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
         let endpoints = endpoints.clone();
-        let system = actix::System::new();
-        system.block_on(async move {
+
+        rt::System::new().block_on(async move {
             HttpServer::new(move || {
                 let app = App::new();
                 let app = app.app_data(web::Data::new(cache.clone()));

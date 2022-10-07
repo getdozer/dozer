@@ -51,7 +51,7 @@ fn film_test() -> anyhow::Result<()> {
         path: "/films".to_string(),
         enable_rest: false,
         enable_grpc: true,
-        sql: "select description from film where 1=1;".to_string(),
+        sql: "select description, film_id from film where 1=1;".to_string(),
     });
     dozer.run()?;
     Ok(())
