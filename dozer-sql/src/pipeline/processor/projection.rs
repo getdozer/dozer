@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use rand::{Rng};
 
 use anyhow::bail;
 use anyhow::Context;
@@ -10,7 +11,7 @@ use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::dag::node::NextStep;
 use dozer_core::state::StateStore;
-use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
+use dozer_types::types::{FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
 
 use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
@@ -57,6 +58,9 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
         let input_schema = input_schemas.get(&DefaultPortHandle).unwrap();
         let mut output_schema = Schema::empty();
+
+        let mut rng = rand::thread_rng();
+        output_schema.identifier = Option::from(SchemaIdentifier { id: rng.gen(), version: 1 });
 
         let mut counter = 0;
         for e in self.expressions.iter().enumerate() {
