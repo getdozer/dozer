@@ -1,5 +1,5 @@
-use bytes::Bytes;
 use crate::connectors::postgres::xlog_mapper::TableColumn;
+use bytes::Bytes;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::types::*;
 use postgres::{Client, Column, NoTls, Row};
@@ -7,10 +7,10 @@ use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
-use std::{vec};
+use std::vec;
 
 pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
-   let postgres_type: Type  = match value {
+    let postgres_type: Type = match value {
         "text" => Type::TEXT,
         "int2" => Type::INT2,
         "int4" => Type::INT4,
@@ -22,9 +22,9 @@ pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
         "timestampz" => Type::TIMESTAMPTZ,
         "jsonb" => Type::JSONB,
         "bool" => Type::BOOL,
-        _ => Type::ANY
+        _ => Type::ANY,
     };
-    return  postgres_type_to_dozer_type(Some(&postgres_type));
+    return postgres_type_to_dozer_type(Some(&postgres_type));
 }
 
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
@@ -140,7 +140,7 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
                 Err(error) => handle_error(error),
             }
         }
-        &Type::FLOAT4  => {
+        &Type::FLOAT4 => {
             let value: Result<f32, _> = row.try_get(idx);
             match value {
                 Ok(val) => Field::Float(val.into()),
@@ -200,7 +200,7 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
             }
             Field::Null
         }
-}
+    }
 }
 
 pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
@@ -216,12 +216,13 @@ pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
 
 pub fn map_row_to_operation_event(
     _table_name: String,
+    identifer: SchemaIdentifier,
     row: &Row,
     columns: &[Column],
     idx: u32,
 ) -> OperationEvent {
     let rec = Record {
-        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
+        schema_id: Some(identifer.clone()),
         values: get_values(row, columns),
     };
 
@@ -263,7 +264,10 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
         .collect();
 
     Schema {
-        identifier: Some(SchemaIdentifier { id: *rel_id, version: 1 }),
+        identifier: Some(SchemaIdentifier {
+            id: *rel_id,
+            version: 1,
+        }),
         fields: field_defs,
         values: vec![],
         primary_index: vec![0],

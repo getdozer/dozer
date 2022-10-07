@@ -10,10 +10,7 @@ pub struct ConnectionService {
 }
 
 impl ConnectionService {
-    pub fn get_connector(
-        connection: Connection,
-        tables: Option<Vec<(String, u32)>>,
-    ) -> Box<dyn Connector> {
+    pub fn get_connector(connection: Connection) -> Box<dyn Connector> {
         match connection.authentication.clone() {
             Authentication::PostgresAuthentication {
                 user,
@@ -28,7 +25,7 @@ impl ConnectionService {
                 );
                 let config = PostgresConfig {
                     name: connection.name.clone(),
-                    tables: tables,
+                    tables: None,
                     conn_str: conn_str,
                 };
                 Box::new(PostgresConnector::new(config))
@@ -40,7 +37,7 @@ impl ConnectionService {
     }
 
     pub fn new(connection: Connection) -> Self {
-        let connector: Box<dyn Connector> = Self::get_connector(connection, None);
+        let connector: Box<dyn Connector> = Self::get_connector(connection);
         Self {
             connector: connector,
         }

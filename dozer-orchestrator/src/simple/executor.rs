@@ -41,11 +41,7 @@ impl Executor {
                 .find(|t| t.0.eq(&source.table_name))
                 .unwrap();
 
-            let mut schema = st.to_owned().1.clone();
-            schema.identifier = Some(SchemaIdentifier {
-                id: idx,
-                version: 1,
-            });
+            let schema = st.to_owned().1.clone();
             source_schemas.push(schema);
             connections.push(source.connection.to_owned());
             println!("{:?}", table_names);

@@ -13,7 +13,7 @@ use dozer_types::models::{
 use tokio::runtime::Runtime;
 
 fn main() -> anyhow::Result<()> {
-    film_test()
+    actor_test()
 }
 
 fn film_test() -> anyhow::Result<()> {

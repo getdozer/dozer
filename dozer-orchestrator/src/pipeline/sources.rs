@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
+use dozer_ingestion::connectors::connector::TableInfo;
 
 use crate::services::connection::ConnectionService;
 use dozer_core::dag::node::{Source, SourceFactory};
@@ -86,15 +87,26 @@ impl Source for ConnectorSource {
         _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
         let connection = &self.connections[0];
-        let tables: Vec<(String, u32)> = self
-            .table_names
+
+        let mut connector = ConnectionService::get_connector(connection.to_owned());
+
+        // Filter for the tables selected.
+        let tables = connector.get_tables()?;
+        let tables: Vec<TableInfo> = tables
             .iter()
-            .map(|t| (t.clone(), 1 as u32))
+            .filter(|t| {
+                let v = self
+                    .table_names
+                    .iter()
+                    .find(|n| *n.clone() == t.name.clone());
+                v.is_some()
+            })
+            .map(|t| t.clone())
             .collect();
-        let mut connector = ConnectionService::get_connector(connection.to_owned(), Some(tables));
+
         let storage_config = RocksConfig::default();
         let storage_client = Arc::new(Storage::new(storage_config));
-        connector.initialize(storage_client).unwrap();
+        connector.initialize(storage_client, Some(tables)).unwrap();
 
         let mut iterator = connector.iterator();
         loop {
@@ -104,7 +116,7 @@ impl Source for ConnectorSource {
                 Operation::Insert { new } => new.schema_id,
                 Operation::Update { old: _, new } => new.schema_id,
                 Operation::Terminate => bail!("Source shouldn't receive Terminate"),
-                Operation::SchemaUpdate { new } => bail!("Source shouldn't get SchemaUpdate"),
+                Operation::SchemaUpdate { new: _ } => bail!("Source shouldn't get SchemaUpdate"),
             }
             .unwrap();
             fw.send(msg, schema_id.id as u16).unwrap();

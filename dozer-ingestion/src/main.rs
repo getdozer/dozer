@@ -19,7 +19,7 @@ fn main() {
     };
     let mut connector = PostgresConnector::new(postgres_config);
 
-    connector.initialize(storage_client).unwrap();
+    connector.initialize(storage_client, None).unwrap();
 
     connector.drop_replication_slot_if_exists().unwrap();
 

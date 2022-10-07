@@ -1,4 +1,4 @@
-use crate::connectors::connector;
+use crate::connectors::connector::{self, TableInfo};
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
@@ -13,7 +13,7 @@ use super::helper;
 #[derive(Clone, Debug)]
 pub struct PostgresConfig {
     pub name: String,
-    pub tables: Option<Vec<(String, u32)>>,
+    pub tables: Option<Vec<TableInfo>>,
     pub conn_str: String,
 }
 
@@ -21,7 +21,7 @@ pub struct PostgresConnector {
     name: String,
     conn_str: String,
     conn_str_plain: String,
-    tables: Option<Vec<(String, u32)>>,
+    tables: Option<Vec<TableInfo>>,
     storage_client: Option<Arc<RocksStorage>>,
 }
 impl PostgresConnector {
@@ -40,6 +40,13 @@ impl PostgresConnector {
 }
 
 impl Connector for PostgresConnector {
+    fn get_tables(&self) -> anyhow::Result<Vec<TableInfo>> {
+        let mut helper = SchemaHelper {
+            conn_str: self.conn_str_plain.clone(),
+        };
+        let result_vec = helper.get_tables()?;
+        Ok(result_vec)
+    }
     fn get_schema(&self, name: String) -> Result<Schema, anyhow::Error> {
         let result_vec = self.get_all_schema()?;
         let result = result_vec
@@ -60,11 +67,16 @@ impl Connector for PostgresConnector {
         Ok(result_vec)
     }
 
-    fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> anyhow::Result<()> {
+    fn initialize(
+        &mut self,
+        storage_client: Arc<RocksStorage>,
+        tables: Option<Vec<TableInfo>>,
+    ) -> anyhow::Result<()> {
         let client = helper::connect(self.conn_str.clone())?;
         self.create_publication(client)?;
         self.storage_client = Some(storage_client);
-
+        // Initialize the tables to be replicated
+        self.tables = tables;
         // TODO: handle this appropriately
         self.drop_replication_slot_if_exists()?;
         Ok(())
@@ -107,7 +119,7 @@ impl PostgresConnector {
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
             Some(arr) => {
-                let (table_names, _): (Vec<String>, Vec<_>) = arr.clone().into_iter().unzip();
+                let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
                 format!("TABLE {}", table_names.join(" ")).to_string()
             }
         };
