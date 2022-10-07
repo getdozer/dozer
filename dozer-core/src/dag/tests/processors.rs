@@ -29,12 +29,6 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema> {
-        Ok(Schema::empty().field(
-            FieldDefinition::new(format!("node_{}_port_{}", self.id, port).to_string(), FieldType::String, false),
-            false, false,
-        ).clone())
-    }
     fn build(&self) -> Box<dyn Source> {
         Box::new(TestSource { id: self.id })
     }
@@ -45,9 +39,17 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
+
+    fn get_output_schema(&self, port: PortHandle) -> Schema {
+        Schema::empty().field(
+            FieldDefinition::new(format!("node_{}_port_{}", self.id, port).to_string(), FieldType::String, false),
+            false, false,
+        ).clone()
+    }
+
     fn start(&self, fw: &dyn SourceChannelForwarder, cm: &dyn ChannelManager, state: &mut dyn StateStore, from_seq: Option<u64>) -> anyhow::Result<()> {
+
         for n in 0..1_000_000 {
-            //  println!("SRC {}: Message {} received", self.id, n);
             fw.send(
                 OperationEvent::new(
                     n,
@@ -92,7 +94,12 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+
+    fn update_schema(&self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn init(&mut self, _: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -127,7 +134,22 @@ impl ProcessorFactory for TestProcessorFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+    fn build(&self) -> Box<dyn Processor> {
+        Box::new(TestProcessor { state: None, id: self.id, ctr: 0 })
+    }
+}
+
+pub struct TestProcessor {
+    state: Option<Box<dyn StateStore>>,
+    id: i32,
+    ctr: u64,
+}
+
+
+impl Processor for TestProcessor {
+
+    fn update_schema(&self, output_port: PortHandle, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+
         let mut sorted: Vec<PortHandle> = input_schemas.iter().map(|e| *e.0).collect();
         sorted.sort();
         let mut out_schema = Schema::empty();
@@ -143,20 +165,7 @@ impl ProcessorFactory for TestProcessorFactory {
         Ok(out_schema)
     }
 
-    fn build(&self) -> Box<dyn Processor> {
-        Box::new(TestProcessor { state: None, id: self.id, ctr: 0 })
-    }
-}
-
-pub struct TestProcessor {
-    state: Option<Box<dyn StateStore>>,
-    id: i32,
-    ctr: u64,
-}
-
-
-impl Processor for TestProcessor {
-    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())

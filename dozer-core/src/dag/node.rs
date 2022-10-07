@@ -20,23 +20,23 @@ pub enum NextStep {
 pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
-    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema>;
     fn build(&self) -> Box<dyn Processor>;
 }
 
 pub trait Processor {
-    fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
+    fn update_schema(&self, output_port: PortHandle, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<Schema>;
+    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()>;
     fn process(&mut self, from_port: PortHandle, op: Operation, fw: &dyn ProcessorChannelForwarder, state: &mut dyn StateStore)
         -> anyhow::Result<NextStep>;
 }
 
 pub trait SourceFactory: Send + Sync {
     fn get_output_ports(&self) -> Vec<PortHandle>;
-    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema>;
     fn build(&self) -> Box<dyn Source>;
 }
 
 pub trait Source {
+    fn get_output_schema(&self, port: PortHandle) -> Schema;
     fn start(&self, fw: &dyn SourceChannelForwarder, cm: &dyn ChannelManager,
              state: &mut dyn StateStore, from_seq: Option<u64>
     ) -> anyhow::Result<()>;
@@ -48,7 +48,8 @@ pub trait SinkFactory: Send + Sync {
 }
 
 pub trait Sink {
-    fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
+    fn update_schema(&self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
+    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()>;
     fn process(
         &self,
         from_port: PortHandle,
