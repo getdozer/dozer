@@ -36,8 +36,18 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn get_output_schema(&self, _port: PortHandle) -> anyhow::Result<Schema> {
-        Ok(Schema::empty()
+    fn build(&self) -> Box<dyn Source> {
+        Box::new(TestSource {})
+    }
+}
+
+pub struct TestSource {}
+
+impl Source for TestSource {
+
+    fn get_output_schema(&self, port: PortHandle) -> Schema {
+
+        Schema::empty()
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
                 false,
@@ -53,16 +63,10 @@ impl SourceFactory for TestSourceFactory {
                 false,
                 false,
             )
-            .clone())
+            .clone()
     }
-    fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource {})
-    }
-}
 
-pub struct TestSource {}
 
-impl Source for TestSource {
     fn start(
         &self,
         fw: &dyn SourceChannelForwarder,
@@ -116,14 +120,20 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
+
+    fn update_schema(&self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+       Ok(())
+    }
+
     fn init(
         &mut self,
-        _state_store: &mut dyn StateStore,
-        _input_schemas: HashMap<PortHandle, Schema>,
+        _state_store: &mut dyn StateStore
     ) -> anyhow::Result<()> {
         println!("SINK: Initialising TestSink");
         Ok(())
     }
+
+
 
     fn process(
         &self,

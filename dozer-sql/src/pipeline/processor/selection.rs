@@ -35,10 +35,6 @@ impl ProcessorFactory for SelectionProcessorFactory {
         self.output_ports.clone()
     }
 
-    fn get_output_schema(&self, _output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
-        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
-    }
-
     fn build(&self) -> Box<dyn Processor> {
         Box::new(SelectionProcessor { id: self.id, expression: self.expression.clone() })
     }
@@ -50,7 +46,12 @@ pub struct SelectionProcessor {
 }
 
 impl Processor for SelectionProcessor {
-    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore, _input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+
+    fn update_schema(&self, output_port: PortHandle, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
+    }
+
+    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
@@ -75,6 +76,7 @@ impl Processor for SelectionProcessor {
             }
             Operation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
             Operation::Terminate => bail!("TERMINATE Operation not supported."),
+            _ => {Ok(NextStep::Continue)}
         }
     }
 }

@@ -44,14 +44,6 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         self.output_ports.clone()
     }
 
-    fn get_output_schema(
-        &self,
-        _output_port: PortHandle,
-        input_schemas: HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<Schema> {
-        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
-    }
-
     fn build(&self) -> Box<dyn Processor> {
         Box::new(ProjectionProcessor {
             id: self.id,
@@ -68,15 +60,21 @@ pub struct ProjectionProcessor {
 }
 
 impl Processor for ProjectionProcessor {
+
+    fn update_schema(&self, output_port: PortHandle, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
+    }
+
     fn init<'a>(
         &'a mut self,
-        _: &mut dyn StateStore,
-        _input_schemas: HashMap<PortHandle, Schema>,
+        _: &mut dyn StateStore
     ) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
     }
+
+
 
     fn process(
         &mut self,
@@ -106,7 +104,7 @@ impl Processor for ProjectionProcessor {
                 Ok(NextStep::Continue)
             }
             Operation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
-            Operation::Terminate => bail!("TERMINATE Operation not supported.")
+            _ => { Ok(NextStep::Continue) }
         }
     }
 }
