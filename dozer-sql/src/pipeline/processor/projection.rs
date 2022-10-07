@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
 use anyhow::bail;
+use anyhow::Context;
+use sqlparser::ast::SelectItem;
 
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
@@ -8,7 +10,7 @@ use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::dag::node::NextStep;
 use dozer_core::state::StateStore;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 
 use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
 
@@ -17,6 +19,7 @@ pub struct ProjectionProcessorFactory {
     input_ports: Vec<PortHandle>,
     output_ports: Vec<PortHandle>,
     expressions: Vec<Box<Expression>>,
+    names: Vec<String>,
 }
 
 impl ProjectionProcessorFactory {
@@ -25,12 +28,14 @@ impl ProjectionProcessorFactory {
         input_ports: Vec<PortHandle>,
         output_ports: Vec<PortHandle>,
         expressions: Vec<Box<Expression>>,
+        names: Vec<String>
     ) -> Self {
         Self {
             id,
             input_ports,
             output_ports,
             expressions,
+            names,
         }
     }
 }
@@ -49,7 +54,24 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         _output_port: PortHandle,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
-        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
+
+        let input_schema = input_schemas.get(&DefaultPortHandle).unwrap();
+        let mut output_schema = Schema::empty();
+
+        let mut counter = 0;
+        for e in self.expressions.iter().enumerate() {
+            let field_name = self.names.get(counter).unwrap().clone();
+            let field_type = e.1.get_type(input_schema);
+            let field_nullable = true;
+            output_schema.fields.push(FieldDefinition::new(
+                field_name,
+                field_type,
+                field_nullable
+            ));
+            counter = counter + 1;
+        }
+
+        Ok(output_schema)
     }
 
     fn build(&self) -> Box<dyn Processor> {
