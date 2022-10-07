@@ -1,19 +1,17 @@
+use super::super::models::connection::{Authentication, Connection};
 use dozer_ingestion::connectors::{
     connector::Connector,
     postgres::connector::{PostgresConfig, PostgresConnector},
 };
-use dozer_types::types::TableInfo;
-use std::error::Error;
-
-use crate::orchestration::models::connection::{Authentication, Connection};
+use dozer_types::types::Schema;
 
 pub struct ConnectionService {
     connector: Box<dyn Connector>,
 }
-impl ConnectionService {}
+
 impl ConnectionService {
-    pub fn get_schema(&self) -> Result<Vec<TableInfo>, Box<dyn Error>> {
-        return self.connector.get_schema();
+    pub fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>> {
+        return self.connector.get_all_schema()
     }
 
     pub fn new(input: Connection) -> Self {
@@ -42,7 +40,7 @@ impl ConnectionService {
         }
     }
 
-    pub fn test_connection(&self) -> Result<(), Box<dyn Error>> {
+    pub fn test_connection(&self) -> anyhow::Result<()> {
         return self.connector.test_connection();
     }
 }

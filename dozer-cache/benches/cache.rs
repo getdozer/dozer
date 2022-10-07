@@ -17,17 +17,17 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
 
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
 
-    cache.insert(record.clone()).await?;
+    cache.insert(record.clone(), schema)?;
     let key = get_primary_key(vec![0], vec![Field::String(val)]);
 
-    let _get_record = cache.get(key).await?;
+    let _get_record = cache.get(key)?;
     Ok(())
 }
 
 async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n).to_string();
     let key = get_primary_key(vec![0], vec![Field::String(val)]);
-    let _get_record = cache.get(key).await?;
+    let _get_record = cache.get(key)?;
     Ok(())
 }
 
@@ -38,7 +38,7 @@ async fn query(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resul
         Field::String(format!("bar_{}", n).to_string()),
     );
 
-    let _get_record = cache.query(schema.identifier.unwrap(), exp).await?;
+    let _get_record = cache.query(schema.identifier.unwrap(), exp)?;
     Ok(())
 }
 
@@ -51,7 +51,7 @@ fn cache(c: &mut Criterion) {
             SchemaRegistryClient::new(client::Config::default(), client_transport).spawn(),
         );
         let schema = init_schema(client.clone()).await;
-        let cache = Arc::new(LmdbCache::new(client.clone(), true));
+        let cache = Arc::new(LmdbCache::new(true));
         (cache, schema)
     });
 

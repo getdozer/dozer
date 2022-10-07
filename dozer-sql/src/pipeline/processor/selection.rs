@@ -1,69 +1,81 @@
-use crate::pipeline::expression::operator::Expression;
-use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::node::NextStep;
-use dozer_core::dag::node::{ChannelForwarder, ExecutionContext, Processor};
-use dozer_types::types::{Field, Operation, OperationEvent};
-use num_traits::FloatErrorKind::Invalid;
+use std::collections::HashMap;
 
-pub struct SelectionProcessor {
+use anyhow::bail;
+
+use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::forwarder::ProcessorChannelForwarder;
+use dozer_core::dag::mt_executor::DefaultPortHandle;
+use dozer_core::dag::node::{Processor, ProcessorFactory};
+use dozer_core::dag::node::NextStep;
+use dozer_core::state::StateStore;
+use dozer_types::types::{Field, Operation, Schema};
+
+use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
+
+pub struct SelectionProcessorFactory {
     id: i32,
-    input_ports: Option<Vec<PortHandle>>,
-    output_ports: Option<Vec<PortHandle>>,
-    operator: Box<dyn Expression>,
+    input_ports: Vec<PortHandle>,
+    output_ports: Vec<PortHandle>,
+    expression: Box<Expression>,
 }
 
-impl SelectionProcessor {
-    pub fn new(
-        id: i32,
-        input_ports: Option<Vec<PortHandle>>,
-        output_ports: Option<Vec<PortHandle>>,
-        operator: Box<dyn Expression>,
-    ) -> Self {
-        Self {
-            id,
-            input_ports,
-            output_ports,
-            operator,
-        }
+impl SelectionProcessorFactory {
+    pub fn new(id: i32, input_ports: Vec<PortHandle>, output_ports: Vec<PortHandle>, expression: Box<Expression>) -> Self {
+        Self { id, input_ports, output_ports, expression }
     }
 }
 
-impl Processor for SelectionProcessor {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>> {
+
+impl ProcessorFactory for SelectionProcessorFactory {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
 
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>> {
+    fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
 
-    fn init(&self) -> Result<(), String> {
-        println!("PROC {}: Initialising SelectionProcessor", self.id);
+    fn get_output_schema(&self, _output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+        Ok(input_schemas.get(&DefaultPortHandle).unwrap().clone())
+    }
+
+    fn build(&self) -> Box<dyn Processor> {
+        Box::new(SelectionProcessor { id: self.id, expression: self.expression.clone() })
+    }
+}
+
+pub struct SelectionProcessor {
+    id: i32,
+    expression: Box<Expression>,
+}
+
+impl Processor for SelectionProcessor {
+    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore, _input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+        println!("PROC {}: Initialising TestProcessor", self.id);
+        //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
     }
 
     fn process(
-        &self,
-        from_port: Option<PortHandle>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-        fw: &ChannelForwarder,
-    ) -> Result<NextStep, String> {
-        //println!("PROC {}: Message {} received", self.id, op.id);
-
-        match op.operation {
-            Operation::Delete { old } => {
-                Err("DELETE Operation not supported.".to_string())
+        &mut self,
+        _from_port: PortHandle,
+        op: Operation,
+        fw: &dyn ProcessorChannelForwarder,
+        _state_store: &mut dyn StateStore,
+    ) -> anyhow::Result<NextStep> {
+        match op {
+            Operation::Delete { old: _ } => {
+                bail!("DELETE Operation not supported.")
             }
-            Operation::Insert { ref new} => {
-                if self.operator.get_result(&new) == Field::Boolean(true) {
-                    fw.send(op, None);
+            Operation::Insert { ref new } => {
+                if self.expression.evaluate(&new) == Field::Boolean(true) {
+                    let _ = fw.send(op, DefaultPortHandle);
                 }
                 Ok(NextStep::Continue)
             }
-            Operation::Update { old, new} => Err("UPDATE Operation not supported.".to_string()),
-            Operation::Terminate => Err("TERMINATE Operation not supported.".to_string()),
-            _ => Err("TERMINATE Operation not supported.".to_string()),
+            Operation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
+            Operation::Terminate => bail!("TERMINATE Operation not supported."),
         }
     }
 }
+

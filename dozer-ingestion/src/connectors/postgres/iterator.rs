@@ -3,6 +3,7 @@ use crate::connectors::postgres::helper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use crate::connectors::storage::RocksStorage;
 use crossbeam::channel::unbounded;
+
 use dozer_types::types::OperationEvent;
 use postgres::Error;
 use std::cell::RefCell;
@@ -18,7 +19,7 @@ use super::replicator::CDCHandler;
 pub struct Details {
     publication_name: String,
     slot_name: String,
-    tables: Option<Vec<String>>,
+    tables: Option<Vec<(String, u32)>>,
     conn_str: String,
     conn_str_plain: String,
 }
@@ -46,7 +47,7 @@ impl PostgresIterator {
     pub fn new(
         publication_name: String,
         slot_name: String,
-        tables: Option<Vec<String>>,
+        tables: Option<Vec<(String, u32)>>,
         conn_str: String,
         conn_str_plain: String,
         storage_client: Arc<RocksStorage>,

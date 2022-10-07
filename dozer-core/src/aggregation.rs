@@ -1,14 +1,19 @@
-use dozer_types::types::{Field, Record};
-use crate::state::StateStoreError;
+use dozer_types::types::{Field, FieldType, Record};
+use dyn_clone::DynClone;
 
-mod groupby;
-mod operators;
+pub mod groupby;
+pub mod sum;
+mod tests;
 
 
-pub trait Aggregator {
+
+pub trait Aggregator : DynClone + Send + Sync {
+    fn get_return_type(&self) -> FieldType;
     fn get_type(&self) -> u8;
-    fn insert(&self, curr_state: Option<&[u8]>, new: &Record) -> Result<Vec<u8>, StateStoreError>;
-    fn update(&self, curr_state: Option<&[u8]>, old: &Record, new: &Record) -> Result<Vec<u8>, StateStoreError>;
-    fn delete(&self, curr_state: Option<&[u8]>, old: &Record) -> Result<Vec<u8>, StateStoreError>;
+    fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> anyhow::Result<Vec<u8>>;
+    fn update(&self, curr_state: Option<&[u8]>, old: &Field, new: &Field) -> anyhow::Result<Vec<u8>>;
+    fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> anyhow::Result<Vec<u8>>;
     fn get_value(&self, f: &[u8]) -> Field;
 }
+
+dyn_clone::clone_trait_object!(Aggregator);

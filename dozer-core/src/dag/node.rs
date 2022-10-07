@@ -1,207 +1,58 @@
-use crate::dag::channel::NodeSender;
 use crate::dag::dag::PortHandle;
-use crate::dag::executor::DEFAULT_PORT_ID;
-use dozer_types::types::{Operation, OperationEvent};
+use dozer_types::types::{Operation, OperationEvent, Schema};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use anyhow::anyhow;
+use crossbeam::channel::Sender;
+use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::state::{StateStore, StateStoresManager};
 
 pub trait ExecutionContext: Send + Sync {}
 
-/*****************************************************************************
-  Processor traits
-******************************************************************************/
 
 pub enum NextStep {
     Continue,
     Stop,
 }
 
-pub trait Processor: Send + Sync {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>>;
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
-    fn init(&self) -> Result<(), String>;
+pub trait ProcessorFactory: Send + Sync {
+    fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn get_output_ports(&self) -> Vec<PortHandle>;
+    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema>;
+    fn build(&self) -> Box<dyn Processor>;
+}
+
+pub trait Processor {
+    fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
+    fn process(&mut self, from_port: PortHandle, op: Operation, fw: &dyn ProcessorChannelForwarder, state: &mut dyn StateStore)
+        -> anyhow::Result<NextStep>;
+}
+
+pub trait SourceFactory: Send + Sync {
+    fn get_output_ports(&self) -> Vec<PortHandle>;
+    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema>;
+    fn build(&self) -> Box<dyn Source>;
+}
+
+pub trait Source {
+    fn start(&self, fw: &dyn SourceChannelForwarder, cm: &dyn ChannelManager,
+             state: &mut dyn StateStore, from_seq: Option<u64>
+    ) -> anyhow::Result<()>;
+}
+
+pub trait SinkFactory: Send + Sync {
+    fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn build(&self) -> Box<dyn Sink>;
+}
+
+pub trait Sink {
+    fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
     fn process(
         &self,
-        from_port: Option<PortHandle>,
+        from_port: PortHandle,
         op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-        fw: &ChannelForwarder,
-    ) -> Result<NextStep, String>;
-}
-
-pub trait Source: Send + Sync {
-    fn get_output_ports(&self) -> Option<Vec<PortHandle>>;
-    fn init(&self) -> Result<(), String>;
-    fn start(&self, fw: &ChannelForwarder) -> Result<(), String>;
-}
-
-pub trait Sink: Send + Sync {
-    fn get_input_ports(&self) -> Option<Vec<PortHandle>>;
-    fn init(&self) -> Result<(), String>;
-    fn process(
-        &self,
-        from_port: Option<PortHandle>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-    ) -> Result<NextStep, String>;
-}
-
-/*****************************************************************************
-  ProcessorExecutor
-******************************************************************************/
-
-pub struct ProcessorExecutor {
-    processor: Arc<dyn Processor>,
-    thread_safe: bool,
-    sync: Option<Mutex<()>>,
-}
-
-impl ProcessorExecutor {
-    pub fn new(processor: Arc<dyn Processor>, thread_safe: bool) -> Self {
-        Self {
-            processor: processor.clone(),
-            thread_safe,
-            sync: if thread_safe {
-                Some(Mutex::new(()))
-            } else {
-                None
-            },
-        }
-    }
-
-    pub fn process(
-        &self,
-        port: Option<u8>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-        fw: &ChannelForwarder,
-    ) -> Result<NextStep, String> {
-        if self.thread_safe {
-            self.sync.as_ref().unwrap().lock().unwrap();
-            return self.processor.process(port, op, ctx, fw);
-        } else {
-            return self.processor.process(port, op, ctx, fw);
-        }
-    }
-}
-
-/*****************************************************************************
-  SinkExecutor
-******************************************************************************/
-
-pub struct SinkExecutor {
-    processor: Arc<dyn Sink>,
-    thread_safe: bool,
-    sync: Option<Mutex<()>>,
-}
-
-impl SinkExecutor {
-    pub fn new(processor: Arc<dyn Sink>, thread_safe: bool) -> Self {
-        Self {
-            processor: processor.clone(),
-            thread_safe,
-            sync: if thread_safe {
-                Some(Mutex::new(()))
-            } else {
-                None
-            },
-        }
-    }
-
-    pub fn process(
-        &self,
-        port: Option<u8>,
-        op: OperationEvent,
-        ctx: &dyn ExecutionContext,
-    ) -> Result<NextStep, String> {
-        if self.thread_safe {
-            self.sync.as_ref().unwrap().lock().unwrap();
-            return self.processor.process(port, op, ctx);
-        } else {
-            return self.processor.process(port, op, ctx);
-        }
-    }
-}
-
-/*****************************************************************************
-  ChannelForwarder
-******************************************************************************/
-
-pub struct ChannelForwarder {
-    senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>,
-    thread_safe: bool,
-    sync: HashMap<PortHandle, Mutex<()>>,
-}
-
-impl ChannelForwarder {
-    pub fn new(senders: HashMap<PortHandle, Vec<Box<dyn NodeSender>>>, thread_safe: bool) -> Self {
-        let mut sync = HashMap::<PortHandle, Mutex<()>>::new();
-        for e in &senders {
-            sync.insert(*e.0, Mutex::<()>::new(()));
-        }
-        Self {
-            senders,
-            thread_safe,
-            sync,
-        }
-    }
-
-    pub fn send(&self, op: OperationEvent, port: Option<PortHandle>) -> Result<(), String> {
-        let port_id = if port.is_none() {
-            DEFAULT_PORT_ID
-        } else {
-            port.unwrap()
-        };
-
-        let senders = self.senders.get(&port_id);
-        if senders.is_none() {
-            return Err("Invalid output port".to_string());
-        }
-
-        if self.thread_safe {
-            self.sync.get(&port_id).unwrap().lock().unwrap();
-            for sender in senders.unwrap() {
-                sender.send(op.clone())?;
-            }
-        } else {
-            for sender in senders.unwrap() {
-                sender.send(op.clone())?;
-            }
-        }
-        return Ok(());
-    }
-
-    pub fn terminate(&self) -> Result<(), String> {
-        for senders in &self.senders {
-            if self.thread_safe {
-                self.sync.get(senders.0).unwrap().lock().unwrap();
-                for sender in senders.1 {
-                    sender.send(OperationEvent::new(0, Operation::Terminate))?;
-                }
-            } else {
-                for sender in senders.1 {
-                    sender.send(OperationEvent::new(0, Operation::Terminate))?;
-                }
-            }
-
-            loop {
-                let mut is_empty = true;
-                for senders in &self.senders {
-                    for sender in senders.1 {
-                        is_empty |= sender.is_empty();
-                    }
-                }
-
-                if !is_empty {
-                    sleep(Duration::from_millis(250));
-                } else {
-                    break;
-                }
-            }
-        }
-
-        return Ok(());
-    }
+        state: &mut dyn StateStore
+    ) -> anyhow::Result<NextStep>;
 }

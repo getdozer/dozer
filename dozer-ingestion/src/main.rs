@@ -1,14 +1,16 @@
 use connectors::connector::Connector;
 use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+
 mod connectors;
 use crate::connectors::storage::{RocksConfig, Storage};
 use std::sync::Arc;
+
 use std::time::Instant;
+
 
 fn main() {
     let storage_config = RocksConfig::default();
     let storage_client = Arc::new(Storage::new(storage_config));
-
     let postgres_config = PostgresConfig {
         name: "test_c".to_string(),
         // tables: Some(vec!["actor".to_string()]),

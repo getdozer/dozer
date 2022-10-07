@@ -1,95 +1,130 @@
 use std::path::Path;
 use std::sync::Arc;
-use lmdb::{Database, DatabaseFlags, Environment, RwTransaction, Transaction, WriteFlags};
-use lmdb::Error::NotFound;
-use crate::state::{StateStore, StateStoreError, StateStoresManager};
-use crate::state::StateStoreErrorType::{GetOperationError, OpenOrCreateError, StoreOperationError, TransactionError};
+use std::{fs, thread};
+use std::time::Duration;
+use crossbeam::channel::bounded;
+use crate::state::{StateStore, StateStoresManager};
+use crate::state::lmdb_sys::{Database, DatabaseOptions, Environment, EnvOptions, LmdbError, Transaction};
 
 pub struct LmdbStateStoreManager {
-    env: Arc<Environment>
+    path: String,
+    max_size: usize,
+    commit_threshold: u32
 }
 
 impl LmdbStateStoreManager {
-    pub fn new(path: &Path, max_size: usize) -> Result<Box<dyn StateStoresManager>, StateStoreError> {
+    pub fn new(path: String, max_size: usize, commit_threshold: u32) -> anyhow::Result<Arc<dyn StateStoresManager>> {
 
-        let res = Environment::new()
-            .set_map_size(max_size)
-            .set_max_dbs(256)
-            .set_max_readers(256)
-            .open(path);
-
-        if res.is_err() {
-            return Err(StateStoreError::new(OpenOrCreateError, res.err().unwrap().to_string()));
-        }
-        Ok(Box::new(LmdbStateStoreManager { env: Arc::new(res.unwrap()) }))
+        fs::create_dir(path.clone());
+        Ok(Arc::new(LmdbStateStoreManager {path: path.clone() , max_size, commit_threshold }))
     }
 }
 
 impl StateStoresManager for LmdbStateStoreManager {
 
-     fn init_state_store<'a> (&'a self, id: String) -> Result<Box<dyn StateStore + 'a>, StateStoreError> {
+     fn init_state_store (&self, id: String) -> anyhow::Result<Box<dyn StateStore>> {
 
-        let r_db = self.env.create_db(Some(id.as_str()), DatabaseFlags::empty());
-        if r_db.is_err() {
-            return Err(StateStoreError::new(OpenOrCreateError, r_db.err().unwrap().to_string()));
-        }
+         let full_path = Path::new(&self.path).join(&id);
+         fs::create_dir(&full_path)?;
 
-        let r_tx = self.env.begin_rw_txn();
-        if r_tx.is_err() {
-            return Err(StateStoreError::new(TransactionError, r_tx.err().unwrap().to_string()));
-        }
+         let mut env_opt = EnvOptions::default();
+         env_opt.no_sync = true;
+         env_opt.max_dbs = Some(10);
+         env_opt.map_size = Some(self.max_size);
+         env_opt.writable_mem_map = true;
 
-        return Ok(Box::new(LmdbStateStore::new(
-            id, r_db.unwrap(), r_tx.unwrap()
-        )));
+         let env = Arc::new(Environment::new(full_path.to_str().unwrap().to_string(), Some(env_opt))?);
+         let mut tx = Transaction::begin(env.clone())?;
+
+         let mut db_opt = DatabaseOptions::default();
+         let db = Database::open(env.clone(), &tx, id.to_string(), Some(db_opt) )?;
+
+         Ok(Box::new(LmdbStateStore {
+             env: env.clone(), tx, db, commit_counter: 0,
+             commit_threshold: self.commit_threshold
+         }))
     }
-
 }
 
 
-struct LmdbStateStore<'a> {
-    id: String,
+struct LmdbStateStore {
+    env: Arc<Environment>,
     db: Database,
-    tx: RwTransaction<'a>
+    tx: Transaction,
+    commit_counter: u32,
+    commit_threshold: u32
 }
 
-impl <'a> LmdbStateStore<'a> {
-    pub fn new(id: String, db: Database, tx: RwTransaction<'a>) -> Self {
-        Self { id, db, tx }
+impl LmdbStateStore {
+
+    fn renew_tx(&mut self) -> Result<(), LmdbError>{
+
+        self.commit_counter +=1;
+        if self.commit_counter >= self.commit_threshold {
+            self.tx.commit()?;
+            self.tx = Transaction::begin(self.env.clone())?;
+            self.commit_counter = 0;
+        }
+        Ok(())
     }
 }
 
 
-impl <'a> StateStore for LmdbStateStore<'a> {
+impl StateStore for LmdbStateStore {
 
-    fn checkpoint(&mut self) -> Result<(), StateStoreError> {
+    fn checkpoint(&mut self) -> anyhow::Result<()> {
         todo!()
     }
 
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
-        let r = self.tx.put(self.db, &key, &value, WriteFlags::empty());
-        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, r.unwrap_err().to_string())); }
+    fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {
+        self.renew_tx()?;
+        self.db.put(&self.tx, &key, &value, None)?;
         Ok(())
     }
 
-    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
-        let r = self.tx.del(self.db, &key, None);
-        if r.is_err() { return Err(StateStoreError::new(StoreOperationError, r.unwrap_err().to_string())); }
+    fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
+        self.renew_tx()?;
+        self.db.del(&self.tx, &key, None)?;
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
-        let r = self.tx.get(self.db, &key);
-        if r.is_ok() { return Ok(Some(r.unwrap())); }
-        else {
-            if r.unwrap_err() == NotFound {
-                Ok(None)
-            }
-            else {
-                Err(StateStoreError::new(GetOperationError, r.unwrap_err().to_string()))
-            }
-        }
+    fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
+        let r = self.db.get(&   self.tx, &key)?;
+        Ok(r)
     }
+
+}
+
+#[test]
+fn test_mt_lmdb_store() {
+
+    let sm = LmdbStateStoreManager::new(
+        "./data".to_string(),
+        1024*1024*1024*5,
+        20_000
+    ).unwrap();
+
+    let (mut tx1, mut rx1) = bounded::<i32>(1000);
+    let sm_t1 = sm.clone();
+    let h1 = thread::spawn(move || {
+        let ss1 = sm_t1.init_state_store("test1".to_string());
+        rx1.recv();
+    });
+
+    let (mut tx2, mut rx2) = bounded(1000);
+    let sm_t2 = sm.clone();
+    let h2 = thread::spawn(move || {
+        let ss2 = sm_t2.init_state_store("test2".to_string());
+        rx2.recv();
+    });
+
+    thread::sleep(Duration::from_secs(2));
+    tx1.send(1);
+    tx2.send(2);
+
+    h1.join();
+    h2.join();
+
 
 }
 

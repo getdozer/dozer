@@ -1,16 +1,17 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::ingestor::Ingestor;
-use dozer_types::types::Schema;
+
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::SimpleQueryMessage::Row;
 use postgres::{Client, NoTls};
 use std::cell::RefCell;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use super::helper; // 0.4.10
 pub struct PostgresSnapshotter {
-    pub tables: Option<Vec<String>>,
+    pub tables: Option<Vec<(String, u32)>>,
     pub conn_str: String,
     pub ingestor: Arc<Mutex<Ingestor>>,
 }
@@ -20,7 +21,7 @@ impl PostgresSnapshotter {
         let client = Client::connect(&self.conn_str, NoTls)?;
         Ok(client)
     }
-    pub fn get_tables(&self, client: Arc<RefCell<Client>>) -> Result<Vec<String>, Error> {
+    pub fn get_tables(&self, client: Arc<RefCell<Client>>) -> Result<Vec<(String, u32)>, Error> {
         match self.tables.as_ref() {
             None => {
                 let query = "SELECT ist.table_name, t.relid AS id
@@ -29,11 +30,18 @@ impl PostgresSnapshotter {
                 WHERE ist.table_schema = 'public'
                 ORDER BY ist.table_name;";
 
-                let mut rows: Vec<String> = vec![];
+                let mut rows: Vec<(String, u32)> = vec![];
                 let results = client.borrow_mut().simple_query(query)?;
                 for row in results {
                     if let Row(row) = row {
-                        rows.push(row.get(0).unwrap().to_string());
+                        if let Some(rel_id) = row.get(1) {
+                            rows.push(
+                                (
+                                    row.get(0).unwrap().to_string(),
+                                    FromStr::from_str(rel_id).unwrap()
+                                )
+                            );
+                        }
                     }
                 }
                 Ok(rows)
@@ -48,13 +56,13 @@ impl PostgresSnapshotter {
         let tables = self.get_tables(client_plain.clone())?;
 
         let mut idx: u32 = 0;
-        for table in tables.iter() {
+        for (table, rel_id) in tables.iter() {
             let query = format!("select * from {}", table);
             let stmt = client_plain.clone().borrow_mut().prepare(&query)?;
             let columns = stmt.columns();
 
             // Ingest schema for every table
-            let schema = helper::map_schema(table.to_string(), columns);
+            let schema = helper::map_schema(rel_id, columns);
             self.ingestor
                 .lock()
                 .unwrap()
@@ -93,6 +101,9 @@ impl PostgresSnapshotter {
                 .unwrap()
                 .handle_message(IngestionMessage::Commit());
         }
-        Ok(tables)
+
+        let (table_names, _): (Vec<String>, Vec<_>) = tables.clone().into_iter().unzip();
+
+        Ok(table_names)
     }
 }

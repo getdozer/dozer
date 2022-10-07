@@ -1,12 +1,11 @@
-use dozer_types::types::{OperationEvent, TableInfo};
-use std::{error::Error, sync::Arc};
-
 use super::storage::RocksStorage;
-
-pub trait Connector {
-    fn get_schema(&self) -> Result<Vec<TableInfo>, Box<dyn Error>>;
+use dozer_types::types::{OperationEvent, Schema};
+use std::{error::Error, sync::Arc};
+pub trait Connector: Send + Sync {
+    fn get_schema(&self, name: String) -> anyhow::Result<Schema>;
+    fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>>;
     fn initialize(&mut self, storage_client: Arc<RocksStorage>) -> Result<(), Box<dyn Error>>;
     fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static>;
     fn stop(&self);
-    fn test_connection(&self) -> Result<(), Box<dyn Error>>;
+    fn test_connection(&self) -> anyhow::Result<()>;
 }

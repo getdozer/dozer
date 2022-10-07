@@ -1,33 +1,26 @@
 use crate::server::dozer_admin_grpc::{
     self, authentication, ConnectionInfo, PostgresAuthentication,
 };
-use dozer_orchestrator::orchestration::models::{self, connection::Connection};
-use dozer_types::types::{ColumnInfo, TableInfo};
-use std::error::Error;
+use dozer_orchestrator::models::connection::{self, Connection, DBType};
+use dozer_types::types::Schema;
+use std::convert::From;
 
-impl TryFrom<ColumnInfo> for dozer_admin_grpc::ColumnInfo {
-    type Error = Box<dyn Error>;
-    fn try_from(item: ColumnInfo) -> Result<Self, Self::Error> {
-        return Ok(dozer_admin_grpc::ColumnInfo {
-            column_name: item.column_name,
-            is_nullable: item.is_nullable,
-            udt_name: item.udt_name,
-            is_primary_key: item.is_primary_key,
+impl From<(String, Schema)> for dozer_api_grpc::TableInfo {
+    fn from(item: (String, Schema)) -> Self {
+        let schema = item.1;
+        let mut columns: Vec<dozer_api_grpc::ColumnInfo> = Vec::new();
+        schema.fields.iter().enumerate().for_each(|(idx, f)| {
+            columns.push(dozer_api_grpc::ColumnInfo {
+                column_name: f.name.to_owned(),
+                is_nullable: f.nullable,
+                is_primary_key: schema.primary_index.contains(&idx),
+                udt_name: serde_json::to_string(&f.typ).unwrap(),
+            });
         });
-    }
-}
-impl TryFrom<TableInfo> for dozer_admin_grpc::TableInfo {
-    type Error = Box<dyn Error>;
-
-    fn try_from(item: TableInfo) -> Result<Self, Self::Error> {
-        Ok(dozer_admin_grpc::TableInfo {
-            table_name: item.table_name,
-            columns: item
-                .columns
-                .iter()
-                .map(|x| dozer_admin_grpc::ColumnInfo::try_from(x.clone()).unwrap())
-                .collect(),
-        })
+        dozer_api_grpc::TableInfo {
+            table_name: item.0,
+            columns: columns,
+        }
     }
 }
 

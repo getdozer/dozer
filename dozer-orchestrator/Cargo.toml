@@ -6,11 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0"
 dozer-ingestion = {version = "0.1.0", path = "../dozer-ingestion"}
 dozer-core = {version = "0.1.0", path = "../dozer-core"}
+dozer-schema = {version = "0.1.0", path = "../dozer-schema"}
+dozer-cache = {version = "0.1.0", path = "../dozer-cache"}
+dozer-sql = {version = "0.1.0", path = "../dozer-sql"}
 dozer-types = {version = "0.1.0", path = "../dozer-types"}
 dotenvy = "0.15.3"
 env_logger = "0.9.0"
 serde_json = "1.0.85"
 serde = "1.0.144"
 uuid = { version = "1.1.2", features = ["v4", "serde"] }
+tokio = { version = "1", features = ["full"] }
+tempdir = "0.3.7"

@@ -1,5 +1,4 @@
 use bytes::Bytes;
-
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::types::*;
@@ -8,7 +7,25 @@ use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
-use std::vec;
+use std::{vec};
+
+pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
+   let postgres_type: Type  = match value {
+        "text" => Type::TEXT,
+        "int2" => Type::INT2,
+        "int4" => Type::INT4,
+        "int8" => Type::INT8,
+        "float4" => Type::FLOAT4,
+        "float8" => Type::FLOAT8,
+        "numeric" => Type::NUMERIC,
+        "timestamp" => Type::TIMESTAMP,
+        "timestampz" => Type::TIMESTAMPTZ,
+        "jsonb" => Type::JSONB,
+        "bool" => Type::BOOL,
+        _ => Type::ANY
+    };
+    return  postgres_type_to_dozer_type(Some(&postgres_type));
+}
 
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     if let Some(column_type) = &column.r#type {
@@ -61,10 +78,10 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
 pub fn postgres_type_to_dozer_type(col_type: Option<&Type>) -> FieldType {
     if let Some(column_type) = col_type {
         match column_type {
-            &Type::INT4 | &Type::INT8 | &Type::INT2 => FieldType::Int,
-            &Type::TEXT => FieldType::String,
-            &Type::FLOAT4 | &Type::FLOAT8 => FieldType::Float,
             &Type::BOOL => FieldType::Boolean,
+            &Type::INT2 | &Type::INT4 | &Type::INT8 => FieldType::Int,
+            &Type::CHAR | &Type::TEXT => FieldType::String,
+            &Type::FLOAT4 | &Type::FLOAT8 => FieldType::Float,
             &Type::BIT => FieldType::Binary,
             &Type::TIMESTAMP | &Type::TIMESTAMPTZ => FieldType::Timestamp,
             _ => FieldType::Null,
@@ -85,72 +102,105 @@ fn handle_error(e: postgres::error::Error) -> Field {
         panic!("Conversion error: {:?}", e);
     }
 }
-pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) -> Field {
-    let t = col_type.to_owned();
-    match t.name() {
-        "bool" => {
-            let val: bool = row.get(idx);
-            Field::Boolean(val)
-        }
-        "char" => {
-            let val: i8 = row.get(idx);
-            // TODO: Fix Char
-            // Field::CharField(char::from_digit(val.try_into().unwrap(), 10).unwrap())
-            Field::Int(val.into())
-        }
-        "int2" => {
-            let val: i16 = row.get(idx);
-            Field::Int(val.into())
-        }
-        "int8" | "int4" => {
-            let value: Result<i32, postgres::Error> = row.try_get(idx);
 
+pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) -> Field {
+    match col_type {
+        &Type::BOOL => {
+            let value: Result<bool, _> = row.try_get(idx);
+            match value {
+                Ok(val) => Field::Boolean(val),
+                Err(error) => handle_error(error),
+            }
+        }
+        &Type::CHAR | &Type::TEXT | &Type::VARCHAR | &Type::BPCHAR => {
+            let value: Result<String, _> = row.try_get(idx);
+            match value {
+                Ok(val) => Field::String(val),
+                Err(error) => handle_error(error),
+            }
+        }
+        &Type::INT2 => {
+            let value: Result<i16, _> = row.try_get(idx);
             match value {
                 Ok(val) => Field::Int(val.into()),
                 Err(error) => handle_error(error),
             }
         }
-        "float4" | "float8" => {
-            let val: Result<f32, postgres::Error> = row.try_get(idx);
-            match val {
+        &Type::INT4 => {
+            let value: Result<i32, _> = row.try_get(idx);
+            match value {
+                Ok(val) => Field::Int(val.into()),
+                Err(error) => handle_error(error),
+            }
+        }
+        &Type::INT8 => {
+            let value: Result<i64, _> = row.try_get(idx);
+            match value {
+                Ok(val) => Field::Int(val),
+                Err(error) => handle_error(error),
+            }
+        }
+        &Type::FLOAT4  => {
+            let value: Result<f32, _> = row.try_get(idx);
+            match value {
                 Ok(val) => Field::Float(val.into()),
                 Err(error) => handle_error(error),
             }
         }
-        "numeric" => {
-            // let val: u32 = row.get(idx);
-            // Field::Float(val.into())
-            Field::Null
-            // TODO: handle numeric
-            // https://github.com/paupino/rust-decimal
-        }
 
-        "string" | "text" | "bpchar" => {
-            let value: Result<&str, postgres::Error> = row.try_get(idx);
-
+        &Type::FLOAT8 => {
+            let value: Result<f64, _> = row.try_get(idx);
             match value {
-                Ok(val) => Field::String(val.to_string()),
-                Err(_error) => Field::Null,
-            }
-        }
-
-        "timestamp" | "timestamptz" | "date" | "tsvector" => Field::Null,
-
-        // TODO: ignore custom types
-        "mpaa_rating" | "_text" => Field::Null,
-        "bytea" | "_bytea" => {
-            let val: Result<Vec<u8>, postgres::Error> = row.try_get(idx);
-            match val {
-                Ok(val) => Field::Binary(val),
+                Ok(val) => Field::Float(val),
                 Err(error) => handle_error(error),
             }
         }
-
-        v => {
-            println!("{}", v);
-            panic!("error");
+        &Type::NUMERIC => {
+            // let ra: Result<Decimal, _> = row.try_get(idx);
+            // rust_decimal::Decimal::from_sql(&Type::NUMERIC, raw);
+            // rust_decimal::Decimal::from_(&postgres_types::Type::NUMERIC, raw);
+            // let value: Result<Decimal, _> = FromSql::from_sql(&Type::from(Type::NUMERIC), raw);
+            // Field::Decimal(value.unwrap())
+            Field::Null
         }
-    }
+
+        &Type::TIMESTAMP => {
+            let value: Result<NaiveDateTime, _> = row.try_get(idx);
+            match value {
+                Ok(val) => Field::Timestamp(DateTime::<Utc>::from_utc(val, Utc)),
+                Err(error) => handle_error(error),
+            }
+        }
+        &Type::TIMESTAMPTZ => {
+            let value: Result<DateTime<FixedOffset>, _> = row.try_get(idx);
+
+            match value {
+                Ok(val) => Field::Timestamp(DateTime::<Utc>::from_utc(val.naive_utc(), Utc)),
+                Err(error) => handle_error(error),
+            }
+        }
+        &Type::TS_VECTOR => {
+            // Not supported type
+            Field::Null
+        }
+        // "date" | "tsvector" => Field::Null,
+
+        // TODO: ignore custom types
+        // "mpaa_rating" | "_text" => Field::Null,
+        // "bytea" | "_bytea" => {
+        //     let val: Result<Vec<u8>, postgres::Error> = row.try_get(idx);
+        //     match val {
+        //         Ok(val) => Field::Binary(val),
+        //         Err(error) => handle_error(error),
+        //     }
+        // }
+        _ => {
+            if col_type.schema() == "pg_catalog" {
+                // println!("UNSUPPORTED TYPE: {:?}", col_type);
+            }
+            Field::Null
+        }
+}
 }
 
 pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
@@ -165,7 +215,7 @@ pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
 }
 
 pub fn map_row_to_operation_event(
-    table_name: String,
+    _table_name: String,
     row: &Row,
     columns: &[Column],
     idx: u32,
@@ -202,7 +252,7 @@ pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, p
     Ok(client)
 }
 
-pub fn map_schema(_table_name: String, columns: &[Column]) -> Schema {
+pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
     let field_defs = columns
         .iter()
         .map(|col| FieldDefinition {
@@ -213,7 +263,7 @@ pub fn map_schema(_table_name: String, columns: &[Column]) -> Schema {
         .collect();
 
     Schema {
-        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+        identifier: Some(SchemaIdentifier { id: *rel_id, version: 1 }),
         fields: field_defs,
         values: vec![],
         primary_index: vec![0],
