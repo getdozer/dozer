@@ -1,6 +1,5 @@
 use std::thread;
-use dozer_orchestrator::{models::connection::Connection, get_schema, test_connection};
-
+use dozer_orchestrator::{models::{connection::Connection, self}, get_schema, test_connection};
 use crate::{
     db::{
         persistable::Persistable,

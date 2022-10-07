@@ -1,23 +1,23 @@
 use crate::server::dozer_admin_grpc::{
     self, authentication, ConnectionInfo, PostgresAuthentication,
 };
-use dozer_orchestrator::models::connection::{self, Connection, DBType};
+use dozer_orchestrator::models;
 use dozer_types::types::Schema;
-use std::convert::From;
+use std::{convert::From, error::Error};
 
-impl From<(String, Schema)> for dozer_api_grpc::TableInfo {
+impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
     fn from(item: (String, Schema)) -> Self {
         let schema = item.1;
-        let mut columns: Vec<dozer_api_grpc::ColumnInfo> = Vec::new();
+        let mut columns: Vec<dozer_admin_grpc::ColumnInfo> = Vec::new();
         schema.fields.iter().enumerate().for_each(|(idx, f)| {
-            columns.push(dozer_api_grpc::ColumnInfo {
+            columns.push(dozer_admin_grpc::ColumnInfo {
                 column_name: f.name.to_owned(),
                 is_nullable: f.nullable,
                 is_primary_key: schema.primary_index.contains(&idx),
                 udt_name: serde_json::to_string(&f.typ).unwrap(),
             });
         });
-        dozer_api_grpc::TableInfo {
+        dozer_admin_grpc::TableInfo {
             table_name: item.0,
             columns: columns,
         }
@@ -48,7 +48,7 @@ impl TryFrom<ConnectionInfo> for models::connection::Connection {
 }
 impl TryFrom<models::connection::Connection> for ConnectionInfo {
     type Error = Box<dyn Error>;
-    fn try_from(item: Connection) -> Result<Self, Self::Error> {
+    fn try_from(item: models::connection::Connection) -> Result<Self, Self::Error> {
         let authentication_value = dozer_admin_grpc::Authentication::try_from(item.to_owned())?;
         Ok(ConnectionInfo {
             id: item.id,
@@ -58,9 +58,9 @@ impl TryFrom<models::connection::Connection> for ConnectionInfo {
         })
     }
 }
-impl TryFrom<Connection> for dozer_admin_grpc::Authentication {
+impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authentication {
     type Error = Box<dyn Error>;
-    fn try_from(item: Connection) -> Result<Self, Self::Error> {
+    fn try_from(item: models::connection::Connection) -> Result<Self, Self::Error> {
         let auth = item.authentication;
         let authentication_value = match auth {
             models::connection::Authentication::PostgresAuthentication {
