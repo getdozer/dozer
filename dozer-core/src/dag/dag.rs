@@ -1,15 +1,15 @@
 use crate::dag::dag::PortDirection::{Input, Output};
-use crate::dag::node::NextStep::Continue;
-use crate::dag::node::{ExecutionContext, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
+use crate::dag::mt_executor::DefaultPortHandle;
+use crate::dag::node::{
+    ExecutionContext, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
+};
+use crate::state::{StateStore, StateStoresManager};
+use anyhow::{anyhow, Error};
 use dozer_types::types::{Operation, OperationEvent, Record, Schema};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::vec;
-use anyhow::{anyhow, Error};
 use uuid::Uuid;
-use crate::dag::mt_executor::DefaultPortHandle;
-use crate::state::{StateStore, StateStoresManager};
-
 
 pub type NodeHandle = String;
 pub type PortHandle = u16;
@@ -29,7 +29,7 @@ impl Endpoint {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edge {
     pub from: Endpoint,
-    pub to: Endpoint
+    pub to: Endpoint,
 }
 
 impl Edge {
@@ -48,7 +48,6 @@ pub struct Node {
     handle: NodeHandle,
     t: NodeType,
 }
-
 
 pub struct Dag {
     pub nodes: HashMap<NodeHandle, NodeType>,
@@ -99,12 +98,7 @@ impl Dag {
         }
     }
 
-    pub fn connect(
-        &mut self,
-        from: Endpoint,
-        to: Endpoint
-    ) -> anyhow::Result<()> {
-
+    pub fn connect(&mut self, from: Endpoint, to: Endpoint) -> anyhow::Result<()> {
         let src_node = self.nodes.get(&from.node);
         if src_node.is_none() {
             return Err(anyhow!(
@@ -136,17 +130,16 @@ impl Dag {
     }
 
     pub fn merge(&mut self, namespace: String, other: Dag) {
-
         for node in other.nodes {
-            self.nodes.insert(format!("{}/{}",namespace, node.0), node.1);
+            self.nodes
+                .insert(format!("{}/{}", namespace, node.0), node.1);
         }
 
         for edge in other.edges {
             self.edges.push(Edge::new(
-               Endpoint::new(format!("{}/{}",namespace, edge.from.node), edge.from.port),
-               Endpoint::new(format!("{}/{}",namespace, edge.to.node), edge.to.port)
+                Endpoint::new(format!("{}/{}", namespace, edge.from.node), edge.from.port),
+                Endpoint::new(format!("{}/{}", namespace, edge.to.node), edge.to.port),
             ));
         }
-
     }
 }

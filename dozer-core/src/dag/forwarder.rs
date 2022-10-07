@@ -1,4 +1,5 @@
 use crate::dag::dag::PortHandle;
+use crate::dag::node::NodeOperation;
 use anyhow::anyhow;
 use crossbeam::channel::Sender;
 use dozer_types::types::{Operation, OperationEvent, Schema};
@@ -7,12 +8,12 @@ use std::thread::sleep;
 use std::time::Duration;
 
 pub trait SourceChannelForwarder: Send + Sync {
-    fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()>;
+    fn send(&self, seq_no: u64, op: NodeOperation, port: PortHandle) -> anyhow::Result<()>;
     fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()>;
 }
 
 pub trait ProcessorChannelForwarder {
-    fn send(&self, op: Operation, port: PortHandle) -> anyhow::Result<()>;
+    fn send(&self, op: NodeOperation, port: PortHandle) -> anyhow::Result<()>;
 }
 
 pub trait ChannelManager {
@@ -36,12 +37,29 @@ impl LocalChannelForwarder {
         self.curr_seq_no = seq;
     }
 
-    fn send_op(&self, op: Operation, port_id: PortHandle) -> anyhow::Result<()> {
-        let e = OperationEvent::new(self.curr_seq_no, op);
-        self.send_opevent(e, port_id)
+    fn send_node_op(
+        &self,
+        seq_no: u64,
+        op: NodeOperation,
+        port_id: PortHandle,
+    ) -> anyhow::Result<()> {
+        match op {
+            NodeOperation::Insert { new } => self.send_op_event(
+                OperationEvent::new(seq_no, Operation::Insert { new }),
+                port_id,
+            ),
+            NodeOperation::Delete { old } => self.send_op_event(
+                OperationEvent::new(seq_no, Operation::Delete { old }),
+                port_id,
+            ),
+            NodeOperation::Update { old, new } => self.send_op_event(
+                OperationEvent::new(seq_no, Operation::Update { old, new }),
+                port_id,
+            ),
+        }
     }
 
-    fn send_opevent(&self, op: OperationEvent, port_id: PortHandle) -> anyhow::Result<()> {
+    fn send_op_event(&self, op: OperationEvent, port_id: PortHandle) -> anyhow::Result<()> {
         let senders = self.senders.get(&port_id);
         if senders.is_none() {
             return Err(anyhow!("Invalid output port".to_string()));
@@ -85,12 +103,12 @@ impl LocalChannelForwarder {
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
-    fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()> {
-        self.send_opevent(op, port)
+    fn send(&self, seq_no: u64, op: NodeOperation, port: PortHandle) -> anyhow::Result<()> {
+        self.send_node_op(seq_no, op, port)
     }
 
     fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()> {
-        self.send_opevent(
+        self.send_op_event(
             OperationEvent::new(0, Operation::SchemaUpdate { new: schema }),
             port,
         )
@@ -98,8 +116,8 @@ impl SourceChannelForwarder for LocalChannelForwarder {
 }
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
-    fn send(&self, op: Operation, port: PortHandle) -> anyhow::Result<()> {
-        self.send_op(op, port)
+    fn send(&self, op: NodeOperation, port: PortHandle) -> anyhow::Result<()> {
+        self.send_node_op(self.curr_seq_no, op, port)
     }
 }
 

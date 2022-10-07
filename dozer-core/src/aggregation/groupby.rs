@@ -1,7 +1,7 @@
 use crate::aggregation::Aggregator;
 use crate::dag::dag::PortHandle;
 use crate::dag::mt_executor::DefaultPortHandle;
-use crate::dag::node::{NextStep, Processor, ProcessorFactory};
+use crate::dag::node::{NodeOperation, Processor, ProcessorFactory};
 use crate::state::StateStore;
 use ahash::AHasher;
 use anyhow::{anyhow, Context};
@@ -227,7 +227,11 @@ impl AggregationProcessor {
         Ok(curr_count)
     }
 
-    fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> anyhow::Result<Operation> {
+    fn agg_delete(
+        &self,
+        store: &mut dyn StateStore,
+        old: &Record,
+    ) -> anyhow::Result<NodeOperation> {
         let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
         let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
 
@@ -254,13 +258,13 @@ impl AggregationProcessor {
 
         let res = if prev_count == 1 {
             self.fill_dimensions(old, &mut out_rec_delete);
-            Operation::Delete {
+            NodeOperation::Delete {
                 old: out_rec_delete,
             }
         } else {
             self.fill_dimensions(old, &mut out_rec_insert);
             self.fill_dimensions(old, &mut out_rec_delete);
-            Operation::Update {
+            NodeOperation::Update {
                 new: out_rec_insert,
                 old: out_rec_delete,
             }
@@ -274,7 +278,11 @@ impl AggregationProcessor {
         Ok(res)
     }
 
-    fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> anyhow::Result<Operation> {
+    fn agg_insert(
+        &self,
+        store: &mut dyn StateStore,
+        new: &Record,
+    ) -> anyhow::Result<NodeOperation> {
         let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
         let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
         let record_hash = if !self.out_dimensions.is_empty() {
@@ -300,13 +308,13 @@ impl AggregationProcessor {
 
         let res = if curr_state.is_none() {
             self.fill_dimensions(new, &mut out_rec_insert);
-            Operation::Insert {
+            NodeOperation::Insert {
                 new: out_rec_insert,
             }
         } else {
             self.fill_dimensions(new, &mut out_rec_insert);
             self.fill_dimensions(new, &mut out_rec_delete);
-            Operation::Update {
+            NodeOperation::Update {
                 new: out_rec_insert,
                 old: out_rec_delete,
             }
@@ -323,7 +331,7 @@ impl AggregationProcessor {
         old: &Record,
         new: &Record,
         record_hash: Vec<u8>,
-    ) -> anyhow::Result<Operation> {
+    ) -> anyhow::Result<NodeOperation> {
         let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
         let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
@@ -341,7 +349,7 @@ impl AggregationProcessor {
         self.fill_dimensions(new, &mut out_rec_insert);
         self.fill_dimensions(old, &mut out_rec_delete);
 
-        let res = Operation::Update {
+        let res = NodeOperation::Update {
             new: out_rec_insert,
             old: out_rec_delete,
         };
@@ -354,12 +362,12 @@ impl AggregationProcessor {
     pub fn aggregate(
         &self,
         store: &mut dyn StateStore,
-        op: Operation,
-    ) -> anyhow::Result<Vec<Operation>> {
+        op: NodeOperation,
+    ) -> anyhow::Result<Vec<NodeOperation>> {
         match op {
-            Operation::Insert { ref new } => Ok(vec![self.agg_insert(store, new)?]),
-            Operation::Delete { ref old } => Ok(vec![self.agg_delete(store, old)?]),
-            Operation::Update { ref old, ref new } => {
+            NodeOperation::Insert { ref new } => Ok(vec![self.agg_insert(store, new)?]),
+            NodeOperation::Delete { ref old } => Ok(vec![self.agg_delete(store, old)?]),
+            NodeOperation::Update { ref old, ref new } => {
                 let (old_record_hash, new_record_hash) = if self.out_dimensions.is_empty() {
                     (
                         vec![AGG_DEFAULT_DIMENSION_ID],
@@ -379,7 +387,6 @@ impl AggregationProcessor {
                     ])
                 }
             }
-            _ => Err(anyhow!("Invalid operation".to_string())),
         }
     }
 }
@@ -447,14 +454,14 @@ impl Processor for AggregationProcessor {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        op: NodeOperation,
         fw: &dyn crate::dag::forwarder::ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         let ops = self.aggregate(state, op)?;
         for op in ops {
             fw.send(op, DefaultPortHandle)?;
         }
-        Ok(NextStep::Continue)
+        Ok(())
     }
 }
