@@ -1,20 +1,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-
+use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
+use dozer_ingestion::connectors::connector::TableInfo;
 
+use crate::services::connection::ConnectionService;
 use dozer_core::dag::node::{Source, SourceFactory};
 use dozer_core::state::StateStore;
-use dozer_ingestion::connectors::connector::Connector;
-use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
-
-use dozer_types::types::{Operation, Schema, SchemaIdentifier};
-
-use crate::get_schema;
-use crate::models::connection::{Connection, DBType};
+use dozer_types::models::connection::Connection;
+use dozer_types::types::{Operation, Schema};
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -24,8 +21,12 @@ pub struct ConnectorSourceFactory {
 }
 
 impl ConnectorSourceFactory {
-    pub fn new(connections: Vec<Connection>, table_names: Vec<String>) -> Self {
-        let (port_map, table_map) = Self::_get_schemas(&connections, &table_names).unwrap();
+    pub fn new(
+        connections: Vec<Connection>,
+        table_names: Vec<String>,
+        source_schemas: Vec<Schema>,
+    ) -> Self {
+        let (port_map, table_map) = Self::_get_maps(&source_schemas, &table_names).unwrap();
         Self {
             connections,
             port_map,
@@ -34,35 +35,21 @@ impl ConnectorSourceFactory {
         }
     }
 
-    fn _get_schemas(
-        connections: &Vec<Connection>,
+    fn _get_maps(
+        source_schemas: &Vec<Schema>,
         table_names: &Vec<String>,
     ) -> anyhow::Result<(HashMap<u16, Schema>, HashMap<String, u16>)> {
-        let mut port_handles: Vec<u16> = vec![];
-
         let mut port_map: HashMap<u16, Schema> = HashMap::new();
         let mut table_map: HashMap<String, u16> = HashMap::new();
-        // Generate schema_ids and port_handles for the time being
-        // TODO: this should be moved into a block where schema evolution is taken care of.
-
-        connections.iter().enumerate().for_each(|(x, connection)| {
-            let schema_tuples = get_schema(connection.to_owned()).unwrap();
-            schema_tuples
-                .iter()
-                .filter(|t| table_names.iter().find(|n| *n.to_owned() == t.0).is_some())
-                .enumerate()
-                .for_each(|(y, (s, schema))| {
-                    let mut schema = schema.clone();
-                    let id = x * 1000 + y + 1;
-                    port_handles.push(id as u16);
-                    schema.identifier = Some(SchemaIdentifier {
-                        id: id as u32,
-                        version: 1,
-                    });
-                    port_map.insert(id as u16, schema);
-                    table_map.insert(s.to_owned(), id as u16);
-                });
+        let mut idx = 0;
+        source_schemas.iter().for_each(|schema| {
+            let id = schema.identifier.clone().unwrap().id;
+            let table_name = &table_names[idx];
+            port_map.insert(id as u16, schema.clone());
+            table_map.insert(table_name.to_owned(), id as u16);
+            idx += 1;
         });
+
         Ok((port_map, table_map))
     }
 }
@@ -74,10 +61,6 @@ impl SourceFactory for ConnectorSourceFactory {
         keys
     }
 
-    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema> {
-        let val = self.port_map.get(&port).unwrap();
-        Ok(val.to_owned())
-    }
     fn build(&self) -> Box<dyn Source> {
         Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
@@ -104,7 +87,26 @@ impl Source for ConnectorSource {
         _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
         let connection = &self.connections[0];
-        let mut connector = _get_connector(connection.to_owned());
+
+        let mut connector = ConnectionService::get_connector(connection.to_owned());
+
+        // Filter for the tables selected.
+        let tables = connector.get_tables()?;
+        let tables: Vec<TableInfo> = tables
+            .iter()
+            .filter(|t| {
+                let v = self
+                    .table_names
+                    .iter()
+                    .find(|n| *n.clone() == t.name.clone());
+                v.is_some()
+            })
+            .map(|t| t.clone())
+            .collect();
+
+        let storage_config = RocksConfig::default();
+        let storage_client = Arc::new(Storage::new(storage_config));
+        connector.initialize(storage_client, Some(tables)).unwrap();
 
         let mut iterator = connector.iterator();
         loop {
@@ -113,43 +115,17 @@ impl Source for ConnectorSource {
                 Operation::Delete { old } => old.schema_id,
                 Operation::Insert { new } => new.schema_id,
                 Operation::Update { old: _, new } => new.schema_id,
-                Operation::Terminate => panic!("this shouldnt be here"),
+                Operation::Terminate => bail!("Source shouldn't receive Terminate"),
+                Operation::SchemaUpdate { new: _ } => bail!("Source shouldn't get SchemaUpdate"),
             }
-                .unwrap();
-            // println!("msg: {:?}", msg);
+            .unwrap();
             fw.send(msg, schema_id.id as u16).unwrap();
         }
-
-        // cm.terminate().unwrap();
         Ok(())
     }
-}
 
-fn _get_connector(connection: Connection) -> PostgresConnector {
-    match connection.db_type {
-        DBType::Postgres => {
-            let storage_config = RocksConfig::default();
-            let storage_client = Arc::new(Storage::new(storage_config));
-            let postgres_config = PostgresConfig {
-                name: "test_c".to_string(),
-                // tables: Some(vec!["actor".to_string()]),
-                tables: None,
-                conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
-                // conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=large_film".to_string(),
-            };
-            let mut connector = PostgresConnector::new(postgres_config);
-
-            connector.initialize(storage_client).unwrap();
-
-            connector.drop_replication_slot_if_exists();
-            connector
-            // Box::new(connector)
-        }
-        DBType::Databricks => {
-            panic!("Databricks not implemented");
-        }
-        DBType::Snowflake => {
-            panic!("Snowflake not implemented");
-        }
+    fn get_output_schema(&self, port: PortHandle) -> Schema {
+        let val = self.port_map.get(&port).unwrap();
+        val.to_owned()
     }
 }

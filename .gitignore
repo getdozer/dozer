@@ -8,3 +8,4 @@ dozer-ingestion/db/test/
 Cargo.lock
 dozer-core/.data
 
+.vscode

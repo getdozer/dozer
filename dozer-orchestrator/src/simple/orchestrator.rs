@@ -1,13 +1,12 @@
-use std::sync::Arc;
+use std::{sync::Arc, thread};
 
-use dozer_schema::registry::{SchemaRegistryClient};
+use dozer_api::server::ApiServer;
+use dozer_cache::cache::lmdb::cache::LmdbCache;
+use dozer_schema::registry::SchemaRegistryClient;
 
-
-use super::{
-    super::models::{api_endpoint::ApiEndpoint, source::Source},
-    executor::Executor,
-};
+use super::executor::Executor;
 use crate::Orchestrator;
+use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
@@ -29,7 +28,22 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn run(&mut self) -> anyhow::Result<()> {
-        Executor::run(&self)
+        let cache = Arc::new(LmdbCache::new(true));
+        let cache_2 = cache.clone();
+        let api_endpoint = self.api_endpoint.as_ref().unwrap().clone();
+        let api_endpoint2 = self.api_endpoint.as_ref().unwrap().clone();
+        let sources = self.sources.clone();
+
+        let thread = thread::spawn(move || {
+            let api_server = ApiServer::default();
+            api_server.run(vec![api_endpoint], cache_2).unwrap()
+        });
+        let _thread2 = thread::spawn(move || {
+            Executor::run(sources, api_endpoint2, cache).unwrap();
+        });
+        thread.join().unwrap();
+
+        Ok(())
     }
 }
 
@@ -42,44 +56,3 @@ impl SimpleOrchestrator {
         }
     }
 }
-
-// #[test]
-// mod tests {
-//     let sql = "SELECT Country, COUNT(Spending), ROUND(SUM(ROUND(Spending))) \
-//                             FROM Customers \
-//                             WHERE Spending >= 1000 \
-//                             GROUP BY Country \
-//                             HAVING COUNT(CustomerID) > 1;";
-
-//         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
-
-//         let ast = Parser::parse_sql(&dialect, sql).unwrap();
-//         println!("AST: {:?}", ast);
-
-//         let statement: &Statement = &ast[0];
-
-//         let schema = Schema {
-//             fields: vec![
-//                 FieldDefinition {
-//                     name: String::from("CustomerID"),
-//                     typ: FieldType::Int,
-//                     nullable: false,
-//                 },
-//                 FieldDefinition {
-//                     name: String::from("Country"),
-//                     typ: FieldType::String,
-//                     nullable: false,
-//                 },
-//                 FieldDefinition {
-//                     name: String::from("Spending"),
-//                     typ: FieldType::Int,
-//                     nullable: false,
-//                 },
-//             ],
-//             values: vec![0],
-//             primary_index: vec![],
-//             secondary_indexes: vec![],
-//             identifier: None,
-//         };
-
-// }
