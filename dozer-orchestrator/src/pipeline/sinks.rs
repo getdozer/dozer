@@ -51,12 +51,7 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn init(
-        &mut self,
-        _state_store: &mut dyn StateStore,
-        input_schemas: HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<()> {
-        self.input_schemas = input_schemas.to_owned();
+    fn init(&mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("SINK: Initialising CacheSink");
         Ok(())
     }
@@ -98,8 +93,14 @@ impl Sink for CacheSink {
                 self.cache.update(key, new, schema.clone())?;
             }
             Operation::Terminate => {}
+            Operation::SchemaUpdate { new } => {}
         };
         Ok(NextStep::Continue)
+    }
+
+    fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+        self.input_schemas = input_schemas.to_owned();
+        Ok(())
     }
 }
 

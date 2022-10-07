@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 
@@ -59,10 +60,6 @@ impl SourceFactory for ConnectorSourceFactory {
         keys
     }
 
-    fn get_output_schema(&self, port: PortHandle) -> anyhow::Result<Schema> {
-        let val = self.port_map.get(&port).unwrap();
-        Ok(val.to_owned())
-    }
     fn build(&self) -> Box<dyn Source> {
         Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
@@ -106,14 +103,17 @@ impl Source for ConnectorSource {
                 Operation::Delete { old } => old.schema_id,
                 Operation::Insert { new } => new.schema_id,
                 Operation::Update { old: _, new } => new.schema_id,
-                Operation::Terminate => panic!("this shouldnt be here"),
+                Operation::Terminate => bail!("Source shouldn't receive Terminate"),
+                Operation::SchemaUpdate { new } => bail!("Source shouldn't get SchemaUpdate"),
             }
             .unwrap();
-            // println!("msg: {:?}", msg);
             fw.send(msg, schema_id.id as u16).unwrap();
         }
-
-        // cm.terminate().unwrap();
         Ok(())
+    }
+
+    fn get_output_schema(&self, port: PortHandle) -> Schema {
+        let val = self.port_map.get(&port).unwrap();
+        val.to_owned()
     }
 }

@@ -186,11 +186,10 @@ impl Record {
 
     pub fn get_hash(&self, indexes: Vec<usize>) -> anyhow::Result<u64> {
         let mut hasher = AHasher::default();
-        let mut ctr = 0;
 
-        for i in indexes {
-            hasher.write_i32(ctr);
-            match &self.values[i] {
+        for i in indexes.iter().enumerate() {
+            hasher.write_usize(i.0);
+            match &self.values[*i.1] {
                 Field::Int(i) => {
                     hasher.write_u8(1);
                     hasher.write_i64(*i);
@@ -230,7 +229,6 @@ impl Record {
                     return Err(anyhow!("Invalid field type"));
                 }
             }
-            ctr += 1;
         }
         Ok(hasher.finish())
     }
@@ -253,5 +251,6 @@ pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
+    SchemaUpdate { new: Schema },
     Terminate,
 }
