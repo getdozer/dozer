@@ -1,9 +1,8 @@
 use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DefaultPortHandle;
-use crate::dag::node::NextStep::Continue;
 use crate::dag::node::{
-    NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
+    NodeOperation, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
 };
 use crate::state::StateStore;
 use anyhow::Context;
@@ -59,12 +58,10 @@ impl Source for TestSource {
     ) -> anyhow::Result<()> {
         for n in 0..1_000_000 {
             fw.send(
-                OperationEvent::new(
-                    n,
-                    Operation::Insert {
-                        new: Record::new(None, vec![]),
-                    },
-                ),
+                n,
+                NodeOperation::Insert {
+                    new: Record::new(None, vec![]),
+                },
                 DefaultPortHandle,
             )
             .unwrap();
@@ -111,11 +108,11 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _op: OperationEvent,
+        _op: NodeOperation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
-        Ok(Continue)
+        Ok(())
     }
 }
 
@@ -189,14 +186,14 @@ impl Processor for TestProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: NodeOperation,
         fw: &dyn ProcessorChannelForwarder,
         state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         //   println!("PROC {}: Message {} received", self.id, op.seq_no);
         self.ctr += 1;
         state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes());
         fw.send(op, DefaultPortHandle)?;
-        Ok(Continue)
+        Ok(())
     }
 }

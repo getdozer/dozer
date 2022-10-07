@@ -1,6 +1,6 @@
 use crate::dag::dag::{Dag, Edge, Endpoint, NodeHandle, NodeType, PortDirection, PortHandle};
 use crate::dag::node::{
-    ExecutionContext, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source,
+    ExecutionContext, NodeOperation, Processor, ProcessorFactory, Sink, SinkFactory, Source,
     SourceFactory,
 };
 use dozer_types::types::{Operation, OperationEvent, Schema};
@@ -221,21 +221,40 @@ impl MultiThreadedDagExecutor {
                         return Ok(());
                     }
 
-                    _ => {
+                    Operation::Delete { old } => {
                         if !schema_initialized {
-                            error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
+                            error!("Received a Delete operation before schema initialization. Exiting from SNK message loop.");
                             return Err(anyhow!("Received a CDC before schema initialization"));
                         }
+                        snk.process(
+                            handles_ls[index],
+                            NodeOperation::Delete { old },
+                            state_store.as_mut(),
+                        )?;
+                    }
 
-                        let r = snk.process(handles_ls[index], op, state_store.as_mut())?;
-                        match r {
-                            NextStep::Stop => {
-                                return Ok(());
-                            }
-                            _ => {
-                                continue;
-                            }
+                    Operation::Insert { new } => {
+                        if !schema_initialized {
+                            error!("Received an Insert operation before schema initialization. Exiting from SNK message loop.");
+                            return Err(anyhow!("Received a CDC before schema initialization"));
                         }
+                        snk.process(
+                            handles_ls[index],
+                            NodeOperation::Insert { new },
+                            state_store.as_mut(),
+                        )?;
+                    }
+
+                    Operation::Update { old, new } => {
+                        if !schema_initialized {
+                            error!("Received an Insert operation before schema initialization. Exiting from SNK message loop.");
+                            return Err(anyhow!("Received a CDC before schema initialization"));
+                        }
+                        snk.process(
+                            handles_ls[index],
+                            NodeOperation::Update { old, new },
+                            state_store.as_mut(),
+                        )?;
                     }
                 }
             }
@@ -299,7 +318,8 @@ impl MultiThreadedDagExecutor {
                         fw.terminate()?;
                         return Ok(());
                     }
-                    _ => {
+
+                    Operation::Insert { new } => {
                         if !schema_initialized {
                             error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
                             return Err(anyhow!("Received a CDC before schema initialization"));
@@ -307,18 +327,38 @@ impl MultiThreadedDagExecutor {
                         fw.update_seq_no(op.seq_no);
                         let r = proc.process(
                             handles_ls[index],
-                            op.operation,
+                            NodeOperation::Insert { new },
                             &fw,
                             state_store.as_mut(),
                         )?;
-                        match r {
-                            NextStep::Stop => {
-                                return Ok(());
-                            }
-                            _ => {
-                                continue;
-                            }
+                    }
+
+                    Operation::Delete { old } => {
+                        if !schema_initialized {
+                            error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
+                            return Err(anyhow!("Received a CDC before schema initialization"));
                         }
+                        fw.update_seq_no(op.seq_no);
+                        let r = proc.process(
+                            handles_ls[index],
+                            NodeOperation::Delete { old },
+                            &fw,
+                            state_store.as_mut(),
+                        )?;
+                    }
+
+                    Operation::Update { old, new } => {
+                        if !schema_initialized {
+                            error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
+                            return Err(anyhow!("Received a CDC before schema initialization"));
+                        }
+                        fw.update_seq_no(op.seq_no);
+                        let r = proc.process(
+                            handles_ls[index],
+                            NodeOperation::Update { old, new },
+                            &fw,
+                            state_store.as_mut(),
+                        )?;
                     }
                 }
             }

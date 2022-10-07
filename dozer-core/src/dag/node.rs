@@ -1,15 +1,17 @@
 use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::state::StateStore;
-use dozer_types::types::{Operation, OperationEvent, Schema};
+use dozer_types::types::{Operation, OperationEvent, Record, Schema};
 use std::collections::HashMap;
 
-pub trait ExecutionContext: Send + Sync {}
-
-pub enum NextStep {
-    Continue,
-    Stop,
+#[derive(Clone, Debug, PartialEq)]
+pub enum NodeOperation {
+    Insert { new: Record },
+    Delete { old: Record },
+    Update { old: Record, new: Record },
 }
+
+pub trait ExecutionContext: Send + Sync {}
 
 pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
@@ -27,10 +29,10 @@ pub trait Processor {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        op: NodeOperation,
         fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep>;
+    ) -> anyhow::Result<()>;
 }
 
 pub trait SourceFactory: Send + Sync {
@@ -60,7 +62,7 @@ pub trait Sink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: OperationEvent,
+        op: NodeOperation,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep>;
+    ) -> anyhow::Result<()>;
 }

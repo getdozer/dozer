@@ -8,8 +8,7 @@ use sqlparser::ast::SelectItem;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::NextStep;
-use dozer_core::dag::node::{Processor, ProcessorFactory};
+use dozer_core::dag::node::{NodeOperation, Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
 
@@ -105,15 +104,15 @@ impl Processor for ProjectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: NodeOperation,
         fw: &dyn ProcessorChannelForwarder,
         _state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         match op {
-            Operation::Delete { old: _ } => {
+            NodeOperation::Delete { old: _ } => {
                 bail!("DELETE Operation not supported.")
             }
-            Operation::Insert { ref new } => {
+            NodeOperation::Insert { ref new } => {
                 // println!("PROC {}: Message {} received", self.id, self.ctr);
                 self.ctr += 1;
                 let mut results = vec![];
@@ -121,16 +120,15 @@ impl Processor for ProjectionProcessor {
                     results.push(expr.evaluate(&new));
                 }
                 let _ = fw.send(
-                    Operation::Insert {
+                    NodeOperation::Insert {
                         new: Record::new(None, results),
                     },
                     DefaultPortHandle,
                 );
 
-                Ok(NextStep::Continue)
+                Ok(())
             }
-            Operation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
-            _ => Ok(NextStep::Continue),
+            NodeOperation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
         }
     }
 }

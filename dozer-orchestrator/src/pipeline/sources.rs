@@ -7,11 +7,11 @@ use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 use dozer_ingestion::connectors::connector::TableInfo;
 
 use crate::services::connection::ConnectionService;
-use dozer_core::dag::node::{Source, SourceFactory};
+use dozer_core::dag::node::{NodeOperation, Source, SourceFactory};
 use dozer_core::state::StateStore;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 use dozer_types::models::connection::Connection;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{Operation, OperationEvent, Schema};
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -119,7 +119,8 @@ impl Source for ConnectorSource {
                 Operation::SchemaUpdate { new: _ } => bail!("Source shouldn't get SchemaUpdate"),
             }
             .unwrap();
-            fw.send(msg, schema_id.id as u16).unwrap();
+            fw.send(msg.seq_no, msg.operation, schema_id.id as u16)
+                .unwrap();
         }
         Ok(())
     }

@@ -6,7 +6,7 @@ use anyhow::Context;
 use dozer_cache::cache::lmdb::cache::LmdbCache;
 use dozer_cache::cache::{get_primary_key, Cache};
 use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::node::{NextStep, Sink, SinkFactory};
+use dozer_core::dag::node::{NodeOperation, Sink, SinkFactory};
 use dozer_core::state::StateStore;
 use dozer_types::models::api_endpoint::ApiIndex;
 use dozer_types::types::{Operation, OperationEvent, Schema};
@@ -59,9 +59,9 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: OperationEvent,
+        op: NodeOperation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         // println!("SINK: Message {} received", _op.seq_no);
         self.counter = self.counter + 1;
         const BACKSPACE: char = 8u8 as char;
@@ -76,26 +76,24 @@ impl Sink for CacheSink {
 
         let schema = self.get_output_schema(&self.input_schemas[&from_port])?;
 
-        match op.operation {
-            Operation::Delete { old } => {
+        match op {
+            NodeOperation::Delete { old } => {
                 let key = get_primary_key(schema.primary_index.clone(), old.values);
                 self.cache.delete(key)?;
             }
-            Operation::Insert { new } => {
+            NodeOperation::Insert { new } => {
                 let mut new = new.clone();
                 new.schema_id = schema.identifier.clone();
                 self.cache.insert(new, schema.clone())?;
             }
-            Operation::Update { old, new } => {
+            NodeOperation::Update { old, new } => {
                 let key = get_primary_key(schema.primary_index.clone(), old.values);
                 let mut new = new.clone();
                 new.schema_id = schema.identifier.clone();
                 self.cache.update(key, new, schema.clone())?;
             }
-            Operation::Terminate => {}
-            Operation::SchemaUpdate { new } => {}
         };
-        Ok(NextStep::Continue)
+        Ok(())
     }
 
     fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
