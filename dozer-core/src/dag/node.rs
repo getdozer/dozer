@@ -1,13 +1,8 @@
 use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::state::{StateStore, StateStoresManager};
-use anyhow::anyhow;
-use crossbeam::channel::Sender;
+use crate::state::StateStore;
 use dozer_types::types::{Operation, OperationEvent, Schema};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::thread::sleep;
-use std::time::Duration;
 
 pub trait ExecutionContext: Send + Sync {}
 
