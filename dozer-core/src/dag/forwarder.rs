@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use std::thread::sleep;
-use std::time::Duration;
+use crate::dag::dag::PortHandle;
 use anyhow::anyhow;
 use crossbeam::channel::Sender;
 use dozer_types::types::{Operation, OperationEvent, Schema};
-use crate::dag::dag::PortHandle;
+use std::collections::HashMap;
+use std::thread::sleep;
+use std::time::Duration;
 
 pub trait SourceChannelForwarder: Send + Sync {
     fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()>;
@@ -21,13 +21,15 @@ pub trait ChannelManager {
 
 pub struct LocalChannelForwarder {
     senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
-    curr_seq_no: u64
+    curr_seq_no: u64,
 }
 
 impl LocalChannelForwarder {
-
     pub fn new(senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>) -> Self {
-        Self { senders, curr_seq_no: 0 }
+        Self {
+            senders,
+            curr_seq_no: 0,
+        }
     }
 
     pub fn update_seq_no(&mut self, seq: u64) {
@@ -40,7 +42,6 @@ impl LocalChannelForwarder {
     }
 
     fn send_opevent(&self, op: OperationEvent, port_id: PortHandle) -> anyhow::Result<()> {
-
         let senders = self.senders.get(&port_id);
         if senders.is_none() {
             return Err(anyhow!("Invalid output port".to_string()));
@@ -48,19 +49,17 @@ impl LocalChannelForwarder {
 
         if senders.unwrap().len() == 1 {
             senders.unwrap()[0].send(op)?;
-        }
-        else {
+        } else {
             for sender in senders.unwrap() {
                 sender.send(op.clone())?;
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn terminate(&self) -> anyhow::Result<()> {
         for senders in &self.senders {
-
             for sender in senders.1 {
                 sender.send(OperationEvent::new(0, Operation::Terminate))?;
             }
@@ -81,18 +80,20 @@ impl LocalChannelForwarder {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
-
     fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()> {
         self.send_opevent(op, port)
     }
 
     fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()> {
-        self.send_opevent(OperationEvent::new(0, Operation::SchemaUpdate {new: schema}), port)
+        self.send_opevent(
+            OperationEvent::new(0, Operation::SchemaUpdate { new: schema }),
+            port,
+        )
     }
 }
 

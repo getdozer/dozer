@@ -1,12 +1,4 @@
-use std::collections::HashMap;
-use std::iter::Map;
-use std::ops::Deref;
-
-use anyhow::{anyhow, Context};
-
-use dozer_types::types::{FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema};
-
-use crate::dag::dag::{NodeHandle, PortHandle};
+use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DefaultPortHandle;
 use crate::dag::node::NextStep::Continue;
@@ -14,6 +6,9 @@ use crate::dag::node::{
     NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
 };
 use crate::state::StateStore;
+use anyhow::Context;
+use dozer_types::types::{FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema};
+use std::collections::HashMap;
 
 /// Test Source
 pub struct TestSourceFactory {

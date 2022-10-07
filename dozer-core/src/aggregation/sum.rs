@@ -18,7 +18,7 @@ impl IntegerSumAggregator {
 
 impl Aggregator for IntegerSumAggregator {
 
-    fn get_return_type(&self) -> FieldType { FieldType::Int }
+    fn get_return_type(&self, input_type: FieldType) -> FieldType { FieldType::Int }
 
     fn get_type(&self) -> u8 {
         INTEGER_SUM_AGGREGATOR_ID
