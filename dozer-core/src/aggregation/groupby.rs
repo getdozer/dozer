@@ -83,7 +83,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
                         .context(anyhow!("Invalid field index: {}", idx))?;
                     output_schema.fields.push(FieldDefinition::new(
                         if name.is_some() { name.as_ref().unwrap().clone() } else { src_fld.name.clone() },
-                        aggr.get_return_type(), false
+                        aggr.get_return_type(src_fld.typ.clone()), false
                     ));
                     if *is_value { output_schema.values.push(e.0); }
                 }
@@ -109,6 +109,8 @@ enum AggregatorOperation {
 const AGG_VALUES_DATASET_ID : u16 = 0x0000_u16;
 const AGG_COUNT_DATASET_ID : u16 = 0x0001_u16;
 
+const AGG_DEFAULT_DIMENSION_ID : u8 = 0xFF_u8;
+
 
 impl AggregationProcessor {
 
@@ -117,18 +119,16 @@ impl AggregationProcessor {
         let out_fields_count = output_fields.len();
         let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
-        let mut ctr = 0;
 
-        for rule in output_fields.into_iter() {
-            match rule {
+        for rule in output_fields.into_iter().enumerate() {
+            match rule.1 {
                 FieldRule::Measure(idx, aggr, nullable, name) => {
-                    out_measures.push((idx, aggr, ctr));
+                    out_measures.push((idx, aggr, rule.0));
                 }
                 FieldRule::Dimension(idx, nullable, name) => {
-                    out_dimensions.push((idx, ctr));
+                    out_dimensions.push((idx, rule.0));
                 }
             }
-            ctr += 1;
         }
 
         AggregationProcessor { out_measures, out_dimensions, out_fields_count }
@@ -225,7 +225,12 @@ impl AggregationProcessor {
         let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
         let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
 
-        let record_hash = old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?;
+
+        let record_hash =
+            if !self.out_dimensions.is_empty() {
+                old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            } else { vec![AGG_DEFAULT_DIMENSION_ID] };
+
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
@@ -233,18 +238,18 @@ impl AggregationProcessor {
 
         let curr_state = store.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            curr_state, Some(&old), None,
+            curr_state, Some(old), None,
             &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Delete
         )?;
 
         let res =
             if prev_count == 1 {
-                self.fill_dimensions(&old, &mut out_rec_delete);
+                self.fill_dimensions(old, &mut out_rec_delete);
                 Operation::Delete {old: out_rec_delete}
             }
             else {
-                self.fill_dimensions(&old, &mut out_rec_insert);
-                self.fill_dimensions(&old, &mut out_rec_delete);
+                self.fill_dimensions(old, &mut out_rec_insert);
+                self.fill_dimensions(old, &mut out_rec_delete);
                 Operation::Update {new: out_rec_insert, old: out_rec_delete}
             };
 
@@ -262,7 +267,12 @@ impl AggregationProcessor {
 
         let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
         let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
-        let record_hash = &new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?;
+        let record_hash =
+            if !self.out_dimensions.is_empty() {
+                new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            }
+            else { vec![AGG_DEFAULT_DIMENSION_ID] };
+
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
@@ -276,12 +286,12 @@ impl AggregationProcessor {
 
         let res =
             if curr_state.is_none() {
-                self.fill_dimensions(&new, &mut out_rec_insert);
+                self.fill_dimensions(new, &mut out_rec_insert);
                 Operation::Insert {new: out_rec_insert}
             }
             else {
-                self.fill_dimensions(&new, &mut out_rec_insert);
-                self.fill_dimensions(&new, &mut out_rec_delete);
+                self.fill_dimensions(new, &mut out_rec_insert);
+                self.fill_dimensions(new, &mut out_rec_delete);
                 Operation::Update {new: out_rec_insert, old: out_rec_delete}
             };
 
@@ -303,8 +313,8 @@ impl AggregationProcessor {
             &mut out_rec_delete, &mut out_rec_insert, AggregatorOperation::Update
         )?;
 
-        self.fill_dimensions(&new, &mut out_rec_insert);
-        self.fill_dimensions(&old, &mut out_rec_delete);
+        self.fill_dimensions(new, &mut out_rec_insert);
+        self.fill_dimensions(old, &mut out_rec_delete);
 
         let res =
             Operation::Update {new: out_rec_insert, old: out_rec_delete};
@@ -320,33 +330,33 @@ impl AggregationProcessor {
 
         match op {
             Operation::Insert {ref new} => {
-                Ok(vec![self.agg_insert(store, &new)?])
+                Ok(vec![self.agg_insert(store, new)?])
             }
             Operation::Delete {ref old} => {
-                Ok(vec![self.agg_delete(store, &old)?])
+                Ok(vec![self.agg_delete(store, old)?])
             }
             Operation::Update {ref old, ref new} => {
 
-                let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
-                let old_record_hash = old.get_key(record_keys.clone())?;
-                let new_record_hash = new.get_key(record_keys)?;
+                let (old_record_hash, new_record_hash) = if self.out_dimensions.is_empty() {
+                    (vec![AGG_DEFAULT_DIMENSION_ID], vec![AGG_DEFAULT_DIMENSION_ID])
+                }
+                else {
+                    let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
+                    (old.get_key(record_keys.clone())?, new.get_key(record_keys)?)
+                };
 
                 if old_record_hash == new_record_hash {
                     Ok(vec![self.agg_update(store, old, new, old_record_hash)?])
                 }
                 else {
-                    Ok(vec![self.agg_delete(store, old)?, self.agg_insert(store, &new)?])
+                    Ok(vec![self.agg_delete(store, old)?, self.agg_insert(store, new)?])
                 }
             }
-            _ => { return Err(anyhow!("Invalid operation".to_string())); }
+            _ => { Err(anyhow!("Invalid operation".to_string())) }
         }
 
     }
 
-
-    fn get_accumulated(&self, _store: &mut dyn StateStore, _key: &[u8]) -> anyhow::Result<Option<Field>> {
-        todo!();
-    }
 }
 
 impl Processor for AggregationProcessor {
