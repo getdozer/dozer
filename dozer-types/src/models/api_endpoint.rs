@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct ApiIndex {
+    pub primary_key: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ApiEndpoint {
     pub id: Option<String>,
     pub name: String,
@@ -8,4 +13,5 @@ pub struct ApiEndpoint {
     pub enable_rest: bool,
     pub enable_grpc: bool,
     pub sql: String,
+    pub index: ApiIndex,
 }

@@ -61,42 +61,12 @@ impl ProcessorFactory for AggregationProcessorFactory {
     fn build(&self) -> Box<dyn Processor> {
         Box::new(AggregationProcessor::new(self.output_field_rules.clone()))
     }
-    fn get_output_schema(&self, output_port: PortHandle, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
 
-        let input_schema = input_schemas.get(&DefaultPortHandle).context("Invalid port handle")?;
-        let mut output_schema = Schema::empty();
-
-        for e in self.output_field_rules.iter().enumerate() {
-            match e.1 {
-                FieldRule::Dimension(idx, is_value, name) => {
-                    let src_fld = input_schema.fields.get(*idx)
-                        .context(anyhow!("Invalid field index: {}", idx))?;
-                    output_schema.fields.push(FieldDefinition::new(
-                        if name.is_some() { name.as_ref().unwrap().clone() } else { src_fld.name.clone() },
-                        src_fld.typ.clone(), false
-                    ));
-                    if *is_value { output_schema.values.push(e.0); }
-                    output_schema.primary_index.push(e.0);
-                }
-                FieldRule::Measure(idx, aggr, is_value, name) => {
-                    let src_fld = input_schema.fields.get(*idx)
-                        .context(anyhow!("Invalid field index: {}", idx))?;
-                    output_schema.fields.push(FieldDefinition::new(
-                        if name.is_some() { name.as_ref().unwrap().clone() } else { src_fld.name.clone() },
-                        aggr.get_return_type(), false
-                    ));
-                    if *is_value { output_schema.values.push(e.0); }
-                }
-
-            }
-        }
-        Ok(output_schema)
-
-    }
 }
 
 
 pub struct AggregationProcessor {
+    output_field_rules: Vec<FieldRule>,
     out_fields_count: usize,
     out_dimensions: Vec<(usize, usize)>,
     out_measures: Vec<(usize, Box<dyn Aggregator>, usize)>
@@ -119,7 +89,7 @@ impl AggregationProcessor {
         let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
         let mut ctr = 0;
 
-        for rule in output_fields.into_iter() {
+        for rule in output_fields.clone().into_iter() {
             match rule {
                 FieldRule::Measure(idx, aggr, nullable, name) => {
                     out_measures.push((idx, aggr, ctr));
@@ -131,7 +101,7 @@ impl AggregationProcessor {
             ctr += 1;
         }
 
-        AggregationProcessor { out_measures, out_dimensions, out_fields_count }
+        AggregationProcessor { output_field_rules: output_fields, out_measures, out_dimensions, out_fields_count }
     }
 
     fn init_store(&self, store: &mut dyn StateStore) -> anyhow::Result<()> {
@@ -351,7 +321,39 @@ impl AggregationProcessor {
 
 impl Processor for AggregationProcessor {
 
-    fn init(&mut self, state: &mut dyn StateStore, input_schemas: HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn update_schema(&self, output_port: PortHandle, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<Schema> {
+        let input_schema = input_schemas.get(&DefaultPortHandle).context("Invalid port handle")?;
+        let mut output_schema = Schema::empty();
+
+        for e in self.output_field_rules.iter().enumerate() {
+            match e.1 {
+                FieldRule::Dimension(idx, is_value, name) => {
+                    let src_fld = input_schema.fields.get(*idx)
+                        .context(anyhow!("Invalid field index: {}", idx))?;
+                    output_schema.fields.push(FieldDefinition::new(
+                        if name.is_some() { name.as_ref().unwrap().clone() } else { src_fld.name.clone() },
+                        src_fld.typ.clone(), false
+                    ));
+                    if *is_value { output_schema.values.push(e.0); }
+                    output_schema.primary_index.push(e.0);
+                }
+                FieldRule::Measure(idx, aggr, is_value, name) => {
+                    let src_fld = input_schema.fields.get(*idx)
+                        .context(anyhow!("Invalid field index: {}", idx))?;
+                    output_schema.fields.push(FieldDefinition::new(
+                        if name.is_some() { name.as_ref().unwrap().clone() } else { src_fld.name.clone() },
+                        aggr.get_return_type(), false
+                    ));
+                    if *is_value { output_schema.values.push(e.0); }
+                }
+
+            }
+        }
+        Ok(output_schema)
+    }
+
+
+    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()> {
         self.init_store(state)
     }
 

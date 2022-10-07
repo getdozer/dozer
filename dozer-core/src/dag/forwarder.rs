@@ -3,11 +3,12 @@ use std::thread::sleep;
 use std::time::Duration;
 use anyhow::anyhow;
 use crossbeam::channel::Sender;
-use dozer_types::types::{Operation, OperationEvent};
+use dozer_types::types::{Operation, OperationEvent, Schema};
 use crate::dag::dag::PortHandle;
 
 pub trait SourceChannelForwarder: Send + Sync {
     fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()>;
+    fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()>;
 }
 
 pub trait ProcessorChannelForwarder {
@@ -85,8 +86,13 @@ impl LocalChannelForwarder {
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
+
     fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()> {
         self.send_opevent(op, port)
+    }
+
+    fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()> {
+        self.send_opevent(OperationEvent::new(0, Operation::SchemaUpdate {new: schema}), port)
     }
 }
 

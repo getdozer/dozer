@@ -1,11 +1,10 @@
-pub mod models;
 pub mod pipeline;
 mod services;
 pub mod simple;
 use dozer_types::types::Schema;
 use services::connection::ConnectionService;
 
-use crate::models::{api_endpoint::ApiEndpoint, connection::Connection, source::Source};
+use dozer_types::models::{api_endpoint::ApiEndpoint, connection::Connection, source::Source};
 
 pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;

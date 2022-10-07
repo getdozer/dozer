@@ -5,14 +5,10 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
 use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
-use dozer_core::dag::forwarder::{
-    ChannelManager, SourceChannelForwarder,
-};
+use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
-use dozer_core::dag::node::{
-    NextStep, Sink, SinkFactory, Source, SourceFactory,
-};
 use dozer_core::dag::node::NextStep::Continue;
+use dozer_core::dag::node::{NextStep, Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_core::state::StateStore;
 use dozer_types::types::{
@@ -36,8 +32,16 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn get_output_schema(&self, _port: PortHandle) -> anyhow::Result<Schema> {
-        Ok(Schema::empty()
+    fn build(&self) -> Box<dyn Source> {
+        Box::new(TestSource {})
+    }
+}
+
+pub struct TestSource {}
+
+impl Source for TestSource {
+    fn get_output_schema(&self, port: PortHandle) -> Schema {
+        Schema::empty()
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
                 false,
@@ -53,16 +57,9 @@ impl SourceFactory for TestSourceFactory {
                 false,
                 false,
             )
-            .clone())
+            .clone()
     }
-    fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource {})
-    }
-}
 
-pub struct TestSource {}
-
-impl Source for TestSource {
     fn start(
         &self,
         fw: &dyn SourceChannelForwarder,
@@ -87,7 +84,7 @@ impl Source for TestSource {
                 ),
                 DefaultPortHandle,
             )
-                .unwrap();
+            .unwrap();
         }
         cm.terminate().unwrap();
         Ok(())
@@ -116,17 +113,17 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn init(
-        &mut self,
-        _state_store: &mut dyn StateStore,
-        _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<()> {
+    fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn init(&mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("SINK: Initialising TestSink");
         Ok(())
     }
 
     fn process(
-        &self,
+        &mut self,
         _from_port: PortHandle,
         _op: OperationEvent,
         _state: &mut dyn StateStore,
@@ -138,7 +135,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, COUNT(Spending+2000), ROUND(SUM(ROUND(-Spending))) \
+    let sql = "SELECT 1+1.0, Country, COUNT(Spending+2000), ROUND(SUM(ROUND(-Spending))) \
                             FROM Customers \
                             WHERE Spending+500 >= 1000 \
                             GROUP BY Country \
@@ -185,8 +182,7 @@ fn test_pipeline_builder() {
     dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
     dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
-
-    let input_point = in_handle.remove("default").unwrap();
+    let input_point = in_handle.remove("customers").unwrap();
 
     let _source_to_projection = dag.connect(
         Endpoint::new(1.to_string(), DefaultPortHandle),
