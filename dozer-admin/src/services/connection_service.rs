@@ -1,5 +1,6 @@
+use dozer_orchestrator::{get_schema, test_connection};
+use dozer_types::models::connection::Connection;
 use std::thread;
-use dozer_orchestrator::{models::connection::Connection, get_schema, test_connection};
 
 use crate::{
     db::{
@@ -150,7 +151,7 @@ mod test {
         create_connection_request::Authentication, CreateConnectionRequest,
         GetAllConnectionRequest, PostgresAuthentication,
     };
-    
+
     #[test]
     fn success_save_connection() {
         let create_connection_request: CreateConnectionRequest = CreateConnectionRequest {

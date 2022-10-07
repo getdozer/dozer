@@ -1,3 +1,4 @@
+use crate::connectors::connector::TableInfo;
 use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
@@ -19,7 +20,7 @@ use super::replicator::CDCHandler;
 pub struct Details {
     publication_name: String,
     slot_name: String,
-    tables: Option<Vec<(String, u32)>>,
+    tables: Option<Vec<TableInfo>>,
     conn_str: String,
     conn_str_plain: String,
 }
@@ -47,7 +48,7 @@ impl PostgresIterator {
     pub fn new(
         publication_name: String,
         slot_name: String,
-        tables: Option<Vec<(String, u32)>>,
+        tables: Option<Vec<TableInfo>>,
         conn_str: String,
         conn_str_plain: String,
         storage_client: Arc<RocksStorage>,
@@ -126,7 +127,7 @@ impl PostgresIteratorHandler {
         3) Replicating
         - Replicate CDC events using lsn
     */
-    fn _start(&mut self) -> Result<(), Error> {
+    fn _start(&mut self) -> anyhow::Result<()> {
         let details = Arc::clone(&self.details);
         let conn_str = details.conn_str.to_owned();
         let client = Arc::new(RefCell::new(helper::connect(conn_str)?));

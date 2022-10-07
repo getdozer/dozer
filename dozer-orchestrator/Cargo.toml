@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
+dozer-api = {version = "0.1.0", path = "../dozer-api"}
 dozer-ingestion = {version = "0.1.0", path = "../dozer-ingestion"}
 dozer-core = {version = "0.1.0", path = "../dozer-core"}
 dozer-schema = {version = "0.1.0", path = "../dozer-schema"}
