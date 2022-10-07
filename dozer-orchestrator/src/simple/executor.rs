@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::source::Source;
 use tempdir::TempDir;
 
 use dozer_cache::cache::lmdb::cache::LmdbCache;
-use dozer_core::aggregation::groupby::{AggregationProcessorFactory, FieldRule};
-use dozer_core::aggregation::sum::IntegerSumAggregator;
-use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
+use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_sql::pipeline::builder::PipelineBuilder;
@@ -18,19 +18,21 @@ use dozer_types::types::{Schema, SchemaIdentifier};
 use crate::get_schema;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 
-use super::SimpleOrchestrator;
-
 pub struct Executor {}
 
 impl Executor {
-    pub fn run(orchestrator: &SimpleOrchestrator, cache: Arc<LmdbCache>) -> anyhow::Result<()> {
+    pub fn run<'a>(
+        sources: Vec<Source>,
+        api_endpoint: ApiEndpoint,
+        cache: Arc<LmdbCache>,
+    ) -> anyhow::Result<()> {
         let mut source_schemas: Vec<Schema> = vec![];
         let mut connections: Vec<Connection> = vec![];
         let mut table_names: Vec<String> = vec![];
 
         // Get Source schemas
         let mut idx = 1;
-        for source in orchestrator.sources.iter() {
+        for source in sources.iter() {
             let schema_tuples = get_schema(source.connection.to_owned())?;
 
             println!("{:?}", source.table_name);
@@ -51,8 +53,6 @@ impl Executor {
             idx += 1;
         }
 
-        let api_endpoint = orchestrator.api_endpoint.as_ref().unwrap();
-
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
         let ast = Parser::parse_sql(&dialect, &api_endpoint.sql).unwrap();
@@ -69,7 +69,8 @@ impl Executor {
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
-        let sink = CacheSinkFactory::new(vec![DefaultPortHandle], cache);
+        let sink =
+            CacheSinkFactory::new(vec![DefaultPortHandle], cache, api_endpoint.index.clone());
 
         let source_table_map = source.table_map.clone();
 

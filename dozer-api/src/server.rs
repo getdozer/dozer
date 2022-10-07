@@ -1,24 +1,37 @@
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
+use anyhow::Context;
 use dozer_cache::cache::{get_primary_key, lmdb::cache::LmdbCache, Cache};
-use dozer_types::{models::api_endpoint::ApiEndpoint, types::Field};
-use serde::Deserialize;
+use dozer_types::{
+    json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json, types::Field,
+};
+use serde_json::Value;
 use std::sync::Arc;
 
-#[derive(Deserialize)]
-struct CacheQuery {
-    q: String,
+fn get_record(cache: web::Data<Arc<LmdbCache>>, key: Value) -> anyhow::Result<String> {
+    let key = match json_value_to_field(key.clone()) {
+        Ok(key) => key,
+        Err(e) => {
+            panic!("error : {:?}", e);
+        }
+    };
+    let key = get_primary_key(vec![0], vec![key]);
+
+    let rec = cache.get(key).context("record not found")?;
+    let schema = cache.get_schema(rec.schema_id.clone().context("schema_id not found")?)?;
+    let str = record_to_json(rec, schema)?;
+    Ok(str)
 }
 
 async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    let id_str = path.into_inner().0;
-    let id = id_str.parse::<i64>().unwrap();
-    let key = get_primary_key(vec![0], vec![Field::Int(id)]);
-    let val = cache.get(key).unwrap();
+    let key_json: Value = serde_json::from_str(&path.into_inner().0).unwrap();
 
-    HttpResponse::Ok().body(format!("key: {}, val: {:?}", id_str, val))
+    match get_record(cache, key_json) {
+        Ok(json) => HttpResponse::Ok().body(json),
+        Err(e) => HttpResponse::NotFound().body(e.to_string()),
+    }
 }
 
-async fn list(cache: web::Data<Arc<LmdbCache>>, query: web::Json<CacheQuery>) -> impl Responder {
+async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
     HttpResponse::Ok().body("Hey there!")
 }
 

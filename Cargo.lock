@@ -911,6 +911,7 @@ dependencies = [
  "anyhow",
  "dozer-cache",
  "dozer-types",
+ "rust_decimal",
  "serde",
  "serde_json",
 ]

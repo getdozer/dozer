@@ -2,21 +2,28 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+use anyhow::Context;
 use dozer_cache::cache::lmdb::cache::LmdbCache;
 use dozer_cache::cache::{get_primary_key, Cache};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{NextStep, Sink, SinkFactory};
 use dozer_core::state::StateStore;
+use dozer_types::models::api_endpoint::ApiIndex;
 use dozer_types::types::{Operation, OperationEvent, Schema};
 
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
+    api_index: ApiIndex,
 }
 
 impl CacheSinkFactory {
-    pub fn new(input_ports: Vec<PortHandle>, cache: Arc<LmdbCache>) -> Self {
-        Self { input_ports, cache }
+    pub fn new(input_ports: Vec<PortHandle>, cache: Arc<LmdbCache>, api_index: ApiIndex) -> Self {
+        Self {
+            input_ports,
+            cache,
+            api_index,
+        }
     }
 }
 
@@ -30,6 +37,7 @@ impl SinkFactory for CacheSinkFactory {
             counter: 0,
             before: Instant::now(),
             input_schemas: HashMap::new(),
+            api_index: self.api_index.clone(),
         })
     }
 }
@@ -39,6 +47,7 @@ pub struct CacheSink {
     counter: i32,
     before: Instant,
     input_schemas: HashMap<PortHandle, Schema>,
+    api_index: ApiIndex,
 }
 
 impl Sink for CacheSink {
@@ -69,21 +78,44 @@ impl Sink for CacheSink {
                 self.before.elapsed(),
             );
         }
-        let schema = &self.input_schemas[&from_port].clone();
+
+        let schema = self.get_output_schema(&self.input_schemas[&from_port])?;
+
         match op.operation {
             Operation::Delete { old } => {
                 let key = get_primary_key(schema.primary_index.clone(), old.values);
                 self.cache.delete(key)?;
             }
             Operation::Insert { new } => {
-                self.cache.insert(new.clone(), schema.clone())?;
+                let mut new = new.clone();
+                new.schema_id = schema.identifier.clone();
+                self.cache.insert(new, schema.clone())?;
             }
             Operation::Update { old, new } => {
                 let key = get_primary_key(schema.primary_index.clone(), old.values);
+                let mut new = new.clone();
+                new.schema_id = schema.identifier.clone();
                 self.cache.update(key, new, schema.clone())?;
             }
             Operation::Terminate => {}
         };
         Ok(NextStep::Continue)
+    }
+}
+
+impl CacheSink {
+    fn get_output_schema(&self, schema: &Schema) -> anyhow::Result<Schema> {
+        let mut schema = schema.clone();
+        let mut primary_index = Vec::new();
+        for name in self.api_index.primary_key.iter() {
+            let idx = schema
+                .fields
+                .iter()
+                .position(|fd| fd.name == name.clone())
+                .context("column_name not available in index.primary_keys")?;
+            primary_index.push(idx);
+        }
+        schema.primary_index = primary_index;
+        Ok(schema)
     }
 }

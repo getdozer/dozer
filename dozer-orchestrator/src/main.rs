@@ -4,6 +4,7 @@ use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::test_connection;
 use dozer_orchestrator::Orchestrator;
 use dozer_schema::registry::_get_client;
+use dozer_types::models::api_endpoint::ApiIndex;
 use dozer_types::models::{
     api_endpoint::ApiEndpoint,
     connection::{Authentication::PostgresAuthentication, Connection, DBType},
@@ -51,7 +52,10 @@ fn film_test() -> anyhow::Result<()> {
         path: "/films".to_string(),
         enable_rest: false,
         enable_grpc: true,
-        sql: "select description, film_id from film where 1=1;".to_string(),
+        sql: "select film_id, description from film where 1=1;".to_string(),
+        index: ApiIndex {
+            primary_key: vec!["film_id".to_string()],
+        },
     });
     dozer.run()?;
     Ok(())
@@ -94,6 +98,9 @@ fn actor_test() -> anyhow::Result<()> {
         enable_rest: false,
         enable_grpc: true,
         sql: "select actor_id from actor where 1=1;".to_string(),
+        index: ApiIndex {
+            primary_key: vec!["actor_id".to_string()],
+        },
     });
     dozer.run()?;
     Ok(())

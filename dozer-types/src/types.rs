@@ -1,10 +1,9 @@
-use std::hash::Hasher;
 use ahash::AHasher;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-
+use std::hash::Hasher;
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Field {
@@ -46,7 +45,11 @@ pub struct FieldDefinition {
 
 impl FieldDefinition {
     pub fn new(name: String, typ: FieldType, nullable: bool) -> Self {
-        Self { name, typ, nullable }
+        Self {
+            name,
+            typ,
+            nullable,
+        }
     }
 }
 
@@ -82,30 +85,31 @@ pub struct Schema {
 }
 
 impl Schema {
-
     pub fn empty() -> Schema {
         Self {
-            identifier: None, fields: Vec::new(),
-            values: Vec::new(), primary_index: Vec::new(),
-            secondary_indexes: Vec::new()
+            identifier: None,
+            fields: Vec::new(),
+            values: Vec::new(),
+            primary_index: Vec::new(),
+            secondary_indexes: Vec::new(),
         }
     }
 
     pub fn field(&mut self, f: FieldDefinition, value: bool, pk: bool) -> &mut Self {
         self.fields.push(f);
-        if value { self.values.push(&self.fields.len()-1) }
-        if pk { self.primary_index.push(&self.fields.len()-1) }
+        if value {
+            self.values.push(&self.fields.len() - 1)
+        }
+        if pk {
+            self.primary_index.push(&self.fields.len() - 1)
+        }
         self
-
     }
-
 
     pub fn get_id(&self) -> u32 {
         self.identifier.clone().unwrap().id
     }
 }
-
-
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum IndexType {
@@ -144,43 +148,87 @@ impl Record {
     }
 
     pub fn get_key(&self, indexes: Vec<usize>) -> anyhow::Result<Vec<u8>> {
-
-        let mut r  = Vec::<u8>::new();
+        let mut r = Vec::<u8>::new();
         for i in indexes {
             match &self.values[i] {
-                Field::Int(i) => { r.extend(i.to_ne_bytes()); }
-                Field::Float(f) => { r.extend(f.to_ne_bytes()); }
-                Field::Boolean(b) => { r.extend(if *b {1_u8.to_ne_bytes()} else {0_u8.to_ne_bytes()}) }
-                Field::String(s) => { r.extend(s.as_bytes()); }
-                Field::Binary(b) => { r.extend(b); }
-                Field::Decimal(d) => { r.extend(d.serialize()); }
-                Field::Timestamp(t) => { r.extend(t.timestamp().to_ne_bytes()) }
-                Field::Bson(b) => { r.extend(b); }
-                Field::Null => {  r.extend(0_u8.to_ne_bytes()) },
-                _ => { return Err(anyhow!("Invalid field type")); }
+                Field::Int(i) => {
+                    r.extend(i.to_ne_bytes());
+                }
+                Field::Float(f) => {
+                    r.extend(f.to_ne_bytes());
+                }
+                Field::Boolean(b) => r.extend(if *b {
+                    1_u8.to_ne_bytes()
+                } else {
+                    0_u8.to_ne_bytes()
+                }),
+                Field::String(s) => {
+                    r.extend(s.as_bytes());
+                }
+                Field::Binary(b) => {
+                    r.extend(b);
+                }
+                Field::Decimal(d) => {
+                    r.extend(d.serialize());
+                }
+                Field::Timestamp(t) => r.extend(t.timestamp().to_ne_bytes()),
+                Field::Bson(b) => {
+                    r.extend(b);
+                }
+                Field::Null => r.extend(0_u8.to_ne_bytes()),
+                _ => {
+                    return Err(anyhow!("Invalid field type"));
+                }
             }
         }
         Ok(r)
     }
 
     pub fn get_hash(&self, indexes: Vec<usize>) -> anyhow::Result<u64> {
-
         let mut hasher = AHasher::default();
         let mut ctr = 0;
 
         for i in indexes {
             hasher.write_i32(ctr);
             match &self.values[i] {
-                Field::Int(i) => { hasher.write_u8(1); hasher.write_i64(*i); }
-                Field::Float(f) => { hasher.write_u8(2); hasher.write(&((*f).to_ne_bytes())); }
-                Field::Boolean(b) => { hasher.write_u8(3); hasher.write_u8(if *b { 1_u8} else { 0_u8 }); }
-                Field::String(s) => { hasher.write_u8(4); hasher.write(s.as_str().as_bytes()); }
-                Field::Binary(b) => { hasher.write_u8(5); hasher.write(b.as_ref()); }
-                Field::Decimal(d) => { hasher.write_u8(6); hasher.write(&d.serialize()); }
-                Field::Timestamp(t) => { hasher.write_u8(7); hasher.write_i64(t.timestamp()) }
-                Field::Bson(b) => { hasher.write_u8(8); hasher.write(b.as_ref()); }
-                Field::Null => {  hasher.write_u8(0); },
-                _ => { return Err(anyhow!("Invalid field type")); }
+                Field::Int(i) => {
+                    hasher.write_u8(1);
+                    hasher.write_i64(*i);
+                }
+                Field::Float(f) => {
+                    hasher.write_u8(2);
+                    hasher.write(&((*f).to_ne_bytes()));
+                }
+                Field::Boolean(b) => {
+                    hasher.write_u8(3);
+                    hasher.write_u8(if *b { 1_u8 } else { 0_u8 });
+                }
+                Field::String(s) => {
+                    hasher.write_u8(4);
+                    hasher.write(s.as_str().as_bytes());
+                }
+                Field::Binary(b) => {
+                    hasher.write_u8(5);
+                    hasher.write(b.as_ref());
+                }
+                Field::Decimal(d) => {
+                    hasher.write_u8(6);
+                    hasher.write(&d.serialize());
+                }
+                Field::Timestamp(t) => {
+                    hasher.write_u8(7);
+                    hasher.write_i64(t.timestamp())
+                }
+                Field::Bson(b) => {
+                    hasher.write_u8(8);
+                    hasher.write(b.as_ref());
+                }
+                Field::Null => {
+                    hasher.write_u8(0);
+                }
+                _ => {
+                    return Err(anyhow!("Invalid field type"));
+                }
             }
             ctr += 1;
         }
@@ -207,5 +255,3 @@ pub enum Operation {
     Update { old: Record, new: Record },
     Terminate,
 }
-
-

@@ -38,7 +38,8 @@ impl LmdbCache {
     }
 
     fn _insert(&self, txn: &mut RwTransaction, rec: Record, schema: Schema) -> anyhow::Result<()> {
-        let p_key = schema.primary_index.clone();
+        // let p_key = schema.primary_index.clone();
+        let p_key = vec![1];
         let values = rec.values.clone();
         let key = get_primary_key(p_key, values.to_owned());
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
@@ -75,6 +76,10 @@ impl LmdbCache {
 
 impl Cache for LmdbCache {
     fn insert(&self, rec: Record, schema: Schema) -> anyhow::Result<()> {
+        if rec.schema_id != schema.identifier {
+            bail!("record and schema dont have the same id.");
+        }
+
         let mut txn: RwTransaction = self.env.begin_rw_txn()?;
         let schema_identifier = match schema.identifier.clone() {
             Some(id) => id,
