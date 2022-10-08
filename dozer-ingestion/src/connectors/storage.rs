@@ -43,7 +43,7 @@ impl Storage<RocksConfig> for RocksStorage {
 }
 
 impl RocksStorage {
-    pub fn get_estimate_key_count(&self) -> u64 {
+    pub fn _get_estimate_key_count(&self) -> u64 {
         let db = Arc::clone(&self.db);
         let count: u64 = db
             .property_int_value("rocksdb.estimate-num-keys")
@@ -52,7 +52,7 @@ impl RocksStorage {
         count
     }
 
-    pub fn destroy(&self) {
+    pub fn _destroy(&self) {
         let path = self._config.path.clone();
         let _ = DB::destroy(&Options::default(), path);
     }
@@ -63,7 +63,7 @@ impl RocksStorage {
         (key, encoded)
     }
 
-    pub fn get_operation_event(&self, id: i32) -> OperationEvent {
+    pub fn _get_operation_event(&self, id: i32) -> OperationEvent {
         let db = Arc::clone(&self.db);
         let key = format!("operation_{}", id).as_bytes().to_owned();
         let returned_bytes = db.get(key).unwrap().unwrap();
@@ -104,7 +104,7 @@ mod tests {
         writer.insert(key.as_ref(), encoded);
         writer.commit(&storage_client);
 
-        let op2 = storage_client.get_operation_event(1);
+        let op2 = storage_client._get_operation_event(1);
         assert_eq!(op2.seq_no, op.seq_no);
     }
 }

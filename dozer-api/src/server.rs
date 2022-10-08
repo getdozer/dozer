@@ -1,18 +1,8 @@
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Context;
-use dozer_cache::cache::{
-    expression::{self, Expression},
-    get_primary_key,
-    lmdb::cache::LmdbCache,
-    Cache,
-};
-use dozer_types::{
-    json_value_to_field,
-    models::api_endpoint::ApiEndpoint,
-    record_to_json,
-    types::{Record, SchemaIdentifier},
-};
-use serde_json::{json, Value};
+use dozer_cache::cache::{expression::Expression, get_primary_key, lmdb::cache::LmdbCache, Cache};
+use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
+use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 
 fn get_record(

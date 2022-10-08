@@ -13,7 +13,7 @@ use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
 use dozer_types::models::connection::Connection;
-use dozer_types::types::{Schema, SchemaIdentifier};
+use dozer_types::types::Schema;
 
 use crate::get_schema;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
@@ -31,7 +31,6 @@ impl Executor {
         let mut table_names: Vec<String> = vec![];
 
         // Get Source schemas
-        let mut idx = 1;
         for source in sources.iter() {
             let schema_tuples = get_schema(source.connection.to_owned())?;
 
@@ -46,7 +45,6 @@ impl Executor {
             connections.push(source.connection.to_owned());
             println!("{:?}", table_names);
             table_names.push(source.table_name.clone());
-            idx += 1;
         }
 
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...

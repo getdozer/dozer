@@ -1,5 +1,5 @@
 use anyhow::Context;
-use lmdb::{Database, Environment, RoTransaction, Transaction};
+use lmdb::{Database, RoTransaction, Transaction};
 
 use dozer_types::types::{Field, FieldDefinition, IndexType, Record, Schema, SchemaIdentifier};
 

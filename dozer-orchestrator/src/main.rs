@@ -13,10 +13,10 @@ use dozer_types::models::{
 use tokio::runtime::Runtime;
 
 fn main() -> anyhow::Result<()> {
-    film_test()
+    _film_test()
 }
 
-fn film_test() -> anyhow::Result<()> {
+fn _film_test() -> anyhow::Result<()> {
     let client = Runtime::new()
         .unwrap()
         .block_on(async { _get_client().await.unwrap() });
@@ -62,7 +62,7 @@ fn film_test() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn actor_test() -> anyhow::Result<()> {
+fn _actor_test() -> anyhow::Result<()> {
     let client = Runtime::new()
         .unwrap()
         .block_on(async { _get_client().await.unwrap() });
