@@ -981,6 +981,7 @@ name = "dozer-orchestrator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "dotenvy",
  "dozer-api",
  "dozer-cache",

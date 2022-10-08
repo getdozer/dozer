@@ -23,7 +23,6 @@ impl<'a> MessageBody<'a> {
 }
 
 pub struct Table {
-    name: String,
     columns: Vec<TableColumn>,
     hash: u64,
     rel_id: u32,
@@ -190,7 +189,6 @@ impl XlogMapper {
             .collect();
 
         let table = Table {
-            name: String::from(relation.name().unwrap()),
             columns,
             hash,
             rel_id,

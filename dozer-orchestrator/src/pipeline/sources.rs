@@ -66,14 +66,14 @@ impl SourceFactory for ConnectorSourceFactory {
             connections: self.connections.to_owned(),
             table_names: self.table_names.to_owned(),
             port_map: self.port_map.to_owned(),
-            table_map: self.table_map.to_owned(),
+            _table_map: self.table_map.to_owned(),
         })
     }
 }
 
 pub struct ConnectorSource {
     port_map: HashMap<u16, Schema>,
-    table_map: HashMap<String, u16>,
+    _table_map: HashMap<String, u16>,
     connections: Vec<Connection>,
     table_names: Vec<String>,
 }
@@ -115,13 +115,14 @@ impl Source for ConnectorSource {
                 Operation::Delete { old } => old.schema_id,
                 Operation::Insert { new } => new.schema_id,
                 Operation::Update { old: _, new } => new.schema_id,
-                Operation::Terminate => bail!("Source shouldn't receive Terminate"),
+                Operation::Terminate => {
+                    bail!("Source shouldn't receive Terminate");
+                }
                 Operation::SchemaUpdate { new: _ } => bail!("Source shouldn't get SchemaUpdate"),
             }
             .unwrap();
             fw.send(msg, schema_id.id as u16).unwrap();
         }
-        Ok(())
     }
 
     fn get_output_schema(&self, port: PortHandle) -> Schema {

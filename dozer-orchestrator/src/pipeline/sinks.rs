@@ -1,4 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -8,7 +10,7 @@ use dozer_cache::cache::{get_primary_key, Cache};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{NextStep, Sink, SinkFactory};
 use dozer_core::state::StateStore;
-use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{Operation, OperationEvent, Schema};
 
 pub struct CacheSinkFactory {
@@ -42,6 +44,7 @@ impl SinkFactory for CacheSinkFactory {
             before: Instant::now(),
             input_schemas: HashMap::new(),
             api_endpoint: self.api_endpoint.clone(),
+            schema_map: HashMap::new(),
         })
     }
 }
@@ -51,6 +54,7 @@ pub struct CacheSink {
     counter: i32,
     before: Instant,
     input_schemas: HashMap<PortHandle, Schema>,
+    schema_map: HashMap<u64, bool>,
     api_endpoint: ApiEndpoint,
 }
 
@@ -80,6 +84,18 @@ impl Sink for CacheSink {
 
         let schema = self.get_output_schema(&self.input_schemas[&from_port])?;
 
+        // Get hash of schema
+        let mut hasher = DefaultHasher::new();
+        let bytes = bincode::serialize(&schema.identifier)?;
+        hasher.write(&bytes);
+        let hash = hasher.finish();
+
+        // Insert if schema not already inserted
+        if !self.schema_map.contains_key(&hash) {
+            self.cache.insert_schema(&schema, &self.api_endpoint.name)?;
+            self.schema_map.insert(hash, true);
+        }
+
         match op.operation {
             Operation::Delete { old } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
@@ -89,8 +105,7 @@ impl Sink for CacheSink {
                 let mut new = new.clone();
                 new.schema_id = schema.identifier.clone();
 
-                self.cache
-                    .insert_with_schema(&new, &schema, &self.api_endpoint.name)?;
+                self.cache.insert(&new)?;
             }
             Operation::Update { old, new } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
@@ -99,7 +114,7 @@ impl Sink for CacheSink {
                 self.cache.update(&key, &new, &schema)?;
             }
             Operation::Terminate => {}
-            Operation::SchemaUpdate { new } => {}
+            Operation::SchemaUpdate { new: _ } => {}
         };
         Ok(NextStep::Continue)
     }

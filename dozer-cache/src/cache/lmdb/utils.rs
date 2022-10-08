@@ -4,7 +4,7 @@ use std::path::Path;
 use lmdb::{Database, DatabaseFlags, Environment};
 use tempdir::TempDir;
 
-pub fn init_env(temp: bool) -> anyhow::Result<(Environment)> {
+pub fn init_env(temp: bool) -> anyhow::Result<Environment> {
     let map_size = 1024 * 1024 * 1024 * 5;
     let mut env = Environment::new();
 

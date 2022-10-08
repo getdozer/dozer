@@ -40,7 +40,7 @@ impl SchemaRegistry for SchemaRegistryServer {
     }
     async fn insert(self, _: tarpc::context::Context, schema: dozer_types::types::Schema) {
         let client = self.storage_client.clone();
-        client.insert_schema(&schema);
+        client.insert_schema(&schema).unwrap();
     }
 
     async fn get(self, _: tarpc::context::Context, schema_id: SchemaIdentifier) -> Schema {
