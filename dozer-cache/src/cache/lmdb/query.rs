@@ -46,15 +46,15 @@ impl<'a> QueryHandler<'a> {
                     .filter(|(_field_idx, fd)| fd.name == *column)
                     .collect();
                 let field_def = field_defs.get(0).unwrap();
-                let pkeys = self.query_with_secondary_index(
+                
+
+                self.query_with_secondary_index(
                     &schema.identifier.to_owned().context("schema_id expected")?,
                     field_def.0,
                     comparator,
                     field,
                     no_of_rows,
-                )?;
-
-                pkeys
+                )?
             }
             Expression::Composite(_operator, _exp1, _exp2) => todo!(),
         };
@@ -83,7 +83,7 @@ impl<'a> QueryHandler<'a> {
         no_of_rows: usize,
     ) -> anyhow::Result<Vec<Record>> {
         // TODO: Change logic based on typ
-        let _typ = Self::get_index_type(&comparator);
+        let _typ = Self::get_index_type(comparator);
 
         let field_to_compare = bincode::serialize(&field)?;
 
@@ -104,7 +104,7 @@ impl<'a> QueryHandler<'a> {
         )?;
         let mut records = vec![];
         for key in pkeys.iter() {
-            let rec = self.get(key, &self.txn)?;
+            let rec = self.get(key, self.txn)?;
             records.push(rec);
         }
         Ok(records)

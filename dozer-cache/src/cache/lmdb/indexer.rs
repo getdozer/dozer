@@ -26,14 +26,14 @@ impl<'a> Indexer<'a> {
             .to_owned()
             .context("schema_id is expected")?;
         for index in schema.secondary_indexes.iter() {
-            let keys = self._build_index(index, &rec, &identifier)?;
+            let keys = self._build_index(index, rec, identifier)?;
 
             for secondary_key in keys.iter() {
                 let _typ = &index.typ;
 
                 txn.put::<Vec<u8>, Vec<u8>>(
                     *self.db,
-                    &secondary_key,
+                    secondary_key,
                     &pkey,
                     WriteFlags::default(),
                 )?;

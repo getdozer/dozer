@@ -38,7 +38,7 @@ fn query_and_test(
 async fn insert_and_get_schema() -> anyhow::Result<()> {
     let (cache, schema) = _setup().await;
     cache.insert_schema(&schema, "test")?;
-    let schema = cache.get_schema_by_name(&"test")?;
+    let schema = cache.get_schema_by_name("test")?;
 
     let get_schema = cache.get_schema(
         &schema
@@ -60,7 +60,7 @@ async fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let key = get_primary_key(&vec![0], &vec![Field::String(val)]);
 
     let get_record = cache.get(&key)?;
-    assert_eq!(get_record, record.clone(), "must be equal");
+    assert_eq!(get_record, record, "must be equal");
 
     cache.delete(&key)?;
 
@@ -83,10 +83,10 @@ async fn insert_and_query_record() -> anyhow::Result<()> {
         expression::Comparator::EQ,
         Field::String("bar".to_string()),
     );
-    query_and_test(&cache, &record, &"docs", &exp)?;
+    query_and_test(&cache, &record, "docs", &exp)?;
 
     // Query without an expression
-    query_and_test(&cache, &record, &"docs", &Expression::None)?;
+    query_and_test(&cache, &record, "docs", &Expression::None)?;
 
     Ok(())
 }
