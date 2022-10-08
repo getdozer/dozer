@@ -2,7 +2,9 @@ name: Dozer CI
 
 on:
   push:
-    branches: [$default-branch]
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
