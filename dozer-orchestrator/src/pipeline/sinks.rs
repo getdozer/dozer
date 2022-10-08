@@ -8,21 +8,25 @@ use dozer_cache::cache::{get_primary_key, Cache};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{NextStep, Sink, SinkFactory};
 use dozer_core::state::StateStore;
-use dozer_types::models::api_endpoint::ApiIndex;
+use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::types::{Operation, OperationEvent, Schema};
 
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
-    api_index: ApiIndex,
+    api_endpoint: ApiEndpoint,
 }
 
 impl CacheSinkFactory {
-    pub fn new(input_ports: Vec<PortHandle>, cache: Arc<LmdbCache>, api_index: ApiIndex) -> Self {
+    pub fn new(
+        input_ports: Vec<PortHandle>,
+        cache: Arc<LmdbCache>,
+        api_endpoint: ApiEndpoint,
+    ) -> Self {
         Self {
             input_ports,
             cache,
-            api_index,
+            api_endpoint,
         }
     }
 }
@@ -37,7 +41,7 @@ impl SinkFactory for CacheSinkFactory {
             counter: 0,
             before: Instant::now(),
             input_schemas: HashMap::new(),
-            api_index: self.api_index.clone(),
+            api_endpoint: self.api_endpoint.clone(),
         })
     }
 }
@@ -47,7 +51,7 @@ pub struct CacheSink {
     counter: i32,
     before: Instant,
     input_schemas: HashMap<PortHandle, Schema>,
-    api_index: ApiIndex,
+    api_endpoint: ApiEndpoint,
 }
 
 impl Sink for CacheSink {
@@ -78,19 +82,21 @@ impl Sink for CacheSink {
 
         match op.operation {
             Operation::Delete { old } => {
-                let key = get_primary_key(schema.primary_index.clone(), old.values);
-                self.cache.delete(key)?;
+                let key = get_primary_key(&schema.primary_index, &old.values);
+                self.cache.delete(&key)?;
             }
             Operation::Insert { new } => {
                 let mut new = new.clone();
                 new.schema_id = schema.identifier.clone();
-                self.cache.insert(new, schema.clone())?;
+
+                self.cache
+                    .insert_with_schema(&new, &schema, &self.api_endpoint.name)?;
             }
             Operation::Update { old, new } => {
-                let key = get_primary_key(schema.primary_index.clone(), old.values);
+                let key = get_primary_key(&schema.primary_index, &old.values);
                 let mut new = new.clone();
                 new.schema_id = schema.identifier.clone();
-                self.cache.update(key, new, schema.clone())?;
+                self.cache.update(&key, &new, &schema)?;
             }
             Operation::Terminate => {}
             Operation::SchemaUpdate { new } => {}
@@ -107,8 +113,9 @@ impl Sink for CacheSink {
 impl CacheSink {
     fn get_output_schema(&self, schema: &Schema) -> anyhow::Result<Schema> {
         let mut schema = schema.clone();
+        let api_index = &self.api_endpoint.index;
         let mut primary_index = Vec::new();
-        for name in self.api_index.primary_key.iter() {
+        for name in api_index.primary_key.iter() {
             let idx = schema
                 .fields
                 .iter()

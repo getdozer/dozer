@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use dozer_types::types::*;
 use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
 use tempdir::TempDir;
@@ -58,26 +59,26 @@ impl RocksStorage {
         let _ = DB::destroy(&Options::default(), path);
     }
 
-    pub fn insert_schema(&self, schema: &Schema) {
+    pub fn insert_schema(&self, schema: &Schema) -> anyhow::Result<()> {
         let db = Arc::clone(&self.db);
-        let key = get_schema_key(schema.identifier.clone().unwrap()).to_owned();
+        let key = get_schema_key(&schema.identifier.to_owned().context("schema_id expected")?);
         let key: &[u8] = key.as_ref();
-        // println!("{:?}", schema);
-        let encoded: Vec<u8> = bincode::serialize(schema).unwrap();
-        db.put(key, encoded).unwrap();
+        let encoded: Vec<u8> = bincode::serialize(schema)?;
+        db.put(key, encoded)?;
+        Ok(())
     }
 
-    pub fn get_schema(&self, schema_id: SchemaIdentifier) -> Schema {
+    pub fn get_schema(&self, schema_id: &SchemaIdentifier) -> anyhow::Result<Schema> {
         let db = Arc::clone(&self.db);
         let key = get_schema_key(schema_id);
 
-        let returned_bytes = db.get(key).unwrap().unwrap();
-        let schema: Schema = bincode::deserialize(returned_bytes.as_ref()).unwrap();
-        schema
+        let returned_bytes = db.get(key)?.context("schema not found")?;
+        let schema: Schema = bincode::deserialize(returned_bytes.as_ref())?;
+        Ok(schema)
     }
 }
 
-pub fn get_schema_key(schema_id: SchemaIdentifier) -> Vec<u8> {
+pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
     [
         "sc".as_bytes(),
         &schema_id.id.to_be_bytes().to_vec(),

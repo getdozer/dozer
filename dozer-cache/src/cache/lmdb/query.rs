@@ -1,96 +1,113 @@
-use lmdb::{Cursor, Database, Environment, Transaction};
+use anyhow::Context;
+use lmdb::{Database, Environment, RoTransaction, Transaction};
 
-use dozer_types::types::{Field, FieldDefinition, IndexType, Schema, SchemaIdentifier};
+use dozer_types::types::{Field, FieldDefinition, IndexType, Record, Schema, SchemaIdentifier};
 
 use crate::cache::{
     expression::{Comparator, Expression},
     get_secondary_index,
 };
 
-use galil_seiferas::gs_find;
+use super::cursor::CacheCursor;
 pub struct QueryHandler<'a> {
-    env: &'a Environment,
     db: &'a Database,
+    indexer_db: &'a Database,
+    txn: &'a RoTransaction<'a>,
 }
 
-// http://www.lmdb.tech/doc/group__mdb.html#ga1206b2af8b95e7f6b0ef6b28708c9127
-pub const MDB_NEXT: u32 = 8;
-pub const MDB_PREV: u32 = 12;
-pub const MDB_SET: u32 = 16;
-
 impl<'a> QueryHandler<'a> {
-    pub fn new(env: &'a Environment, db: &'a Database) -> Self {
-        Self { env, db }
+    pub fn new(db: &'a Database, indexer_db: &'a Database, txn: &'a RoTransaction) -> Self {
+        Self {
+            db,
+            indexer_db,
+            txn,
+        }
     }
 
-    pub fn query(&self, schema: Schema, exp: Expression) -> anyhow::Result<Vec<Vec<u8>>> {
+    pub fn get(&self, key: &Vec<u8>, txn: &RoTransaction) -> anyhow::Result<Record> {
+        let rec = txn.get(*self.db, &key)?;
+        let rec: Record = bincode::deserialize(rec)?;
+        Ok(rec)
+    }
+
+    pub fn query(
+        &self,
+        schema: &Schema,
+        exp: &Expression,
+        no_of_rows: usize,
+    ) -> anyhow::Result<Vec<Record>> {
         let pkeys = match exp {
+            Expression::None => self.list(true, no_of_rows)?,
             Expression::Simple(column, comparator, field) => {
                 let field_defs: Vec<(usize, &FieldDefinition)> = schema
                     .fields
                     .iter()
                     .enumerate()
-                    .filter(|(_field_idx, fd)| fd.name == column)
+                    .filter(|(_field_idx, fd)| fd.name == *column)
                     .collect();
                 let field_def = field_defs.get(0).unwrap();
-                let pkeys =
-                    self._query(schema.identifier.unwrap(), field_def.0, comparator, field)?;
+                let pkeys = self.query_with_secondary_index(
+                    &schema.identifier.to_owned().context("schema_id expected")?,
+                    field_def.0,
+                    comparator,
+                    field,
+                    no_of_rows,
+                )?;
+
                 pkeys
             }
-            Expression::Combination(_operator, _exp1, _exp2) => todo!(),
+            Expression::Composite(_operator, _exp1, _exp2) => todo!(),
         };
         Ok(pkeys)
     }
 
-    fn _query(
+    fn list(&self, ascending: bool, no_of_rows: usize) -> anyhow::Result<Vec<Record>> {
+        let cursor = self.txn.open_ro_cursor(*self.db)?;
+        let cache_cursor = CacheCursor::new(&cursor);
+        let record_bufs = cache_cursor.get_records(None, None, ascending, no_of_rows)?;
+
+        let mut records = vec![];
+        for rec in record_bufs.iter() {
+            let rec: Record = bincode::deserialize(rec)?;
+            records.push(rec);
+        }
+        Ok(records)
+    }
+
+    fn query_with_secondary_index(
         &self,
-        schema_identifier: SchemaIdentifier,
+        schema_identifier: &SchemaIdentifier,
         field_idx: usize,
-        comparator: Comparator,
-        field: Field,
-    ) -> anyhow::Result<Vec<Vec<u8>>> {
+        comparator: &Comparator,
+        field: &Field,
+        no_of_rows: usize,
+    ) -> anyhow::Result<Vec<Record>> {
         // TODO: Change logic based on typ
         let _typ = Self::get_index_type(&comparator);
 
-        let field_val = bincode::serialize(&field).unwrap();
+        let field_to_compare = bincode::serialize(&field)?;
 
-        let indx = get_secondary_index(schema_identifier.id, &field_idx, &field_val);
+        let starting_key = get_secondary_index(schema_identifier.id, &field_idx, &field_to_compare);
 
-        let txn = self.env.begin_ro_txn()?;
-        let cursor = txn.open_ro_cursor(*self.db)?;
-
-        let next_op = match comparator {
-            Comparator::LT | Comparator::LTE => MDB_PREV,
-            Comparator::GT | Comparator::GTE | Comparator::EQ => MDB_NEXT,
+        let ascending = match comparator {
+            Comparator::LT | Comparator::LTE => false,
+            Comparator::GT | Comparator::GTE | Comparator::EQ => true,
         };
+        let cursor = self.txn.open_ro_cursor(*self.indexer_db)?;
 
-        let mut pkeys = vec![];
-        let mut idx = 0;
-
-        loop {
-            let op = if idx > 0 { next_op } else { MDB_SET };
-            let res = cursor.get(Some(&indx), None, op);
-            match res {
-                Ok((key, val)) => match key {
-                    Some(key) => {
-                        if let Some(_idx) = gs_find(key, &field_val) {
-                            // println!("idx: {}, key... {:?}, val... {:?}", idx, key, val);
-                            pkeys.push(val.to_vec());
-                        } else {
-                            break;
-                        }
-                    }
-                    None => {
-                        break;
-                    }
-                },
-                Err(_) => {
-                    break;
-                }
-            }
-            idx += 1;
+        let cache_cursor = CacheCursor::new(&cursor);
+        let pkeys = cache_cursor.get_records(
+            Some(starting_key),
+            Some(field_to_compare),
+            ascending,
+            no_of_rows,
+        )?;
+        let mut records = vec![];
+        for key in pkeys.iter() {
+            let rec = self.get(key, &self.txn)?;
+            records.push(rec);
         }
-        Ok(pkeys)
+        Ok(records)
     }
 
     fn get_index_type(_comparator: &Comparator) -> IndexType {

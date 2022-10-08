@@ -48,7 +48,7 @@ fn film_test() -> anyhow::Result<()> {
     dozer.add_sources(sources);
     dozer.add_endpoint(ApiEndpoint {
         id: None,
-        name: "film_api".to_string(),
+        name: "films".to_string(),
         path: "/films".to_string(),
         enable_rest: false,
         enable_grpc: true,
@@ -94,7 +94,7 @@ fn actor_test() -> anyhow::Result<()> {
     dozer.add_sources(sources);
     dozer.add_endpoint(ApiEndpoint {
         id: None,
-        name: "actor_api".to_string(),
+        name: "actors".to_string(),
         path: "/actors".to_string(),
         enable_rest: false,
         enable_grpc: true,
