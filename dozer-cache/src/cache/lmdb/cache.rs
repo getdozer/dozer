@@ -27,12 +27,8 @@ pub struct LmdbCache {
 }
 
 fn _debug_dump(cursor: RoCursor) -> anyhow::Result<()> {
-    loop {
-        if let Ok((key, val)) = cursor.get(None, None, 8) {
-            println!("key: {:?}, val: {:?}", key.unwrap(), val);
-        } else {
-            break;
-        };
+    while let Ok((key, val)) = cursor.get(None, None, 8) {
+        println!("key: {:?}, val: {:?}", key.unwrap(), val);
     }
     Ok(())
 }
@@ -178,14 +174,14 @@ impl Cache for LmdbCache {
         Ok(())
     }
 
-    fn delete(&self, key: &Vec<u8>) -> anyhow::Result<()> {
+    fn delete(&self, key: &[u8]) -> anyhow::Result<()> {
         let mut txn: RwTransaction = self.env.begin_rw_txn()?;
         txn.del(self.db, &key, None)?;
         txn.commit()?;
         Ok(())
     }
 
-    fn get(&self, key: &Vec<u8>) -> anyhow::Result<Record> {
+    fn get(&self, key: &[u8]) -> anyhow::Result<Record> {
         let txn: RoTransaction = self.env.begin_ro_txn()?;
         let handler = QueryHandler::new(&self.db, &self.indexer_db, &txn);
         let rec: Record = handler.get(key, &txn)?;
@@ -205,7 +201,7 @@ impl Cache for LmdbCache {
         Ok(records)
     }
 
-    fn update(&self, key: &Vec<u8>, rec: &Record, schema: &Schema) -> anyhow::Result<()> {
+    fn update(&self, key: &[u8], rec: &Record, schema: &Schema) -> anyhow::Result<()> {
         let mut txn: RwTransaction = self.env.begin_rw_txn()?;
         txn.del(self.db, &key, None)?;
 

@@ -24,7 +24,7 @@ impl<'a> QueryHandler<'a> {
         }
     }
 
-    pub fn get(&self, key: &Vec<u8>, txn: &RoTransaction) -> anyhow::Result<Record> {
+    pub fn get(&self, key: &[u8], txn: &RoTransaction) -> anyhow::Result<Record> {
         let rec = txn.get(*self.db, &key)?;
         let rec: Record = bincode::deserialize(rec)?;
         Ok(rec)
@@ -46,7 +46,6 @@ impl<'a> QueryHandler<'a> {
                     .filter(|(_field_idx, fd)| fd.name == *column)
                     .collect();
                 let field_def = field_defs.get(0).unwrap();
-                
 
                 self.query_with_secondary_index(
                     &schema.identifier.to_owned().context("schema_id expected")?,
