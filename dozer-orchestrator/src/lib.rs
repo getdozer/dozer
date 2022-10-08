@@ -14,10 +14,10 @@ pub trait Orchestrator {
 
 pub fn test_connection(input: Connection) -> anyhow::Result<()> {
     let connection_service = ConnectionService::new(input);
-    return connection_service.test_connection();
+    connection_service.test_connection()
 }
 
 pub fn get_schema(input: Connection) -> Result<Vec<(String, Schema)>, anyhow::Error> {
     let connection_service = ConnectionService::new(input);
-    return connection_service.get_all_schema();
+    connection_service.get_all_schema()
 }
