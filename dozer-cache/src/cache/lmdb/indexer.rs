@@ -1,4 +1,4 @@
-use anyhow::Ok;
+use anyhow::{Context, Ok};
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier};
 use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 
@@ -15,13 +15,16 @@ impl<'a> Indexer<'a> {
     pub fn build_indexes(
         &self,
         parent_txn: &'a mut RwTransaction,
-        rec: Record,
-        schema: Schema,
+        rec: &Record,
+        schema: &Schema,
         pkey: Vec<u8>,
     ) -> anyhow::Result<()> {
         let mut txn = parent_txn.begin_nested_txn()?;
 
-        let identifier = &schema.identifier.unwrap();
+        let identifier = &schema
+            .identifier
+            .to_owned()
+            .context("schema_id is expected")?;
         for index in schema.secondary_indexes.iter() {
             let keys = self._build_index(index, &rec, &identifier)?;
 

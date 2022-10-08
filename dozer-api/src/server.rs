@@ -1,38 +1,79 @@
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Context;
-use dozer_cache::cache::{get_primary_key, lmdb::cache::LmdbCache, Cache};
-use dozer_types::{
-    json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json, types::Field,
+use dozer_cache::cache::{
+    expression::{self, Expression},
+    get_primary_key,
+    lmdb::cache::LmdbCache,
+    Cache,
 };
-use serde_json::Value;
-use std::sync::Arc;
+use dozer_types::{
+    json_value_to_field,
+    models::api_endpoint::ApiEndpoint,
+    record_to_json,
+    types::{Record, SchemaIdentifier},
+};
+use serde_json::{json, Value};
+use std::{collections::HashMap, sync::Arc};
 
-fn get_record(cache: web::Data<Arc<LmdbCache>>, key: Value) -> anyhow::Result<String> {
+fn get_record(
+    cache: web::Data<Arc<LmdbCache>>,
+    key: Value,
+) -> anyhow::Result<HashMap<String, Value>> {
     let key = match json_value_to_field(key.clone()) {
         Ok(key) => key,
         Err(e) => {
             panic!("error : {:?}", e);
         }
     };
-    let key = get_primary_key(vec![0], vec![key]);
+    let key = get_primary_key(&vec![0], &vec![key]);
 
-    let rec = cache.get(key).context("record not found")?;
-    let schema = cache.get_schema(rec.schema_id.clone().context("schema_id not found")?)?;
-    let str = record_to_json(rec, schema)?;
-    Ok(str)
+    let rec = cache.get(&key).context("record not found")?;
+    let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;
+    record_to_json(&rec, &schema)
+}
+
+fn get_records(
+    cache: web::Data<Arc<LmdbCache>>,
+    exp: Expression,
+    no_of_records: usize,
+) -> anyhow::Result<Vec<HashMap<String, Value>>> {
+    let records = cache.query(&"films", &exp, no_of_records)?;
+    let schema = cache.get_schema(
+        &records[0]
+            .schema_id
+            .to_owned()
+            .context("schema_id not found")?,
+    )?;
+    let mut maps = vec![];
+    for rec in records.iter() {
+        let map = record_to_json(rec, &schema)?;
+        maps.push(map);
+    }
+    Ok(maps)
 }
 
 async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
     let key_json: Value = serde_json::from_str(&path.into_inner().0).unwrap();
 
     match get_record(cache, key_json) {
-        Ok(json) => HttpResponse::Ok().body(json),
+        Ok(map) => {
+            let str = serde_json::to_string(&map).unwrap();
+            HttpResponse::Ok().body(str)
+        }
         Err(e) => HttpResponse::NotFound().body(e.to_string()),
     }
 }
 
 async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
+    let records = get_records(cache, Expression::None, 50);
+
+    match records {
+        Ok(maps) => {
+            let str = serde_json::to_string(&maps).unwrap();
+            HttpResponse::Ok().body(str)
+        }
+        Err(_) => HttpResponse::Ok().body("[]"),
+    }
 }
 
 #[derive(Clone)]
