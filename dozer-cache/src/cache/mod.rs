@@ -23,7 +23,7 @@ pub trait Cache {
     fn insert_schema(&self, schema: &Schema, name: &str) -> anyhow::Result<()>;
 }
 
-pub fn get_primary_key(primary_index: &Vec<usize>, values: &Vec<Field>) -> Vec<u8> {
+pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
     let key: Vec<Vec<u8>> = primary_index
         .iter()
         .map(|idx| {

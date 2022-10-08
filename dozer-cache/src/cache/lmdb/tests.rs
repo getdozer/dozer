@@ -57,7 +57,7 @@ async fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
     cache.insert_with_schema(&record, &schema, "docs")?;
 
-    let key = get_primary_key(&vec![0], &vec![Field::String(val)]);
+    let key = get_primary_key(&[0], &[Field::String(val)]);
 
     let get_record = cache.get(&key)?;
     assert_eq!(get_record, record, "must be equal");
