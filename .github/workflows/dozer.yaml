@@ -2,9 +2,7 @@ name: Dozer CI
 
 on:
   push:
-    # branches: [ $default-branch ]
-    branches:
-      - feat/implement-ci
+    branches: [$default-branch]
   pull_request:
     branches: [$default-branch]
 
