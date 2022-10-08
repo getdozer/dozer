@@ -2,9 +2,9 @@ name: Dozer CI
 
 on:
   push:
-    branches: [$default-branch]
+    branches: [main]
   pull_request:
-    branches: [$default-branch]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,8 +26,14 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.0.0
+      - name: ⚡ Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
       - name: Run tests
         run: cargo test --verbose

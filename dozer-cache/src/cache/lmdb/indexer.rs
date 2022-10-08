@@ -31,12 +31,7 @@ impl<'a> Indexer<'a> {
             for secondary_key in keys.iter() {
                 let _typ = &index.typ;
 
-                txn.put::<Vec<u8>, Vec<u8>>(
-                    *self.db,
-                    secondary_key,
-                    &pkey,
-                    WriteFlags::default(),
-                )?;
+                txn.put::<Vec<u8>, Vec<u8>>(*self.db, secondary_key, &pkey, WriteFlags::default())?;
             }
         }
         txn.commit()?;
@@ -62,8 +57,8 @@ impl<'a> Indexer<'a> {
     fn _build_index_sorted_inverted(
         &self,
         identifier: &SchemaIdentifier,
-        index_fields: &Vec<usize>,
-        values: &Vec<Field>,
+        index_fields: &[usize],
+        values: &[Field],
     ) -> Vec<Vec<u8>> {
         let keys: Vec<Vec<u8>> = index_fields
             .iter()

@@ -11,10 +11,10 @@ pub const MDB_NEXT: isize = 8;
 pub const MDB_PREV: isize = 12;
 
 enum NextOp {
-    FIRST = MDB_FIRST,
-    LAST = MDB_LAST,
-    NEXT = MDB_NEXT,
-    PREV = MDB_PREV,
+    First = MDB_FIRST,
+    Last = MDB_LAST,
+    Next = MDB_NEXT,
+    Prev = MDB_PREV,
 }
 
 impl<'a> CacheCursor<'a> {
@@ -76,17 +76,17 @@ impl<'a> CacheCursor<'a> {
     }
     fn get_next_op(has_expression: bool, ascending: bool, idx: usize) -> NextOp {
         let next_op = if idx == 0 && has_expression {
-            NextOp::FIRST
+            NextOp::First
         } else {
-            NextOp::NEXT
+            NextOp::Next
         };
 
         if !ascending {
             match next_op {
-                NextOp::FIRST => NextOp::LAST,
-                NextOp::LAST => NextOp::FIRST,
-                NextOp::NEXT => NextOp::PREV,
-                NextOp::PREV => NextOp::NEXT,
+                NextOp::First => NextOp::Last,
+                NextOp::Last => NextOp::First,
+                NextOp::Next => NextOp::Prev,
+                NextOp::Prev => NextOp::Next,
             }
         } else {
             next_op
