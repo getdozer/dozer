@@ -24,26 +24,26 @@ impl ConnectionService {
                     host, port, user, database, password,
                 );
                 let config = PostgresConfig {
-                    name: connection.name.clone(),
+                    name: connection.name,
                     tables: None,
-                    conn_str: conn_str,
+                    conn_str,
                 };
                 Box::new(PostgresConnector::new(config))
             }
         }
     }
     pub fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>> {
-        return self.connector.get_all_schema();
+        self.connector.get_all_schema()
     }
 
     pub fn new(connection: Connection) -> Self {
         let connector: Box<dyn Connector> = Self::get_connector(connection);
         Self {
-            connector: connector,
+            connector,
         }
     }
 
     pub fn test_connection(&self) -> anyhow::Result<()> {
-        return self.connector.test_connection();
+        self.connector.test_connection()
     }
 }

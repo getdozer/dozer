@@ -144,6 +144,7 @@ impl ConnectionService {
             })
     }
 }
+
 #[cfg(test)]
 mod test {
     use super::ConnectionService;
@@ -152,6 +153,7 @@ mod test {
         GetAllConnectionRequest, PostgresAuthentication,
     };
 
+    #[ignore]
     #[test]
     fn success_save_connection() {
         let create_connection_request: CreateConnectionRequest = CreateConnectionRequest {
@@ -169,6 +171,7 @@ mod test {
         let result = service.create_connection(create_connection_request);
         assert!(result.is_ok())
     }
+    #[ignore]
     #[test]
     fn success_get_connections() {
         let create_connection_request: GetAllConnectionRequest = GetAllConnectionRequest {

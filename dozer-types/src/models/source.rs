@@ -1,6 +1,6 @@
 use super::connection::Connection;
 use serde::{Deserialize, Serialize};
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Source {
     pub id: Option<String>,
     pub name: String,
@@ -10,12 +10,12 @@ pub struct Source {
     pub refresh_config: RefreshConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum HistoryType {
     Master(MasterHistoryConfig),
     Transactional(TransactionalHistoryConfig),
 }
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum MasterHistoryConfig {
     AppendOnly {
         unique_key_field: String,
@@ -25,14 +25,14 @@ pub enum MasterHistoryConfig {
     Overwrite,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TransactionalHistoryConfig {
     RetainPartial {
         timestamp_field: String,
         retention_period: u32,
     },
 }
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum RefreshConfig {
     Hour { minute: u32 },
     Day { time: String },

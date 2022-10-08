@@ -100,8 +100,7 @@ impl Source for ConnectorSource {
                     .iter()
                     .find(|n| *n.clone() == t.name.clone());
                 v.is_some()
-            })
-            .map(|t| t.clone())
+            }).cloned()
             .collect();
 
         let storage_config = RocksConfig::default();

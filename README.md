@@ -1,4 +1,4 @@
-### Dozer Workspace
+### Dozer Workspace [![CI](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg)](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml)
 
 This repository follows a `cargo workspace` structure with several packages. 
 ```

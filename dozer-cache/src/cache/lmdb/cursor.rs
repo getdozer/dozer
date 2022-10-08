@@ -35,7 +35,7 @@ impl<'a> CacheCursor<'a> {
         let key: Option<&[u8]> = if starting_key.is_none() {
             None
         } else {
-            Some(&starting_key.as_ref().unwrap())
+            Some(starting_key.as_ref().unwrap())
         };
 
         loop {
@@ -50,7 +50,7 @@ impl<'a> CacheCursor<'a> {
                         match field_to_compare {
                             Some(ref compared_field) => {
                                 // Find for partial matches if iterating on a query
-                                if let Some(_idx) = gs_find(key, &compared_field) {
+                                if let Some(_idx) = gs_find(key, compared_field) {
                                     docs.push(val.to_vec());
                                 } else {
                                     break;

@@ -90,7 +90,7 @@ impl PostgresSnapshotter {
                         panic!("Something happened");
                     }
                 }
-                idx = idx + 1;
+                idx += 1;
             }
 
             self.ingestor

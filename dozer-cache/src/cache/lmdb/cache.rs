@@ -67,14 +67,14 @@ impl LmdbCache {
     ) -> anyhow::Result<()> {
         let p_key = &schema.primary_index;
         let values = &rec.values;
-        let key = get_primary_key(p_key, &values);
+        let key = get_primary_key(p_key, values);
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;
 
         let indexer = Indexer::new(&self.indexer_db);
 
-        indexer.build_indexes(txn, &rec, &schema, key)?;
+        indexer.build_indexes(txn, rec, schema, key)?;
 
         Ok(())
     }

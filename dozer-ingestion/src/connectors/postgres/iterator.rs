@@ -136,7 +136,7 @@ impl PostgresIteratorHandler {
 
         /*  #####################        Pending             ############################ */
         client
-            .clone()
+            
             .borrow_mut()
             .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")?;
 
@@ -203,7 +203,7 @@ impl PostgresIteratorHandler {
         };
         let publication_name = self.details.publication_name.clone();
         let slot_name = self.details.slot_name.clone();
-        Ok(rt.block_on(async {
+        rt.block_on(async {
             let replicator = CDCHandler {
                 conn_str: self.details.conn_str.clone(),
                 ingestor,
@@ -212,6 +212,6 @@ impl PostgresIteratorHandler {
                 slot_name,
             };
             replicator.start().await
-        })?)
+        })
     }
 }

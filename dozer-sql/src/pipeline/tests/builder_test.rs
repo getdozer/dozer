@@ -67,7 +67,7 @@ impl Source for TestSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
-        for n in 0..10_000_000 {
+        for n in 0..100 {
             fw.send(
                 OperationEvent::new(
                     n,

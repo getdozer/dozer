@@ -42,7 +42,7 @@ pub fn field_to_json_value(field: &Field) -> anyhow::Result<Value> {
         Field::Boolean(b) => Value::from(*b),
         Field::String(s) => Value::String(s.clone()),
         Field::Binary(b) => Value::String(
-            str::from_utf8(&b)
+            str::from_utf8(b)
                 .context("cannot convert to string")?
                 .to_string(),
         ),
@@ -59,12 +59,11 @@ pub fn field_to_json_value(field: &Field) -> anyhow::Result<Value> {
 
 pub fn record_to_json(rec: &Record, schema: &Schema) -> anyhow::Result<HashMap<String, Value>> {
     let mut map: HashMap<String, Value> = HashMap::new();
-    let mut idx: usize = 0;
-    for field_def in schema.fields.iter() {
+
+    for (idx, field_def) in schema.fields.iter().enumerate() {
         let field = rec.values[idx].clone();
         let val: Value = field_to_json_value(&field)?;
         map.insert(field_def.name.clone(), val);
-        idx += 1;
     }
 
     Ok(map)

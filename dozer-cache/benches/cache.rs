@@ -13,7 +13,7 @@ use dozer_schema::{
 use dozer_types::types::{Field, Record, Schema};
 
 async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Result<()> {
-    let val = format!("bar_{}", n).to_string();
+    let val = format!("bar_{}", n);
 
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
 
@@ -25,7 +25,7 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
 }
 
 async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
-    let val = format!("bar_{}", n).to_string();
+    let val = format!("bar_{}", n);
     let key = get_primary_key(&vec![0], &vec![Field::String(val)]);
     let _get_record = cache.get(&key)?;
     Ok(())
@@ -35,10 +35,10 @@ async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let exp = Expression::Simple(
         "foo".to_string(),
         expression::Comparator::EQ,
-        Field::String(format!("bar_{}", n).to_string()),
+        Field::String(format!("bar_{}", n)),
     );
 
-    let _get_record = cache.query(&"benches", &exp, 50)?;
+    let _get_record = cache.query("benches", &exp, 50)?;
     Ok(())
 }
 

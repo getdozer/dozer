@@ -71,7 +71,7 @@ impl Sink for CacheSink {
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
         // println!("SINK: Message {} received", _op.seq_no);
-        self.counter = self.counter + 1;
+        self.counter += 1;
         const BACKSPACE: char = 8u8 as char;
         if self.counter % 1000 == 0 {
             print!(
@@ -91,9 +91,9 @@ impl Sink for CacheSink {
         let hash = hasher.finish();
 
         // Insert if schema not already inserted
-        if !self.schema_map.contains_key(&hash) {
+        if let std::collections::hash_map::Entry::Vacant(e) = self.schema_map.entry(hash) {
             self.cache.insert_schema(&schema, &self.api_endpoint.name)?;
-            self.schema_map.insert(hash, true);
+            e.insert(true);
         }
 
         match op.operation {
@@ -102,14 +102,14 @@ impl Sink for CacheSink {
                 self.cache.delete(&key)?;
             }
             Operation::Insert { new } => {
-                let mut new = new.clone();
-                new.schema_id = schema.identifier.clone();
+                let mut new = new;
+                new.schema_id = schema.identifier;
 
                 self.cache.insert(&new)?;
             }
             Operation::Update { old, new } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
-                let mut new = new.clone();
+                let mut new = new;
                 new.schema_id = schema.identifier.clone();
                 self.cache.update(&key, &new, &schema)?;
             }

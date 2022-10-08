@@ -1,0 +1,35 @@
+name: Dozer CI
+
+on:
+  push:
+    # branches: [ $default-branch ]
+    branches:
+      - feat/implement-ci
+  pull_request:
+    branches: [$default-branch]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.0.0
+
+      - name: Run tests
+        run: cargo test --verbose

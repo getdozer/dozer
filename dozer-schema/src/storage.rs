@@ -81,8 +81,8 @@ impl RocksStorage {
 pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
     [
         "sc".as_bytes(),
-        &schema_id.id.to_be_bytes().to_vec(),
-        &schema_id.version.to_be_bytes().to_vec(),
+        schema_id.id.to_be_bytes().as_ref(),
+        schema_id.version.to_be_bytes().as_ref(),
     ]
     .join("#".as_bytes())
 }
