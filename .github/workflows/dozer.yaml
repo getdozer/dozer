@@ -28,5 +28,8 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.0.0
+
       - name: Run tests
         run: cargo test --verbose
