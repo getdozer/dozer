@@ -17,11 +17,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.0.0
       - name: Build
         run: cargo build --verbose
       - name: Run tests
         run: cargo test --verbose
       - name: Install Stable Rust
         run: rustup toolchain install stable --profile minimal
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.0.0
