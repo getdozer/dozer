@@ -9,6 +9,7 @@ pub trait Connector: Send + Sync {
     fn initialize(
         &mut self,
         storage_client: Arc<RocksStorage>,
+        seq_storage_client: Arc<RocksStorage>,
         tables: Option<Vec<TableInfo>>,
     ) -> anyhow::Result<()>;
     fn iterator(

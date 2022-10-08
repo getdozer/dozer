@@ -1,9 +1,8 @@
-use connectors::connector::Connector;
-use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+use dozer_ingestion::connectors::connector::Connector;
+use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
+use dozer_ingestion::connectors::storage::{RocksConfig, RocksStorage, Storage};
 
-mod connectors;
-use crate::connectors::seq_no_resolver::SeqNoResolver;
-use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::connectors::connector::TableInfo;
@@ -24,12 +23,6 @@ fn main() {
 
     let mut connector = PostgresConnector::new(postgres_config);
 
-    connector.initialize(storage_client, None).unwrap();
-
-    connector.drop_replication_slot_if_exists().unwrap();
-
-    // let ingestor = Ingestor::new(storage_client);
-
     let mut storage_config = RocksConfig::default();
     storage_config.path = "target/seqs".to_string();
     let lsn_storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
@@ -37,9 +30,15 @@ fn main() {
     seq_resolver.init();
     let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
 
+    connector
+        .initialize(storage_client, lsn_storage_client, None)
+        .unwrap();
+
+    connector.drop_replication_slot_if_exists().unwrap();
+
     let before = Instant::now();
     const BACKSPACE: char = 8u8 as char;
-    let mut iterator = connector.iterator(seq_resolver);
+    let mut iterator = connector.iterator(seq_no_resolver);
     let mut i = 0;
     loop {
         let _msg = iterator.next().unwrap();
