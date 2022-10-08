@@ -91,14 +91,6 @@ impl SchemaHelper {
                 .map(|(idx, _)| idx)
                 .collect();
 
-            // TODO:: Sometimes there is no primary index ?
-            // let primary_index =   if primary_index.
-            let primary_index = if primary_index.len() < 1 {
-                vec![0]
-            } else {
-                primary_index
-            };
-
             let schema = Schema {
                 identifier: Some(SchemaIdentifier {
                     id: table_id,

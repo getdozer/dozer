@@ -17,28 +17,28 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
 
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
 
-    cache.insert(record.clone(), schema)?;
-    let key = get_primary_key(vec![0], vec![Field::String(val)]);
+    cache.insert_with_schema(&record, &schema, "benches")?;
+    let key = get_primary_key(&vec![0], &vec![Field::String(val)]);
 
-    let _get_record = cache.get(key)?;
+    let _get_record = cache.get(&key)?;
     Ok(())
 }
 
 async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n).to_string();
-    let key = get_primary_key(vec![0], vec![Field::String(val)]);
-    let _get_record = cache.get(key)?;
+    let key = get_primary_key(&vec![0], &vec![Field::String(val)]);
+    let _get_record = cache.get(&key)?;
     Ok(())
 }
 
-async fn query(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Result<()> {
+async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let exp = Expression::Simple(
         "foo".to_string(),
         expression::Comparator::EQ,
         Field::String(format!("bar_{}", n).to_string()),
     );
 
-    let _get_record = cache.query(schema.identifier.unwrap(), exp)?;
+    let _get_record = cache.query(&"benches", &exp, 50)?;
     Ok(())
 }
 
@@ -73,7 +73,7 @@ fn cache(c: &mut Criterion) {
 
     c.bench_with_input(BenchmarkId::new("cache_query", size), &size, |b, &s| {
         b.iter(|| {
-            rt.block_on(async { query(Arc::clone(&cache), schema.clone(), s).await })
+            rt.block_on(async { query(Arc::clone(&cache), s).await })
                 .unwrap();
         })
     });
