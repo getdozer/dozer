@@ -100,7 +100,7 @@ impl Connector for PostgresConnector {
     fn stop(&self) {}
 
     fn test_connection(&self) -> anyhow::Result<()> {
-        helper::connect(self.conn_str.clone()).map_err(|e| Box::new(e))?;
+        helper::connect(self.conn_str.clone()).map_err(Box::new)?;
         Ok(())
     }
 }
@@ -120,7 +120,7 @@ impl PostgresConnector {
             None => "ALL TABLES".to_string(),
             Some(arr) => {
                 let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
-                format!("TABLE {}", table_names.join(" ")).to_string()
+                format!("TABLE {}", table_names.join(" "))
             }
         };
 

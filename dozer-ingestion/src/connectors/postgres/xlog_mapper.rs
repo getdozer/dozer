@@ -40,7 +40,7 @@ impl Hash for MessageBody<'_> {
         let columns_vec: Vec<(i32, &str, i8)> = self
             .message
             .columns()
-            .into_iter()
+            .iter()
             .map(|column| (column.type_id(), column.name().unwrap(), column.flags()))
             .collect();
 
@@ -69,7 +69,7 @@ impl XlogMapper {
                 println!("[Relation] Rel ID: {}", relation.rel_id());
                 println!("[Relation] Rel columns: {:?}", relation.columns());
 
-                let body = MessageBody::new(&relation);
+                let body = MessageBody::new(relation);
                 let mut s = DefaultHasher::new();
                 body.hash(&mut s);
                 let hash = s.finish();
@@ -172,14 +172,14 @@ impl XlogMapper {
             _ => {}
         }
 
-        return None;
+        None
     }
 
     fn ingest_schema(&mut self, relation: &RelationBody, hash: u64) -> IngestionMessage {
         let rel_id = relation.rel_id();
         let columns: Vec<TableColumn> = relation
             .columns()
-            .into_iter()
+            .iter()
             .map(|column| TableColumn {
                 name: String::from(column.name().unwrap()),
                 type_id: column.type_id(),

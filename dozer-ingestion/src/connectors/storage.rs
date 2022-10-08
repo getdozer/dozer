@@ -58,7 +58,7 @@ impl RocksStorage {
     }
 
     pub fn map_operation_event(&self, op: &OperationEvent) -> (Vec<u8>, Vec<u8>) {
-        let key = self._get_operation_key(op).to_owned();
+        let key = self._get_operation_key(op);
         let encoded: Vec<u8> = bincode::serialize(op).unwrap();
         (key, encoded)
     }

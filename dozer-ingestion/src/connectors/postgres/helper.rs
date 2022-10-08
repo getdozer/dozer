@@ -24,7 +24,7 @@ pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
         "bool" => Type::BOOL,
         _ => Type::ANY,
     };
-    return postgres_type_to_dozer_type(Some(&postgres_type));
+    postgres_type_to_dozer_type(Some(&postgres_type))
 }
 
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
@@ -209,7 +209,7 @@ pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
     for col in columns.iter() {
         let val: Field = value_to_field(row, idx, col.type_());
         values.push(val);
-        idx = idx + 1;
+        idx += 1;
     }
     values
 }
@@ -222,7 +222,7 @@ pub fn map_row_to_operation_event(
     idx: u32,
 ) -> OperationEvent {
     let rec = Record {
-        schema_id: Some(identifer.clone()),
+        schema_id: Some(identifer),
         values: get_values(row, columns),
     };
 
@@ -235,7 +235,7 @@ pub fn map_row_to_operation_event(
 }
 
 pub fn connect(conn_str: String) -> Result<Client, postgres::Error> {
-    let client = Client::connect(&conn_str.clone(), NoTls)?;
+    let client = Client::connect(&conn_str, NoTls)?;
     Ok(client)
 }
 
