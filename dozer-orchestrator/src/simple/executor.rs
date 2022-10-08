@@ -43,7 +43,6 @@ impl Executor {
             let schema = st.to_owned().1.clone();
             source_schemas.push(schema);
             connections.push(source.connection.to_owned());
-            println!("{:?}", table_names);
             table_names.push(source.table_name.clone());
         }
 
@@ -60,6 +59,8 @@ impl Executor {
         let (mut dag, in_handle, out_handle) =
             builder.statement_to_pipeline(statement.clone()).unwrap();
 
+        println!("{:?}", in_handle);
+        println!("{:?}", connections);
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
@@ -77,6 +78,7 @@ impl Executor {
             dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)?;
         }
 
+        println!("We are here");
         dag.connect(out_handle, Endpoint::new(4.to_string(), DefaultPortHandle))?;
 
         let exec = MultiThreadedDagExecutor::new(100000);

@@ -63,13 +63,16 @@ impl Ingestor {
                 self.sender.forward(event);
             }
             IngestionMessage::Schema(schema) => {
-                Runtime::new()
-                    .unwrap()
-                    .block_on(async {
-                        let client = _get_client().await.unwrap();
-                        client.insert(context::current(), schema).await
-                    })
-                    .unwrap();
+                // let schema_update = Runtime::new()
+                //     .unwrap()
+                //     .block_on(async {
+                //         let client = _get_client().await.unwrap();
+                //         client.insert(context::current(), schema).await
+                //     });
+
+                // if let Err(_) = schema_update {
+                //     println!("Igoring schema updated error");
+                // }
             }
             IngestionMessage::Commit() => {
                 self.writer.commit(&self.storage_client);

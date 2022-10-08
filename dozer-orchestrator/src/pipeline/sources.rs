@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::thread;
+use std::thread::spawn;
 
 use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
-use dozer_ingestion::connectors::connector::TableInfo;
 
-use crate::services::connection::ConnectionService;
+use crate::pipeline::ingestion_group;
+use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_core::dag::node::{Source, SourceFactory};
 use dozer_core::state::StateStore;
-use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 use dozer_types::models::connection::Connection;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::Schema;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -86,41 +87,21 @@ impl Source for ConnectorSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
-        let connection = &self.connections[0];
+        let ingestion_group = IngestionGroup {};
+        let receiver =
+            ingestion_group.run_ingestion(self.connections.to_owned(), self.table_names.to_owned());
 
-        let mut connector = ConnectionService::get_connector(connection.to_owned());
-
-        // Filter for the tables selected.
-        let tables = connector.get_tables()?;
-        let tables: Vec<TableInfo> = tables
-            .iter()
-            .filter(|t| {
-                let v = self
-                    .table_names
-                    .iter()
-                    .find(|n| *n.clone() == t.name.clone());
-                v.is_some()
-            }).cloned()
-            .collect();
-
-        let storage_config = RocksConfig::default();
-        let storage_client = Arc::new(Storage::new(storage_config));
-        connector.initialize(storage_client, Some(tables)).unwrap();
-
-        let mut iterator = connector.iterator();
         loop {
-            let msg = iterator.next().unwrap();
-            let schema_id = match msg.operation.clone() {
-                Operation::Delete { old } => old.schema_id,
-                Operation::Insert { new } => new.schema_id,
-                Operation::Update { old: _, new } => new.schema_id,
-                Operation::Terminate => {
-                    bail!("Source shouldn't receive Terminate");
-                }
-                Operation::SchemaUpdate { new: _ } => bail!("Source shouldn't get SchemaUpdate"),
+            let msg = receiver.iter().next().unwrap();
+            if msg.0.seq_no % 100 == 0 {
+                print!("Seq no: {:?}", msg.0.seq_no);
             }
-            .unwrap();
-            fw.send(msg, schema_id.id as u16).unwrap();
+
+            let (op, port) = msg;
+            println!("_______________");
+            if let Err(_) = fw.send(op, port) {
+                println!("Error occured during forwarding. Ignoring");
+            }
         }
     }
 

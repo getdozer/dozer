@@ -33,18 +33,41 @@ fn _film_test() -> anyhow::Result<()> {
         name: "film".to_string(),
         id: None,
     };
+    let connection2: Connection = Connection {
+        db_type: DBType::Postgres,
+        authentication: PostgresAuthentication {
+            user: "postgres".to_string(),
+            password: "postgres".to_string(),
+            host: "localhost".to_string(),
+            port: 5432,
+            database: "pagila".to_string(),
+        },
+        name: "actor".to_string(),
+        id: None,
+    };
     test_connection(connection.to_owned()).unwrap();
+    // test_connection(connection2.to_owned()).unwrap();
     let source = Source {
         id: None,
         name: "film_source".to_string(),
-        table_name: "film".to_string(),
+        table_name: "country".to_string(),
         connection,
         history_type: None,
         refresh_config: RefreshConfig::RealTime,
     };
+    // let source2 = Source {
+    //     id: None,
+    //     name: "pagila_source".to_string(),
+    //     table_name: "actor".to_string(),
+    //     connection: connection2,
+    //     history_type: None,
+    //     refresh_config: RefreshConfig::RealTime,
+    // };
+
     let mut dozer = Dozer::new(Arc::new(client));
     let mut sources = Vec::new();
     sources.push(source);
+    // sources.push(source2);
     dozer.add_sources(sources);
     dozer.add_endpoint(ApiEndpoint {
         id: None,
@@ -52,10 +75,10 @@ fn _film_test() -> anyhow::Result<()> {
         path: "/films".to_string(),
         enable_rest: false,
         enable_grpc: true,
-        sql: "select film_id, description, rental_rate, release_year from film where 1=1;"
+        sql: "select country, country_id from country where 1=1;"
             .to_string(),
         index: ApiIndex {
-            primary_key: vec!["film_id".to_string()],
+            primary_key: vec!["country_id".to_string()],
         },
     });
     dozer.run()?;

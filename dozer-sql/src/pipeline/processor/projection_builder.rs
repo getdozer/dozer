@@ -97,12 +97,15 @@ impl ProjectionBuilder {
 
     fn parse_sql_expression(&self, expression: &SqlExpr) -> Result<(Box<Expression>, bool)> {
         match expression {
-            SqlExpr::Identifier(ident) => Ok((
-                Box::new(Expression::Column {
-                    index: *self.schema_idx.get(&ident.value).unwrap(),
-                }),
-                false,
-            )),
+            SqlExpr::Identifier(ident) => {
+                println!("{:?} {:?}", self.schema_idx, ident.value);
+                Ok((
+                    Box::new(Expression::Column {
+                        index: *self.schema_idx.get(&ident.value).unwrap(),
+                    }),
+                    false,
+                ))
+            },
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok((

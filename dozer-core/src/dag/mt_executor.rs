@@ -140,17 +140,26 @@ impl MultiThreadedDagExecutor {
         senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
         state_manager: Arc<dyn StateStoresManager>,
     ) -> JoinHandle<anyhow::Result<()>> {
+        println!("-/> sta-rt sources");
         let local_sm = state_manager.clone();
         let fw = LocalChannelForwarder::new(senders);
 
+        println!("-=-==--==-=-= bllblbblbl");
         thread::spawn(move || -> anyhow::Result<()> {
+            println!("sasadadsassadasddas");
             let mut state_store = local_sm.init_state_store(handle.to_string())?;
 
             let mut src = src_factory.build();
+            println!("asdasddasadasdasdsadsadasdasdasdasdsadasdadsadasd");
             for p in src_factory.get_output_ports() {
+                println!("PORT: {:?}", p);
                 let schema = src.get_output_schema(p);
-                fw.update_schema(schema, p)?
+
+                if let Err(_) = fw.update_schema(schema, p) {
+                    println!("Error occured. Ignoring");
+                }
             }
+            println!("I am listening to you");
             src.start(&fw, &fw, state_store.as_mut(), None)
         })
     }
