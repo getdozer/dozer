@@ -9,7 +9,7 @@ fn get_record(
     cache: web::Data<Arc<LmdbCache>>,
     key: Value,
 ) -> anyhow::Result<HashMap<String, Value>> {
-    let key = match json_value_to_field(key.clone()) {
+    let key = match json_value_to_field(key) {
         Ok(key) => key,
         Err(e) => {
             panic!("error : {:?}", e);
@@ -27,7 +27,7 @@ fn get_records(
     exp: Expression,
     no_of_records: usize,
 ) -> anyhow::Result<Vec<HashMap<String, Value>>> {
-    let records = cache.query(&"films", &exp, no_of_records)?;
+    let records = cache.query("films", &exp, no_of_records)?;
     let schema = cache.get_schema(
         &records[0]
             .schema_id
@@ -88,7 +88,7 @@ impl ApiServer {
     }
 
     pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
-        let endpoints = endpoints.clone();
+        let endpoints = endpoints;
 
         rt::System::new().block_on(async move {
             HttpServer::new(move || {
@@ -96,7 +96,7 @@ impl ApiServer {
                 let app = app.app_data(web::Data::new(cache.clone()));
                 endpoints.iter().fold(app, |app, endpoint| {
                     let list_route = &endpoint.path.clone();
-                    let get_route = format!("{}/{}", list_route, "{id}".to_string());
+                    let get_route = format!("{}/{}", list_route, "{id}");
                     app.route(list_route, web::get().to(list))
                         .route(&get_route, web::get().to(get))
                 })
