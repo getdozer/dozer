@@ -1,10 +1,11 @@
 use dozer_types::types::Field;
 
 pub enum Expression {
+    None,
     // a = 1
     Simple(String, Comparator, Field),
     // OR, exp1, exp2
-    Combination(Operator, Box<Expression>, Box<Expression>),
+    Composite(Operator, Box<Expression>, Box<Expression>),
 }
 
 pub enum Operator {

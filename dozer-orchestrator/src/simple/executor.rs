@@ -65,8 +65,7 @@ impl Executor {
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
-        let sink =
-            CacheSinkFactory::new(vec![DefaultPortHandle], cache, api_endpoint.index.clone());
+        let sink = CacheSinkFactory::new(vec![DefaultPortHandle], cache, api_endpoint);
 
         let source_table_map = source.table_map.clone();
 

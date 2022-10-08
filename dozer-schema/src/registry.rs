@@ -45,7 +45,7 @@ impl SchemaRegistry for SchemaRegistryServer {
 
     async fn get(self, _: tarpc::context::Context, schema_id: SchemaIdentifier) -> Schema {
         let client = self.storage_client.clone();
-        client.get_schema(schema_id)
+        client.get_schema(&schema_id).unwrap()
     }
 }
 pub fn _serve_channel() -> anyhow::Result<
