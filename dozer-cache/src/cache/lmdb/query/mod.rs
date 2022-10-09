@@ -5,8 +5,8 @@ pub mod iterator;
 use dozer_types::types::{Field, FieldDefinition, IndexType, Record, Schema, SchemaIdentifier};
 
 use crate::cache::{
-    expression::{Expression, Operator},
-    get_secondary_index,
+    expression::{FilterExpression, Operator},
+    CacheHelper,
 };
 
 use iterator::CacheIterator;
@@ -34,12 +34,12 @@ impl<'a> QueryHandler<'a> {
     pub fn query(
         &self,
         schema: &Schema,
-        exp: &Expression,
+        exp: &FilterExpression,
         no_of_rows: Option<usize>,
     ) -> anyhow::Result<Vec<Record>> {
         let pkeys = match exp {
-            Expression::None => self.list(true, no_of_rows)?,
-            Expression::Simple(column, operator, field) => {
+            FilterExpression::None => self.list(true, no_of_rows)?,
+            FilterExpression::Simple(column, operator, field) => {
                 let field_defs: Vec<(usize, &FieldDefinition)> = schema
                     .fields
                     .iter()
@@ -56,8 +56,8 @@ impl<'a> QueryHandler<'a> {
                     no_of_rows,
                 )?
             }
-            Expression::And(_exp1, _exp2) => todo!(),
-            Expression::Or(_exp1, _exp2) => todo!(),
+            // Expression::And(_exp1, _exp2) => todo!(),
+            // Expression::Or(_exp1, _exp2) => todo!(),
         };
         Ok(pkeys)
     }
@@ -92,7 +92,8 @@ impl<'a> QueryHandler<'a> {
 
         let field_to_compare = bincode::serialize(&field)?;
 
-        let starting_key = get_secondary_index(schema_identifier.id, &field_idx, &field_to_compare);
+        let starting_key =
+            CacheHelper::get_secondary_index(schema_identifier.id, &field_idx, &field_to_compare);
 
         let ascending = match operator {
             Operator::LT | Operator::LTE => false,
@@ -112,9 +113,9 @@ impl<'a> QueryHandler<'a> {
         );
         let mut pkeys = vec![];
         loop {
-            let rec = cache_iterator.next();
-            if rec.is_some() {
-                let rec: Record = bincode::deserialize(&rec.unwrap())?;
+            let key = cache_iterator.next();
+            if key.is_some() {
+                let rec = self.get(&key.context("pley expected")?, self.txn)?;
                 pkeys.push(rec);
             } else {
                 break;

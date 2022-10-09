@@ -23,14 +23,14 @@ impl<'a> Iterator for CacheIterator<'a> {
                 Some(self.starting_key.as_ref().unwrap())
             };
 
-            let next_op =
-                Self::get_next_op(self.starting_key.is_some(), self.ascending, self.idx) as u32;
-            let res = self.cursor.get(key, None, next_op);
+            let next_op = Self::get_next_op(self.starting_key.is_some(), self.ascending, self.idx);
+            let res = self.cursor.get(key, None, next_op.get_value());
             let res = match res {
                 Ok((key, val)) => match key {
                     Some(key) => {
                         match self.value_to_compare {
                             Some(ref value_to_compare) => {
+                                // TODO: find a better implementation
                                 // Find for partial matches if iterating on a query
                                 if let Some(_idx) = gs_find(key, value_to_compare) {
                                     Some(val.to_vec())
@@ -92,14 +92,24 @@ impl<'a> CacheIterator<'a> {
 }
 
 // http://www.lmdb.tech/doc/group__mdb.html#ga1206b2af8b95e7f6b0ef6b28708c9127
-pub const MDB_FIRST: isize = 0;
-pub const MDB_LAST: isize = 6;
-pub const MDB_NEXT: isize = 8;
-pub const MDB_PREV: isize = 12;
+pub const MDB_FIRST: u32 = 0;
+pub const MDB_LAST: u32 = 6;
+pub const MDB_NEXT: u32 = 8;
+pub const MDB_PREV: u32 = 12;
 
 enum NextOp {
-    First = MDB_FIRST,
-    Last = MDB_LAST,
-    Next = MDB_NEXT,
-    Prev = MDB_PREV,
+    First,
+    Last,
+    Next,
+    Prev,
+}
+impl NextOp {
+    pub fn get_value(&self) -> u32 {
+        match self {
+            NextOp::First => MDB_FIRST,
+            NextOp::Last => MDB_LAST,
+            NextOp::Next => MDB_NEXT,
+            NextOp::Prev => MDB_PREV,
+        }
+    }
 }

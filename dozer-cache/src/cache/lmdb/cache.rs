@@ -11,8 +11,8 @@ use dozer_schema::storage::get_schema_key;
 use dozer_types::types::Record;
 use dozer_types::types::{Schema, SchemaIdentifier};
 
-use crate::cache::expression::Expression;
-use crate::cache::get_primary_key;
+use crate::cache::expression::FilterExpression;
+use crate::cache::CacheHelper;
 
 use super::super::Cache;
 use super::indexer::Indexer;
@@ -63,7 +63,7 @@ impl LmdbCache {
     ) -> anyhow::Result<()> {
         let p_key = &schema.primary_index;
         let values = &rec.values;
-        let key = get_primary_key(p_key, values);
+        let key = CacheHelper::get_primary_key(p_key, values);
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;
@@ -191,7 +191,7 @@ impl Cache for LmdbCache {
     fn query(
         &self,
         name: &str,
-        exp: &Expression,
+        exp: &FilterExpression,
         no_of_rows: Option<usize>,
     ) -> anyhow::Result<Vec<Record>> {
         let txn: RoTransaction = self.env.begin_ro_txn()?;

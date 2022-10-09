@@ -8,8 +8,8 @@ use dozer_schema::{
 use dozer_types::types::{Field, Record, Schema};
 
 use crate::cache::{
-    expression::{self, Expression},
-    get_primary_key, Cache,
+    expression::{self, FilterExpression},
+    Cache, CacheHelper,
 };
 
 use super::cache::LmdbCache;
@@ -27,7 +27,7 @@ fn query_and_test(
     cache: &LmdbCache,
     inserted_record: &Record,
     schema_name: &str,
-    exp: &Expression,
+    exp: &FilterExpression,
 ) -> anyhow::Result<()> {
     let records = cache.query(schema_name, exp, Some(50))?;
     assert_eq!(records[0], inserted_record.clone(), "must be equal");
@@ -57,7 +57,7 @@ async fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
     cache.insert_with_schema(&record, &schema, "docs")?;
 
-    let key = get_primary_key(&[0], &[Field::String(val)]);
+    let key = CacheHelper::get_primary_key(&[0], &[Field::String(val)]);
 
     let get_record = cache.get(&key)?;
     assert_eq!(get_record, record, "must be equal");
@@ -78,7 +78,7 @@ async fn insert_and_query_record() -> anyhow::Result<()> {
     cache.insert_with_schema(&record, &schema, "docs")?;
 
     // Query with an expression
-    let exp = Expression::Simple(
+    let exp = FilterExpression::Simple(
         "foo".to_string(),
         expression::Operator::EQ,
         Field::String("bar".to_string()),
@@ -86,7 +86,7 @@ async fn insert_and_query_record() -> anyhow::Result<()> {
     query_and_test(&cache, &record, "docs", &exp)?;
 
     // Query without an expression
-    query_and_test(&cache, &record, "docs", &Expression::None)?;
+    query_and_test(&cache, &record, "docs", &FilterExpression::None)?;
 
     Ok(())
 }
