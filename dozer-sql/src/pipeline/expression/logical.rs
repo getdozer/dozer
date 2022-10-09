@@ -85,3 +85,11 @@ fn test_int_bool_and() {
     let r = Box::new(Literal(Field::Boolean(true)));
     assert!(matches!(evaluate_and(&l, &r, &row), Invalid(_)));
 }
+
+#[test]
+fn test_float_bool_and() {
+    let row = Record::new(None, vec![]);
+    let l = Box::new(Literal(Field::Float(1.1)));
+    let r = Box::new(Literal(Field::Boolean(true)));
+    assert!(matches!(evaluate_and(&l, &r, &row), Invalid(_)));
+}

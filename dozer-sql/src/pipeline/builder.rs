@@ -3,7 +3,7 @@ use anyhow::bail;
 
 use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
 
-use dozer_core::dag::dag::{Endpoint, NodeHandle, PortHandle};
+use dozer_core::dag::dag::{Endpoint, NodeHandle};
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
@@ -70,8 +70,6 @@ impl PipelineBuilder {
             Endpoint::new(String::from("projection"), DefaultPortHandle),
         );
 
-        let input = HashMap::from([("default", Endpoint::new(String::from("selection"), DefaultPortHandle))]);
-
         Ok((dag, input_endpoints, Endpoint::new(String::from("projection"), DefaultPortHandle)))
     }
 
@@ -93,7 +91,8 @@ impl PipelineBuilder {
 
     fn get_input_name(&self, table: &TableWithJoins) -> anyhow::Result<String> {
         match &table.relation {
-            TableFactor::Table { name, alias, .. } => {
+            TableFactor::Table { name, alias: _, .. } => {
+
                 let input_name = name.0.iter()
                     .map(normalize_ident)
                     .collect::<Vec<String>>()

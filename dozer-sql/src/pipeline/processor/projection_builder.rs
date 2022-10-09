@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
-use dozer_core::dag::dag::PortHandle;
 
 use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::Field;
@@ -52,7 +51,7 @@ impl ProjectionBuilder {
 
 
         Ok(ProjectionProcessorFactory::new(
-            1,
+            0,
             vec![DefaultPortHandle],
             vec![DefaultPortHandle],
             expressions,
@@ -63,7 +62,7 @@ impl ProjectionBuilder {
     fn get_select_item_name(&self, item: &SelectItem) -> Result<String> {
         match item {
             SelectItem::UnnamedExpr(expr) => Ok(String::from(expr.to_string())),
-            SelectItem::ExprWithAlias { expr, alias } => Ok(String::from(alias.to_string())),
+            SelectItem::ExprWithAlias { expr: _, alias } => Ok(String::from(alias.to_string())),
             SelectItem::Wildcard => Err(DozerSqlError::NotImplemented(format!(
                 "Unsupported Wildcard Operator"
             ))),

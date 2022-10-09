@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use anyhow::bail;
 
-use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Expr, TableFactor, TableWithJoins, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
+use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, TableFactor, TableWithJoins, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
 
 use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::{Field, Schema};
@@ -29,7 +29,7 @@ impl SelectionBuilder {
                 let expression = self.parse_sql_expression(&expression)?;
                 let input_ports = self.get_input_ports(from)?;
 
-                Ok(SelectionProcessorFactory::new(1, input_ports, vec![DefaultPortHandle], expression))
+                Ok(SelectionProcessorFactory::new(0, input_ports, vec![DefaultPortHandle], expression))
             }
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported WHERE clause.".to_string(),
@@ -44,9 +44,9 @@ impl SelectionBuilder {
                     Expression::Column { index: *self.schema_idx.get(&ident.value).unwrap() }))
             }
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
-            // SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
-            //     Ok(Box::new(s.clone()))
-            // }
+            SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
+                Ok(Box::new(Expression::Literal(Field::String(s.to_string()))))
+            }
             SqlExpr::BinaryOp { left, op, right } => {
                 Ok(self.parse_sql_binary_op(left, op, right)?)
             }
@@ -140,7 +140,7 @@ impl SelectionBuilder {
 
     fn get_input_name(&self, table: &TableWithJoins) -> anyhow::Result<String> {
         match &table.relation {
-            TableFactor::Table { name, alias, .. } => {
+            TableFactor::Table { name, alias: _, .. } => {
                 let input_name = name.0.iter()
                     .map(normalize_ident)
                     .collect::<Vec<String>>()

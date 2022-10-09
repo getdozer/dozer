@@ -2,8 +2,6 @@ use rand::Rng;
 use std::collections::HashMap;
 
 use anyhow::bail;
-use anyhow::Context;
-use sqlparser::ast::SelectItem;
 
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
@@ -70,7 +68,7 @@ pub struct ProjectionProcessor {
 impl Processor for ProjectionProcessor {
     fn update_schema(
         &self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
         let input_schema = input_schemas.get(&DefaultPortHandle).unwrap();

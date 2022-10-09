@@ -60,7 +60,7 @@ pub struct SelectionProcessor {
 impl Processor for SelectionProcessor {
     fn update_schema(
         &self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
         Ok(input_schemas.get(&0).unwrap().clone())
