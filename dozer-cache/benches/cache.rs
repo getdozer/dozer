@@ -38,7 +38,7 @@ async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
         Field::String(format!("bar_{}", n)),
     );
 
-    let _get_record = cache.query("benches", &exp, 50)?;
+    let _get_record = cache.query("benches", &exp, Some(50))?;
     Ok(())
 }
 

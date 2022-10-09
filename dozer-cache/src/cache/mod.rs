@@ -16,7 +16,7 @@ pub trait Cache {
         &self,
         schema_name: &str,
         exp: &Expression,
-        no_of_rows: usize,
+        no_of_rows: Option<usize>,
     ) -> anyhow::Result<Vec<Record>>;
     fn get_schema_by_name(&self, name: &str) -> anyhow::Result<Schema>;
     fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> anyhow::Result<Schema>;

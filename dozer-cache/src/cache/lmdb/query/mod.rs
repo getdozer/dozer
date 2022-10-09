@@ -1,6 +1,6 @@
 use anyhow::Context;
 use lmdb::{Database, RoTransaction, Transaction};
-pub mod cursor;
+pub mod iterator;
 
 use dozer_types::types::{Field, FieldDefinition, IndexType, Record, Schema, SchemaIdentifier};
 
@@ -9,7 +9,7 @@ use crate::cache::{
     get_secondary_index,
 };
 
-use cursor::CacheCursor;
+use iterator::CacheIterator;
 pub struct QueryHandler<'a> {
     db: &'a Database,
     indexer_db: &'a Database,
@@ -35,7 +35,7 @@ impl<'a> QueryHandler<'a> {
         &self,
         schema: &Schema,
         exp: &Expression,
-        no_of_rows: usize,
+        no_of_rows: Option<usize>,
     ) -> anyhow::Result<Vec<Record>> {
         let pkeys = match exp {
             Expression::None => self.list(true, no_of_rows)?,
@@ -62,15 +62,19 @@ impl<'a> QueryHandler<'a> {
         Ok(pkeys)
     }
 
-    fn list(&self, ascending: bool, no_of_rows: usize) -> anyhow::Result<Vec<Record>> {
+    fn list(&self, ascending: bool, no_of_rows: Option<usize>) -> anyhow::Result<Vec<Record>> {
         let cursor = self.txn.open_ro_cursor(*self.db)?;
-        let cache_cursor = CacheCursor::new(&cursor);
-        let record_bufs = cache_cursor.get_records(None, None, ascending, no_of_rows)?;
+        let mut cache_iterator = CacheIterator::new(&cursor, None, None, ascending, no_of_rows);
 
         let mut records = vec![];
-        for rec in record_bufs.iter() {
-            let rec: Record = bincode::deserialize(rec)?;
-            records.push(rec);
+        loop {
+            let rec = cache_iterator.next();
+            if rec.is_some() {
+                let rec: Record = bincode::deserialize(&rec.unwrap())?;
+                records.push(rec);
+            } else {
+                break;
+            }
         }
         Ok(records)
     }
@@ -81,7 +85,7 @@ impl<'a> QueryHandler<'a> {
         field_idx: usize,
         operator: &Operator,
         field: &Field,
-        no_of_rows: usize,
+        no_of_rows: Option<usize>,
     ) -> anyhow::Result<Vec<Record>> {
         // TODO: Change logic based on typ
         let _typ = Self::get_index_type(operator);
@@ -99,19 +103,24 @@ impl<'a> QueryHandler<'a> {
         };
         let cursor = self.txn.open_ro_cursor(*self.indexer_db)?;
 
-        let cache_cursor = CacheCursor::new(&cursor);
-        let pkeys = cache_cursor.get_records(
+        let mut cache_iterator = CacheIterator::new(
+            &cursor,
             Some(starting_key),
             Some(field_to_compare),
             ascending,
             no_of_rows,
-        )?;
-        let mut records = vec![];
-        for key in pkeys.iter() {
-            let rec = self.get(key, self.txn)?;
-            records.push(rec);
+        );
+        let mut pkeys = vec![];
+        loop {
+            let rec = cache_iterator.next();
+            if rec.is_some() {
+                let rec: Record = bincode::deserialize(&rec.unwrap())?;
+                pkeys.push(rec);
+            } else {
+                break;
+            }
         }
-        Ok(records)
+        Ok(pkeys)
     }
 
     fn get_index_type(_comparator: &Operator) -> IndexType {

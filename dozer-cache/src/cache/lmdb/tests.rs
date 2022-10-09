@@ -29,7 +29,7 @@ fn query_and_test(
     schema_name: &str,
     exp: &Expression,
 ) -> anyhow::Result<()> {
-    let records = cache.query(schema_name, exp, 50)?;
+    let records = cache.query(schema_name, exp, Some(50))?;
     assert_eq!(records[0], inserted_record.clone(), "must be equal");
     Ok(())
 }

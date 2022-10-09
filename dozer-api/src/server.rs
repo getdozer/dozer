@@ -25,7 +25,7 @@ fn get_record(
 fn get_records(
     cache: web::Data<Arc<LmdbCache>>,
     exp: Expression,
-    no_of_records: usize,
+    no_of_records: Option<usize>,
 ) -> anyhow::Result<Vec<HashMap<String, Value>>> {
     let records = cache.query("films", &exp, no_of_records)?;
     let schema = cache.get_schema(
@@ -55,7 +55,7 @@ async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> im
 }
 
 async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    let records = get_records(cache, Expression::None, 50);
+    let records = get_records(cache, Expression::None, Some(50));
 
     match records {
         Ok(maps) => {

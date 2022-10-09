@@ -192,7 +192,7 @@ impl Cache for LmdbCache {
         &self,
         name: &str,
         exp: &Expression,
-        no_of_rows: usize,
+        no_of_rows: Option<usize>,
     ) -> anyhow::Result<Vec<Record>> {
         let txn: RoTransaction = self.env.begin_ro_txn()?;
         let schema = self._get_schema_from_reverse_key(name, &txn)?;
