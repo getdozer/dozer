@@ -34,7 +34,7 @@ async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
 async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let exp = Expression::Simple(
         "foo".to_string(),
-        expression::Comparator::EQ,
+        expression::Operator::EQ,
         Field::String(format!("bar_{}", n)),
     );
 

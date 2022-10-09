@@ -80,7 +80,7 @@ async fn insert_and_query_record() -> anyhow::Result<()> {
     // Query with an expression
     let exp = Expression::Simple(
         "foo".to_string(),
-        expression::Comparator::EQ,
+        expression::Operator::EQ,
         Field::String("bar".to_string()),
     );
     query_and_test(&cache, &record, "docs", &exp)?;

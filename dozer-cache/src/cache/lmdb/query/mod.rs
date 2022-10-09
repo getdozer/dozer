@@ -1,14 +1,15 @@
 use anyhow::Context;
 use lmdb::{Database, RoTransaction, Transaction};
+pub mod cursor;
 
 use dozer_types::types::{Field, FieldDefinition, IndexType, Record, Schema, SchemaIdentifier};
 
 use crate::cache::{
-    expression::{Comparator, Expression},
+    expression::{Expression, Operator},
     get_secondary_index,
 };
 
-use super::cursor::CacheCursor;
+use cursor::CacheCursor;
 pub struct QueryHandler<'a> {
     db: &'a Database,
     indexer_db: &'a Database,
@@ -38,7 +39,7 @@ impl<'a> QueryHandler<'a> {
     ) -> anyhow::Result<Vec<Record>> {
         let pkeys = match exp {
             Expression::None => self.list(true, no_of_rows)?,
-            Expression::Simple(column, comparator, field) => {
+            Expression::Simple(column, operator, field) => {
                 let field_defs: Vec<(usize, &FieldDefinition)> = schema
                     .fields
                     .iter()
@@ -50,12 +51,13 @@ impl<'a> QueryHandler<'a> {
                 self.query_with_secondary_index(
                     &schema.identifier.to_owned().context("schema_id expected")?,
                     field_def.0,
-                    comparator,
+                    operator,
                     field,
                     no_of_rows,
                 )?
             }
-            Expression::Composite(_operator, _exp1, _exp2) => todo!(),
+            Expression::And(_exp1, _exp2) => todo!(),
+            Expression::Or(_exp1, _exp2) => todo!(),
         };
         Ok(pkeys)
     }
@@ -77,20 +79,23 @@ impl<'a> QueryHandler<'a> {
         &self,
         schema_identifier: &SchemaIdentifier,
         field_idx: usize,
-        comparator: &Comparator,
+        operator: &Operator,
         field: &Field,
         no_of_rows: usize,
     ) -> anyhow::Result<Vec<Record>> {
         // TODO: Change logic based on typ
-        let _typ = Self::get_index_type(comparator);
+        let _typ = Self::get_index_type(operator);
 
         let field_to_compare = bincode::serialize(&field)?;
 
         let starting_key = get_secondary_index(schema_identifier.id, &field_idx, &field_to_compare);
 
-        let ascending = match comparator {
-            Comparator::LT | Comparator::LTE => false,
-            Comparator::GT | Comparator::GTE | Comparator::EQ => true,
+        let ascending = match operator {
+            Operator::LT | Operator::LTE => false,
+            // changes the order
+            Operator::GT | Operator::GTE | Operator::EQ => true,
+            // doesn't impact the order
+            Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => true,
         };
         let cursor = self.txn.open_ro_cursor(*self.indexer_db)?;
 
@@ -109,7 +114,7 @@ impl<'a> QueryHandler<'a> {
         Ok(records)
     }
 
-    fn get_index_type(_comparator: &Comparator) -> IndexType {
+    fn get_index_type(_comparator: &Operator) -> IndexType {
         IndexType::SortedInverted
     }
 }
