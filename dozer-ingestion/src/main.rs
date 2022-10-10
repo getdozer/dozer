@@ -35,9 +35,7 @@ fn main() {
     for postgres_config in postgres_configs {
         let client = Arc::clone(&storage_client);
         let fw = Arc::clone(&forwarder);
-        println!("{:?}", postgres_config);
         thread::spawn(move || {
-            println!("AVC");
             let mut connector = PostgresConnector::new(postgres_config);
 
             connector.initialize(storage_client, None).unwrap();

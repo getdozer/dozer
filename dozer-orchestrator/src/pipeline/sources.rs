@@ -92,15 +92,8 @@ impl Source for ConnectorSource {
             ingestion_group.run_ingestion(self.connections.to_owned(), self.table_names.to_owned());
 
         loop {
-            let msg = receiver.iter().next().unwrap();
-            if msg.0.seq_no % 100 == 0 {
-                print!("Seq no: {:?}", msg.0.seq_no);
-            }
-
-            let (op, port) = msg;
-            if let Err(_) = fw.send(op, port) {
-                println!("Error occured during forwarding. Ignoring");
-            }
+            let (op, port) = receiver.iter().next().unwrap();
+            fw.send(op, port).unwrap();
         }
     }
 
