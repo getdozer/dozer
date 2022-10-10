@@ -9,7 +9,7 @@ use dozer_types::types::{Field, Record, Schema};
 
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
-    helper, Cache,
+    index, Cache,
 };
 
 use super::cache::LmdbCache;
@@ -57,7 +57,7 @@ async fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
     cache.insert_with_schema(&record, &schema, "docs")?;
 
-    let key = helper::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
     let get_record = cache.get(&key)?;
     assert_eq!(get_record, record, "must be equal");

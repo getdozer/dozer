@@ -2,7 +2,7 @@ use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Context;
 use dozer_cache::cache::{
     expression::{FilterExpression, QueryExpression},
-    helper,
+    index,
     lmdb::cache::LmdbCache,
     Cache,
 };
@@ -20,7 +20,7 @@ fn get_record(
             panic!("error : {:?}", e);
         }
     };
-    let key = helper::get_primary_key(&vec![0], &vec![key]);
+    let key = index::get_primary_key(&vec![0], &vec![key]);
 
     let rec = cache.get(&key).context("record not found")?;
     let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;

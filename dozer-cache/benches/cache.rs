@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 use dozer_cache::cache::lmdb::cache::LmdbCache;
-use dozer_cache::cache::{helper, Cache};
+use dozer_cache::cache::{index, Cache};
 use dozer_schema::{
     registry::{SchemaRegistryClient, _serve_channel, client},
     test_helper::init_schema,
@@ -18,7 +18,7 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
 
     cache.insert_with_schema(&record, &schema, "benches")?;
-    let key = helper::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
     let _get_record = cache.get(&key)?;
     Ok(())
@@ -26,7 +26,7 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
 
 async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n);
-    let key = helper::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::String(val)]);
     let _get_record = cache.get(&key)?;
     Ok(())
 }

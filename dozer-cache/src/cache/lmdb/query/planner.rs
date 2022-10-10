@@ -1,11 +1,10 @@
 use anyhow::{bail, Context};
 use lmdb::{Database, RoTransaction, Transaction};
 
-use super::{iterator::CacheIterator, lmdb_helper};
+use super::{helper, iterator::CacheIterator};
 use crate::cache::{
     expression::{FilterExpression, Operator, QueryExpression},
-    helper,
-    planner::{QueryPlan, QueryPlanner},
+    plan_types::{QueryPlan, QueryPlanner},
 };
 use dozer_types::types::{
     Field, FieldDefinition, IndexDefinition, IndexType, Record, Schema, SchemaIdentifier,

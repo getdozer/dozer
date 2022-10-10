@@ -1,9 +1,9 @@
 use lmdb::{Database, RoTransaction, Transaction};
 
-use super::{iterator::CacheIterator, lmdb_planner::LmdbQueryPlanner};
+use super::{iterator::CacheIterator, planner::LmdbQueryPlanner};
 use crate::cache::{
     expression::{FilterExpression, QueryExpression},
-    planner::QueryPlanner,
+    plan_types::QueryPlanner,
 };
 use dozer_types::types::{Record, Schema};
 
