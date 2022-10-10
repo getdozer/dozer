@@ -34,12 +34,12 @@ impl TryFrom<DbConnection> for ConnectionInfo {
         let db_type_value: ConnectionType = ConnectionType::try_from(item.db_type.clone())?;
         let auth_value: dozer_admin_grpc::Authentication = serde_json::from_str(&item.auth)?;
 
-        return Ok(ConnectionInfo {
+        Ok(ConnectionInfo {
             id: Some(item.id),
             name: item.name,
             r#type: db_type_value as i32,
             authentication: Some(auth_value),
-        });
+        })
     }
 }
 impl TryFrom<i32> for ConnectionType {
@@ -91,14 +91,14 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
             .set(&new_connection)
             .execute(&mut db);
         self.id = Some(new_connection.id);
-        return Ok(self);
+        Ok(self)
     }
 
     fn get_by_id(pool: DbPool, input_id: String) -> Result<ConnectionInfo, Box<dyn Error>> {
         let mut db = pool.get()?;
         let result: DbConnection = connections.find(input_id).first(&mut db)?;
-        let connection = ConnectionInfo::try_from(result);
-        return connection;
+        
+        ConnectionInfo::try_from(result)
     }
 
     fn get_multiple(
@@ -118,18 +118,18 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
         let connection_info: Vec<ConnectionInfo> = results
             .iter()
             .map(|result| {
-                return ConnectionInfo::try_from(result.clone()).unwrap();
+                ConnectionInfo::try_from(result.clone()).unwrap()
             })
             .collect();
 
-        return Ok((
+        Ok((
             connection_info,
             Pagination {
-                limit: limit,
+                limit,
                 total: total.try_into().unwrap(),
-                offset: offset,
+                offset,
             },
-        ));
+        ))
     }
 
     fn upsert(&mut self, pool: DbPool) -> Result<&mut ConnectionInfo, Box<dyn Error>> {
@@ -142,6 +142,6 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
             .set(&new_connection)
             .execute(&mut db);
         self.id = Some(new_connection.id);
-        return Ok(self);
+        Ok(self)
     }
 }

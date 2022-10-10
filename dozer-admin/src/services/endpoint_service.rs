@@ -36,9 +36,9 @@ impl EndpointService {
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        return Ok(CreateEndpointResponse {
+        Ok(CreateEndpointResponse {
             info: Some(endpoint_info),
-        });
+        })
     }
 
     pub fn get_endpoint(
@@ -51,9 +51,9 @@ impl EndpointService {
                     message: op.to_string(),
                 },
             )?;
-        return Ok(GetEndpointResponse {
-            info: Some(endpoint_info.to_owned()),
-        });
+        Ok(GetEndpointResponse {
+            info: Some(endpoint_info),
+        })
     }
 
     pub fn update_endpoint(
@@ -71,8 +71,8 @@ impl EndpointService {
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        return Ok(UpdateEndpointResponse {
+        Ok(UpdateEndpointResponse {
             info: Some(endpoint_info.to_owned()),
-        });
+        })
     }
 }

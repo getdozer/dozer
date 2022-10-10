@@ -23,7 +23,7 @@ struct DBSource {
     created_at: String,
     updated_at: String,
 }
-#[derive(Insertable, AsChangeset, PartialEq, Debug, Clone)]
+#[derive(Insertable, AsChangeset, PartialEq, Eq, Debug, Clone)]
 #[diesel(table_name = sources)]
 pub struct NewSource {
     name: String,
@@ -109,17 +109,17 @@ impl Persistable<'_, SourceInfo> for SourceInfo {
         let response: Vec<SourceInfo> = results
             .iter()
             .map(|result| {
-                return SourceInfo::try_from(result.clone()).unwrap();
+                SourceInfo::try_from(result.clone()).unwrap()
             })
             .collect();
-        return Ok((
+        Ok((
             response,
             Pagination {
-                limit: limit,
+                limit,
                 total: total.try_into().unwrap(),
-                offset: offset,
+                offset,
             },
-        ));
+        ))
     }
 
     fn save(&mut self, pool: DbPool) -> Result<&mut SourceInfo, Box<dyn Error>> {
@@ -156,8 +156,8 @@ impl Persistable<'_, SourceInfo> for SourceInfo {
                 .set(&new_source)
                 .execute(conn)?;
             self.id = Some(new_source.id);
-            return Ok(());
+            Ok(())
         })?;
-        return Ok(self);
+        Ok(self)
     }
 }

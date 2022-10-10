@@ -14,7 +14,7 @@ pub struct SourceService {
 impl SourceService {
     pub fn new(database_url: String) -> Self {
         Self {
-            db_pool: establish_connection(database_url.clone()),
+            db_pool: establish_connection(database_url),
         }
     }
 }
@@ -34,9 +34,9 @@ impl SourceService {
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        return Ok(CreateSourceResponse {
+        Ok(CreateSourceResponse {
             info: Some(source_info),
-        });
+        })
     }
     pub fn get_source(&self, input: GetSourceRequest) -> Result<GetSourceResponse, ErrorResponse> {
         let source_info =
@@ -45,10 +45,10 @@ impl SourceService {
                     message: op.to_string(),
                 },
             )?;
-        return Ok(GetSourceResponse {
+        Ok(GetSourceResponse {
             info: Some(source_info.to_owned()),
             id: source_info.id.unwrap(),
-        });
+        })
     }
 
     pub fn update_source(
@@ -66,9 +66,9 @@ impl SourceService {
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        return Ok(UpdateSourceResponse {
+        Ok(UpdateSourceResponse {
             info: Some(source_info.to_owned()),
             id: source_info.id.unwrap(),
-        });
+        })
     }
 }

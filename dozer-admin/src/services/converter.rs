@@ -19,7 +19,7 @@ impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
         });
         dozer_admin_grpc::TableInfo {
             table_name: item.0,
-            columns: columns,
+            columns,
         }
     }
 }
@@ -33,7 +33,7 @@ impl TryFrom<ConnectionInfo> for models::connection::Connection {
             _ => models::connection::DBType::Databricks,
         };
         if item.authentication.is_none() {
-            return Err("Missing authentication props when converting ".to_owned())?;
+            Err("Missing authentication props when converting ".to_owned())?
         } else {
             let auth_value =
                 models::connection::Authentication::try_from(item.authentication.unwrap())?;
@@ -77,16 +77,16 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 password,
             }),
         };
-        return Ok(dozer_admin_grpc::Authentication {
+        Ok(dozer_admin_grpc::Authentication {
             authentication: Some(authentication_value),
-        });
+        })
     }
 }
 impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentication {
     type Error = Box<dyn Error>;
     fn try_from(item: dozer_admin_grpc::Authentication) -> Result<Self, Self::Error> {
         if item.authentication.is_none() {
-            return Err("Missing authentication props when converting ".to_owned())?;
+            Err("Missing authentication props when converting ".to_owned())?
         } else {
             let authentication = item.authentication.unwrap();
             let result = match authentication {
@@ -101,7 +101,7 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
                     }
                 }
             };
-            return Ok(result);
+            Ok(result)
         }
     }
 }

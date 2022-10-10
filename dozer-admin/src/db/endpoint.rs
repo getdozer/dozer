@@ -52,7 +52,7 @@ impl TryFrom<EndpointInfo> for NewEndpoint {
     type Error = Box<dyn Error>;
     fn try_from(input: EndpointInfo) -> Result<Self, Self::Error> {
         let generated_id = uuid::Uuid::new_v4().to_string();
-        return Ok(NewEndpoint {
+        Ok(NewEndpoint {
             id: generated_id,
             name: input.name,
             path: input.path,
@@ -60,7 +60,7 @@ impl TryFrom<EndpointInfo> for NewEndpoint {
             enable_grpc: input.enable_grpc,
             sql: input.sql,
             data_maper: input.data_maper,
-        });
+        })
     }
 }
 impl TryFrom<DbEndpoint> for EndpointInfo {
@@ -68,7 +68,7 @@ impl TryFrom<DbEndpoint> for EndpointInfo {
 
     fn try_from(input: DbEndpoint) -> Result<Self, Self::Error> {
         let ids: Vec<String> = Vec::new();
-        return Ok(EndpointInfo {
+        Ok(EndpointInfo {
             id: Some(input.id),
             name: input.name,
             path: input.path,
@@ -77,7 +77,7 @@ impl TryFrom<DbEndpoint> for EndpointInfo {
             sql: input.sql,
             data_maper: input.data_maper,
             source_ids: ids,
-        });
+        })
     }
 }
 impl Persistable<'_, EndpointInfo> for EndpointInfo {
@@ -90,22 +90,22 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
         let result: Vec<(String, DbEndpoint)> = source_endpoints::table
             .inner_join(endpoints::table)
             .select((source_endpoints::source_id, endpoints::all_columns))
-            .filter(endpoints::id.eq(input_id.to_owned()))
+            .filter(endpoints::id.eq(input_id))
             .load::<(String, DbEndpoint)>(&mut db)?;
-        if result.len() < 1 {
+        if result.is_empty() {
             return Err("There's no endpoint with input id".to_owned())?;
         }
         let source_ids: Vec<String> = result.iter().map(|element| element.0.to_owned()).collect();
         let db_endpoint = &result[0].1;
         let mut endpoint_info = EndpointInfo::try_from(db_endpoint.to_owned())?;
         endpoint_info.source_ids = source_ids;
-        return Ok(endpoint_info);
+        Ok(endpoint_info)
     }
 
     fn upsert(&mut self, pool: DbPool) -> Result<&mut EndpointInfo, Box<dyn Error>> {
         let mut db = pool.get()?;
         let source_ids = self.source_ids.to_owned();
-        if source_ids.len() < 1 {
+        if source_ids.is_empty() {
             return Err("Missing source_ids".to_owned())?;
         }
         let source_ids_len = source_ids.len();
@@ -142,9 +142,9 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
             .execute(conn)?;
 
             self.id = Some(new_endpoint.id);
-            return Ok(());
+            Ok(())
         })?;
-        return Ok(self);
+        Ok(self)
     }
 
     fn get_multiple(_pool: DbPool, _limit: Option<u32>, _offset: Option<u32>) -> Result<(Vec<EndpointInfo>, Pagination), Box<dyn Error>> {
