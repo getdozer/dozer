@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
+use sqlparser::ast::{
+    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem,
+    UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+};
 
 use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::Field;
@@ -49,13 +52,11 @@ impl ProjectionBuilder {
             .map(|item| self.get_select_item_name(item))
             .collect::<Result<Vec<String>>>();
 
-
         Ok(ProjectionProcessorFactory::new(
-            0,
             vec![DefaultPortHandle],
             vec![DefaultPortHandle],
             expressions,
-            names.unwrap()
+            names.unwrap(),
         ))
     }
 
@@ -63,7 +64,9 @@ impl ProjectionBuilder {
         match item {
             SelectItem::UnnamedExpr(expr) => Ok(expr.to_string()),
             SelectItem::ExprWithAlias { expr: _, alias } => Ok(alias.to_string()),
-            SelectItem::Wildcard => Err(DozerSqlError::NotImplemented("Unsupported Wildcard Operator".to_string())),
+            SelectItem::Wildcard => Err(DozerSqlError::NotImplemented(
+                "Unsupported Wildcard Operator".to_string(),
+            )),
             SelectItem::QualifiedWildcard(ref object_name) => Err(DozerSqlError::NotImplemented(
                 format!("Unsupported Qualified Wildcard Operator {}", object_name),
             )),
@@ -72,18 +75,16 @@ impl ProjectionBuilder {
 
     fn parse_sql_select_item(&self, sql: &SelectItem) -> Result<Vec<Expression>> {
         match sql {
-            SelectItem::UnnamedExpr(sql_expr) => {
-                match self.parse_sql_expression(sql_expr) {
-                    Ok(expr) => {
-                        Ok(vec![*expr.0])
-                    }
-                    Err(error) => Err(error),
-                }
-            }
+            SelectItem::UnnamedExpr(sql_expr) => match self.parse_sql_expression(sql_expr) {
+                Ok(expr) => Ok(vec![*expr.0]),
+                Err(error) => Err(error),
+            },
             SelectItem::ExprWithAlias { expr, alias } => Err(DozerSqlError::NotImplemented(
                 format!("Unsupported Expression {}:{}", expr, alias),
             )),
-            SelectItem::Wildcard => Err(DozerSqlError::NotImplemented("Unsupported Wildcard".to_string())),
+            SelectItem::Wildcard => Err(DozerSqlError::NotImplemented(
+                "Unsupported Wildcard".to_string(),
+            )),
             SelectItem::QualifiedWildcard(ref object_name) => Err(DozerSqlError::NotImplemented(
                 format!("Unsupported Qualified Wildcard {}", object_name),
             )),
@@ -104,7 +105,7 @@ impl ProjectionBuilder {
                     Box::new(Expression::Literal(Field::String(s.clone()))),
                     false,
                 ))
-            },
+            }
             SqlExpr::UnaryOp { expr, op } => Ok(self.parse_sql_unary_op(op, expr)?),
             SqlExpr::BinaryOp { left, op, right } => Ok(self.parse_sql_binary_op(left, op, right)?),
             SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr)?),
@@ -184,8 +185,11 @@ impl ProjectionBuilder {
         }
     }
 
-
-    fn parse_sql_unary_op(&self, op: &SqlUnaryOperator, expr: &SqlExpr) -> Result<(Box<Expression>, bool)> {
+    fn parse_sql_unary_op(
+        &self,
+        op: &SqlUnaryOperator,
+        expr: &SqlExpr,
+    ) -> Result<(Box<Expression>, bool)> {
         let (arg, bypass) = self.parse_sql_expression(expr)?;
         if bypass {
             return Ok((arg, bypass));
@@ -195,13 +199,15 @@ impl ProjectionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => return Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported SQL unary operator {:?}", op
-            )))
+            _ => {
+                return Err(DozerSqlError::NotImplemented(format!(
+                    "Unsupported SQL unary operator {:?}",
+                    op
+                )))
+            }
         };
 
         Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
-
     }
 
     fn parse_sql_binary_op(
@@ -240,9 +246,10 @@ impl ProjectionBuilder {
             Ok(n) => Ok((Box::new(Expression::Literal(Field::Int(n))), false)),
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok((Box::new(Expression::Literal(Field::Float(f))), false)),
-                Err(_) => Err(DozerSqlError::NotImplemented("Value is not Numeric.".to_string())),
+                Err(_) => Err(DozerSqlError::NotImplemented(
+                    "Value is not Numeric.".to_string(),
+                )),
             },
         }
     }
-
 }

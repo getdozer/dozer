@@ -45,7 +45,6 @@ pub enum BinaryOperatorType {
     Mod,
 }
 
-
 impl BinaryOperatorType {
     pub fn evaluate(&self, left: &Expression, right: &Expression, record: &Record) -> Field {
         match self {

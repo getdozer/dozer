@@ -1,5 +1,5 @@
-use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::Invalid;
+use dozer_types::types::{Field, Record};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
@@ -17,9 +17,7 @@ pub fn evaluate_and(left: &Expression, right: &Expression, record: &Record) -> F
                 _ => Field::Boolean(false),
             }
         }
-        _ => {
-            Invalid(format!("Cannot apply {} to this values", "$id"))
-        }
+        _ => Invalid(format!("Cannot apply {} to this values", "$id")),
     }
 }
 
@@ -37,9 +35,7 @@ pub fn evaluate_or(left: &Expression, right: &Expression, record: &Record) -> Fi
                 _ => Field::Boolean(false),
             }
         }
-        _ => {
-            Invalid(format!("Cannot apply {} to this values", "$id"))
-        }
+        _ => Invalid(format!("Cannot apply {} to this values", "$id")),
     }
 }
 
@@ -48,9 +44,7 @@ pub fn evaluate_not(value: &Expression, record: &Record) -> Field {
 
     match value_p {
         Field::Boolean(value_v) => Field::Boolean(!value_v),
-        _ => {
-            Invalid(format!("Cannot apply {} to this values", "$id"))
-        }
+        _ => Invalid(format!("Cannot apply {} to this values", "$id")),
     }
 }
 

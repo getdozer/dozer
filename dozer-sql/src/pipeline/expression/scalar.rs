@@ -29,7 +29,6 @@ impl ScalarFunctionType {
             ScalarFunctionType::Round => evaluate_round(&args[0], args.get(1), record),
         }
     }
-
 }
 
 fn evaluate_abs(arg: &Expression, record: &Record) -> Field {
@@ -37,7 +36,7 @@ fn evaluate_abs(arg: &Expression, record: &Record) -> Field {
     match value {
         Field::Int(i) => Field::Int(i.abs()),
         Field::Float(f) => Field::Float(f.abs()),
-        _ => Field::Invalid("ABS doesn't support this type".to_string())
+        _ => Field::Invalid("ABS doesn't support this type".to_string()),
     }
 }
 
@@ -57,7 +56,7 @@ fn evaluate_round(arg: &Expression, decimals: Option<&Expression>, record: &Reco
         Field::Int(i) => Field::Int(i),
         Field::Float(f) => Field::Float((f * order).round() / order),
         Field::Decimal(_) => Field::Invalid("ROUND doesn't support DECIMAL".to_string()),
-        _ => Field::Invalid(format!("ROUND doesn't support {:?}", value))
+        _ => Field::Invalid(format!("ROUND doesn't support {:?}", value)),
     }
 }
 

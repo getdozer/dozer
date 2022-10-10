@@ -113,7 +113,10 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn update_schema(&mut self, _input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn update_schema(
+        &mut self,
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 

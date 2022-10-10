@@ -1,8 +1,7 @@
-use std::{error, result};
 use std::fmt::{Display, Formatter};
+use std::{error, result};
 
 pub type Result<T> = result::Result<T, DozerSqlError>;
-
 
 #[derive(Debug)]
 pub enum DozerSqlError {

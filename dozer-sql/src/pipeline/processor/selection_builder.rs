@@ -1,7 +1,10 @@
-use std::collections::HashMap;
 use anyhow::bail;
+use std::collections::HashMap;
 
-use sqlparser::ast::{BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, TableFactor, TableWithJoins, UnaryOperator as SqlUnaryOperator, Value as SqlValue};
+use sqlparser::ast::{
+    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, TableFactor, TableWithJoins,
+    UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+};
 
 use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::{Field, Schema};
@@ -19,17 +22,30 @@ pub struct SelectionBuilder {
 impl SelectionBuilder {
     pub fn new(schema: &Schema) -> SelectionBuilder {
         Self {
-            schema_idx: schema.fields.iter().enumerate().map(|e| (e.1.name.clone(), e.0)).collect(),
+            schema_idx: schema
+                .fields
+                .iter()
+                .enumerate()
+                .map(|e| (e.1.name.clone(), e.0))
+                .collect(),
         }
     }
 
-    pub fn get_processor(&self, selection: &Option<SqlExpr>, from: &[TableWithJoins]) -> Result<SelectionProcessorFactory> {
+    pub fn get_processor(
+        &self,
+        selection: &Option<SqlExpr>,
+        from: &[TableWithJoins],
+    ) -> Result<SelectionProcessorFactory> {
         match selection {
             Some(expression) => {
                 let expression = self.parse_sql_expression(expression)?;
                 let input_ports = self.get_input_ports(from)?;
 
-                Ok(SelectionProcessorFactory::new(0, input_ports, vec![DefaultPortHandle], expression))
+                Ok(SelectionProcessorFactory::new(
+                    input_ports,
+                    vec![DefaultPortHandle],
+                    expression,
+                ))
             }
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported WHERE clause.".to_string(),
@@ -39,20 +55,15 @@ impl SelectionBuilder {
 
     pub fn parse_sql_expression(&self, expression: &SqlExpr) -> Result<Box<Expression>> {
         match expression {
-            SqlExpr::Identifier(ident) => {
-                Ok(Box::new(
-                    Expression::Column { index: *self.schema_idx.get(&ident.value).unwrap() }))
-            }
+            SqlExpr::Identifier(ident) => Ok(Box::new(Expression::Column {
+                index: *self.schema_idx.get(&ident.value).unwrap(),
+            })),
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(Expression::Literal(Field::String(s.to_string()))))
             }
-            SqlExpr::BinaryOp { left, op, right } => {
-                Ok(self.parse_sql_binary_op(left, op, right)?)
-            }
-            SqlExpr::UnaryOp { op, expr } => {
-                Ok(self.parse_sql_unary_op(op, expr)?)
-            }
+            SqlExpr::BinaryOp { left, op, right } => Ok(self.parse_sql_binary_op(left, op, right)?),
+            SqlExpr::UnaryOp { op, expr } => Ok(self.parse_sql_unary_op(op, expr)?),
             SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr)?),
             _ => Err(DozerSqlError::NotImplemented(
                 "Unsupported Expression.".to_string(),
@@ -65,7 +76,9 @@ impl SelectionBuilder {
             Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok(Box::new(Expression::Literal(Field::Float(f)))),
-                Err(_) => Err(DozerSqlError::NotImplemented("Value is not Numeric.".to_string())),
+                Err(_) => Err(DozerSqlError::NotImplemented(
+                    "Value is not Numeric.".to_string(),
+                )),
             },
         }
     }
@@ -77,23 +90,25 @@ impl SelectionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => return Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported SQL unary operator {:?}", op
-            )))
+            _ => {
+                return Err(DozerSqlError::NotImplemented(format!(
+                    "Unsupported SQL unary operator {:?}",
+                    op
+                )))
+            }
         };
 
         Ok(Box::new(Expression::UnaryOperator { operator, arg }))
-
     }
 
-    fn parse_sql_binary_op(&self,
-                           left_expr: &SqlExpr,
-                           op: &SqlBinaryOperator,
-                           right_expr: &SqlExpr,
+    fn parse_sql_binary_op(
+        &self,
+        left_expr: &SqlExpr,
+        op: &SqlBinaryOperator,
+        right_expr: &SqlExpr,
     ) -> Result<Box<Expression>> {
         let left = self.parse_sql_expression(left_expr)?;
         let right = self.parse_sql_expression(right_expr)?;
-
 
         let operator = match op {
             SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
@@ -115,19 +130,24 @@ impl SelectionBuilder {
             // BinaryOperator::BitwiseAnd => ...
             // BinaryOperator::BitwiseOr => ...
             // BinaryOperator::StringConcat => ...
-
-            _ => return Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported SQL Binary Operator {:?}", op
-            ))),
+            _ => {
+                return Err(DozerSqlError::NotImplemented(format!(
+                    "Unsupported SQL Binary Operator {:?}",
+                    op
+                )))
+            }
         };
 
-        Ok(Box::new(Expression::BinaryOperator { left, operator, right, }))
-
+        Ok(Box::new(Expression::BinaryOperator {
+            left,
+            operator,
+            right,
+        }))
     }
 
     fn get_input_ports(&self, from: &[TableWithJoins]) -> Result<Vec<u16>> {
         let mut input_ports = vec![];
-        let counter:u16 = 0;
+        let counter: u16 = 0;
         for table in from.iter() {
             if self.get_input_name(table).is_ok() {
                 input_ports.push(counter);
@@ -139,15 +159,16 @@ impl SelectionBuilder {
     fn get_input_name(&self, table: &TableWithJoins) -> anyhow::Result<String> {
         match &table.relation {
             TableFactor::Table { name, alias: _, .. } => {
-                let input_name = name.0.iter()
+                let input_name = name
+                    .0
+                    .iter()
                     .map(normalize_ident)
                     .collect::<Vec<String>>()
                     .join(".");
 
                 Ok(input_name)
-
             }
-            _ => bail!("Unsupported Table Name.")
+            _ => bail!("Unsupported Table Name."),
         }
     }
 }

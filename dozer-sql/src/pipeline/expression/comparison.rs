@@ -1,7 +1,7 @@
 use num_traits::cast::*;
 
-use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::Invalid;
+use dozer_types::types::{Field, Record};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
@@ -61,9 +61,7 @@ macro_rules! define_comparison {
                     }
                 },
                 Field::Binary(_left_v) => {
-                    return Invalid(format!(
-                        "Cannot compare binary value to the current value "
-                    ));
+                    return Invalid(format!("Cannot compare binary value to the current value "));
                 }
                 Field::Invalid(cause) => {
                     return Invalid(cause);
@@ -73,7 +71,7 @@ macro_rules! define_comparison {
                 }
             }
         }
-    }
+    };
 }
 
 pub fn evaluate_lt(left: &Expression, right: &Expression, record: &Record) -> Field {
@@ -91,7 +89,10 @@ pub fn evaluate_lt(left: &Expression, right: &Expression, record: &Record) -> Fi
                 let left_v_f = f64::from_i64(left_v).unwrap();
                 Field::Boolean(left_v_f < right_v)
             }
-            _ => Invalid(format!("Cannot compare int value {} to the current value", left_v)),
+            _ => Invalid(format!(
+                "Cannot compare int value {} to the current value",
+                left_v
+            )),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Field::Boolean(left_v < right_v),
@@ -99,22 +100,28 @@ pub fn evaluate_lt(left: &Expression, right: &Expression, record: &Record) -> Fi
                 let right_v_f = f64::from_i64(right_v).unwrap();
                 Field::Boolean(left_v < right_v_f)
             }
-            _ => {
-                Invalid(format!(
-                    "Cannot compare float value {} to the current value",
-                    left_v
-                ))
-            }
+            _ => Invalid(format!(
+                "Cannot compare float value {} to the current value",
+                left_v
+            )),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Field::Boolean(left_v < right_v),
-            _ => Invalid(format!("Cannot compare string value {} to the current value", left_v)),
+            _ => Invalid(format!(
+                "Cannot compare string value {} to the current value",
+                left_v
+            )),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Field::Boolean(left_v < right_v),
-            _ => Invalid(format!("Cannot compare timestamp value {} to the current value", left_v)),
+            _ => Invalid(format!(
+                "Cannot compare timestamp value {} to the current value",
+                left_v
+            )),
         },
-        Field::Binary(_left_v) => Invalid("Cannot compare binary value to the current value ".to_string()),
+        Field::Binary(_left_v) => {
+            Invalid("Cannot compare binary value to the current value ".to_string())
+        }
         Field::Invalid(cause) => Invalid(cause),
         _ => Invalid("Cannot compare these values".to_string()),
     }
@@ -135,7 +142,10 @@ pub fn evaluate_gt(left: &Expression, right: &Expression, record: &Record) -> Fi
                 let left_v_f = f64::from_i64(left_v).unwrap();
                 Field::Boolean(left_v_f > right_v)
             }
-            _ => Invalid(format!("Cannot compare int value {} to the current value", left_v)),
+            _ => Invalid(format!(
+                "Cannot compare int value {} to the current value",
+                left_v
+            )),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Field::Boolean(left_v > right_v),
@@ -143,22 +153,28 @@ pub fn evaluate_gt(left: &Expression, right: &Expression, record: &Record) -> Fi
                 let right_v_f = f64::from_i64(right_v).unwrap();
                 Field::Boolean(left_v > right_v_f)
             }
-            _ => {
-                Invalid(format!(
-                    "Cannot compare float value {} to the current value",
-                    left_v
-                ))
-            }
+            _ => Invalid(format!(
+                "Cannot compare float value {} to the current value",
+                left_v
+            )),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Field::Boolean(left_v > right_v),
-            _ => Invalid(format!("Cannot compare string value {} to the current value", left_v)),
+            _ => Invalid(format!(
+                "Cannot compare string value {} to the current value",
+                left_v
+            )),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Field::Boolean(left_v > right_v),
-            _ => Invalid(format!("Cannot compare timestamp value {} to the current value", left_v)),
+            _ => Invalid(format!(
+                "Cannot compare timestamp value {} to the current value",
+                left_v
+            )),
         },
-        Field::Binary(_left_v) => Invalid("Cannot compare binary value to the current value ".to_string()),
+        Field::Binary(_left_v) => {
+            Invalid("Cannot compare binary value to the current value ".to_string())
+        }
         Field::Invalid(cause) => Invalid(cause),
         _ => Invalid("Cannot compare these values".to_string()),
     }
@@ -213,4 +229,3 @@ fn test_str_str_eq() {
     let f1 = Box::new(Literal(Field::String("abc".to_string())));
     assert!(matches!(evaluate_eq(&f0, &f1, &row), Field::Boolean(true)));
 }
-
