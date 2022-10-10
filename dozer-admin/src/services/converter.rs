@@ -105,3 +105,20 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
         }
     }
 }
+#[cfg(test)]
+mod test {
+    use crate::server::dozer_admin_grpc::ConnectionType;
+
+    #[test]
+    fn success_from_i32_to_connection_type() {
+        let converted = ConnectionType::try_from(0);
+        assert!(converted.is_ok());
+        assert_eq!(converted.unwrap(), ConnectionType::Postgres);
+    }
+    #[test]
+    fn err_from_i32_to_connection_type() {
+        let converted = ConnectionType::try_from(100).map_err(|err| err.to_string());
+        assert!(converted.is_err());
+        assert_eq!(converted.err().unwrap(), "ConnectionType enum not match");
+    }
+}
