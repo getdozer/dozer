@@ -59,8 +59,6 @@ impl Executor {
         let (mut dag, in_handle, out_handle) =
             builder.statement_to_pipeline(statement.clone()).unwrap();
 
-        println!("{:?}", in_handle);
-        println!("{:?}", connections);
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
@@ -78,7 +76,6 @@ impl Executor {
             dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)?;
         }
 
-        println!("We are here");
         dag.connect(out_handle, Endpoint::new(4.to_string(), DefaultPortHandle))?;
 
         let exec = MultiThreadedDagExecutor::new(100000);

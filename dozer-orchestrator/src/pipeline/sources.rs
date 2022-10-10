@@ -98,7 +98,6 @@ impl Source for ConnectorSource {
             }
 
             let (op, port) = msg;
-            println!("_______________");
             if let Err(_) = fw.send(op, port) {
                 println!("Error occured during forwarding. Ignoring");
             }

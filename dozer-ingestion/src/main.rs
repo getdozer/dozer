@@ -32,10 +32,6 @@ fn main() {
         }
     );
 
-    let (sender, receiver) = unbounded::<i32>();
-    let forwarder: Arc<Box<dyn IterationForwarder>> =
-        Arc::new(Box::new(ChannelForwarder { sender }));
-
     for postgres_config in postgres_configs {
         let client = Arc::clone(&storage_client);
         let fw = Arc::clone(&forwarder);
@@ -44,7 +40,7 @@ fn main() {
             println!("AVC");
             let mut connector = PostgresConnector::new(postgres_config);
 
-    connector.initialize(storage_client, None).unwrap();
+            connector.initialize(storage_client, None).unwrap();
 
             connector.drop_replication_slot_if_exists().unwrap();
 
@@ -66,7 +62,6 @@ fn main() {
                     );
                 }
                 i += 1;
-                fw.forward(i);
             }
         });
     }

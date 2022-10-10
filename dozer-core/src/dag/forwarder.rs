@@ -42,14 +42,12 @@ impl LocalChannelForwarder {
     }
 
     fn send_opevent(&self, op: OperationEvent, port_id: PortHandle) -> anyhow::Result<()> {
-        // println!("Existing ports {:?}", self.senders.keys());
         let senders = self.senders.get(&port_id);
         if senders.is_none() {
             println!("expected port, {:?}", port_id);
             return Err(anyhow!("Invalid output port".to_string()));
         }
 
-        println!("senders {:?}", senders.unwrap());
         if senders.unwrap().len() == 1 {
             senders.unwrap()[0].send(op)?;
         } else {
