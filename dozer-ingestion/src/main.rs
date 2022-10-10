@@ -4,11 +4,8 @@ use connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 mod connectors;
 use crate::connectors::storage::{RocksConfig, Storage};
 use std::sync::Arc;
-use std::sync::mpsc::channel;
-use std::thread;
 
 use std::time::Instant;
-use crossbeam::channel::unbounded;
 use crate::connectors::connector::TableInfo;
 
 

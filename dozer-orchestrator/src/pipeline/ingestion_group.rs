@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::thread::spawn;
-use anyhow::bail;
+use anyhow::{bail, Context};
 use dozer_ingestion::connectors::connector::TableInfo;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 use dozer_types::models::connection::Connection;
@@ -9,7 +9,7 @@ use crate::ConnectionService;
 use crossbeam::channel::{Receiver, unbounded};
 
 pub trait IterationForwarder: Send + Sync {
-    fn forward(&self, event: OperationEvent, schema_id: u16);
+    fn forward(&self, event: OperationEvent, schema_id: u16) -> anyhow::Result<()>;
 }
 
 pub struct ChannelForwarder {
@@ -75,7 +75,7 @@ impl IngestionGroup {
                     }
                         .unwrap();
 
-                    fw.forward(msg, schema_id.id as u16);
+                    fw.forward(msg, schema_id.id as u16).context("Iteration message forward failed")?;
                 }
             });
         }
