@@ -31,7 +31,7 @@ jobs:
         uses: arduino/setup-protoc@v1
 
       - name: ⚡ Cache
-      - uses: actions/cache@v3
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
