@@ -40,7 +40,7 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn get_output_schema(&self, port: PortHandle) -> Schema {
+    fn get_output_schema(&self, _port: PortHandle) -> Schema {
         Schema::empty()
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
@@ -113,7 +113,10 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn update_schema(
+        &mut self,
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 

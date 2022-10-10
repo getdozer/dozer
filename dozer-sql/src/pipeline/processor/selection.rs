@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::bail;
-
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
@@ -9,11 +7,11 @@ use dozer_core::dag::node::NextStep;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
 use dozer_types::types::{Field, Operation, Schema};
+use log::info;
 
-use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 pub struct SelectionProcessorFactory {
-    id: i32,
     input_ports: Vec<PortHandle>,
     output_ports: Vec<PortHandle>,
     expression: Box<Expression>,
@@ -21,13 +19,11 @@ pub struct SelectionProcessorFactory {
 
 impl SelectionProcessorFactory {
     pub fn new(
-        id: i32,
         input_ports: Vec<PortHandle>,
         output_ports: Vec<PortHandle>,
         expression: Box<Expression>,
     ) -> Self {
         Self {
-            id,
             input_ports,
             output_ports,
             expression,
@@ -46,29 +42,40 @@ impl ProcessorFactory for SelectionProcessorFactory {
 
     fn build(&self) -> Box<dyn Processor> {
         Box::new(SelectionProcessor {
-            id: self.id,
             expression: self.expression.clone(),
         })
     }
 }
 
 pub struct SelectionProcessor {
-    id: i32,
     expression: Box<Expression>,
+}
+
+impl SelectionProcessor {
+    fn delete(&self, record: &dozer_types::types::Record) -> Operation {
+        Operation::Delete {
+            old: record.clone(),
+        }
+    }
+
+    fn insert(&self, record: &dozer_types::types::Record) -> Operation {
+        Operation::Insert {
+            new: record.clone(),
+        }
+    }
 }
 
 impl Processor for SelectionProcessor {
     fn update_schema(
         &self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
         Ok(input_schemas.get(&0).unwrap().clone())
     }
 
-    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
-        println!("PROC {}: Initialising TestProcessor", self.id);
-        //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
+    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+        info!("{:?}", "Initialising Selection Processor");
         Ok(())
     }
 
@@ -80,18 +87,40 @@ impl Processor for SelectionProcessor {
         _state_store: &mut dyn StateStore,
     ) -> anyhow::Result<NextStep> {
         match op {
-            Operation::Delete { old: _ } => {
-                bail!("DELETE Operation not supported.")
-            }
-            Operation::Insert { ref new } => {
-                if self.expression.evaluate(&new) == Field::Boolean(true) {
+            Operation::Delete { ref old } => {
+                if self.expression.evaluate(old) == Field::Boolean(true) {
                     let _ = fw.send(op, DefaultPortHandle);
                 }
-                Ok(NextStep::Continue)
             }
-            Operation::Update { old: _, new: _ } => bail!("UPDATE Operation not supported."),
-            Operation::Terminate => bail!("TERMINATE Operation not supported."),
-            _ => Ok(NextStep::Continue),
+            Operation::Insert { ref new } => {
+                if self.expression.evaluate(new) == Field::Boolean(true) {
+                    let _ = fw.send(op, DefaultPortHandle);
+                }
+            }
+            Operation::Update { ref old, ref new } => {
+                let old_fulfilled = self.expression.evaluate(old) == Field::Boolean(true);
+                let new_fulfilled = self.expression.evaluate(new) == Field::Boolean(true);
+                match (old_fulfilled, new_fulfilled) {
+                    (true, true) => {
+                        // both records fulfills the WHERE condition, forward the operation
+                        let _ = fw.send(op, DefaultPortHandle);
+                    }
+                    (true, false) => {
+                        // the old record fulfills the WHERE condition while then new one doesn't, forward a delete operation
+                        let _ = fw.send(self.delete(old), DefaultPortHandle);
+                    }
+                    (false, true) => {
+                        // the old record doesn't fulfill the WHERE condition while then new one does, forward an insert operation
+                        let _ = fw.send(self.insert(new), DefaultPortHandle);
+                    }
+                    (false, false) => {
+                        // both records doesn't fulfill the WHERE condition, don't forward the operation
+                    }
+                }
+            }
+            Operation::SchemaUpdate { new: _ } => todo!(),
+            Operation::Terminate => todo!(),
         }
+        Ok(NextStep::Continue)
     }
 }
