@@ -1,0 +1,31 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+message HistoryType {
+  oneof type {
+    MasterHistoryType master = 6;
+    TransactionalHistoryType transactional = 7;
+  }
+}
+message MasterHistoryType {
+  oneof config {
+    MasterHistoryConfigAppendOnly append_only = 1;
+    MasterHistoryConfigOverwrite overwrite = 2;
+  }
+}
+message MasterHistoryConfigAppendOnly {
+  string type = 1;
+  string unique_key_field = 2;
+  string open_date_field = 3;
+  string closed_date_field = 4;
+}
+message MasterHistoryConfigOverwrite {
+}
+message TransactionalHistoryType {
+  oneof config {
+    TransactionalHistoryConfigRetainPartial append_only = 1;
+  }
+}
+message TransactionalHistoryConfigRetainPartial {
+ string timestamp_field = 1;
+ uint32 retention_period = 2;
+}

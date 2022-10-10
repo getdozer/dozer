@@ -1,0 +1,22 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+
+message RefreshConfig {
+  oneof config {
+    RefreshConfigHour hour = 1;
+    RefreshConfigDay day = 2;
+    RefreshConfigCronExpression cron_expression = 3;
+    RefreshConfigRealTime realtime = 4;
+  }
+}
+message RefreshConfigHour {
+  uint32 minute = 1;
+}
+message RefreshConfigDay {
+  string time = 1;
+}
+message RefreshConfigCronExpression {
+  string expression = 1;
+}
+message RefreshConfigRealTime {
+}

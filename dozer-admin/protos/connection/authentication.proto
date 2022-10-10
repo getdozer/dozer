@@ -1,0 +1,8 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+import "protos/connection/postgres_authentication.proto";
+message Authentication {
+  oneof authentication {
+    PostgresAuthentication postgres = 2;
+  }
+}

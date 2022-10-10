@@ -1,0 +1,17 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+import "protos/connection/connection_info.proto";
+import "protos/source/history_type.proto";
+import "protos/source/refresh_config.proto";
+message SourceInfo {
+  optional string id = 1;
+  string name = 2;
+  string dest_table_name = 3;
+  string source_table_name = 4;
+  oneof connection {
+    string connection_id = 5;
+    ConnectionInfo connection_info = 6;
+  }
+  HistoryType history_type = 7;
+  RefreshConfig refresh_config = 8;
+}

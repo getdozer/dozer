@@ -1,193 +1,107 @@
-use crate::server::dozer_api_grpc::{
-    self, connection_info::Authentication, ConnectionInfo, ConnectionType, CreateConnectionRequest,
-    CreateConnectionResponse, PostgresAuthentication, TestConnectionRequest,
+use crate::server::dozer_admin_grpc::{
+    self, authentication, ConnectionInfo, PostgresAuthentication,
 };
-use dozer_types::models::connection::{self, Connection, DBType};
+use dozer_types::models;
 use dozer_types::types::Schema;
-use std::convert::From;
+use std::{convert::From, error::Error};
 
-impl From<(String, Schema)> for dozer_api_grpc::TableInfo {
+impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
     fn from(item: (String, Schema)) -> Self {
         let schema = item.1;
-        let mut columns: Vec<dozer_api_grpc::ColumnInfo> = Vec::new();
+        let mut columns: Vec<dozer_admin_grpc::ColumnInfo> = Vec::new();
         schema.fields.iter().enumerate().for_each(|(idx, f)| {
-            columns.push(dozer_api_grpc::ColumnInfo {
+            columns.push(dozer_admin_grpc::ColumnInfo {
                 column_name: f.name.to_owned(),
                 is_nullable: f.nullable,
                 is_primary_key: schema.primary_index.contains(&idx),
                 udt_name: serde_json::to_string(&f.typ).unwrap(),
             });
         });
-        dozer_api_grpc::TableInfo {
+        dozer_admin_grpc::TableInfo {
             table_name: item.0,
             columns: columns,
         }
     }
 }
 
-impl From<Connection> for Authentication {
-    fn from(item: Connection) -> Self {
-        match item.authentication {
-            connection::Authentication::PostgresAuthentication {
+impl TryFrom<ConnectionInfo> for models::connection::Connection {
+    type Error = Box<dyn Error>;
+    fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {
+        let db_type_value = match item.r#type {
+            0 => models::connection::DBType::Postgres,
+            1 => models::connection::DBType::Snowflake,
+            _ => models::connection::DBType::Databricks,
+        };
+        if item.authentication.is_none() {
+            return Err("Missing authentication props when converting ".to_owned())?;
+        } else {
+            let auth_value =
+                models::connection::Authentication::try_from(item.authentication.unwrap())?;
+            Ok(models::connection::Connection {
+                db_type: db_type_value,
+                authentication: auth_value,
+                name: item.name,
+                id: item.id,
+            })
+        }
+    }
+}
+impl TryFrom<models::connection::Connection> for ConnectionInfo {
+    type Error = Box<dyn Error>;
+    fn try_from(item: models::connection::Connection) -> Result<Self, Self::Error> {
+        let authentication_value = dozer_admin_grpc::Authentication::try_from(item.to_owned())?;
+        Ok(ConnectionInfo {
+            id: item.id,
+            r#type: 0,
+            authentication: Some(authentication_value),
+            name: item.name,
+        })
+    }
+}
+impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authentication {
+    type Error = Box<dyn Error>;
+    fn try_from(item: models::connection::Connection) -> Result<Self, Self::Error> {
+        let auth = item.authentication;
+        let authentication_value = match auth {
+            models::connection::Authentication::PostgresAuthentication {
                 user,
                 password,
                 host,
                 port,
                 database,
-            } => {
-                let postgres_authentication: PostgresAuthentication = PostgresAuthentication {
-                    database,
-                    user,
-                    host,
-                    port: port.to_string(),
-                    name: item.name,
-                    password,
-                };
-                return Authentication::Postgres(postgres_authentication);
-            }
-        }
-    }
-}
-
-impl From<Connection> for CreateConnectionResponse {
-    fn from(item: Connection) -> Self {
-        CreateConnectionResponse {
-            info: Some(ConnectionInfo {
-                id: item.to_owned().id.unwrap(),
-                r#type: 0,
-                authentication: Some(Authentication::from(item)),
+            } => authentication::Authentication::Postgres(PostgresAuthentication {
+                database,
+                user,
+                host,
+                port: port.to_string(),
+                password,
             }),
-        }
+        };
+        return Ok(dozer_admin_grpc::Authentication {
+            authentication: Some(authentication_value),
+        });
     }
 }
-
-impl From<Connection> for ConnectionInfo {
-    fn from(item: Connection) -> Self {
-        ConnectionInfo {
-            id: item.to_owned().id.unwrap(),
-            r#type: 0,
-            authentication: Some(Authentication::from(item)),
-        }
-    }
-}
-
-impl TryFrom<i32> for ConnectionType {
-    type Error = &'static str;
-    fn try_from(item: i32) -> Result<Self, Self::Error> {
-        match item {
-            0 => Ok(ConnectionType::Postgres),
-            _ => Err("ConnectionType enum not match"),
-        }
-    }
-}
-fn string_to_static_str(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
-}
-impl TryFrom<TestConnectionRequest> for Connection {
-    type Error = &'static str;
-    fn try_from(item: TestConnectionRequest) -> Result<Self, Self::Error> {
-        let authentication = item.authentication;
-        match authentication {
-            Some(auth) => match auth {
-                dozer_api_grpc::test_connection_request::Authentication::Postgres(
-                    postgres_auth,
-                ) => {
-                    let json_string = serde_json::to_string(&postgres_auth)
-                        .map_err(|err| string_to_static_str(err.to_string()));
-                    if json_string.is_err() {
-                        return Err(json_string.err().unwrap());
+impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentication {
+    type Error = Box<dyn Error>;
+    fn try_from(item: dozer_admin_grpc::Authentication) -> Result<Self, Self::Error> {
+        if item.authentication.is_none() {
+            return Err("Missing authentication props when converting ".to_owned())?;
+        } else {
+            let authentication = item.authentication.unwrap();
+            let result = match authentication {
+                authentication::Authentication::Postgres(postgres_authentication) => {
+                    let port_int = postgres_authentication.port.parse::<u32>()?;
+                    models::connection::Authentication::PostgresAuthentication {
+                        user: postgres_authentication.user,
+                        password: postgres_authentication.password,
+                        host: postgres_authentication.host,
+                        port: port_int,
+                        database: postgres_authentication.database,
                     }
-
-                    Ok(Connection {
-                        id: None,
-                        db_type: DBType::Postgres,
-                        authentication: connection::Authentication::PostgresAuthentication {
-                            user: postgres_auth.user,
-                            password: postgres_auth.password,
-                            host: postgres_auth.host,
-                            port: postgres_auth.port.parse::<u32>().unwrap(),
-                            database: postgres_auth.database,
-                        },
-                        name: postgres_auth.name,
-                    })
                 }
-            },
-            None => Err("Missing Authentication"),
+            };
+            return Ok(result);
         }
-    }
-}
-
-impl TryFrom<CreateConnectionRequest> for Connection {
-    type Error = &'static str;
-    fn try_from(item: CreateConnectionRequest) -> Result<Self, Self::Error> {
-        let authentication = item.authentication;
-        match authentication {
-            Some(auth) => match auth {
-                dozer_api_grpc::create_connection_request::Authentication::Postgres(
-                    postgres_auth,
-                ) => {
-                    return Ok(Connection {
-                        db_type: DBType::Postgres,
-                        authentication: connection::Authentication::PostgresAuthentication {
-                            user: postgres_auth.user,
-                            password: postgres_auth.password,
-                            host: postgres_auth.host,
-                            port: postgres_auth.port.parse::<u32>().unwrap(),
-                            database: postgres_auth.database,
-                        },
-                        name: postgres_auth.name,
-                        id: None,
-                    })
-                }
-            },
-            None => Err("Missing Authentication"),
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::server::dozer_api_grpc::{
-        create_connection_request::Authentication, ConnectionType, CreateConnectionRequest,
-        PostgresAuthentication,
-    };
-    use dozer_types::models::connection::Connection;
-
-    #[test]
-    fn success_connection_from_request() {
-        let test_connection_request: CreateConnectionRequest = CreateConnectionRequest {
-            r#type: 0,
-            authentication: Some(Authentication::Postgres(PostgresAuthentication {
-                database: "pagila".to_owned(),
-                user: "postgres".to_owned(),
-                host: "localhost".to_owned(),
-                port: "5432".to_owned(),
-                name: "postgres".to_owned(),
-                password: "postgres".to_owned(),
-            })),
-        };
-        let converted = Connection::try_from(test_connection_request);
-        assert!(converted.is_ok())
-    }
-    #[test]
-    fn err_connection_from_request() {
-        let test_connection_request: CreateConnectionRequest = CreateConnectionRequest {
-            r#type: 0,
-            authentication: None,
-        };
-        let converted = Connection::try_from(test_connection_request);
-        assert!(converted.is_err())
-    }
-    #[test]
-    fn success_from_i32_to_connection_type() {
-        let converted = ConnectionType::try_from(0);
-        assert!(converted.is_ok());
-        assert_eq!(converted.unwrap(), ConnectionType::Postgres);
-    }
-    #[test]
-    fn err_from_i32_to_connection_type() {
-        let converted = ConnectionType::try_from(100).map_err(|err| err.to_string());
-        assert!(converted.is_err());
-        assert_eq!(converted.err().unwrap(), "ConnectionType enum not match");
     }
 }
