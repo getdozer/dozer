@@ -1,11 +1,10 @@
-use dozer_ingestion::connectors::connector::Connector;
+use dozer_ingestion::connectors::connector::{Connector, TableInfo};
 use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use crate::connectors::connector::TableInfo;
 
 
 fn main() {

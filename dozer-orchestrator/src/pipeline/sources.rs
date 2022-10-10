@@ -1,11 +1,7 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
-use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
-use dozer_ingestion::connectors::connector::TableInfo;
-use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 
 use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_core::dag::node::{Source, SourceFactory};
