@@ -63,6 +63,7 @@ impl Ingestor {
                 self.sender.forward(event);
             }
             IngestionMessage::Schema(schema) => {
+                // TODO: fix usage of schema registry update
                 // let schema_update = Runtime::new()
                 //     .unwrap()
                 //     .block_on(async {
