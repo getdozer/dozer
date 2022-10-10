@@ -33,18 +33,18 @@ fn _film_test() -> anyhow::Result<()> {
         name: "film".to_string(),
         id: None,
     };
-    let connection2: Connection = Connection {
-        db_type: DBType::Postgres,
-        authentication: PostgresAuthentication {
-            user: "postgres".to_string(),
-            password: "postgres".to_string(),
-            host: "localhost".to_string(),
-            port: 5432,
-            database: "pagila".to_string(),
-        },
-        name: "actor".to_string(),
-        id: None,
-    };
+    // let connection2: Connection = Connection {
+    //     db_type: DBType::Postgres,
+    //     authentication: PostgresAuthentication {
+    //         user: "postgres".to_string(),
+    //         password: "postgres".to_string(),
+    //         host: "localhost".to_string(),
+    //         port: 5432,
+    //         database: "pagila".to_string(),
+    //     },
+    //     name: "actor".to_string(),
+    //     id: None,
+    // };
     test_connection(connection.to_owned()).unwrap();
     // test_connection(connection2.to_owned()).unwrap();
     let source = Source {
@@ -81,6 +81,18 @@ fn _film_test() -> anyhow::Result<()> {
             primary_key: vec!["country_id".to_string()],
         },
     });
+    // dozer.add_endpoint(ApiEndpoint {
+    //     id: None,
+    //     name: "actors".to_string(),
+    //     path: "/actors".to_string(),
+    //     enable_rest: false,
+    //     enable_grpc: true,
+    //     sql: "select last_name, actor_id from actor where 1=1;"
+    //         .to_string(),
+    //     index: ApiIndex {
+    //         primary_key: vec!["actor_is".to_string()],
+    //     },
+    // });
     dozer.run()?;
     Ok(())
 }

@@ -77,7 +77,7 @@ impl ApiServer {
     pub fn default() -> Self {
         Self {
             shutdown_timeout: 0,
-            port: 8081,
+            port: 8080,
         }
     }
     pub fn new(shutdown_timeout: u64, port: u16) -> Self {
