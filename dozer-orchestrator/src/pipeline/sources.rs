@@ -1,13 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
-use std::thread::spawn;
-
-use anyhow::bail;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 
-use crate::pipeline::ingestion_group;
 use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_core::dag::node::{Source, SourceFactory};
 use dozer_core::state::StateStore;
@@ -93,7 +89,7 @@ impl Source for ConnectorSource {
 
         loop {
             let (op, port) = receiver.iter().next().unwrap();
-            fw.send(op, port).unwrap();
+            fw.send(op, port)?;
         }
     }
 

@@ -6,7 +6,6 @@ use dozer_types::models::connection::Connection;
 use dozer_types::types::{Operation, OperationEvent};
 use crate::ConnectionService;
 use crossbeam::channel::{Receiver, unbounded};
-use dozer_schema::storage::RocksStorage;
 
 pub trait IterationForwarder: Send + Sync {
     fn forward(&self, event: OperationEvent, schema_id: u16);
