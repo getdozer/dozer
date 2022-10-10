@@ -3,12 +3,11 @@ use num_traits::cast::*;
 use dozer_types::types::{Field, Record};
 use dozer_types::types::Field::Invalid;
 
-use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
-use crate::pipeline::expression::expression::Expression::Literal;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 macro_rules! define_comparison {
     ($id:ident, $function:expr) => {
-        pub fn $id(left: &Box<Expression>, right: &Box<Expression>, record: &Record) -> Field {
+        pub fn $id(left: &Expression, right: &Expression, record: &Record) -> Field {
         let left_p = left.evaluate(&record);
         let right_p = right.evaluate(&record);
 
@@ -84,6 +83,8 @@ define_comparison!(evaluate_lte, |l, r| { l <= r });
 define_comparison!(evaluate_gt, |l, r| { l > r });
 define_comparison!(evaluate_gte, |l, r| { l >= r });
 
+#[cfg(test)]
+use crate::pipeline::expression::execution::Expression::Literal;
 
 #[test]
 fn test_float_float_eq() {

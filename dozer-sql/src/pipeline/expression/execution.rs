@@ -1,4 +1,3 @@
-use anyhow::bail;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
@@ -22,11 +21,11 @@ pub enum Expression {
     },
     ScalarFunction {
         fun: ScalarFunctionType,
-        args: Vec<Box<Expression>>,
+        args: Vec<Expression>,
     },
     AggregateFunction {
         fun: AggregateFunctionType,
-        args: Vec<Box<Expression>>,
+        args: Vec<Expression>,
     },
 }
 
@@ -48,7 +47,8 @@ impl ExpressionExecutor for Expression {
             Expression::Column { index } => record.values.get(*index).unwrap().clone(),
             Expression::BinaryOperator { left, operator, right } => operator.evaluate(left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(args, record),
-            _ => Field::Invalid(format!("Invalid Expression: {:?}", self))
+            Expression::UnaryOperator { operator, arg } => operator.evaluate(arg, record),
+            Expression::AggregateFunction { fun: _, args: _ } => todo!(),
         }
     }
 
@@ -65,7 +65,7 @@ impl ExpressionExecutor for Expression {
 }
 
 
-fn get_field_type(field: &Field, schema: &Schema) -> FieldType {
+fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
     match field {
         Field::Int(_) => FieldType::Int,
         Field::Float(_) => FieldType::Float,
@@ -75,9 +75,9 @@ fn get_field_type(field: &Field, schema: &Schema) -> FieldType {
         Field::Decimal(_) => FieldType::Decimal,
         Field::Timestamp(_) => FieldType::Timestamp,
         Field::Bson(_) => FieldType::Bson,
-        Field::RecordArray(f) => FieldType::Null, //bail!("Record Array not supported: {:?}", f),
+        Field::RecordArray(_f) => FieldType::Null, //bail!("Record Array not supported: {:?}", f),
         Field::Null => FieldType::Null,
-        Field::Invalid(f) => FieldType::Null, //bail!("Invalid Field Type: {:?}", f)
+        Field::Invalid(_f) => FieldType::Null, //bail!("Invalid Field Type: {:?}", f)
     }
 }
 
@@ -85,7 +85,7 @@ fn get_column_type(index: &usize, schema: &Schema) -> FieldType {
     schema.fields.get(*index).unwrap().typ.clone()
 }
 
-fn get_unary_operator_type(operator: &UnaryOperatorType, expression: &Box<Expression>, schema: &Schema) -> FieldType {
+fn get_unary_operator_type(operator: &UnaryOperatorType, expression: &Expression, schema: &Schema) -> FieldType {
     let field_type = expression.get_type(schema);
     match operator {
         UnaryOperatorType::Not => {
@@ -99,7 +99,7 @@ fn get_unary_operator_type(operator: &UnaryOperatorType, expression: &Box<Expres
     }
 }
 
-fn get_binary_operator_type(left: &Box<Expression>, operator: &BinaryOperatorType, right: &Box<Expression>, schema: &Schema) -> FieldType {
+fn get_binary_operator_type(left: &Expression, operator: &BinaryOperatorType, right: &Expression, schema: &Schema) -> FieldType {
     let left_field_type = left.get_type(schema);
     let right_field_type = right.get_type(schema);
     match operator {
@@ -108,9 +108,7 @@ fn get_binary_operator_type(left: &Box<Expression>, operator: &BinaryOperatorTyp
         BinaryOperatorType::Gt |
         BinaryOperatorType::Gte|
         BinaryOperatorType::Lt |
-        BinaryOperatorType::Lte => match (left_field_type, right_field_type) {
-            _ => FieldType::Boolean
-        },
+        BinaryOperatorType::Lte => FieldType::Boolean,
 
         BinaryOperatorType::And |
         BinaryOperatorType::Or => match (left_field_type, right_field_type) {
@@ -145,7 +143,7 @@ fn get_binary_operator_type(left: &Box<Expression>, operator: &BinaryOperatorTyp
     }
 }
 
-fn get_aggregate_function_type(function: &AggregateFunctionType, args: &Vec<Box<Expression>>, schema: &Schema) -> FieldType {
+fn get_aggregate_function_type(function: &AggregateFunctionType, args: &[Expression], schema: &Schema) -> FieldType {
     match function {
         AggregateFunctionType::Avg => FieldType::Float,
         AggregateFunctionType::Count => FieldType::Int,
@@ -158,7 +156,7 @@ fn get_aggregate_function_type(function: &AggregateFunctionType, args: &Vec<Box<
     }
 }
 
-fn get_scalar_function_type(function: &ScalarFunctionType, args: &Vec<Box<Expression>>, schema: &Schema) -> FieldType {
+fn get_scalar_function_type(function: &ScalarFunctionType, args: &[Expression], schema: &Schema) -> FieldType {
     match function {
         ScalarFunctionType::Abs => args.get(0).unwrap().get_type(schema),
         ScalarFunctionType::Round => FieldType::Int

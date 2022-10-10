@@ -40,7 +40,7 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn get_output_schema(&self, port: PortHandle) -> Schema {
+    fn get_output_schema(&self, _port: PortHandle) -> Schema {
         Schema::empty()
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
@@ -67,7 +67,7 @@ impl Source for TestSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
-        for n in 0..100 {
+        for n in 0..10000000 {
             fw.send(
                 OperationEvent::new(
                     n,
@@ -113,7 +113,7 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn update_schema(&mut self, _input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
         Ok(())
     }
 

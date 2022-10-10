@@ -10,7 +10,7 @@ use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
 use dozer_types::types::{Field, Operation, Schema};
 
-use crate::pipeline::expression::expression::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 pub struct SelectionProcessorFactory {
     id: i32,
@@ -66,7 +66,7 @@ impl Processor for SelectionProcessor {
         Ok(input_schemas.get(&0).unwrap().clone())
     }
 
-    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
@@ -84,7 +84,7 @@ impl Processor for SelectionProcessor {
                 bail!("DELETE Operation not supported.")
             }
             Operation::Insert { ref new } => {
-                if self.expression.evaluate(&new) == Field::Boolean(true) {
+                if self.expression.evaluate(new) == Field::Boolean(true) {
                     let _ = fw.send(op, DefaultPortHandle);
                 }
                 Ok(NextStep::Continue)

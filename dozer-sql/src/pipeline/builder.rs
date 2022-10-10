@@ -74,14 +74,13 @@ impl PipelineBuilder {
     }
 
 
-    fn get_input_endpoints(&self, node_name: &String, from: &Vec<TableWithJoins>) -> Result<HashMap<String, Endpoint>> {
+    fn get_input_endpoints(&self, node_name: &String, from: &[TableWithJoins]) -> Result<HashMap<String, Endpoint>> {
         let mut endpoints = HashMap::new();
 
-        let mut input_port: u16 = 0;
-        for table in from.into_iter() {
+
+        for (input_port, table) in from.iter().enumerate() {
             let input_name = self.get_input_name(table).unwrap();
-            endpoints.insert(input_name, Endpoint::new(NodeHandle::from(node_name), input_port));
-            input_port += 1;
+            endpoints.insert(input_name, Endpoint::new(NodeHandle::from(node_name), input_port as u16));
         }
 
         Ok(endpoints)

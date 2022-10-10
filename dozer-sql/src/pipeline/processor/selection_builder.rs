@@ -8,7 +8,7 @@ use dozer_types::types::{Field, Schema};
 
 use crate::common::error::{DozerSqlError, Result};
 use crate::common::utils::normalize_ident;
-use crate::pipeline::expression::expression::Expression;
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::processor::selection::SelectionProcessorFactory;
 
@@ -23,10 +23,10 @@ impl SelectionBuilder {
         }
     }
 
-    pub fn get_processor(&self, selection: &Option<SqlExpr>, from: &Vec<TableWithJoins>) -> Result<SelectionProcessorFactory> {
+    pub fn get_processor(&self, selection: &Option<SqlExpr>, from: &[TableWithJoins]) -> Result<SelectionProcessorFactory> {
         match selection {
             Some(expression) => {
-                let expression = self.parse_sql_expression(&expression)?;
+                let expression = self.parse_sql_expression(expression)?;
                 let input_ports = self.get_input_ports(from)?;
 
                 Ok(SelectionProcessorFactory::new(0, input_ports, vec![DefaultPortHandle], expression))
@@ -43,7 +43,7 @@ impl SelectionBuilder {
                 Ok(Box::new(
                     Expression::Column { index: *self.schema_idx.get(&ident.value).unwrap() }))
             }
-            SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(&n)?),
+            SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(Expression::Literal(Field::String(s.to_string()))))
             }
@@ -65,9 +65,7 @@ impl SelectionBuilder {
             Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok(Box::new(Expression::Literal(Field::Float(f)))),
-                Err(_) => Err(DozerSqlError::NotImplemented(format!(
-                    "Value is not Numeric.",
-                ))),
+                Err(_) => Err(DozerSqlError::NotImplemented("Value is not Numeric.".to_string())),
             },
         }
     }
@@ -127,11 +125,11 @@ impl SelectionBuilder {
 
     }
 
-    fn get_input_ports(&self, from: &Vec<TableWithJoins>) -> Result<Vec<u16>> {
+    fn get_input_ports(&self, from: &[TableWithJoins]) -> Result<Vec<u16>> {
         let mut input_ports = vec![];
         let counter:u16 = 0;
-        for table in from.into_iter() {
-            if let Ok(_) = self.get_input_name(table) {
+        for table in from.iter() {
+            if self.get_input_name(table).is_ok() {
                 input_ports.push(counter);
             }
         }
