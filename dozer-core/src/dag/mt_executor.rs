@@ -149,6 +149,7 @@ impl MultiThreadedDagExecutor {
             let mut src = src_factory.build();
             for p in src_factory.get_output_ports() {
                 let schema = src.get_output_schema(p);
+
                 fw.update_schema(schema, p)?
             }
             src.start(&fw, &fw, state_store.as_mut(), None)

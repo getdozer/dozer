@@ -42,6 +42,7 @@ fn _film_test() -> anyhow::Result<()> {
         history_type: None,
         refresh_config: RefreshConfig::RealTime,
     };
+
     let mut dozer = Dozer::new(Arc::new(client));
     let mut sources = Vec::new();
     sources.push(source);

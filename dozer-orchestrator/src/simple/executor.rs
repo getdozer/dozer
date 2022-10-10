@@ -43,7 +43,6 @@ impl Executor {
             let schema = st.to_owned().1.clone();
             source_schemas.push(schema);
             connections.push(source.connection.to_owned());
-            println!("{:?}", table_names);
             table_names.push(source.table_name.clone());
         }
 
