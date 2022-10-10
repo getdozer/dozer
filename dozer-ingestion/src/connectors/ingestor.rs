@@ -38,7 +38,6 @@ impl IngestorForwarder for ChannelForwarder {
 
 pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
-    pub seq_storage_client: Arc<RocksStorage>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
     writer: BatchedRocksDbWriter,
     seq_writer: BatchedRocksDbWriter,
@@ -49,13 +48,11 @@ pub struct Ingestor {
 impl Ingestor {
     pub fn new(
         storage_client: Arc<RocksStorage>,
-        seq_storage_client: Arc<RocksStorage>,
         sender: Arc<Box<dyn IngestorForwarder + 'static>>,
         seq_no_resolver: Arc<Mutex<SeqNoResolver>>
     ) -> Self {
         Self {
             storage_client,
-            seq_storage_client,
             sender,
             writer: BatchedRocksDbWriter::new(),
             seq_writer: BatchedRocksDbWriter::new(),
@@ -149,7 +146,7 @@ mod tests {
         seq_resolver.init();
         let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
 
-        let mut ingestor = Ingestor::new(storage_client.clone(), lsn_storage_client.clone(), forwarder, seq_no_resolver);
+        let mut ingestor = Ingestor::new(storage_client.clone(), forwarder, seq_no_resolver);
 
         // Expected seq no - 1
         let schema_message = dozer_types::types::Schema {

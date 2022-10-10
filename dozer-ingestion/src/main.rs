@@ -1,7 +1,7 @@
 use dozer_ingestion::connectors::connector::Connector;
 use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
-use dozer_ingestion::connectors::storage::{RocksConfig, RocksStorage, Storage};
+use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -23,15 +23,12 @@ fn main() {
 
     let mut connector = PostgresConnector::new(postgres_config);
 
-    let mut storage_config = RocksConfig::default();
-    storage_config.path = "target/seqs".to_string();
-    let lsn_storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
-    let mut seq_resolver = SeqNoResolver::new(Arc::clone(&lsn_storage_client));
+    let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
     seq_resolver.init();
     let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
 
     connector
-        .initialize(storage_client, lsn_storage_client, None)
+        .initialize(storage_client, None)
         .unwrap();
 
     connector.drop_replication_slot_if_exists().unwrap();
@@ -42,7 +39,7 @@ fn main() {
     let mut i = 0;
     loop {
         let _msg = iterator.next().unwrap();
-        if i % 100 == 0 {
+        if i % 1000 == 0 {
             print!(
                 "{}\rCount: {}, Elapsed time: {:.2?}",
                 BACKSPACE,
