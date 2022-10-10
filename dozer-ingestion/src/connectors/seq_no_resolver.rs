@@ -45,10 +45,9 @@ mod tests {
 
     #[test]
     fn test_new_sequence() {
-        DB::destroy(&Options::default(), "target/seqs_resolver_new_sequence_tests".to_string()).unwrap();
+        let storage_config = RocksConfig::default();
+        DB::destroy(&Options::default(), &storage_config.path).unwrap();
 
-        let mut storage_config = RocksConfig::default();
-        storage_config.path = "target/seqs_resolver_new_sequence_tests".to_string();
         let lsn_storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
         let mut seq_resolver = SeqNoResolver::new(Arc::clone(&lsn_storage_client));
         seq_resolver.init();
@@ -63,10 +62,9 @@ mod tests {
 
     #[test]
     fn test_continue_sequence() {
-        DB::destroy(&Options::default(), "target/seqs_resolver_continue_sequence_tests".to_string()).unwrap();
+        let storage_config = RocksConfig::default();
+        DB::destroy(&Options::default(), &storage_config.path).unwrap();
 
-        let mut storage_config = RocksConfig::default();
-        storage_config.path = "target/seqs_resolver_continue_sequence_tests".to_string();
         let lsn_storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
         let (key, value) = lsn_storage_client.map_ingestion_checkpoint_message(&(15 as usize), &1);
         lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
