@@ -1,0 +1,12 @@
+
+syntax = "proto3";
+package dozer_admin_grpc;
+import "protos/connection/connection_type.proto";
+import "protos/connection/authentication.proto";
+
+message ConnectionInfo {
+  optional string id = 1;
+  string name = 2;
+  ConnectionType type = 3;
+  Authentication authentication = 4;
+}
