@@ -8,8 +8,8 @@ use dozer_schema::{
 use dozer_types::types::{Field, Record, Schema};
 
 use crate::cache::{
-    expression::{self, FilterExpression},
-    Cache, CacheHelper,
+    expression::{self, FilterExpression, QueryExpression},
+    helper, Cache,
 };
 
 use super::cache::LmdbCache;
@@ -27,9 +27,9 @@ fn query_and_test(
     cache: &LmdbCache,
     inserted_record: &Record,
     schema_name: &str,
-    exp: &FilterExpression,
+    exp: &QueryExpression,
 ) -> anyhow::Result<()> {
-    let records = cache.query(schema_name, exp, Some(50))?;
+    let records = cache.query(schema_name, exp)?;
     assert_eq!(records[0], inserted_record.clone(), "must be equal");
     Ok(())
 }
@@ -57,7 +57,7 @@ async fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
     cache.insert_with_schema(&record, &schema, "docs")?;
 
-    let key = CacheHelper::get_primary_key(&[0], &[Field::String(val)]);
+    let key = helper::get_primary_key(&[0], &[Field::String(val)]);
 
     let get_record = cache.get(&key)?;
     assert_eq!(get_record, record, "must be equal");
@@ -78,15 +78,26 @@ async fn insert_and_query_record() -> anyhow::Result<()> {
     cache.insert_with_schema(&record, &schema, "docs")?;
 
     // Query with an expression
-    let exp = FilterExpression::Simple(
-        "foo".to_string(),
-        expression::Operator::EQ,
-        Field::String("bar".to_string()),
+    let exp = QueryExpression::new(
+        FilterExpression::Simple(
+            "foo".to_string(),
+            expression::Operator::EQ,
+            Field::String("bar".to_string()),
+        ),
+        vec![],
+        10,
+        0,
     );
+
     query_and_test(&cache, &record, "docs", &exp)?;
 
     // Query without an expression
-    query_and_test(&cache, &record, "docs", &FilterExpression::None)?;
+    query_and_test(
+        &cache,
+        &record,
+        "docs",
+        &QueryExpression::new(FilterExpression::None, vec![], 10, 0),
+    )?;
 
     Ok(())
 }

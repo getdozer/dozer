@@ -26,8 +26,8 @@ pub enum FilterExpression {
     None,
     // a = 1, a containts "s", a> 4
     Simple(String, Operator, Field),
-    // And(Box<Expression>, Box<Expression>),
-    // Or(Box<Expression>, Box<Expression>),
+    And(Box<FilterExpression>, Box<FilterExpression>),
+    Or(Box<FilterExpression>, Box<FilterExpression>),
 }
 
 pub enum Operator {

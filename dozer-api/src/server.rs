@@ -1,7 +1,10 @@
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Context;
 use dozer_cache::cache::{
-    expression::FilterExpression, lmdb::cache::LmdbCache, Cache, CacheHelper,
+    expression::{FilterExpression, QueryExpression},
+    helper,
+    lmdb::cache::LmdbCache,
+    Cache,
 };
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
 use serde_json::Value;
@@ -17,7 +20,7 @@ fn get_record(
             panic!("error : {:?}", e);
         }
     };
-    let key = CacheHelper::get_primary_key(&vec![0], &vec![key]);
+    let key = helper::get_primary_key(&vec![0], &vec![key]);
 
     let rec = cache.get(&key).context("record not found")?;
     let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;
@@ -26,10 +29,10 @@ fn get_record(
 
 fn get_records(
     cache: web::Data<Arc<LmdbCache>>,
-    exp: FilterExpression,
+    exp: QueryExpression,
     no_of_records: Option<usize>,
 ) -> anyhow::Result<Vec<HashMap<String, Value>>> {
-    let records = cache.query("films", &exp, no_of_records)?;
+    let records = cache.query("films", &exp)?;
     let schema = cache.get_schema(
         &records[0]
             .schema_id
@@ -57,7 +60,8 @@ async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> im
 }
 
 async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    let records = get_records(cache, FilterExpression::None, Some(50));
+    let exp = QueryExpression::new(FilterExpression::None, vec![], 50, 0);
+    let records = get_records(cache, exp, Some(50));
 
     match records {
         Ok(maps) => {

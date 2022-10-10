@@ -1,11 +1,11 @@
 use anyhow::Ok;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use dozer_cache::cache::expression::{self, FilterExpression};
+use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 use dozer_cache::cache::lmdb::cache::LmdbCache;
-use dozer_cache::cache::{Cache, CacheHelper};
+use dozer_cache::cache::{helper, Cache};
 use dozer_schema::{
     registry::{SchemaRegistryClient, _serve_channel, client},
     test_helper::init_schema,
@@ -18,7 +18,7 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
 
     cache.insert_with_schema(&record, &schema, "benches")?;
-    let key = CacheHelper::get_primary_key(&[0], &[Field::String(val)]);
+    let key = helper::get_primary_key(&[0], &[Field::String(val)]);
 
     let _get_record = cache.get(&key)?;
     Ok(())
@@ -26,19 +26,24 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
 
 async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n);
-    let key = CacheHelper::get_primary_key(&[0], &[Field::String(val)]);
+    let key = helper::get_primary_key(&[0], &[Field::String(val)]);
     let _get_record = cache.get(&key)?;
     Ok(())
 }
 
 async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
-    let exp = FilterExpression::Simple(
-        "foo".to_string(),
-        expression::Operator::EQ,
-        Field::String(format!("bar_{}", n)),
+    let exp = QueryExpression::new(
+        FilterExpression::Simple(
+            "foo".to_string(),
+            expression::Operator::EQ,
+            Field::String("bar".to_string()),
+        ),
+        vec![],
+        10,
+        0,
     );
 
-    let _get_record = cache.query("benches", &exp, Some(50))?;
+    let _get_record = cache.query("benches", &exp)?;
     Ok(())
 }
 

@@ -2,7 +2,7 @@ use anyhow::{Context, Ok};
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier};
 use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 
-use crate::cache::CacheHelper;
+use crate::cache::helper;
 
 pub struct Indexer<'a> {
     db: &'a Database,
@@ -66,7 +66,7 @@ impl<'a> Indexer<'a> {
                 let field = values[*idx].clone();
                 let field_val: Vec<u8> = bincode::serialize(&field).unwrap();
 
-                CacheHelper::get_secondary_index(identifier.id, idx, &field_val)
+                helper::get_secondary_index(identifier.id, idx, &field_val)
             })
             .collect();
         keys

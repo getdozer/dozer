@@ -11,13 +11,13 @@ use dozer_schema::storage::get_schema_key;
 use dozer_types::types::Record;
 use dozer_types::types::{Schema, SchemaIdentifier};
 
-use crate::cache::expression::FilterExpression;
-use crate::cache::CacheHelper;
-
 use super::super::Cache;
 use super::indexer::Indexer;
-use super::query::QueryHandler;
+use super::query::handler::LmdbQueryHandler;
+use super::query::lmdb_helper;
 use super::utils;
+use crate::cache::expression::QueryExpression;
+use crate::cache::helper;
 
 pub struct LmdbCache {
     env: Environment,
@@ -63,7 +63,7 @@ impl LmdbCache {
     ) -> anyhow::Result<()> {
         let p_key = &schema.primary_index;
         let values = &rec.values;
-        let key = CacheHelper::get_primary_key(p_key, values);
+        let key = helper::get_primary_key(p_key, values);
         let encoded: Vec<u8> = bincode::serialize(&rec).unwrap();
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;
@@ -87,7 +87,7 @@ impl LmdbCache {
         txn.put::<Vec<u8>, Vec<u8>>(self.schema_db, &key, &encoded, WriteFlags::default())?;
 
         let schema_bytes = bincode::serialize(&schema_id)?;
-        let schema_key = get_schema_reverse_key(name);
+        let schema_key = helper::get_schema_reverse_key(name);
 
         txn.put::<Vec<u8>, Vec<u8>>(
             self.schema_db,
@@ -118,7 +118,7 @@ impl LmdbCache {
         name: &str,
         txn: &RoTransaction,
     ) -> anyhow::Result<Schema> {
-        let schema_reverse_key = get_schema_reverse_key(name);
+        let schema_reverse_key = helper::get_schema_reverse_key(name);
         let schema_identifier = txn.get(self.schema_db, &schema_reverse_key)?;
         let schema_id: SchemaIdentifier = bincode::deserialize(schema_identifier)?;
         let schema = self._get_schema(txn, &schema_id)?;
@@ -183,21 +183,16 @@ impl Cache for LmdbCache {
 
     fn get(&self, key: &[u8]) -> anyhow::Result<Record> {
         let txn: RoTransaction = self.env.begin_ro_txn()?;
-        let handler = QueryHandler::new(&self.db, &self.indexer_db, &txn);
-        let rec: Record = handler.get(key, &txn)?;
+        let rec: Record = lmdb_helper::get(&txn, &self.db, key)?;
         Ok(rec)
     }
 
-    fn query(
-        &self,
-        name: &str,
-        exp: &FilterExpression,
-        no_of_rows: Option<usize>,
-    ) -> anyhow::Result<Vec<Record>> {
+    fn query(&self, name: &str, query: &QueryExpression) -> anyhow::Result<Vec<Record>> {
         let txn: RoTransaction = self.env.begin_ro_txn()?;
         let schema = self._get_schema_from_reverse_key(name, &txn)?;
-        let handler = QueryHandler::new(&self.db, &self.indexer_db, &txn);
-        let records = handler.query(&schema, exp, no_of_rows)?;
+
+        let handler = LmdbQueryHandler::new(&self.db, &self.indexer_db, &txn);
+        let records = handler.query(&schema, &query)?;
         Ok(records)
     }
 
@@ -226,8 +221,4 @@ impl Cache for LmdbCache {
         txn.commit()?;
         Ok(())
     }
-}
-
-fn get_schema_reverse_key(name: &str) -> Vec<u8> {
-    ["schema_name_".as_bytes(), name.as_bytes()].join("#".as_bytes())
 }
