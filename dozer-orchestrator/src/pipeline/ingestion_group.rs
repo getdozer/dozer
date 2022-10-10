@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::thread::spawn;
+use anyhow::bail;
 use dozer_ingestion::connectors::connector::TableInfo;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 use dozer_types::models::connection::Connection;
@@ -16,16 +17,15 @@ pub struct ChannelForwarder {
 }
 
 impl IterationForwarder for ChannelForwarder {
-    fn forward(&self, event: OperationEvent, schema_id: u16) {
+    fn forward(&self, event: OperationEvent, schema_id: u16) -> anyhow::Result<()> {
         let send_res = self.sender.send((event, schema_id));
         match send_res {
-            Ok(_) => {}
-            Err(e) => {
-                println!("{:?}", e.to_string())
-            }
+            Ok(_) => Ok(()),
+            Err(e) => bail!("Ingestion message forwarding failed {:?}", e.to_string())
         }
     }
 }
+
 pub struct IngestionGroup {}
 
 impl IngestionGroup {

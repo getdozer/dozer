@@ -22,9 +22,7 @@ fn main() {
             id: 0,
             columns: None
         }]),
-        // tables: None,
         conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
-        // conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=large_film".to_string(),
     };
 
     let mut connector = PostgresConnector::new(postgres_config);

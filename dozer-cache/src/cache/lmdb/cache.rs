@@ -35,7 +35,7 @@ fn _debug_dump(cursor: RoCursor) -> anyhow::Result<()> {
 async fn _get_schema_from_registry(
     client: Arc<SchemaRegistryClient>,
     schema_identifier: SchemaIdentifier,
-) -> anyhow::Result<Schema> {
+) -> crossbeam = "0.8.2"<Schema> {
     let ctx = SchemaContext::current();
     let schema = client.get(ctx, schema_identifier).await?;
     Ok(schema)
