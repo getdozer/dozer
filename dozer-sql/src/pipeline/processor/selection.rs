@@ -102,15 +102,20 @@ impl Processor for SelectionProcessor {
                 let new_fulfilled = self.expression.evaluate(new) == Field::Boolean(true);
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
+                        // both records fulfills the WHERE condition, forward the operation
                         let _ = fw.send(op, DefaultPortHandle);
                     }
                     (true, false) => {
+                        // the old record fulfills the WHERE condition while then new one doesn't, forward a delete operation
                         let _ = fw.send(self.delete(old), DefaultPortHandle);
                     }
                     (false, true) => {
+                        // the old record doesn't fulfill the WHERE condition while then new one does, forward an insert operation
                         let _ = fw.send(self.insert(new), DefaultPortHandle);
                     }
-                    (false, false) => {}
+                    (false, false) => {
+                        // both records doesn't fulfill the WHERE condition, don't forward the operation
+                    }
                 }
             }
             Operation::SchemaUpdate { new: _ } => todo!(),
