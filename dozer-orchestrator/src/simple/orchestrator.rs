@@ -42,7 +42,6 @@ impl Orchestrator for SimpleOrchestrator {
             Executor::run(sources, api_endpoint2, cache).unwrap();
         });
         thread.join().unwrap();
-        _thread2.join().unwrap();
 
         Ok(())
     }
