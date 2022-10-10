@@ -40,7 +40,6 @@ pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
     writer: BatchedRocksDbWriter,
-    seq_writer: BatchedRocksDbWriter,
     timer: Instant,
     seq_no_resolver: Arc<Mutex<SeqNoResolver>>
 }
@@ -55,7 +54,6 @@ impl Ingestor {
             storage_client,
             sender,
             writer: BatchedRocksDbWriter::new(),
-            seq_writer: BatchedRocksDbWriter::new(),
             timer: Instant::now(),
             seq_no_resolver
         }
@@ -87,21 +85,14 @@ impl Ingestor {
             }
             IngestionMessage::Commit(mut event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
-                event.seq_no = seq_no as u64;
-                let (seq_key, seq_encoded) = self.storage_client.map_ingestion_seq_message(
-                    &seq_no,
+                let (commit_key, commit_encoded) = self.storage_client.map_commit_message(
                     &1,
+                    &seq_no,
                     &event.lsn
                 );
-                self.seq_writer.insert(seq_key.as_ref(), seq_encoded);
-
-                let (commit_key, commit_encoded) = self.storage_client.map_ingestion_checkpoint_message(
-                    &seq_no,
-                    &1
-                );
-                self.seq_writer.insert(commit_key.as_ref(), commit_encoded);
-
+                self.writer.insert(commit_key.as_ref(), commit_encoded);
                 self.writer.commit(&self.storage_client);
+
                 println!("Batch processing took: {:.2?}", self.timer.elapsed());
             }
             IngestionMessage::Begin() => {
@@ -127,22 +118,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_handle() {
-        DB::destroy(&Options::default(), "target/ingestion-message-handler-test".to_string()).unwrap();
-        DB::destroy(&Options::default(), "target/sequence-test".to_string()).unwrap();
+        let storage_config = RocksConfig::default();
+        DB::destroy(&Options::default(), &storage_config.path).unwrap();
 
-        let storage_config = RocksConfig {
-            path: "target/ingestion-message-handler-test".to_string(),
-        };
         let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
 
         let (tx, _rx) = unbounded::<dozer_types::types::OperationEvent>();
         let forwarder: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
 
-        let mut lsn_storage_config = RocksConfig::default();
-        lsn_storage_config.path = "target/sequence-test".to_string();
-        let lsn_storage_client: Arc<RocksStorage> = Arc::new(Storage::new(lsn_storage_config));
-        let mut seq_resolver = SeqNoResolver::new(Arc::clone(&lsn_storage_client));
+        let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
         seq_resolver.init();
         let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
 
@@ -169,28 +154,47 @@ mod tests {
         };
 
         // Expected seq no - 3
+        let operation_event_message2 = dozer_types::types::OperationEvent {
+            seq_no: 0,
+            operation: Operation::Insert {
+                new: Record {
+                    schema_id: None,
+                    values: vec![]
+                }
+            }
+        };
+
+        // Expected seq no - 4
         let commit_message = dozer_types::types::Commit {
             seq_no: 0,
-            lsn: 3
+            lsn: 412142432
         };
 
         ingestor.handle_message(Begin());
         ingestor.handle_message(Schema(schema_message));
-        ingestor.handle_message(OperationEvent(operation_event_message));
-        ingestor.handle_message(Commit(commit_message));
+        ingestor.handle_message(OperationEvent(operation_event_message.clone()));
+        ingestor.handle_message(OperationEvent(operation_event_message2.clone()));
+        ingestor.handle_message(Commit(commit_message.clone()));
 
-        let mut expected_seq = vec![
-            lsn_storage_client.map_ingestion_seq_message(&(3 as usize), &1, &3),
-            lsn_storage_client.map_ingestion_checkpoint_message(&(3 as usize), &1)
+        let mut expected_event = operation_event_message.clone();
+        expected_event.seq_no = 2;
+        let mut expected_event2 = operation_event_message2.clone();
+        expected_event2.seq_no = 3;
+        let mut expected_op_event_message = vec![
+            storage_client.map_operation_event(&expected_event),
+            storage_client.map_operation_event(&expected_event2),
+            storage_client.map_commit_message(&1, &4, &commit_message.lsn),
         ].into_iter();
-        let db = lsn_storage_client.get_db();
+
+        let db = storage_client.get_db();
         let mut seq_iterator = db.raw_iterator();
+
         seq_iterator.seek_to_first();
         while seq_iterator.valid() {
             let key = seq_iterator.key().unwrap();
             let value = seq_iterator.value().unwrap();
 
-            let (expected_key, expected_value) = expected_seq.next().unwrap();
+            let (expected_key, expected_value) = expected_op_event_message.next().unwrap();
 
             assert_eq!(expected_key, key);
             assert_eq!(expected_value, value);

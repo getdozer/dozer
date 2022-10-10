@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use atomic_counter::{AtomicCounter, ConsistentCounter};
+use rocksdb::ReadOptions;
 use crate::connectors::storage::RocksStorage;
 
 pub struct SeqNoResolver {
@@ -17,7 +18,7 @@ impl SeqNoResolver {
 
     pub fn init(&mut self) {
         let db = self.storage_client.get_db();
-        let mut seq_iterator = db.raw_iterator();
+        let mut seq_iterator = db.raw_iterator_opt(self.storage_client.get_operations_table_read_options());
         seq_iterator.seek_to_last();
         let mut initial_value = 0;
 
@@ -40,9 +41,22 @@ impl SeqNoResolver {
 mod tests {
     use std::sync::Arc;
     use rocksdb::{DB, Options};
+    use dozer_types::types::{Operation, Record};
     use crate::connectors::seq_no_resolver::SeqNoResolver;
     use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
 
+    fn get_event(seq_no: u64) -> dozer_types::types::OperationEvent {
+        dozer_types::types::OperationEvent {
+            seq_no,
+            operation: Operation::Insert {
+                new: Record {
+                    schema_id: None,
+                    values: vec![]
+                }
+            }
+        }
+    }
+    
     #[test]
     fn test_new_sequence() {
         let storage_config = RocksConfig::default();
@@ -66,13 +80,21 @@ mod tests {
         DB::destroy(&Options::default(), &storage_config.path).unwrap();
 
         let lsn_storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
-        let (key, value) = lsn_storage_client.map_ingestion_checkpoint_message(&(15 as usize), &1);
+        let (key, value) = lsn_storage_client.map_operation_event(&get_event(9));
+        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
+        let (key, value) = lsn_storage_client.map_operation_event(&get_event(10));
+        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
+        let (key, value) = lsn_storage_client.map_operation_event(&get_event(11));
+        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
+        let (key, value) = lsn_storage_client.map_operation_event(&get_event(12));
+        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
+        let (key, value) = lsn_storage_client.map_operation_event(&get_event(13));
         lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
 
         let mut seq_resolver = SeqNoResolver::new(Arc::clone(&lsn_storage_client));
         seq_resolver.init();
 
-        let mut i = 16;
+        let mut i = 14;
 
         while i < 25 {
             assert_eq!(seq_resolver.get_next_seq_no(), i);
