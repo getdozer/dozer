@@ -46,7 +46,7 @@ impl IngestionGroup {
             let client = Arc::clone(&storage_client);
             let fw = Arc::clone(&forwarder);
             let t_names = Arc::clone(&table_names_ref);
-            spawn(move || {
+            spawn(move || -> anyhow::Result<()> {
                 let mut connector = ConnectionService::get_connector(connection.to_owned());
 
                 let tables = connector.get_tables().unwrap();
