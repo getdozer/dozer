@@ -4,9 +4,10 @@ use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
 
+use crate::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_types::types::{OperationEvent, Schema};
 use postgres::Client;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use super::helper;
 
@@ -34,7 +35,7 @@ impl PostgresConnector {
             conn_str,
             conn_str_plain: config.conn_str,
             tables: config.tables,
-            storage_client: None,
+            storage_client: None
         }
     }
 }
@@ -70,11 +71,12 @@ impl Connector for PostgresConnector {
     fn initialize(
         &mut self,
         storage_client: Arc<RocksStorage>,
-        tables: Option<Vec<TableInfo>>,
+        tables: Option<Vec<TableInfo>>
     ) -> anyhow::Result<()> {
         let client = helper::connect(self.conn_str.clone())?;
         self.create_publication(client)?;
         self.storage_client = Some(storage_client);
+
         // Initialize the tables to be replicated
         self.tables = tables;
         // TODO: handle this appropriately
@@ -82,7 +84,10 @@ impl Connector for PostgresConnector {
         Ok(())
     }
 
-    fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
+    fn iterator(
+        &mut self,
+        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
+    ) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
         let storage_client = self.storage_client.as_ref().unwrap().clone();
         let iterator = PostgresIterator::new(
             self.get_publication_name(),
@@ -93,7 +98,7 @@ impl Connector for PostgresConnector {
             storage_client,
         );
 
-        let _join_handle = iterator.start().unwrap();
+        let _join_handle = iterator.start(seq_no_resolver).unwrap();
         Box::new(iterator)
     }
 

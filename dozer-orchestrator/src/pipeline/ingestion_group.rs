@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use anyhow::{bail, Context};
 use dozer_ingestion::connectors::connector::TableInfo;
@@ -7,6 +7,7 @@ use dozer_types::models::connection::Connection;
 use dozer_types::types::{Operation, OperationEvent};
 use crate::ConnectionService;
 use crossbeam::channel::{Receiver, unbounded};
+use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 
 pub trait IterationForwarder: Send + Sync {
     fn forward(&self, event: OperationEvent, schema_id: u16) -> anyhow::Result<()>;
@@ -42,10 +43,15 @@ impl IngestionGroup {
             Arc::new(Box::new(ChannelForwarder { sender }));
 
         let table_names_ref = Arc::new(table_names);
+        let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
+        seq_resolver.init();
+        let seq_no_resolver_ref = Arc::new(Mutex::new(seq_resolver));
+
         for connection in connections {
             let client = Arc::clone(&storage_client);
             let fw = Arc::clone(&forwarder);
             let t_names = Arc::clone(&table_names_ref);
+            let sec_no_resolver = Arc::clone(&seq_no_resolver_ref);
             spawn(move || -> anyhow::Result<()> {
                 let mut connector = ConnectionService::get_connector(connection.to_owned());
 
@@ -63,7 +69,7 @@ impl IngestionGroup {
 
                 connector.initialize(client, Some(tables)).unwrap();
 
-                let mut iterator = connector.iterator();
+                let mut iterator = connector.iterator(sec_no_resolver);
                 loop {
                     let msg = iterator.next().unwrap();
                     let schema_id = match msg.operation.clone() {

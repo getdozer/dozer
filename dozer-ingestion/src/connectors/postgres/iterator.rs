@@ -14,6 +14,7 @@ use tokio::runtime::Runtime;
 
 use postgres::Client;
 use postgres::SimpleQueryMessage::Row as SimpleRow;
+use crate::connectors::seq_no_resolver::SeqNoResolver;
 
 use super::replicator::CDCHandler;
 
@@ -69,7 +70,7 @@ impl PostgresIterator {
 }
 
 impl PostgresIterator {
-    pub fn start(&self) -> Result<JoinHandle<()>, Error> {
+    pub fn start(&self, seq_no_resolver: Arc<Mutex<SeqNoResolver>>) -> Result<JoinHandle<()>, Error> {
         let state = RefCell::new(ReplicationState::Pending);
         let lsn = RefCell::new(None);
         let details = self.details.clone();
@@ -82,7 +83,11 @@ impl PostgresIterator {
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         // ingestor.initialize(forwarder);
         let storage_client = self.storage_client.clone();
-        let ingestor = Arc::new(Mutex::new(Ingestor::new(storage_client, forwarder)));
+        let ingestor = Arc::new(Mutex::new(Ingestor::new(
+            storage_client,
+            forwarder,
+            seq_no_resolver
+        )));
 
         Ok(thread::spawn(move || {
             let mut stream_inner = PostgresIteratorHandler {

@@ -52,6 +52,12 @@ pub struct XlogMapper {
     relations_map: HashMap<u32, Table>,
 }
 
+impl Default for XlogMapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl XlogMapper {
     pub fn new() -> Self {
         XlogMapper {
@@ -92,7 +98,7 @@ impl XlogMapper {
                 println!("commit:");
                 println!("[Commit] End lsn: {}", commit.end_lsn());
 
-                return Option::from(IngestionMessage::Commit());
+                return Option::from(IngestionMessage::Commit(dozer_types::types::Commit { seq_no: 0, lsn: commit.end_lsn() }));
             }
             Begin(begin) => {
                 println!("begin:");
@@ -204,7 +210,7 @@ impl XlogMapper {
                 .iter()
                 .map(|c| FieldDefinition {
                     name: c.name.to_string(),
-                    typ: helper::postgres_type_to_dozer_type(c.clone().r#type.as_ref()),
+                    typ: helper::postgres_type_to_dozer_type(c.r#type.as_ref()),
                     nullable: true,
                 })
                 .collect(),

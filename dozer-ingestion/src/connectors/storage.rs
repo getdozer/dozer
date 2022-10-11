@@ -1,7 +1,22 @@
 use dozer_types::types::*;
-use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
+use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB, ReadOptions};
 use std::sync::Arc;
 use tempdir::TempDir;
+
+pub struct TablePrefixes {
+    pub seq_no_table: &'static str,
+    pub seq_no_table_upper_bound: &'static str,
+    pub commit_table: &'static str,
+    pub commit_table_upper_bound: &'static str,
+}
+
+const TABLE_PREFIXES: TablePrefixes = TablePrefixes {
+    seq_no_table: "0",
+    seq_no_table_upper_bound: "1",
+    commit_table: "1",
+    commit_table_upper_bound: "2"
+};
+
 pub trait Storage<T> {
     fn new(storage_config: T) -> Self;
 }
@@ -42,6 +57,19 @@ impl Storage<RocksConfig> for RocksStorage {
     }
 }
 
+macro_rules! define_get_bounds_read_options_fn {
+    ($name:ident, $lower_bound:expr, $upper_bound:expr)  => {
+        pub fn $name(&self) -> ReadOptions {
+            let op_table_prefix = ($lower_bound.as_bytes().to_vec())..($upper_bound.as_bytes().to_vec());
+
+            let mut ro = ReadOptions::default();
+            ro.set_iterate_range(op_table_prefix);
+
+            ro
+        }
+    };
+}
+
 impl RocksStorage {
     pub fn _get_estimate_key_count(&self) -> u64 {
         let db = Arc::clone(&self.db);
@@ -58,26 +86,42 @@ impl RocksStorage {
     }
 
     pub fn map_operation_event(&self, op: &OperationEvent) -> (Vec<u8>, Vec<u8>) {
-        let key = self._get_operation_key(op);
+        let key = self._get_operation_key(&op.seq_no);
         let encoded: Vec<u8> = bincode::serialize(op).unwrap();
         (key, encoded)
     }
 
-    pub fn _get_operation_event(&self, id: i32) -> OperationEvent {
+    pub fn _get_operation_event(&self, id: u64) -> OperationEvent {
         let db = Arc::clone(&self.db);
-        let key = format!("operation_{}", id).as_bytes().to_owned();
+        let key = self._get_operation_key(&id);
         let returned_bytes = db.get(key).unwrap().unwrap();
         let op: OperationEvent = bincode::deserialize(returned_bytes.as_ref()).unwrap();
         op
+    }
+
+    pub fn map_commit_message(
+        &self,
+        connection_id: &usize,
+        seq_no: &usize,
+        lsn: &u64,
+    ) -> (Vec<u8>, Vec<u8>) {
+        let key = format!("{}{:0>19}", TABLE_PREFIXES.commit_table, connection_id)
+            .as_bytes()
+            .to_owned();
+        let encoded = bincode::serialize(&(seq_no, lsn)).unwrap();
+        (key, encoded)
     }
 
     pub fn get_db(&self) -> Arc<DBWithThreadMode<SingleThreaded>> {
         Arc::clone(&self.db)
     }
 
-    fn _get_operation_key(&self, op: &OperationEvent) -> Vec<u8> {
-        format!("operation_{}", op.seq_no).as_bytes().to_vec()
+    fn _get_operation_key(&self, seq_no: &u64) -> Vec<u8> {
+        format!("{}{:0>19}", TABLE_PREFIXES.seq_no_table, seq_no).as_bytes().to_vec()
     }
+
+    define_get_bounds_read_options_fn!(get_operations_table_read_options, TABLE_PREFIXES.seq_no_table, TABLE_PREFIXES.seq_no_table_upper_bound);
+    define_get_bounds_read_options_fn!(get_commits_table_read_options, TABLE_PREFIXES.commit_table, TABLE_PREFIXES.commit_table_upper_bound);
 }
 
 #[cfg(test)]

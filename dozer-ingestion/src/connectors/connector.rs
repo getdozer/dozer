@@ -1,6 +1,7 @@
-use super::storage::RocksStorage;
 use dozer_types::types::{OperationEvent, Schema};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
     fn get_schema(&self, name: String) -> anyhow::Result<Schema>;
     fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>>;
@@ -10,7 +11,10 @@ pub trait Connector: Send + Sync {
         storage_client: Arc<RocksStorage>,
         tables: Option<Vec<TableInfo>>,
     ) -> anyhow::Result<()>;
-    fn iterator(&mut self) -> Box<dyn Iterator<Item = OperationEvent> + 'static>;
+    fn iterator(
+        &mut self,
+        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
+    ) -> Box<dyn Iterator<Item = OperationEvent> + 'static>;
     fn stop(&self);
     fn test_connection(&self) -> anyhow::Result<()>;
 }
