@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use atomic_counter::{AtomicCounter, ConsistentCounter};
-use rocksdb::ReadOptions;
 use crate::connectors::storage::RocksStorage;
 
 pub struct SeqNoResolver {
@@ -79,19 +78,15 @@ mod tests {
         let storage_config = RocksConfig::default();
         DB::destroy(&Options::default(), &storage_config.path).unwrap();
 
-        let lsn_storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
-        let (key, value) = lsn_storage_client.map_operation_event(&get_event(9));
-        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
-        let (key, value) = lsn_storage_client.map_operation_event(&get_event(10));
-        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
-        let (key, value) = lsn_storage_client.map_operation_event(&get_event(11));
-        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
-        let (key, value) = lsn_storage_client.map_operation_event(&get_event(12));
-        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
-        let (key, value) = lsn_storage_client.map_operation_event(&get_event(13));
-        lsn_storage_client.get_db().put(key, value).expect("Failed to insert");
+        let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
+        let mut seq_no = 8;
+        while seq_no < 14 {
+            let (key, value) = storage_client.map_operation_event(&get_event(seq_no));
+            storage_client.get_db().put(key, value).expect("Failed to insert");
+            seq_no = seq_no + 1;
+        }
 
-        let mut seq_resolver = SeqNoResolver::new(Arc::clone(&lsn_storage_client));
+        let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
         seq_resolver.init();
 
         let mut i = 14;

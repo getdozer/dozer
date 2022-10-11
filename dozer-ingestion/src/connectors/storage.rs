@@ -1,4 +1,3 @@
-use std::ops::Range;
 use dozer_types::types::*;
 use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB, ReadOptions};
 use std::sync::Arc;
