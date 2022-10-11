@@ -1,4 +1,4 @@
-use crate::common::error::{DozerSqlError, Result};
+use anyhow::{bail, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum AggregateFunctionType {
@@ -23,12 +23,7 @@ impl AggregateFunctionType {
             "sum" => AggregateFunctionType::Sum,
             "stddev" => AggregateFunctionType::Stddev,
             "variance" => AggregateFunctionType::Variance,
-            _ => {
-                return Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported Aggregate function: {}",
-                    name
-                )));
-            }
+            _ => bail!("Unsupported Aggregate function: {}", name),
         })
     }
 }
