@@ -3,10 +3,10 @@ use std::time::Instant;
 
 use super::storage::RocksStorage;
 use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
-use dozer_schema::registry::{_get_client, context};
+// use dozer_schema::registry::{_get_client, context};
 use dozer_types::types::{Commit, OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
+// use tokio::runtime::Runtime;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -83,7 +83,7 @@ impl Ingestor {
                 //     println!("Igoring schema updated error");
                 // }
             }
-            IngestionMessage::Commit(mut event) => {
+            IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
                 let (commit_key, commit_encoded) = self.storage_client.map_commit_message(
                     &1,
@@ -115,6 +115,7 @@ mod tests {
     use crate::connectors::ingestor::IngestionMessage::{Begin, Commit, OperationEvent, Schema};
     use crate::connectors::seq_no_resolver::SeqNoResolver;
     use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
+    use dozer_types::types::Commit;
 
     #[tokio::test]
     async fn test_message_handle() {
@@ -163,7 +164,7 @@ mod tests {
                 }
             }
         };
-
+        
         // Expected seq no - 4
         let commit_message = dozer_types::types::Commit {
             seq_no: 0,
