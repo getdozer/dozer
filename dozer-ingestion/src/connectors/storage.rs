@@ -6,14 +6,16 @@ use tempdir::TempDir;
 
 pub struct TablePrefixes {
     pub seq_no_table: &'static str,
+    pub seq_no_table_upper_bound: &'static str,
     pub commit_table: &'static str,
     pub commit_table_upper_bound: &'static str,
 }
 
 const TABLE_PREFIXES: TablePrefixes = TablePrefixes {
     seq_no_table: "0",
+    seq_no_table_upper_bound: "1",
     commit_table: "1",
-    commit_table_upper_bound: "2" // this can be used for other data and renamed accordingly
+    commit_table_upper_bound: "2"
 };
 
 pub trait Storage<T> {
@@ -130,8 +132,8 @@ impl RocksStorage {
         format!("{}{:0>19}", TABLE_PREFIXES.seq_no_table, seq_no).as_bytes().to_vec()
     }
 
-    define_get_bounds_read_options_fn!(get_operations_table_read_options, TABLE_PREFIXES.seq_no_table, TABLE_PREFIXES.commit_table);
-    define_get_bounds_read_options_fn!(get_commits_table_read_options, TABLE_PREFIXES.commit_table, TABLE_PREFIXES.commit_table);
+    define_get_bounds_read_options_fn!(get_operations_table_read_options, TABLE_PREFIXES.seq_no_table, TABLE_PREFIXES.seq_no_table_upper_bound);
+    define_get_bounds_read_options_fn!(get_commits_table_read_options, TABLE_PREFIXES.commit_table, TABLE_PREFIXES.commit_table_upper_bound);
 }
 
 #[cfg(test)]
