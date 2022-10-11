@@ -205,11 +205,9 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
 
 pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
     let mut values: Vec<Field> = vec![];
-    let mut idx = 0;
-    for col in columns.iter() {
+    for (idx, col) in columns.iter().enumerate() {
         let val: Field = value_to_field(row, idx, col.type_());
         values.push(val);
-        idx += 1;
     }
     values
 }

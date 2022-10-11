@@ -52,6 +52,12 @@ pub struct XlogMapper {
     relations_map: HashMap<u32, Table>,
 }
 
+impl Default for XlogMapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl XlogMapper {
     pub fn new() -> Self {
         XlogMapper {
@@ -204,7 +210,7 @@ impl XlogMapper {
                 .iter()
                 .map(|c| FieldDefinition {
                     name: c.name.to_string(),
-                    typ: helper::postgres_type_to_dozer_type(c.clone().r#type.as_ref()),
+                    typ: helper::postgres_type_to_dozer_type(c.r#type.as_ref()),
                     nullable: true,
                 })
                 .collect(),

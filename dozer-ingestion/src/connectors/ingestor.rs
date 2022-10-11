@@ -69,7 +69,7 @@ impl Ingestor {
                 self.writer.insert(key.as_ref(), encoded);
                 self.sender.forward(event);
             }
-            IngestionMessage::Schema(schema) => {
+            IngestionMessage::Schema(_schema) => {
                 let _seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
                 // TODO: fix usage of schema registry update
                 // let schema_update = Runtime::new()
@@ -115,7 +115,6 @@ mod tests {
     use crate::connectors::ingestor::IngestionMessage::{Begin, Commit, OperationEvent, Schema};
     use crate::connectors::seq_no_resolver::SeqNoResolver;
     use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
-    use dozer_types::types::Commit;
 
     #[tokio::test]
     async fn test_message_handle() {
@@ -177,9 +176,9 @@ mod tests {
         ingestor.handle_message(OperationEvent(operation_event_message2.clone()));
         ingestor.handle_message(Commit(commit_message.clone()));
 
-        let mut expected_event = operation_event_message.clone();
+        let mut expected_event = operation_event_message;
         expected_event.seq_no = 2;
-        let mut expected_event2 = operation_event_message2.clone();
+        let mut expected_event2 = operation_event_message2;
         expected_event2.seq_no = 3;
         let mut expected_op_event_message = vec![
             storage_client.map_operation_event(&expected_event),

@@ -22,7 +22,7 @@ impl SeqNoResolver {
         let mut initial_value = 0;
 
         if seq_iterator.valid() {
-            initial_value = bincode::deserialize(seq_iterator.value().unwrap().as_ref()).unwrap();
+            initial_value = bincode::deserialize(seq_iterator.value().unwrap()).unwrap();
         }
 
         self.seq_no = Some(ConsistentCounter::new(initial_value + 1));
@@ -69,7 +69,7 @@ mod tests {
 
         while i < 10 {
             assert_eq!(seq_resolver.get_next_seq_no(), i);
-            i = i + 1;
+            i += 1;
         }
     }
 
@@ -83,7 +83,7 @@ mod tests {
         while seq_no < 14 {
             let (key, value) = storage_client.map_operation_event(&get_event(seq_no));
             storage_client.get_db().put(key, value).expect("Failed to insert");
-            seq_no = seq_no + 1;
+            seq_no += 1;
         }
 
         let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
@@ -93,7 +93,7 @@ mod tests {
 
         while i < 25 {
             assert_eq!(seq_resolver.get_next_seq_no(), i);
-            i = i + 1;
+            i += 1;
         }
     }
 }
