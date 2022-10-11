@@ -99,27 +99,16 @@ impl RocksStorage {
         op
     }
 
-    pub fn map_ingestion_seq_message(
-        &self,
-        seq_no: &usize,
-        connection_id: &u64,
-        lsn: &u64,
-    ) -> (Vec<u8>, Vec<u8>) {
-        let key = format!("{}_{}", connection_id, lsn).as_bytes().to_owned();
-        let encoded = bincode::serialize(seq_no).unwrap();
-        (key, encoded)
-    }
-
     pub fn map_commit_message(
         &self,
         connection_id: &usize,
         seq_no: &usize,
         lsn: &u64,
     ) -> (Vec<u8>, Vec<u8>) {
-        let key = format!("{}{:0>19}{:0>19}", TABLE_PREFIXES.commit_table, connection_id, lsn)
+        let key = format!("{}{:0>19}", TABLE_PREFIXES.commit_table, connection_id)
             .as_bytes()
             .to_owned();
-        let encoded = bincode::serialize(seq_no).unwrap();
+        let encoded = bincode::serialize(&(seq_no, lsn)).unwrap();
         (key, encoded)
     }
 
