@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{bail, Result};
 use std::collections::HashMap;
 
 use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
@@ -9,7 +9,6 @@ use dozer_core::dag::dag::{Endpoint, NodeHandle};
 use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::Schema;
 
-use crate::common::error::{DozerSqlError, Result};
 use crate::common::utils::normalize_ident;
 use crate::pipeline::processor::projection_builder::ProjectionBuilder;
 use crate::pipeline::processor::selection_builder::SelectionBuilder;
@@ -29,9 +28,7 @@ impl PipelineBuilder {
     ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
         match statement {
             Statement::Query(query) => self.query_to_pipeline(*query),
-            _ => Err(DozerSqlError::NotImplemented(
-                "Unsupported Query.".to_string(),
-            )),
+            _ => bail!("Unsupported Query."),
         }
     }
 
@@ -49,9 +46,7 @@ impl PipelineBuilder {
         match set_expr {
             SetExpr::Select(s) => self.select_to_pipeline(*s),
             SetExpr::Query(q) => self.query_to_pipeline(*q),
-            _ => Err(DozerSqlError::NotImplemented(
-                "Unsupported Query.".to_string(),
-            )),
+            _ => bail!("Unsupported Query."),
         }
     }
 
@@ -110,7 +105,7 @@ impl PipelineBuilder {
         Ok(endpoints)
     }
 
-    fn get_input_name(&self, table: &TableWithJoins) -> anyhow::Result<String> {
+    fn get_input_name(&self, table: &TableWithJoins) -> Result<String> {
         match &table.relation {
             TableFactor::Table { name, alias: _, .. } => {
                 let input_name = name

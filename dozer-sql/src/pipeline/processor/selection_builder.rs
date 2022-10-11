@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{bail, Result};
 use std::collections::HashMap;
 
 use sqlparser::ast::{
@@ -9,7 +9,6 @@ use sqlparser::ast::{
 use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::{Field, Schema};
 
-use crate::common::error::{DozerSqlError, Result};
 use crate::common::utils::normalize_ident;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -47,9 +46,7 @@ impl SelectionBuilder {
                     expression,
                 ))
             }
-            _ => Err(DozerSqlError::NotImplemented(
-                "Unsupported WHERE clause.".to_string(),
-            )),
+            _ => bail!("Unsupported WHERE clause.".to_string(),),
         }
     }
 
@@ -65,9 +62,7 @@ impl SelectionBuilder {
             SqlExpr::BinaryOp { left, op, right } => Ok(self.parse_sql_binary_op(left, op, right)?),
             SqlExpr::UnaryOp { op, expr } => Ok(self.parse_sql_unary_op(op, expr)?),
             SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr)?),
-            _ => Err(DozerSqlError::NotImplemented(
-                "Unsupported Expression.".to_string(),
-            )),
+            _ => bail!("Unsupported Expression.".to_string(),),
         }
     }
 
@@ -76,9 +71,7 @@ impl SelectionBuilder {
             Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok(Box::new(Expression::Literal(Field::Float(f)))),
-                Err(_) => Err(DozerSqlError::NotImplemented(
-                    "Value is not Numeric.".to_string(),
-                )),
+                Err(_) => bail!("Value is not Numeric.".to_string(),),
             },
         }
     }
@@ -90,12 +83,7 @@ impl SelectionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => {
-                return Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported SQL unary operator {:?}",
-                    op
-                )))
-            }
+            _ => bail!("Unsupported SQL unary operator {:?}", op),
         };
 
         Ok(Box::new(Expression::UnaryOperator { operator, arg }))
@@ -130,12 +118,7 @@ impl SelectionBuilder {
             // BinaryOperator::BitwiseAnd => ...
             // BinaryOperator::BitwiseOr => ...
             // BinaryOperator::StringConcat => ...
-            _ => {
-                return Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported SQL Binary Operator {:?}",
-                    op
-                )))
-            }
+            _ => bail!("Unsupported SQL Binary Operator {:?}", op),
         };
 
         Ok(Box::new(Expression::BinaryOperator {
@@ -156,7 +139,7 @@ impl SelectionBuilder {
         Ok(input_ports)
     }
 
-    fn get_input_name(&self, table: &TableWithJoins) -> anyhow::Result<String> {
+    fn get_input_name(&self, table: &TableWithJoins) -> Result<String> {
         match &table.relation {
             TableFactor::Table { name, alias: _, .. } => {
                 let input_name = name

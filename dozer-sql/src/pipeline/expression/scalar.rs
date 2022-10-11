@@ -1,6 +1,7 @@
+use anyhow::{bail, Result};
+
 use dozer_types::types::{Field, Record};
 
-use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
@@ -14,12 +15,7 @@ impl ScalarFunctionType {
         Ok(match name {
             "abs" => ScalarFunctionType::Abs,
             "round" => ScalarFunctionType::Round,
-            _ => {
-                return Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported Scalar function: {}",
-                    name
-                )));
-            }
+            _ => bail!("Unsupported Scalar function: {}", name),
         })
     }
 

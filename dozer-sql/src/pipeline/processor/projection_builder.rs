@@ -1,3 +1,4 @@
+use anyhow::{bail, Result};
 use std::collections::HashMap;
 
 use sqlparser::ast::{
@@ -9,8 +10,6 @@ use dozer_core::dag::mt_executor::DefaultPortHandle;
 use dozer_types::types::Field;
 use dozer_types::types::Schema;
 
-use crate::common::error;
-use crate::common::error::{DozerSqlError, Result};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
@@ -34,10 +33,7 @@ impl ProjectionBuilder {
         }
     }
 
-    pub fn get_processor(
-        &self,
-        projection: &[SelectItem],
-    ) -> error::Result<ProjectionProcessorFactory> {
+    pub fn get_processor(&self, projection: &[SelectItem]) -> Result<ProjectionProcessorFactory> {
         let expressions = projection
             .iter()
             .map(|expr| self.parse_sql_select_item(expr))
@@ -64,12 +60,10 @@ impl ProjectionBuilder {
         match item {
             SelectItem::UnnamedExpr(expr) => Ok(expr.to_string()),
             SelectItem::ExprWithAlias { expr: _, alias } => Ok(alias.to_string()),
-            SelectItem::Wildcard => Err(DozerSqlError::NotImplemented(
-                "Unsupported Wildcard Operator".to_string(),
-            )),
-            SelectItem::QualifiedWildcard(ref object_name) => Err(DozerSqlError::NotImplemented(
-                format!("Unsupported Qualified Wildcard Operator {}", object_name),
-            )),
+            SelectItem::Wildcard => bail!("Unsupported Wildcard Operator"),
+            SelectItem::QualifiedWildcard(ref object_name) => {
+                bail!("Unsupported Qualified Wildcard Operator {}", object_name)
+            }
         }
     }
 
@@ -79,15 +73,13 @@ impl ProjectionBuilder {
                 Ok(expr) => Ok(vec![*expr.0]),
                 Err(error) => Err(error),
             },
-            SelectItem::ExprWithAlias { expr, alias } => Err(DozerSqlError::NotImplemented(
-                format!("Unsupported Expression {}:{}", expr, alias),
-            )),
-            SelectItem::Wildcard => Err(DozerSqlError::NotImplemented(
-                "Unsupported Wildcard".to_string(),
-            )),
-            SelectItem::QualifiedWildcard(ref object_name) => Err(DozerSqlError::NotImplemented(
-                format!("Unsupported Qualified Wildcard {}", object_name),
-            )),
+            SelectItem::ExprWithAlias { expr, alias } => {
+                bail!("Unsupported Expression {}:{}", expr, alias)
+            }
+            SelectItem::Wildcard => bail!("Unsupported Wildcard"),
+            SelectItem::QualifiedWildcard(ref object_name) => {
+                bail!("Unsupported Qualified Wildcard {}", object_name)
+            }
         }
     }
 
@@ -145,23 +137,13 @@ impl ProjectionBuilder {
                     return Ok((r.0, true));
                 };
 
-                Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported Expression: {:?}",
-                    expression,
-                )))
+                bail!("Unsupported Expression: {:?}", expression)
             }
-
-            _ => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported Expression: {:?}",
-                expression,
-            ))),
+            _ => bail!("Unsupported Expression: {:?}", expression),
         }
     }
 
-    fn parse_sql_function_arg(
-        &self,
-        argument: &FunctionArg,
-    ) -> error::Result<(Box<Expression>, bool)> {
+    fn parse_sql_function_arg(&self, argument: &FunctionArg) -> Result<(Box<Expression>, bool)> {
         match argument {
             FunctionArg::Named {
                 name: _,
@@ -170,18 +152,12 @@ impl ProjectionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported Wildcard argument: {:?}",
-                argument
-            ))),
+            } => bail!("Unsupported Wildcard argument: {:?}", argument),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => self.parse_sql_expression(arg),
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Err(DozerSqlError::NotImplemented(
-                format!("Unsupported Wildcard Argument: {:?}", argument),
-            )),
-            _ => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported Argument: {:?}",
-                argument
-            ))),
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
+                bail!("Unsupported Wildcard Argument: {:?}", argument)
+            }
+            _ => bail!("Unsupported Argument: {:?}", argument),
         }
     }
 
@@ -199,12 +175,7 @@ impl ProjectionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => {
-                return Err(DozerSqlError::NotImplemented(format!(
-                    "Unsupported SQL unary operator {:?}",
-                    op
-                )))
-            }
+            _ => bail!("Unsupported SQL unary operator {:?}", op),
         };
 
         Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
@@ -233,11 +204,7 @@ impl ProjectionBuilder {
                 }),
                 false,
             )),
-
-            _ => Err(DozerSqlError::NotImplemented(format!(
-                "Unsupported SQL binary operator {:?}",
-                op
-            ))),
+            _ => bail!("Unsupported SQL binary operator {:?}", op),
         }
     }
 
@@ -246,9 +213,7 @@ impl ProjectionBuilder {
             Ok(n) => Ok((Box::new(Expression::Literal(Field::Int(n))), false)),
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok((Box::new(Expression::Literal(Field::Float(f))), false)),
-                Err(_) => Err(DozerSqlError::NotImplemented(
-                    "Value is not Numeric.".to_string(),
-                )),
+                Err(_) => bail!("Value is not Numeric."),
             },
         }
     }
