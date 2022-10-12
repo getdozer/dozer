@@ -1,7 +1,8 @@
-pub mod node;
+#![allow(clippy::module_inception)]
+
 pub mod dag;
 pub mod mt_executor;
+pub mod node;
 
-
-mod tests;
 pub mod forwarder;
+mod tests;

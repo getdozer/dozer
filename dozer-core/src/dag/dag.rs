@@ -1,15 +1,7 @@
 use crate::dag::dag::PortDirection::{Input, Output};
-use crate::dag::mt_executor::DefaultPortHandle;
-use crate::dag::node::{
-    ExecutionContext, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
-};
-use crate::state::{StateStore, StateStoresManager};
-use anyhow::{anyhow, Error};
-use dozer_types::types::{Operation, OperationEvent, Record, Schema};
+use crate::dag::node::{ProcessorFactory, SinkFactory, SourceFactory};
+use anyhow::anyhow;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::vec;
-use uuid::Uuid;
 
 pub type NodeHandle = String;
 pub type PortHandle = u16;
@@ -58,6 +50,12 @@ pub struct Dag {
 pub enum PortDirection {
     Input,
     Output,
+}
+
+impl Default for Dag {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Dag {

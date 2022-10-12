@@ -1,3 +1,4 @@
+use std::fs;
 use std::sync::Arc;
 
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -6,7 +7,7 @@ use tempdir::TempDir;
 
 use dozer_cache::cache::lmdb::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
-use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
+use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
@@ -62,7 +63,7 @@ impl Executor {
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
-        let sink = CacheSinkFactory::new(vec![DefaultPortHandle], cache, api_endpoint);
+        let sink = CacheSinkFactory::new(vec![DEFAULT_PORT_HANDLE], cache, api_endpoint);
 
         let source_table_map = source.table_map.clone();
 
@@ -76,13 +77,26 @@ impl Executor {
             dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)?;
         }
 
-        dag.connect(out_handle, Endpoint::new(4.to_string(), DefaultPortHandle))?;
+        dag.connect(
+            out_handle,
+            Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
+        )?;
 
         let exec = MultiThreadedDagExecutor::new(100000);
-        let path = TempDir::new("state-store").unwrap();
 
-        let path_str = path.path().to_str().unwrap().to_string();
-        let sm = LmdbStateStoreManager::new(path_str, 1024 * 1024 * 1024 * 5, 20_000).unwrap();
+        let tmp_dir =
+            TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+        if tmp_dir.path().exists() {
+            fs::remove_dir_all(tmp_dir.path())
+                .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+        }
+        fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
+        let sm = Arc::new(LmdbStateStoreManager::new(
+            tmp_dir.path().to_str().unwrap().to_string(),
+            1024 * 1024 * 1024 * 5,
+            20_000,
+        ));
 
         use std::time::Instant;
         let now = Instant::now();

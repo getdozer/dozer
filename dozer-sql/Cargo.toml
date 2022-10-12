@@ -16,3 +16,6 @@ rand = "0.8.5"
 
 dozer-types = {path = "../dozer-types"}
 dozer-core = {path = "../dozer-core"}
+
+[dev-dependencies]
+tempdir = "0.3.7"

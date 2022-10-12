@@ -2,7 +2,7 @@ use crate::dag::dag::PortHandle;
 use crate::dag::mt_executor::ExecutorOperation;
 use anyhow::{anyhow, Context};
 use crossbeam::channel::Sender;
-use dozer_types::types::{Operation, OperationEvent, Schema};
+use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::thread::sleep;
 use std::time::Duration;

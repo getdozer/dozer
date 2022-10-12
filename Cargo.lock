@@ -1138,6 +1138,7 @@ dependencies = [
  "lmdb-sys",
  "log",
  "log4rs",
+ "tempdir",
  "unixstring",
  "uuid",
 ]
@@ -1218,6 +1219,7 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
  "sqlparser",
+ "tempdir",
 ]
 
 [[package]]

@@ -1,12 +1,15 @@
 use std::collections::HashMap;
+use std::fs;
+use std::sync::Arc;
 
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
+use tempdir::TempDir;
 
 use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
-use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
+use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_core::state::StateStore;
@@ -79,7 +82,7 @@ impl Source for TestSource {
                         ],
                     ),
                 },
-                DefaultPortHandle,
+                DEFAULT_PORT_HANDLE,
             )
             .unwrap();
         }
@@ -177,8 +180,8 @@ fn test_pipeline_builder() {
     let (mut dag, mut in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 
-    let source = TestSourceFactory::new(vec![DefaultPortHandle]);
-    let sink = TestSinkFactory::new(vec![DefaultPortHandle]);
+    let source = TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
+    let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
     dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
     dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
@@ -186,18 +189,27 @@ fn test_pipeline_builder() {
     let input_point = in_handle.remove("customers").unwrap();
 
     let _source_to_projection = dag.connect(
-        Endpoint::new(1.to_string(), DefaultPortHandle),
+        Endpoint::new(1.to_string(), DEFAULT_PORT_HANDLE),
         Endpoint::new(input_point.node, input_point.port),
     );
 
     let _selection_to_sink = dag.connect(
         Endpoint::new(out_handle.node, out_handle.port),
-        Endpoint::new(4.to_string(), DefaultPortHandle),
+        Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
     );
 
+    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    if tmp_dir.path().exists() {
+        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    }
+    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
     let exec = MultiThreadedDagExecutor::new(100000);
-    let sm =
-        LmdbStateStoreManager::new("data".to_string(), 1024 * 1024 * 1024 * 5, 20_000).unwrap();
+    let sm = Arc::new(LmdbStateStoreManager::new(
+        tmp_dir.path().to_str().unwrap().to_string(),
+        1024 * 1024 * 1024 * 5,
+        20_000,
+    ));
 
     use std::time::Instant;
     let now = Instant::now();

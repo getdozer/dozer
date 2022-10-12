@@ -6,7 +6,7 @@ use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJo
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::dag::{Endpoint, NodeHandle};
-use dozer_core::dag::mt_executor::DefaultPortHandle;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::types::Schema;
 
 use crate::common::utils::normalize_ident;
@@ -76,14 +76,14 @@ impl PipelineBuilder {
         );
 
         let _ = dag.connect(
-            Endpoint::new(String::from("selection"), DefaultPortHandle),
-            Endpoint::new(String::from("projection"), DefaultPortHandle),
+            Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
+            Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
         );
 
         Ok((
             dag,
             input_endpoints,
-            Endpoint::new(String::from("projection"), DefaultPortHandle),
+            Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
         ))
     }
 

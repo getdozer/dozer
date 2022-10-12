@@ -1,15 +1,11 @@
 use crate::aggregation::Aggregator;
 use crate::dag::dag::PortHandle;
-use crate::dag::mt_executor::DefaultPortHandle;
+use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory};
 use crate::state::StateStore;
-use ahash::AHasher;
 use anyhow::{anyhow, Context};
-use dozer_types::types::Field::{Binary, Boolean, Bson, Decimal, Float, Int, Null, Timestamp};
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
-use dyn_clone::DynClone;
+use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 use std::collections::HashMap;
-use std::hash::Hasher;
 use std::mem::size_of_val;
 
 #[derive(Clone)]
@@ -52,11 +48,11 @@ impl AggregationProcessorFactory {
 
 impl ProcessorFactory for AggregationProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DefaultPortHandle]
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![DefaultPortHandle]
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn build(&self) -> Box<dyn Processor> {
@@ -90,10 +86,10 @@ impl AggregationProcessor {
 
         for rule in output_fields.clone().into_iter().enumerate() {
             match rule.1 {
-                FieldRule::Measure(idx, aggr, nullable, name) => {
+                FieldRule::Measure(idx, aggr, _nullable, _name) => {
                     out_measures.push((idx, aggr, rule.0));
                 }
-                FieldRule::Dimension(idx, nullable, name) => {
+                FieldRule::Dimension(idx, _nullable, _name) => {
                     out_dimensions.push((idx, rule.0));
                 }
             }
@@ -137,20 +133,20 @@ impl AggregationProcessor {
         let mut offset: usize = 0;
 
         for measure in &self.out_measures {
-            let curr_state_slice = if curr_state.is_none() {
-                None
-            } else {
-                let len =
-                    u16::from_ne_bytes(curr_state.unwrap()[offset..offset + 2].try_into().unwrap());
-                if len == 0 {
-                    None
-                } else {
-                    Some(&curr_state.unwrap()[offset + 2..offset + 2 + len as usize])
+            let curr_state_slice = match curr_state {
+                Some(e) => {
+                    let len = u16::from_ne_bytes(e[offset..offset + 2].try_into().unwrap());
+                    if len == 0 {
+                        None
+                    } else {
+                        Some(&e[offset + 2..offset + 2 + len as usize])
+                    }
                 }
+                None => None,
             };
 
-            if curr_state_slice.is_some() {
-                let curr_value = measure.1.get_value(curr_state_slice.unwrap());
+            if let Some(e) = curr_state_slice {
+                let curr_value = measure.1.get_value(e);
                 out_rec_delete.values[measure.2] = curr_value;
             }
 
@@ -189,7 +185,7 @@ impl AggregationProcessor {
             next_state.extend((next_state_slice.len() as u16).to_ne_bytes());
             offset += next_state_slice.len() + 2;
 
-            if next_state_slice.len() > 0 {
+            if !next_state_slice.is_empty() {
                 let next_value = measure.1.get_value(next_state_slice.as_slice());
                 next_state.extend(next_state_slice);
                 out_rec_insert.values[measure.2] = next_value;
@@ -209,11 +205,12 @@ impl AggregationProcessor {
         decr: bool,
     ) -> anyhow::Result<u64> {
         let bytes = store.get(key.as_slice())?;
-        let curr_count = if bytes.is_some() {
-            u64::from_ne_bytes(bytes.unwrap().try_into().unwrap())
-        } else {
-            0_u64
+
+        let curr_count = match bytes {
+            Some(b) => u64::from_ne_bytes(b.try_into().unwrap()),
+            None => 0_u64,
         };
+
         store.put(
             key.as_slice(),
             (if decr {
@@ -292,7 +289,7 @@ impl AggregationProcessor {
         let new_state = self.calc_and_fill_measures(
             curr_state,
             None,
-            Some(&new),
+            Some(new),
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Insert,
@@ -331,8 +328,8 @@ impl AggregationProcessor {
         let curr_state = store.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             curr_state,
-            Some(&old),
-            Some(&new),
+            Some(old),
+            Some(new),
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Update,
@@ -379,7 +376,6 @@ impl AggregationProcessor {
                     ])
                 }
             }
-            _ => Err(anyhow!("Invalid operation".to_string())),
         }
     }
 }
@@ -387,11 +383,11 @@ impl AggregationProcessor {
 impl Processor for AggregationProcessor {
     fn update_schema(
         &self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
         let input_schema = input_schemas
-            .get(&DefaultPortHandle)
+            .get(&DEFAULT_PORT_HANDLE)
             .context("Invalid port handle")?;
         let mut output_schema = Schema::empty();
 
@@ -446,14 +442,14 @@ impl Processor for AggregationProcessor {
 
     fn process(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         op: Operation,
         fw: &dyn crate::dag::forwarder::ProcessorChannelForwarder,
         state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
         let ops = self.aggregate(state, op)?;
         for op in ops {
-            fw.send(op, DefaultPortHandle)?;
+            fw.send(op, DEFAULT_PORT_HANDLE)?;
         }
         Ok(())
     }

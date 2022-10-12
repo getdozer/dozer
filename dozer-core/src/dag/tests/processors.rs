@@ -1,10 +1,9 @@
 use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::dag::mt_executor::DefaultPortHandle;
+use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use crate::state::StateStore;
-use anyhow::Context;
-use dozer_types::types::{FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema};
+use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
 use std::collections::HashMap;
 
 /// Test Source
@@ -51,8 +50,8 @@ impl Source for TestSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         cm: &dyn ChannelManager,
-        state: &mut dyn StateStore,
-        from_seq: Option<u64>,
+        _state: &mut dyn StateStore,
+        _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
         for n in 0..1_000_000 {
             fw.send(
@@ -60,7 +59,7 @@ impl Source for TestSource {
                 Operation::Insert {
                     new: Record::new(None, vec![]),
                 },
-                DefaultPortHandle,
+                DEFAULT_PORT_HANDLE,
             )?;
         }
         cm.terminate().unwrap();
@@ -93,7 +92,10 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn update_schema(
+        &mut self,
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -175,7 +177,7 @@ impl Processor for TestProcessor {
         Ok(out_schema)
     }
 
-    fn init<'a>(&'a mut self, state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         println!("PROC {}: Initialising TestProcessor", self.id);
         //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
         Ok(())
@@ -190,8 +192,8 @@ impl Processor for TestProcessor {
     ) -> anyhow::Result<()> {
         //   println!("PROC {}: Message {} received", self.id, op.seq_no);
         self.ctr += 1;
-        state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes());
-        fw.send(op, DefaultPortHandle)?;
+        state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes())?;
+        fw.send(op, DEFAULT_PORT_HANDLE)?;
         Ok(())
     }
 }
