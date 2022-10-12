@@ -12,6 +12,7 @@ use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::StateStore;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{Operation, OperationEvent, Schema};
+use log::debug;
 
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
@@ -60,7 +61,7 @@ pub struct CacheSink {
 
 impl Sink for CacheSink {
     fn init(&mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
-        println!("SINK: Initialising CacheSink");
+        debug!("SINK: Initialising CacheSink");
         Ok(())
     }
 
@@ -71,7 +72,7 @@ impl Sink for CacheSink {
         op: Operation,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
-        // println!("SINK: Message {} received", _op.seq_no);
+        // debug!("SINK: Message {} received", _op.seq_no);
         self.counter += 1;
         const BACKSPACE: char = 8u8 as char;
         if self.counter % 1000 == 0 {

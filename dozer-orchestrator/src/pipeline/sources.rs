@@ -1,3 +1,4 @@
+use log::debug;
 use std::collections::HashMap;
 
 use dozer_core::dag::dag::PortHandle;
@@ -53,7 +54,7 @@ impl ConnectorSourceFactory {
 impl SourceFactory for ConnectorSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         let keys = self.port_map.to_owned().into_keys().collect();
-        println!("{:?}", keys);
+        debug!("{:?}", keys);
         keys
     }
 

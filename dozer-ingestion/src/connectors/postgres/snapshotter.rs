@@ -6,11 +6,14 @@ use super::helper;
 use super::schema_helper::SchemaHelper;
 use anyhow::Context;
 use dozer_types::types::Commit;
+use log::debug;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::{Client, NoTls};
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex}; // 0.4.10
+use std::sync::{Arc, Mutex};
+
+// 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<TableInfo>>,
     pub conn_str: String,
@@ -87,7 +90,7 @@ impl PostgresSnapshotter {
                             .handle_message(IngestionMessage::OperationEvent(evt));
                     }
                     Err(e) => {
-                        println!("{:?}", e);
+                        debug!("{:?}", e);
                         panic!("Something happened");
                     }
                 }

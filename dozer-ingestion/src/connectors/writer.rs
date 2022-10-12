@@ -1,4 +1,5 @@
 use crate::connectors::storage::RocksStorage;
+use log::debug;
 use rocksdb::WriteBatch;
 use std::sync::Arc;
 use std::time::Instant;
@@ -38,6 +39,6 @@ impl Writer<RocksStorage> for BatchedRocksDbWriter {
             .write(batch)
             .expect("TODO: panic message");
         self.batch = Option::from(WriteBatch::default());
-        println!("Batch flush took: {:.2?}", before.elapsed(),);
+        debug!("Batch flush took: {:.2?}", before.elapsed(),);
     }
 }

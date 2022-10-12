@@ -1,6 +1,7 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
+use log::debug;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
@@ -71,9 +72,9 @@ impl XlogMapper {
     ) -> Option<IngestionMessage> {
         match &message.data() {
             Relation(relation) => {
-                println!("relation:");
-                println!("[Relation] Rel ID: {}", relation.rel_id());
-                println!("[Relation] Rel columns: {:?}", relation.columns());
+                debug!("relation:");
+                debug!("[Relation] Rel ID: {}", relation.rel_id());
+                debug!("[Relation] Rel columns: {:?}", relation.columns());
 
                 let body = MessageBody::new(relation);
                 let mut s = DefaultHasher::new();
@@ -95,14 +96,17 @@ impl XlogMapper {
                 }
             }
             Commit(commit) => {
-                println!("commit:");
-                println!("[Commit] End lsn: {}", commit.end_lsn());
+                debug!("commit:");
+                debug!("[Commit] End lsn: {}", commit.end_lsn());
 
-                return Option::from(IngestionMessage::Commit(dozer_types::types::Commit { seq_no: 0, lsn: commit.end_lsn() }));
+                return Option::from(IngestionMessage::Commit(dozer_types::types::Commit {
+                    seq_no: 0,
+                    lsn: commit.end_lsn(),
+                }));
             }
             Begin(begin) => {
-                println!("begin:");
-                println!("[Begin] Transaction id: {}", begin.xid());
+                debug!("begin:");
+                debug!("[Begin] Transaction id: {}", begin.xid());
                 return Option::from(IngestionMessage::Begin());
             }
             Insert(insert) => {

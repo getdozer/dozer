@@ -4,7 +4,7 @@ use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use crate::state::StateStore;
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
-use log::info;
+use log::debug;
 use std::collections::HashMap;
 
 /// Test Source
@@ -101,7 +101,7 @@ impl Sink for TestSink {
     }
 
     fn init(&mut self, _: &mut dyn StateStore) -> anyhow::Result<()> {
-        info!("SINK {}: Initialising TestSink", self.id);
+        debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
 
@@ -178,7 +178,7 @@ impl Processor for TestProcessor {
     }
 
     fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
-        info!("PROC {}: Initialising TestProcessor", self.id);
+        debug!("PROC {}: Initialising TestProcessor", self.id);
         Ok(())
     }
 

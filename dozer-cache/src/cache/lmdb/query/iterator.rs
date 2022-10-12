@@ -1,4 +1,5 @@
 use lmdb::{Cursor, RoCursor};
+use log::debug;
 
 pub struct CacheIterator<'a> {
     cursor: &'a RoCursor<'a>,
@@ -25,7 +26,7 @@ impl<'a> Iterator for CacheIterator<'a> {
         match res {
             Ok((key, val)) => key.map(|key| (key, val)),
             Err(e) => {
-                println!("Error in cursor: {:?}", e);
+                debug!("Error in cursor: {:?}", e);
                 None
             }
         }

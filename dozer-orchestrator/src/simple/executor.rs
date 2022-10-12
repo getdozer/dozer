@@ -1,3 +1,4 @@
+use log::debug;
 use std::fs;
 use std::sync::Arc;
 
@@ -35,7 +36,7 @@ impl Executor {
         for source in sources.iter() {
             let schema_tuples = get_schema(source.connection.to_owned())?;
 
-            println!("{:?}", source.table_name);
+            debug!("{:?}", source.table_name);
             let st = schema_tuples
                 .iter()
                 .find(|t| t.0.eq(&source.table_name))
@@ -50,9 +51,9 @@ impl Executor {
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
         let ast = Parser::parse_sql(&dialect, &api_endpoint.sql).unwrap();
-        println!("AST: {:?}", ast);
-        println!("Schemas: {:?}", source_schemas);
-        println!("Query: {:?}", &api_endpoint.sql);
+        debug!("AST: {:?}", ast);
+        debug!("Schemas: {:?}", source_schemas);
+        debug!("Query: {:?}", &api_endpoint.sql);
         let statement: &Statement = &ast[0];
 
         let builder = PipelineBuilder::new(source_schemas[0].clone());
@@ -102,7 +103,7 @@ impl Executor {
         let now = Instant::now();
         exec.start(dag, sm)?;
         let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        debug!("Elapsed: {:.2?}", elapsed);
         Ok(())
     }
 }

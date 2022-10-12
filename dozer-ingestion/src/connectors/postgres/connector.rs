@@ -6,6 +6,7 @@ use connector::Connector;
 
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_types::types::{OperationEvent, Schema};
+use log::debug;
 use postgres::Client;
 use std::sync::{Arc, Mutex};
 
@@ -35,7 +36,7 @@ impl PostgresConnector {
             conn_str,
             conn_str_plain: config.conn_str,
             tables: config.tables,
-            storage_client: None
+            storage_client: None,
         }
     }
 }
@@ -71,7 +72,7 @@ impl Connector for PostgresConnector {
     fn initialize(
         &mut self,
         storage_client: Arc<RocksStorage>,
-        tables: Option<Vec<TableInfo>>
+        tables: Option<Vec<TableInfo>>,
     ) -> anyhow::Result<()> {
         let client = helper::connect(self.conn_str.clone())?;
         self.create_publication(client)?;
@@ -143,8 +144,8 @@ impl PostgresConnector {
         let res =
             client.simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
         match res {
-            Ok(_) => println!("dropped replication slot {}", slot),
-            Err(_) => println!("failed to drop replication slot..."),
+            Ok(_) => debug!("dropped replication slot {}", slot),
+            Err(_) => debug!("failed to drop replication slot..."),
         }
         Ok(())
     }

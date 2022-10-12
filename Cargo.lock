@@ -1074,10 +1074,10 @@ dependencies = [
  "dotenvy",
  "dozer-orchestrator",
  "dozer-types",
- "env_logger",
  "futures",
  "json",
  "log",
+ "log4rs",
  "mockall",
  "prost",
  "prost-types",
@@ -1102,6 +1102,8 @@ dependencies = [
  "anyhow",
  "dozer-cache",
  "dozer-types",
+ "log",
+ "log4rs",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -1120,6 +1122,8 @@ dependencies = [
  "futures",
  "galil-seiferas",
  "lmdb-rkv",
+ "log",
+ "log4rs",
  "tempdir",
  "tokio",
 ]
@@ -1157,6 +1161,8 @@ dependencies = [
  "dozer-schema",
  "dozer-types",
  "futures",
+ "log",
+ "log4rs",
  "postgres 0.19.3",
  "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
  "postgres-types 0.2.3",
@@ -1184,7 +1190,8 @@ dependencies = [
  "dozer-schema",
  "dozer-sql",
  "dozer-types",
- "env_logger",
+ "log",
+ "log4rs",
  "serde",
  "serde_json",
  "tempdir",
@@ -1200,6 +1207,8 @@ dependencies = [
  "bincode",
  "dozer-types",
  "futures",
+ "log",
+ "log4rs",
  "rocksdb",
  "tarpc",
  "tempdir",
@@ -1231,6 +1240,8 @@ dependencies = [
  "bincode",
  "bson",
  "chrono",
+ "log",
+ "log4rs",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -1351,19 +1362,6 @@ dependencies = [
  "quote",
  "rustc_version",
  "syn",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c90bf5f19754d10198ccb95b70664fc925bd1fc090a0fd9a6ebc54acc8cd6272"
-dependencies = [
- "atty",
- "humantime",
- "log",
- "regex",
- "termcolor",
 ]
 
 [[package]]
