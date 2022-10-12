@@ -88,7 +88,7 @@ impl Source for ConnectorSource {
 
         loop {
             let (op, port) = receiver.iter().next().unwrap();
-            fw.send(op, port)?;
+            fw.send(op.seq_no, op.operation, port)?;
         }
     }
 
