@@ -1,6 +1,6 @@
+use diesel::r2d2::ConnectionManager;
 use diesel::sqlite::SqliteConnection;
 use r2d2::Pool;
-use diesel::r2d2::ConnectionManager;
 
 pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 pub fn establish_connection(database_url: String) -> DbPool {

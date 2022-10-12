@@ -52,9 +52,4 @@ diesel::joinable!(source_endpoints -> endpoints (endpoint_id));
 diesel::joinable!(source_endpoints -> sources (source_id));
 diesel::joinable!(sources -> connections (connection_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    connections,
-    endpoints,
-    source_endpoints,
-    sources,
-);
+diesel::allow_tables_to_appear_in_same_query!(connections, endpoints, source_endpoints, sources,);

@@ -147,7 +147,11 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
         Ok(self)
     }
 
-    fn get_multiple(_pool: DbPool, _limit: Option<u32>, _offset: Option<u32>) -> Result<(Vec<EndpointInfo>, Pagination), Box<dyn Error>> {
+    fn get_multiple(
+        _pool: DbPool,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<(Vec<EndpointInfo>, Pagination), Box<dyn Error>> {
         todo!()
     }
 }

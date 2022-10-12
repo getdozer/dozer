@@ -14,9 +14,7 @@ use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE
 use dozer_core::dag::node::{Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_core::state::StateStore;
-use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema,
-};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use crate::pipeline::builder::PipelineBuilder;
 
@@ -129,7 +127,7 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        seq: u64,
+        _seq: u64,
         _op: Operation,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {

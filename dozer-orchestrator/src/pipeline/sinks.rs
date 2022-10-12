@@ -11,7 +11,7 @@ use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::StateStore;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::types::{Operation, OperationEvent, Schema};
+use dozer_types::types::{Operation, Schema};
 use log::debug;
 
 pub struct CacheSinkFactory {
@@ -68,7 +68,7 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        seq: u64,
+        _seq: u64,
         op: Operation,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {

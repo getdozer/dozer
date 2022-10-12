@@ -1,7 +1,7 @@
-pub mod persistable;
 pub mod connection;
-pub mod source;
+mod constants;
+pub mod endpoint;
+pub mod persistable;
 pub mod pool;
 pub mod schema;
-pub mod endpoint;
-mod constants;
+pub mod source;

@@ -38,9 +38,7 @@ impl ConnectionService {
 
     pub fn new(connection: Connection) -> Self {
         let connector: Box<dyn Connector> = Self::get_connector(connection);
-        Self {
-            connector,
-        }
+        Self { connector }
     }
 
     pub fn test_connection(&self) -> anyhow::Result<()> {

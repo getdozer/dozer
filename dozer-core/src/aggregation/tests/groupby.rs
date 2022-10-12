@@ -4,8 +4,8 @@ use crate::state::lmdb::LmdbStateStoreManager;
 use crate::state::memory::MemoryStateStore;
 use crate::state::StateStoresManager;
 use dozer_types::types::{Field, Operation, Record};
+use std::fs;
 use std::sync::Arc;
-use std::{env, fs};
 use tempdir::TempDir;
 
 #[test]

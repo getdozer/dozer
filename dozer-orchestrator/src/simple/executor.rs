@@ -23,7 +23,7 @@ use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 pub struct Executor {}
 
 impl Executor {
-    pub fn run<'a>(
+    pub fn run(
         sources: Vec<Source>,
         api_endpoint: ApiEndpoint,
         cache: Arc<LmdbCache>,

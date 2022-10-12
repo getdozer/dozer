@@ -97,7 +97,7 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
     fn get_by_id(pool: DbPool, input_id: String) -> Result<ConnectionInfo, Box<dyn Error>> {
         let mut db = pool.get()?;
         let result: DbConnection = connections.find(input_id).first(&mut db)?;
-        
+
         ConnectionInfo::try_from(result)
     }
 
@@ -117,9 +117,7 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
         let total: i64 = connections.count().get_result(&mut db)?;
         let connection_info: Vec<ConnectionInfo> = results
             .iter()
-            .map(|result| {
-                ConnectionInfo::try_from(result.clone()).unwrap()
-            })
+            .map(|result| ConnectionInfo::try_from(result.clone()).unwrap())
             .collect();
 
         Ok((

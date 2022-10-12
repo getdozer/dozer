@@ -108,9 +108,7 @@ impl Persistable<'_, SourceInfo> for SourceInfo {
         let total: i64 = sources.count().get_result(&mut db)?;
         let response: Vec<SourceInfo> = results
             .iter()
-            .map(|result| {
-                SourceInfo::try_from(result.clone()).unwrap()
-            })
+            .map(|result| SourceInfo::try_from(result.clone()).unwrap())
             .collect();
         Ok((
             response,

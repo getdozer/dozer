@@ -1,5 +1,5 @@
 use dozer_types::types::*;
-use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB, ReadOptions};
+use rocksdb::{DBWithThreadMode, Options, ReadOptions, SingleThreaded, DB};
 use std::sync::Arc;
 use tempdir::TempDir;
 
@@ -14,7 +14,7 @@ const TABLE_PREFIXES: TablePrefixes = TablePrefixes {
     seq_no_table: "0",
     seq_no_table_upper_bound: "1",
     commit_table: "1",
-    commit_table_upper_bound: "2"
+    commit_table_upper_bound: "2",
 };
 
 pub trait Storage<T> {
@@ -58,9 +58,10 @@ impl Storage<RocksConfig> for RocksStorage {
 }
 
 macro_rules! define_get_bounds_read_options_fn {
-    ($name:ident, $lower_bound:expr, $upper_bound:expr)  => {
+    ($name:ident, $lower_bound:expr, $upper_bound:expr) => {
         pub fn $name(&self) -> ReadOptions {
-            let op_table_prefix = ($lower_bound.as_bytes().to_vec())..($upper_bound.as_bytes().to_vec());
+            let op_table_prefix =
+                ($lower_bound.as_bytes().to_vec())..($upper_bound.as_bytes().to_vec());
 
             let mut ro = ReadOptions::default();
             ro.set_iterate_range(op_table_prefix);
@@ -117,11 +118,21 @@ impl RocksStorage {
     }
 
     fn _get_operation_key(&self, seq_no: &u64) -> Vec<u8> {
-        format!("{}{:0>19}", TABLE_PREFIXES.seq_no_table, seq_no).as_bytes().to_vec()
+        format!("{}{:0>19}", TABLE_PREFIXES.seq_no_table, seq_no)
+            .as_bytes()
+            .to_vec()
     }
 
-    define_get_bounds_read_options_fn!(get_operations_table_read_options, TABLE_PREFIXES.seq_no_table, TABLE_PREFIXES.seq_no_table_upper_bound);
-    define_get_bounds_read_options_fn!(get_commits_table_read_options, TABLE_PREFIXES.commit_table, TABLE_PREFIXES.commit_table_upper_bound);
+    define_get_bounds_read_options_fn!(
+        get_operations_table_read_options,
+        TABLE_PREFIXES.seq_no_table,
+        TABLE_PREFIXES.seq_no_table_upper_bound
+    );
+    define_get_bounds_read_options_fn!(
+        get_commits_table_read_options,
+        TABLE_PREFIXES.commit_table,
+        TABLE_PREFIXES.commit_table_upper_bound
+    );
 }
 
 #[cfg(test)]

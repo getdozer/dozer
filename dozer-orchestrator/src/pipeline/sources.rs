@@ -33,8 +33,8 @@ impl ConnectorSourceFactory {
     }
 
     fn _get_maps(
-        source_schemas: &Vec<Schema>,
-        table_names: &Vec<String>,
+        source_schemas: &[Schema],
+        table_names: &[String],
     ) -> anyhow::Result<(HashMap<u16, Schema>, HashMap<String, u16>)> {
         let mut port_map: HashMap<u16, Schema> = HashMap::new();
         let mut table_map: HashMap<String, u16> = HashMap::new();

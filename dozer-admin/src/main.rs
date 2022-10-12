@@ -1,7 +1,7 @@
 extern crate diesel;
+pub mod db;
 pub mod server;
 pub mod services;
-pub mod db;
 pub mod utils;
 
 #[tokio::main]
