@@ -1,6 +1,6 @@
-use dozer_types::types::Field;
+use dozer_types::types::{Field, IndexDefinition};
 pub struct QueryExpression {
-    pub filter: FilterExpression,
+    pub filter: Option<FilterExpression>,
     pub order_by: Vec<SortOptions>,
     pub limit: usize,
     pub skip: usize,
@@ -8,7 +8,7 @@ pub struct QueryExpression {
 
 impl QueryExpression {
     pub fn new(
-        filter: FilterExpression,
+        filter: Option<FilterExpression>,
         order_by: Vec<SortOptions>,
         limit: usize,
         skip: usize,
@@ -22,14 +22,14 @@ impl QueryExpression {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum FilterExpression {
-    None,
     // a = 1, a containts "s", a> 4
     Simple(String, Operator, Field),
     And(Box<FilterExpression>, Box<FilterExpression>),
-    Or(Box<FilterExpression>, Box<FilterExpression>),
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum Operator {
     LT,
     LTE,
@@ -41,11 +41,28 @@ pub enum Operator {
     MatchesAll,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum SortDirection {
     Ascending,
     Descending,
 }
+#[derive(Clone, Debug, PartialEq)]
 pub struct SortOptions {
     pub field_name: String,
     pub direction: SortDirection,
+}
+
+pub enum ExecutionStep {
+    IndexScan(IndexScan),
+    SeqScan(SeqScan),
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct IndexScan {
+    pub index_def: IndexDefinition,
+    pub fields: Vec<Option<Field>>,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct SeqScan {
+    // ascending / descending
+    pub direction: bool,
 }

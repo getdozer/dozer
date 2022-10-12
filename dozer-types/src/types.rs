@@ -118,16 +118,10 @@ pub enum IndexType {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub enum IndexDirection {
-    Ascending,
-    Descending,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct IndexDefinition {
     /// Indexes of the fields forming the index key
     pub fields: Vec<usize>,
-    pub sort_direction: Vec<IndexDirection>,
+    pub sort_direction: Vec<bool>,
     /// Type of index (i.e. hash inverted index, tree inverted index, full-text index, geo index, facet index, etc)
     pub typ: IndexType,
 }

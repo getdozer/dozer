@@ -1,11 +1,6 @@
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Context;
-use dozer_cache::cache::{
-    expression::{FilterExpression, QueryExpression},
-    index,
-    lmdb::cache::LmdbCache,
-    Cache,
-};
+use dozer_cache::cache::{expression::QueryExpression, index, lmdb::cache::LmdbCache, Cache};
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
@@ -30,7 +25,6 @@ fn get_record(
 fn get_records(
     cache: web::Data<Arc<LmdbCache>>,
     exp: QueryExpression,
-    no_of_records: Option<usize>,
 ) -> anyhow::Result<Vec<HashMap<String, Value>>> {
     let records = cache.query("films", &exp)?;
     let schema = cache.get_schema(
@@ -60,8 +54,8 @@ async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> im
 }
 
 async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    let exp = QueryExpression::new(FilterExpression::None, vec![], 50, 0);
-    let records = get_records(cache, exp, Some(50));
+    let exp = QueryExpression::new(None, vec![], 50, 0);
+    let records = get_records(cache, exp);
 
     match records {
         Ok(maps) => {

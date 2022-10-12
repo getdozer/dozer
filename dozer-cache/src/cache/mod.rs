@@ -1,9 +1,10 @@
 pub mod lmdb;
 use self::expression::QueryExpression;
-use dozer_types::types::{IndexDefinition, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{Record, Schema, SchemaIdentifier};
 pub mod expression;
 pub mod index;
-pub mod plan_types;
+pub mod planner;
+
 pub trait Cache {
     fn insert_with_schema(&self, rec: &Record, schema: &Schema, name: &str) -> anyhow::Result<()>;
     fn insert(&self, rec: &Record) -> anyhow::Result<()>;

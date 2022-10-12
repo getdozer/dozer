@@ -79,11 +79,11 @@ async fn insert_and_query_record() -> anyhow::Result<()> {
 
     // Query with an expression
     let exp = QueryExpression::new(
-        FilterExpression::Simple(
+        Some(FilterExpression::Simple(
             "foo".to_string(),
             expression::Operator::EQ,
             Field::String("bar".to_string()),
-        ),
+        )),
         vec![],
         10,
         0,
@@ -96,7 +96,7 @@ async fn insert_and_query_record() -> anyhow::Result<()> {
         &cache,
         &record,
         "docs",
-        &QueryExpression::new(FilterExpression::None, vec![], 10, 0),
+        &QueryExpression::new(None, vec![], 10, 0),
     )?;
 
     Ok(())

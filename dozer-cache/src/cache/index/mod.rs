@@ -22,15 +22,35 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
     key.join("#".as_bytes())
 }
 
-pub fn get_secondary_index(schema_id: u32, field_idx: &usize, field_val: &[u8]) -> Vec<u8> {
+pub fn get_secondary_index(
+    schema_id: u32,
+    field_idx: &[usize],
+    field_val: &Vec<Option<Vec<u8>>>,
+) -> Vec<u8> {
+    let field_val: Vec<Vec<u8>> = field_val
+        .iter()
+        .map(|f| match f {
+            Some(f) => f.clone(),
+            None => vec![],
+        })
+        .collect();
+    let field_val = field_val.join("#".as_bytes());
+
+    let field_idx: Vec<Vec<u8>> = field_idx
+        .iter()
+        .map(|idx| idx.to_be_bytes().to_vec())
+        .collect();
+    let field_idx = field_idx.join("#".as_bytes());
+
     [
         "index_".as_bytes().to_vec(),
         schema_id.to_be_bytes().to_vec(),
-        field_idx.to_be_bytes().to_vec(),
-        field_val.to_vec(),
+        field_idx,
+        field_val,
     ]
     .join("#".as_bytes())
 }
+
 pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
     ["schema_name_".as_bytes(), name.as_bytes()].join("#".as_bytes())
 }

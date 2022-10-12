@@ -4,13 +4,12 @@ use lmdb::{Cursor, RoCursor};
 pub struct CacheIterator<'a> {
     cursor: &'a RoCursor<'a>,
     starting_key: Option<Vec<u8>>,
-    value_to_compare: Option<Vec<u8>>,
     ascending: bool,
     first: bool,
 }
 
 impl<'a> Iterator for CacheIterator<'a> {
-    type Item = Vec<u8>;
+    type Item = (&'a [u8], &'a [u8]);
 
     fn next(&mut self) -> Option<Self::Item> {
         let key: Option<&[u8]> = if self.starting_key.is_none() {
@@ -26,20 +25,7 @@ impl<'a> Iterator for CacheIterator<'a> {
         let res = self.cursor.get(key, None, next_op.get_value());
         match res {
             Ok((key, val)) => match key {
-                Some(key) => {
-                    match self.value_to_compare {
-                        Some(ref value_to_compare) => {
-                            // TODO: find a better implementation
-                            // Find for partial matches if iterating on a query
-                            if let Some(_idx) = gs_find(key, value_to_compare) {
-                                Some(val.to_vec())
-                            } else {
-                                None
-                            }
-                        }
-                        None => Some(val.to_vec()),
-                    }
-                }
+                Some(key) => Some((key, val)),
                 None => None,
             },
             Err(e) => {
@@ -50,16 +36,10 @@ impl<'a> Iterator for CacheIterator<'a> {
     }
 }
 impl<'a> CacheIterator<'a> {
-    pub fn new(
-        cursor: &'a RoCursor,
-        starting_key: Option<Vec<u8>>,
-        value_to_compare: Option<Vec<u8>>,
-        ascending: bool,
-    ) -> Self {
+    pub fn new(cursor: &'a RoCursor, starting_key: Option<Vec<u8>>, ascending: bool) -> Self {
         CacheIterator {
             cursor,
             starting_key,
-            value_to_compare,
             ascending,
             first: true,
         }

@@ -33,11 +33,11 @@ async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
 
 async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let exp = QueryExpression::new(
-        FilterExpression::Simple(
+        Some(FilterExpression::Simple(
             "foo".to_string(),
             expression::Operator::EQ,
             Field::String("bar".to_string()),
-        ),
+        )),
         vec![],
         10,
         0,
