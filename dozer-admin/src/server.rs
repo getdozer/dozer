@@ -6,6 +6,7 @@ use dotenvy::dotenv;
 use std::env;
 use tonic::{transport::Server, Request, Response, Status};
 pub mod dozer_admin_grpc {
+    #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("dozer_admin_grpc");
 }
 use dozer_admin_grpc::{

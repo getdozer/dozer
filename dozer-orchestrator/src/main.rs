@@ -44,8 +44,7 @@ fn _film_test() -> anyhow::Result<()> {
     };
 
     let mut dozer = Dozer::new(Arc::new(client));
-    let mut sources = Vec::new();
-    sources.push(source);
+    let sources = vec![source];
     dozer.add_sources(sources);
     dozer.add_endpoint(ApiEndpoint {
         id: None,
@@ -90,8 +89,7 @@ fn _actor_test() -> anyhow::Result<()> {
         refresh_config: RefreshConfig::RealTime,
     };
     let mut dozer = Dozer::new(Arc::new(client));
-    let mut sources = Vec::new();
-    sources.push(source);
+    let sources = vec![source];
     dozer.add_sources(sources);
     dozer.add_endpoint(ApiEndpoint {
         id: None,
