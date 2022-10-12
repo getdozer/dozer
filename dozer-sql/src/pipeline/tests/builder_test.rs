@@ -1,8 +1,11 @@
 use std::collections::HashMap;
+use std::fs;
+use std::sync::Arc;
 
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
+use tempdir::TempDir;
 
 use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
@@ -195,9 +198,18 @@ fn test_pipeline_builder() {
         Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
     );
 
+    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    if tmp_dir.path().exists() {
+        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    }
+    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
     let exec = MultiThreadedDagExecutor::new(100000);
-    let sm =
-        LmdbStateStoreManager::new("data".to_string(), 1024 * 1024 * 1024 * 5, 20_000).unwrap();
+    let sm = Arc::new(LmdbStateStoreManager::new(
+        tmp_dir.path().to_str().unwrap().to_string(),
+        1024 * 1024 * 1024 * 5,
+        20_000,
+    ));
 
     use std::time::Instant;
     let now = Instant::now();
