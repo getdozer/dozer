@@ -6,7 +6,6 @@ use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-
 fn main() {
     let storage_config = RocksConfig::default();
     let storage_client = Arc::new(Storage::new(storage_config));
@@ -15,7 +14,7 @@ fn main() {
         tables: Some(vec![TableInfo {
             name: "actor".to_string(),
             id: 0,
-            columns: None
+            columns: None,
         }]),
         conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
     };
@@ -26,9 +25,7 @@ fn main() {
     seq_resolver.init();
     let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
 
-    connector
-        .initialize(storage_client, None)
-        .unwrap();
+    connector.initialize(storage_client, None).unwrap();
 
     connector.drop_replication_slot_if_exists().unwrap();
 

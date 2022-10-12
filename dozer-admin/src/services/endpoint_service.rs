@@ -4,8 +4,8 @@ use crate::{
         pool::{establish_connection, DbPool},
     },
     server::dozer_admin_grpc::{
-        CreateEndpointRequest, CreateEndpointResponse, ErrorResponse, GetEndpointRequest,
-        GetEndpointResponse, UpdateEndpointRequest, UpdateEndpointResponse, EndpointInfo,
+        CreateEndpointRequest, CreateEndpointResponse, EndpointInfo, ErrorResponse,
+        GetEndpointRequest, GetEndpointResponse, UpdateEndpointRequest, UpdateEndpointResponse,
     },
 };
 
@@ -21,7 +21,7 @@ impl EndpointService {
     }
 }
 impl EndpointService {
-   pub fn create_endpoint(
+    pub fn create_endpoint(
         &self,
         request: CreateEndpointRequest,
     ) -> Result<CreateEndpointResponse, ErrorResponse> {
@@ -45,12 +45,10 @@ impl EndpointService {
         &self,
         request: GetEndpointRequest,
     ) -> Result<GetEndpointResponse, ErrorResponse> {
-        let endpoint_info =
-            EndpointInfo::get_by_id(self.db_pool.to_owned(), request.endpoint_id).map_err(
-                |op| ErrorResponse {
-                    message: op.to_string(),
-                },
-            )?;
+        let endpoint_info = EndpointInfo::get_by_id(self.db_pool.to_owned(), request.endpoint_id)
+            .map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
         Ok(GetEndpointResponse {
             info: Some(endpoint_info),
         })

@@ -1,23 +1,24 @@
-use std::sync::Arc;
-use atomic_counter::{AtomicCounter, ConsistentCounter};
 use crate::connectors::storage::RocksStorage;
+use atomic_counter::{AtomicCounter, ConsistentCounter};
+use std::sync::Arc;
 
 pub struct SeqNoResolver {
     storage_client: Arc<RocksStorage>,
-    seq_no: Option<ConsistentCounter>
+    seq_no: Option<ConsistentCounter>,
 }
 
 impl SeqNoResolver {
     pub fn new(storage_client: Arc<RocksStorage>) -> Self {
         Self {
             storage_client,
-            seq_no: None
+            seq_no: None,
         }
     }
 
     pub fn init(&mut self) {
         let db = self.storage_client.get_db();
-        let mut seq_iterator = db.raw_iterator_opt(self.storage_client.get_operations_table_read_options());
+        let mut seq_iterator =
+            db.raw_iterator_opt(self.storage_client.get_operations_table_read_options());
         seq_iterator.seek_to_last();
         let mut initial_value = 0;
 
@@ -38,11 +39,11 @@ impl SeqNoResolver {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use rocksdb::{DB, Options};
-    use dozer_types::types::{Operation, Record};
     use crate::connectors::seq_no_resolver::SeqNoResolver;
     use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
+    use dozer_types::types::{Operation, Record};
+    use rocksdb::{Options, DB};
+    use std::sync::Arc;
 
     fn get_event(seq_no: u64) -> dozer_types::types::OperationEvent {
         dozer_types::types::OperationEvent {
@@ -50,12 +51,12 @@ mod tests {
             operation: Operation::Insert {
                 new: Record {
                     schema_id: None,
-                    values: vec![]
-                }
-            }
+                    values: vec![],
+                },
+            },
         }
     }
-    
+
     #[test]
     fn test_new_sequence() {
         let storage_config = RocksConfig::default();
@@ -82,7 +83,10 @@ mod tests {
         let mut seq_no = 8;
         while seq_no < 14 {
             let (key, value) = storage_client.map_operation_event(&get_event(seq_no));
-            storage_client.get_db().put(key, value).expect("Failed to insert");
+            storage_client
+                .get_db()
+                .put(key, value)
+                .expect("Failed to insert");
             seq_no += 1;
         }
 
