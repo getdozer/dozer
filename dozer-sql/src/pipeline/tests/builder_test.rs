@@ -1,3 +1,4 @@
+use log::debug;
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
@@ -121,7 +122,7 @@ impl Sink for TestSink {
     }
 
     fn init(&mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
-        println!("SINK: Initialising TestSink");
+        debug!("SINK: Initialising TestSink");
         Ok(())
     }
 
@@ -132,7 +133,7 @@ impl Sink for TestSink {
         _op: Operation,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
-        //    println!("SINK: Message {} received", _op.seq_no);
+        //    debug!("SINK: Message {} received", _op.seq_no);
         Ok(())
     }
 }
@@ -148,7 +149,7 @@ fn test_pipeline_builder() {
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
-    println!("AST: {:?}", ast);
+    debug!("AST: {:?}", ast);
 
     let statement: &Statement = &ast[0];
 
@@ -215,5 +216,5 @@ fn test_pipeline_builder() {
     let now = Instant::now();
     let _ = exec.start(dag, sm);
     let elapsed = now.elapsed();
-    println!("Elapsed: {:.2?}", elapsed);
+    debug!("Elapsed: {:.2?}", elapsed);
 }

@@ -191,7 +191,6 @@ fn test_insert_update_delete() {
             )
         }
     );
-    println!("ciao")
 }
 
 #[test]

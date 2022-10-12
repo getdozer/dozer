@@ -16,6 +16,8 @@ tempdir = "0.3.7"
 futures = "0.3.24"
 async-trait = "0.1.57"
 galil-seiferas = "0.1.5"
+log = "0.4.17"
+log4rs = "1.1.1"
 
 [dev-dependencies]
 criterion = "0.4.0"

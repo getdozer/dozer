@@ -3,6 +3,7 @@ use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use chrono::{TimeZone, Utc};
 use futures::StreamExt;
+use log::debug;
 use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_types::PgLsn;
@@ -28,7 +29,7 @@ impl CDCHandler {
             r#"("proto_version" '1', "publication_names" '{publication_name}')"#,
             publication_name = self.publication_name
         );
-        println!(
+        debug!(
             "Starting Replication: {:?}, {:?}",
             lsn,
             self.publication_name.clone()
@@ -58,7 +59,7 @@ impl CDCHandler {
                     }
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
-                    // println!("keep alive: {}", k.reply());
+                    // debug!("keep alive: {}", k.reply());
                     if k.reply() == 1 {
                         // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
                         let since_the_epoch = SystemTime::now()
@@ -80,8 +81,8 @@ impl CDCHandler {
                 }
 
                 Some(Ok(msg)) => {
-                    println!("{:?}", msg);
-                    println!("why i am here ?");
+                    debug!("{:?}", msg);
+                    debug!("why i am here ?");
                 }
                 Some(Err(_)) => panic!("unexpected replication stream error"),
                 None => panic!("unexpected replication stream end"),

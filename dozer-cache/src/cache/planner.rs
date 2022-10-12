@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{bail, Context};
+use log::debug;
 
 use crate::cache::expression::{
     ExecutionStep, FilterExpression, IndexScan, Operator, QueryExpression, SeqScan, SortDirection,
@@ -51,7 +52,7 @@ impl QueryPlanner {
 
         for op in ops {
             // ascending
-            println!("{:?}", op);
+            debug!("{:?}", op);
             let direction = true;
             match op.1 {
                 Operator::LT | Operator::LTE => {

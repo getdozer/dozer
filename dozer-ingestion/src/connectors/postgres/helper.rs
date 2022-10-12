@@ -2,6 +2,7 @@ use crate::connectors::postgres::xlog_mapper::TableColumn;
 use bytes::Bytes;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::types::*;
+use log::debug;
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
@@ -196,7 +197,7 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
         // }
         _ => {
             if col_type.schema() == "pg_catalog" {
-                // println!("UNSUPPORTED TYPE: {:?}", col_type);
+                // debug!("UNSUPPORTED TYPE: {:?}", col_type);
             }
             Field::Null
         }
@@ -244,7 +245,7 @@ pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, p
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
+            debug!("connection error: {}", e);
             panic!("Connection failed!");
         }
     });
@@ -290,7 +291,7 @@ mod tests {
                     r#type: Some($b),
                 },
             );
-            println!("{:?}", value);
+            debug!("{:?}", value);
             assert_eq!(value, $c);
         };
     }

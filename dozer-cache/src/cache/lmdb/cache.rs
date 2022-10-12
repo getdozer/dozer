@@ -4,6 +4,7 @@ use anyhow::{bail, Context};
 use lmdb::{
     Cursor, Database, Environment, RoCursor, RoTransaction, RwTransaction, Transaction, WriteFlags,
 };
+use log::debug;
 
 use dozer_schema::registry::context::Context as SchemaContext;
 use dozer_schema::registry::SchemaRegistryClient;
@@ -28,7 +29,7 @@ pub struct LmdbCache {
 
 fn _debug_dump(cursor: RoCursor) -> anyhow::Result<()> {
     while let Ok((key, val)) = cursor.get(None, None, 8) {
-        println!("key: {:?}, val: {:?}", key.unwrap(), val);
+        debug!("key: {:?}, val: {:?}", key.unwrap(), val);
     }
     Ok(())
 }
@@ -102,13 +103,13 @@ impl LmdbCache {
     pub fn _debug_dump(&self) -> anyhow::Result<()> {
         let txn: RoTransaction = self.env.begin_ro_txn().unwrap();
 
-        println!("Records:");
+        debug!("Records:");
         _debug_dump(txn.open_ro_cursor(self.db)?)?;
 
-        println!("Indexes:");
+        debug!("Indexes:");
         _debug_dump(txn.open_ro_cursor(self.indexer_db)?)?;
 
-        println!("Schemas:");
+        debug!("Schemas:");
         _debug_dump(txn.open_ro_cursor(self.schema_db)?)?;
         Ok(())
     }

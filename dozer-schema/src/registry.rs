@@ -2,6 +2,7 @@ use crate::storage::{RocksConfig, RocksStorage, Storage};
 use anyhow::Result;
 use dozer_types::types::{Schema, SchemaIdentifier};
 use futures::{future, prelude::*};
+use log::debug;
 use std::net::{IpAddr, Ipv6Addr};
 use std::{net::SocketAddr, sync::Arc};
 use tarpc::server::{self, incoming::Incoming, Channel};
@@ -76,7 +77,7 @@ pub async fn _serve(config: Option<RocksConfig>) -> anyhow::Result<()> {
 
     let storage_client = Arc::new(Storage::new(storage_config));
 
-    println!("Schema Registry Listening on : {}", SCHEMA_PORT);
+    debug!("Schema Registry Listening on : {}", SCHEMA_PORT);
     let mut listener = tarpc::serde_transport::tcp::listen(&server_addr, Json::default).await?;
     listener.config_mut().max_frame_length(usize::MAX);
     listener

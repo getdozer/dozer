@@ -6,15 +6,16 @@ use crate::connectors::storage::RocksStorage;
 use crossbeam::channel::unbounded;
 
 use dozer_types::types::OperationEvent;
+use log::debug;
 use postgres::Error;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use tokio::runtime::Runtime;
 
+use crate::connectors::seq_no_resolver::SeqNoResolver;
 use postgres::Client;
 use postgres::SimpleQueryMessage::Row as SimpleRow;
-use crate::connectors::seq_no_resolver::SeqNoResolver;
 
 use super::replicator::CDCHandler;
 
@@ -70,7 +71,10 @@ impl PostgresIterator {
 }
 
 impl PostgresIterator {
-    pub fn start(&self, seq_no_resolver: Arc<Mutex<SeqNoResolver>>) -> Result<JoinHandle<()>, Error> {
+    pub fn start(
+        &self,
+        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
+    ) -> Result<JoinHandle<()>, Error> {
         let state = RefCell::new(ReplicationState::Pending);
         let lsn = RefCell::new(None);
         let details = self.details.clone();
@@ -86,7 +90,7 @@ impl PostgresIterator {
         let ingestor = Arc::new(Mutex::new(Ingestor::new(
             storage_client,
             forwarder,
-            seq_no_resolver
+            seq_no_resolver,
         )));
 
         Ok(thread::spawn(move || {
@@ -107,11 +111,11 @@ impl Iterator for PostgresIterator {
         let msg = self.receiver.borrow().as_ref().unwrap().recv();
         match msg {
             Ok(msg) => {
-                // println!("{:?}", msg);
+                // debug!("{:?}", msg);
                 Some(msg)
             }
             Err(e) => {
-                println!("RecvError: {:?}", e.to_string());
+                debug!("RecvError: {:?}", e.to_string());
                 None
             }
         }
@@ -141,11 +145,10 @@ impl PostgresIteratorHandler {
 
         /*  #####################        Pending             ############################ */
         client
-            
             .borrow_mut()
             .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")?;
 
-        println!("\nCreating Slot....");
+        debug!("\nCreating Slot....");
         self._create_replication_slot(client.clone())?;
 
         self.state
@@ -153,7 +156,7 @@ impl PostgresIteratorHandler {
             .replace(ReplicationState::SnapshotInProgress);
 
         /* #####################        SnapshotInProgress         ###################### */
-        println!("\nInitializing snapshots...");
+        debug!("\nInitializing snapshots...");
 
         let snapshotter = PostgresSnapshotter {
             tables: details.tables.to_owned(),
@@ -162,7 +165,7 @@ impl PostgresIteratorHandler {
         };
         let tables = snapshotter.sync_tables()?;
 
-        println!("\nInitialized with tables: {:?}", tables);
+        debug!("\nInitialized with tables: {:?}", tables);
 
         client.borrow_mut().simple_query("COMMIT;")?;
 
@@ -192,7 +195,7 @@ impl PostgresIteratorHandler {
             panic!("unexpected query message");
         };
 
-        println!("lsn: {:?}", lsn);
+        debug!("lsn: {:?}", lsn);
         self.lsn.replace(Some(lsn.to_string()));
 
         Ok(())

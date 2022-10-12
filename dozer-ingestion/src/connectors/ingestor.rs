@@ -1,3 +1,4 @@
+use log::debug;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -30,7 +31,7 @@ impl IngestorForwarder for ChannelForwarder {
         match send_res {
             Ok(_) => {}
             Err(e) => {
-                println!("{:?}", e.to_string())
+                debug!("{:?}", e.to_string())
             }
         }
     }
@@ -41,21 +42,21 @@ pub struct Ingestor {
     pub sender: Arc<Box<dyn IngestorForwarder>>,
     writer: BatchedRocksDbWriter,
     timer: Instant,
-    seq_no_resolver: Arc<Mutex<SeqNoResolver>>
+    seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
 }
 
 impl Ingestor {
     pub fn new(
         storage_client: Arc<RocksStorage>,
         sender: Arc<Box<dyn IngestorForwarder + 'static>>,
-        seq_no_resolver: Arc<Mutex<SeqNoResolver>>
+        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
     ) -> Self {
         Self {
             storage_client,
             sender,
             writer: BatchedRocksDbWriter::new(),
             timer: Instant::now(),
-            seq_no_resolver
+            seq_no_resolver,
         }
     }
 
@@ -80,20 +81,18 @@ impl Ingestor {
                 //     });
 
                 // if let Err(_) = schema_update {
-                //     println!("Igoring schema updated error");
+                //     debug!("Igoring schema updated error");
                 // }
             }
             IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
-                let (commit_key, commit_encoded) = self.storage_client.map_commit_message(
-                    &1,
-                    &seq_no,
-                    &event.lsn
-                );
+                let (commit_key, commit_encoded) = self
+                    .storage_client
+                    .map_commit_message(&1, &seq_no, &event.lsn);
                 self.writer.insert(commit_key.as_ref(), commit_encoded);
                 self.writer.commit(&self.storage_client);
 
-                println!("Batch processing took: {:.2?}", self.timer.elapsed());
+                debug!("Batch processing took: {:.2?}", self.timer.elapsed());
             }
             IngestionMessage::Begin() => {
                 self.writer.begin();
@@ -107,14 +106,14 @@ unsafe impl Sync for Ingestor {}
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-    use crossbeam::channel::unbounded;
-    use rocksdb::{DB, Options};
-    use dozer_types::types::{Operation, Record};
-    use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
     use crate::connectors::ingestor::IngestionMessage::{Begin, Commit, OperationEvent, Schema};
+    use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
     use crate::connectors::seq_no_resolver::SeqNoResolver;
     use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
+    use crossbeam::channel::unbounded;
+    use dozer_types::types::{Operation, Record};
+    use rocksdb::{Options, DB};
+    use std::sync::{Arc, Mutex};
 
     #[tokio::test]
     async fn test_message_handle() {
@@ -139,7 +138,7 @@ mod tests {
             fields: vec![],
             values: vec![],
             primary_index: vec![],
-            secondary_indexes: vec![]
+            secondary_indexes: vec![],
         };
 
         // Expected seq no - 2
@@ -148,9 +147,9 @@ mod tests {
             operation: Operation::Insert {
                 new: Record {
                     schema_id: None,
-                    values: vec![]
-                }
-            }
+                    values: vec![],
+                },
+            },
         };
 
         // Expected seq no - 3
@@ -159,15 +158,15 @@ mod tests {
             operation: Operation::Insert {
                 new: Record {
                     schema_id: None,
-                    values: vec![]
-                }
-            }
+                    values: vec![],
+                },
+            },
         };
-        
+
         // Expected seq no - 4
         let commit_message = dozer_types::types::Commit {
             seq_no: 0,
-            lsn: 412142432
+            lsn: 412142432,
         };
 
         ingestor.handle_message(Begin());
@@ -184,7 +183,8 @@ mod tests {
             storage_client.map_operation_event(&expected_event),
             storage_client.map_operation_event(&expected_event2),
             storage_client.map_commit_message(&1, &4, &commit_message.lsn),
-        ].into_iter();
+        ]
+        .into_iter();
 
         let db = storage_client.get_db();
         let mut seq_iterator = db.raw_iterator();

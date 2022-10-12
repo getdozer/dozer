@@ -4,6 +4,7 @@ use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use crate::state::StateStore;
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
+use log::debug;
 use std::collections::HashMap;
 
 /// Test Source
@@ -100,7 +101,7 @@ impl Sink for TestSink {
     }
 
     fn init(&mut self, _: &mut dyn StateStore) -> anyhow::Result<()> {
-        println!("SINK {}: Initialising TestSink", self.id);
+        debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
 
@@ -111,7 +112,6 @@ impl Sink for TestSink {
         _op: Operation,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
-        //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
         Ok(())
     }
 }
@@ -178,8 +178,7 @@ impl Processor for TestProcessor {
     }
 
     fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
-        println!("PROC {}: Initialising TestProcessor", self.id);
-        //   self.state = Some(state_manager.init_state_store("pippo".to_string()).unwrap());
+        debug!("PROC {}: Initialising TestProcessor", self.id);
         Ok(())
     }
 
@@ -190,7 +189,6 @@ impl Processor for TestProcessor {
         fw: &dyn ProcessorChannelForwarder,
         state_store: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
-        //   println!("PROC {}: Message {} received", self.id, op.seq_no);
         self.ctr += 1;
         state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes())?;
         fw.send(op, DEFAULT_PORT_HANDLE)?;
