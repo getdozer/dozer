@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
-use super::registry::{context, SchemaRegistryClient};
-use dozer_types::types::{
-    FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier,
-};
+use dozer_types::types::{FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier};
 
-pub async fn init_schema(client: Arc<SchemaRegistryClient>) -> Schema {
-    // Initialize Schema Registry
+pub fn get_schema() -> Schema {
     let schema = Schema {
         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
         fields: vec![FieldDefinition {
@@ -22,12 +18,5 @@ pub async fn init_schema(client: Arc<SchemaRegistryClient>) -> Schema {
             sort_direction: vec![true],
         }],
     };
-
-    // Insert Schema
-    client
-        .insert(context::current(), schema.clone())
-        .await
-        .unwrap();
-
     schema
 }

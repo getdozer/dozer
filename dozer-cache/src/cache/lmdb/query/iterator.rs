@@ -1,9 +1,8 @@
-use galil_seiferas::gs_find;
 use lmdb::{Cursor, RoCursor};
 
 pub struct CacheIterator<'a> {
     cursor: &'a RoCursor<'a>,
-    starting_key: Option<Vec<u8>>,
+    starting_key: Option<&'a Vec<u8>>,
     ascending: bool,
     first: bool,
 }
@@ -36,7 +35,7 @@ impl<'a> Iterator for CacheIterator<'a> {
     }
 }
 impl<'a> CacheIterator<'a> {
-    pub fn new(cursor: &'a RoCursor, starting_key: Option<Vec<u8>>, ascending: bool) -> Self {
+    pub fn new(cursor: &'a RoCursor, starting_key: Option<&'a Vec<u8>>, ascending: bool) -> Self {
         CacheIterator {
             cursor,
             starting_key,
@@ -70,6 +69,7 @@ pub const MDB_FIRST: u32 = 0;
 pub const MDB_LAST: u32 = 6;
 pub const MDB_NEXT: u32 = 8;
 pub const MDB_PREV: u32 = 12;
+pub const MDB_SET_RANGE: u32 = 17;
 
 enum NextOp {
     First,
@@ -80,7 +80,7 @@ enum NextOp {
 impl NextOp {
     pub fn get_value(&self) -> u32 {
         match self {
-            NextOp::First => MDB_FIRST,
+            NextOp::First => MDB_SET_RANGE,
             NextOp::Last => MDB_LAST,
             NextOp::Next => MDB_NEXT,
             NextOp::Prev => MDB_PREV,

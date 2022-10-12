@@ -1,18 +1,12 @@
 use anyhow::Ok;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
-use std::sync::Arc;
-use tokio::runtime::Runtime;
-
 use dozer_cache::cache::lmdb::cache::LmdbCache;
-use dozer_cache::cache::{index, Cache};
-use dozer_schema::{
-    registry::{SchemaRegistryClient, _serve_channel, client},
-    test_helper::init_schema,
-};
+use dozer_cache::cache::{index, test_utils, Cache};
 use dozer_types::types::{Field, Record, Schema};
+use std::sync::Arc;
 
-async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Result<()> {
+fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n);
 
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
@@ -24,14 +18,14 @@ async fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Resu
     Ok(())
 }
 
-async fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
+fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n);
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
     let _get_record = cache.get(&key)?;
     Ok(())
 }
 
-async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
+fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     let exp = QueryExpression::new(
         Some(FilterExpression::Simple(
             "foo".to_string(),
@@ -48,38 +42,26 @@ async fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
 }
 
 fn cache(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-
-    let (cache, schema) = rt.block_on(async {
-        let client_transport = _serve_channel().unwrap();
-        let client = Arc::new(
-            SchemaRegistryClient::new(client::Config::default(), client_transport).spawn(),
-        );
-        let schema = init_schema(client.clone()).await;
-        let cache = Arc::new(LmdbCache::new(true));
-        (cache, schema)
-    });
+    let schema = test_utils::schema_0();
+    let cache = Arc::new(LmdbCache::new(true));
 
     let size: usize = 1000000;
 
     c.bench_with_input(BenchmarkId::new("cache_insert", size), &size, |b, &s| {
         b.iter(|| {
-            rt.block_on(async { insert(Arc::clone(&cache), schema.clone(), s).await })
-                .unwrap();
+            insert(Arc::clone(&cache), schema.clone(), s).unwrap();
         })
     });
 
     c.bench_with_input(BenchmarkId::new("cache_get", size), &size, |b, &s| {
         b.iter(|| {
-            rt.block_on(async { get(Arc::clone(&cache), s).await })
-                .unwrap();
+            get(Arc::clone(&cache), s).unwrap();
         })
     });
 
     c.bench_with_input(BenchmarkId::new("cache_query", size), &size, |b, &s| {
         b.iter(|| {
-            rt.block_on(async { query(Arc::clone(&cache), s).await })
-                .unwrap();
+            query(Arc::clone(&cache), s).unwrap();
         })
     });
 }

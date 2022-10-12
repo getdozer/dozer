@@ -4,6 +4,7 @@ use dozer_types::types::{Record, Schema, SchemaIdentifier};
 pub mod expression;
 pub mod index;
 pub mod planner;
+pub mod test_utils;
 
 pub trait Cache {
     fn insert_with_schema(&self, rec: &Record, schema: &Schema, name: &str) -> anyhow::Result<()>;

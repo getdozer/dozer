@@ -1,10 +1,5 @@
-use std::sync::Arc;
-
+use super::super::test_utils;
 use anyhow::{Context, Ok};
-use dozer_schema::{
-    registry::{_serve_channel, client, SchemaRegistryClient},
-    test_helper::init_schema,
-};
 use dozer_types::types::{Field, Record, Schema};
 
 use crate::cache::{
@@ -14,11 +9,8 @@ use crate::cache::{
 
 use super::cache::LmdbCache;
 
-async fn _setup() -> (LmdbCache, Schema) {
-    let client_transport = _serve_channel().unwrap();
-    let client =
-        Arc::new(SchemaRegistryClient::new(client::Config::default(), client_transport).spawn());
-    let schema = init_schema(client.clone()).await;
+fn _setup() -> (LmdbCache, Schema) {
+    let schema = test_utils::schema_0();
     let cache = LmdbCache::new(true);
     (cache, schema)
 }
@@ -34,9 +26,9 @@ fn query_and_test(
     Ok(())
 }
 
-#[tokio::test]
-async fn insert_and_get_schema() -> anyhow::Result<()> {
-    let (cache, schema) = _setup().await;
+#[test]
+fn insert_and_get_schema() -> anyhow::Result<()> {
+    let (cache, schema) = _setup();
     cache.insert_schema(&schema, "test")?;
     let schema = cache.get_schema_by_name("test")?;
 
@@ -50,10 +42,10 @@ async fn insert_and_get_schema() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn insert_get_and_delete_record() -> anyhow::Result<()> {
+#[test]
+fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let val = "bar".to_string();
-    let (cache, schema) = _setup().await;
+    let (cache, schema) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
     cache.insert_with_schema(&record, &schema, "docs")?;
 
@@ -69,10 +61,10 @@ async fn insert_get_and_delete_record() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn insert_and_query_record() -> anyhow::Result<()> {
+#[test]
+fn insert_and_query_record() -> anyhow::Result<()> {
     let val = "bar".to_string();
-    let (cache, schema) = _setup().await;
+    let (cache, schema) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
 
     cache.insert_with_schema(&record, &schema, "docs")?;
