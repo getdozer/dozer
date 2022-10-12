@@ -130,16 +130,14 @@ impl Processor for ProjectionProcessor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         _state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old), DefaultPortHandle),
             Operation::Insert { ref new } => fw.send(self.insert(new), DefaultPortHandle),
             Operation::Update { ref old, ref new } => {
                 fw.send(self.update(old, new), DefaultPortHandle)
             }
-            Operation::SchemaUpdate { new: _ } => todo!(),
-            Operation::Terminate => todo!(),
         };
-        Ok(NextStep::Continue)
+        Ok(())
     }
 }

@@ -84,7 +84,7 @@ impl Processor for SelectionProcessor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         _state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         match op {
             Operation::Delete { ref old } => {
                 if self.expression.evaluate(old) == Field::Boolean(true) {
@@ -117,9 +117,7 @@ impl Processor for SelectionProcessor {
                     }
                 }
             }
-            Operation::SchemaUpdate { new: _ } => todo!(),
-            Operation::Terminate => todo!(),
         }
-        Ok(NextStep::Continue)
+        Ok(())
     }
 }
