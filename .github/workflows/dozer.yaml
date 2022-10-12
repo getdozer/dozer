@@ -38,14 +38,21 @@ jobs:
         with:
           path: |
             ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            ${{ runner.os }}-cargo
+            ${{ runner.os }}-cargo-
+
+      - name: Lint
+        run: |
+          cargo fmt -- --check
+          cargo clippy -- -D warnings
 
       - name: Run tests
         run: cargo test --verbose
