@@ -13,7 +13,6 @@ fn test_run_dag() {
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     info!("Running test_run_dag");
-    let dir = env::temp_dir().to_str().unwrap().to_string();
 
     let src = TestSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
     let proc = TestProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
