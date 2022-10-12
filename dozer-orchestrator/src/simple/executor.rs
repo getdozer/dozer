@@ -1,3 +1,4 @@
+use std::fs;
 use std::sync::Arc;
 
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -82,10 +83,20 @@ impl Executor {
         )?;
 
         let exec = MultiThreadedDagExecutor::new(100000);
-        let path = TempDir::new("state-store").unwrap();
 
-        let path_str = path.path().to_str().unwrap().to_string();
-        let sm = LmdbStateStoreManager::new(path_str, 1024 * 1024 * 1024 * 5, 20_000).unwrap();
+        let tmp_dir =
+            TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+        if tmp_dir.path().exists() {
+            fs::remove_dir_all(tmp_dir.path())
+                .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+        }
+        fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
+        let sm = Arc::new(LmdbStateStoreManager::new(
+            tmp_dir.path().to_str().unwrap().to_string(),
+            1024 * 1024 * 1024 * 5,
+            20_000,
+        ));
 
         use std::time::Instant;
         let now = Instant::now();
