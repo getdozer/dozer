@@ -1,22 +1,68 @@
-use dozer_types::types::Field;
-
-pub enum Expression {
-    None,
-    // a = 1
-    Simple(String, Comparator, Field),
-    // OR, exp1, exp2
-    Composite(Operator, Box<Expression>, Box<Expression>),
+use dozer_types::types::{Field, IndexDefinition};
+pub struct QueryExpression {
+    pub filter: Option<FilterExpression>,
+    pub order_by: Vec<SortOptions>,
+    pub limit: usize,
+    pub skip: usize,
 }
 
+impl QueryExpression {
+    pub fn new(
+        filter: Option<FilterExpression>,
+        order_by: Vec<SortOptions>,
+        limit: usize,
+        skip: usize,
+    ) -> Self {
+        Self {
+            filter,
+            order_by,
+            limit,
+            skip,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum FilterExpression {
+    // a = 1, a containts "s", a> 4
+    Simple(String, Operator, Field),
+    And(Box<FilterExpression>, Box<FilterExpression>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Operator {
-    AND,
-    OR,
-}
-
-pub enum Comparator {
     LT,
     LTE,
     EQ,
     GT,
     GTE,
+    Contains,
+    MatchesAny,
+    MatchesAll,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SortOptions {
+    pub field_name: String,
+    pub direction: SortDirection,
+}
+
+pub enum ExecutionStep {
+    IndexScan(IndexScan),
+    SeqScan(SeqScan),
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct IndexScan {
+    pub index_def: IndexDefinition,
+    pub fields: Vec<Option<Field>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SeqScan {
+    // ascending / descending
+    pub direction: bool,
 }

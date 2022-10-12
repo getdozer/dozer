@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use anyhow::Context;
 use dozer_cache::cache::lmdb::cache::LmdbCache;
-use dozer_cache::cache::{get_primary_key, Cache};
+use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::StateStore;
@@ -99,7 +99,7 @@ impl Sink for CacheSink {
 
         match op {
             Operation::Delete { old } => {
-                let key = get_primary_key(&schema.primary_index, &old.values);
+                let key = index::get_primary_key(&schema.primary_index, &old.values);
                 self.cache.delete(&key)?;
             }
             Operation::Insert { new } => {
@@ -109,7 +109,7 @@ impl Sink for CacheSink {
                 self.cache.insert(&new)?;
             }
             Operation::Update { old, new } => {
-                let key = get_primary_key(&schema.primary_index, &old.values);
+                let key = index::get_primary_key(&schema.primary_index, &old.values);
                 let mut new = new;
                 new.schema_id = schema.identifier.clone();
                 self.cache.update(&key, &new, &schema)?;

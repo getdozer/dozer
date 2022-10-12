@@ -2,7 +2,7 @@ use anyhow::{Context, Ok};
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier};
 use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 
-use crate::cache::get_secondary_index;
+use crate::cache::index;
 
 pub struct Indexer<'a> {
     db: &'a Database,
@@ -26,13 +26,9 @@ impl<'a> Indexer<'a> {
             .to_owned()
             .context("schema_id is expected")?;
         for index in schema.secondary_indexes.iter() {
-            let keys = self._build_index(index, rec, identifier)?;
+            let secondary_key = self._build_index(index, rec, identifier)?;
 
-            for secondary_key in keys.iter() {
-                let _typ = &index.typ;
-
-                txn.put::<Vec<u8>, Vec<u8>>(*self.db, secondary_key, &pkey, WriteFlags::default())?;
-            }
+            txn.put::<Vec<u8>, Vec<u8>>(*self.db, &secondary_key, &pkey, WriteFlags::default())?;
         }
         txn.commit()?;
         Ok(())
@@ -43,7 +39,7 @@ impl<'a> Indexer<'a> {
         index: &IndexDefinition,
         rec: &Record,
         identifier: &SchemaIdentifier,
-    ) -> anyhow::Result<Vec<Vec<u8>>> {
+    ) -> anyhow::Result<Vec<u8>> {
         let keys = match index.typ {
             dozer_types::types::IndexType::SortedInverted => {
                 self._build_index_sorted_inverted(identifier, &index.fields, &rec.values)
@@ -59,16 +55,14 @@ impl<'a> Indexer<'a> {
         identifier: &SchemaIdentifier,
         index_fields: &[usize],
         values: &[Field],
-    ) -> Vec<Vec<u8>> {
-        let keys: Vec<Vec<u8>> = index_fields
+    ) -> Vec<u8> {
+        let values: Vec<Option<Vec<u8>>> = values
             .iter()
-            .map(|idx| {
-                let field = values[*idx].clone();
-                let field_val: Vec<u8> = bincode::serialize(&field).unwrap();
-
-                get_secondary_index(identifier.id, idx, &field_val)
-            })
+            .enumerate()
+            .filter(|(idx, _)| index_fields.contains(idx))
+            .map(|(_, field)| Some(bincode::serialize(&field).unwrap()))
             .collect();
-        keys
+
+        index::get_secondary_index(identifier.id, index_fields, &values)
     }
 }
