@@ -8,7 +8,7 @@ use anyhow::Context;
 use dozer_cache::cache::lmdb::cache::LmdbCache;
 use dozer_cache::cache::{get_primary_key, Cache};
 use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::node::{NextStep, Sink, SinkFactory};
+use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::StateStore;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{Operation, OperationEvent, Schema};
@@ -67,9 +67,10 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: OperationEvent,
+        seq: u64,
+        op: Operation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         // println!("SINK: Message {} received", _op.seq_no);
         self.counter += 1;
         const BACKSPACE: char = 8u8 as char;
@@ -96,7 +97,7 @@ impl Sink for CacheSink {
             e.insert(true);
         }
 
-        match op.operation {
+        match op {
             Operation::Delete { old } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 self.cache.delete(&key)?;
@@ -113,10 +114,8 @@ impl Sink for CacheSink {
                 new.schema_id = schema.identifier.clone();
                 self.cache.update(&key, &new, &schema)?;
             }
-            Operation::Terminate => {}
-            Operation::SchemaUpdate { new: _ } => {}
         };
-        Ok(NextStep::Continue)
+        Ok(())
     }
 
     fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {

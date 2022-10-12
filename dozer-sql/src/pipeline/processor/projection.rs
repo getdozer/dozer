@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::NextStep;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
@@ -131,16 +130,14 @@ impl Processor for ProjectionProcessor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         _state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old), DefaultPortHandle),
             Operation::Insert { ref new } => fw.send(self.insert(new), DefaultPortHandle),
             Operation::Update { ref old, ref new } => {
                 fw.send(self.update(old, new), DefaultPortHandle)
             }
-            Operation::SchemaUpdate { new: _ } => todo!(),
-            Operation::Terminate => todo!(),
         };
-        Ok(NextStep::Continue)
+        Ok(())
     }
 }

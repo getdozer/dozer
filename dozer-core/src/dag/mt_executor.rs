@@ -1,9 +1,8 @@
 use crate::dag::dag::{Dag, Edge, Endpoint, NodeHandle, NodeType, PortDirection, PortHandle};
 use crate::dag::node::{
-    ExecutionContext, NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source,
-    SourceFactory,
+    ExecutionContext, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_types::types::{Operation, OperationEvent, Schema};
+use dozer_types::types::{Operation, OperationEvent, Record, Schema};
 
 use crate::dag::forwarder::{LocalChannelForwarder, SourceChannelForwarder};
 use crate::state::StateStoresManager;
@@ -14,6 +13,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExecutorOperation {
+    Delete { seq: u64, old: Record },
+    Insert { seq: u64, new: Record },
+    Update { seq: u64, old: Record, new: Record },
+    SchemaUpdate { new: Schema },
+    Terminate,
+}
 
 pub const DefaultPortHandle: u16 = 0xffff_u16;
 
@@ -43,17 +51,30 @@ impl MultiThreadedDagExecutor {
         Self { channel_buf_sz }
     }
 
+    fn map_to_op(op: ExecutorOperation) -> anyhow::Result<(u64, Operation)> {
+        match op {
+            ExecutorOperation::Delete { seq, old } => Ok((seq, Operation::Delete { old })),
+            ExecutorOperation::Insert { seq, new } => Ok((seq, Operation::Insert { new })),
+            ExecutorOperation::Update { seq, old, new } => {
+                Ok((seq, Operation::Update { old, new }))
+            }
+            _ => Err(anyhow!("Invalid operation")),
+        }
+    }
+
     fn index_edges(
         &self,
         dag: &Dag,
     ) -> (
-        HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<OperationEvent>>>>,
-        HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<OperationEvent>>>>,
+        HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
+        HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
     ) {
-        let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<OperationEvent>>>> =
+        let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>> =
             HashMap::new();
-        let mut receivers: HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<OperationEvent>>>> =
-            HashMap::new();
+        let mut receivers: HashMap<
+            NodeHandle,
+            HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+        > = HashMap::new();
 
         for edge in dag.edges.iter() {
             if !senders.contains_key(&edge.from.node) {
@@ -137,7 +158,7 @@ impl MultiThreadedDagExecutor {
         &self,
         handle: NodeHandle,
         mut src_factory: Box<dyn SourceFactory>,
-        senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_manager: Arc<dyn StateStoresManager>,
     ) -> JoinHandle<anyhow::Result<()>> {
         let local_sm = state_manager.clone();
@@ -157,10 +178,10 @@ impl MultiThreadedDagExecutor {
     }
 
     fn build_receivers_lists(
-        receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
-    ) -> (Vec<PortHandle>, Vec<Receiver<OperationEvent>>) {
+        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+    ) -> (Vec<PortHandle>, Vec<Receiver<ExecutorOperation>>) {
         let mut handles_ls: Vec<PortHandle> = Vec::new();
-        let mut receivers_ls: Vec<Receiver<OperationEvent>> = Vec::new();
+        let mut receivers_ls: Vec<Receiver<ExecutorOperation>> = Vec::new();
         for e in receivers {
             for r in e.1 {
                 receivers_ls.push(r);
@@ -174,7 +195,7 @@ impl MultiThreadedDagExecutor {
         &self,
         handle: NodeHandle,
         mut snk_factory: Box<dyn SinkFactory>,
-        receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
+        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         state_manager: Arc<dyn StateStoresManager>,
     ) -> JoinHandle<anyhow::Result<()>> {
         let local_sm = state_manager.clone();
@@ -197,8 +218,8 @@ impl MultiThreadedDagExecutor {
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index].recv()?;
-                match op.operation {
-                    Operation::SchemaUpdate { new } => {
+                match op {
+                    ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);
                         let input_ports = snk_factory.get_input_ports();
                         let count: Vec<&PortHandle> = input_ports
@@ -218,7 +239,7 @@ impl MultiThreadedDagExecutor {
                         }
                     }
 
-                    Operation::Terminate => {
+                    ExecutorOperation::Terminate => {
                         return Ok(());
                     }
 
@@ -228,15 +249,13 @@ impl MultiThreadedDagExecutor {
                             return Err(anyhow!("Received a CDC before schema initialization"));
                         }
 
-                        let r = snk.process(handles_ls[index], op, state_store.as_mut())?;
-                        match r {
-                            NextStep::Stop => {
-                                return Ok(());
-                            }
-                            _ => {
-                                continue;
-                            }
-                        }
+                        let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
+                        snk.process(
+                            handles_ls[index],
+                            data_op.0,
+                            data_op.1,
+                            state_store.as_mut(),
+                        )?;
                     }
                 }
             }
@@ -247,8 +266,8 @@ impl MultiThreadedDagExecutor {
         &self,
         handle: NodeHandle,
         mut proc_factory: Box<dyn ProcessorFactory>,
-        senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
-        receivers: HashMap<PortHandle, Vec<Receiver<OperationEvent>>>,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         state_manager: Arc<dyn StateStoresManager>,
     ) -> JoinHandle<anyhow::Result<()>> {
         let local_sm = state_manager.clone();
@@ -273,8 +292,8 @@ impl MultiThreadedDagExecutor {
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index].recv()?;
-                match op.operation {
-                    Operation::SchemaUpdate { new } => {
+                match op {
+                    ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);
                         let input_ports = proc_factory.get_input_ports();
                         let count: Vec<&PortHandle> = input_ports
@@ -296,8 +315,8 @@ impl MultiThreadedDagExecutor {
                             }
                         }
                     }
-                    Operation::Terminate => {
-                        fw.terminate()?;
+                    ExecutorOperation::Terminate => {
+                        fw.send_term()?;
                         return Ok(());
                     }
                     _ => {
@@ -305,21 +324,10 @@ impl MultiThreadedDagExecutor {
                             error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
                             return Err(anyhow!("Received a CDC before schema initialization"));
                         }
-                        fw.update_seq_no(op.seq_no);
-                        let r = proc.process(
-                            handles_ls[index],
-                            op.operation,
-                            &fw,
-                            state_store.as_mut(),
-                        )?;
-                        match r {
-                            NextStep::Stop => {
-                                return Ok(());
-                            }
-                            _ => {
-                                continue;
-                            }
-                        }
+
+                        let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
+                        fw.update_seq_no(data_op.0);
+                        proc.process(handles_ls[index], data_op.1, &fw, state_store.as_mut())?;
                     }
                 }
             }

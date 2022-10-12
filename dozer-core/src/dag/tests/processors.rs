@@ -1,10 +1,7 @@
 use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DefaultPortHandle;
-use crate::dag::node::NextStep::Continue;
-use crate::dag::node::{
-    NextStep, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
-};
+use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use crate::state::StateStore;
 use anyhow::Context;
 use dozer_types::types::{FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema};
@@ -59,15 +56,12 @@ impl Source for TestSource {
     ) -> anyhow::Result<()> {
         for n in 0..1_000_000 {
             fw.send(
-                OperationEvent::new(
-                    n,
-                    Operation::Insert {
-                        new: Record::new(None, vec![]),
-                    },
-                ),
+                n,
+                Operation::Insert {
+                    new: Record::new(None, vec![]),
+                },
                 DefaultPortHandle,
-            )
-            .unwrap();
+            )?;
         }
         cm.terminate().unwrap();
         Ok(())
@@ -111,11 +105,12 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _op: OperationEvent,
+        _seq: u64,
+        _op: Operation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         //    println!("SINK {}: Message {} received", self.id, _op.seq_no);
-        Ok(Continue)
+        Ok(())
     }
 }
 
@@ -192,11 +187,11 @@ impl Processor for TestProcessor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         //   println!("PROC {}: Message {} received", self.id, op.seq_no);
         self.ctr += 1;
         state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes());
         fw.send(op, DefaultPortHandle)?;
-        Ok(Continue)
+        Ok(())
     }
 }

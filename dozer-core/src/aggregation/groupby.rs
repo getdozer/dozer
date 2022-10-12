@@ -1,7 +1,7 @@
 use crate::aggregation::Aggregator;
 use crate::dag::dag::PortHandle;
 use crate::dag::mt_executor::DefaultPortHandle;
-use crate::dag::node::{NextStep, Processor, ProcessorFactory};
+use crate::dag::node::{Processor, ProcessorFactory};
 use crate::state::StateStore;
 use ahash::AHasher;
 use anyhow::{anyhow, Context};
@@ -450,11 +450,11 @@ impl Processor for AggregationProcessor {
         op: Operation,
         fw: &dyn crate::dag::forwarder::ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         let ops = self.aggregate(state, op)?;
         for op in ops {
             fw.send(op, DefaultPortHandle)?;
         }
-        Ok(NextStep::Continue)
+        Ok(())
     }
 }

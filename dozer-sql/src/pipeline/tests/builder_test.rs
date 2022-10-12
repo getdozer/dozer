@@ -7,8 +7,7 @@ use sqlparser::parser::Parser;
 use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 use dozer_core::dag::mt_executor::{DefaultPortHandle, MultiThreadedDagExecutor};
-use dozer_core::dag::node::NextStep::Continue;
-use dozer_core::dag::node::{NextStep, Sink, SinkFactory, Source, SourceFactory};
+use dozer_core::dag::node::{Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_core::state::StateStore;
 use dozer_types::types::{
@@ -69,19 +68,17 @@ impl Source for TestSource {
     ) -> anyhow::Result<()> {
         for n in 0..100 {
             fw.send(
-                OperationEvent::new(
-                    n,
-                    Operation::Insert {
-                        new: Record::new(
-                            None,
-                            vec![
-                                Field::Int(0),
-                                Field::String("Italy".to_string()),
-                                Field::Int(2000),
-                            ],
-                        ),
-                    },
-                ),
+                n,
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(0),
+                            Field::String("Italy".to_string()),
+                            Field::Int(2000),
+                        ],
+                    ),
+                },
                 DefaultPortHandle,
             )
             .unwrap();
@@ -128,11 +125,12 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _op: OperationEvent,
+        seq: u64,
+        _op: Operation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep> {
+    ) -> anyhow::Result<()> {
         //    println!("SINK: Message {} received", _op.seq_no);
-        Ok(Continue)
+        Ok(())
     }
 }
 
