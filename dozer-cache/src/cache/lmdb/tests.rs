@@ -65,7 +65,7 @@ fn insert_get_and_delete_record() -> anyhow::Result<()> {
 fn insert_and_query_record() -> anyhow::Result<()> {
     let val = "bar".to_string();
     let (cache, schema) = _setup();
-    let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
+    let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
 
     cache.insert_with_schema(&record, &schema, "docs")?;
 

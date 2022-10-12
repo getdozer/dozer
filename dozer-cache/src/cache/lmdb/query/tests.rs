@@ -1,5 +1,5 @@
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression, SortDirection, SortOptions},
+    expression::{self, FilterExpression, QueryExpression},
     lmdb::cache::LmdbCache,
     test_utils, Cache,
 };
@@ -37,7 +37,7 @@ fn query_secondary() -> anyhow::Result<()> {
 
     let records = cache.query("sample", &query)?;
     assert_eq!(records.len(), 1, "must be equal");
-    assert_eq!(records[0], record.clone(), "must be equal");
+    assert_eq!(records[0], record, "must be equal");
 
     Ok(())
 }

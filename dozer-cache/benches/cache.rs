@@ -25,7 +25,7 @@ fn get(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn query(cache: Arc<LmdbCache>, n: usize) -> anyhow::Result<()> {
+fn query(cache: Arc<LmdbCache>, _n: usize) -> anyhow::Result<()> {
     let exp = QueryExpression::new(
         Some(FilterExpression::Simple(
             "foo".to_string(),

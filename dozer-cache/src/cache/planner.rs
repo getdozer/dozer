@@ -7,6 +7,11 @@ use crate::cache::expression::{
 };
 use dozer_types::types::{Field, FieldDefinition, IndexDefinition, Schema};
 
+struct ScanOp {
+    id: usize,
+    direction: bool,
+    field: Option<Field>,
+}
 pub struct QueryPlanner {}
 impl QueryPlanner {
     fn get_field_index(&self, field_name: String, fields: &[FieldDefinition]) -> Option<usize> {
@@ -63,14 +68,19 @@ impl QueryPlanner {
                 }
             }
 
-            mapped_ops.push((op.0, (direction, op.2.clone())));
+            mapped_ops.push(ScanOp {
+                id: op.0,
+                direction,
+                field: op.2.clone(),
+            });
         }
 
         if range_index.len() > 1 {
             bail!("range queries on multiple fields are not supported ")
         } else {
-            let (key, (direction, fields)): (Vec<usize>, (Vec<bool>, Vec<Option<Field>>)) =
-                mapped_ops.iter().cloned().unzip();
+            let key: Vec<usize> = mapped_ops.iter().map(|o| o.id).collect();
+            let direction: Vec<bool> = mapped_ops.iter().map(|o| o.direction).collect();
+            let fields: Vec<Option<Field>> = mapped_ops.iter().map(|o| o.field.clone()).collect();
 
             let index = indexes
                 .iter()
