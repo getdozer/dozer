@@ -59,10 +59,10 @@ impl IngestionGroup {
                 let tables: Vec<TableInfo> = tables
                     .iter()
                     .filter(|t| {
-                        let v = t_names.iter().find(|n| *n.clone() == t.name.clone());
+                        let v = t_names.iter().find(|n| (*n).clone() == t.name.clone());
                         v.is_some()
                     })
-                    .map(|t| t.clone())
+                    .cloned()
                     .collect();
 
                 connector.initialize(client, Some(tables)).unwrap();
@@ -83,6 +83,6 @@ impl IngestionGroup {
             });
         }
 
-        return receiver;
+        receiver
     }
 }

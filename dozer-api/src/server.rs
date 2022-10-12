@@ -15,7 +15,7 @@ fn get_record(
             panic!("error : {:?}", e);
         }
     };
-    let key = index::get_primary_key(&vec![0], &vec![key]);
+    let key = index::get_primary_key(&[0], &[key]);
 
     let rec = cache.get(&key).context("record not found")?;
     let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;

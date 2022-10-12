@@ -68,7 +68,7 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        seq: u64,
+        _seq: u64,
         op: Operation,
         _state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
