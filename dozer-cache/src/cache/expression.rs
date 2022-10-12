@@ -29,7 +29,7 @@ pub enum FilterExpression {
     And(Box<FilterExpression>, Box<FilterExpression>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Operator {
     LT,
     LTE,
@@ -41,12 +41,12 @@ pub enum Operator {
     MatchesAll,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SortDirection {
     Ascending,
     Descending,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SortOptions {
     pub field_name: String,
     pub direction: SortDirection,
@@ -61,7 +61,7 @@ pub struct IndexScan {
     pub index_def: IndexDefinition,
     pub fields: Vec<Option<Field>>,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeqScan {
     // ascending / descending
     pub direction: bool,

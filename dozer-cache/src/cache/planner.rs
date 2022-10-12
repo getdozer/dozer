@@ -9,7 +9,7 @@ use dozer_types::types::{Field, FieldDefinition, IndexDefinition, Schema};
 
 pub struct QueryPlanner {}
 impl QueryPlanner {
-    fn get_field_index(&self, field_name: String, fields: &Vec<FieldDefinition>) -> Option<usize> {
+    fn get_field_index(&self, field_name: String, fields: &[FieldDefinition]) -> Option<usize> {
         fields.iter().position(|f| f.name == field_name)
     }
     fn get_ops_from_filter(
@@ -38,7 +38,7 @@ impl QueryPlanner {
     fn get_index_scan(
         &self,
         ops: &Vec<(usize, Operator, Option<Field>)>,
-        indexes: &Vec<IndexDefinition>,
+        indexes: &[IndexDefinition],
     ) -> anyhow::Result<IndexScan> {
         let mut range_index = HashSet::new();
         let mut hash_index = HashSet::new();
@@ -90,7 +90,7 @@ impl QueryPlanner {
 
         let mut ops: Vec<(usize, Operator, Option<Field>)> = vec![];
 
-        while let Some(s) = query.order_by.iter().next() {
+        for s in query.order_by.clone() {
             let new_field_key = self
                 .get_field_index(s.field_name.clone(), &schema.fields)
                 .context("field_name is missing")?;
@@ -103,14 +103,11 @@ impl QueryPlanner {
             ops.push((new_field_key, op, None));
         }
 
-        match query.filter.clone() {
-            Some(filter) => {
-                self.get_ops_from_filter(schema, filter, &mut ops)?;
-            }
-            None => {}
+        if let Some(filter) = query.filter.clone() {
+            self.get_ops_from_filter(schema, filter, &mut ops)?;
         };
 
-        if ops.len() < 1 {
+        if ops.is_empty() {
             Ok(ExecutionStep::SeqScan(SeqScan { direction: true }))
         } else {
             Ok(ExecutionStep::IndexScan(

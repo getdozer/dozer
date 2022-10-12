@@ -17,16 +17,13 @@ impl<'a> Iterator for CacheIterator<'a> {
             Some(self.starting_key.as_ref().unwrap())
         };
 
-        if self.first == true {
+        if self.first {
             self.first = false;
         }
         let next_op = Self::get_next_op(self.starting_key.is_some(), self.ascending, self.first);
         let res = self.cursor.get(key, None, next_op.get_value());
         match res {
-            Ok((key, val)) => match key {
-                Some(key) => Some((key, val)),
-                None => None,
-            },
+            Ok((key, val)) => key.map(|key| (key, val)),
             Err(e) => {
                 println!("Error in cursor: {:?}", e);
                 None

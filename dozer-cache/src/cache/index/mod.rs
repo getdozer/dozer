@@ -25,7 +25,7 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
 pub fn get_secondary_index(
     schema_id: u32,
     field_idx: &[usize],
-    field_val: &Vec<Option<Vec<u8>>>,
+    field_val: &[Option<Vec<u8>>],
 ) -> Vec<u8> {
     let field_val: Vec<Vec<u8>> = field_val
         .iter()

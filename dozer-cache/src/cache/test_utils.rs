@@ -1,7 +1,7 @@
 use dozer_types::types::{FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier};
 
 pub fn schema_0() -> Schema {
-    let schema = Schema {
+    Schema {
         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
         fields: vec![FieldDefinition {
             name: "foo".to_string(),
@@ -15,8 +15,7 @@ pub fn schema_0() -> Schema {
             typ: IndexType::SortedInverted,
             sort_direction: vec![true],
         }],
-    };
-    schema
+    }
 }
 
 pub fn schema_1() -> Schema {

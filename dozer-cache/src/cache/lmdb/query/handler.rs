@@ -80,13 +80,10 @@ impl<'a> LmdbQueryHandler<'a> {
     ) -> anyhow::Result<Vec<Record>> {
         // TODO: Change logic based on typ
 
-        let fields = index_scan
+        let fields: Vec<Option<Vec<u8>>> = index_scan
             .fields
             .iter()
-            .map(|f| match f {
-                Some(f) => Some(bincode::serialize(f).unwrap()),
-                None => None,
-            })
+            .map(|f| f.as_ref().map(|f| bincode::serialize(f).unwrap()))
             .collect();
 
         let starting_key =
@@ -105,7 +102,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 if let Some((key, val)) = tuple {
                     // Compare partial key
                     if self.compare_key(key, &starting_key) {
-                        let rec = helper::get(self.txn, self.db, &val)?;
+                        let rec = helper::get(self.txn, self.db, val)?;
                         pkeys.push(rec);
                     } else {
                         break;
@@ -124,10 +121,6 @@ impl<'a> LmdbQueryHandler<'a> {
     fn compare_key(&self, key: &[u8], starting_key: &[u8]) -> bool {
         // TODO: find a better implementation
         // Find for partial matches if iterating on a query
-        if let Some(_idx) = gs_find(key, starting_key) {
-            true
-        } else {
-            false
-        }
+        matches!(gs_find(key, starting_key), Some(_idx))
     }
 }

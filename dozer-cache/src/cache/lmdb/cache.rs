@@ -192,7 +192,7 @@ impl Cache for LmdbCache {
         let schema = self._get_schema_from_reverse_key(name, &txn)?;
 
         let handler = LmdbQueryHandler::new(&self.db, &self.indexer_db, &txn);
-        let records = handler.query(&schema, &query)?;
+        let records = handler.query(&schema, query)?;
         Ok(records)
     }
 
