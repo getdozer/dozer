@@ -263,6 +263,4 @@ pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
-    SchemaUpdate { new: Schema },
-    Terminate,
 }

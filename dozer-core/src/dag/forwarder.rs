@@ -1,5 +1,6 @@
 use crate::dag::dag::PortHandle;
-use anyhow::anyhow;
+use crate::dag::mt_executor::ExecutorOperation;
+use anyhow::{anyhow, Context};
 use crossbeam::channel::Sender;
 use dozer_types::types::{Operation, OperationEvent, Schema};
 use std::collections::HashMap;
@@ -7,7 +8,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 pub trait SourceChannelForwarder: Send + Sync {
-    fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()>;
+    fn send(&self, seq: u64, op: Operation, port: PortHandle) -> anyhow::Result<()>;
     fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()>;
 }
 
@@ -20,12 +21,12 @@ pub trait ChannelManager {
 }
 
 pub struct LocalChannelForwarder {
-    senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>,
+    senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     curr_seq_no: u64,
 }
 
 impl LocalChannelForwarder {
-    pub fn new(senders: HashMap<PortHandle, Vec<Sender<OperationEvent>>>) -> Self {
+    pub fn new(senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>) -> Self {
         Self {
             senders,
             curr_seq_no: 0,
@@ -36,32 +37,39 @@ impl LocalChannelForwarder {
         self.curr_seq_no = seq;
     }
 
-    fn send_op(&self, op: Operation, port_id: PortHandle) -> anyhow::Result<()> {
-        let e = OperationEvent::new(self.curr_seq_no, op);
-        self.send_opevent(e, port_id)
-    }
+    fn send_op(
+        &self,
+        seq_opt: Option<u64>,
+        op: Operation,
+        port_id: PortHandle,
+    ) -> anyhow::Result<()> {
+        let senders = self
+            .senders
+            .get(&port_id)
+            .context(anyhow!("Unable to find port id {}", port_id))?;
 
-    fn send_opevent(&self, op: OperationEvent, port_id: PortHandle) -> anyhow::Result<()> {
-        let senders = self.senders.get(&port_id);
-        if senders.is_none() {
-            return Err(anyhow!("Invalid output port".to_string()));
-        }
+        let seq = seq_opt.unwrap_or(self.curr_seq_no);
+        let exec_op = match op {
+            Operation::Insert { new } => ExecutorOperation::Insert { seq, new },
+            Operation::Update { old, new } => ExecutorOperation::Update { seq, old, new },
+            Operation::Delete { old } => ExecutorOperation::Delete { seq, old },
+        };
 
-        if senders.unwrap().len() == 1 {
-            senders.unwrap()[0].send(op)?;
+        if senders.len() == 1 {
+            senders[0].send(exec_op)?;
         } else {
-            for sender in senders.unwrap() {
-                sender.send(op.clone())?;
+            for sender in senders {
+                sender.send(exec_op.clone())?;
             }
         }
 
         Ok(())
     }
 
-    pub fn terminate(&self) -> anyhow::Result<()> {
+    pub fn send_term(&self) -> anyhow::Result<()> {
         for senders in &self.senders {
             for sender in senders.1 {
-                sender.send(OperationEvent::new(0, Operation::Terminate))?;
+                sender.send(ExecutorOperation::Terminate)?;
             }
 
             loop {
@@ -82,29 +90,41 @@ impl LocalChannelForwarder {
 
         Ok(())
     }
+
+    pub fn send_update_schema(&self, schema: Schema, port_id: PortHandle) -> anyhow::Result<()> {
+        let senders = self
+            .senders
+            .get(&port_id)
+            .context(anyhow!("Unable to find port id {}", port_id))?;
+
+        for s in senders {
+            s.send(ExecutorOperation::SchemaUpdate {
+                new: schema.clone(),
+            })?;
+        }
+
+        Ok(())
+    }
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
-    fn send(&self, op: OperationEvent, port: PortHandle) -> anyhow::Result<()> {
-        self.send_opevent(op, port)
+    fn send(&self, seq: u64, op: Operation, port: PortHandle) -> anyhow::Result<()> {
+        self.send_op(Some(seq), op, port)
     }
 
     fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()> {
-        self.send_opevent(
-            OperationEvent::new(0, Operation::SchemaUpdate { new: schema }),
-            port,
-        )
+        self.send_update_schema(schema, port)
     }
 }
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
     fn send(&self, op: Operation, port: PortHandle) -> anyhow::Result<()> {
-        self.send_op(op, port)
+        self.send_op(None, op, port)
     }
 }
 
 impl ChannelManager for LocalChannelForwarder {
     fn terminate(&self) -> anyhow::Result<()> {
-        self.terminate()
+        self.send_term()
     }
 }

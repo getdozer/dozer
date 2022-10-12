@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DefaultPortHandle;
-use dozer_core::dag::node::NextStep;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema, SchemaIdentifier};

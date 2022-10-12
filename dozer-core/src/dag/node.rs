@@ -6,11 +6,6 @@ use std::collections::HashMap;
 
 pub trait ExecutionContext: Send + Sync {}
 
-pub enum NextStep {
-    Continue,
-    Stop,
-}
-
 pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
@@ -30,7 +25,7 @@ pub trait Processor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep>;
+    ) -> anyhow::Result<()>;
 }
 
 pub trait SourceFactory: Send + Sync {
@@ -60,7 +55,8 @@ pub trait Sink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: OperationEvent,
+        seq: u64,
+        op: Operation,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<NextStep>;
+    ) -> anyhow::Result<()>;
 }
