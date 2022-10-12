@@ -1138,6 +1138,7 @@ dependencies = [
  "lmdb-sys",
  "log",
  "log4rs",
+ "tempdir",
  "unixstring",
  "uuid",
 ]

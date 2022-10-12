@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
-use dozer_core::dag::mt_executor::DefaultPortHandle;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
@@ -98,7 +98,7 @@ impl Processor for ProjectionProcessor {
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
-        let input_schema = input_schemas.get(&DefaultPortHandle).unwrap();
+        let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         let mut output_schema = Schema::empty();
 
         let mut rng = rand::thread_rng();
@@ -132,10 +132,10 @@ impl Processor for ProjectionProcessor {
         _state_store: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
         let _ = match op {
-            Operation::Delete { ref old } => fw.send(self.delete(old), DefaultPortHandle),
-            Operation::Insert { ref new } => fw.send(self.insert(new), DefaultPortHandle),
+            Operation::Delete { ref old } => fw.send(self.delete(old), DEFAULT_PORT_HANDLE),
+            Operation::Insert { ref new } => fw.send(self.insert(new), DEFAULT_PORT_HANDLE),
             Operation::Update { ref old, ref new } => {
-                fw.send(self.update(old, new), DefaultPortHandle)
+                fw.send(self.update(old, new), DEFAULT_PORT_HANDLE)
             }
         };
         Ok(())

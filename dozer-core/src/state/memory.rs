@@ -1,18 +1,25 @@
+use crate::state::StateStore;
 use std::collections::HashMap;
-use crate::state::{StateStore};
 
 pub struct MemoryStateStore {
-    data: HashMap<Vec<u8>,Vec<u8>>
+    data: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl MemoryStateStore {
     pub fn new() -> Self {
-        Self { data: HashMap::new() }
+        Self {
+            data: HashMap::new(),
+        }
+    }
+}
+
+impl Default for MemoryStateStore {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl StateStore for MemoryStateStore {
-
     fn checkpoint(&mut self) -> anyhow::Result<()> {
         todo!()
     }
@@ -23,8 +30,7 @@ impl StateStore for MemoryStateStore {
     }
 
     fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
-        let r = self.data.get(key);
-        Ok(if r.is_none() { None } else { Some(r.unwrap().as_slice()) })
+        Ok(self.data.get(key).map(|e| e.as_slice()))
     }
 
     fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {

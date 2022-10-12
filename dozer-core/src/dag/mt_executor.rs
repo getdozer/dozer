@@ -1,8 +1,7 @@
-use crate::dag::dag::{Dag, Edge, Endpoint, NodeHandle, NodeType, PortDirection, PortHandle};
-use crate::dag::node::{
-    ExecutionContext, Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
-};
-use dozer_types::types::{Operation, OperationEvent, Record, Schema};
+#![allow(clippy::type_complexity)]
+use crate::dag::dag::{Dag, NodeHandle, NodeType, PortDirection, PortHandle};
+use crate::dag::node::{ProcessorFactory, SinkFactory, SourceFactory};
+use dozer_types::types::{Operation, Record, Schema};
 
 use crate::dag::forwarder::{LocalChannelForwarder, SourceChannelForwarder};
 use crate::state::StateStoresManager;
@@ -23,7 +22,7 @@ pub enum ExecutorOperation {
     Terminate,
 }
 
-pub const DefaultPortHandle: u16 = 0xffff_u16;
+pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SchemaKey {
@@ -157,7 +156,7 @@ impl MultiThreadedDagExecutor {
     fn start_source(
         &self,
         handle: NodeHandle,
-        mut src_factory: Box<dyn SourceFactory>,
+        src_factory: Box<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_manager: Arc<dyn StateStoresManager>,
     ) -> JoinHandle<anyhow::Result<()>> {
@@ -167,7 +166,7 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> anyhow::Result<()> {
             let mut state_store = local_sm.init_state_store(handle.to_string())?;
 
-            let mut src = src_factory.build();
+            let src = src_factory.build();
             for p in src_factory.get_output_ports() {
                 let schema = src.get_output_schema(p);
 
@@ -194,7 +193,7 @@ impl MultiThreadedDagExecutor {
     fn start_sink(
         &self,
         handle: NodeHandle,
-        mut snk_factory: Box<dyn SinkFactory>,
+        snk_factory: Box<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         state_manager: Arc<dyn StateStoresManager>,
     ) -> JoinHandle<anyhow::Result<()>> {
@@ -203,7 +202,7 @@ impl MultiThreadedDagExecutor {
             let mut snk = snk_factory.build();
             let mut state_store = local_sm.init_state_store(handle.to_string())?;
 
-            let (mut handles_ls, mut receivers_ls) =
+            let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
 
             snk.init(state_store.as_mut())?;
@@ -222,11 +221,11 @@ impl MultiThreadedDagExecutor {
                     ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);
                         let input_ports = snk_factory.get_input_ports();
-                        let count: Vec<&PortHandle> = input_ports
+                        let count = input_ports
                             .iter()
                             .filter(|e| !input_schemas.contains_key(*e))
-                            .collect();
-                        if count.len() == 0 {
+                            .count();
+                        if count == 0 {
                             let r = snk.update_schema(&input_schemas);
                             if r.is_ok() {
                                 schema_initialized = true;
@@ -265,7 +264,7 @@ impl MultiThreadedDagExecutor {
     fn start_processor(
         &self,
         handle: NodeHandle,
-        mut proc_factory: Box<dyn ProcessorFactory>,
+        proc_factory: Box<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         state_manager: Arc<dyn StateStoresManager>,
@@ -275,7 +274,7 @@ impl MultiThreadedDagExecutor {
             let mut proc = proc_factory.build();
             let mut state_store = local_sm.init_state_store(handle.to_string())?;
 
-            let (mut handles_ls, mut receivers_ls) =
+            let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
 
             let mut fw = LocalChannelForwarder::new(senders);
@@ -296,21 +295,23 @@ impl MultiThreadedDagExecutor {
                     ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);
                         let input_ports = proc_factory.get_input_ports();
-                        let count: Vec<&PortHandle> = input_ports
+                        let count = input_ports
                             .iter()
                             .filter(|e| !input_schemas.contains_key(*e))
-                            .collect();
-                        if count.len() == 0 {
+                            .count();
+                        if count == 0 {
                             for out_port in proc_factory.get_output_ports() {
                                 let r = proc.update_schema(out_port, &input_schemas);
-                                if r.is_ok() {
-                                    let out_schema = r.unwrap();
-                                    output_schemas.insert(out_port, out_schema.clone());
-                                    fw.update_schema(out_schema, out_port)?;
-                                    schema_initialized = true;
-                                } else {
-                                    warn!("New schema is not compatible with older version. Handling it.");
-                                    todo!("Schema is not compatible with order version. Handle it!")
+                                match r {
+                                    Ok(out_schema) => {
+                                        output_schemas.insert(out_port, out_schema.clone());
+                                        fw.update_schema(out_schema, out_port)?;
+                                        schema_initialized = true;
+                                    }
+                                    Err(_e) => {
+                                        warn!("New schema is not compatible with older version. Handling it.");
+                                        todo!("Schema is not compatible with order version. Handle it!")
+                                    }
                                 }
                             }
                         }
@@ -347,10 +348,7 @@ impl MultiThreadedDagExecutor {
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
             if snk_receivers.is_none() {
-                return Err(anyhow!(
-                    "The node {} does not have any input",
-                    &snk.0.clone().to_string()
-                ));
+                return Err(anyhow!("The node {} does not have any input", &snk.0));
             }
 
             let snk_handle =
@@ -361,17 +359,14 @@ impl MultiThreadedDagExecutor {
         for processor in processors {
             let proc_receivers = receivers.remove(&processor.0.clone());
             if proc_receivers.is_none() {
-                return Err(anyhow!(
-                    "The node {} does not have any input",
-                    &processor.0.clone().to_string()
-                ));
+                return Err(anyhow!("The node {} does not have any input", &processor.0));
             }
 
             let proc_senders = senders.remove(&processor.0.clone());
             if proc_senders.is_none() {
                 return Err(anyhow!(
                     "The node {} does not have any output",
-                    &processor.0.clone().to_string()
+                    &processor.0
                 ));
             }
 

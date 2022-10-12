@@ -1,7 +1,7 @@
 use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::state::StateStore;
-use dozer_types::types::{Operation, OperationEvent, Schema};
+use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
 pub trait ExecutionContext: Send + Sync {}

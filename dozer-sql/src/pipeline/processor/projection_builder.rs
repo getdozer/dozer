@@ -6,7 +6,7 @@ use sqlparser::ast::{
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
-use dozer_core::dag::mt_executor::DefaultPortHandle;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::types::Field;
 use dozer_types::types::Schema;
 
@@ -49,8 +49,8 @@ impl ProjectionBuilder {
             .collect::<Result<Vec<String>>>();
 
         Ok(ProjectionProcessorFactory::new(
-            vec![DefaultPortHandle],
-            vec![DefaultPortHandle],
+            vec![DEFAULT_PORT_HANDLE],
+            vec![DEFAULT_PORT_HANDLE],
             expressions,
             names.unwrap(),
         ))
