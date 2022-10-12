@@ -3,8 +3,8 @@ use crate::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{TestProcessorFactory, TestSinkFactory, TestSourceFactory};
 use crate::state::lmdb::LmdbStateStoreManager;
 use log::info;
+use std::fs;
 use std::sync::Arc;
-use std::{env, fs};
 use tempdir::TempDir;
 
 #[test]
