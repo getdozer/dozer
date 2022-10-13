@@ -29,6 +29,11 @@ Note: If you have multiple binaries generated,  you can use `--bin` flag.
 cargo run -p dozer-ingestion
 ```
 
+### Build Dependencies
+
+- [`Rust`](https://rustup.rs)
+- [`protoc`](https://github.com/protocolbuffers/protobuf/releases) latest release on your `PATH`
+- `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
 
 
 ### References 
