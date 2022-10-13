@@ -85,7 +85,9 @@ impl PostgresIteratorHandler {
     fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) -> anyhow::Result<()> {
         let slot = self.details.slot_name.clone();
         let res =
-            client.simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
+            client
+                .borrow_mut()
+                .simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
         match res {
             Ok(_) => debug!("dropped replication slot {}", slot),
             Err(_) => debug!("failed to drop replication slot..."),

@@ -5,10 +5,10 @@ use std::thread;
 use std::thread::JoinHandle;
 use crossbeam::channel::unbounded;
 use log::{debug, warn};
+use postgres_types::PgLsn;
 use dozer_types::types::OperationEvent;
 use crate::connectors::connector::TableInfo;
 use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
-use crate::connectors::postgres::helper::convert_lsn_number_to_postgres_lsn;
 use crate::connectors::postgres::iterator::{Details, ReplicationState};
 use crate::connectors::postgres::iterator::handler::PostgresIteratorHandler;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
@@ -85,7 +85,8 @@ impl PostgresIterator {
                 if message == 0 {
                     None
                 } else {
-                    Some(convert_lsn_number_to_postgres_lsn(message))
+                    debug!("lsn: {:?}", PgLsn::from(message).to_string());
+                    Some(PgLsn::from(message).to_string())
                 }
             }
             _ => None

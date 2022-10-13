@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
@@ -11,7 +12,6 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use dozer_types::types::Commit;
-use crate::connectors::postgres::helper::convert_postgres_lsn_to_number;
 
 pub struct CDCHandler {
     pub conn_str: String,
@@ -41,7 +41,10 @@ impl CDCHandler {
             self.slot_name, lsn, options
         );
 
-        let mut last_commit_lsn = convert_postgres_lsn_to_number(lsn);
+        let pg_lsn = PgLsn::from_str(lsn.as_str()).unwrap();
+        let mut last_commit_lsn: u64 = u64::from(pg_lsn);
+
+        debug!("last_commit_lsn: {:?}", last_commit_lsn);
         // Marking point of replication start
         self.ingestor
             .lock()

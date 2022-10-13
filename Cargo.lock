@@ -401,12 +401,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
-name = "based"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37133bf6cd50777365d7aec7263348cc98af90d0120ea7934e858d056e9b2246"
-
-[[package]]
 name = "bat"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1160,7 +1154,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "atomic-counter",
- "based",
  "bincode",
  "bytes",
  "chrono",
