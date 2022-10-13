@@ -7,22 +7,15 @@ use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::dag::{Endpoint, NodeHandle};
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_types::types::Schema;
 
 use crate::common::utils::normalize_ident;
-use crate::pipeline::processor::projection_builder::ProjectionBuilder;
 
+use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
 
-pub struct PipelineBuilder {
-    schema: Schema,
-}
+pub struct PipelineBuilder {}
 
 impl PipelineBuilder {
-    pub fn new(schema: Schema) -> PipelineBuilder {
-        Self { schema }
-    }
-
     pub fn statement_to_pipeline(
         &self,
         statement: Statement,
@@ -62,7 +55,7 @@ impl PipelineBuilder {
         let selection = SelectionProcessorFactory::new(select.selection);
 
         // Select clause
-        let projection = ProjectionBuilder::new(&self.schema).get_processor(&select.projection)?;
+        let projection = ProjectionProcessorFactory::new(select.projection);
 
         let mut dag = Dag::new();
 

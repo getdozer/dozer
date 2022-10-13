@@ -1,4 +1,7 @@
+use anyhow::Result;
+
 use log::info;
+use sqlparser::ast::SelectItem;
 use std::collections::HashMap;
 
 use dozer_core::dag::dag::PortHandle;
@@ -10,52 +13,67 @@ use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
+use super::projection_builder::ProjectionBuilder;
+
 pub struct ProjectionProcessorFactory {
-    input_ports: Vec<PortHandle>,
-    output_ports: Vec<PortHandle>,
-    expressions: Vec<Expression>,
-    names: Vec<String>,
+    statement: Vec<SelectItem>,
 }
 
 impl ProjectionProcessorFactory {
-    pub fn new(
-        input_ports: Vec<PortHandle>,
-        output_ports: Vec<PortHandle>,
-        expressions: Vec<Expression>,
-        names: Vec<String>,
-    ) -> Self {
-        Self {
-            input_ports,
-            output_ports,
-            expressions,
-            names,
-        }
+    /// Creates a new [`ProjectionProcessorFactory`].
+    pub fn new(statement: Vec<SelectItem>) -> Self {
+        Self { statement }
     }
 }
 
 impl ProcessorFactory for ProjectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn build(&self) -> Box<dyn Processor> {
         Box::new(ProjectionProcessor {
-            expressions: self.expressions.clone(),
-            names: self.names.clone(),
+            statement: self.statement.clone(),
+            expressions: vec![],
+            builder: ProjectionBuilder {},
         })
     }
 }
 
 pub struct ProjectionProcessor {
+    statement: Vec<SelectItem>,
     expressions: Vec<Expression>,
-    names: Vec<String>,
+    builder: ProjectionBuilder,
 }
 
 impl ProjectionProcessor {
+    fn build_projection(
+        &self,
+        statement: Vec<SelectItem>,
+        schema: &Schema,
+    ) -> Result<(Vec<Expression>, Vec<String>)> {
+        self.builder.build_projection(&statement, schema)
+    }
+
+    fn build_output_schema(&self, input_schema: &Schema, names: &[String]) -> Result<Schema> {
+        let mut output_schema = Schema::empty();
+
+        for (counter, e) in self.expressions.iter().enumerate() {
+            let field_name = names.get(counter).unwrap().clone();
+            let field_type = e.get_type(input_schema);
+            let field_nullable = true;
+            output_schema
+                .fields
+                .push(FieldDefinition::new(field_name, field_type, field_nullable));
+        }
+
+        Ok(output_schema)
+    }
+
     fn delete(&mut self, record: &Record) -> Operation {
         let mut results = vec![];
         for expr in &self.expressions {
@@ -96,20 +114,11 @@ impl Processor for ProjectionProcessor {
         &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<Schema> {
+    ) -> Result<Schema> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        let mut output_schema = Schema::empty();
-
-        for (counter, e) in self.expressions.iter().enumerate() {
-            let field_name = self.names.get(counter).unwrap().clone();
-            let field_type = e.get_type(input_schema);
-            let field_nullable = true;
-            output_schema
-                .fields
-                .push(FieldDefinition::new(field_name, field_type, field_nullable));
-        }
-
-        Ok(output_schema)
+        let (expressions, names) = self.build_projection(self.statement.clone(), input_schema)?;
+        self.expressions = expressions;
+        self.build_output_schema(input_schema, &names)
     }
 
     fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> anyhow::Result<()> {

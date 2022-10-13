@@ -6,7 +6,6 @@ use sqlparser::ast::{
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
-use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::types::Field;
 use dozer_types::types::Schema;
 
@@ -15,45 +14,45 @@ use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
-use crate::pipeline::processor::projection::ProjectionProcessorFactory;
 
-pub struct ProjectionBuilder {
-    schema_idx: HashMap<String, usize>,
-}
+pub struct ProjectionBuilder {}
 
 impl ProjectionBuilder {
-    pub fn new(schema: &Schema) -> ProjectionBuilder {
-        Self {
-            schema_idx: schema
-                .fields
-                .iter()
-                .enumerate()
-                .map(|e| (e.1.name.clone(), e.0))
-                .collect(),
-        }
-    }
-
-    pub fn get_processor(&self, projection: &[SelectItem]) -> Result<ProjectionProcessorFactory> {
-        let expressions = projection
+    pub fn build_projection(
+        &self,
+        statement: &[SelectItem],
+        schema: &Schema,
+    ) -> Result<(Vec<Expression>, Vec<String>)> {
+        let expressions = statement
             .iter()
-            .map(|expr| self.parse_sql_select_item(expr))
+            .map(|expr| self.parse_sql_select_item(expr, schema))
             .flat_map(|result| match result {
                 Ok(vec) => vec.into_iter().map(Ok).collect(),
                 Err(err) => vec![Err(err)],
             })
             .collect::<Result<Vec<Expression>>>()?;
 
-        let names = projection
+        let names = statement
             .iter()
             .map(|item| self.get_select_item_name(item))
-            .collect::<Result<Vec<String>>>();
+            .collect::<Result<Vec<String>>>()?;
 
-        Ok(ProjectionProcessorFactory::new(
-            vec![DEFAULT_PORT_HANDLE],
-            vec![DEFAULT_PORT_HANDLE],
-            expressions,
-            names.unwrap(),
-        ))
+        Ok((expressions, names))
+    }
+
+    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize> {
+        let schema_idx: HashMap<String, usize> = schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|e| (e.1.name.clone(), e.0))
+            .collect();
+
+        if let Some(index) = schema_idx.get(name).cloned() {
+            Ok(index)
+        } else {
+            bail!("The Field {} does not exists", &name)
+        }
     }
 
     fn get_select_item_name(&self, item: &SelectItem) -> Result<String> {
@@ -67,12 +66,14 @@ impl ProjectionBuilder {
         }
     }
 
-    fn parse_sql_select_item(&self, sql: &SelectItem) -> Result<Vec<Expression>> {
+    fn parse_sql_select_item(&self, sql: &SelectItem, schema: &Schema) -> Result<Vec<Expression>> {
         match sql {
-            SelectItem::UnnamedExpr(sql_expr) => match self.parse_sql_expression(sql_expr) {
-                Ok(expr) => Ok(vec![*expr.0]),
-                Err(error) => Err(error),
-            },
+            SelectItem::UnnamedExpr(sql_expr) => {
+                match self.parse_sql_expression(sql_expr, schema) {
+                    Ok(expr) => Ok(vec![*expr.0]),
+                    Err(error) => Err(error),
+                }
+            }
             SelectItem::ExprWithAlias { expr, alias } => {
                 bail!("Unsupported Expression {}:{}", expr, alias)
             }
@@ -83,11 +84,15 @@ impl ProjectionBuilder {
         }
     }
 
-    fn parse_sql_expression(&self, expression: &SqlExpr) -> Result<(Box<Expression>, bool)> {
+    fn parse_sql_expression(
+        &self,
+        expression: &SqlExpr,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool)> {
         match expression {
             SqlExpr::Identifier(ident) => Ok((
                 Box::new(Expression::Column {
-                    index: *self.schema_idx.get(&ident.value).unwrap(),
+                    index: self.column_index(&ident.value, schema)?,
                 }),
                 false,
             )),
@@ -98,16 +103,18 @@ impl ProjectionBuilder {
                     false,
                 ))
             }
-            SqlExpr::UnaryOp { expr, op } => Ok(self.parse_sql_unary_op(op, expr)?),
-            SqlExpr::BinaryOp { left, op, right } => Ok(self.parse_sql_binary_op(left, op, right)?),
-            SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr)?),
+            SqlExpr::UnaryOp { expr, op } => Ok(self.parse_sql_unary_op(op, expr, schema)?),
+            SqlExpr::BinaryOp { left, op, right } => {
+                Ok(self.parse_sql_binary_op(left, op, right, schema)?)
+            }
+            SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr, schema)?),
             SqlExpr::Function(sql_function) => {
                 let name = sql_function.name.to_string().to_lowercase();
 
                 if let Ok(function) = ScalarFunctionType::new(&name) {
                     let mut arg_exprs = vec![];
                     for arg in &sql_function.args {
-                        let r = self.parse_sql_function_arg(arg);
+                        let r = self.parse_sql_function_arg(arg, schema);
                         match r {
                             Ok(result) => {
                                 if result.1 {
@@ -133,7 +140,7 @@ impl ProjectionBuilder {
 
                 if AggregateFunctionType::new(&name).is_ok() {
                     let arg = sql_function.args.first().unwrap();
-                    let r = self.parse_sql_function_arg(arg)?;
+                    let r = self.parse_sql_function_arg(arg, schema)?;
                     return Ok((r.0, true));
                 };
 
@@ -143,17 +150,23 @@ impl ProjectionBuilder {
         }
     }
 
-    fn parse_sql_function_arg(&self, argument: &FunctionArg) -> Result<(Box<Expression>, bool)> {
+    fn parse_sql_function_arg(
+        &self,
+        argument: &FunctionArg,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool)> {
         match argument {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Expr(arg),
-            } => self.parse_sql_expression(arg),
+            } => self.parse_sql_expression(arg, schema),
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
             } => bail!("Unsupported Wildcard argument: {:?}", argument),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => self.parse_sql_expression(arg),
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
+                self.parse_sql_expression(arg, schema)
+            }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
                 bail!("Unsupported Wildcard Argument: {:?}", argument)
             }
@@ -165,8 +178,9 @@ impl ProjectionBuilder {
         &self,
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
+        schema: &Schema,
     ) -> Result<(Box<Expression>, bool)> {
-        let (arg, bypass) = self.parse_sql_expression(expr)?;
+        let (arg, bypass) = self.parse_sql_expression(expr, schema)?;
         if bypass {
             return Ok((arg, bypass));
         }
@@ -186,12 +200,13 @@ impl ProjectionBuilder {
         left: &SqlExpr,
         op: &SqlBinaryOperator,
         right: &SqlExpr,
+        schema: &Schema,
     ) -> Result<(Box<Expression>, bool)> {
-        let (left_op, bypass_left) = self.parse_sql_expression(left)?;
+        let (left_op, bypass_left) = self.parse_sql_expression(left, schema)?;
         if bypass_left {
             return Ok((left_op, bypass_left));
         }
-        let (right_op, bypass_right) = self.parse_sql_expression(right)?;
+        let (right_op, bypass_right) = self.parse_sql_expression(right, schema)?;
         if bypass_right {
             return Ok((right_op, bypass_right));
         }

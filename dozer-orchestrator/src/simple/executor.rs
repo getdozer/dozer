@@ -56,7 +56,7 @@ impl Executor {
         debug!("Query: {:?}", &api_endpoint.sql);
         let statement: &Statement = &ast[0];
 
-        let builder = PipelineBuilder::new(source_schemas[0].clone());
+        let builder = PipelineBuilder {};
 
         let (mut dag, in_handle, out_handle) =
             builder.statement_to_pipeline(statement.clone()).unwrap();

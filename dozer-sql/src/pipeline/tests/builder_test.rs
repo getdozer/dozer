@@ -151,31 +151,7 @@ fn test_pipeline_builder() {
 
     let statement: &Statement = &ast[0];
 
-    let schema = Schema {
-        fields: vec![
-            FieldDefinition {
-                name: String::from("CustomerID"),
-                typ: FieldType::Int,
-                nullable: false,
-            },
-            FieldDefinition {
-                name: String::from("Country"),
-                typ: FieldType::String,
-                nullable: false,
-            },
-            FieldDefinition {
-                name: String::from("Spending"),
-                typ: FieldType::Int,
-                nullable: false,
-            },
-        ],
-        values: vec![0],
-        primary_index: vec![],
-        secondary_indexes: vec![],
-        identifier: None,
-    };
-
-    let builder = PipelineBuilder::new(schema);
+    let builder = PipelineBuilder {};
     let (mut dag, mut in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 
