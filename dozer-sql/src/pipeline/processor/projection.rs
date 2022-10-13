@@ -94,7 +94,7 @@ impl ProjectionProcessor {
 
 impl Processor for ProjectionProcessor {
     fn update_schema(
-        &self,
+        &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {

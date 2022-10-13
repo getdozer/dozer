@@ -1,129 +1,98 @@
 use crate::aggregation::groupby::{AggregationProcessor, FieldRule};
 use crate::aggregation::sum::IntegerSumAggregator;
+use crate::aggregation::tests::schema::{gen_in_data, get_input_schema};
+use crate::dag::dag::PortHandle;
+use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use crate::dag::node::Processor;
 use crate::state::memory::MemoryStateStore;
-use dozer_types::types::{Field, Operation, Record};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use std::collections::HashMap;
 
 #[test]
 fn test_insert_update_delete() {
     let mut store = MemoryStateStore::new();
-
     let rules = vec![FieldRule::Measure(
-        3,
+        "People".to_string(),
         Box::new(IntegerSumAggregator::new()),
         true,
-        Some("Sum".to_string()),
+        Some("Total".to_string()),
     )];
-    let agg = AggregationProcessor::new(rules);
 
-    // Insert 10
-    let i = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Milan".to_string()),
-                Field::String("Lombardy".to_string()),
-                Field::String("Italy".to_string()),
-                Field::Int(10),
-            ],
-        ),
-    };
-    let o = agg.aggregate(&mut store, i);
-    assert_eq!(
-        o.unwrap()[0],
-        Operation::Insert {
-            new: Record::new(None, vec![Field::Int(10)])
-        }
-    );
+    let mut agg = AggregationProcessor::new(rules);
 
-    // Insert 10
-    let i = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Brescia".to_string()),
-                Field::String("Lombardy".to_string()),
-                Field::String("Italy".to_string()),
-                Field::Int(10),
-            ],
-        ),
-    };
-    let o = agg.aggregate(&mut store, i);
-    assert_eq!(
-        o.unwrap()[0],
-        Operation::Update {
-            old: Record::new(None, vec![Field::Int(10)]),
-            new: Record::new(None, vec![Field::Int(20)])
-        }
-    );
+    let exp_schema = Schema::empty()
+        .field(
+            FieldDefinition::new("Total".to_string(), FieldType::Int, false),
+            true,
+            false,
+        )
+        .clone();
 
-    // Update to 20
-    let i = Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Brescia".to_string()),
-                Field::String("Lombardy".to_string()),
-                Field::String("Italy".to_string()),
-                Field::Int(10),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Brescia".to_string()),
-                Field::String("Lombardy".to_string()),
-                Field::String("Italy".to_string()),
-                Field::Int(20),
-            ],
-        ),
-    };
-    let o = agg.aggregate(&mut store, i);
-    assert_eq!(
-        o.unwrap()[0],
-        Operation::Update {
-            old: Record::new(None, vec![Field::Int(20)]),
-            new: Record::new(None, vec![Field::Int(30)])
-        }
-    );
+    let mut input_schemas = HashMap::<PortHandle, Schema>::new();
+    input_schemas.insert(DEFAULT_PORT_HANDLE, get_input_schema());
 
-    // Delete 2nd
-    let i = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Brescia".to_string()),
-                Field::String("Lombardy".to_string()),
-                Field::String("Italy".to_string()),
-                Field::Int(20),
-            ],
-        ),
-    };
-    let o = agg.aggregate(&mut store, i);
-    assert_eq!(
-        o.unwrap()[0],
-        Operation::Update {
-            old: Record::new(None, vec![Field::Int(30)]),
-            new: Record::new(None, vec![Field::Int(10)])
-        }
-    );
+    let output_schema = agg
+        .update_schema(DEFAULT_PORT_HANDLE, &input_schemas)
+        .unwrap_or_else(|_e| panic!("Cannot get schema"));
 
-    // Delete 1st
-    let i = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Milan".to_string()),
-                Field::String("Lombardy".to_string()),
-                Field::String("Italy".to_string()),
-                Field::Int(10),
-            ],
-        ),
+    assert_eq!(exp_schema, output_schema);
+
+    let inp = Operation::Insert {
+        new: gen_in_data("Milan", "Lombardy", "Italy", 10),
     };
-    let o = agg.aggregate(&mut store, i);
-    assert_eq!(
-        o.unwrap()[0],
-        Operation::Delete {
-            old: Record::new(None, vec![Field::Int(10)])
-        }
-    );
+    let out = agg
+        .aggregate(&mut store, inp)
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let exp = vec![Operation::Insert {
+        new: Record::new(None, vec![Field::Int(10)]),
+    }];
+    assert_eq!(out, exp);
+
+    let inp = Operation::Insert {
+        new: gen_in_data("Brescia", "Lombardy", "Italy", 10),
+    };
+    let out = agg
+        .aggregate(&mut store, inp)
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let exp = vec![Operation::Update {
+        old: Record::new(None, vec![Field::Int(10)]),
+        new: Record::new(None, vec![Field::Int(20)]),
+    }];
+    assert_eq!(out, exp);
+
+    let inp = Operation::Update {
+        old: gen_in_data("Brescia", "Lombardy", "Italy", 10),
+        new: gen_in_data("Brescia", "Lombardy", "Italy", 20),
+    };
+    let out = agg
+        .aggregate(&mut store, inp)
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let exp = vec![Operation::Update {
+        old: Record::new(None, vec![Field::Int(20)]),
+        new: Record::new(None, vec![Field::Int(30)]),
+    }];
+    assert_eq!(out, exp);
+
+    let inp = Operation::Delete {
+        old: gen_in_data("Brescia", "Lombardy", "Italy", 20),
+    };
+    let out = agg
+        .aggregate(&mut store, inp)
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let exp = vec![Operation::Update {
+        old: Record::new(None, vec![Field::Int(30)]),
+        new: Record::new(None, vec![Field::Int(10)]),
+    }];
+    assert_eq!(out, exp);
+
+    let inp = Operation::Delete {
+        old: gen_in_data("Milan", "Lombardy", "Italy", 10),
+    };
+    let out = agg
+        .aggregate(&mut store, inp)
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let exp = vec![Operation::Delete {
+        old: Record::new(None, vec![Field::Int(10)]),
+    }];
+    assert_eq!(out, exp);
 }

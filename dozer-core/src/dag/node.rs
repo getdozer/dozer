@@ -14,7 +14,7 @@ pub trait ProcessorFactory: Send + Sync {
 
 pub trait Processor {
     fn update_schema(
-        &self,
+        &mut self,
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema>;

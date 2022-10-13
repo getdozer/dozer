@@ -156,7 +156,7 @@ pub struct TestProcessor {
 
 impl Processor for TestProcessor {
     fn update_schema(
-        &self,
+        &mut self,
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {

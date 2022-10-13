@@ -1,5 +1,5 @@
 use ahash::AHasher;
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -104,6 +104,14 @@ impl Schema {
             self.primary_index.push(&self.fields.len() - 1)
         }
         self
+    }
+
+    pub fn get_field_index(&self, name: &str) -> anyhow::Result<(usize, &FieldDefinition)> {
+        self.fields
+            .iter()
+            .enumerate()
+            .find(|f| f.1.name.as_str() == name)
+            .context(anyhow!("Unable to find field"))
     }
 
     pub fn get_id(&self) -> u32 {

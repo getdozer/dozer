@@ -66,7 +66,7 @@ impl SelectionProcessor {
 
 impl Processor for SelectionProcessor {
     fn update_schema(
-        &self,
+        &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
