@@ -2,66 +2,62 @@ use anyhow::{bail, Result};
 use std::collections::HashMap;
 
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, TableFactor, TableWithJoins,
-    UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, UnaryOperator as SqlUnaryOperator,
+    Value as SqlValue,
 };
 
-use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Field, Schema};
 
-use crate::common::utils::normalize_ident;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::processor::selection::SelectionProcessorFactory;
 
-pub struct SelectionBuilder {
-    schema_idx: HashMap<String, usize>,
-}
+pub struct SelectionBuilder {}
 
 impl SelectionBuilder {
-    pub fn new(schema: &Schema) -> SelectionBuilder {
-        Self {
-            schema_idx: schema
-                .fields
-                .iter()
-                .enumerate()
-                .map(|e| (e.1.name.clone(), e.0))
-                .collect(),
-        }
-    }
-
-    pub fn get_processor(
+    pub fn build_expression(
         &self,
         selection: &Option<SqlExpr>,
-        from: &[TableWithJoins],
-    ) -> Result<SelectionProcessorFactory> {
+        schema: &Schema,
+    ) -> Result<Box<Expression>> {
         match selection {
-            Some(expression) => {
-                let expression = self.parse_sql_expression(expression)?;
-                let input_ports = self.get_input_ports(from)?;
-
-                Ok(SelectionProcessorFactory::new(
-                    input_ports,
-                    vec![DEFAULT_PORT_HANDLE],
-                    expression,
-                ))
-            }
-            _ => bail!("Unsupported WHERE clause.".to_string(),),
+            Some(expression) => Ok(self.parse_sql_expression(expression, schema)?),
+            None => Ok(Box::new(Expression::Literal(Field::Boolean(true)))),
         }
     }
 
-    pub fn parse_sql_expression(&self, expression: &SqlExpr) -> Result<Box<Expression>> {
+    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize> {
+        let schema_idx: HashMap<String, usize> = schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|e| (e.1.name.clone(), e.0))
+            .collect();
+
+        if let Some(index) = schema_idx.get(name).cloned() {
+            Ok(index)
+        } else {
+            bail!("The Field {} does not exists", &name)
+        }
+    }
+
+    pub fn parse_sql_expression(
+        &self,
+        expression: &SqlExpr,
+        schema: &Schema,
+    ) -> Result<Box<Expression>> {
         match expression {
             SqlExpr::Identifier(ident) => Ok(Box::new(Expression::Column {
-                index: *self.schema_idx.get(&ident.value).unwrap(),
+                index: self.column_index(&ident.value, schema)?,
             })),
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(Expression::Literal(Field::String(s.to_string()))))
             }
-            SqlExpr::BinaryOp { left, op, right } => Ok(self.parse_sql_binary_op(left, op, right)?),
-            SqlExpr::UnaryOp { op, expr } => Ok(self.parse_sql_unary_op(op, expr)?),
-            SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr)?),
+            SqlExpr::BinaryOp { left, op, right } => {
+                Ok(self.parse_sql_binary_op(left, op, right, schema)?)
+            }
+            SqlExpr::UnaryOp { op, expr } => Ok(self.parse_sql_unary_op(op, expr, schema)?),
+            SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr, schema)?),
             _ => bail!("Unsupported Expression.".to_string(),),
         }
     }
@@ -76,8 +72,13 @@ impl SelectionBuilder {
         }
     }
 
-    fn parse_sql_unary_op(&self, op: &SqlUnaryOperator, expr: &SqlExpr) -> Result<Box<Expression>> {
-        let arg = self.parse_sql_expression(expr)?;
+    fn parse_sql_unary_op(
+        &self,
+        op: &SqlUnaryOperator,
+        expr: &SqlExpr,
+        schema: &Schema,
+    ) -> Result<Box<Expression>> {
+        let arg = self.parse_sql_expression(expr, schema)?;
 
         let operator = match op {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
@@ -94,9 +95,10 @@ impl SelectionBuilder {
         left_expr: &SqlExpr,
         op: &SqlBinaryOperator,
         right_expr: &SqlExpr,
+        schema: &Schema,
     ) -> Result<Box<Expression>> {
-        let left = self.parse_sql_expression(left_expr)?;
-        let right = self.parse_sql_expression(right_expr)?;
+        let left = self.parse_sql_expression(left_expr, schema)?;
+        let right = self.parse_sql_expression(right_expr, schema)?;
 
         let operator = match op {
             SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
@@ -126,32 +128,5 @@ impl SelectionBuilder {
             operator,
             right,
         }))
-    }
-
-    fn get_input_ports(&self, from: &[TableWithJoins]) -> Result<Vec<u16>> {
-        let mut input_ports = vec![];
-        let counter: u16 = 0;
-        for table in from.iter() {
-            if self.get_input_name(table).is_ok() {
-                input_ports.push(counter);
-            }
-        }
-        Ok(input_ports)
-    }
-
-    fn get_input_name(&self, table: &TableWithJoins) -> Result<String> {
-        match &table.relation {
-            TableFactor::Table { name, alias: _, .. } => {
-                let input_name = name
-                    .0
-                    .iter()
-                    .map(normalize_ident)
-                    .collect::<Vec<String>>()
-                    .join(".");
-
-                Ok(input_name)
-            }
-            _ => bail!("Unsupported Table Name."),
-        }
     }
 }

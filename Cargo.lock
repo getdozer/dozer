@@ -1226,7 +1226,6 @@ dependencies = [
  "log",
  "log4rs",
  "num-traits",
- "rand 0.8.5",
  "sqlparser",
  "tempdir",
 ]

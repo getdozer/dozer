@@ -37,7 +37,7 @@ impl Source for TestSource {
         Schema::empty()
             .field(
                 FieldDefinition::new(
-                    format!("node_{}_port_{}", self.id, port).to_string(),
+                    format!("node_{}_port_{}", self.id, port),
                     FieldType::String,
                     false,
                 ),
@@ -156,7 +156,7 @@ pub struct TestProcessor {
 
 impl Processor for TestProcessor {
     fn update_schema(
-        &self,
+        &mut self,
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
@@ -177,7 +177,7 @@ impl Processor for TestProcessor {
         Ok(out_schema)
     }
 
-    fn init<'a>(&'a mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
         Ok(())
     }

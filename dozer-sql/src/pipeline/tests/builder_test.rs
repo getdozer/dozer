@@ -68,7 +68,7 @@ impl Source for TestSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> anyhow::Result<()> {
-        for n in 0..100 {
+        for n in 0..1000000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -151,31 +151,7 @@ fn test_pipeline_builder() {
 
     let statement: &Statement = &ast[0];
 
-    let schema = Schema {
-        fields: vec![
-            FieldDefinition {
-                name: String::from("CustomerID"),
-                typ: FieldType::Int,
-                nullable: false,
-            },
-            FieldDefinition {
-                name: String::from("Country"),
-                typ: FieldType::String,
-                nullable: false,
-            },
-            FieldDefinition {
-                name: String::from("Spending"),
-                typ: FieldType::Int,
-                nullable: false,
-            },
-        ],
-        values: vec![0],
-        primary_index: vec![],
-        secondary_indexes: vec![],
-        identifier: None,
-    };
-
-    let builder = PipelineBuilder::new(schema);
+    let builder = PipelineBuilder {};
     let (mut dag, mut in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 
@@ -187,12 +163,12 @@ fn test_pipeline_builder() {
 
     let input_point = in_handle.remove("customers").unwrap();
 
-    let _source_to_projection = dag.connect(
+    let _source_to_input = dag.connect(
         Endpoint::new(1.to_string(), DEFAULT_PORT_HANDLE),
         Endpoint::new(input_point.node, input_point.port),
     );
 
-    let _selection_to_sink = dag.connect(
+    let _output_to_sink = dag.connect(
         Endpoint::new(out_handle.node, out_handle.port),
         Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
     );

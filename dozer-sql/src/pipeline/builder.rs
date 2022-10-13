@@ -7,21 +7,15 @@ use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::dag::{Endpoint, NodeHandle};
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_types::types::Schema;
 
 use crate::common::utils::normalize_ident;
-use crate::pipeline::processor::projection_builder::ProjectionBuilder;
-use crate::pipeline::processor::selection_builder::SelectionBuilder;
 
-pub struct PipelineBuilder {
-    schema: Schema,
-}
+use super::processor::projection::ProjectionProcessorFactory;
+use super::processor::selection::SelectionProcessorFactory;
+
+pub struct PipelineBuilder {}
 
 impl PipelineBuilder {
-    pub fn new(schema: Schema) -> PipelineBuilder {
-        Self { schema }
-    }
-
     pub fn statement_to_pipeline(
         &self,
         statement: Statement,
@@ -58,11 +52,10 @@ impl PipelineBuilder {
         let input_endpoints = self.get_input_endpoints(&String::from("selection"), &select.from)?;
 
         // Where clause
-        let selection =
-            SelectionBuilder::new(&self.schema).get_processor(&select.selection, &select.from)?;
+        let selection = SelectionProcessorFactory::new(select.selection);
 
         // Select clause
-        let projection = ProjectionBuilder::new(&self.schema).get_processor(&select.projection)?;
+        let projection = ProjectionProcessorFactory::new(select.projection);
 
         let mut dag = Dag::new();
 
@@ -94,11 +87,15 @@ impl PipelineBuilder {
     ) -> Result<HashMap<String, Endpoint>> {
         let mut endpoints = HashMap::new();
 
-        for (input_port, table) in from.iter().enumerate() {
+        if from.len() != 1 {
+            panic!("Change following implementation to support multiple inputs")
+        }
+
+        for (_input_port, table) in from.iter().enumerate() {
             let input_name = self.get_input_name(table).unwrap();
             endpoints.insert(
                 input_name,
-                Endpoint::new(NodeHandle::from(node_name), input_port as u16),
+                Endpoint::new(NodeHandle::from(node_name), DEFAULT_PORT_HANDLE), // input_port as u16),
             );
         }
 
