@@ -1,9 +1,11 @@
 use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
-use anyhow::Context;
-use dozer_cache::cache::{expression::QueryExpression, index, lmdb::cache::LmdbCache, Cache};
+use anyhow::{Context, bail, ensure};
+use dozer_cache::cache::{expression::{QueryExpression, FilterExpression}, index, lmdb::cache::LmdbCache, Cache, query_helper::value_to_expression};
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
+
+use crate::rest_error::RestError;
 
 fn get_record(
     cache: web::Data<Arc<LmdbCache>>,
@@ -16,7 +18,6 @@ fn get_record(
         }
     };
     let key = index::get_primary_key(&[0], &[key]);
-
     let rec = cache.get(&key).context("record not found")?;
     let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;
     record_to_json(&rec, &schema)
@@ -53,16 +54,27 @@ async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> im
     }
 }
 
-async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    let exp = QueryExpression::new(None, vec![], 50, 0);
+async fn list(filter_info: web::Json<Value> ,cache: web::Data<Arc<LmdbCache>>) -> Result<HttpResponse, RestError> {
+    let filter_expression = value_to_expression(filter_info.0)
+    .map_err(|e| RestError::Validation {
+        message: Some(e.to_string()),
+        details: None,
+    }).map(|vec| -> Option<FilterExpression> {
+        if vec.len() == 1 {
+            Some(vec[0].to_owned())
+        } else {
+            None
+        }
+    })?;
+    let exp = QueryExpression::new(filter_expression, vec![], 50, 0);
     let records = get_records(cache, exp);
 
     match records {
         Ok(maps) => {
             let str = serde_json::to_string(&maps).unwrap();
-            HttpResponse::Ok().body(str)
+            Ok(HttpResponse::Ok().body(str))
         }
-        Err(_) => HttpResponse::Ok().body("[]"),
+        Err(_) => Ok(HttpResponse::Ok().body("[]")),
     }
 }
 
@@ -97,7 +109,7 @@ impl ApiServer {
                 endpoints.iter().fold(app, |app, endpoint| {
                     let list_route = &endpoint.path.clone();
                     let get_route = format!("{}/{}", list_route, "{id}");
-                    app.route(list_route, web::get().to(list))
+                    app.route(list_route, web::post().to(list))
                         .route(&get_route, web::get().to(get))
                 })
             })
