@@ -8,11 +8,14 @@ fn is_combinator(input: String) -> bool {
 }
 fn string_to_operator(input: String) -> Option<Operator> {
     match input.to_lowercase().as_str() {
-        "eq" => Some(Operator::EQ),
-        "gt" => Some(Operator::GT),
-        "gte" => Some(Operator::GTE),
-        "lt" => Some(Operator::LT),
-        "lte" => Some(Operator::LTE),
+        "$eq" => Some(Operator::EQ),
+        "$gt" => Some(Operator::GT),
+        "$gte" => Some(Operator::GTE),
+        "$lt" => Some(Operator::LT),
+        "$lte" => Some(Operator::LTE),
+        "$contains" => Some(Operator::Contains),
+        "$matchesany" => Some(Operator::MatchesAny),
+        "$matchesall" => Some(Operator::MatchesAll),
         _ => Option::None,
     }
 }
@@ -34,8 +37,8 @@ fn value_to_composite_expression(
     ensure!(Value::is_array(&value), "Composite must follow by array");
     let array_condition = value_to_expression(value)?;
     let exp = match comparator.as_str() {
-        "or" => bail!("Or not supported"),
-        "and" => FilterExpression::And(
+        "$or" => bail!("Or not supported"),
+        "$and" => FilterExpression::And(
             Box::new(array_condition[0].to_owned()),
             Box::new(array_condition[1].to_owned()),
         ),
@@ -69,7 +72,6 @@ pub fn value_to_expression(input: Value) -> anyhow::Result<Vec<FilterExpression>
                     continue;
                 }
                 // extract inner key
-
                 if let Value::Object(keys) = pair_value.clone() {
                     let key = keys.keys().next().cloned().context("Invalid Expression")?;
 
@@ -121,17 +123,17 @@ mod tests {
         );
 
         test_parse_query!(
-            json!({"a":  {"eq": 1}}),
+            json!({"a":  {"$eq": 1}}),
             FilterExpression::Simple("a".to_string(), Operator::EQ, Field::Int(1))
         );
 
         test_parse_query!(
-            json!({"a":  {"gt": 1}}),
+            json!({"a":  {"$gt": 1}}),
             FilterExpression::Simple("a".to_string(), Operator::GT, Field::Int(1))
         );
 
         test_parse_query!(
-            json!({"a":  {"lt": 1}}),
+            json!({"a":  {"$lt": 1}}),
             FilterExpression::Simple("a".to_string(), Operator::LT, Field::Int(1))
         );
 

@@ -1,4 +1,5 @@
 pub mod lmdb;
+pub mod query_helper;
 use self::expression::QueryExpression;
 use dozer_types::types::{Record, Schema, SchemaIdentifier};
 pub mod expression;
