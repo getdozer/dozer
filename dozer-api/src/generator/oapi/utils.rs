@@ -1,18 +1,30 @@
 use indexmap::IndexMap;
 use openapiv3::{
     NumberFormat, NumberType, ObjectType, ReferenceOr, Schema, SchemaData, SchemaKind, StringType,
-    Type, VariantOrUnknownOrEmpty,
+    Type, VariantOrUnknownOrEmpty, Contact, Response, MediaType,
 };
 
-pub fn create_oapi_item_schema(
-    data: SchemaData,
-    kind: SchemaKind,
-) -> anyhow::Result<ReferenceOr<Schema>> {
-    let result = ReferenceOr::Item(Schema {
-        schema_data: data,
-        schema_kind: kind,
-    });
-    Ok(result)
+const CONTACT_NAME: &str = "Dozer-Team";
+const CONTACT_WEB_URL: &str = "https://getdozer.io";
+const CONTACT_EMAIL: &str = "api@getdozer.io";
+
+pub fn create_contact_info() -> Option<Contact> {
+    Some(Contact {
+        name: Some(CONTACT_NAME.to_owned()),
+        url: Some(CONTACT_WEB_URL.to_owned()),
+        email: Some(CONTACT_EMAIL.to_owned()),
+        extensions: Default::default(),
+    })
+}
+
+pub fn create_reference_response(description: String, schema_reference_path: String) -> Response {
+    Response {
+        description: description,
+        content: indexmap::indexmap!{
+            "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::Reference { reference: schema_reference_path }), ..Default::default() }
+        },
+        ..Default::default()
+    }
 }
 
 pub fn convert_cache_to_oapi_schema(
@@ -35,7 +47,7 @@ pub fn convert_cache_to_oapi_schema(
             }),
         );
     }
-
+    
     let result = Schema {
         schema_data: SchemaData {
             description: Some(format!("A representation of {}", name)),
