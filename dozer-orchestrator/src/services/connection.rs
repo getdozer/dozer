@@ -28,7 +28,7 @@ impl ConnectionService {
                     tables: None,
                     conn_str,
                 };
-                Box::new(PostgresConnector::new(config))
+                Box::new(PostgresConnector::new(1, config))
             }
         }
     }
