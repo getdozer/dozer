@@ -68,7 +68,7 @@ impl CDCHandler {
                     let message = mapper.handle_message(body);
                     if let Some(ingestion_message) = message {
                         if let &IngestionMessage::Commit(commit) = &ingestion_message {
-                            last_commit_lsn = commit.lsn.clone();
+                            last_commit_lsn = commit.lsn;
                         }
 
                         self.ingestor
@@ -87,9 +87,9 @@ impl CDCHandler {
                         stream
                             .as_mut()
                             .standby_status_update(
-                                PgLsn::from(last_commit_lsn.clone()),
-                                PgLsn::from(last_commit_lsn.clone()),
-                                PgLsn::from(last_commit_lsn.clone()),
+                                PgLsn::from(last_commit_lsn),
+                                PgLsn::from(last_commit_lsn),
+                                PgLsn::from(last_commit_lsn),
                                 since_the_epoch as i64,
                                 1,
                             )

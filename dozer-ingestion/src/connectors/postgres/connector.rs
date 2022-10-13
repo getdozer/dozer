@@ -9,7 +9,7 @@ use log::debug;
 use postgres::Client;
 use std::sync::{Arc, Mutex};
 use anyhow::Context;
-use crate::connectors::postgres::iterator::iterator::PostgresIterator;
+use crate::connectors::postgres::iterator::PostgresIterator;
 
 use super::helper;
 
