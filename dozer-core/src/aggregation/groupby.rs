@@ -12,8 +12,8 @@ use std::mem::size_of_val;
 pub enum FieldRule {
     /// Represents a dimension field, generally used in the GROUP BY clause
     Dimension(
-        /// Positional index of the field to be used as a dimension in the source schema
-        usize,
+        /// Field to be used as a dimension in the source schema
+        String,
         /// true of this field should be included in the list of values of the
         /// output schema, otherwise false. Generally, this value is true if the field appears
         /// in the output results in addition to being in the list of the GROUP BY fields
@@ -23,8 +23,8 @@ pub enum FieldRule {
     ),
     /// Represents an aggregated field that will be calculated using the appropriate aggregator
     Measure(
-        /// Positional index of the field to be aggregated in the source schema
-        usize,
+        /// Field to be aggregated in the source schema
+        String,
         /// Aggregator implementation for this measure
         Box<dyn Aggregator>,
         /// true if this field should be included in the list of values of the
@@ -62,7 +62,6 @@ impl ProcessorFactory for AggregationProcessorFactory {
 
 pub struct AggregationProcessor {
     output_field_rules: Vec<FieldRule>,
-    out_fields_count: usize,
     out_dimensions: Vec<(usize, usize)>,
     out_measures: Vec<(usize, Box<dyn Aggregator>, usize)>,
 }
@@ -79,38 +78,48 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
-    pub fn new(output_fields: Vec<FieldRule>) -> AggregationProcessor {
-        let out_fields_count = output_fields.len();
+    pub fn new(output_field_rules: Vec<FieldRule>) -> Self {
+        Self {
+            output_field_rules,
+            out_measures: vec![],
+            out_dimensions: vec![],
+        }
+    }
+
+    fn populate_rules(&mut self, schema: &Schema) -> anyhow::Result<()> {
         let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
 
-        for rule in output_fields.clone().into_iter().enumerate() {
+        for rule in self.output_field_rules.iter().enumerate() {
             match rule.1 {
                 FieldRule::Measure(idx, aggr, _nullable, _name) => {
-                    out_measures.push((idx, aggr, rule.0));
+                    out_measures.push((
+                        schema.get_field_index(idx.as_str())?.0,
+                        aggr.clone(),
+                        rule.0,
+                    ));
                 }
                 FieldRule::Dimension(idx, _nullable, _name) => {
-                    out_dimensions.push((idx, rule.0));
+                    out_dimensions.push((schema.get_field_index(idx.as_str())?.0, rule.0));
                 }
             }
         }
 
-        AggregationProcessor {
-            output_field_rules: output_fields,
-            out_measures,
-            out_dimensions,
-            out_fields_count,
-        }
+        self.out_measures = out_measures;
+        self.out_dimensions = out_dimensions;
+
+        Ok(())
     }
 
     fn init_store(&self, store: &mut dyn StateStore) -> anyhow::Result<()> {
         store.put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
     }
 
-    fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) {
+    fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> anyhow::Result<()> {
         for v in &self.out_dimensions {
             out_rec.values[v.1] = in_rec.values[v.0].clone();
         }
+        Ok(())
     }
 
     fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> anyhow::Result<Vec<u8>> {
@@ -225,8 +234,8 @@ impl AggregationProcessor {
     }
 
     fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> anyhow::Result<Operation> {
-        let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
+        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
             old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
@@ -250,13 +259,13 @@ impl AggregationProcessor {
         )?;
 
         let res = if prev_count == 1 {
-            self.fill_dimensions(old, &mut out_rec_delete);
+            self.fill_dimensions(old, &mut out_rec_delete)?;
             Operation::Delete {
                 old: out_rec_delete,
             }
         } else {
-            self.fill_dimensions(old, &mut out_rec_insert);
-            self.fill_dimensions(old, &mut out_rec_delete);
+            self.fill_dimensions(old, &mut out_rec_insert)?;
+            self.fill_dimensions(old, &mut out_rec_delete)?;
             Operation::Update {
                 new: out_rec_insert,
                 old: out_rec_delete,
@@ -272,8 +281,9 @@ impl AggregationProcessor {
     }
 
     fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> anyhow::Result<Operation> {
-        let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
+        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
+
         let record_hash = if !self.out_dimensions.is_empty() {
             new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
         } else {
@@ -296,13 +306,13 @@ impl AggregationProcessor {
         )?;
 
         let res = if curr_state.is_none() {
-            self.fill_dimensions(new, &mut out_rec_insert);
+            self.fill_dimensions(new, &mut out_rec_insert)?;
             Operation::Insert {
                 new: out_rec_insert,
             }
         } else {
-            self.fill_dimensions(new, &mut out_rec_insert);
-            self.fill_dimensions(new, &mut out_rec_delete);
+            self.fill_dimensions(new, &mut out_rec_insert)?;
+            self.fill_dimensions(new, &mut out_rec_delete)?;
             Operation::Update {
                 new: out_rec_insert,
                 old: out_rec_delete,
@@ -321,8 +331,8 @@ impl AggregationProcessor {
         new: &Record,
         record_hash: Vec<u8>,
     ) -> anyhow::Result<Operation> {
-        let mut out_rec_insert = Record::nulls(None, self.out_fields_count);
-        let mut out_rec_delete = Record::nulls(None, self.out_fields_count);
+        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
+        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let curr_state = store.get(record_key.as_slice())?;
@@ -335,8 +345,8 @@ impl AggregationProcessor {
             AggregatorOperation::Update,
         )?;
 
-        self.fill_dimensions(new, &mut out_rec_insert);
-        self.fill_dimensions(old, &mut out_rec_delete);
+        self.fill_dimensions(new, &mut out_rec_insert)?;
+        self.fill_dimensions(old, &mut out_rec_delete)?;
 
         let res = Operation::Update {
             new: out_rec_insert,
@@ -389,22 +399,21 @@ impl Processor for AggregationProcessor {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .context("Invalid port handle")?;
+
+        self.populate_rules(input_schema)?;
+
         let mut output_schema = Schema::empty();
 
         for e in self.output_field_rules.iter().enumerate() {
             match e.1 {
                 FieldRule::Dimension(idx, is_value, name) => {
-                    let src_fld = input_schema
-                        .fields
-                        .get(*idx)
-                        .context(anyhow!("Invalid field index: {}", idx))?;
+                    let src_fld = input_schema.get_field_index(idx.as_str())?;
                     output_schema.fields.push(FieldDefinition::new(
-                        if name.is_some() {
-                            name.as_ref().unwrap().clone()
-                        } else {
-                            src_fld.name.clone()
+                        match name {
+                            Some(n) => n.clone(),
+                            _ => src_fld.1.name.clone(),
                         },
-                        src_fld.typ.clone(),
+                        src_fld.1.typ.clone(),
                         false,
                     ));
                     if *is_value {
@@ -414,17 +423,13 @@ impl Processor for AggregationProcessor {
                 }
 
                 FieldRule::Measure(idx, aggr, is_value, name) => {
-                    let src_fld = input_schema
-                        .fields
-                        .get(*idx)
-                        .context(anyhow!("Invalid field index: {}", idx))?;
+                    let src_fld = input_schema.get_field_index(idx)?;
                     output_schema.fields.push(FieldDefinition::new(
-                        if name.is_some() {
-                            name.as_ref().unwrap().clone()
-                        } else {
-                            src_fld.name.clone()
+                        match name {
+                            Some(n) => n.clone(),
+                            _ => src_fld.1.name.clone(),
                         },
-                        aggr.get_return_type(src_fld.typ.clone()),
+                        aggr.get_return_type(src_fld.1.typ.clone()),
                         false,
                     ));
                     if *is_value {
