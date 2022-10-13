@@ -10,7 +10,7 @@ use log::debug;
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
-    let storage_config = RocksConfig::_target();
+    let storage_config = RocksConfig::default();
     let storage_client = Arc::new(Storage::new(storage_config));
     let postgres_config = PostgresConfig {
         name: "test_c".to_string(),
