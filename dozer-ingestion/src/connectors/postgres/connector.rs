@@ -3,13 +3,13 @@ use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
 
+use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
+use anyhow::Context;
 use dozer_types::types::{OperationEvent, Schema};
 use log::debug;
 use postgres::Client;
 use std::sync::{Arc, Mutex};
-use anyhow::Context;
-use crate::connectors::postgres::iterator::PostgresIterator;
 
 use super::helper;
 
@@ -81,7 +81,8 @@ impl Connector for PostgresConnector {
         self.storage_client = Some(storage_client);
         self.tables = tables;
 
-        self.create_publication(client).context("Failed create publication")?;
+        self.create_publication(client)
+            .context("Failed create publication")?;
         Ok(())
     }
 

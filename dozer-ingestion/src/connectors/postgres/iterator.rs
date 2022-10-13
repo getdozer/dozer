@@ -1,23 +1,23 @@
-use std::cell::RefCell;
-use postgres::Error;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
-use crossbeam::channel::unbounded;
-use log::{debug, error, warn};
-use postgres_types::PgLsn;
-use dozer_types::types::OperationEvent;
 use crate::connectors::connector::TableInfo;
 use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 use crate::connectors::storage::RocksStorage;
+use crossbeam::channel::unbounded;
+use dozer_types::types::OperationEvent;
+use log::{debug, error, warn};
+use postgres::Error;
+use postgres_types::PgLsn;
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::thread::JoinHandle;
 
-use anyhow::{bail, Context};
-use postgres::Client;
-use tokio::runtime::Runtime;
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use anyhow::{bail, Context};
+use postgres::Client;
+use tokio::runtime::Runtime;
 use tokio_postgres::SimpleQueryMessage;
 
 pub struct Details {
@@ -69,7 +69,10 @@ impl PostgresIterator {
 }
 
 impl PostgresIterator {
-    pub fn start(&self, seq_no_resolver: Arc<Mutex<SeqNoResolver>>) -> Result<JoinHandle<()>, Error> {
+    pub fn start(
+        &self,
+        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
+    ) -> Result<JoinHandle<()>, Error> {
         let lsn = RefCell::new(self.get_last_lsn_for_connection());
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
@@ -84,7 +87,7 @@ impl PostgresIterator {
         let ingestor = Arc::new(Mutex::new(Ingestor::new(
             storage_client,
             forwarder,
-            seq_no_resolver
+            seq_no_resolver,
         )));
 
         Ok(thread::spawn(move || {
@@ -92,14 +95,16 @@ impl PostgresIterator {
                 details,
                 ingestor,
                 state,
-                lsn
+                lsn,
             };
             stream_inner._start().unwrap();
         }))
     }
 
     pub fn get_last_lsn_for_connection(&self) -> Option<String> {
-        let commit_key = self.storage_client.get_commit_message_key(&(self.details.id as usize));
+        let commit_key = self
+            .storage_client
+            .get_commit_message_key(&(self.details.id as usize));
         let commit_message = self.storage_client.get_db().get(commit_key);
         match commit_message {
             Ok(Some(value)) => {
@@ -111,20 +116,17 @@ impl PostgresIterator {
                     Some(PgLsn::from(message).to_string())
                 }
             }
-            _ => None
+            _ => None,
         }
     }
 }
-
 
 impl Iterator for PostgresIterator {
     type Item = OperationEvent;
     fn next(&mut self) -> Option<Self::Item> {
         let msg = self.receiver.borrow().as_ref().unwrap().recv();
         match msg {
-            Ok(msg) => {
-                Some(msg)
-            }
+            Ok(msg) => Some(msg),
             Err(e) => {
                 warn!("RecvError: {:?}", e.to_string());
                 None
@@ -133,12 +135,11 @@ impl Iterator for PostgresIterator {
     }
 }
 
-
 pub struct PostgresIteratorHandler {
     pub details: Arc<Details>,
     pub lsn: RefCell<Option<String>>,
     pub state: RefCell<ReplicationState>,
-    pub ingestor: Arc<Mutex<Ingestor>>
+    pub ingestor: Arc<Mutex<Ingestor>>,
 }
 
 impl PostgresIteratorHandler {
@@ -168,18 +169,22 @@ impl PostgresIteratorHandler {
             debug!("\nCreating Slot....");
             if let Ok(true) = self.replication_exist(client.clone()) {
                 // We dont have lsn, so we need to drop replication slot and start from scratch
-                self.drop_replication_slot(client.clone()).context("Replication slot drop failed")?;
+                self.drop_replication_slot(client.clone())
+                    .context("Replication slot drop failed")?;
             }
 
             client
                 .borrow_mut()
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")?;
 
-            let replication_slot_lsn = self.create_replication_slot(client.clone())
+            let replication_slot_lsn = self
+                .create_replication_slot(client.clone())
                 .context("Failed to create replication slot")?;
 
             self.lsn.replace(replication_slot_lsn);
-            self.state.clone().replace(ReplicationState::SnapshotInProgress);
+            self.state
+                .clone()
+                .replace(ReplicationState::SnapshotInProgress);
 
             /* #####################        SnapshotInProgress         ###################### */
             debug!("\nInitializing snapshots...");
@@ -206,21 +211,23 @@ impl PostgresIteratorHandler {
 
     fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) -> anyhow::Result<()> {
         let slot = self.details.slot_name.clone();
-        let res =
-            client
-                .borrow_mut()
-                .simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
+        let res = client
+            .borrow_mut()
+            .simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
         match res {
             Ok(_) => debug!("dropped replication slot {}", slot),
             Err(e) => {
                 error!("{}", e);
                 bail!("failed to drop replication slot...")
-            },
+            }
         }
         Ok(())
     }
 
-    fn create_replication_slot(&self, client: Arc<RefCell<Client>>) -> Result<Option<String>, Error> {
+    fn create_replication_slot(
+        &self,
+        client: Arc<RefCell<Client>>,
+    ) -> Result<Option<String>, Error> {
         let details = Arc::clone(&self.details);
 
         let create_replication_slot_query = format!(

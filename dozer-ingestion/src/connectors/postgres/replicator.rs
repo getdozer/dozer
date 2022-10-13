@@ -1,17 +1,17 @@
-use std::str::FromStr;
 use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use chrono::{TimeZone, Utc};
+use dozer_types::types::Commit;
 use futures::StreamExt;
 use log::{debug, warn};
 use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_types::PgLsn;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
-use dozer_types::types::Commit;
 
 pub struct CDCHandler {
     pub conn_str: String,
@@ -51,7 +51,7 @@ impl CDCHandler {
             .unwrap()
             .handle_message(IngestionMessage::Commit(Commit {
                 seq_no: 0,
-                lsn: last_commit_lsn
+                lsn: last_commit_lsn,
             }));
 
         let copy_stream = client.copy_both_simple::<bytes::Bytes>(&query).await?;
@@ -105,7 +105,7 @@ impl CDCHandler {
                 Some(Err(e)) => {
                     warn!("{:?}", e);
                     panic!("unexpected replication stream error")
-                },
+                }
                 None => panic!("unexpected replication stream end"),
             }
         }

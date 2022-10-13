@@ -3,9 +3,9 @@ use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresC
 use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 
+use log::debug;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use log::debug;
 
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default())

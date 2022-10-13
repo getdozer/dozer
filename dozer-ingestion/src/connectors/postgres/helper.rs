@@ -274,7 +274,6 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
