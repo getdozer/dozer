@@ -401,6 +401,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "based"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37133bf6cd50777365d7aec7263348cc98af90d0120ea7934e858d056e9b2246"
+
+[[package]]
 name = "bat"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -597,7 +603,7 @@ dependencies = [
  "atty",
  "bat",
  "cargo-subcommand-metadata",
- "clap 4.0.11",
+ "clap 4.0.12",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -714,9 +720,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.11"
+version = "4.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ed45cc2c62a3eff523e718d8576ba762c83a3146151093283ac62ae11933a73"
+checksum = "385007cbbed899260395a4107435fead4cad80684461b3cc78238bdcb0bad58f"
 dependencies = [
  "atty",
  "bitflags",
@@ -1154,6 +1160,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "atomic-counter",
+ "based",
  "bincode",
  "bytes",
  "chrono",

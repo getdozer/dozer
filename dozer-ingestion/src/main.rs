@@ -5,8 +5,11 @@ use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use log::debug;
 
 fn main() {
+    log4rs::init_file("log4rs.yaml", Default::default())
+        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
     let storage_config = RocksConfig::default();
     let storage_client = Arc::new(Storage::new(storage_config));
     let postgres_config = PostgresConfig {
@@ -19,15 +22,12 @@ fn main() {
         conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=pagila".to_string(),
     };
 
-    let mut connector = PostgresConnector::new(postgres_config);
-
+    let mut connector = PostgresConnector::new(1, postgres_config);
     let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
     seq_resolver.init();
     let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
 
     connector.initialize(storage_client, None).unwrap();
-
-    connector.drop_replication_slot_if_exists().unwrap();
 
     let before = Instant::now();
     const BACKSPACE: char = 8u8 as char;
@@ -36,7 +36,7 @@ fn main() {
     loop {
         let _msg = iterator.next().unwrap();
         if i % 1000 == 0 {
-            print!(
+            debug!(
                 "{}\rCount: {}, Elapsed time: {:.2?}",
                 BACKSPACE,
                 i,

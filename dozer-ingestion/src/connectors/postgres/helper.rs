@@ -9,6 +9,7 @@ use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
+use based::{Base, NumeralSystem};
 
 pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
     let postgres_type: Type = match value {
@@ -274,6 +275,22 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
     }
 }
 
+// We are storing LSN in numeric format (same as returned from replication)
+// LSN format - two hexadecimal numbers of up to 8 digits each between 0/0 and FFFFFFFF/FFFFFFFF
+// Reference - https://www.postgresql.org/docs/current/datatype-pg-lsn.html
+pub fn convert_lsn_number_to_postgres_lsn(lsn: u64) -> String {
+    let base16: Base = "0123456789ABCDEF".parse().unwrap();
+    let mut val = base16.encode(lsn).unwrap();
+    val.insert(val.len() - 8, '/');
+    val
+}
+
+pub fn convert_postgres_lsn_to_number(lsn: String) -> u64 {
+    let base16: Base = "0123456789ABCDEF".parse().unwrap();
+    let cleared_lsn = lsn.replace("/", "");
+    base16.decode(cleared_lsn.as_str()).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -334,5 +351,17 @@ mod tests {
 
         test_conversion!("t", Type::BOOL, Field::Boolean(true));
         test_conversion!("f", Type::BOOL, Field::Boolean(false));
+    }
+
+    #[test]
+    fn test_lsn_conversion() {
+        let lsn_numeric = 8251068624;
+        let lsn_hex = "1/EBCD50D0".to_string();
+
+        let encoded = convert_lsn_number_to_postgres_lsn(lsn_numeric);
+        assert_eq!(encoded, lsn_hex);
+
+        let decoded = convert_postgres_lsn_to_number(lsn_hex);
+        assert_eq!(decoded, lsn_numeric);
     }
 }
