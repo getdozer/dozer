@@ -1,12 +1,14 @@
-use crate::connectors::ingestor::Ingestor;
+use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use chrono::{TimeZone, Utc};
+use dozer_types::types::Commit;
 use futures::StreamExt;
-use log::debug;
+use log::{debug, warn};
 use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_types::PgLsn;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
@@ -39,6 +41,19 @@ impl CDCHandler {
             self.slot_name, lsn, options
         );
 
+        let pg_lsn = PgLsn::from_str(lsn.as_str()).unwrap();
+        let mut last_commit_lsn: u64 = u64::from(pg_lsn);
+
+        debug!("last_commit_lsn: {:?}", last_commit_lsn);
+        // Marking point of replication start
+        self.ingestor
+            .lock()
+            .unwrap()
+            .handle_message(IngestionMessage::Commit(Commit {
+                seq_no: 0,
+                lsn: last_commit_lsn,
+            }));
+
         let copy_stream = client.copy_both_simple::<bytes::Bytes>(&query).await?;
 
         let stream = LogicalReplicationStream::new(copy_stream);
@@ -52,6 +67,10 @@ impl CDCHandler {
                 Some(Ok(XLogData(body))) => {
                     let message = mapper.handle_message(body);
                     if let Some(ingestion_message) = message {
+                        if let &IngestionMessage::Commit(commit) = &ingestion_message {
+                            last_commit_lsn = commit.lsn;
+                        }
+
                         self.ingestor
                             .lock()
                             .unwrap()
@@ -59,7 +78,6 @@ impl CDCHandler {
                     }
                 }
                 Some(Ok(PrimaryKeepAlive(ref k))) => {
-                    // debug!("keep alive: {}", k.reply());
                     if k.reply() == 1 {
                         // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
                         let since_the_epoch = SystemTime::now()
@@ -69,9 +87,9 @@ impl CDCHandler {
                         stream
                             .as_mut()
                             .standby_status_update(
-                                PgLsn::from(k.wal_end() + 1),
-                                PgLsn::from(k.wal_end() + 1),
-                                PgLsn::from(k.wal_end() + 1),
+                                PgLsn::from(last_commit_lsn),
+                                PgLsn::from(last_commit_lsn),
+                                PgLsn::from(last_commit_lsn),
                                 since_the_epoch as i64,
                                 1,
                             )
@@ -84,7 +102,10 @@ impl CDCHandler {
                     debug!("{:?}", msg);
                     debug!("why i am here ?");
                 }
-                Some(Err(_)) => panic!("unexpected replication stream error"),
+                Some(Err(e)) => {
+                    warn!("{:?}", e);
+                    panic!("unexpected replication stream error")
+                }
                 None => panic!("unexpected replication stream end"),
             }
         }

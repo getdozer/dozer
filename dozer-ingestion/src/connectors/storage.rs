@@ -106,11 +106,15 @@ impl RocksStorage {
         seq_no: &usize,
         lsn: &u64,
     ) -> (Vec<u8>, Vec<u8>) {
-        let key = format!("{}{:0>19}", TABLE_PREFIXES.commit_table, connection_id)
-            .as_bytes()
-            .to_owned();
+        let key = self.get_commit_message_key(connection_id);
         let encoded = bincode::serialize(&(seq_no, lsn)).unwrap();
         (key, encoded)
+    }
+
+    pub fn get_commit_message_key(&self, connection_id: &usize) -> Vec<u8> {
+        format!("{}{:0>19}", TABLE_PREFIXES.commit_table, connection_id)
+            .as_bytes()
+            .to_owned()
     }
 
     pub fn get_db(&self) -> Arc<DBWithThreadMode<SingleThreaded>> {

@@ -1,10 +1,11 @@
 use crate::connectors::connector::{self, TableInfo};
-use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
 
+use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
+use anyhow::Context;
 use dozer_types::types::{OperationEvent, Schema};
 use log::debug;
 use postgres::Client;
@@ -20,6 +21,7 @@ pub struct PostgresConfig {
 }
 
 pub struct PostgresConnector {
+    pub id: u64,
     name: String,
     conn_str: String,
     conn_str_plain: String,
@@ -27,11 +29,12 @@ pub struct PostgresConnector {
     storage_client: Option<Arc<RocksStorage>>,
 }
 impl PostgresConnector {
-    pub fn new(config: PostgresConfig) -> PostgresConnector {
+    pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
         let mut conn_str = config.conn_str.to_owned();
         conn_str.push_str(" replication=database");
 
         PostgresConnector {
+            id,
             name: config.name,
             conn_str,
             conn_str_plain: config.conn_str,
@@ -75,13 +78,11 @@ impl Connector for PostgresConnector {
         tables: Option<Vec<TableInfo>>,
     ) -> anyhow::Result<()> {
         let client = helper::connect(self.conn_str.clone())?;
-        self.create_publication(client)?;
         self.storage_client = Some(storage_client);
-
-        // Initialize the tables to be replicated
         self.tables = tables;
-        // TODO: handle this appropriately
-        self.drop_replication_slot_if_exists()?;
+
+        self.create_publication(client)
+            .context("Failed create publication")?;
         Ok(())
     }
 
@@ -91,6 +92,7 @@ impl Connector for PostgresConnector {
     ) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
         let storage_client = self.storage_client.as_ref().unwrap().clone();
         let iterator = PostgresIterator::new(
+            self.id,
             self.get_publication_name(),
             self.get_slot_name(),
             self.tables.to_owned(),

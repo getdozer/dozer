@@ -255,7 +255,7 @@ impl OperationEvent {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Copy)]
 pub struct Commit {
     pub seq_no: u64,
     pub lsn: u64,

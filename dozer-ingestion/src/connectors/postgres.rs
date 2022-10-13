@@ -1,4 +1,5 @@
 pub mod connector;
+pub mod handler;
 pub mod helper;
 pub mod iterator;
 pub mod replicator;

@@ -173,7 +173,7 @@ mod tests {
         ingestor.handle_message(Schema(schema_message));
         ingestor.handle_message(OperationEvent(operation_event_message.clone()));
         ingestor.handle_message(OperationEvent(operation_event_message2.clone()));
-        ingestor.handle_message(Commit(commit_message.clone()));
+        ingestor.handle_message(Commit(commit_message));
 
         let mut expected_event = operation_event_message;
         expected_event.seq_no = 2;
