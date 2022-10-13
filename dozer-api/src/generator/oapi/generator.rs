@@ -158,7 +158,7 @@ impl OpenApiGenerator {
         let f = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
-            .open("/Users/anhthu/Dozer/dozer/dozer-api/test_generate.yml")
+            .open("dozer-api/test_generate.yml")
             .expect("Couldn't open file");
         serde_yaml::to_writer(f, &api).unwrap();
         Ok(api)
