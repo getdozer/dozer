@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use std::collections::HashMap;
 
 use dozer_core::dag::dag::PortHandle;
@@ -7,50 +9,56 @@ use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
 use dozer_types::types::{Field, Operation, Schema};
 use log::info;
+use sqlparser::ast::Expr as SqlExpr;
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
+use super::selection_builder::SelectionBuilder;
+
 pub struct SelectionProcessorFactory {
-    input_ports: Vec<PortHandle>,
-    output_ports: Vec<PortHandle>,
-    expression: Box<Expression>,
+    statement: Option<SqlExpr>,
 }
 
 impl SelectionProcessorFactory {
-    pub fn new(
-        input_ports: Vec<PortHandle>,
-        output_ports: Vec<PortHandle>,
-        expression: Box<Expression>,
-    ) -> Self {
-        Self {
-            input_ports,
-            output_ports,
-            expression,
-        }
+    /// Creates a new [`SelectionProcessorFactory`].
+    pub fn new(statement: Option<SqlExpr>) -> Self {
+        Self { statement }
     }
 }
 
 impl ProcessorFactory for SelectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn build(&self) -> Box<dyn Processor> {
         Box::new(SelectionProcessor {
-            expression: self.expression.clone(),
+            statement: self.statement.clone(),
+            expression: Box::new(Expression::Literal(Field::Boolean(true))),
+            builder: SelectionBuilder {},
         })
     }
 }
 
 pub struct SelectionProcessor {
+    statement: Option<SqlExpr>,
     expression: Box<Expression>,
+    builder: SelectionBuilder,
 }
 
 impl SelectionProcessor {
+    fn build_expression(
+        &self,
+        statement: Option<SqlExpr>,
+        schema: &Schema,
+    ) -> Result<Box<Expression>> {
+        self.builder.build_expression(&statement, schema)
+    }
+
     fn delete(&self, record: &dozer_types::types::Record) -> Operation {
         Operation::Delete {
             old: record.clone(),
@@ -66,11 +74,13 @@ impl SelectionProcessor {
 
 impl Processor for SelectionProcessor {
     fn update_schema(
-        &self,
+        &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
-        Ok(input_schemas.get(&0).unwrap().clone())
+        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        self.expression = self.build_expression(self.statement.clone(), schema)?;
+        Ok(schema.clone())
     }
 
     fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {

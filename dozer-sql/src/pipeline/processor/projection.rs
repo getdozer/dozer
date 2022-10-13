@@ -1,5 +1,4 @@
 use log::info;
-use rand::Rng;
 use std::collections::HashMap;
 
 use dozer_core::dag::dag::PortHandle;
@@ -7,7 +6,7 @@ use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::StateStore;
-use dozer_types::types::{FieldDefinition, Operation, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
@@ -94,18 +93,12 @@ impl ProjectionProcessor {
 
 impl Processor for ProjectionProcessor {
     fn update_schema(
-        &self,
+        &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         let mut output_schema = Schema::empty();
-
-        let mut rng = rand::thread_rng();
-        output_schema.identifier = Option::from(SchemaIdentifier {
-            id: rng.gen(),
-            version: 1,
-        });
 
         for (counter, e) in self.expressions.iter().enumerate() {
             let field_name = self.names.get(counter).unwrap().clone();

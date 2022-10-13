@@ -382,7 +382,7 @@ impl AggregationProcessor {
 
 impl Processor for AggregationProcessor {
     fn update_schema(
-        &self,
+        &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> anyhow::Result<Schema> {
