@@ -51,12 +51,13 @@ async fn generate_oapi(
 ) -> Result<HttpResponse, RestError> {
     let cache = app_data.0.to_owned();
     let endpoints = app_data.1.to_owned();
-    let schema_by_name = cache
-        .get_schema_by_name(&endpoints[0].name)
-        .map_err(|e| RestError::Validation {
-            message: Some(e.to_string()),
-            details: None,
-        })?;
+    let schema_by_name =
+        cache
+            .get_schema_by_name(&endpoints[0].name)
+            .map_err(|e| RestError::Validation {
+                message: Some(e.to_string()),
+                details: None,
+            })?;
     let oapi_generator = OpenApiGenerator::new(
         schema_by_name,
         "film".to_owned(),
@@ -85,9 +86,7 @@ async fn get(
     }
 }
 
-async fn list(
-    app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>,
-) -> impl Responder  {
+async fn list(app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>) -> impl Responder {
     let cache = app_data.0.to_owned();
     let exp = QueryExpression::new(None, vec![], 50, 0);
     let records = get_records(cache, exp);

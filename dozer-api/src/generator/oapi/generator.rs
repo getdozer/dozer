@@ -1,6 +1,6 @@
 use super::utils::{
-    convert_cache_to_oapi_schema, create_contact_info,
-    create_reference_response, generate_filter_expression_schema,
+    convert_cache_to_oapi_schema, create_contact_info, create_reference_response,
+    generate_filter_expression_schema,
 };
 use anyhow::Result;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -31,9 +31,7 @@ impl OpenApiGenerator {
             parameters: vec![ReferenceOr::Item(Parameter::Path {
                 parameter_data: ParameterData {
                     name: "id".to_owned(),
-                    description: Some(
-                        format!("Id of {} to fetch", self.schema_name.to_owned()),
-                    ),
+                    description: Some(format!("Id of {} to fetch", self.schema_name.to_owned())),
                     required: true,
                     format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
                         schema_data: SchemaData {
@@ -109,7 +107,7 @@ impl OpenApiGenerator {
     fn _generate_available_paths(&self) -> Result<Paths> {
         let get_list = self._generate_get_list()?;
         let get_by_id_item = self._generate_get_by_id()?;
-        let  query_list = self._generate_list_query()?;
+        let query_list = self._generate_list_query()?;
         let path_items = indexmap::indexmap! {
             self.endpoint.path.to_owned() => get_list,
             format!("{}/{}", self.endpoint.path.to_owned(), "{id}") => get_by_id_item,
@@ -121,8 +119,6 @@ impl OpenApiGenerator {
         };
         Ok(paths_available)
     }
-
-    
 
     fn _generate_component_schema(&self) -> Result<Option<Components>> {
         let plural_name = format!("{}s", self.schema_name.to_owned());
@@ -145,7 +141,10 @@ impl OpenApiGenerator {
         };
         let filter_schemas = generate_filter_expression_schema()?;
         for filter_schema in filter_schemas {
-            schemas.insert(filter_schema.0.to_string(), ReferenceOr::Item(filter_schema.1));
+            schemas.insert(
+                filter_schema.0.to_string(),
+                ReferenceOr::Item(filter_schema.1),
+            );
         }
         let component_schemas = Some(Components {
             schemas,

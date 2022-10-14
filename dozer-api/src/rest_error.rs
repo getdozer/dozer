@@ -21,8 +21,14 @@ impl RestError {
     pub fn name(&self) -> String {
         match self {
             Self::NotFound { message: _ } => "NotFound".to_string(),
-            Self::Unknown { message: _, details: _ } => "Unknown".to_string(),
-            Self::Validation { message: _, details: _ } => "Validation".to_string(),
+            Self::Unknown {
+                message: _,
+                details: _,
+            } => "Unknown".to_string(),
+            Self::Validation {
+                message: _,
+                details: _,
+            } => "Validation".to_string(),
         }
     }
 }
@@ -42,8 +48,14 @@ impl error::ResponseError for RestError {
     fn status_code(&self) -> StatusCode {
         match self {
             RestError::NotFound { message: _ } => StatusCode::NOT_FOUND,
-            RestError::Validation { message: _, details: _ } => StatusCode::BAD_REQUEST,
-            RestError::Unknown { message: _, details: _ } => StatusCode::INTERNAL_SERVER_ERROR,
+            RestError::Validation {
+                message: _,
+                details: _,
+            } => StatusCode::BAD_REQUEST,
+            RestError::Unknown {
+                message: _,
+                details: _,
+            } => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
