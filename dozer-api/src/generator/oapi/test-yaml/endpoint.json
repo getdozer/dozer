@@ -1,0 +1,13 @@
+{
+  "id": null,
+  "name": "films",
+  "path": "/films",
+  "enable_rest": false,
+  "enable_grpc": true,
+  "sql": "select film_id, description, rental_rate, release_year from film where 1=1;",
+  "index": {
+    "primary_key": [
+      "film_id"
+    ]
+  }
+}

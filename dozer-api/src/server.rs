@@ -1,4 +1,4 @@
-use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{http::header::ContentType, rt, web, App, HttpResponse, HttpServer, Responder};
 use anyhow::Context;
 use dozer_cache::cache::{
     expression::{FilterExpression, QueryExpression},
@@ -8,7 +8,6 @@ use dozer_cache::cache::{
     Cache,
 };
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
-
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 
@@ -65,10 +64,10 @@ async fn generate_oapi(
         vec![format!("http://localhost:{}", "8080")],
     )
     .unwrap();
-    oapi_generator
-        .generate_oas3("../dozer-api/test_generate.yml".to_owned())
+    let result = oapi_generator
+        .generate_oas3(Some("./test_generate.yml".to_owned()))
         .unwrap();
-    Ok(HttpResponse::Ok().body(""))
+    Ok(HttpResponse::Ok().json(result))
 }
 
 async fn get(
@@ -92,11 +91,10 @@ async fn list(app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>) -> impl R
     let records = get_records(cache, exp);
 
     match records {
-        Ok(maps) => {
-            let str = serde_json::to_string(&maps).unwrap();
-            HttpResponse::Ok().body(str)
-        }
-        Err(_) => HttpResponse::Ok().body("[]"),
+        Ok(maps) => HttpResponse::Ok().json(maps),
+        Err(_) => HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .body("[]"),
     }
 }
 
@@ -125,7 +123,9 @@ async fn query(
             let str = serde_json::to_string(&maps).unwrap();
             Ok(HttpResponse::Ok().body(str))
         }
-        Err(_) => Ok(HttpResponse::Ok().body("[]")),
+        Err(_) => Ok(HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .body("[]")),
     }
 }
 

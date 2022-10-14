@@ -55,6 +55,7 @@ impl OpenApiGenerator {
             ..Default::default()
         }))
     }
+
     fn _generate_get_list(&self) -> Result<ReferenceOr<PathItem>> {
         let responses = Responses {
             responses: indexmap::indexmap! {
@@ -104,6 +105,7 @@ impl OpenApiGenerator {
             ..Default::default()
         }))
     }
+
     fn _generate_available_paths(&self) -> Result<Paths> {
         let get_list = self._generate_get_list()?;
         let get_by_id_item = self._generate_get_by_id()?;
@@ -155,7 +157,7 @@ impl OpenApiGenerator {
 }
 
 impl OpenApiGenerator {
-    pub fn generate_oas3(&self, path: String) -> Result<OpenAPI> {
+    pub fn generate_oas3(&self, path: Option<String>) -> Result<OpenAPI> {
         let component_schemas = self._generate_component_schema()?;
         let paths_available = self._generate_available_paths()?;
         let api = OpenAPI {
@@ -186,12 +188,14 @@ impl OpenApiGenerator {
             components: component_schemas,
             ..Default::default()
         };
-        let f = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(path)
-            .expect("Couldn't open file");
-        serde_yaml::to_writer(f, &api).unwrap();
+        if path.is_some() {
+            let f = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(path.unwrap())
+                .expect("Couldn't open file");
+            serde_yaml::to_writer(f, &api).unwrap();
+        }
         Ok(api)
     }
 
@@ -208,5 +212,30 @@ impl OpenApiGenerator {
             schema_name,
         };
         Ok(openapi_generator)
+    }
+}
+
+mod tests {
+    #[test]
+    fn test_generate_oapi() -> anyhow::Result<()> {
+        use openapiv3::OpenAPI;
+        use crate::generator::oapi::generator::OpenApiGenerator;
+    
+        let schema_str = include_str!("test-yaml/cache_film_schema.json");
+        let schema: dozer_types::types::Schema = serde_json::from_str(schema_str)?;
+        let endpoint_str = include_str!("test-yaml/endpoint.json");
+        let endpoint: dozer_types::models::api_endpoint::ApiEndpoint =
+            serde_json::from_str(endpoint_str)?;
+        let expected_str = include_str!("test-yaml/films-expected.yaml");
+        let expected: OpenAPI = serde_yaml::from_str(expected_str)?;
+        let oapi_generator = OpenApiGenerator::new(
+            schema,
+            "film".to_owned(),
+            endpoint,
+            vec![format!("http://localhost:{}", "8080")],
+        )?;
+        let generated = oapi_generator.generate_oas3(Some("./src/generator/oapi/test-yaml/test_generate.yml".to_owned()))?;
+        assert_eq!(generated, expected, "must be equal");
+        Ok(())
     }
 }
