@@ -90,9 +90,10 @@ async fn list(app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>) -> impl R
     let cache = app_data.0.to_owned();
     let exp = QueryExpression::new(None, vec![], 50, 0);
     let records = get_records(cache, exp);
+
     match records {
-        Ok(map) => {
-            let str = serde_json::to_string(&map).unwrap();
+        Ok(maps) => {
+            let str = serde_json::to_string(&maps).unwrap();
             HttpResponse::Ok().body(str)
         }
         Err(_) => HttpResponse::Ok().body("[]"),
@@ -158,7 +159,7 @@ impl ApiServer {
                     let list_route = &endpoint.path.clone();
                     let get_route = format!("{}/{}", list_route, "{id}");
                     let query_route = format!("{}/query", list_route);
-                    app.route(list_route, web::post().to(list))
+                    app.route(list_route, web::get().to(list))
                         .route(&get_route, web::get().to(get))
                         .route(&query_route, web::post().to(query))
                         .route("oapi", web::post().to(generate_oapi))

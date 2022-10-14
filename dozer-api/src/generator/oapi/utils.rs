@@ -92,20 +92,15 @@ pub fn generate_filter_expression_schema() -> anyhow::Result<Vec<(&'static str, 
     let scalar_value = Schema {
         schema_data: Default::default(),
         schema_kind: SchemaKind::OneOf {
-            one_of: vec![
-                ReferenceOr::Item(Schema {
-                    schema_data: Default::default(),
-                    schema_kind: openapiv3::SchemaKind::Type(get_type_by_name("string")),
-                }),
-                ReferenceOr::Item(Schema {
-                    schema_data: Default::default(),
-                    schema_kind: openapiv3::SchemaKind::Type(get_type_by_name("bool")),
-                }),
-                ReferenceOr::Item(Schema {
-                    schema_data: Default::default(),
-                    schema_kind: openapiv3::SchemaKind::Type(get_type_by_name("integer")),
-                }),
-            ],
+            one_of: vec!["string", "bool", "integer"]
+                .iter()
+                .map(|&name| {
+                    ReferenceOr::Item(Schema {
+                        schema_data: Default::default(),
+                        schema_kind: SchemaKind::Type(get_type_by_name(name)),
+                    })
+                })
+                .collect(),
         },
     };
     // comparision expression

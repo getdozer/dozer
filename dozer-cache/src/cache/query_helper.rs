@@ -2,22 +2,10 @@ use super::expression::{FilterExpression, Operator};
 use anyhow::{bail, ensure, Context, Ok};
 use dozer_types::json_value_to_field;
 use dozer_types::serde_json::Value;
+use std::str::FromStr;
 
 fn is_combinator(input: String) -> bool {
     vec!["$or", "$and"].contains(&input.to_lowercase().as_str())
-}
-fn string_to_operator(input: String) -> Option<Operator> {
-    match input.to_lowercase().as_str() {
-        "$eq" => Some(Operator::EQ),
-        "$gt" => Some(Operator::GT),
-        "$gte" => Some(Operator::GTE),
-        "$lt" => Some(Operator::LT),
-        "$lte" => Some(Operator::LTE),
-        "$contains" => Some(Operator::Contains),
-        "$matchesany" => Some(Operator::MatchesAny),
-        "$matchesall" => Some(Operator::MatchesAll),
-        _ => Option::None,
-    }
 }
 
 fn value_to_simple_expression(
@@ -74,8 +62,7 @@ pub fn value_to_expression(input: Value) -> anyhow::Result<Vec<FilterExpression>
                 // extract inner key
                 if let Value::Object(keys) = pair_value.clone() {
                     let key = keys.keys().next().cloned().context("Invalid Expression")?;
-                    let operator =
-                        string_to_operator(key.to_owned()).context("Operator does not match")?;
+                    let operator = Operator::from_str(&key)?;
                     let scalar_value = pair_value
                         .get(key.to_owned())
                         .context(format!("scalar value by key {:?} is empty", key))?;

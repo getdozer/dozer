@@ -1,4 +1,6 @@
 use dozer_types::types::{Field, IndexDefinition};
+use strum_macros::EnumString;
+
 pub struct QueryExpression {
     pub filter: Option<FilterExpression>,
     pub order_by: Vec<SortOptions>,
@@ -29,15 +31,23 @@ pub enum FilterExpression {
     And(Box<FilterExpression>, Box<FilterExpression>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, EnumString, strum_macros::Display)]
 pub enum Operator {
+    #[strum(serialize = "$lt")]
     LT,
+    #[strum(serialize = "$lte")]
     LTE,
+    #[strum(serialize = "$eq")]
     EQ,
+    #[strum(serialize = "$gt")]
     GT,
+    #[strum(serialize = "$gte")]
     GTE,
+    #[strum(serialize = "$contains")]
     Contains,
+    #[strum(serialize = "$matchesany")]
     MatchesAny,
+    #[strum(serialize = "$matchesall")]
     MatchesAll,
 }
 
