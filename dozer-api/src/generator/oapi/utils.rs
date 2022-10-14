@@ -1,13 +1,13 @@
 use indexmap::IndexMap;
 use openapiv3::{
-    NumberFormat, NumberType, ObjectType, ReferenceOr, Schema, SchemaData, SchemaKind, StringType,
-    Type, VariantOrUnknownOrEmpty, Contact, Response, MediaType,
+    AdditionalProperties, Contact, MediaType, NumberFormat, NumberType, ObjectType, Parameter,
+    ParameterData, ParameterSchemaOrContent, PathStyle, ReferenceOr, Response, Schema, SchemaData,
+    SchemaKind, StringType, Type, VariantOrUnknownOrEmpty,
 };
 
 const CONTACT_NAME: &str = "Dozer-Team";
 const CONTACT_WEB_URL: &str = "https://getdozer.io";
 const CONTACT_EMAIL: &str = "api@getdozer.io";
-
 pub fn create_contact_info() -> Option<Contact> {
     Some(Contact {
         name: Some(CONTACT_NAME.to_owned()),
@@ -17,11 +17,37 @@ pub fn create_contact_info() -> Option<Contact> {
     })
 }
 
+pub fn create_path_parameter(
+    name: String,
+    description: Option<String>,
+    required: bool,
+    param_type: Type,
+) -> Parameter {
+    return Parameter::Path {
+        parameter_data: ParameterData {
+            name: name,
+            description: description,
+            required: required,
+            format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
+                schema_data: SchemaData {
+                    ..Default::default()
+                },
+                schema_kind: SchemaKind::Type(param_type),
+            })),
+            deprecated: None,
+            example: None,
+            examples: IndexMap::new(),
+            explode: None,
+            extensions: IndexMap::new(),
+        },
+        style: PathStyle::Simple,
+    };
+}
 pub fn create_reference_response(description: String, schema_reference_path: String) -> Response {
     Response {
         description: description,
-        content: indexmap::indexmap!{
-            "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::Reference { reference: schema_reference_path }), ..Default::default() }
+        content: indexmap::indexmap! {
+            "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::ref_(&schema_reference_path)), ..Default::default() }
         },
         ..Default::default()
     }
@@ -47,7 +73,7 @@ pub fn convert_cache_to_oapi_schema(
             }),
         );
     }
-    
+
     let result = Schema {
         schema_data: SchemaData {
             description: Some(format!("A representation of {}", name)),
@@ -61,45 +87,114 @@ pub fn convert_cache_to_oapi_schema(
     };
     Ok(result)
 }
+pub fn generate_filter_expression_schema() -> anyhow::Result<Vec<(&'static str, Schema)>> {
+    // scalar value
+    let scalar_value = Schema {
+        schema_data: Default::default(),
+        schema_kind: SchemaKind::OneOf {
+            one_of: vec![
+                ReferenceOr::Item(Schema {
+                    schema_data: Default::default(),
+                    schema_kind: openapiv3::SchemaKind::Type(get_type_by_name("string")),
+                }),
+                ReferenceOr::Item(Schema {
+                    schema_data: Default::default(),
+                    schema_kind: openapiv3::SchemaKind::Type(get_type_by_name("bool")),
+                }),
+                ReferenceOr::Item(Schema {
+                    schema_data: Default::default(),
+                    schema_kind: openapiv3::SchemaKind::Type(get_type_by_name("integer")),
+                }),
+            ],
+        },
+    };
+    // comparision expression
+    let comparision_expression = Schema {
+        schema_data: Default::default(),
+        schema_kind: SchemaKind::OneOf {
+            one_of: vec!["$eq", "$lt",  "$lte", "$gt", "$gte", "$contains", "$matchesany", "$matchesall"].iter().map(|&operator| {
+                ReferenceOr::Item(Schema {
+                    schema_data: Default::default(),
+                    schema_kind: openapiv3::SchemaKind::Type(Type::Object(ObjectType {
+                        properties: indexmap::indexmap! { operator.to_owned()  => ReferenceOr::ref_(&"#/components/schemas/scalar-value".to_owned())},
+                        required: vec![operator.to_owned()],
+                        ..Default::default()
+                    })),
+                })
+            }).collect(),
+        },
+    };
+    // simple expression
+    let simple_expression = Schema {
+        schema_data: Default::default(),
+        schema_kind: SchemaKind::Type(Type::Object(ObjectType {
+            properties: IndexMap::new(),
+            additional_properties: Some(AdditionalProperties::Schema(Box::new(ReferenceOr::ref_(
+                &"#/components/schemas/comparision-expression".to_owned(),
+            )))),
+            ..Default::default()
+        })),
+    };
+    // and expression
+    let and_expression = Schema {
+        schema_data: Default::default(),
+        schema_kind: openapiv3::SchemaKind::Type(Type::Object(ObjectType {
+            properties: indexmap::indexmap! {"$and".to_owned() => ReferenceOr::ref_(&"#/components/schemas/filter-expression".to_owned())},
+            required: vec!["$and".to_owned()],
+            ..Default::default()
+        })),
+    };
 
+    // filter-expression:
+    let filter_expression = Schema {
+        schema_data: Default::default(),
+        schema_kind: SchemaKind::OneOf {
+            one_of: vec![
+                ReferenceOr::ref_(&"#/components/schemas/simple-expression".to_owned()),
+                ReferenceOr::ref_(&"#/components/schemas/and-expression".to_owned()),
+            ],
+        },
+    };
+    Ok(vec![
+        ("scalar-value", scalar_value),
+        ("comparision-expression", comparision_expression),
+        ("simple-expression", simple_expression),
+        ("and-expression", and_expression),
+        ("filter-expression", filter_expression),
+    ])
+}
+
+fn get_type_by_name(name: &str) -> Type {
+    match name {
+        "string" => Type::String(StringType {
+            ..Default::default()
+        }),
+        "bool" => Type::Boolean {},
+        "float" => Type::Number(NumberType {
+            format: VariantOrUnknownOrEmpty::Item(NumberFormat::Float),
+            ..Default::default()
+        }),
+        "decimal" => Type::Number(NumberType {
+            format: VariantOrUnknownOrEmpty::Item(NumberFormat::Double),
+            ..Default::default()
+        }),
+        "integer" => Type::Integer(Default::default()),
+        _ => Type::String(StringType {
+            ..Default::default()
+        }),
+    }
+}
 pub fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) -> Type {
-    let float_type = Type::Number(NumberType {
-        format: VariantOrUnknownOrEmpty::Item(NumberFormat::Float),
-        multiple_of: None,
-        exclusive_minimum: false,
-        exclusive_maximum: false,
-        minimum: None,
-        maximum: None,
-        enumeration: [].to_vec(),
-    });
-
-    let bool_type = Type::Boolean {};
-    let string_type = Type::String(StringType {
-        format: VariantOrUnknownOrEmpty::Empty,
-        pattern: None,
-        enumeration: [].to_vec(),
-        min_length: None,
-        max_length: None,
-    });
-    let decimal_type = Type::Number(NumberType {
-        format: VariantOrUnknownOrEmpty::Item(NumberFormat::Double),
-        multiple_of: None,
-        exclusive_minimum: false,
-        exclusive_maximum: false,
-        minimum: None,
-        maximum: None,
-        enumeration: [].to_vec(),
-    });
     return match field_type {
-        dozer_types::types::FieldType::Int => Type::Integer(Default::default()),
-        dozer_types::types::FieldType::Float => float_type,
-        dozer_types::types::FieldType::Boolean => bool_type,
-        dozer_types::types::FieldType::String => string_type,
-        dozer_types::types::FieldType::Binary => string_type,
-        dozer_types::types::FieldType::Decimal => decimal_type,
-        dozer_types::types::FieldType::Timestamp => string_type,
-        dozer_types::types::FieldType::Bson => string_type,
-        dozer_types::types::FieldType::Null => string_type,
-        dozer_types::types::FieldType::RecordArray(_) => string_type,
+        dozer_types::types::FieldType::Int => get_type_by_name("string"),
+        dozer_types::types::FieldType::Float => get_type_by_name("float"),
+        dozer_types::types::FieldType::Boolean => get_type_by_name("bool"),
+        dozer_types::types::FieldType::String => get_type_by_name("string"),
+        dozer_types::types::FieldType::Binary => get_type_by_name("string"),
+        dozer_types::types::FieldType::Decimal => get_type_by_name("string"),
+        dozer_types::types::FieldType::Timestamp => get_type_by_name("decimal"),
+        dozer_types::types::FieldType::Bson => get_type_by_name("string"),
+        dozer_types::types::FieldType::Null => get_type_by_name("string"),
+        dozer_types::types::FieldType::RecordArray(_) => get_type_by_name("string"),
     };
 }

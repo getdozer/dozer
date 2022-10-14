@@ -4,7 +4,7 @@ use dozer_types::json_value_to_field;
 use dozer_types::serde_json::Value;
 
 fn is_combinator(input: String) -> bool {
-    vec!["or", "and"].contains(&input.to_lowercase().as_str())
+    vec!["$or", "$and"].contains(&input.to_lowercase().as_str())
 }
 fn string_to_operator(input: String) -> Option<Operator> {
     match input.to_lowercase().as_str() {
@@ -74,7 +74,6 @@ pub fn value_to_expression(input: Value) -> anyhow::Result<Vec<FilterExpression>
                 // extract inner key
                 if let Value::Object(keys) = pair_value.clone() {
                     let key = keys.keys().next().cloned().context("Invalid Expression")?;
-
                     let operator =
                         string_to_operator(key.to_owned()).context("Operator does not match")?;
                     let scalar_value = pair_value

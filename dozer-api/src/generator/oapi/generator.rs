@@ -1,6 +1,6 @@
 use super::utils::{
     convert_cache_to_oapi_schema, create_contact_info,
-    create_reference_response,
+    create_reference_response, generate_filter_expression_schema,
 };
 use anyhow::Result;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -8,80 +8,113 @@ use indexmap::IndexMap;
 use openapiv3::*;
 
 pub struct OpenApiGenerator {
-    cache_schema: dozer_types::types::Schema,
+    schema: dozer_types::types::Schema,
+    schema_name: String,
     endpoint: ApiEndpoint,
     server_host: Vec<String>,
 }
 impl OpenApiGenerator {
-    fn generate_available_paths(&self) -> Result<Paths> {
-        let mut single_name = self.endpoint.name.to_owned();
-        single_name.pop();
-        let plural_name = self.endpoint.name.to_owned();
-        // create responses for path
-        let post_responses = Responses {
+    fn _generate_get_by_id(&self) -> Result<ReferenceOr<PathItem>> {
+        let responses = Responses {
+            responses: indexmap::indexmap! {
+                StatusCode::Code(200) =>
+                ReferenceOr::Item(create_reference_response(format!("Get by id {}", self.schema_name.to_owned()),format!("#/components/schemas/{}", self.schema_name.to_owned())))
+
+            },
+            ..Default::default()
+        };
+        let get_operation = Some(Operation {
+            tags: vec![self.endpoint.name.to_owned()],
+            summary: Some("summary".to_owned()),
+            description: Some("some description".to_owned()),
+            operation_id: Some(format!("{}-by-id", self.schema_name.to_owned())),
+            parameters: vec![ReferenceOr::Item(Parameter::Path {
+                parameter_data: ParameterData {
+                    name: "id".to_owned(),
+                    description: Some(
+                        format!("Id of {} to fetch", self.schema_name.to_owned()).to_owned(),
+                    ),
+                    required: true,
+                    format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
+                        schema_data: SchemaData {
+                            ..Default::default()
+                        },
+                        schema_kind: SchemaKind::Type(Type::Integer(Default::default())),
+                    })),
+                    deprecated: None,
+                    example: None,
+                    examples: IndexMap::new(),
+                    explode: None,
+                    extensions: IndexMap::new(),
+                },
+                style: PathStyle::Simple,
+            })],
+            responses: responses,
+            ..Default::default()
+        });
+        Ok(ReferenceOr::Item(PathItem {
+            get: get_operation,
+            ..Default::default()
+        }))
+    }
+    fn _generate_get_list(&self) -> Result<ReferenceOr<PathItem>> {
+        let responses = Responses {
             responses: indexmap::indexmap! {
                 StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", self.endpoint.name.to_owned())))
             },
             ..Default::default()
         };
-        let get_responses = Responses {
-            responses: indexmap::indexmap! {
-                StatusCode::Code(200) =>
-                ReferenceOr::Item(create_reference_response(format!("Get by id {}", single_name.to_owned()),format!("#/components/schemas/{}", single_name.to_owned())))
+        let operation = Some(Operation {
+            tags: vec![self.endpoint.name.to_owned()],
+            summary: Some("summary".to_owned()),
+            description: Some("some description".to_owned()),
+            operation_id: Some(format!("list-{}", self.endpoint.name.to_owned())),
+            responses: responses,
+            ..Default::default()
+        });
+        Ok(ReferenceOr::Item(PathItem {
+            get: operation,
+            ..Default::default()
+        }))
+    }
 
+    fn _generate_list_query(&self) -> Result<ReferenceOr<PathItem>> {
+        let request_body = RequestBody {
+            content: indexmap::indexmap! {
+                "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::ref_(&"#/components/schemas/filter-expression")), ..Default::default() }
+            },
+            required: true,
+            ..Default::default()
+        };
+        let responses = Responses {
+            responses: indexmap::indexmap! {
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", self.endpoint.name.to_owned())))
             },
             ..Default::default()
         };
-        // attach response to path 
-        let mut path_items: IndexMap<String, ReferenceOr<PathItem>> = IndexMap::new();
-        path_items.insert(
-            self.endpoint.path.to_owned(),
-            ReferenceOr::Item(PathItem {
-                post: Some(Operation {
-                    tags: vec![plural_name.to_owned()],
-                    summary: Some("summary".to_owned()),
-                    description: Some("some description".to_owned()),
-                    operation_id: Some(format!("list-{}", plural_name.to_owned())),
-                    responses: post_responses,
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-        );
-        path_items.insert(
-            format!("{}/{}", self.endpoint.path.to_owned(), "{id}"),
-            ReferenceOr::Item(PathItem {
-                get: Some(Operation {
-                    tags: vec![self.endpoint.name.to_owned()],
-                    summary: Some("summary".to_owned()),
-                    description: Some("some description".to_owned()),
-                    operation_id: Some(format!("{}-by-id", single_name.to_owned())),
-                    parameters: vec![ReferenceOr::Item(Parameter::Path {
-                        parameter_data: ParameterData {
-                            name: "id".to_owned(),
-                            description: Some(format!("Id of {} to fetch", single_name).to_owned()),
-                            required: true,
-                            format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
-                                schema_data: SchemaData {
-                                    ..Default::default()
-                                },
-                                schema_kind: SchemaKind::Type(Type::Integer(Default::default())),
-                            })),
-                            deprecated: None,
-                            example: None,
-                            examples: IndexMap::new(),
-                            explode: None,
-                            extensions: IndexMap::new(),
-                        },
-                        style: PathStyle::Simple,
-                    })],
-                    responses: get_responses,
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-        );
-
+        let operation = Some(Operation {
+            tags: vec![self.endpoint.name.to_owned()],
+            summary: Some("summary".to_owned()),
+            description: Some("some description".to_owned()),
+            operation_id: Some(format!("query-{}", self.endpoint.name.to_owned())),
+            request_body: Some(openapiv3::ReferenceOr::Item(request_body)),
+            responses: responses,
+            ..Default::default()
+        });
+        Ok(ReferenceOr::Item(PathItem {
+            post: operation,
+            ..Default::default()
+        }))
+    }
+    fn _generate_available_paths(&self) -> Result<Paths> {
+        let get_list = self._generate_get_list()?;
+        let get_by_id_item = self._generate_get_by_id()?;
+        let  query_list = self._generate_list_query()?;
+        let path_items = indexmap::indexmap! {
+            self.endpoint.path.to_owned() => get_list,
+            format!("{}/{}", self.endpoint.path.to_owned(), "{id}") => get_by_id_item,
+            format!("{}/query", self.endpoint.path.to_owned()) => query_list
+        };
         let paths_available: Paths = Paths {
             paths: path_items,
             ..Default::default()
@@ -89,32 +122,31 @@ impl OpenApiGenerator {
         Ok(paths_available)
     }
 
-    fn generate_component_schema(&self) -> Result<Option<Components>> {
-        // generate 2 schema: single object + array reference to that
-        let mut single_name = self.endpoint.name.to_owned();
-        single_name.pop();
-        let plural_name = self.endpoint.name.to_owned();
-        let generated_schema = convert_cache_to_oapi_schema(
-            self.cache_schema.to_owned(),
-            self.endpoint.name.to_owned(),
-        )?;
-        let schemas = indexmap::indexmap! {
-            single_name.to_owned() => ReferenceOr::Item(generated_schema),
+    
+
+    fn _generate_component_schema(&self) -> Result<Option<Components>> {
+        let plural_name = format!("{}s", self.schema_name.to_owned());
+        let generated_schema =
+            convert_cache_to_oapi_schema(self.schema.to_owned(), self.schema_name.to_owned())?;
+        let mut schemas = indexmap::indexmap! {
+            self.schema_name.to_owned() => ReferenceOr::Item(generated_schema),
             plural_name.to_owned() => ReferenceOr::Item(Schema {
                         schema_data: SchemaData {
-                            description: Some(format!("Array of {}", single_name.to_owned())),
+                            description: Some(format!("Array of {}", self.schema_name.to_owned())),
                             ..Default::default()
                         },
                         schema_kind: SchemaKind::Type(Type::Array(ArrayType {
-                            items: Some(ReferenceOr::Reference {
-                                reference: format!("#/components/schemas/{}", single_name),
-                            }),
+                            items: Some(ReferenceOr::ref_(&format!("#/components/schemas/{}", self.schema_name.to_owned()))),
                             min_items: None,
                             max_items: None,
                             unique_items: false,
                         })),
                     })
         };
+        let filter_schemas = generate_filter_expression_schema()?;
+        for filter_schema in filter_schemas {
+            schemas.insert(filter_schema.0.to_string(), ReferenceOr::Item(filter_schema.1));
+        }
         let component_schemas = Some(Components {
             schemas: schemas,
             ..Default::default()
@@ -124,9 +156,9 @@ impl OpenApiGenerator {
 }
 
 impl OpenApiGenerator {
-    pub fn generate_oas3(&self) -> Result<OpenAPI> {
-        let component_schemas = self.generate_component_schema()?;
-        let paths_available = self.generate_available_paths()?;
+    pub fn generate_oas3(&self, path: String) -> Result<OpenAPI> {
+        let component_schemas = self._generate_component_schema()?;
+        let paths_available = self._generate_available_paths()?;
         let api = OpenAPI {
             openapi: "3.0.0".to_owned(),
             info: Info {
@@ -158,7 +190,7 @@ impl OpenApiGenerator {
         let f = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
-            .open("dozer-api/test_generate.yml")
+            .open(path)
             .expect("Couldn't open file");
         serde_yaml::to_writer(f, &api).unwrap();
         Ok(api)
@@ -166,13 +198,15 @@ impl OpenApiGenerator {
 
     pub fn new(
         schema: dozer_types::types::Schema,
+        schema_name: String,
         endpoint: ApiEndpoint,
         server_host: Vec<String>,
     ) -> Result<Self> {
         let openapi_generator = Self {
-            cache_schema: schema,
+            schema: schema,
             endpoint: endpoint,
             server_host: server_host,
+            schema_name: schema_name,
         };
         Ok(openapi_generator)
     }
