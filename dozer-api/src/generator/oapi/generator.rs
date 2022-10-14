@@ -188,11 +188,11 @@ impl OpenApiGenerator {
             components: component_schemas,
             ..Default::default()
         };
-        if path.is_some() {
+        if let Some(path) = path {
             let f = std::fs::OpenOptions::new()
                 .write(true)
                 .create(true)
-                .open(path.unwrap())
+                .open(path)
                 .expect("Couldn't open file");
             serde_yaml::to_writer(f, &api).unwrap();
         }
