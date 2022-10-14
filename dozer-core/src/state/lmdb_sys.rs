@@ -18,8 +18,8 @@ use unixstring::UnixString;
 
 #[derive(Debug, Clone)]
 pub struct LmdbError {
-    err_no: i32,
-    err_str: String,
+    pub err_no: i32,
+    pub err_str: String,
 }
 
 impl Display for LmdbError {
@@ -474,27 +474,6 @@ impl Database {
                 _ => Ok(Cursor::new(cur)),
             }
         }
-    }
-
-    pub fn get_multi<'a>(
-        &self,
-        txn: &'a Transaction,
-        key: &[u8],
-        r: &mut Vec<&'a [u8]>,
-    ) -> Result<(), LmdbError> {
-        //  let mut r = Vec::<&[u8]>::new();
-        let c = self.open_cursor(txn)?;
-        if c.seek(key)? {
-            loop {
-                let kv = c.read()?;
-                match kv {
-                    None => break,
-                    Some(v) if v.0 != key => break,
-                    Some(v) => r.push(v.1),
-                }
-            }
-        }
-        Ok(())
     }
 }
 

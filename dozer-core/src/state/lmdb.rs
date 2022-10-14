@@ -1,7 +1,8 @@
 use crate::state::lmdb_sys::{
-    Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
+    Cursor, Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
-use crate::state::{StateStore, StateStoreOptions, StateStoresManager};
+use crate::state::{StateStore, StateStoreCursor, StateStoreOptions, StateStoresManager};
+use anyhow::{anyhow, Context};
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -97,5 +98,40 @@ impl StateStore for LmdbStateStore {
     fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
         let r = self.db.get(&self.tx, key)?;
         Ok(r)
+    }
+
+    fn cursor(&mut self) -> anyhow::Result<Box<dyn StateStoreCursor>> {
+        let cursor = self.db.open_cursor(&self.tx)?;
+        Ok(Box::new(LmdbStateStoreCursor { cursor }))
+    }
+}
+
+pub struct LmdbStateStoreCursor {
+    cursor: Cursor,
+}
+
+impl StateStoreCursor for LmdbStateStoreCursor {
+    fn seek(&mut self, key: &[u8]) -> anyhow::Result<bool> {
+        self.cursor
+            .seek(key)
+            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
+    }
+
+    fn next(&mut self) -> anyhow::Result<bool> {
+        self.cursor
+            .next()
+            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
+    }
+
+    fn prev(&mut self) -> anyhow::Result<bool> {
+        self.cursor
+            .prev()
+            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
+    }
+
+    fn read(&mut self) -> anyhow::Result<Option<(&[u8], &[u8])>> {
+        self.cursor
+            .read()
+            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
     }
 }

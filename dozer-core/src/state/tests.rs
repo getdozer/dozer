@@ -88,9 +88,4 @@ fn test_cursor_duplicate_keys() {
             break;
         }
     }
-
-    let mut r = Vec::<&[u8]>::new();
-    db.get_multi(&tx, "key_1".as_bytes(), &mut r)
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
-    assert_eq!(r.len(), ['a'..'s'].len())
 }

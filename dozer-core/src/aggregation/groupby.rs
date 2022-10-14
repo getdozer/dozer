@@ -244,7 +244,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect(), None)?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -291,7 +291,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect(), None)?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -380,7 +380,10 @@ impl AggregationProcessor {
                     )
                 } else {
                     let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
-                    (old.get_key(record_keys.clone())?, new.get_key(record_keys)?)
+                    (
+                        old.get_key(&record_keys, None)?,
+                        new.get_key(&record_keys, None)?,
+                    )
                 };
 
                 if old_record_hash == new_record_hash {

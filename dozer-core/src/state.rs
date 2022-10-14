@@ -29,4 +29,12 @@ pub trait StateStore {
     fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()>;
     fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>>;
     fn del(&mut self, key: &[u8]) -> anyhow::Result<()>;
+    fn cursor(&mut self) -> anyhow::Result<Box<dyn StateStoreCursor>>;
+}
+
+pub trait StateStoreCursor {
+    fn seek(&mut self, key: &[u8]) -> anyhow::Result<bool>;
+    fn next(&mut self) -> anyhow::Result<bool>;
+    fn prev(&mut self) -> anyhow::Result<bool>;
+    fn read(&mut self) -> anyhow::Result<Option<(&[u8], &[u8])>>;
 }

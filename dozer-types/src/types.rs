@@ -156,10 +156,14 @@ impl Record {
         self.values[idx] = value;
     }
 
-    pub fn get_key(&self, indexes: Vec<usize>) -> anyhow::Result<Vec<u8>> {
+    pub fn get_key(&self, indexes: &Vec<usize>, prefix: Option<&[u8]>) -> anyhow::Result<Vec<u8>> {
         let mut r = Vec::<u8>::new();
-        for i in indexes {
-            match &self.values[i] {
+        if let Some(p) = prefix {
+            r.extend(p);
+        };
+
+        for i in indexes.iter() {
+            match &self.values[*i] {
                 Field::Int(i) => {
                     r.extend(i.to_ne_bytes());
                 }
