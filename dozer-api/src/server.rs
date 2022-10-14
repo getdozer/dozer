@@ -8,7 +8,7 @@ use dozer_cache::cache::{
     Cache,
 };
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
-use log::debug;
+
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 

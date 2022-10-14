@@ -32,7 +32,7 @@ impl OpenApiGenerator {
                 parameter_data: ParameterData {
                     name: "id".to_owned(),
                     description: Some(
-                        format!("Id of {} to fetch", self.schema_name.to_owned()).to_owned(),
+                        format!("Id of {} to fetch", self.schema_name.to_owned()),
                     ),
                     required: true,
                     format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
@@ -49,7 +49,7 @@ impl OpenApiGenerator {
                 },
                 style: PathStyle::Simple,
             })],
-            responses: responses,
+            responses,
             ..Default::default()
         });
         Ok(ReferenceOr::Item(PathItem {
@@ -69,7 +69,7 @@ impl OpenApiGenerator {
             summary: Some("summary".to_owned()),
             description: Some("some description".to_owned()),
             operation_id: Some(format!("list-{}", self.endpoint.name.to_owned())),
-            responses: responses,
+            responses,
             ..Default::default()
         });
         Ok(ReferenceOr::Item(PathItem {
@@ -81,7 +81,7 @@ impl OpenApiGenerator {
     fn _generate_list_query(&self) -> Result<ReferenceOr<PathItem>> {
         let request_body = RequestBody {
             content: indexmap::indexmap! {
-                "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::ref_(&"#/components/schemas/filter-expression")), ..Default::default() }
+                "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::ref_("#/components/schemas/filter-expression")), ..Default::default() }
             },
             required: true,
             ..Default::default()
@@ -98,7 +98,7 @@ impl OpenApiGenerator {
             description: Some("some description".to_owned()),
             operation_id: Some(format!("query-{}", self.endpoint.name.to_owned())),
             request_body: Some(openapiv3::ReferenceOr::Item(request_body)),
-            responses: responses,
+            responses,
             ..Default::default()
         });
         Ok(ReferenceOr::Item(PathItem {
@@ -130,7 +130,7 @@ impl OpenApiGenerator {
             convert_cache_to_oapi_schema(self.schema.to_owned(), self.schema_name.to_owned())?;
         let mut schemas = indexmap::indexmap! {
             self.schema_name.to_owned() => ReferenceOr::Item(generated_schema),
-            plural_name.to_owned() => ReferenceOr::Item(Schema {
+            plural_name => ReferenceOr::Item(Schema {
                         schema_data: SchemaData {
                             description: Some(format!("Array of {}", self.schema_name.to_owned())),
                             ..Default::default()
@@ -148,7 +148,7 @@ impl OpenApiGenerator {
             schemas.insert(filter_schema.0.to_string(), ReferenceOr::Item(filter_schema.1));
         }
         let component_schemas = Some(Components {
-            schemas: schemas,
+            schemas,
             ..Default::default()
         });
         Ok(component_schemas)
@@ -165,7 +165,7 @@ impl OpenApiGenerator {
                 title: self.endpoint.name.to_uppercase(),
                 description: Some(format!(
                     "API documentation for {}",
-                    self.endpoint.name.to_lowercase().to_owned()
+                    self.endpoint.name.to_lowercase()
                 )),
                 version: "1.0.0".to_owned(),
                 contact: create_contact_info(),
@@ -203,10 +203,10 @@ impl OpenApiGenerator {
         server_host: Vec<String>,
     ) -> Result<Self> {
         let openapi_generator = Self {
-            schema: schema,
-            endpoint: endpoint,
-            server_host: server_host,
-            schema_name: schema_name,
+            schema,
+            endpoint,
+            server_host,
+            schema_name,
         };
         Ok(openapi_generator)
     }

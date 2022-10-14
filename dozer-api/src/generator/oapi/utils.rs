@@ -23,11 +23,11 @@ pub fn create_path_parameter(
     required: bool,
     param_type: Type,
 ) -> Parameter {
-    return Parameter::Path {
+    Parameter::Path {
         parameter_data: ParameterData {
-            name: name,
-            description: description,
-            required: required,
+            name,
+            description,
+            required,
             format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
                 schema_data: SchemaData {
                     ..Default::default()
@@ -41,11 +41,11 @@ pub fn create_path_parameter(
             extensions: IndexMap::new(),
         },
         style: PathStyle::Simple,
-    };
+    }
 }
 pub fn create_reference_response(description: String, schema_reference_path: String) -> Response {
     Response {
-        description: description,
+        description,
         content: indexmap::indexmap! {
             "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::ref_(&schema_reference_path)), ..Default::default() }
         },
@@ -59,7 +59,7 @@ pub fn convert_cache_to_oapi_schema(
 ) -> anyhow::Result<Schema> {
     let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
     let mut required_properties: Vec<String> = Vec::new();
-    for field in cache_schema.fields.to_owned() {
+    for field in cache_schema.fields {
         if !field.nullable {
             required_properties.push(field.name.to_owned());
         }
@@ -80,7 +80,7 @@ pub fn convert_cache_to_oapi_schema(
             ..Default::default()
         },
         schema_kind: SchemaKind::Type(Type::Object(ObjectType {
-            properties: properties,
+            properties,
             required: required_properties,
             ..Default::default()
         })),
@@ -116,7 +116,7 @@ pub fn generate_filter_expression_schema() -> anyhow::Result<Vec<(&'static str, 
                 ReferenceOr::Item(Schema {
                     schema_data: Default::default(),
                     schema_kind: openapiv3::SchemaKind::Type(Type::Object(ObjectType {
-                        properties: indexmap::indexmap! { operator.to_owned()  => ReferenceOr::ref_(&"#/components/schemas/scalar-value".to_owned())},
+                        properties: indexmap::indexmap! { operator.to_owned()  => ReferenceOr::ref_("#/components/schemas/scalar-value")},
                         required: vec![operator.to_owned()],
                         ..Default::default()
                     })),
@@ -130,7 +130,7 @@ pub fn generate_filter_expression_schema() -> anyhow::Result<Vec<(&'static str, 
         schema_kind: SchemaKind::Type(Type::Object(ObjectType {
             properties: IndexMap::new(),
             additional_properties: Some(AdditionalProperties::Schema(Box::new(ReferenceOr::ref_(
-                &"#/components/schemas/comparision-expression".to_owned(),
+                "#/components/schemas/comparision-expression",
             )))),
             ..Default::default()
         })),
@@ -139,7 +139,7 @@ pub fn generate_filter_expression_schema() -> anyhow::Result<Vec<(&'static str, 
     let and_expression = Schema {
         schema_data: Default::default(),
         schema_kind: openapiv3::SchemaKind::Type(Type::Object(ObjectType {
-            properties: indexmap::indexmap! {"$and".to_owned() => ReferenceOr::ref_(&"#/components/schemas/filter-expression".to_owned())},
+            properties: indexmap::indexmap! {"$and".to_owned() => ReferenceOr::ref_("#/components/schemas/filter-expression")},
             required: vec!["$and".to_owned()],
             ..Default::default()
         })),
@@ -150,8 +150,8 @@ pub fn generate_filter_expression_schema() -> anyhow::Result<Vec<(&'static str, 
         schema_data: Default::default(),
         schema_kind: SchemaKind::OneOf {
             one_of: vec![
-                ReferenceOr::ref_(&"#/components/schemas/simple-expression".to_owned()),
-                ReferenceOr::ref_(&"#/components/schemas/and-expression".to_owned()),
+                ReferenceOr::ref_("#/components/schemas/simple-expression"),
+                ReferenceOr::ref_("#/components/schemas/and-expression"),
             ],
         },
     };
@@ -185,7 +185,7 @@ fn get_type_by_name(name: &str) -> Type {
     }
 }
 pub fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) -> Type {
-    return match field_type {
+    match field_type {
         dozer_types::types::FieldType::Int => get_type_by_name("string"),
         dozer_types::types::FieldType::Float => get_type_by_name("float"),
         dozer_types::types::FieldType::Boolean => get_type_by_name("bool"),
@@ -196,5 +196,5 @@ pub fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldTy
         dozer_types::types::FieldType::Bson => get_type_by_name("string"),
         dozer_types::types::FieldType::Null => get_type_by_name("string"),
         dozer_types::types::FieldType::RecordArray(_) => get_type_by_name("string"),
-    };
+    }
 }
