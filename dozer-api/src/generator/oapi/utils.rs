@@ -67,9 +67,7 @@ pub fn convert_cache_to_oapi_schema(
             field.name,
             ReferenceOr::boxed_item(Schema {
                 schema_data: Default::default(),
-                schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(
-                    field.typ,
-                )),
+                schema_kind: SchemaKind::Type(convert_cache_type_to_schema_type(field.typ)),
             }),
         );
     }

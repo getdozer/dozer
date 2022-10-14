@@ -218,9 +218,9 @@ impl OpenApiGenerator {
 mod tests {
     #[test]
     fn test_generate_oapi() -> anyhow::Result<()> {
-        use openapiv3::OpenAPI;
         use crate::generator::oapi::generator::OpenApiGenerator;
-    
+        use openapiv3::OpenAPI;
+
         let schema_str = include_str!("test-yaml/cache_film_schema.json");
         let schema: dozer_types::types::Schema = serde_json::from_str(schema_str)?;
         let endpoint_str = include_str!("test-yaml/endpoint.json");
@@ -234,7 +234,9 @@ mod tests {
             endpoint,
             vec![format!("http://localhost:{}", "8080")],
         )?;
-        let generated = oapi_generator.generate_oas3(Some("./src/generator/oapi/test-yaml/test_generate.yml".to_owned()))?;
+        let generated = oapi_generator.generate_oas3(Some(
+            "./src/generator/oapi/test-yaml/test_generate.yml".to_owned(),
+        ))?;
         assert_eq!(generated, expected, "must be equal");
         Ok(())
     }
