@@ -2,7 +2,7 @@ use crate::aggregation::Aggregator;
 use crate::dag::dag::PortHandle;
 use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory};
-use crate::state::StateStore;
+use crate::state::{StateStore, StateStoreOptions};
 use anyhow::{anyhow, Context};
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 use std::collections::HashMap;
@@ -47,6 +47,12 @@ impl AggregationProcessorFactory {
 }
 
 impl ProcessorFactory for AggregationProcessorFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        Some(StateStoreOptions {
+            allow_duplicate_keys: false,
+        })
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

@@ -1,9 +1,27 @@
 pub mod lmdb;
 mod lmdb_sys;
 pub mod memory;
+pub mod null;
+mod tests;
 
 pub trait StateStoresManager: Send + Sync {
-    fn init_state_store(&self, id: String) -> anyhow::Result<Box<dyn StateStore>>;
+    fn init_state_store(
+        &self,
+        id: String,
+        options: StateStoreOptions,
+    ) -> anyhow::Result<Box<dyn StateStore>>;
+}
+
+pub struct StateStoreOptions {
+    pub allow_duplicate_keys: bool,
+}
+
+impl StateStoreOptions {
+    pub fn default() -> Self {
+        Self {
+            allow_duplicate_keys: false,
+        }
+    }
 }
 
 pub trait StateStore {

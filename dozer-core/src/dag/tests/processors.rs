@@ -2,7 +2,7 @@ use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
-use crate::state::StateStore;
+use crate::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;
@@ -20,6 +20,10 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -80,6 +84,10 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory for TestSinkFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -133,6 +141,12 @@ impl TestProcessorFactory {
 }
 
 impl ProcessorFactory for TestProcessorFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        Some(StateStoreOptions {
+            allow_duplicate_keys: false,
+        })
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }

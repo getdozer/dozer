@@ -1,7 +1,7 @@
 use crate::state::lmdb_sys::{
     Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
-use crate::state::{StateStore, StateStoresManager};
+use crate::state::{StateStore, StateStoreOptions, StateStoresManager};
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -23,7 +23,11 @@ impl LmdbStateStoreManager {
 }
 
 impl StateStoresManager for LmdbStateStoreManager {
-    fn init_state_store(&self, id: String) -> anyhow::Result<Box<dyn StateStore>> {
+    fn init_state_store(
+        &self,
+        id: String,
+        options: StateStoreOptions,
+    ) -> anyhow::Result<Box<dyn StateStore>> {
         let full_path = Path::new(&self.path).join(&id);
         fs::create_dir(&full_path)?;
 
@@ -39,7 +43,8 @@ impl StateStoresManager for LmdbStateStoreManager {
         )?);
         let tx = Transaction::begin(env.clone())?;
 
-        let db_opt = DatabaseOptions::default();
+        let mut db_opt = DatabaseOptions::default();
+        db_opt.allow_duplicate_keys = options.allow_duplicate_keys;
         let db = Database::open(env.clone(), &tx, id, Some(db_opt))?;
 
         Ok(Box::new(LmdbStateStore {

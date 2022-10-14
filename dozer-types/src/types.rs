@@ -17,7 +17,7 @@ pub enum Field {
     #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     Timestamp(DateTime<Utc>),
     Bson(Vec<u8>),
-    RecordArray(Vec<Record>),
+    RecordArray(Operation),
     Null,
     Invalid(String),
 }
