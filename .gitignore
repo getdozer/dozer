@@ -12,3 +12,4 @@ dozer-core/.data
 docker/data/
 dozer-sql/data
 *.mdb
+/run_configs/
