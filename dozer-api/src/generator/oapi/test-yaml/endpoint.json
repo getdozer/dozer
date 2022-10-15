@@ -1,6 +1,6 @@
 {
   "id": null,
-  "name": "films",
+  "name": "film",
   "path": "/films",
   "enable_rest": false,
   "enable_grpc": true,

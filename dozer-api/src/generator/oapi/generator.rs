@@ -24,7 +24,7 @@ impl OpenApiGenerator {
             ..Default::default()
         };
         let get_operation = Some(Operation {
-            tags: vec![self.endpoint.name.to_owned()],
+            tags: vec![format!("{}s", self.schema_name.to_owned())],
             summary: Some("summary".to_owned()),
             description: Some("some description".to_owned()),
             operation_id: Some(format!("{}-by-id", self.schema_name.to_owned())),
@@ -59,12 +59,12 @@ impl OpenApiGenerator {
     fn _generate_get_list(&self) -> Result<ReferenceOr<PathItem>> {
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", self.endpoint.name.to_owned())))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}",format!("{}s", self.schema_name.to_owned()))))
             },
             ..Default::default()
         };
         let operation = Some(Operation {
-            tags: vec![self.endpoint.name.to_owned()],
+            tags: vec![format!("{}s", self.schema_name.to_owned())],
             summary: Some("summary".to_owned()),
             description: Some("some description".to_owned()),
             operation_id: Some(format!("list-{}", self.endpoint.name.to_owned())),
@@ -87,12 +87,12 @@ impl OpenApiGenerator {
         };
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", self.endpoint.name.to_owned())))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", format!("{}s", self.schema_name.to_owned()))))
             },
             ..Default::default()
         };
         let operation = Some(Operation {
-            tags: vec![self.endpoint.name.to_owned()],
+            tags: vec![format!("{}s", self.schema_name.to_owned())],
             summary: Some("summary".to_owned()),
             description: Some("some description".to_owned()),
             operation_id: Some(format!("query-{}", self.endpoint.name.to_owned())),
@@ -160,6 +160,7 @@ impl OpenApiGenerator {
     pub fn generate_oas3(&self, path: Option<String>) -> Result<OpenAPI> {
         let component_schemas = self._generate_component_schema()?;
         let paths_available = self._generate_available_paths()?;
+
         let api = OpenAPI {
             openapi: "3.0.0".to_owned(),
             info: Info {
@@ -173,7 +174,7 @@ impl OpenApiGenerator {
                 ..Default::default()
             },
             tags: vec![Tag {
-                name: self.endpoint.name.to_owned(),
+                name: format!("{}s", self.schema_name.to_owned()),
                 ..Default::default()
             }],
             servers: self
@@ -230,7 +231,7 @@ mod tests {
         let expected: OpenAPI = serde_yaml::from_str(expected_str)?;
         let oapi_generator = OpenApiGenerator::new(
             schema,
-            "film".to_owned(),
+            endpoint.name.to_owned(),
             endpoint,
             vec![format!("http://localhost:{}", "8080")],
         )?;
