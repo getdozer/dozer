@@ -88,7 +88,7 @@ impl Sink for CacheSink {
 
         // Get hash of schema
         let mut hasher = DefaultHasher::new();
-        let bytes = bincode::serialize(&schema.fields)?;
+        let bytes = self.api_endpoint.sql.as_bytes();
         hasher.write(&bytes);
         let hash = hasher.finish();
 
