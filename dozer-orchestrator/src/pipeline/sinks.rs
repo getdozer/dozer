@@ -11,7 +11,7 @@ use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::StateStore;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use log::debug;
 
 pub struct CacheSinkFactory {
@@ -84,13 +84,18 @@ impl Sink for CacheSink {
             );
         }
 
-        let schema = self.get_output_schema(&self.input_schemas[&from_port])?;
+        let mut schema = self.get_output_schema(&self.input_schemas[&from_port])?;
 
         // Get hash of schema
         let mut hasher = DefaultHasher::new();
-        let bytes = bincode::serialize(&schema.identifier)?;
+        let bytes = self.api_endpoint.sql.as_bytes();
         hasher.write(&bytes);
         let hash = hasher.finish();
+
+        schema.identifier = Some(SchemaIdentifier {
+            id: hash as u32,
+            version: 1,
+        });
 
         // Insert if schema not already inserted
         if let std::collections::hash_map::Entry::Vacant(e) = self.schema_map.entry(hash) {
