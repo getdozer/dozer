@@ -59,7 +59,7 @@ impl OpenApiGenerator {
     fn _generate_get_list(&self) -> Result<ReferenceOr<PathItem>> {
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}",format!("{}s", self.schema_name.to_owned()))))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}s",self.schema_name.to_owned())))
             },
             ..Default::default()
         };
@@ -87,7 +87,7 @@ impl OpenApiGenerator {
         };
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", format!("{}s", self.schema_name.to_owned()))))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}s", self.schema_name.to_owned()) ))
             },
             ..Default::default()
         };
@@ -213,32 +213,5 @@ impl OpenApiGenerator {
             schema_name,
         };
         Ok(openapi_generator)
-    }
-}
-
-mod tests {
-    #[test]
-    fn test_generate_oapi() -> anyhow::Result<()> {
-        use crate::generator::oapi::generator::OpenApiGenerator;
-        use openapiv3::OpenAPI;
-
-        let schema_str = include_str!("test-yaml/cache_film_schema.json");
-        let schema: dozer_types::types::Schema = serde_json::from_str(schema_str)?;
-        let endpoint_str = include_str!("test-yaml/endpoint.json");
-        let endpoint: dozer_types::models::api_endpoint::ApiEndpoint =
-            serde_json::from_str(endpoint_str)?;
-        let expected_str = include_str!("test-yaml/films-expected.yaml");
-        let expected: OpenAPI = serde_yaml::from_str(expected_str)?;
-        let oapi_generator = OpenApiGenerator::new(
-            schema,
-            endpoint.name.to_owned(),
-            endpoint,
-            vec![format!("http://localhost:{}", "8080")],
-        )?;
-        let generated = oapi_generator.generate_oas3(Some(
-            "./src/generator/oapi/test-yaml/test_generate.yml".to_owned(),
-        ))?;
-        assert_eq!(generated, expected, "must be equal");
-        Ok(())
     }
 }
