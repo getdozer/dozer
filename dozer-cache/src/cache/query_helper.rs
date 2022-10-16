@@ -13,6 +13,10 @@ fn value_to_simple_expression(
     op: Operator,
     value: Value,
 ) -> anyhow::Result<FilterExpression> {
+    ensure!(
+        value.to_string().chars().all(|x| x.is_ascii()),
+        "Scalar value cannot contain special character"
+    );
     let field = json_value_to_field(value)?;
     let expression = FilterExpression::Simple(key, op, field);
     Ok(expression)
@@ -87,6 +91,14 @@ pub fn value_to_expression(input: Value) -> anyhow::Result<Vec<FilterExpression>
                     result.push(expression);
                     continue;
                 }
+                ensure!(
+                    !pair_key.eq("_")
+                        && pair_key
+                            .chars()
+                            .filter(|x| !x.eq(&'_'))
+                            .all(|x| x.is_ascii_alphanumeric()),
+                    "Key cannot contains special character"
+                );
                 // extract inner key
                 if let Value::Object(keys) = pair_value.clone() {
                     let key = keys.keys().next().cloned().context("Invalid Expression")?;
@@ -135,6 +147,10 @@ mod tests {
             json!({"a":  1}),
             FilterExpression::Simple("a".to_string(), Operator::EQ, Field::Int(1))
         );
+        test_parse_query!(
+            json!({"ab_c":  1}),
+            FilterExpression::Simple("ab_c".to_string(), Operator::EQ, Field::Int(1))
+        );
 
         test_parse_query!(
             json!({"a":  {"$eq": 1}}),
@@ -179,6 +195,15 @@ mod tests {
             json!({ "a": null }),
             FilterExpression::Simple("a".to_string(), Operator::EQ, Field::Null)
         );
+
+        // special character
+        test_parse_error_query!(json!({"_":  1}));
+        test_parse_error_query!(json!({"'":  1}));
+        test_parse_error_query!(json!({"\n":  1}));
+        test_parse_error_query!(json!({"❤":  1}));
+        test_parse_error_query!(json!({"%":  1}));
+        test_parse_error_query!(json!({"a":  '💝'}));
+        test_parse_error_query!(json!({"a":  "❤"}));
 
         test_parse_error_query!(json!({"a":  []}));
         test_parse_error_query!(json!({"a":  {}}));

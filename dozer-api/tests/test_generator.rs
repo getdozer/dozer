@@ -19,9 +19,7 @@ mod tests {
             endpoint,
             vec![format!("http://localhost:{}", "8080")],
         )?;
-        let generated = oapi_generator.generate_oas3(Some(
-            "./src/generator/oapi/test-yaml/test_generate.yml".to_owned(),
-        ))?;
+        let generated = oapi_generator.generate_oas3(Some("tests/test_generate.yml".to_owned()))?;
         assert_eq!(generated, expected, "must be equal");
         Ok(())
     }
