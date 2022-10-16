@@ -195,7 +195,7 @@ impl OpenApiGenerator {
                 .create(true)
                 .open(path)
                 .expect("Couldn't open file");
-            serde_yaml::to_writer(f, &api).unwrap();
+            serde_json::to_writer(f, &api)?;
         }
         Ok(api)
     }

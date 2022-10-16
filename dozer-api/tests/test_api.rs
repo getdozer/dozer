@@ -12,9 +12,9 @@ mod tests {
     use dozer_cache::cache::{lmdb::cache::LmdbCache, Cache};
     fn create_cache(schema_name: &str) -> anyhow::Result<Arc<LmdbCache>> {
         let cache = Arc::new(LmdbCache::new(true));
-        let schema_str = include_str!("cache_film_schema.json");
+        let schema_str = include_str!("api-server/cache_film_schema.json");
         let schema: dozer_types::types::Schema = serde_json::from_str(schema_str)?;
-        let records_str = include_str!("film_records.json");
+        let records_str = include_str!("api-server/film_records.json");
         let records_value: Vec<Value> = serde_json::from_str(records_str)?;
         for record_str in records_value {
             let film_id = record_str["film_id"].as_i64();
@@ -40,7 +40,7 @@ mod tests {
     }
 
     fn create_endpoint() -> anyhow::Result<ApiEndpoint> {
-        let endpoint_str = include_str!("endpoint.json");
+        let endpoint_str = include_str!("api-server/endpoint.json");
         let endpoint: ApiEndpoint = serde_json::from_str(endpoint_str)?;
         Ok(endpoint)
     }

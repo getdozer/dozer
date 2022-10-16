@@ -70,7 +70,7 @@ async fn generate_oapi(
     )
     .unwrap();
     let result = oapi_generator
-        .generate_oas3(Some("./test_generate.yml".to_owned()))
+        .generate_oas3(Some("./test_generate.json".to_owned()))
         .unwrap();
     Ok(HttpResponse::Ok().json(result))
 }
