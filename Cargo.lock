@@ -1187,6 +1187,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "clap 4.0.15",
  "crossbeam",
  "dotenvy",
  "dozer-api",
@@ -1200,6 +1201,7 @@ dependencies = [
  "log4rs",
  "serde",
  "serde_json",
+ "serde_yaml 0.9.13",
  "tempdir",
  "tokio",
  "uuid",
