@@ -27,7 +27,22 @@ impl<'a> Iterator for CacheIterator<'a> {
                 ascending,
             } => {
                 let res = match starting_key {
-                    Some(starting_key) => self.cursor.get(Some(starting_key), None, MDB_SET_RANGE),
+                    Some(starting_key) => {
+                        if ascending {
+                            self.cursor.get(Some(starting_key), None, MDB_SET_RANGE)
+                        } else {
+                            let (key, val) =
+                                match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
+                                    Ok((Some(key), val)) => (key, val),
+                                    _ => return None,
+                                };
+                            if key == starting_key {
+                                Ok((Some(key), val))
+                            } else {
+                                self.cursor.get(None, None, MDB_PREV)
+                            }
+                        }
+                    }
                     None => {
                         if ascending {
                             self.cursor.get(None, None, MDB_FIRST)
@@ -117,6 +132,56 @@ mod tests {
             vec![
                 b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
             ],
+        );
+
+        // Test descending from last.
+        check(
+            None,
+            false,
+            vec![
+                b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
+            ],
+        );
+
+        // Test descending from last using the same cursor again.
+        check(
+            None,
+            false,
+            vec![
+                b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
+            ],
+        );
+
+        // Test ascending from existing key.
+        let starting_key = b"ba".to_vec();
+        check(
+            Some(&starting_key),
+            true,
+            vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
+        );
+
+        // Test descending from existing key.
+        let starting_key = b"bc".to_vec();
+        check(
+            Some(&starting_key),
+            false,
+            vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
+        );
+
+        // Test ascending from non-existing key.
+        let starting_key = b"ad".to_vec();
+        check(
+            Some(&starting_key),
+            true,
+            vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
+        );
+
+        // Test descending from non-existing key.
+        let starting_key = b"bd".to_vec();
+        check(
+            Some(&starting_key),
+            false,
+            vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
     }
 }
