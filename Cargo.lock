@@ -1122,6 +1122,7 @@ dependencies = [
  "futures",
  "galil-seiferas",
  "lmdb-rkv",
+ "lmdb-rkv-sys",
  "log",
  "log4rs",
  "tempdir",
