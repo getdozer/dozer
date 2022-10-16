@@ -1,14 +1,11 @@
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
-use std::fs;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::source::Source;
+use serde::{Deserialize, Serialize};
+use std::fs;
 
 #[derive(Parser, Debug)]
-#[command(
-    author,
-    version,
-)]
+#[command(author, version)]
 pub struct Args {
     #[clap(subcommand)]
     pub cmd: SubCommand,

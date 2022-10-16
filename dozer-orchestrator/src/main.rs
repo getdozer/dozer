@@ -2,14 +2,14 @@ mod cli;
 
 use clap::Parser;
 
-use std::sync::Arc;
 use log::debug;
+use std::sync::Arc;
 
+use crate::cli::{load_config, Args, SubCommand};
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use dozer_schema::registry::_get_client;
 use tokio::runtime::Runtime;
-use crate::cli::{Args, load_config, SubCommand};
 
 fn main() -> anyhow::Result<()> {
     log4rs::init_file("log4rs.yaml", Default::default())
