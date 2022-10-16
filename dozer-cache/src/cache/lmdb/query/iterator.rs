@@ -85,3 +85,55 @@ impl NextOp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use lmdb::{Transaction, WriteFlags};
+
+    use crate::cache::lmdb::utils::{init_db, init_env};
+
+    use super::CacheIterator;
+
+    #[test]
+    fn test_cache_iterator() {
+        let env = init_env(true).unwrap();
+        let db = init_db(&env, None).unwrap();
+
+        // Insert test data.
+        let mut txn = env.begin_rw_txn().unwrap();
+        for key in [
+            b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
+        ] {
+            txn.put(db, key, &[], WriteFlags::empty()).unwrap();
+        }
+        txn.commit().unwrap();
+
+        // Create testing cursor and utility function.
+        let txn = env.begin_ro_txn().unwrap();
+        let cursor = txn.open_ro_cursor(db).unwrap();
+        let check = |starting_key, ascending, expected: Vec<&'static [u8]>| {
+            let actual = CacheIterator::new(&cursor, starting_key, ascending)
+                .map(|(key, _)| key)
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected);
+        };
+
+        // Test ascending from start.
+        check(
+            None,
+            true,
+            vec![
+                b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
+            ],
+        );
+
+        // Test ascending from start using the same cursor again.
+        check(
+            None,
+            true,
+            vec![
+                b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
+            ],
+        );
+    }
+}
