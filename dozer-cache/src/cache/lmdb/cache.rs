@@ -69,7 +69,7 @@ impl LmdbCache {
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())?;
 
-        let indexer = Indexer::new(&self.indexer_db);
+        let indexer = Indexer::new(self.indexer_db);
 
         indexer.build_indexes(txn, rec, schema, key)?;
 
@@ -184,7 +184,7 @@ impl Cache for LmdbCache {
 
     fn get(&self, key: &[u8]) -> anyhow::Result<Record> {
         let txn: RoTransaction = self.env.begin_ro_txn()?;
-        let rec: Record = helper::get(&txn, &self.db, key)?;
+        let rec: Record = helper::get(&txn, self.db, key)?;
         Ok(rec)
     }
 
@@ -192,7 +192,7 @@ impl Cache for LmdbCache {
         let txn: RoTransaction = self.env.begin_ro_txn()?;
         let schema = self._get_schema_from_reverse_key(name, &txn)?;
 
-        let handler = LmdbQueryHandler::new(&self.db, &self.indexer_db, &txn);
+        let handler = LmdbQueryHandler::new(self.db, self.indexer_db, &txn);
         let records = handler.query(&schema, query)?;
         Ok(records)
     }

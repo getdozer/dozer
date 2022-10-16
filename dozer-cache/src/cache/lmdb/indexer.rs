@@ -4,17 +4,17 @@ use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 
 use crate::cache::index;
 
-pub struct Indexer<'a> {
-    db: &'a Database,
+pub struct Indexer {
+    db: Database,
 }
-impl<'a> Indexer<'a> {
-    pub fn new(db: &'a Database) -> Self {
+impl Indexer {
+    pub fn new(db: Database) -> Self {
         Self { db }
     }
 
     pub fn build_indexes(
         &self,
-        parent_txn: &'a mut RwTransaction,
+        parent_txn: &mut RwTransaction,
         rec: &Record,
         schema: &Schema,
         pkey: Vec<u8>,
@@ -28,7 +28,7 @@ impl<'a> Indexer<'a> {
         for index in schema.secondary_indexes.iter() {
             let secondary_key = self._build_index(index, rec, identifier)?;
 
-            txn.put::<Vec<u8>, Vec<u8>>(*self.db, &secondary_key, &pkey, WriteFlags::default())?;
+            txn.put::<Vec<u8>, Vec<u8>>(self.db, &secondary_key, &pkey, WriteFlags::default())?;
         }
         txn.commit()?;
         Ok(())

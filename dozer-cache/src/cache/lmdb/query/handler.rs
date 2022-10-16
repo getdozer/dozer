@@ -11,12 +11,12 @@ use crate::cache::{
 use dozer_types::types::{Record, Schema, SchemaIdentifier};
 
 pub struct LmdbQueryHandler<'a> {
-    db: &'a Database,
-    indexer_db: &'a Database,
+    db: Database,
+    indexer_db: Database,
     txn: &'a RoTransaction<'a>,
 }
 impl<'a> LmdbQueryHandler<'a> {
-    pub fn new(db: &'a Database, indexer_db: &'a Database, txn: &'a RoTransaction) -> Self {
+    pub fn new(db: Database, indexer_db: Database, txn: &'a RoTransaction) -> Self {
         Self {
             db,
             indexer_db,
@@ -47,7 +47,7 @@ impl<'a> LmdbQueryHandler<'a> {
         limit: usize,
         skip: usize,
     ) -> anyhow::Result<Vec<Record>> {
-        let cursor = self.txn.open_ro_cursor(*self.db)?;
+        let cursor = self.txn.open_ro_cursor(self.db)?;
         let mut cache_iterator = CacheIterator::new(&cursor, None, true);
         // cache_iterator.skip(skip);
 
@@ -88,7 +88,7 @@ impl<'a> LmdbQueryHandler<'a> {
 
         let starting_key =
             index::get_secondary_index(schema_identifier.id, &index_scan.index_def.fields, &fields);
-        let cursor = self.txn.open_ro_cursor(*self.indexer_db)?;
+        let cursor = self.txn.open_ro_cursor(self.indexer_db)?;
 
         let mut cache_iterator = CacheIterator::new(&cursor, Some(&starting_key), true);
         let mut pkeys = vec![];
