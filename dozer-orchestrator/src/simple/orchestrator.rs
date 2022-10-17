@@ -1,7 +1,7 @@
 use std::{sync::Arc, thread};
 
 use dozer_api::server::ApiServer;
-use dozer_cache::cache::lmdb::cache::LmdbCache;
+use dozer_cache::cache::LmdbCache;
 use dozer_schema::registry::SchemaRegistryClient;
 
 use super::executor::Executor;
