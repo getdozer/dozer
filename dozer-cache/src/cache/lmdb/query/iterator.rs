@@ -31,15 +31,16 @@ impl<'a> Iterator for CacheIterator<'a> {
                         if ascending {
                             self.cursor.get(Some(starting_key), None, MDB_SET_RANGE)
                         } else {
-                            let (key, val) =
-                                match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
-                                    Ok((Some(key), val)) => (key, val),
-                                    _ => return None,
-                                };
-                            if key == starting_key {
-                                Ok((Some(key), val))
-                            } else {
-                                self.cursor.get(None, None, MDB_PREV)
+                            match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
+                                Ok((key, value)) => {
+                                    if key == Some(starting_key) {
+                                        Ok((key, value))
+                                    } else {
+                                        self.cursor.get(None, None, MDB_PREV)
+                                    }
+                                }
+                                Err(lmdb::Error::NotFound) => self.cursor.get(None, None, MDB_LAST),
+                                Err(e) => Err(e),
                             }
                         }
                     }
@@ -182,6 +183,16 @@ mod tests {
             Some(&starting_key),
             false,
             vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
+        );
+
+        // Test descending from key past db end.
+        let starting_key = b"dd".to_vec();
+        check(
+            Some(&starting_key),
+            false,
+            vec![
+                b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
+            ],
         );
     }
 }
