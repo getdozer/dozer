@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use openapiv3::{
-    AdditionalProperties, Contact, MediaType, NumberFormat, NumberType, ObjectType, Parameter,
+    Contact, MediaType, NumberFormat, NumberType, ObjectType, Parameter,
     ParameterData, ParameterSchemaOrContent, PathStyle, ReferenceOr, Response, Schema, SchemaData,
     SchemaKind, StringType, Type, VariantOrUnknownOrEmpty,
 };

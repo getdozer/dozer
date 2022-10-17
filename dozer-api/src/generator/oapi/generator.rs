@@ -1,6 +1,6 @@
 use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
 use anyhow::Result;
-use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
+
 use dozer_types::{
     models::api_endpoint::ApiEndpoint,
     types::{Field, FieldType},
@@ -28,7 +28,7 @@ impl OpenApiGenerator {
     fn generate_query_example(&self) -> Value {
         println!("{:?}", self.schema.clone());
 
-        if self.schema.secondary_indexes.len() > 0 {
+        if !self.schema.secondary_indexes.is_empty() {
             let fields_idx = self.schema.secondary_indexes[0].fields.to_owned();
 
             let field_def = &self.schema.fields[fields_idx[0]];
@@ -212,7 +212,7 @@ impl OpenApiGenerator {
                 ..Default::default()
             },
             tags: vec![Tag {
-                name: format!("{}", self.schema_name.to_owned()),
+                name: self.schema_name.to_owned(),
                 ..Default::default()
             }],
             servers: self

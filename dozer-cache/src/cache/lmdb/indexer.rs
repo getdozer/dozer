@@ -26,7 +26,7 @@ impl Indexer {
             .to_owned()
             .context("schema_id is expected")?;
 
-        if schema.secondary_indexes.len() < 1 {
+        if schema.secondary_indexes.is_empty() {
             bail!("No secondary indexes defined.")
         }
         for index in schema.secondary_indexes.iter() {
