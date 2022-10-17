@@ -1,12 +1,30 @@
 use crate::dag::dag::PortHandle;
+use crate::dag::forwarder::ProcessorChannelForwarder;
 use crate::dag::node::{Processor, ProcessorFactory};
 use crate::nested_join::processor::NestedJoinProcessorFactory;
 use crate::state::lmdb::LmdbStateStoreManager;
 use crate::state::{StateStore, StateStoreOptions, StateStoresManager};
-use dozer_types::types::{FieldDefinition, FieldType, Schema};
+use dozer_types::types::{FieldDefinition, FieldType, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
 use tempdir::TempDir;
+
+pub struct TestProcessorForwarder {
+    pub res: Vec<Operation>,
+}
+
+impl TestProcessorForwarder {
+    pub fn new() -> Self {
+        Self { res: Vec::new() }
+    }
+}
+
+impl ProcessorChannelForwarder for TestProcessorForwarder {
+    fn send(&self, op: Operation, port: PortHandle) -> anyhow::Result<()> {
+        // self.res.push(op);
+        Ok(())
+    }
+}
 
 pub fn get_parent_schema() -> Schema {
     Schema::empty()
@@ -40,7 +58,7 @@ pub fn get_child_schema() -> Schema {
             true,
         )
         .field(
-            FieldDefinition::new("customer_id".to_string(), FieldType::String, false),
+            FieldDefinition::new("customer_id".to_string(), FieldType::Int, false),
             true,
             false,
         )
