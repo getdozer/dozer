@@ -9,7 +9,7 @@ mod tests {
     use serde_json::{json, Value};
     use std::sync::Arc;
 
-    use dozer_cache::cache::{lmdb::cache::LmdbCache, Cache};
+    use dozer_cache::cache::{Cache, LmdbCache};
     fn create_cache(schema_name: &str) -> anyhow::Result<Arc<LmdbCache>> {
         let cache = Arc::new(LmdbCache::new(true));
         let schema_str = include_str!("api-server/cache_film_schema.json");
@@ -32,8 +32,8 @@ mod tests {
                         Field::Int(release_year),
                     ],
                 );
-
-                cache.insert_with_schema(&record, &schema, schema_name)?;
+                cache.insert_schema(schema_name, &schema)?;
+                cache.insert(&record)?;
             }
         }
         Ok(cache)
