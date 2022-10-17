@@ -1,70 +1,13 @@
-use actix_web::{rt, web, App, HttpResponse, HttpServer, Responder};
-use anyhow::Context;
-use dozer_cache::cache::{expression::QueryExpression, index, Cache, LmdbCache};
-use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
-use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
+use actix_web::{
+    body::MessageBody,
+    dev::{ServiceFactory, ServiceRequest, ServiceResponse},
+    rt, web, App, HttpServer,
+};
+use dozer_cache::cache::LmdbCache;
+use dozer_types::models::api_endpoint::ApiEndpoint;
+use std::sync::Arc;
 
-fn get_record(
-    cache: web::Data<Arc<LmdbCache>>,
-    key: Value,
-) -> anyhow::Result<HashMap<String, Value>> {
-    let key = match json_value_to_field(key) {
-        Ok(key) => key,
-        Err(e) => {
-            panic!("error : {:?}", e);
-        }
-    };
-    let key = index::get_primary_key(&[0], &[key]);
-
-    let rec = cache.get(&key).context("record not found")?;
-    let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;
-    record_to_json(&rec, &schema)
-}
-
-fn get_records(
-    cache: web::Data<Arc<LmdbCache>>,
-    exp: QueryExpression,
-) -> anyhow::Result<Vec<HashMap<String, Value>>> {
-    let records = cache.query("films", &exp)?;
-    let schema = cache.get_schema(
-        &records[0]
-            .schema_id
-            .to_owned()
-            .context("schema_id not found")?,
-    )?;
-    let mut maps = vec![];
-    for rec in records.iter() {
-        let map = record_to_json(rec, &schema)?;
-        maps.push(map);
-    }
-    Ok(maps)
-}
-
-async fn get(path: web::Path<(String,)>, cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    let key_json: Value = serde_json::from_str(&path.into_inner().0).unwrap();
-
-    match get_record(cache, key_json) {
-        Ok(map) => {
-            let str = serde_json::to_string(&map).unwrap();
-            HttpResponse::Ok().body(str)
-        }
-        Err(e) => HttpResponse::NotFound().body(e.to_string()),
-    }
-}
-
-async fn list(cache: web::Data<Arc<LmdbCache>>) -> impl Responder {
-    let exp = QueryExpression::new(None, vec![], 50, 0);
-    let records = get_records(cache, exp);
-
-    match records {
-        Ok(maps) => {
-            let str = serde_json::to_string(&maps).unwrap();
-            HttpResponse::Ok().body(str)
-        }
-        Err(_) => HttpResponse::Ok().body("[]"),
-    }
-}
+use crate::api_helper;
 
 #[derive(Clone)]
 pub struct ApiServer {
@@ -86,25 +29,39 @@ impl ApiServer {
             port,
         }
     }
-
+    pub fn create_app_entry(
+        endpoints: Vec<ApiEndpoint>,
+        cache: Arc<LmdbCache>,
+    ) -> App<
+        impl ServiceFactory<
+            ServiceRequest,
+            Response = ServiceResponse<impl MessageBody>,
+            Config = (),
+            InitError = (),
+            Error = actix_web::Error,
+        >,
+    > {
+        let app = App::new();
+        let app = app.app_data(web::Data::new((cache, endpoints.clone())));
+        let app = endpoints.iter().fold(app, |app, endpoint| {
+            let list_route = &endpoint.path.clone();
+            let get_route = format!("{}/{}", list_route, "{id}");
+            let query_route = format!("{}/query", list_route);
+            app.route(list_route, web::get().to(api_helper::list))
+                .route(&get_route, web::get().to(api_helper::get))
+                .route(&query_route, web::post().to(api_helper::query))
+                .route("oapi", web::post().to(api_helper::generate_oapi))
+        });
+        app
+    }
     pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
         let endpoints = endpoints;
-
         rt::System::new().block_on(async move {
-            HttpServer::new(move || {
-                let app = App::new();
-                let app = app.app_data(web::Data::new(cache.clone()));
-                endpoints.iter().fold(app, |app, endpoint| {
-                    let list_route = &endpoint.path.clone();
-                    let get_route = format!("{}/{}", list_route, "{id}");
-                    app.route(list_route, web::get().to(list))
-                        .route(&get_route, web::get().to(get))
-                })
-            })
-            .bind(("0.0.0.0", self.port.to_owned()))?
-            .shutdown_timeout(self.shutdown_timeout.to_owned())
-            .run()
-            .await
+            HttpServer::new(move || ApiServer::create_app_entry(endpoints.clone(), cache.clone()))
+                .bind(("0.0.0.0", self.port.to_owned()))?
+                .shutdown_timeout(self.shutdown_timeout.to_owned())
+                .run()
+                .await
         })
     }
 }

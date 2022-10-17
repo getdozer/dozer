@@ -1,4 +1,4 @@
-use anyhow::{Context, Ok};
+use anyhow::{bail, Context, Ok};
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier};
 use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 
@@ -25,6 +25,10 @@ impl Indexer {
             .identifier
             .to_owned()
             .context("schema_id is expected")?;
+
+        if schema.secondary_indexes.is_empty() {
+            bail!("No secondary indexes defined.")
+        }
         for index in schema.secondary_indexes.iter() {
             let secondary_key = self._build_index(index, rec, identifier)?;
 
