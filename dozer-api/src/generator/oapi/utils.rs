@@ -1,8 +1,8 @@
 use indexmap::IndexMap;
 use openapiv3::{
-    Contact, MediaType, NumberFormat, NumberType, ObjectType, Parameter,
-    ParameterData, ParameterSchemaOrContent, PathStyle, ReferenceOr, Response, Schema, SchemaData,
-    SchemaKind, StringType, Type, VariantOrUnknownOrEmpty,
+    Contact, MediaType, NumberFormat, NumberType, ObjectType, Parameter, ParameterData,
+    ParameterSchemaOrContent, PathStyle, ReferenceOr, Response, Schema, SchemaData, SchemaKind,
+    StringType, Type, VariantOrUnknownOrEmpty,
 };
 
 const CONTACT_NAME: &str = "Dozer Team";

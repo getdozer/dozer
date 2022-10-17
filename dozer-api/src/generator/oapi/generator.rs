@@ -1,10 +1,7 @@
 use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
 use anyhow::Result;
 
-use dozer_types::{
-    models::api_endpoint::ApiEndpoint,
-    types::{FieldType},
-};
+use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use indexmap::IndexMap;
 use openapiv3::*;
 use serde_json::{json, Value};
