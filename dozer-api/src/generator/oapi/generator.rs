@@ -18,32 +18,30 @@ pub struct OpenApiGenerator {
 }
 impl OpenApiGenerator {
     fn get_singular_name(&self) -> String {
-        format!("{}_multiple", self.schema_name.to_owned())
+        format!("{}", self.schema_name.to_owned())
     }
     fn get_plural_name(&self) -> String {
-        format!("{}_single", self.schema_name.to_owned())
+        format!("{}_array", self.schema_name.to_owned())
     }
 
     // Generate first secondary_index as an example
     fn generate_query_example(&self) -> Value {
-        println!("{:?}", self.schema.clone());
-
         if !self.schema.secondary_indexes.is_empty() {
             let fields_idx = self.schema.secondary_indexes[0].fields.to_owned();
 
             let field_def = &self.schema.fields[fields_idx[0]];
             let name = field_def.name.clone();
             let val = match field_def.typ {
-                FieldType::Int => Field::Int(1),
-                FieldType::Float => Field::Float(1.1),
-                FieldType::Boolean => Field::Boolean(true),
-                FieldType::String => Field::String("foo".to_string()),
-                FieldType::Binary => Field::Null,
-                FieldType::Decimal => Field::Null,
-                FieldType::Timestamp => Field::Null,
-                FieldType::Bson => Field::Null,
-                FieldType::Null => Field::Null,
-                FieldType::RecordArray(_) => Field::Null,
+                FieldType::Int => Value::from(1),
+                FieldType::Float => Value::from(1.1),
+                FieldType::Boolean => Value::from(true),
+                FieldType::String => Value::from("foo".to_string()),
+                FieldType::Binary
+                | FieldType::Decimal
+                | FieldType::Timestamp
+                | FieldType::Bson
+                | FieldType::Null
+                | FieldType::RecordArray(_) => Value::Null,
             };
             json!({ name: val })
         } else {
@@ -167,12 +165,12 @@ impl OpenApiGenerator {
     }
 
     fn generate_component_schema(&self) -> Result<Option<Components>> {
-        let plural_name = self.get_plural_name();
         let generated_schema =
             convert_cache_to_oapi_schema(self.schema.to_owned(), self.schema_name.to_owned())?;
+
         let schemas = indexmap::indexmap! {
-            self.schema_name.to_owned() => ReferenceOr::Item(generated_schema),
-            plural_name => ReferenceOr::Item(Schema {
+            self.get_singular_name() => ReferenceOr::Item(generated_schema),
+            self.get_plural_name() => ReferenceOr::Item(Schema {
                         schema_data: SchemaData {
                             description: Some(format!("Array of {}", self.schema_name.to_owned())),
                             ..Default::default()
