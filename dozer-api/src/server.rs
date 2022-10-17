@@ -62,9 +62,10 @@ async fn generate_oapi(
                 message: Some(e.to_string()),
                 details: None,
             })?;
+    let schema_name = endpoints[0].clone().name;
     let oapi_generator = OpenApiGenerator::new(
         schema_by_name,
-        "film".to_owned(),
+        schema_name,
         endpoints[0].clone(),
         vec![format!("http://localhost:{}", "8080")],
     )

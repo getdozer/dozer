@@ -24,7 +24,12 @@ strum_macros = "0.24.3"
 
 [dev-dependencies]
 criterion = "0.4.0"
+rand = "0.8.5"
 
 [[bench]]
 name = "cache"
+harness = false
+
+[[bench]]
+name = "query_deserialize"
 harness = false

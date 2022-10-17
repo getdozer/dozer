@@ -1146,6 +1146,7 @@ dependencies = [
  "lmdb-rkv-sys",
  "log",
  "log4rs",
+ "rand 0.8.5",
  "strum",
  "strum_macros",
  "tempdir",
