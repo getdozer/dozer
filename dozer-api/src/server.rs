@@ -1,8 +1,7 @@
 use actix_web::{
     body::MessageBody,
     dev::{ServiceFactory, ServiceRequest, ServiceResponse},
-    http::header::ContentType,
-    rt, web, App, HttpResponse, HttpServer, Responder,
+    rt, web, App, HttpServer,
 };
 use dozer_cache::cache::LmdbCache;
 use dozer_types::models::api_endpoint::ApiEndpoint;

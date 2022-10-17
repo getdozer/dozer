@@ -1,8 +1,5 @@
 use actix_web::{
-    body::MessageBody,
-    dev::{ServiceFactory, ServiceRequest, ServiceResponse},
-    http::header::ContentType,
-    rt, web, App, HttpResponse, HttpServer, Responder,
+    http::header::ContentType, web, HttpResponse, Responder,
 };
 use anyhow::Context;
 use dozer_cache::cache::{

@@ -25,7 +25,7 @@ fn deserialize(n: usize) -> anyhow::Result<()> {
         .map(|_| {
             let dice = rng.gen_range(0..comparision_key.len() - 1);
             let sample_string = Alphanumeric.sample_string(&mut rand::thread_rng(), 8);
-            return json!({ sample_string: {comparision_key[dice]: n}});
+            json!({ sample_string: {comparision_key[dice]: n}})
         })
         .collect();
     let complex_ex = json!({ "$and": simple_ex });
