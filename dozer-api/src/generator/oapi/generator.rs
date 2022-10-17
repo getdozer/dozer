@@ -25,14 +25,17 @@ impl OpenApiGenerator {
             ..Default::default()
         };
         let get_operation = Some(Operation {
-            tags: vec![format!("{}s", self.schema_name.to_owned())],
-            summary: Some("summary".to_owned()),
-            description: Some("some description".to_owned()),
+            tags: vec![format!("{}", self.schema_name.to_owned())],
+            summary: Some("Fetch a single document record by primary key".to_owned()),
+            description: Some(
+                "Generated API to fetch a single record. Primary key specified will be used for lookup"
+                    .to_owned(),
+            ),
             operation_id: Some(format!("{}-by-id", self.schema_name.to_owned())),
             parameters: vec![ReferenceOr::Item(Parameter::Path {
                 parameter_data: ParameterData {
                     name: "id".to_owned(),
-                    description: Some(format!("Id of {} to fetch", self.schema_name.to_owned())),
+                    description: Some(format!("Primary key of the document - {} ", self.endpoint.index.primary_key.join(", "))),
                     required: true,
                     format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
                         schema_data: SchemaData {
@@ -66,8 +69,10 @@ impl OpenApiGenerator {
         };
         let operation = Some(Operation {
             tags: vec![format!("{}s", self.schema_name.to_owned())],
-            summary: Some("summary".to_owned()),
-            description: Some("some description".to_owned()),
+            summary: Some("Fetch multiple documents in the default sort order".to_owned()),
+            description: Some(
+                "This is used when no filter expression or sort is needed.".to_owned(),
+            ),
             operation_id: Some(format!("list-{}", self.endpoint.name.to_owned())),
             responses,
             ..Default::default()
@@ -94,8 +99,10 @@ impl OpenApiGenerator {
         };
         let operation = Some(Operation {
             tags: vec![format!("{}s", self.schema_name.to_owned())],
-            summary: Some("summary".to_owned()),
-            description: Some("some description".to_owned()),
+            summary: Some("Query documents based on an expression".to_owned()),
+            description: Some(
+                "Documents can be queried based on a simple or a composite expression".to_owned(),
+            ),
             operation_id: Some(format!("query-{}", self.endpoint.name.to_owned())),
             request_body: Some(openapiv3::ReferenceOr::Item(request_body)),
             responses,
@@ -167,7 +174,7 @@ impl OpenApiGenerator {
             info: Info {
                 title: self.endpoint.name.to_uppercase(),
                 description: Some(format!(
-                    "API documentation for {}",
+                    "API documentation for {}. Powered by Dozer Data.",
                     self.endpoint.name.to_lowercase()
                 )),
                 version: "1.0.0".to_owned(),

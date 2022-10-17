@@ -33,8 +33,16 @@ pub async fn generate_oapi(
         vec![format!("http://localhost:{}", "8080")],
     );
 
-    let result = oapi_generator.generate_oas3().unwrap();
-    Ok(HttpResponse::Ok().json(result))
+    match oapi_generator.generate_oas3() {
+        Ok(result) => Ok(HttpResponse::Ok().json(result)),
+        Err(e) => {
+            let error = RestError::Unknown {
+                message: Some(e.to_string()),
+                details: None,
+            };
+            Ok(HttpResponse::UnprocessableEntity().json(error))
+        }
+    }
 }
 
 // Generated Get function to return a single record in JSON format
