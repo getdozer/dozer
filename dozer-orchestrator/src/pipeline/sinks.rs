@@ -5,8 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::Context;
-use dozer_cache::cache::lmdb::cache::LmdbCache;
-use dozer_cache::cache::{index, Cache};
+use dozer_cache::cache::{index, Cache, LmdbCache};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::StateStore;
@@ -99,7 +98,7 @@ impl Sink for CacheSink {
 
         // Insert if schema not already inserted
         if let std::collections::hash_map::Entry::Vacant(e) = self.schema_map.entry(hash) {
-            self.cache.insert_schema(&schema, &self.api_endpoint.name)?;
+            self.cache.insert_schema(&self.api_endpoint.name, &schema)?;
             e.insert(true);
         }
 

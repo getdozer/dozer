@@ -1,5 +1,13 @@
 use dozer_types::types::{FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier};
 
+use super::lmdb::cache::LmdbCache;
+
+pub fn setup() -> (LmdbCache, Schema) {
+    let schema = schema_0();
+    let cache = LmdbCache::new(true);
+    (cache, schema)
+}
+
 pub fn schema_0() -> Schema {
     Schema {
         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),

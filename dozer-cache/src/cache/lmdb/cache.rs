@@ -42,6 +42,194 @@ async fn _get_schema_from_registry(
     Ok(schema)
 }
 
+/// Dozer Cache
+///
+/// Insert, update and delete `Schema`.
+///
+/// # Example
+/// ```
+/// use dozer_types::types::{Field, Record, Schema, SchemaIdentifier, FieldDefinition};
+/// use dozer_cache::cache::{
+///     expression::{self, FilterExpression, QueryExpression},
+///     index, Cache,
+///     LmdbCache
+/// };
+/// use anyhow::{Context};
+/// let cache = LmdbCache::new(true);
+/// let schema = Schema {
+///    identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+///    fields: vec![FieldDefinition {
+///        name: "foo".to_string(),
+///        typ: dozer_types::types::FieldType::String,
+///        nullable: true,
+///    }],
+///    values: vec![0],
+///    primary_index: vec![0],
+///    secondary_indexes: vec![],
+/// };
+///
+/// cache.insert_schema("test", &schema)?;
+///
+/// let get_schema = cache.get_schema(
+///     &schema
+///         .identifier
+///         .to_owned()
+///         .context("schema_id is expected")?,
+/// )?;
+/// assert_eq!(get_schema, schema, "must be equal");
+/// Ok::<(), anyhow::Error>(())
+/// ```
+///
+/// Insert, update and delete records based on a schema. Secondary indexes are automatically created.
+///
+/// # Example
+/// ```
+/// use dozer_types::types::{Field, Record, Schema, SchemaIdentifier, FieldDefinition};
+/// use dozer_cache::cache::{
+///     expression::{self, FilterExpression, QueryExpression},
+///     index, Cache,
+///     LmdbCache,
+///     test_utils
+/// };
+/// # use anyhow::{bail, Context};
+/// # let val = "bar".to_string();
+/// # let (cache, schema) = test_utils::setup();
+/// # cache.insert_schema("docs", &schema)?;
+///
+/// let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
+/// cache.insert(&record)?;
+///
+/// # let key = index::get_primary_key(&[0], &[Field::String(val)]);
+///
+/// let get_record = cache.get(&key)?;
+/// # assert_eq!(get_record, record, "must be equal");
+///
+/// cache.delete(&key)?;
+///
+/// cache.get(&key).expect_err("No record found");
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+/// /// Query based on simple and nested expressions.
+/// # Example
+/// ```
+/// # use dozer_types::types::{Field, Record, Schema, SchemaIdentifier, FieldDefinition};
+/// # use dozer_cache::cache::{
+/// #     expression::{self, FilterExpression, QueryExpression},
+/// #     index, Cache,
+/// #     LmdbCache,
+/// #     test_utils
+/// # };
+/// # use anyhow::{bail, Context};
+/// # let cache = LmdbCache::new(true);
+/// # let schema = test_utils::schema_1();
+/// # let record = Record::new(
+/// #     schema.identifier.clone(),
+/// #     vec![
+/// #         Field::Int(1),
+/// #         Field::String("test".to_string()),
+/// #         Field::Int(2),
+/// #     ],
+/// # );
+/// # cache.insert_schema("sample", &schema)?;
+/// # cache.insert(&record)?;
+///
+/// // Query without an expression
+/// let query = QueryExpression::new(None, vec![], 10, 0);
+/// let records = cache.query("sample", &query)?;
+/// # assert_eq!(records.len(), 1, "must be equal");
+///
+/// let filter = FilterExpression::And(
+///     Box::new(FilterExpression::Simple(
+///         "a".to_string(),
+///         expression::Operator::EQ,
+///         Field::Int(1),
+///     )),
+///     Box::new(FilterExpression::Simple(
+///         "b".to_string(),
+///         expression::Operator::EQ,
+///         Field::String("test".to_string()),
+///     )),
+/// );
+/// // Query with an expression
+/// let query = QueryExpression::new(Some(filter), vec![], 10, 0);
+/// let records = cache.query("sample", &query)?;
+///
+/// # assert_eq!(records.len(), 1, "must be equal");
+/// # assert_eq!(records[0], record, "must be equal");
+///
+/// # Ok::<(), anyhow::Error>(())
+impl Cache for LmdbCache {
+    /// Insert Schema
+    fn insert_schema(&self, name: &str, schema: &Schema) -> anyhow::Result<()> {
+        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
+        self._insert_schema(&mut txn, schema, name)?;
+        txn.commit()?;
+        Ok(())
+    }
+
+    /// Get Schema By Name
+    fn get_schema_by_name(&self, name: &str) -> anyhow::Result<Schema> {
+        let txn: RoTransaction = self.env.begin_ro_txn()?;
+        let schema = self._get_schema_from_reverse_key(name, &txn)?;
+        Ok(schema)
+    }
+
+    /// Get Schema By Identifier
+    fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> anyhow::Result<Schema> {
+        let txn: RoTransaction = self.env.begin_ro_txn()?;
+        self._get_schema(&txn, schema_identifier)
+    }
+
+    fn insert(&self, rec: &Record) -> anyhow::Result<()> {
+        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
+        let schema_identifier = match rec.schema_id.to_owned() {
+            Some(id) => id,
+            None => bail!("cache::Insert - Schema Id is not present"),
+        };
+        let schema = match self.get_schema(&schema_identifier) {
+            Ok(schema) => schema,
+            Err(_) => {
+                bail!("schema not present");
+            }
+        };
+
+        self._insert(&mut txn, rec, &schema)?;
+        txn.commit()?;
+        Ok(())
+    }
+
+    fn delete(&self, key: &[u8]) -> anyhow::Result<()> {
+        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
+        txn.del(self.db, &key, None)?;
+        txn.commit()?;
+        Ok(())
+    }
+
+    fn get(&self, key: &[u8]) -> anyhow::Result<Record> {
+        let txn: RoTransaction = self.env.begin_ro_txn()?;
+        let rec: Record = helper::get(&txn, self.db, key)?;
+        Ok(rec)
+    }
+
+    fn query(&self, name: &str, query: &QueryExpression) -> anyhow::Result<Vec<Record>> {
+        let txn: RoTransaction = self.env.begin_ro_txn()?;
+        let schema = self._get_schema_from_reverse_key(name, &txn)?;
+
+        let handler = LmdbQueryHandler::new(self.db, self.indexer_db, &txn);
+        let records = handler.query(&schema, query)?;
+        Ok(records)
+    }
+
+    fn update(&self, key: &[u8], rec: &Record, schema: &Schema) -> anyhow::Result<()> {
+        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
+        txn.del(self.db, &key, None)?;
+
+        self._insert(&mut txn, rec, schema)?;
+        txn.commit()?;
+        Ok(())
+    }
+}
+
 impl LmdbCache {
     pub fn new(temp_storage: bool) -> Self {
         let env = utils::init_env(temp_storage).unwrap();
@@ -136,90 +324,5 @@ impl LmdbCache {
         let schema = txn.get(self.schema_db, &key)?;
         let schema: Schema = bincode::deserialize(schema)?;
         Ok(schema)
-    }
-}
-
-impl Cache for LmdbCache {
-    fn insert_with_schema(&self, rec: &Record, schema: &Schema, name: &str) -> anyhow::Result<()> {
-        if rec.schema_id != schema.identifier {
-            bail!("record and schema dont have the same id.");
-        }
-        match schema.identifier.to_owned() {
-            Some(id) => id,
-            None => bail!("cache::Insert - Schema Id is not present"),
-        };
-        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-
-        self._insert_schema(&mut txn, schema, name)?;
-
-        self._insert(&mut txn, rec, schema)?;
-        txn.commit()?;
-        Ok(())
-    }
-
-    fn insert(&self, rec: &Record) -> anyhow::Result<()> {
-        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-        let schema_identifier = match rec.schema_id.to_owned() {
-            Some(id) => id,
-            None => bail!("cache::Insert - Schema Id is not present"),
-        };
-        let schema = match self.get_schema(&schema_identifier) {
-            Ok(schema) => schema,
-            Err(_) => {
-                bail!("schema not present");
-            }
-        };
-
-        self._insert(&mut txn, rec, &schema)?;
-        txn.commit()?;
-        Ok(())
-    }
-
-    fn delete(&self, key: &[u8]) -> anyhow::Result<()> {
-        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-        txn.del(self.db, &key, None)?;
-        txn.commit()?;
-        Ok(())
-    }
-
-    fn get(&self, key: &[u8]) -> anyhow::Result<Record> {
-        let txn: RoTransaction = self.env.begin_ro_txn()?;
-        let rec: Record = helper::get(&txn, self.db, key)?;
-        Ok(rec)
-    }
-
-    fn query(&self, name: &str, query: &QueryExpression) -> anyhow::Result<Vec<Record>> {
-        let txn: RoTransaction = self.env.begin_ro_txn()?;
-        let schema = self._get_schema_from_reverse_key(name, &txn)?;
-
-        let handler = LmdbQueryHandler::new(self.db, self.indexer_db, &txn);
-        let records = handler.query(&schema, query)?;
-        Ok(records)
-    }
-
-    fn update(&self, key: &[u8], rec: &Record, schema: &Schema) -> anyhow::Result<()> {
-        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-        txn.del(self.db, &key, None)?;
-
-        self._insert(&mut txn, rec, schema)?;
-        txn.commit()?;
-        Ok(())
-    }
-
-    fn get_schema_by_name(&self, name: &str) -> anyhow::Result<Schema> {
-        let txn: RoTransaction = self.env.begin_ro_txn()?;
-        let schema = self._get_schema_from_reverse_key(name, &txn)?;
-        Ok(schema)
-    }
-
-    fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> anyhow::Result<Schema> {
-        let txn: RoTransaction = self.env.begin_ro_txn()?;
-        self._get_schema(&txn, schema_identifier)
-    }
-    fn insert_schema(&self, schema: &Schema, name: &str) -> anyhow::Result<()> {
-        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-        self._insert_schema(&mut txn, schema, name)?;
-        txn.commit()?;
-        Ok(())
     }
 }

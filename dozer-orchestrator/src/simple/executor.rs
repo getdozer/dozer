@@ -6,7 +6,7 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::source::Source;
 use tempdir::TempDir;
 
-use dozer_cache::cache::lmdb::cache::LmdbCache;
+use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::state::lmdb::LmdbStateStoreManager;

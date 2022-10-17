@@ -1,6 +1,6 @@
 use super::super::test_utils;
 use anyhow::{Context, Ok};
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::types::{Field, Record};
 
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
@@ -8,12 +8,6 @@ use crate::cache::{
 };
 
 use super::cache::LmdbCache;
-
-fn _setup() -> (LmdbCache, Schema) {
-    let schema = test_utils::schema_0();
-    let cache = LmdbCache::new(true);
-    (cache, schema)
-}
 
 fn query_and_test(
     cache: &LmdbCache,
@@ -28,8 +22,8 @@ fn query_and_test(
 
 #[test]
 fn insert_and_get_schema() -> anyhow::Result<()> {
-    let (cache, schema) = _setup();
-    cache.insert_schema(&schema, "test")?;
+    let (cache, schema) = test_utils::setup();
+    cache.insert_schema("test", &schema)?;
     let schema = cache.get_schema_by_name("test")?;
 
     let get_schema = cache.get_schema(
@@ -45,9 +39,10 @@ fn insert_and_get_schema() -> anyhow::Result<()> {
 #[test]
 fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let val = "bar".to_string();
-    let (cache, schema) = _setup();
+    let (cache, schema) = test_utils::setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
-    cache.insert_with_schema(&record, &schema, "docs")?;
+    cache.insert_schema("docs", &schema)?;
+    cache.insert(&record)?;
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
@@ -64,10 +59,11 @@ fn insert_get_and_delete_record() -> anyhow::Result<()> {
 #[test]
 fn insert_and_query_record() -> anyhow::Result<()> {
     let val = "bar".to_string();
-    let (cache, schema) = _setup();
+    let (cache, schema) = test_utils::setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
 
-    cache.insert_with_schema(&record, &schema, "docs")?;
+    cache.insert_schema("docs", &schema)?;
+    cache.insert(&record)?;
 
     // Query with an expression
     let exp = QueryExpression::new(
