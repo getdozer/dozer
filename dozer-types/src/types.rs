@@ -111,7 +111,7 @@ impl Schema {
             .iter()
             .enumerate()
             .find(|f| f.1.name.as_str() == name)
-            .context(anyhow!("Unable to find field"))
+            .context(anyhow!("Unable to find field {}", name))
     }
 
     pub fn get_id(&self) -> u32 {
