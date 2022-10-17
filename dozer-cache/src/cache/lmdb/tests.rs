@@ -29,7 +29,7 @@ fn query_and_test(
 #[test]
 fn insert_and_get_schema() -> anyhow::Result<()> {
     let (cache, schema) = _setup();
-    cache.insert_schema(&schema, "test")?;
+    cache.insert_schema("test", &schema)?;
     let schema = cache.get_schema_by_name("test")?;
 
     let get_schema = cache.get_schema(
@@ -47,7 +47,8 @@ fn insert_get_and_delete_record() -> anyhow::Result<()> {
     let val = "bar".to_string();
     let (cache, schema) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
-    cache.insert_with_schema(&record, &schema, "docs")?;
+    cache.insert_schema("docs", &schema)?;
+    cache.insert(&record)?;
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
@@ -67,7 +68,8 @@ fn insert_and_query_record() -> anyhow::Result<()> {
     let (cache, schema) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
 
-    cache.insert_with_schema(&record, &schema, "docs")?;
+    cache.insert_schema("docs", &schema)?;
+    cache.insert(&record)?;
 
     // Query with an expression
     let exp = QueryExpression::new(

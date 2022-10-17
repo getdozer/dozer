@@ -1,7 +1,7 @@
 use anyhow::Ok;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
-use dozer_cache::cache::lmdb::cache::LmdbCache;
+use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, test_utils, Cache};
 use dozer_types::types::{Field, Record, Schema};
 use std::sync::Arc;
@@ -9,9 +9,9 @@ use std::sync::Arc;
 fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) -> anyhow::Result<()> {
     let val = format!("bar_{}", n);
 
-    let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
+    let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
 
-    cache.insert_with_schema(&record, &schema, "benches")?;
+    cache.insert(&record)?;
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
     let _get_record = cache.get(&key)?;
@@ -45,8 +45,9 @@ fn cache(c: &mut Criterion) {
     let schema = test_utils::schema_0();
     let cache = Arc::new(LmdbCache::new(true));
 
-    let size: usize = 1000000;
+    cache.insert_schema("benches", &schema).unwrap();
 
+    let size: usize = 1000000;
     c.bench_with_input(BenchmarkId::new("cache_insert", size), &size, |b, &s| {
         b.iter(|| {
             insert(Arc::clone(&cache), schema.clone(), s).unwrap();
