@@ -18,7 +18,8 @@ fn query_secondary() -> anyhow::Result<()> {
         ],
     );
 
-    cache.insert_with_schema(&record, &schema, "sample")?;
+    cache.insert_schema("sample", &schema)?;
+    cache.insert(&record)?;
 
     let filter = FilterExpression::And(
         Box::new(FilterExpression::Simple(

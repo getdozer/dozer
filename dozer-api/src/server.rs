@@ -5,13 +5,7 @@ use actix_web::{
     rt, web, App, HttpResponse, HttpServer, Responder,
 };
 use anyhow::Context;
-use dozer_cache::cache::{
-    expression::{FilterExpression, QueryExpression},
-    index,
-    lmdb::cache::LmdbCache,
-    query_helper::value_to_expression,
-    Cache,
-};
+use dozer_cache::cache::{expression::QueryExpression, index, Cache, LmdbCache};
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};

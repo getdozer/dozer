@@ -140,23 +140,6 @@ impl LmdbCache {
 }
 
 impl Cache for LmdbCache {
-    fn insert_with_schema(&self, rec: &Record, schema: &Schema, name: &str) -> anyhow::Result<()> {
-        if rec.schema_id != schema.identifier {
-            bail!("record and schema dont have the same id.");
-        }
-        match schema.identifier.to_owned() {
-            Some(id) => id,
-            None => bail!("cache::Insert - Schema Id is not present"),
-        };
-        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-
-        self._insert_schema(&mut txn, schema, name)?;
-
-        self._insert(&mut txn, rec, schema)?;
-        txn.commit()?;
-        Ok(())
-    }
-
     fn insert(&self, rec: &Record) -> anyhow::Result<()> {
         let mut txn: RwTransaction = self.env.begin_rw_txn()?;
         let schema_identifier = match rec.schema_id.to_owned() {
@@ -216,7 +199,7 @@ impl Cache for LmdbCache {
         let txn: RoTransaction = self.env.begin_ro_txn()?;
         self._get_schema(&txn, schema_identifier)
     }
-    fn insert_schema(&self, schema: &Schema, name: &str) -> anyhow::Result<()> {
+    fn insert_schema(&self, name: &str, schema: &Schema) -> anyhow::Result<()> {
         let mut txn: RwTransaction = self.env.begin_rw_txn()?;
         self._insert_schema(&mut txn, schema, name)?;
         txn.commit()?;
