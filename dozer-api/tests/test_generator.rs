@@ -18,9 +18,8 @@ mod tests {
             endpoint.name.to_owned(),
             endpoint,
             vec![format!("http://localhost:{}", "8080")],
-        )?;
-        let generated = oapi_generator
-            .generate_oas3(Some("tests/oapi-generator/test_generate.json".to_owned()))?;
+        );
+        let generated = oapi_generator.generate_oas3()?;
         assert_eq!(generated, expected, "must be equal");
         Ok(())
     }

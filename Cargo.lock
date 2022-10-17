@@ -1128,6 +1128,7 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.9.13",
  "structopt",
+ "tempdir",
 ]
 
 [[package]]

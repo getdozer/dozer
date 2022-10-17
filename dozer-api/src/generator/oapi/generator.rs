@@ -6,6 +6,7 @@ use anyhow::Result;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use indexmap::IndexMap;
 use openapiv3::*;
+use tempdir::TempDir;
 
 pub struct OpenApiGenerator {
     schema: dozer_types::types::Schema,
@@ -157,7 +158,7 @@ impl OpenApiGenerator {
 }
 
 impl OpenApiGenerator {
-    pub fn generate_oas3(&self, path: Option<String>) -> Result<OpenAPI> {
+    pub fn generate_oas3(&self) -> Result<OpenAPI> {
         let component_schemas = self._generate_component_schema()?;
         let paths_available = self._generate_available_paths()?;
 
@@ -189,14 +190,14 @@ impl OpenApiGenerator {
             components: component_schemas,
             ..Default::default()
         };
-        if let Some(path) = path {
-            let f = std::fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(path)
-                .expect("Couldn't open file");
-            serde_json::to_writer(f, &api)?;
-        }
+        let tmp_dir = TempDir::new("generated")?;
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(tmp_dir.path().join("openapi.json"))
+            .expect("Couldn't open file");
+        serde_json::to_writer(f, &api)?;
+
         Ok(api)
     }
 
@@ -205,13 +206,12 @@ impl OpenApiGenerator {
         schema_name: String,
         endpoint: ApiEndpoint,
         server_host: Vec<String>,
-    ) -> Result<Self> {
-        let openapi_generator = Self {
+    ) -> Self {
+        Self {
             schema,
             endpoint,
             server_host,
             schema_name,
-        };
-        Ok(openapi_generator)
+        }
     }
 }
