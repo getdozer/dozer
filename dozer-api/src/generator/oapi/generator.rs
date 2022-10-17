@@ -3,7 +3,7 @@ use anyhow::Result;
 
 use dozer_types::{
     models::api_endpoint::ApiEndpoint,
-    types::{Field, FieldType},
+    types::{FieldType},
 };
 use indexmap::IndexMap;
 use openapiv3::*;
@@ -18,7 +18,7 @@ pub struct OpenApiGenerator {
 }
 impl OpenApiGenerator {
     fn get_singular_name(&self) -> String {
-        format!("{}", self.schema_name.to_owned())
+        self.schema_name.to_owned()
     }
     fn get_plural_name(&self) -> String {
         format!("{}_array", self.schema_name.to_owned())
