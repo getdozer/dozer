@@ -1,11 +1,13 @@
-use super::utils::{
-    convert_cache_to_oapi_schema, create_contact_info, create_reference_response,
-    generate_filter_expression_schema,
-};
+use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
 use anyhow::Result;
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
+use dozer_types::{
+    models::api_endpoint::ApiEndpoint,
+    types::{Field, FieldType},
+};
 use indexmap::IndexMap;
 use openapiv3::*;
+use serde_json::{json, Value};
 use tempdir::TempDir;
 
 pub struct OpenApiGenerator {
@@ -15,12 +17,46 @@ pub struct OpenApiGenerator {
     server_host: Vec<String>,
 }
 impl OpenApiGenerator {
-    fn _generate_get_by_id(&self) -> Result<ReferenceOr<PathItem>> {
+    fn get_singular_name(&self) -> String {
+        format!("{}_multiple", self.schema_name.to_owned())
+    }
+    fn get_plural_name(&self) -> String {
+        format!("{}_single", self.schema_name.to_owned())
+    }
+
+    // Generate first secondary_index as an example
+    fn generate_query_example(&self) -> Value {
+        println!("{:?}", self.schema.clone());
+
+        if self.schema.secondary_indexes.len() > 0 {
+            let fields_idx = self.schema.secondary_indexes[0].fields.to_owned();
+
+            let field_def = &self.schema.fields[fields_idx[0]];
+            let name = field_def.name.clone();
+            let val = match field_def.typ {
+                FieldType::Int => Field::Int(1),
+                FieldType::Float => Field::Float(1.1),
+                FieldType::Boolean => Field::Boolean(true),
+                FieldType::String => Field::String("foo".to_string()),
+                FieldType::Binary => Field::Null,
+                FieldType::Decimal => Field::Null,
+                FieldType::Timestamp => Field::Null,
+                FieldType::Bson => Field::Null,
+                FieldType::Null => Field::Null,
+                FieldType::RecordArray(_) => Field::Null,
+            };
+            json!({ name: val })
+        } else {
+            json!({})
+        }
+        // Simple expression
+    }
+
+    fn generate_get_route(&self) -> Result<ReferenceOr<PathItem>> {
         let responses = Responses {
             responses: indexmap::indexmap! {
                 StatusCode::Code(200) =>
-                ReferenceOr::Item(create_reference_response(format!("Get by id {}", self.schema_name.to_owned()),format!("#/components/schemas/{}", self.schema_name.to_owned())))
-
+                ReferenceOr::Item(create_reference_response(format!("Get by id {}", self.schema_name.to_owned()),format!("#/components/schemas/{}", self.get_singular_name())))
             },
             ..Default::default()
         };
@@ -60,15 +96,15 @@ impl OpenApiGenerator {
         }))
     }
 
-    fn _generate_get_list(&self) -> Result<ReferenceOr<PathItem>> {
+    fn generate_list_route(&self) -> Result<ReferenceOr<PathItem>> {
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}s",self.schema_name.to_owned())))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}",self.get_plural_name())))
             },
             ..Default::default()
         };
         let operation = Some(Operation {
-            tags: vec![format!("{}s", self.schema_name.to_owned())],
+            tags: vec![format!("{}", self.schema_name.to_owned())],
             summary: Some("Fetch multiple documents in the default sort order".to_owned()),
             description: Some(
                 "This is used when no filter expression or sort is needed.".to_owned(),
@@ -83,22 +119,22 @@ impl OpenApiGenerator {
         }))
     }
 
-    fn _generate_list_query(&self) -> Result<ReferenceOr<PathItem>> {
+    fn generate_query_route(&self) -> Result<ReferenceOr<PathItem>> {
         let request_body = RequestBody {
             content: indexmap::indexmap! {
-                "application/json".to_owned() => MediaType { schema: Some(ReferenceOr::ref_("#/components/schemas/filter-expression")), ..Default::default() }
+                "application/json".to_owned() => MediaType { example: Some(self.generate_query_example()), ..Default::default() }
             },
             required: true,
             ..Default::default()
         };
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}s", self.schema_name.to_owned()) ))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", self.get_plural_name()) ))
             },
             ..Default::default()
         };
         let operation = Some(Operation {
-            tags: vec![format!("{}s", self.schema_name.to_owned())],
+            tags: vec![format!("{}", self.schema_name.to_owned())],
             summary: Some("Query documents based on an expression".to_owned()),
             description: Some(
                 "Documents can be queried based on a simple or a composite expression".to_owned(),
@@ -115,9 +151,9 @@ impl OpenApiGenerator {
     }
 
     fn _generate_available_paths(&self) -> Result<Paths> {
-        let get_list = self._generate_get_list()?;
-        let get_by_id_item = self._generate_get_by_id()?;
-        let query_list = self._generate_list_query()?;
+        let get_list = self.generate_list_route()?;
+        let get_by_id_item = self.generate_get_route()?;
+        let query_list = self.generate_query_route()?;
         let path_items = indexmap::indexmap! {
             self.endpoint.path.to_owned() => get_list,
             format!("{}/{}", self.endpoint.path.to_owned(), "{id}") => get_by_id_item,
@@ -130,11 +166,11 @@ impl OpenApiGenerator {
         Ok(paths_available)
     }
 
-    fn _generate_component_schema(&self) -> Result<Option<Components>> {
-        let plural_name = format!("{}s", self.schema_name.to_owned());
+    fn generate_component_schema(&self) -> Result<Option<Components>> {
+        let plural_name = self.get_plural_name();
         let generated_schema =
             convert_cache_to_oapi_schema(self.schema.to_owned(), self.schema_name.to_owned())?;
-        let mut schemas = indexmap::indexmap! {
+        let schemas = indexmap::indexmap! {
             self.schema_name.to_owned() => ReferenceOr::Item(generated_schema),
             plural_name => ReferenceOr::Item(Schema {
                         schema_data: SchemaData {
@@ -142,20 +178,14 @@ impl OpenApiGenerator {
                             ..Default::default()
                         },
                         schema_kind: SchemaKind::Type(Type::Array(ArrayType {
-                            items: Some(ReferenceOr::ref_(&format!("#/components/schemas/{}", self.schema_name.to_owned()))),
+                            items: Some(ReferenceOr::ref_(&format!("#/components/schemas/{}", self.get_singular_name()))),
                             min_items: None,
                             max_items: None,
                             unique_items: false,
                         })),
                     })
         };
-        let filter_schemas = generate_filter_expression_schema()?;
-        for filter_schema in filter_schemas {
-            schemas.insert(
-                filter_schema.0.to_string(),
-                ReferenceOr::Item(filter_schema.1),
-            );
-        }
+
         let component_schemas = Some(Components {
             schemas,
             ..Default::default()
@@ -166,7 +196,7 @@ impl OpenApiGenerator {
 
 impl OpenApiGenerator {
     pub fn generate_oas3(&self) -> Result<OpenAPI> {
-        let component_schemas = self._generate_component_schema()?;
+        let component_schemas = self.generate_component_schema()?;
         let paths_available = self._generate_available_paths()?;
 
         let api = OpenAPI {
@@ -182,7 +212,7 @@ impl OpenApiGenerator {
                 ..Default::default()
             },
             tags: vec![Tag {
-                name: format!("{}s", self.schema_name.to_owned()),
+                name: format!("{}", self.schema_name.to_owned()),
                 ..Default::default()
             }],
             servers: self

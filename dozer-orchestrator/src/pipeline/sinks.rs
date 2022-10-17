@@ -11,7 +11,7 @@ use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::StateStore;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::types::{Operation, Schema, SchemaIdentifier};
+use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use log::debug;
 
 pub struct CacheSinkFactory {
@@ -96,6 +96,18 @@ impl Sink for CacheSink {
             id: hash as u32,
             version: 1,
         });
+
+        // Automatically create secondary indexes
+        schema.secondary_indexes = schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(idx, _f)| IndexDefinition {
+                fields: vec![idx],
+                sort_direction: vec![true],
+                typ: dozer_types::types::IndexType::SortedInverted,
+            })
+            .collect();
 
         // Insert if schema not already inserted
         if let std::collections::hash_map::Entry::Vacant(e) = self.schema_map.entry(hash) {

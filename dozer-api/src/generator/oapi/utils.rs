@@ -5,7 +5,7 @@ use openapiv3::{
     SchemaKind, StringType, Type, VariantOrUnknownOrEmpty,
 };
 
-const CONTACT_NAME: &str = "Dozer-Team";
+const CONTACT_NAME: &str = "Dozer Team";
 const CONTACT_WEB_URL: &str = "https://getdozer.io";
 const CONTACT_EMAIL: &str = "api@getdozer.io";
 pub fn create_contact_info() -> Option<Contact> {
@@ -84,77 +84,6 @@ pub fn convert_cache_to_oapi_schema(
         })),
     };
     Ok(result)
-}
-pub fn generate_filter_expression_schema() -> anyhow::Result<Vec<(&'static str, Schema)>> {
-    // scalar value
-    let scalar_value = Schema {
-        schema_data: Default::default(),
-        schema_kind: SchemaKind::OneOf {
-            one_of: vec!["string", "bool", "integer"]
-                .iter()
-                .map(|&name| {
-                    ReferenceOr::Item(Schema {
-                        schema_data: Default::default(),
-                        schema_kind: SchemaKind::Type(get_type_by_name(name)),
-                    })
-                })
-                .collect(),
-        },
-    };
-    // comparision expression
-    let comparision_expression = Schema {
-        schema_data: Default::default(),
-        schema_kind: SchemaKind::OneOf {
-            one_of: vec!["$eq", "$lt",  "$lte", "$gt", "$gte", "$contains", "$matchesany", "$matchesall"].iter().map(|&operator| {
-                ReferenceOr::Item(Schema {
-                    schema_data: Default::default(),
-                    schema_kind: openapiv3::SchemaKind::Type(Type::Object(ObjectType {
-                        properties: indexmap::indexmap! { operator.to_owned()  => ReferenceOr::ref_("#/components/schemas/scalar-value")},
-                        required: vec![operator.to_owned()],
-                        ..Default::default()
-                    })),
-                })
-            }).collect(),
-        },
-    };
-    // simple expression
-    let simple_expression = Schema {
-        schema_data: Default::default(),
-        schema_kind: SchemaKind::Type(Type::Object(ObjectType {
-            properties: IndexMap::new(),
-            additional_properties: Some(AdditionalProperties::Schema(Box::new(ReferenceOr::ref_(
-                "#/components/schemas/comparision-expression",
-            )))),
-            ..Default::default()
-        })),
-    };
-    // and expression
-    let and_expression = Schema {
-        schema_data: Default::default(),
-        schema_kind: openapiv3::SchemaKind::Type(Type::Object(ObjectType {
-            properties: indexmap::indexmap! {"$and".to_owned() => ReferenceOr::ref_("#/components/schemas/filter-expression")},
-            required: vec!["$and".to_owned()],
-            ..Default::default()
-        })),
-    };
-
-    // filter-expression:
-    let filter_expression = Schema {
-        schema_data: Default::default(),
-        schema_kind: SchemaKind::OneOf {
-            one_of: vec![
-                ReferenceOr::ref_("#/components/schemas/simple-expression"),
-                ReferenceOr::ref_("#/components/schemas/and-expression"),
-            ],
-        },
-    };
-    Ok(vec![
-        ("scalar-value", scalar_value),
-        ("comparision-expression", comparision_expression),
-        ("simple-expression", simple_expression),
-        ("and-expression", and_expression),
-        ("filter-expression", filter_expression),
-    ])
 }
 
 fn get_type_by_name(name: &str) -> Type {
