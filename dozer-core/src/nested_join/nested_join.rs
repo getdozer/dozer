@@ -4,7 +4,7 @@ use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory};
 use crate::state::{StateStore, StateStoreOptions};
 use anyhow::{anyhow, Context};
-use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::{error, warn};
 use std::collections::HashMap;
 
@@ -84,26 +84,12 @@ pub struct NestedJoinProcessor {
 }
 
 impl NestedJoinProcessor {
-    pub fn new(
-        parent_arr_field: String,
-        parent_fk_fields: Vec<String>,
-        child_fk_fields: Vec<String>,
-    ) -> Self {
-        Self {
-            parent_array_field: parent_arr_field,
-            parent_join_key_fields: parent_fk_fields,
-            child_join_key_fields: child_fk_fields,
-            indexes: None,
-        }
-    }
-
     fn process_child_op(
         &self,
         op: Operation,
         idx: &Indexes,
-        fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Operation>> {
         match op {
             Operation::Insert { new } => {
                 if idx.child_schema.primary_index.is_empty() {
@@ -130,10 +116,10 @@ impl NestedJoinProcessor {
                         // Lookup parent
                     }
                 }
-                Ok(())
+                Ok(vec![])
             }
-            Operation::Update { old, new } => Ok(()),
-            Operation::Delete { old } => Ok(()),
+            Operation::Update { old, new } => Ok(vec![]),
+            Operation::Delete { old } => Ok(vec![]),
         }
     }
 
@@ -143,7 +129,7 @@ impl NestedJoinProcessor {
         state: &mut dyn StateStore,
         op: NestedOperation,
     ) -> anyhow::Result<Vec<Operation>> {
-        let records = Vec::<Operation>::new();
+        let mut records = Vec::<Operation>::new();
 
         let mut cursor = state.cursor()?;
         if cursor.seek(key.as_slice())? {
@@ -157,7 +143,11 @@ impl NestedJoinProcessor {
                         let record = state.get(t.1)?;
                         match record {
                             Some(v) => {
-                                let rec: Option<Record> = bincode::deserialize(v)?;
+                                let rec: Record = bincode::deserialize(v)?;
+                                match op {
+                                    NestedOperation::Insert => records.push(Operation::Insert {new: rec}),
+                                    NestedOperation::Delete => records.push(Operation::Delete {old: rec})
+                                }
                             }
                             _ => error!(
                                 "Found reference to primary key {:x?}, but primary key does not exist",
@@ -166,6 +156,9 @@ impl NestedJoinProcessor {
                         }
                     }
                     _ => break,
+                }
+                if !cursor.next()? {
+                    break;
                 }
             }
         }
@@ -176,12 +169,11 @@ impl NestedJoinProcessor {
         &self,
         op: Operation,
         idx: &Indexes,
-        fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Operation>> {
         match op {
-            Operation::Update { old, new } => Ok(()),
-            Operation::Insert { new } => {
+            Operation::Update { old, new } => Ok(vec![]),
+            Operation::Insert { mut new } => {
                 if idx.parent_schema.primary_index.is_empty() {
                 } else {
                     let primary_key = new.get_key(
@@ -203,16 +195,35 @@ impl NestedJoinProcessor {
                     )?;
                     let children =
                         self.get_all_children(lookup_key, state, NestedOperation::Insert)?;
+                    new.values[idx.parent_array_index] = Field::RecordArray(children);
                 }
-                Ok(())
+
+                Ok(vec![Operation::Insert { new }])
             }
-            Operation::Delete { old } => Ok(()),
+            Operation::Delete { old } => Ok(vec![]),
         }
     }
-}
 
-impl Processor for NestedJoinProcessor {
-    fn update_schema(
+    pub(crate) fn process_op(
+        &mut self,
+        from_port: PortHandle,
+        op: Operation,
+        state: &mut dyn StateStore,
+    ) -> anyhow::Result<Vec<Operation>> {
+        let indexes = self
+            .indexes
+            .as_ref()
+            .context(anyhow!("Schema must be defined"))?;
+
+        match from_port {
+            NestedJoinProcessorFactory::INPUT_PARENT_PORT_HANDLE => {
+                self.process_parent_op(op, indexes, state)
+            }
+            _ => self.process_child_op(op, indexes, state),
+        }
+    }
+
+    pub(crate) fn update_schema_op(
         &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -273,6 +284,29 @@ impl Processor for NestedJoinProcessor {
         Ok(out_schema)
     }
 
+    pub fn new(
+        parent_array_field: String,
+        parent_join_key_fields: Vec<String>,
+        child_join_key_fields: Vec<String>,
+    ) -> Self {
+        Self {
+            parent_array_field,
+            parent_join_key_fields,
+            child_join_key_fields,
+            indexes: None,
+        }
+    }
+}
+
+impl Processor for NestedJoinProcessor {
+    fn update_schema(
+        &mut self,
+        output_port: PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> anyhow::Result<Schema> {
+        self.update_schema_op(output_port, input_schemas)
+    }
+
     fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()> {
         todo!()
     }
@@ -284,16 +318,10 @@ impl Processor for NestedJoinProcessor {
         fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
-        let indexes = self
-            .indexes
-            .as_ref()
-            .context(anyhow!("Schema must be defined"))?;
-
-        match from_port {
-            NestedJoinProcessorFactory::INPUT_PARENT_PORT_HANDLE => {
-                self.process_parent_op(op, indexes, fw, state)
-            }
-            _ => self.process_child_op(op, indexes, fw, state),
+        let ret_ops = self.process_op(from_port, op, state)?;
+        for op in ret_ops {
+            fw.send(op, NestedJoinProcessorFactory::OUTPUT_JOINED_PORT_HANDLE)?;
         }
+        Ok(())
     }
 }

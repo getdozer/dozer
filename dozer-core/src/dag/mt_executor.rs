@@ -162,7 +162,7 @@ impl MultiThreadedDagExecutor {
         state_manager: Arc<dyn StateStoresManager>,
     ) -> JoinHandle<anyhow::Result<()>> {
         let local_sm = state_manager.clone();
-        let fw = LocalChannelForwarder::new(senders);
+        let mut fw = LocalChannelForwarder::new(senders);
 
         thread::spawn(move || -> anyhow::Result<()> {
             let mut state_store = match src_factory.get_state_store_opts() {
@@ -339,7 +339,7 @@ impl MultiThreadedDagExecutor {
 
                         let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
                         fw.update_seq_no(data_op.0);
-                        proc.process(handles_ls[index], data_op.1, &fw, state_store.as_mut())?;
+                        proc.process(handles_ls[index], data_op.1, &mut fw, state_store.as_mut())?;
                     }
                 }
             }
