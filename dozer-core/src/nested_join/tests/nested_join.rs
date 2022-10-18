@@ -86,7 +86,18 @@ fn test_insert_parent_without_child() {
         )
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    assert_eq!(r, vec![])
+    let expected = vec![Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(1),
+                Field::String("Matteo".to_string()),
+                Field::RecordArray(vec![]),
+            ],
+        ),
+    }];
+
+    assert_eq!(r, expected)
 }
 
 #[test]
@@ -152,7 +163,7 @@ fn test_insert_parent_with_children_with_pk() {
         )
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let expected = Operation::Insert {
+    let expected = vec![Operation::Insert {
         new: Record::new(
             None,
             vec![
@@ -182,7 +193,76 @@ fn test_insert_parent_with_children_with_pk() {
                 ]),
             ],
         ),
-    };
+    }];
 
-    assert_eq!(r[0], expected)
+    assert_eq!(r, expected)
+}
+
+#[test]
+fn test_insert_child_with_parent_with_pk() {
+    let mut state_store = get_state_store();
+    let mut processor = get_processor();
+
+    processor
+        .update_schema_op(
+            NestedJoinProcessorFactory::OUTPUT_JOINED_PORT_HANDLE,
+            &get_input_schemas(),
+        )
+        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+
+    processor
+        .process_op(
+            NestedJoinProcessorFactory::INPUT_PARENT_PORT_HANDLE,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(1),
+                        Field::String("User 1".to_string()),
+                        Field::Null,
+                    ],
+                ),
+            },
+            state_store.as_mut(),
+        )
+        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+
+    let r = processor
+        .process_op(
+            NestedJoinProcessorFactory::INPUT_CHILD_PORT_HANDLE,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(101),
+                        Field::Int(1),
+                        Field::String("Address 1".to_string()),
+                    ],
+                ),
+            },
+            state_store.as_mut(),
+        )
+        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+
+    let expected = vec![Operation::Lookup {
+        curr: Record::new(
+            None,
+            vec![
+                Field::Int(1),
+                Field::String("User 1".to_string()),
+                Field::RecordArray(vec![Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(101),
+                            Field::Int(1),
+                            Field::String("Address 1".to_string()),
+                        ],
+                    ),
+                }]),
+            ],
+        ),
+    }];
+
+    assert_eq!(r, expected)
 }

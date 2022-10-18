@@ -29,7 +29,7 @@ impl StateStore for MemoryStateStore {
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
+    fn get(&self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
         Ok(self.data.get(key).map(|e| e.as_slice()))
     }
 

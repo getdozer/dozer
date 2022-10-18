@@ -22,6 +22,7 @@ const CHILD_JOIN_KEY_INDEX_ID: u16 = NestedJoinProcessorFactory::INPUT_CHILD_POR
 enum NestedOperation {
     Insert,
     Delete,
+    Lookup,
 }
 
 impl NestedJoinProcessorFactory {
@@ -93,6 +94,8 @@ impl NestedJoinProcessor {
         match op {
             Operation::Insert { new } => {
                 if idx.child_schema.primary_index.is_empty() {
+                    // no primary key
+                    return Ok(vec![]);
                 } else {
                     let primary_key = new.get_key(
                         &idx.child_schema.primary_index,
@@ -112,14 +115,24 @@ impl NestedJoinProcessor {
                         Some(PARENT_JOIN_KEY_INDEX_ID.to_ne_bytes().as_slice()),
                     )?;
 
-                    if let Some(pk) = state.get(lookup_key.as_slice())? {
-                        // Lookup parent
-                    }
+                    return Ok(match state.get(lookup_key.as_slice())? {
+                        Some(pk) => {
+                            let payload = state.get(pk)?.context(anyhow!(
+                                "Unable to find record for primary key {:x?}",
+                                pk
+                            ))?;
+                            let mut rec: Record = bincode::deserialize(payload)?;
+                            rec.values[idx.parent_array_index] =
+                                Field::RecordArray(vec![Operation::Insert { new }]);
+                            vec![Operation::Lookup { curr: rec }]
+                        }
+                        _ => vec![],
+                    });
                 }
-                Ok(vec![])
             }
             Operation::Update { old, new } => Ok(vec![]),
             Operation::Delete { old } => Ok(vec![]),
+            Operation::Lookup { curr } => Ok(vec![]),
         }
     }
 
@@ -127,9 +140,8 @@ impl NestedJoinProcessor {
         &self,
         key: Vec<u8>,
         state: &mut dyn StateStore,
-        op: NestedOperation,
-    ) -> anyhow::Result<Vec<Operation>> {
-        let mut records = Vec::<Operation>::new();
+    ) -> anyhow::Result<Vec<Record>> {
+        let mut records = Vec::<Record>::new();
 
         let mut cursor = state.cursor()?;
         if cursor.seek(key.as_slice())? {
@@ -140,20 +152,11 @@ impl NestedJoinProcessor {
                         if t.0 != key.as_slice() {
                             break;
                         }
-                        let record = state.get(t.1)?;
-                        match record {
-                            Some(v) => {
-                                let rec: Record = bincode::deserialize(v)?;
-                                match op {
-                                    NestedOperation::Insert => records.push(Operation::Insert {new: rec}),
-                                    NestedOperation::Delete => records.push(Operation::Delete {old: rec})
-                                }
-                            }
-                            _ => error!(
-                                "Found reference to primary key {:x?}, but primary key does not exist",
-                                t.1
-                            ),
-                        }
+                        let payload = state
+                            .get(t.1)?
+                            .context(anyhow!("Unable to find record for primary key {:x?}", t.1))?;
+                        let mut rec: Record = bincode::deserialize(payload)?;
+                        records.push(rec);
                     }
                     _ => break,
                 }
@@ -193,14 +196,19 @@ impl NestedJoinProcessor {
                         &idx.parent_join_key_indexes,
                         Some(CHILD_JOIN_KEY_INDEX_ID.to_ne_bytes().as_slice()),
                     )?;
-                    let children =
-                        self.get_all_children(lookup_key, state, NestedOperation::Insert)?;
-                    new.values[idx.parent_array_index] = Field::RecordArray(children);
+                    let children = self.get_all_children(lookup_key, state)?;
+                    new.values[idx.parent_array_index] = Field::RecordArray(
+                        children
+                            .into_iter()
+                            .map(|new| Operation::Insert { new })
+                            .collect(),
+                    );
                 }
 
                 Ok(vec![Operation::Insert { new }])
             }
             Operation::Delete { old } => Ok(vec![]),
+            Operation::Lookup { curr } => Ok(vec![]),
         }
     }
 

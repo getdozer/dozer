@@ -395,6 +395,7 @@ impl AggregationProcessor {
                     ])
                 }
             }
+            Operation::Lookup { ref curr } => Ok(vec![]),
         }
     }
 }

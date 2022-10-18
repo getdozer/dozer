@@ -12,7 +12,7 @@ impl StateStore for NullStateStore {
         Err(anyhow!("Invalid operation"))
     }
 
-    fn get(&mut self, _key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
+    fn get(&self, _key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
         Err(anyhow!("Invalid operation"))
     }
 

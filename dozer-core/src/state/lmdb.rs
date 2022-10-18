@@ -95,7 +95,7 @@ impl StateStore for LmdbStateStore {
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
+    fn get(&self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
         let r = self.db.get(&self.tx, key)?;
         Ok(r)
     }

@@ -19,6 +19,7 @@ pub enum ExecutorOperation {
     Delete { seq: u64, old: Record },
     Insert { seq: u64, new: Record },
     Update { seq: u64, old: Record, new: Record },
+    Lookup { seq: u64, curr: Record },
     SchemaUpdate { new: Schema },
     Terminate,
 }
