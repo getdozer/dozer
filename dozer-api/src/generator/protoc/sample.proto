@@ -1,0 +1,37 @@
+syntax = "proto3";
+package DozerFilmPackage;
+service DozerFilmService {
+  rpc films(GetFilmsRequest) returns (GetFilmsResponse);
+  rpc film_by_id(GetFilmByIdRequest) returns (GetFilmByIdResponse);
+  rpc query_films(QueryFilmsRequest) returns (QueryFilmsResponse);
+}
+
+message GetFilmsRequest {
+}
+
+message GetFilmsResponse {
+  repeated Film film = 1;
+}
+
+message GetFilmByIdRequest {
+  string id = 1;
+}
+
+message GetFilmByIdResponse {
+  optional Film film = 1;
+}
+
+message QueryFilmsRequest {
+
+}
+
+message QueryFilmsResponse {
+  repeated Film film = 1;
+}
+
+message Film {
+  string film_id = 1;
+  string description = 2;
+  optional string rental_rate = 3;
+  string release_year = 4;
+}
