@@ -6,7 +6,6 @@ pub mod expression;
 pub mod index;
 mod planner;
 pub mod test_utils;
-
 pub trait Cache {
     // Schema Operations
     fn insert_schema(&self, name: &str, schema: &Schema) -> anyhow::Result<()>;

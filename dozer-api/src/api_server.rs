@@ -23,7 +23,7 @@ impl ApiServer {
             port: 8080,
         }
     }
-    pub fn new(shutdown_timeout: u64, port: u16) -> Self {
+    pub fn new(shutdown_timeout: u64, port: u16, _jwt_secret: Option<String>) -> Self {
         Self {
             shutdown_timeout,
             port,

@@ -1,7 +1,7 @@
 pub mod api_helper;
+pub mod api_server;
 pub mod generator;
 pub mod rest_error;
-pub mod server;
 
 #[cfg(test)]
 mod test_utils;

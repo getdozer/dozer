@@ -1,13 +1,13 @@
-use dozer_types::serde::{self, Deserialize};
-use dozer_types::types::{Field, IndexDefinition};
-use strum_macros::EnumString;
-mod deserializer;
+use dozer_types::serde::{self, Deserialize, Serialize};
+use dozer_types::serde_json::Value;
+use dozer_types::types::IndexDefinition;
 mod query_helper;
+mod query_serde;
 
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(crate = "self::serde")]
 pub struct QueryExpression {
     #[serde(rename = "$filter", default)]
@@ -42,31 +42,23 @@ impl QueryExpression {
 #[derive(Clone, Debug, PartialEq)]
 pub enum FilterExpression {
     // a = 1, a containts "s", a> 4
-    Simple(String, Operator, Field),
-    And(Box<FilterExpression>, Box<FilterExpression>),
+    Simple(String, Operator, Value),
+    And(Vec<FilterExpression>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumString, strum_macros::Display)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Operator {
-    #[strum(serialize = "$lt")]
     LT,
-    #[strum(serialize = "$lte")]
     LTE,
-    #[strum(serialize = "$eq")]
     EQ,
-    #[strum(serialize = "$gt")]
     GT,
-    #[strum(serialize = "$gte")]
     GTE,
-    #[strum(serialize = "$contains")]
     Contains,
-    #[strum(serialize = "$matchesany")]
     MatchesAny,
-    #[strum(serialize = "$matchesall")]
     MatchesAll,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(crate = "self::serde")]
 pub enum SortDirection {
     #[serde(rename = "asc")]
@@ -74,7 +66,7 @@ pub enum SortDirection {
     #[serde(rename = "desc")]
     Descending,
 }
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(crate = "self::serde")]
 pub struct SortOptions {
     pub field_name: String,
@@ -85,10 +77,10 @@ pub enum ExecutionStep {
     IndexScan(IndexScan),
     SeqScan(SeqScan),
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexScan {
     pub index_def: IndexDefinition,
-    pub fields: Vec<Option<Field>>,
+    pub fields: Vec<Option<Value>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeqScan {

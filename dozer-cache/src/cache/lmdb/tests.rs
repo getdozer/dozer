@@ -1,6 +1,9 @@
 use super::super::test_utils;
 use anyhow::{Context, Ok};
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::{
+    serde_json::Value,
+    types::{Field, Record, Schema},
+};
 
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
@@ -76,7 +79,7 @@ fn insert_and_query_record() -> anyhow::Result<()> {
         Some(FilterExpression::Simple(
             "foo".to_string(),
             expression::Operator::EQ,
-            Field::String("bar".to_string()),
+            Value::from("bar".to_string()),
         )),
         vec![],
         10,

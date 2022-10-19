@@ -2,10 +2,10 @@ use ahash::AHasher;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
+use serde::{self, Deserialize, Serialize};
 use std::hash::Hasher;
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Field {
     Int(i64),
     Float(f64),
@@ -34,6 +34,7 @@ pub enum FieldType {
     Bson,
     Null,
     RecordArray(Schema),
+    Invalid,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]

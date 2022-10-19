@@ -3,6 +3,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, test_utils, Cache};
+use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
 use std::sync::Arc;
 
@@ -30,7 +31,7 @@ fn query(cache: Arc<LmdbCache>, _n: usize) -> anyhow::Result<()> {
         Some(FilterExpression::Simple(
             "foo".to_string(),
             expression::Operator::EQ,
-            Field::String("bar".to_string()),
+            Value::from("bar".to_string()),
         )),
         vec![],
         10,
