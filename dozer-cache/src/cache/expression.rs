@@ -1,7 +1,7 @@
 use dozer_types::types::{Field, IndexDefinition};
 use serde::Deserialize;
 use strum_macros::EnumString;
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 pub struct QueryExpression {
     #[serde(rename = "$filter", default)]
     pub filter: Option<FilterExpression>,
