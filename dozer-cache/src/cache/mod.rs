@@ -7,6 +7,7 @@ pub mod expression;
 pub mod index;
 mod planner;
 pub mod test_utils;
+pub mod filter_expression_deserialize;
 
 pub trait Cache {
     // Schema Operations

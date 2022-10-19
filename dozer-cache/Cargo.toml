@@ -21,6 +21,7 @@ log = "0.4.17"
 log4rs = "1.1.1"
 strum = "0.24.1"
 strum_macros = "0.24.3"
+serde = { version = "1.0.145", features = ["derive"] } 
 
 [dev-dependencies]
 criterion = "0.4.0"

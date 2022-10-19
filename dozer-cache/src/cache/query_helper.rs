@@ -1,14 +1,15 @@
-use super::expression::{FilterExpression, Operator};
-use anyhow::{bail, ensure, Context, Ok};
-use dozer_types::json_value_to_field;
-use dozer_types::serde_json::Value;
 use std::str::FromStr;
 
-fn is_combinator(input: String) -> bool {
+use super::expression::{FilterExpression, Operator};
+use anyhow::{bail, ensure, Context, Ok};
+use dozer_types::serde_json::Value;
+use dozer_types::{json_value_to_field, serde_json};
+
+pub fn is_combinator(input: String) -> bool {
     vec!["$or", "$and"].contains(&input.to_lowercase().as_str())
 }
 
-fn value_to_simple_expression(
+fn construct_simple_expression(
     key: String,
     op: Operator,
     value: Value,
@@ -22,18 +23,60 @@ fn value_to_simple_expression(
     Ok(expression)
 }
 
-fn value_to_composite_expression(
+pub fn value_to_simple_exp(key: String, value: Value) -> anyhow::Result<FilterExpression> {
+    ensure!(
+        !key.eq("_")
+            && key
+                .chars()
+                .filter(|x| !x.eq(&'_'))
+                .all(|x| x.is_ascii_alphanumeric()),
+        "Key cannot contains special character"
+    );
+    match value {
+        Value::Object(pairs) => {
+            ensure!(!pairs.is_empty(), "Empty object input");
+            ensure!(pairs.len() == 1, "Simple expression can only accept 1 stmt");
+            let inner_key = pairs
+                .keys()
+                .next()
+                .context("Missing key in Simple expression")?;
+            let operator: Operator = Operator::from_str(&inner_key)?;
+            let scalar_value = pairs
+                .get(inner_key)
+                .context(format!("scalar value by key {:?} is empty", inner_key))?;
+            let expression = construct_simple_expression(key, operator, scalar_value.to_owned())?;
+            return Ok(expression);
+        }
+        Value::Number(_) | Value::String(_) | Value::Bool(_) | Value::Null => {
+            let expression = construct_simple_expression(key, Operator::EQ, value.to_owned())?;
+            return Ok(expression);
+        }
+        Value::Array(_) => {
+            bail!("Invalid Simple Expression")
+        }
+    }
+}
+
+pub fn value_to_composite_expression(
     comparator: String,
     value: Value,
 ) -> anyhow::Result<FilterExpression> {
-    ensure!(Value::is_array(&value), "Composite must follow by array");
-    let array_condition = value_to_expression(value)?;
+    let array = value.as_array().context("Composite must follow by array")?;
+    let array_condition: Vec<FilterExpression> = array
+        .iter()
+        .map(|c| -> anyhow::Result<FilterExpression> {
+            let result: FilterExpression = serde_json::from_value(c.to_owned())?;
+            return Ok(result);
+        })
+        .filter_map(|r| r.ok())
+        .collect();
+
     let exp = match comparator.as_str() {
         "$or" => bail!("Or not supported"),
         "$and" => {
             ensure!(
                 array_condition.len() > 1,
-                "AND require at least 2 conditions input"
+                "AND require at least 2 valid conditions input"
             );
 
             array_condition
@@ -62,81 +105,12 @@ fn value_to_composite_expression(
 
     Ok(exp)
 }
-
-pub fn value_to_expression(input: Value) -> anyhow::Result<Vec<FilterExpression>> {
-    match input {
-        Value::Array(array_value) => {
-            ensure!(
-                !array_value.is_empty(),
-                "Array expression input must have some value"
-            );
-            let mut result: Vec<FilterExpression> = Vec::new();
-            for value in array_value {
-                let expression = value_to_expression(value)?;
-                result.extend(expression);
-            }
-            Ok(result)
-        }
-        Value::Object(pairs) => {
-            ensure!(!pairs.is_empty(), "Empty object input");
-            let mut result: Vec<FilterExpression> = Vec::new();
-            // check if match any Operator:
-            for pair in pairs {
-                let pair_value: Value = pair.1;
-                let pair_key = pair.0;
-
-                if is_combinator(pair_key.to_owned()) {
-                    let expression =
-                        value_to_composite_expression(pair_key, pair_value.to_owned())?;
-                    result.push(expression);
-                    continue;
-                }
-                ensure!(
-                    !pair_key.eq("_")
-                        && pair_key
-                            .chars()
-                            .filter(|x| !x.eq(&'_'))
-                            .all(|x| x.is_ascii_alphanumeric()),
-                    "Key cannot contains special character"
-                );
-                // extract inner key
-                if let Value::Object(keys) = pair_value.clone() {
-                    let key = keys.keys().next().cloned().context("Invalid Expression")?;
-                    let operator = Operator::from_str(&key)?;
-                    let scalar_value = pair_value
-                        .get(key.to_owned())
-                        .context(format!("scalar value by key {:?} is empty", key))?;
-                    let expression = value_to_simple_expression(
-                        pair_key.to_owned(),
-                        operator,
-                        scalar_value.to_owned(),
-                    )?;
-                    result.push(expression);
-                    continue;
-                } else {
-                    // Equal to operation
-                    let expression = value_to_simple_expression(
-                        pair_key.to_owned(),
-                        Operator::EQ,
-                        pair_value.to_owned(),
-                    )?;
-                    result.push(expression);
-                }
-            }
-            Ok(result)
-        }
-        Value::Bool(_) | Value::Number(_) | Value::String(_) | Value::Null => {
-            bail!("Invalid Expression")
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use dozer_types::serde_json;
 
     #[test]
     fn test_simple_parse_query() -> anyhow::Result<()> {
-        use super::value_to_expression;
         use crate::cache::expression::FilterExpression;
         use crate::cache::expression::Operator;
         use crate::{test_parse_error_query, test_parse_query};
@@ -196,7 +170,7 @@ mod tests {
             FilterExpression::Simple("a".to_string(), Operator::EQ, Field::Null)
         );
 
-        // special character
+        // // special character
         test_parse_error_query!(json!({"_":  1}));
         test_parse_error_query!(json!({"'":  1}));
         test_parse_error_query!(json!({"\n":  1}));
@@ -221,7 +195,6 @@ mod tests {
     }
     #[test]
     fn test_complex_parse_query() -> anyhow::Result<()> {
-        use super::value_to_expression;
         use crate::cache::expression::FilterExpression;
         use crate::cache::expression::Operator;
         use crate::{test_parse_error_query, test_parse_query};
@@ -279,19 +252,20 @@ mod tests {
         test_parse_error_query!(json!({"$and": [{"a":  {"$lt": 1}}, {"b":  {"$gte": {}}}]}));
         test_parse_error_query!(json!({"$and": [{"$and":[{"a": 1}]}, {"c": 3}]}));
         test_parse_error_query!(json!({"and": [{"a":  {"$lt": 1}}]}));
-
         Ok(())
     }
     #[macro_export]
     macro_rules! test_parse_query {
         ($a:expr,$b:expr) => {
-            assert_eq!(value_to_expression($a)?, vec![$b], "must be equal");
+            let parsed_result = serde_json::from_value::<FilterExpression>($a)?;
+            assert_eq!(parsed_result, $b, "must be equal");
         };
     }
     #[macro_export]
     macro_rules! test_parse_error_query {
         ($a:expr) => {
-            assert!(value_to_expression($a).is_err());
+            let parsed_result = serde_json::from_value::<FilterExpression>($a);
+            assert!(parsed_result.is_err());
         };
     }
 }
