@@ -395,7 +395,7 @@ impl AggregationProcessor {
                     ])
                 }
             }
-            Operation::Lookup { ref curr } => Ok(vec![]),
+            Operation::Lookup { ref curr } => Err(anyhow!("Lookup operation not supported")),
         }
     }
 }

@@ -2,6 +2,7 @@ pub mod lmdb;
 mod lmdb_sys;
 pub mod memory;
 pub mod null;
+pub mod state_utils;
 mod tests;
 
 pub trait StateStoresManager: Send + Sync {

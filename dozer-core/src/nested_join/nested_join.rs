@@ -2,11 +2,49 @@ use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::ProcessorChannelForwarder;
 use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{Processor, ProcessorFactory};
+use crate::state::state_utils::get_multi_by_index;
 use crate::state::{StateStore, StateStoreOptions};
 use anyhow::{anyhow, Context};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::{error, warn};
 use std::collections::HashMap;
+
+pub struct NestedJoinConfig {
+    pub(crate) port: PortHandle,
+    pub(crate) children: Vec<NestedJoinChildConfig>,
+}
+
+impl NestedJoinConfig {
+    pub fn new(port: PortHandle, children: Vec<NestedJoinChildConfig>) -> Self {
+        Self { port, children }
+    }
+}
+
+pub struct NestedJoinChildConfig {
+    pub(crate) port: PortHandle,
+    pub(crate) parent_array_field: String,
+    pub(crate) parent_join_key_fields: Vec<String>,
+    pub(crate) join_key_fields: Vec<String>,
+    pub(crate) children: Vec<NestedJoinChildConfig>,
+}
+
+impl NestedJoinChildConfig {
+    pub fn new(
+        port: PortHandle,
+        parent_array_field: String,
+        parent_join_key_fields: Vec<String>,
+        join_key_fields: Vec<String>,
+        children: Vec<NestedJoinChildConfig>,
+    ) -> Self {
+        Self {
+            port,
+            parent_array_field,
+            parent_join_key_fields,
+            join_key_fields,
+            children,
+        }
+    }
+}
 
 pub struct NestedJoinProcessorFactory {
     parent_array_field: String,
@@ -130,42 +168,10 @@ impl NestedJoinProcessor {
                     });
                 }
             }
-            Operation::Update { old, new } => Ok(vec![]),
             Operation::Delete { old } => Ok(vec![]),
+            Operation::Update { old, new } => Ok(vec![]),
             Operation::Lookup { curr } => Ok(vec![]),
         }
-    }
-
-    fn get_all_children(
-        &self,
-        key: Vec<u8>,
-        state: &mut dyn StateStore,
-    ) -> anyhow::Result<Vec<Record>> {
-        let mut records = Vec::<Record>::new();
-
-        let mut cursor = state.cursor()?;
-        if cursor.seek(key.as_slice())? {
-            loop {
-                let kv = cursor.read()?;
-                match kv {
-                    Some(t) => {
-                        if t.0 != key.as_slice() {
-                            break;
-                        }
-                        let payload = state
-                            .get(t.1)?
-                            .context(anyhow!("Unable to find record for primary key {:x?}", t.1))?;
-                        let mut rec: Record = bincode::deserialize(payload)?;
-                        records.push(rec);
-                    }
-                    _ => break,
-                }
-                if !cursor.next()? {
-                    break;
-                }
-            }
-        }
-        Ok(records)
     }
 
     fn process_parent_op(
@@ -196,7 +202,7 @@ impl NestedJoinProcessor {
                         &idx.parent_join_key_indexes,
                         Some(CHILD_JOIN_KEY_INDEX_ID.to_ne_bytes().as_slice()),
                     )?;
-                    let children = self.get_all_children(lookup_key, state)?;
+                    let children = get_multi_by_index(state, lookup_key.as_slice())?;
                     new.values[idx.parent_array_index] = Field::RecordArray(
                         children
                             .into_iter()
@@ -207,7 +213,20 @@ impl NestedJoinProcessor {
 
                 Ok(vec![Operation::Insert { new }])
             }
-            Operation::Delete { old } => Ok(vec![]),
+            Operation::Delete { old } => {
+                let primary_key = old.get_key(
+                    &idx.parent_schema.primary_index,
+                    Some(PARENT_PRIMARY_KEY_INDEX_ID.to_ne_bytes().as_slice()),
+                )?;
+                state.del(primary_key.as_slice())?;
+
+                let join_key = old.get_key(
+                    &idx.parent_join_key_indexes,
+                    Some(PARENT_JOIN_KEY_INDEX_ID.to_ne_bytes().as_slice()),
+                )?;
+                state.del(join_key.as_slice())?;
+                Ok(vec![Operation::Delete { old }])
+            }
             Operation::Lookup { curr } => Ok(vec![]),
         }
     }
