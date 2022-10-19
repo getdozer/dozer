@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use dozer_cache::cache::query_helper::value_to_expression;
-use dozer_types::serde_json::{json, Value};
+use dozer_cache::cache::expression::QueryExpression;
+use dozer_types::serde_json::{self, json, Value};
 use rand::{
     distributions::{Alphanumeric, DistString},
     Rng,
@@ -28,8 +28,8 @@ fn deserialize(n: usize) -> anyhow::Result<()> {
             json!({ sample_string: {comparision_key[dice]: n}})
         })
         .collect();
-    let complex_ex = json!({ "$and": simple_ex });
-    value_to_expression(complex_ex)?;
+    let complex_ex = json!({"$filter":  { "$and": simple_ex }, "$order_by": {"field_name": "a_b", "direction": "asc"} });
+    serde_json::from_value::<QueryExpression>(complex_ex)?;
     Ok(())
 }
 

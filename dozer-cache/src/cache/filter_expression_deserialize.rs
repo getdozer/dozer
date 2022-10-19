@@ -22,7 +22,7 @@ impl<'de> Deserialize<'de> for FilterExpression {
             where
                 A: serde::de::MapAccess<'de>,
             {
-                while let Some(key) = map.next_key::<String>()? {
+                if let Some(key) = map.next_key::<String>()? {
                     let value: Value = map.next_value()?;
                     if !is_combinator(key.to_owned()) {
                         let expression = value_to_simple_exp(key, value)

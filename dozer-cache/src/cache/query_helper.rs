@@ -40,16 +40,16 @@ pub fn value_to_simple_exp(key: String, value: Value) -> anyhow::Result<FilterEx
                 .keys()
                 .next()
                 .context("Missing key in Simple expression")?;
-            let operator: Operator = Operator::from_str(&inner_key)?;
+            let operator: Operator = Operator::from_str(inner_key)?;
             let scalar_value = pairs
                 .get(inner_key)
                 .context(format!("scalar value by key {:?} is empty", inner_key))?;
             let expression = construct_simple_expression(key, operator, scalar_value.to_owned())?;
-            return Ok(expression);
+            Ok(expression)
         }
         Value::Number(_) | Value::String(_) | Value::Bool(_) | Value::Null => {
             let expression = construct_simple_expression(key, Operator::EQ, value.to_owned())?;
-            return Ok(expression);
+            Ok(expression)
         }
         Value::Array(_) => {
             bail!("Invalid Simple Expression")
@@ -66,7 +66,7 @@ pub fn value_to_composite_expression(
         .iter()
         .map(|c| -> anyhow::Result<FilterExpression> {
             let result: FilterExpression = serde_json::from_value(c.to_owned())?;
-            return Ok(result);
+            Ok(result)
         })
         .filter_map(|r| r.ok())
         .collect();
@@ -238,7 +238,7 @@ mod tests {
         );
         test_parse_query!(
             json!({"$and": [{"a":  {"$lt": 1}}, {"b":  {"$gte": 3}}, {"c": 3}]}),
-            same_result_with_different_json.clone()
+            same_result_with_different_json
         );
         test_parse_query!(
             json!({"$and": [{"$and":[{"a": {"$lt": 1}}, {"b":{"$gte": 3}}]}, {"c": 3}]}),
