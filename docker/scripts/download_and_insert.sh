@@ -1,5 +1,7 @@
 #!/bin/sh
 
+mkdir data;
+
 # https://github.com/devrimgunduz/pagila
 echo "Downloading Pagilla files...."
 

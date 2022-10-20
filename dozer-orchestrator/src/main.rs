@@ -26,8 +26,8 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.cmd {
-        SubCommand::Run { config_name } => {
-            let configuration = load_config(config_name);
+        SubCommand::Run { config_path } => {
+            let configuration = load_config(config_path);
 
             let client = Runtime::new()
                 .unwrap()

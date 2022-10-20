@@ -21,8 +21,8 @@ pub enum SubCommand {
         long_about = "Run orchestration"
     )]
     Run {
-        #[arg(short = 'c', long, default_value = "dozer-config")]
-        config_name: String,
+        #[arg(short = 'c', long, default_value = "./dozer-config.yaml")]
+        config_path: String,
     },
 }
 
@@ -33,12 +33,8 @@ pub struct Config {
     pub endpoints: Vec<ApiEndpoint>,
 }
 
-fn get_config_path(config_name: &String) -> String {
-    "run_configs/".to_string() + config_name + ".yaml"
-}
-
-pub fn load_config(config_name: String) -> Config {
-    let contents = fs::read_to_string(get_config_path(&config_name))
+pub fn load_config(config_path: String) -> Config {
+    let contents = fs::read_to_string(config_path)
         .expect("Should have been able to read the file");
 
     serde_yaml::from_str(&contents).unwrap()

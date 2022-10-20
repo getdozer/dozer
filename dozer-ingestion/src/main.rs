@@ -1,6 +1,4 @@
 use dozer_ingestion::connectors::connector::Connector;
-use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
-use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_ingestion::connectors::storage::{RocksConfig, RocksStorage, Storage};
 
 use crate::cli::{load_config, save_config, Args, Config, SubCommand};
@@ -10,6 +8,7 @@ use dozer_types::models::connection::{Connection, DBType};
 use dozer_types::log::debug;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use dozer_ingestion::{get_connector, get_seq_resolver};
 
 mod cli;
 
@@ -42,33 +41,8 @@ fn main() {
             let configuration = load_config(config_name);
             let storage_client = Arc::new(get_storage(&configuration));
 
-            let mut connector: Box<dyn Connector> = match configuration.connection.authentication {
-                PostgresAuthentication {
-                    user,
-                    password: _,
-                    host,
-                    port,
-                    database,
-                } => {
-                    let postgres_config = PostgresConfig {
-                        name: configuration.connection.name,
-                        tables: configuration.tables,
-                        conn_str: format!(
-                            "host={} port={} user={} dbname={}",
-                            host, port, user, database
-                        ),
-                    };
-                    debug!("Connecting to postgres database - {}", database);
-                    Box::new(PostgresConnector::new(
-                        configuration.connection.id.unwrap().parse().unwrap(),
-                        postgres_config,
-                    ))
-                }
-            };
-
-            let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
-            seq_resolver.init();
-            let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
+            let mut connector: Box<dyn Connector> = get_connector(configuration.connection);
+            let seq_no_resolver = Arc::new(Mutex::new(get_seq_resolver(Arc::clone(&storage_client))));
 
             connector.initialize(storage_client, None).unwrap();
 
