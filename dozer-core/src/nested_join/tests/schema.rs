@@ -1,6 +1,8 @@
 use crate::dag::dag::PortHandle;
 use crate::nested_join::nested_join::{NestedJoinChildConfig, NestedJoinConfig};
-use crate::nested_join::schema::{generate_nested_schema, generate_nested_schema_index};
+use crate::nested_join::schema::{
+    generate_nested_schema, generate_nested_schema_index, NestedJoinIndex, NestedJoinIndexParent,
+};
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
 
@@ -111,7 +113,44 @@ fn test_generate_nested_schema_rules() {
     let r = generate_nested_schema_index(get_schema_nesting_rules(), &input_schemas)
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    assert_eq!(1, 1);
+    let expected_output = HashMap::from_iter(vec![
+        (
+            1_u16,
+            NestedJoinIndex {
+                id: 1_u16,
+                parent: None,
+                children: vec![2_u16],
+            },
+        ),
+        (
+            2_u16,
+            NestedJoinIndex {
+                id: 2_u16,
+                parent: Some(NestedJoinIndexParent {
+                    parent: 1_u16,
+                    parent_array_index: 2,
+                    parent_join_key_indexes: vec![0],
+                    join_key_indexes: vec![1],
+                }),
+                children: vec![3_u16],
+            },
+        ),
+        (
+            3_u16,
+            NestedJoinIndex {
+                id: 3_u16,
+                parent: Some(NestedJoinIndexParent {
+                    parent: 2_u16,
+                    parent_array_index: 2,
+                    parent_join_key_indexes: vec![0],
+                    join_key_indexes: vec![1],
+                }),
+                children: vec![],
+            },
+        ),
+    ]);
+
+    assert_eq!(r, expected_output);
 }
 
 #[test]

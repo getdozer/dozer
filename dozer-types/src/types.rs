@@ -22,6 +22,29 @@ pub enum Field {
     Invalid(String),
 }
 
+impl Field {
+    pub fn to_ne_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        match self {
+            Field::Int(i) => Ok(Vec::from(i.to_ne_bytes())),
+            Field::Float(f) => Ok(Vec::from(f.to_ne_bytes())),
+            Field::Boolean(b) => Ok(Vec::from(if *b {
+                1_u8.to_ne_bytes()
+            } else {
+                0_u8.to_ne_bytes()
+            })),
+            Field::String(s) => Ok(Vec::from(s.as_bytes())),
+            Field::Binary(b) => Ok(Vec::from(b.as_slice())),
+            Field::Decimal(d) => Ok(Vec::from(d.serialize())),
+            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_ne_bytes())),
+            Field::Bson(b) => Ok(b.clone()),
+            Field::Null => Ok(Vec::from(0_u8.to_ne_bytes())),
+            _ => {
+                return Err(anyhow!("Invalid field type"));
+            }
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum FieldType {
     Int,

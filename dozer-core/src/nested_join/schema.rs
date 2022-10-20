@@ -4,6 +4,7 @@ use anyhow::{anyhow, Context};
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NestedJoinIndexParent {
     pub(crate) parent: PortHandle,
     pub(crate) parent_array_index: usize,
@@ -11,6 +12,7 @@ pub struct NestedJoinIndexParent {
     pub(crate) join_key_indexes: Vec<usize>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NestedJoinIndex {
     pub(crate) id: PortHandle,
     pub(crate) children: Vec<PortHandle>,
