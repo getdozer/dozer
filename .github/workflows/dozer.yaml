@@ -58,11 +58,11 @@ jobs:
         run: |
           cargo fmt -- --check
 
-      - name: Codecov
-        run: |
-          curl -Os https://uploader.codecov.io/latest/linux/codecov
-          chmod +x codecov
-          ./codecov
-
       - name: Run tests
         run: cargo test --verbose
+
+      - name: Codecov
+        uses: codecov/codecov-action@v3.1.0
+        with:
+          verbose: true
+          fail_ci_if_error: true
