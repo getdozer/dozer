@@ -1,10 +1,8 @@
-use crate::cache::query_helper::{
-    is_combinator, value_to_composite_expression, value_to_simple_exp,
-};
+use super::query_helper::{is_combinator, value_to_composite_expression, value_to_simple_exp};
 use dozer_types::serde_json::Value;
 use serde::de::{self, Deserialize, Deserializer, Visitor};
 
-use super::expression::FilterExpression;
+use super::super::expression::FilterExpression;
 
 impl<'de> Deserialize<'de> for FilterExpression {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
