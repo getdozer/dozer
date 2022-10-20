@@ -1,4 +1,4 @@
-use crate::state::StateStore;
+use crate::state::{StateStore, StateStoreCursor};
 use std::collections::HashMap;
 
 pub struct MemoryStateStore {
@@ -29,12 +29,16 @@ impl StateStore for MemoryStateStore {
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
+    fn get(&self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
         Ok(self.data.get(key).map(|e| e.as_slice()))
     }
 
     fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
         self.data.remove(key);
         Ok(())
+    }
+
+    fn cursor(&mut self) -> anyhow::Result<Box<dyn StateStoreCursor>> {
+        todo!()
     }
 }

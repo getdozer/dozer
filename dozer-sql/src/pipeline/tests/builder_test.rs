@@ -13,7 +13,7 @@ use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
-use dozer_core::state::StateStore;
+use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use crate::pipeline::builder::PipelineBuilder;
@@ -30,6 +30,10 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -101,6 +105,10 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory for TestSinkFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }

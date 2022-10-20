@@ -7,7 +7,7 @@ use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::Processor;
 use crate::state::lmdb::LmdbStateStoreManager;
 use crate::state::memory::MemoryStateStore;
-use crate::state::StateStoresManager;
+use crate::state::{StateStoreOptions, StateStoresManager};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
@@ -202,7 +202,9 @@ fn bench_aggregator() {
         1024 * 1024 * 1024 * 10,
         20_000,
     ));
-    let mut store = ss.init_state_store("test".to_string()).unwrap();
+    let mut store = ss
+        .init_state_store("test".to_string(), StateStoreOptions::default())
+        .unwrap();
 
     let mut agg = AggregationProcessor::new(get_aggregator_rules());
     let mut input_schemas = HashMap::<PortHandle, Schema>::new();

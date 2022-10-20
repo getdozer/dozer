@@ -1,11 +1,13 @@
+#![allow(clippy::type_complexity)]
 use libc::{c_int, c_uint, c_void, size_t, EACCES, EAGAIN, EINVAL, EIO, ENOENT, ENOMEM, ENOSPC};
 use lmdb_sys::{
-    mdb_dbi_open, mdb_del, mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize,
-    mdb_env_set_maxdbs, mdb_get, mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit, MDB_dbi,
-    MDB_env, MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL, MDB_DUPFIXED, MDB_DUPSORT, MDB_INTEGERKEY,
-    MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED, MDB_NODUPDATA, MDB_NOMETASYNC, MDB_NOOVERWRITE,
-    MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_PANIC, MDB_READERS_FULL, MDB_TXN_FULL,
-    MDB_VERSION_MISMATCH, MDB_WRITEMAP,
+    mdb_cursor_close, mdb_cursor_get, mdb_cursor_open, mdb_dbi_open, mdb_del, mdb_env_close,
+    mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs, mdb_get, mdb_put,
+    mdb_txn_abort, mdb_txn_begin, mdb_txn_commit, MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env,
+    MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL, MDB_DUPFIXED, MDB_DUPSORT, MDB_GET_CURRENT,
+    MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA,
+    MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_PANIC, MDB_PREV,
+    MDB_READERS_FULL, MDB_SET, MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -16,8 +18,8 @@ use unixstring::UnixString;
 
 #[derive(Debug, Clone)]
 pub struct LmdbError {
-    err_no: i32,
-    err_str: String,
+    pub err_no: i32,
+    pub err_str: String,
 }
 
 impl Display for LmdbError {
@@ -461,8 +463,126 @@ impl Database {
             Ok(true)
         }
     }
+
+    pub fn open_cursor(&self, txn: &Transaction) -> Result<Cursor, LmdbError> {
+        unsafe {
+            let mut cur: *mut MDB_cursor = ptr::null_mut();
+            let r = mdb_cursor_open(txn.txn, self.dbi, addr_of_mut!(cur));
+            match r {
+                EINVAL => Err(LmdbError::new(r, "Invalid parameter".to_string())),
+                x if x != 0 => Err(LmdbError::new(r, "Unknown error".to_string())),
+                _ => Ok(Cursor::new(cur)),
+            }
+        }
+    }
 }
 
 impl Drop for Database {
     fn drop(&mut self) {}
+}
+
+pub struct Cursor {
+    cursor: *mut MDB_cursor,
+}
+
+impl Cursor {
+    pub fn new(cursor: *mut MDB_cursor) -> Self {
+        Self { cursor }
+    }
+
+    fn internal_get_cursor_op(
+        &self,
+        op: MDB_cursor_op,
+        key: Option<&[u8]>,
+        val: Option<&[u8]>,
+    ) -> Result<Option<(&[u8], &[u8])>, LmdbError> {
+        unsafe {
+            let mut key_data = match key {
+                Some(v) => MDB_val {
+                    mv_size: v.len(),
+                    mv_data: v.as_ptr() as *mut c_void,
+                },
+                _ => MDB_val {
+                    mv_size: 0,
+                    mv_data: ptr::null_mut(),
+                },
+            };
+
+            let mut val_data = match val {
+                Some(v) => MDB_val {
+                    mv_size: v.len(),
+                    mv_data: v.as_ptr() as *mut c_void,
+                },
+                _ => MDB_val {
+                    mv_size: 0,
+                    mv_data: ptr::null_mut(),
+                },
+            };
+
+            let r = mdb_cursor_get(
+                self.cursor,
+                addr_of_mut!(key_data),
+                addr_of_mut!(val_data),
+                op,
+            );
+
+            match r {
+                EINVAL => Err(LmdbError::new(r, "Invalid parameter".to_string())),
+                MDB_NOTFOUND => Ok(None),
+                x if x != 0 => Err(LmdbError::new(r, "Unknown error".to_string())),
+                _ => Ok(Some((
+                    slice::from_raw_parts(key_data.mv_data as *mut u8, key_data.mv_size as usize),
+                    slice::from_raw_parts(val_data.mv_data as *mut u8, val_data.mv_size as usize),
+                ))),
+            }
+        }
+    }
+
+    pub fn seek(&self, key: &[u8]) -> Result<bool, LmdbError> {
+        let r = self.internal_get_cursor_op(MDB_SET, Some(key), None);
+        match r {
+            Ok(Some(_v)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn seek_partial(&self, key: &[u8]) -> Result<bool, LmdbError> {
+        let r = self.internal_get_cursor_op(MDB_SET_RANGE, Some(key), None);
+        match r {
+            Ok(Some(_v)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn read(&self) -> Result<Option<(&[u8], &[u8])>, LmdbError> {
+        self.internal_get_cursor_op(MDB_GET_CURRENT, None, None)
+    }
+
+    pub fn next(&self) -> Result<bool, LmdbError> {
+        let r = self.internal_get_cursor_op(MDB_NEXT, None, None);
+        match r {
+            Ok(Some(_v)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn prev(&self) -> Result<bool, LmdbError> {
+        let r = self.internal_get_cursor_op(MDB_PREV, None, None);
+        match r {
+            Ok(Some(_v)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl Drop for Cursor {
+    fn drop(&mut self) {
+        unsafe {
+            mdb_cursor_close(self.cursor);
+        }
+    }
 }

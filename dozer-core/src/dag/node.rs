@@ -1,12 +1,13 @@
 use crate::dag::dag::PortHandle;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::state::StateStore;
+use crate::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
 pub trait ExecutionContext: Send + Sync {}
 
 pub trait ProcessorFactory: Send + Sync {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Processor>;
@@ -29,6 +30,7 @@ pub trait Processor {
 }
 
 pub trait SourceFactory: Send + Sync {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Source>;
 }
@@ -45,6 +47,7 @@ pub trait Source {
 }
 
 pub trait SinkFactory: Send + Sync {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Sink>;
 }

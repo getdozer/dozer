@@ -6,7 +6,7 @@ use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
-use dozer_core::state::StateStore;
+use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{Field, Operation, Schema};
 use log::info;
 use sqlparser::ast::Expr as SqlExpr;
@@ -27,6 +27,10 @@ impl SelectionProcessorFactory {
 }
 
 impl ProcessorFactory for SelectionProcessorFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
