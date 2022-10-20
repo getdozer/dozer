@@ -1,9 +1,9 @@
+use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
 };
-use serde_json::{json, Value};
 use std::sync::Arc;
 
 use dozer_cache::cache::{Cache, LmdbCache};

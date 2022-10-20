@@ -1,13 +1,9 @@
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use anyhow::Context;
-use dozer_cache::cache::{
-    expression::{FilterExpression, QueryExpression},
-    index,
-    query_helper::value_to_expression,
-    Cache, LmdbCache,
-};
+use dozer_cache::cache::{expression::QueryExpression, index, Cache, LmdbCache};
+use dozer_types::serde_json;
+use dozer_types::serde_json::Value;
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
-use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{generator::oapi::generator::OpenApiGenerator, rest_error::RestError};
@@ -77,24 +73,18 @@ pub async fn list(app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>) -> im
 
 // Generated query function for multiple records
 pub async fn query(
-    filter_info: web::Json<Value>,
+    query_info: web::Json<Value>,
     app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>,
 ) -> Result<HttpResponse, RestError> {
     let cache = app_data.0.to_owned();
-    let filter_expression = value_to_expression(filter_info.0)
-        .map_err(|e| RestError::Validation {
-            message: Some(e.to_string()),
-            details: None,
-        })
-        .map(|vec| -> Option<FilterExpression> {
-            if vec.len() == 1 {
-                Some(vec[0].to_owned())
-            } else {
-                None
+    let filter_expression =
+        serde_json::from_value::<QueryExpression>(query_info.0).map_err(|e| {
+            RestError::Validation {
+                message: Some(e.to_string()),
+                details: None,
             }
         })?;
-    let exp = QueryExpression::new(filter_expression, vec![], 50, 0);
-    let records = get_records(cache, exp);
+    let records = get_records(cache, filter_expression);
 
     match records {
         Ok(maps) => {

@@ -1,7 +1,6 @@
 mod lmdb;
 use self::expression::QueryExpression;
 pub use self::lmdb::cache::LmdbCache;
-pub mod query_helper;
 use dozer_types::types::{Record, Schema, SchemaIdentifier};
 pub mod expression;
 pub mod index;
