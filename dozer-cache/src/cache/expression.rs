@@ -1,5 +1,5 @@
+use dozer_types::serde::{self, Deserialize};
 use dozer_types::types::{Field, IndexDefinition};
-use serde::Deserialize;
 use strum_macros::EnumString;
 mod deserializer;
 mod query_helper;
@@ -8,6 +8,7 @@ mod query_helper;
 mod tests;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
+#[serde(crate = "self::serde")]
 pub struct QueryExpression {
     #[serde(rename = "$filter", default)]
     pub filter: Option<FilterExpression>,
@@ -66,6 +67,7 @@ pub enum Operator {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(crate = "self::serde")]
 pub enum SortDirection {
     #[serde(rename = "asc")]
     Ascending,
@@ -73,6 +75,7 @@ pub enum SortDirection {
     Descending,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(crate = "self::serde")]
 pub struct SortOptions {
     pub field_name: String,
     pub direction: SortDirection,

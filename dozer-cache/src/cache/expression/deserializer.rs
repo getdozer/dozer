@@ -1,6 +1,7 @@
 use super::query_helper::{is_combinator, value_to_composite_expression, value_to_simple_exp};
+use dozer_types::serde;
+use dozer_types::serde::de::{self, Deserialize, Deserializer, Visitor};
 use dozer_types::serde_json::Value;
-use serde::de::{self, Deserialize, Deserializer, Visitor};
 
 use super::super::expression::FilterExpression;
 

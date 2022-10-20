@@ -1,9 +1,12 @@
 use actix_web::{body, error, http::StatusCode, HttpResponse};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use dozer_types::serde;
+use dozer_types::serde::{Deserialize, Serialize};
+use dozer_types::serde_json;
+use dozer_types::serde_json::Value;
 use std::fmt::{self};
 
 #[derive(Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub enum RestError {
     NotFound {
         message: Option<String>,

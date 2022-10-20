@@ -1,6 +1,6 @@
 use super::server::ApiServer;
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils};
-use serde_json::{json, Value};
+use dozer_types::serde_json::{json, Value};
 
 #[test]
 fn test_generate_oapi() -> anyhow::Result<()> {

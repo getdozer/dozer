@@ -1,8 +1,9 @@
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use anyhow::Context;
 use dozer_cache::cache::{expression::QueryExpression, index, Cache, LmdbCache};
+use dozer_types::serde_json;
+use dozer_types::serde_json::Value;
 use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
-use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{generator::oapi::generator::OpenApiGenerator, rest_error::RestError};

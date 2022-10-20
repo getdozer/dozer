@@ -5,12 +5,14 @@ use std::time::Instant;
 use super::storage::RocksStorage;
 use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
 // use dozer_schema::registry::{_get_client, context};
+use dozer_types::serde;
 use dozer_types::types::{Commit, OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
 // use tokio::runtime::Runtime;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(crate = "self::serde")]
 pub enum IngestionMessage {
     Begin(),
     OperationEvent(OperationEvent),
