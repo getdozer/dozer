@@ -1240,6 +1240,7 @@ name = "dozer-sql"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "chrono",
  "dozer-core",
  "dozer-types",
