@@ -8,7 +8,7 @@ use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
-use dozer_core::state::StateStore;
+use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
@@ -27,6 +27,10 @@ impl ProjectionProcessorFactory {
 }
 
 impl ProcessorFactory for ProjectionProcessorFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

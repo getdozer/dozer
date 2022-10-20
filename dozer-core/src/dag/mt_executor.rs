@@ -1,12 +1,12 @@
 #![allow(clippy::type_complexity)]
 use crate::dag::dag::{Dag, NodeHandle, NodeType, PortDirection, PortHandle};
-use crate::dag::node::{ProcessorFactory, SinkFactory, SourceFactory};
-use dozer_types::types::{Operation, Record, Schema};
-
 use crate::dag::forwarder::{LocalChannelForwarder, SourceChannelForwarder};
+use crate::dag::node::{ProcessorFactory, SinkFactory, SourceFactory};
+use crate::state::null::NullStateStore;
 use crate::state::StateStoresManager;
 use anyhow::anyhow;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
+use dozer_types::types::{Operation, Record, Schema};
 use log::{error, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -164,7 +164,10 @@ impl MultiThreadedDagExecutor {
         let fw = LocalChannelForwarder::new(senders);
 
         thread::spawn(move || -> anyhow::Result<()> {
-            let mut state_store = local_sm.init_state_store(handle.to_string())?;
+            let mut state_store = match src_factory.get_state_store_opts() {
+                Some(opt) => local_sm.init_state_store(handle.to_string(), opt)?,
+                None => Box::new(NullStateStore {}),
+            };
 
             let src = src_factory.build();
             for p in src_factory.get_output_ports() {
@@ -200,7 +203,11 @@ impl MultiThreadedDagExecutor {
         let local_sm = state_manager.clone();
         thread::spawn(move || -> anyhow::Result<()> {
             let mut snk = snk_factory.build();
-            let mut state_store = local_sm.init_state_store(handle.to_string())?;
+
+            let mut state_store = match snk_factory.get_state_store_opts() {
+                Some(opt) => local_sm.init_state_store(handle.to_string(), opt)?,
+                None => Box::new(NullStateStore {}),
+            };
 
             let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -272,7 +279,11 @@ impl MultiThreadedDagExecutor {
         let local_sm = state_manager.clone();
         thread::spawn(move || -> anyhow::Result<()> {
             let mut proc = proc_factory.build();
-            let mut state_store = local_sm.init_state_store(handle.to_string())?;
+
+            let mut state_store = match proc_factory.get_state_store_opts() {
+                Some(opt) => local_sm.init_state_store(handle.to_string(), opt)?,
+                None => Box::new(NullStateStore {}),
+            };
 
             let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);

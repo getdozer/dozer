@@ -9,7 +9,7 @@ use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
-use dozer_core::state::StateStore;
+use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use log::debug;
@@ -35,6 +35,10 @@ impl CacheSinkFactory {
 }
 
 impl SinkFactory for CacheSinkFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
