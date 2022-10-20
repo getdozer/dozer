@@ -34,8 +34,7 @@ pub struct Config {
 }
 
 pub fn load_config(config_path: String) -> Config {
-    let contents = fs::read_to_string(config_path)
-        .expect("Should have been able to read the file");
+    let contents = fs::read_to_string(config_path).expect("Should have been able to read the file");
 
     serde_yaml::from_str(&contents).unwrap()
 }

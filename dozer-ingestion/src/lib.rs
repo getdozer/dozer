@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use log::debug;
-use dozer_types::models::connection::Authentication::PostgresAuthentication;
-use dozer_types::models::connection::Connection;
 use crate::connectors::connector::Connector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 use crate::connectors::storage::RocksStorage;
+use dozer_types::models::connection::Authentication::PostgresAuthentication;
+use dozer_types::models::connection::Connection;
+use log::debug;
+use std::sync::Arc;
 
 pub mod connectors;
 
