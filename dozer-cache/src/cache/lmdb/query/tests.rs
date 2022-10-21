@@ -43,4 +43,26 @@ fn query_secondary() {
     let records = cache.query("sample", &query).unwrap();
     assert_eq!(records.len(), 1, "must be equal");
     assert_eq!(records[0], record, "must be equal");
+
+    // Full text query.
+    let schema = test_utils::schema_full_text_single();
+    let record = Record::new(
+        schema.identifier.clone(),
+        vec![Field::String("today is a good day".into())],
+    );
+
+    cache.insert_schema("full_text_sample", &schema).unwrap();
+    cache.insert(&record).unwrap();
+
+    let filter = FilterExpression::Simple(
+        "foo".into(),
+        expression::Operator::Contains,
+        "good".to_string().into(),
+    );
+
+    let query = QueryExpression::new(Some(filter), vec![], 10, 0);
+
+    let records = cache.query("full_text_sample", &query).unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0], record);
 }

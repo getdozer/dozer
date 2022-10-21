@@ -67,7 +67,10 @@ impl QueryPlanner {
                 Operator::EQ => {
                     hash_index.insert(op.0);
                 }
-                Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
+                Operator::Contains => {
+                    // I'm not sure what `range_index` and `hash_index` are for so not adding another `full_text_index`.
+                }
+                Operator::MatchesAny | Operator::MatchesAll => {
                     bail!("full text search queries are not yet supported")
                 }
             }
