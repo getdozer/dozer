@@ -152,6 +152,24 @@ impl Sink for CacheSink {
 }
 
 impl CacheSink {
+    pub fn new(
+        cache: Arc<LmdbCache>,
+        counter: i32,
+        before: Instant,
+        input_schemas: HashMap<PortHandle, Schema>,
+        schema_map: HashMap<u64, bool>,
+        api_endpoint: ApiEndpoint,
+    ) -> Self {
+        Self {
+            cache,
+            counter,
+            before,
+            input_schemas,
+            schema_map,
+            api_endpoint,
+        }
+    }
+
     fn get_output_schema(&self, schema: &Schema) -> anyhow::Result<Schema> {
         let mut schema = schema.clone();
         let api_index = &self.api_endpoint.index;
@@ -171,88 +189,23 @@ impl CacheSink {
 
 #[cfg(test)]
 mod tests {
-    use crate::pipeline::CacheSink;
-    use dozer_cache::cache::LmdbCache;
+
+    use crate::test_utils;
+
     use dozer_cache::cache::{index, Cache};
-    use dozer_core::dag::dag::PortHandle;
+
     use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::Sink;
-    use dozer_core::state::lmdb::LmdbStateStoreManager;
-    use dozer_core::state::{StateStoreOptions, StateStoresManager};
-    use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
-    use dozer_types::types::{
-        Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier,
-    };
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::time::Instant;
-    use std::{fs, panic};
-    use tempdir::TempDir;
+
+    use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
+    use std::panic;
 
     #[test]
-    fn update_record() {
-        let cache = Arc::new(LmdbCache::new(true));
+    // This test cases covers updation of records when primary key changes because of value change in primary_key
+    fn update_record_when_primary_changes() {
+        let schema = test_utils::get_schema();
 
-        let schema = Schema {
-            identifier: Option::from(SchemaIdentifier { id: 1, version: 1 }),
-            fields: vec![
-                FieldDefinition {
-                    name: "film_id".to_string(),
-                    typ: FieldType::Int,
-                    nullable: false,
-                },
-                FieldDefinition {
-                    name: "film_name".to_string(),
-                    typ: FieldType::String,
-                    nullable: false,
-                },
-            ],
-            values: vec![0],
-            primary_index: vec![0],
-            secondary_indexes: vec![],
-        };
-
-        let mut schema_map: HashMap<u64, bool> = HashMap::new();
-        schema_map.insert(1, true);
-
-        let mut input_schemas: HashMap<PortHandle, Schema> = HashMap::new();
-        input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
-
-        let mut sink = CacheSink {
-            cache: Arc::clone(&cache),
-            counter: 0,
-            before: Instant::now(),
-            input_schemas,
-            schema_map,
-            api_endpoint: ApiEndpoint {
-                id: None,
-                name: "films".to_string(),
-                path: "/films".to_string(),
-                enable_rest: false,
-                enable_grpc: false,
-                sql: "SELECT film_name FROM film WHERE 1=1".to_string(),
-                index: ApiIndex {
-                    primary_key: vec!["film_id".to_string()],
-                },
-            },
-        };
-
-        let tmp_dir =
-            TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-        if tmp_dir.path().exists() {
-            fs::remove_dir_all(tmp_dir.path())
-                .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-        }
-        fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-
-        let sm = LmdbStateStoreManager::new(
-            tmp_dir.path().to_str().unwrap().to_string(),
-            1024 * 1024 * 1024 * 5,
-            20_000,
-        );
-        let mut state = sm
-            .init_state_store("1".to_string(), StateStoreOptions::default())
-            .unwrap();
+        let (cache, mut sink) = test_utils::init_sink(&schema);
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 
@@ -278,17 +231,20 @@ mod tests {
                 values: updated_values.clone(),
             },
         };
+        let mut state = test_utils::init_state();
 
         sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation, state.as_mut())
             .unwrap();
 
-        let key = index::get_primary_key(&schema.primary_index, &initial_values);
+        let key = index::get_primary_key(&schema.primary_index.clone(), &initial_values);
         let record = cache.get(&key).unwrap();
 
         assert_eq!(initial_values, record.values);
 
         sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation, state.as_mut())
             .unwrap();
+
+        // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = panic::catch_unwind(|| {
             cache.get(&key).unwrap();
@@ -296,6 +252,7 @@ mod tests {
 
         assert!(record.is_err());
 
+        // Primary key with updated values
         let key = index::get_primary_key(&schema.primary_index, &updated_values);
         let record = cache.get(&key).unwrap();
 
