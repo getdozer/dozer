@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use crate::pipeline::expression::error::ExpressionError;
 use dozer_types::types::{Field, Record};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
@@ -7,7 +7,7 @@ pub fn evaluate_and(
     left: &Expression,
     right: &Expression,
     record: &Record,
-) -> anyhow::Result<Field> {
+) -> Result<Field, ExpressionError> {
     let left_p = left.evaluate(record)?;
 
     match left_p {
@@ -21,7 +21,7 @@ pub fn evaluate_and(
                 _ => Ok(Field::Boolean(false)),
             }
         }
-        _ => Err(anyhow!("Cannot apply {} to this values", "$id")),
+        _ => Err(ExpressionError::InvalidOperandType("AND".to_string())),
     }
 }
 
@@ -29,7 +29,7 @@ pub fn evaluate_or(
     left: &Expression,
     right: &Expression,
     record: &Record,
-) -> anyhow::Result<Field> {
+) -> Result<Field, ExpressionError> {
     let left_p = left.evaluate(record)?;
 
     match left_p {
@@ -43,16 +43,16 @@ pub fn evaluate_or(
                 _ => Ok(Field::Boolean(false)),
             }
         }
-        _ => Err(anyhow!("Cannot apply {} to this values", "$id")),
+        _ => Err(ExpressionError::InvalidOperandType("OR".to_string())),
     }
 }
 
-pub fn evaluate_not(value: &Expression, record: &Record) -> anyhow::Result<Field> {
+pub fn evaluate_not(value: &Expression, record: &Record) -> Result<Field, ExpressionError> {
     let value_p = value.evaluate(record)?;
 
     match value_p {
         Field::Boolean(value_v) => Ok(Field::Boolean(!value_v)),
-        _ => Err(anyhow!("Cannot apply {} to this values", "$id")),
+        _ => Err(ExpressionError::InvalidOperandType("NOT".to_string())),
     }
 }
 

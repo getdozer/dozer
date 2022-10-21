@@ -1,3 +1,4 @@
+use crate::pipeline::expression::error::ExpressionError;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -31,15 +32,23 @@ pub enum Expression {
 impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &Record) -> anyhow::Result<Field>;
+    fn evaluate(&self, record: &Record) -> Result<Field, ExpressionError>;
     fn get_type(&self, schema: &Schema) -> FieldType;
 }
 
 impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &Record) -> anyhow::Result<Field> {
+    fn evaluate(&self, record: &Record) -> Result<Field, ExpressionError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
-            Expression::Column { index } => Ok(record.get_value(*index)?.clone()),
+            Expression::Column { index } => Ok(record
+                .get_value(*index)
+                .map_err(|_e| {
+                    ExpressionError::InvalidInputType(format!(
+                        "{} is an invalid field index",
+                        *index
+                    ))
+                })?
+                .clone()),
             Expression::BinaryOperator {
                 left,
                 operator,
