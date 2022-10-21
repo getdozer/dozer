@@ -32,7 +32,8 @@ impl<'a> LmdbQueryHandler<'a> {
         let execution = planner.plan(schema, query)?;
         let records = match execution {
             ExecutionStep::IndexScan(index_scan) => {
-                self.query_with_secondary_index(schema, index_scan, query.limit, query.skip)?
+                let starting_key = build_starting_key(schema, &index_scan)?;
+                self.query_with_secondary_index(&starting_key, query.limit, query.skip)?
             }
             ExecutionStep::SeqScan(_seq_scan) => {
                 self.iterate_and_deserialize(query.limit, query.skip)?
@@ -71,47 +72,16 @@ impl<'a> LmdbQueryHandler<'a> {
         }
         Ok(records)
     }
+
     fn query_with_secondary_index(
         &self,
-        schema: &Schema,
-        index_scan: IndexScan,
+        starting_key: &[u8],
         limit: usize,
         skip: usize,
     ) -> anyhow::Result<Vec<Record>> {
-        let mut field_bytes: Vec<Option<Vec<u8>>> = vec![];
-
-        for (idx, idf) in index_scan.fields.into_iter().enumerate() {
-            // Convert dynamic json_values to field_values based on field_types
-            field_bytes.push(
-                match idf {
-                    Some(val) => {
-                        let field_type = schema
-                            .fields
-                            .get(idx)
-                            .context("field indexes dont match with index_scan")?
-                            .typ
-                            .to_owned();
-                        let field = json_value_to_field(&val.to_string(), &field_type)?;
-                        Some(
-                            bincode::serialize(&field)
-                                .context("field indexes dont match with index_scan")?,
-                        )
-                    }
-                    None => None,
-                }, // convert value to based on field_type
-            );
-        }
-
-        let schema_identifier = schema.identifier.clone().context("schema_id expected")?;
-        let starting_key = index::get_secondary_index(
-            schema_identifier.id,
-            &index_scan.index_def.fields,
-            &field_bytes,
-        );
-
         let cursor = self.txn.open_ro_cursor(self.indexer_db)?;
 
-        let mut cache_iterator = CacheIterator::new(&cursor, Some(&starting_key), true);
+        let mut cache_iterator = CacheIterator::new(&cursor, Some(starting_key), true);
         let mut pkeys = vec![];
         let mut idx = 0;
         loop {
@@ -144,4 +114,38 @@ impl<'a> LmdbQueryHandler<'a> {
         // Find for partial matches if iterating on a query
         matches!(gs_find(key, starting_key), Some(_idx))
     }
+}
+
+fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> anyhow::Result<Vec<u8>> {
+    let schema_identifier = schema.identifier.clone().context("schema_id expected")?;
+
+    let mut field_bytes: Vec<Option<Vec<u8>>> = vec![];
+
+    for (idx, idf) in index_scan.fields.iter().enumerate() {
+        // Convert dynamic json_values to field_values based on field_types
+        field_bytes.push(
+            match idf {
+                Some(val) => {
+                    let field_type = schema
+                        .fields
+                        .get(idx)
+                        .context("field indexes dont match with index_scan")?
+                        .typ
+                        .to_owned();
+                    let field = json_value_to_field(&val.to_string(), &field_type)?;
+                    Some(
+                        bincode::serialize(&field)
+                            .context("field indexes dont match with index_scan")?,
+                    )
+                }
+                None => None,
+            }, // convert value to based on field_type
+        );
+    }
+
+    Ok(index::get_secondary_index(
+        schema_identifier.id,
+        &index_scan.index_def.fields,
+        &field_bytes,
+    ))
 }
