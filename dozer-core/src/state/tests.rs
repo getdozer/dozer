@@ -54,7 +54,7 @@ fn test_cursor_duplicate_keys() {
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
     assert!(r);
 
-    for i in 'a'..'z' {
+    for i in 'a'..='z' {
         let r = cursor
             .read()
             .unwrap_or_else(|e| panic!("{}", e.to_string()))
@@ -72,7 +72,7 @@ fn test_cursor_duplicate_keys() {
             .unwrap_or_else(|e| panic!("{}", e.to_string()));
     }
 
-    for i in 'a'..'z' {
+    for i in 'a'..='z' {
         let r = cursor
             .read()
             .unwrap_or_else(|e| panic!("{}", e.to_string()))
