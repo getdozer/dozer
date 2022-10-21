@@ -1,9 +1,8 @@
-use dozer_types::types::{Field, Record};
-
 use crate::pipeline::expression::comparison::*;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
+use dozer_types::types::{Field, Record};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum UnaryOperatorType {
@@ -14,7 +13,7 @@ pub enum UnaryOperatorType {
 }
 
 impl UnaryOperatorType {
-    pub fn evaluate(&self, value: &Expression, record: &Record) -> Field {
+    pub fn evaluate(&self, value: &Expression, record: &Record) -> anyhow::Result<Field> {
         match self {
             UnaryOperatorType::Not => evaluate_not(value, record),
             UnaryOperatorType::Plus => evaluate_plus(value, record),
@@ -46,7 +45,12 @@ pub enum BinaryOperatorType {
 }
 
 impl BinaryOperatorType {
-    pub fn evaluate(&self, left: &Expression, right: &Expression, record: &Record) -> Field {
+    pub fn evaluate(
+        &self,
+        left: &Expression,
+        right: &Expression,
+        record: &Record,
+    ) -> anyhow::Result<Field> {
         match self {
             BinaryOperatorType::Eq => evaluate_eq(left, right, record),
             BinaryOperatorType::Ne => evaluate_ne(left, right, record),

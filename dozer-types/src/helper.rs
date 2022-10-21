@@ -1,5 +1,5 @@
 use crate::types::{self, Record, Schema};
-use anyhow::{bail, Context};
+use anyhow::{anyhow, bail, Context};
 use rust_decimal::Decimal;
 use serde_json::Value;
 use std::{collections::HashMap, str};
@@ -61,7 +61,10 @@ pub fn record_to_json(rec: &Record, schema: &Schema) -> anyhow::Result<HashMap<S
     let mut map: HashMap<String, Value> = HashMap::new();
 
     for (idx, field_def) in schema.fields.iter().enumerate() {
-        let field = rec.values[idx].clone();
+        let field = rec
+            .get_value(idx)
+            .context(anyhow!("Unable to find field with index {}", idx))?
+            .clone();
         let val: Value = field_to_json_value(&field)?;
         map.insert(field_def.name.clone(), val);
     }

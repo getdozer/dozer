@@ -49,10 +49,7 @@ mod tests {
         dozer_types::types::OperationEvent {
             seq_no,
             operation: Operation::Insert {
-                new: Record {
-                    schema_id: None,
-                    values: vec![],
-                },
+                new: Record::new(None, vec![]),
             },
         }
     }

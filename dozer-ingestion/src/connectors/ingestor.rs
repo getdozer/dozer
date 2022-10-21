@@ -147,10 +147,7 @@ mod tests {
         let operation_event_message = dozer_types::types::OperationEvent {
             seq_no: 0,
             operation: Operation::Insert {
-                new: Record {
-                    schema_id: None,
-                    values: vec![],
-                },
+                new: Record::new(None, vec![]),
             },
         };
 
@@ -158,10 +155,7 @@ mod tests {
         let operation_event_message2 = dozer_types::types::OperationEvent {
             seq_no: 0,
             operation: Operation::Insert {
-                new: Record {
-                    schema_id: None,
-                    values: vec![],
-                },
+                new: Record::new(None, vec![]),
             },
         };
 

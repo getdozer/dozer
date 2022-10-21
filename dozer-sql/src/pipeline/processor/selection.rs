@@ -1,7 +1,6 @@
+use super::selection_builder::SelectionBuilder;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use anyhow::Result;
-
-use std::collections::HashMap;
-
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
@@ -10,10 +9,7 @@ use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{Field, Operation, Schema};
 use log::info;
 use sqlparser::ast::Expr as SqlExpr;
-
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-
-use super::selection_builder::SelectionBuilder;
+use std::collections::HashMap;
 
 pub struct SelectionProcessorFactory {
     statement: Option<SqlExpr>,
@@ -101,18 +97,18 @@ impl Processor for SelectionProcessor {
     ) -> anyhow::Result<()> {
         match op {
             Operation::Delete { ref old } => {
-                if self.expression.evaluate(old) == Field::Boolean(true) {
+                if self.expression.evaluate(old)? == Field::Boolean(true) {
                     let _ = fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
-                if self.expression.evaluate(new) == Field::Boolean(true) {
+                if self.expression.evaluate(new)? == Field::Boolean(true) {
                     let _ = fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let old_fulfilled = self.expression.evaluate(old) == Field::Boolean(true);
-                let new_fulfilled = self.expression.evaluate(new) == Field::Boolean(true);
+                let old_fulfilled = self.expression.evaluate(old)? == Field::Boolean(true);
+                let new_fulfilled = self.expression.evaluate(new)? == Field::Boolean(true);
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation
