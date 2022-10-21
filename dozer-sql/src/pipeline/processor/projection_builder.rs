@@ -1,19 +1,19 @@
-use anyhow::{bail, Result};
-use std::collections::HashMap;
-
-use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem,
-    UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+use crate::pipeline::error::PipelineError;
+use crate::pipeline::error::PipelineError::{
+    InternalTypeError, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
 };
-
-use dozer_types::types::Field;
-use dozer_types::types::Schema;
-
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
+use dozer_types::types::Schema;
+use dozer_types::types::{Field, TypeError};
+use sqlparser::ast::{
+    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem,
+    UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+};
+use std::collections::HashMap;
 
 pub struct ProjectionBuilder {}
 
@@ -22,7 +22,7 @@ impl ProjectionBuilder {
         &self,
         statement: &[SelectItem],
         schema: &Schema,
-    ) -> Result<(Vec<Expression>, Vec<String>)> {
+    ) -> Result<(Vec<Expression>, Vec<String>), PipelineError> {
         let expressions = statement
             .iter()
             .map(|expr| self.parse_sql_select_item(expr, schema))
@@ -30,17 +30,17 @@ impl ProjectionBuilder {
                 Ok(vec) => vec.into_iter().map(Ok).collect(),
                 Err(err) => vec![Err(err)],
             })
-            .collect::<Result<Vec<Expression>>>()?;
+            .collect::<Result<Vec<Expression>, PipelineError>>()?;
 
         let names = statement
             .iter()
             .map(|item| self.get_select_item_name(item))
-            .collect::<Result<Vec<String>>>()?;
+            .collect::<Result<Vec<String>, PipelineError>>()?;
 
         Ok((expressions, names))
     }
 
-    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize> {
+    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize, PipelineError> {
         let schema_idx: HashMap<String, usize> = schema
             .fields
             .iter()
@@ -51,22 +51,26 @@ impl ProjectionBuilder {
         if let Some(index) = schema_idx.get(name).cloned() {
             Ok(index)
         } else {
-            bail!("The Field {} does not exists", &name)
+            Err(InternalTypeError(TypeError::InvalidFieldName(name.clone())))
         }
     }
 
-    fn get_select_item_name(&self, item: &SelectItem) -> Result<String> {
+    fn get_select_item_name(&self, item: &SelectItem) -> Result<String, PipelineError> {
         match item {
             SelectItem::UnnamedExpr(expr) => Ok(expr.to_string()),
             SelectItem::ExprWithAlias { expr: _, alias } => Ok(alias.to_string()),
-            SelectItem::Wildcard => bail!("Unsupported Wildcard Operator"),
+            SelectItem::Wildcard => Err(InvalidOperator("*".to_string())),
             SelectItem::QualifiedWildcard(ref object_name) => {
-                bail!("Unsupported Qualified Wildcard Operator {}", object_name)
+                Err(InvalidOperator(object_name.to_string()))
             }
         }
     }
 
-    fn parse_sql_select_item(&self, sql: &SelectItem, schema: &Schema) -> Result<Vec<Expression>> {
+    fn parse_sql_select_item(
+        &self,
+        sql: &SelectItem,
+        schema: &Schema,
+    ) -> Result<Vec<Expression>, PipelineError> {
         match sql {
             SelectItem::UnnamedExpr(sql_expr) => {
                 match self.parse_sql_expression(sql_expr, schema) {
@@ -75,11 +79,11 @@ impl ProjectionBuilder {
                 }
             }
             SelectItem::ExprWithAlias { expr, alias } => {
-                bail!("Unsupported Expression {}:{}", expr, alias)
+                Err(InvalidExpression(format!("{}:{}", expr, alias)))
             }
-            SelectItem::Wildcard => bail!("Unsupported Wildcard"),
+            SelectItem::Wildcard => Err(InvalidOperator("*".to_string())),
             SelectItem::QualifiedWildcard(ref object_name) => {
-                bail!("Unsupported Qualified Wildcard {}", object_name)
+                Err(InvalidOperator(object_name.to_string()))
             }
         }
     }
@@ -88,7 +92,7 @@ impl ProjectionBuilder {
         &self,
         expression: &SqlExpr,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool)> {
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
         match expression {
             SqlExpr::Identifier(ident) => Ok((
                 Box::new(Expression::Column {
@@ -144,9 +148,9 @@ impl ProjectionBuilder {
                     return Ok((r.0, true));
                 };
 
-                bail!("Unsupported Expression: {:?}", expression)
+                Err(InvalidExpression(format!("{:?}", expression)))
             }
-            _ => bail!("Unsupported Expression: {:?}", expression),
+            _ => Err(InvalidExpression(format!("{:?}", expression))),
         }
     }
 
@@ -154,7 +158,7 @@ impl ProjectionBuilder {
         &self,
         argument: &FunctionArg,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool)> {
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
         match argument {
             FunctionArg::Named {
                 name: _,
@@ -163,14 +167,14 @@ impl ProjectionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => bail!("Unsupported Wildcard argument: {:?}", argument),
+            } => Err(InvalidArgument(format!("{:?}", argument))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.parse_sql_expression(arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                bail!("Unsupported Wildcard Argument: {:?}", argument)
+                Err(InvalidArgument(format!("{:?}", argument)))
             }
-            _ => bail!("Unsupported Argument: {:?}", argument),
+            _ => Err(InvalidArgument(format!("{:?}", argument))),
         }
     }
 
@@ -179,7 +183,7 @@ impl ProjectionBuilder {
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool)> {
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
         let (arg, bypass) = self.parse_sql_expression(expr, schema)?;
         if bypass {
             return Ok((arg, bypass));
@@ -189,7 +193,7 @@ impl ProjectionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => bail!("Unsupported SQL unary operator {:?}", op),
+            _ => return Err(InvalidOperator(format!("{:?}", op))),
         };
 
         Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
@@ -201,7 +205,7 @@ impl ProjectionBuilder {
         op: &SqlBinaryOperator,
         right: &SqlExpr,
         schema: &Schema,
-    ) -> Result<(Box<Expression>, bool)> {
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
         let (left_op, bypass_left) = self.parse_sql_expression(left, schema)?;
         if bypass_left {
             return Ok((left_op, bypass_left));
@@ -219,16 +223,16 @@ impl ProjectionBuilder {
                 }),
                 false,
             )),
-            _ => bail!("Unsupported SQL binary operator {:?}", op),
+            _ => Err(InvalidOperator(format!("{:?}", op))),
         }
     }
 
-    fn parse_sql_number(&self, n: &str) -> Result<(Box<Expression>, bool)> {
+    fn parse_sql_number(&self, n: &str) -> Result<(Box<Expression>, bool), PipelineError> {
         match n.parse::<i64>() {
             Ok(n) => Ok((Box::new(Expression::Literal(Field::Int(n))), false)),
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok((Box::new(Expression::Literal(Field::Float(f))), false)),
-                Err(_) => bail!("Value is not Numeric."),
+                Err(_) => Err(InvalidValue(n.to_string())),
             },
         }
     }

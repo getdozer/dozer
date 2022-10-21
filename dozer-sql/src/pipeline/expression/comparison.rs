@@ -1,4 +1,4 @@
-use crate::pipeline::expression::error::ExpressionError;
+use crate::pipeline::error::PipelineError;
 use dozer_types::types::{Field, Record};
 use num_traits::cast::*;
 
@@ -10,7 +10,7 @@ macro_rules! define_comparison {
             left: &Expression,
             right: &Expression,
             record: &Record,
-        ) -> Result<Field, ExpressionError> {
+        ) -> Result<Field, PipelineError> {
             let left_p = left.evaluate(&record)?;
             let right_p = right.evaluate(&record)?;
 
@@ -25,7 +25,7 @@ macro_rules! define_comparison {
                         let left_v_f = f64::from_i64(left_v).unwrap();
                         Ok(Field::Boolean($function(left_v_f, right_v)))
                     }
-                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
                 Field::Float(left_v) => match right_p {
                     Field::Float(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
@@ -33,19 +33,19 @@ macro_rules! define_comparison {
                         let right_v_f = f64::from_i64(right_v).unwrap();
                         Ok(Field::Boolean($function(left_v, right_v_f)))
                     }
-                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
                 Field::String(left_v) => match right_p {
                     Field::String(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
                 Field::Timestamp(left_v) => match right_p {
                     Field::Timestamp(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
+                    _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
-                Field::Binary(_left_v) => Err(ExpressionError::InvalidOperandType($op.to_string())),
+                Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType($op.to_string())),
 
-                _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
+                _ => Err(PipelineError::InvalidOperandType($op.to_string())),
             }
         }
     };
@@ -55,7 +55,7 @@ pub fn evaluate_lt(
     left: &Expression,
     right: &Expression,
     record: &Record,
-) -> Result<Field, ExpressionError> {
+) -> Result<Field, PipelineError> {
     let left_p = left.evaluate(record)?;
     let right_p = right.evaluate(record)?;
 
@@ -70,7 +70,7 @@ pub fn evaluate_lt(
                 let left_v_f = f64::from_i64(left_v).unwrap();
                 Ok(Field::Boolean(left_v_f < right_v))
             }
-            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Ok(Field::Boolean(left_v < right_v)),
@@ -78,18 +78,18 @@ pub fn evaluate_lt(
                 let right_v_f = f64::from_i64(right_v).unwrap();
                 Ok(Field::Boolean(left_v < right_v_f))
             }
-            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Ok(Field::Boolean(left_v < right_v)),
-            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v < right_v)),
-            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
+            _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
-        Field::Binary(_left_v) => Err(ExpressionError::InvalidOperandType("<".to_string())),
-        _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
+        Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType("<".to_string())),
+        _ => Err(PipelineError::InvalidOperandType("<".to_string())),
     }
 }
 
@@ -97,7 +97,7 @@ pub fn evaluate_gt(
     left: &Expression,
     right: &Expression,
     record: &Record,
-) -> Result<Field, ExpressionError> {
+) -> Result<Field, PipelineError> {
     let left_p = left.evaluate(record)?;
     let right_p = right.evaluate(record)?;
 
@@ -112,7 +112,7 @@ pub fn evaluate_gt(
                 let left_v_f = f64::from_i64(left_v).unwrap();
                 Ok(Field::Boolean(left_v_f > right_v))
             }
-            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Ok(Field::Boolean(left_v > right_v)),
@@ -120,19 +120,19 @@ pub fn evaluate_gt(
                 let right_v_f = f64::from_i64(right_v).unwrap();
                 Ok(Field::Boolean(left_v > right_v_f))
             }
-            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Ok(Field::Boolean(left_v > right_v)),
-            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v > right_v)),
-            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
+            _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
-        Field::Binary(_left_v) => Err(ExpressionError::InvalidOperandType(">".to_string())),
+        Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType(">".to_string())),
 
-        _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
+        _ => Err(PipelineError::InvalidOperandType(">".to_string())),
     }
 }
 

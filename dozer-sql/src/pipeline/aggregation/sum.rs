@@ -1,6 +1,6 @@
 use crate::pipeline::aggregation::aggregator::Aggregator;
-use crate::pipeline::aggregation::error::AggregatorError;
-use crate::pipeline::aggregation::error::AggregatorError::InvalidOperandType;
+use crate::pipeline::error::PipelineError;
+use crate::pipeline::error::PipelineError::InvalidOperandType;
 use dozer_types::types::Field::Int;
 use dozer_types::types::{Field, FieldType};
 
@@ -30,7 +30,7 @@ impl Aggregator for IntegerSumAggregator {
         INTEGER_SUM_AGGREGATOR_ID
     }
 
-    fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, AggregatorError> {
+    fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -51,7 +51,7 @@ impl Aggregator for IntegerSumAggregator {
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
-    ) -> Result<Vec<u8>, AggregatorError> {
+    ) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -73,7 +73,7 @@ impl Aggregator for IntegerSumAggregator {
         Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
     }
 
-    fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, AggregatorError> {
+    fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,

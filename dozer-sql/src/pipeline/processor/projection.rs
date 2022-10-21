@@ -1,5 +1,8 @@
-use anyhow::Result;
+use super::projection_builder::ProjectionBuilder;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::error::ExecutionError;
+use dozer_core::dag::error::ExecutionError::InternalError;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
@@ -8,10 +11,6 @@ use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
 use sqlparser::ast::SelectItem;
 use std::collections::HashMap;
-
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-
-use super::projection_builder::ProjectionBuilder;
 
 pub struct ProjectionProcessorFactory {
     statement: Vec<SelectItem>,
@@ -57,11 +56,17 @@ impl ProjectionProcessor {
         &self,
         statement: Vec<SelectItem>,
         schema: &Schema,
-    ) -> Result<(Vec<Expression>, Vec<String>)> {
-        self.builder.build_projection(&statement, schema)
+    ) -> Result<(Vec<Expression>, Vec<String>), ExecutionError> {
+        self.builder
+            .build_projection(&statement, schema)
+            .map_err(|e| InternalError(Box::new(e)))
     }
 
-    fn build_output_schema(&self, input_schema: &Schema, names: &[String]) -> Result<Schema> {
+    fn build_output_schema(
+        &self,
+        input_schema: &Schema,
+        names: &[String],
+    ) -> Result<Schema, ExecutionError> {
         let mut output_schema = Schema::empty();
 
         for (counter, e) in self.expressions.iter().enumerate() {
@@ -76,32 +81,38 @@ impl ProjectionProcessor {
         Ok(output_schema)
     }
 
-    fn delete(&mut self, record: &Record) -> anyhow::Result<Operation> {
+    fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
         for expr in &self.expressions {
-            results.push(expr.evaluate(record)?);
+            results.push(
+                expr.evaluate(record)
+                    .map_err(|e| InternalError(Box::new(e)))?,
+            );
         }
         Ok(Operation::Delete {
             old: Record::new(None, results),
         })
     }
 
-    fn insert(&mut self, record: &Record) -> anyhow::Result<Operation> {
+    fn insert(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
         for expr in &self.expressions {
-            results.push(expr.evaluate(record)?);
+            results.push(
+                expr.evaluate(record)
+                    .map_err(|e| InternalError(Box::new(e)))?,
+            );
         }
         Ok(Operation::Insert {
             new: Record::new(None, results),
         })
     }
 
-    fn update(&self, old: &Record, new: &Record) -> anyhow::Result<Operation> {
+    fn update(&self, old: &Record, new: &Record) -> Result<Operation, ExecutionError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
         for expr in &self.expressions {
-            old_results.push(expr.evaluate(old)?);
-            new_results.push(expr.evaluate(new)?);
+            old_results.push(expr.evaluate(old).map_err(|e| InternalError(Box::new(e)))?);
+            new_results.push(expr.evaluate(new).map_err(|e| InternalError(Box::new(e)))?);
         }
 
         Ok(Operation::Update {
@@ -116,14 +127,14 @@ impl Processor for ProjectionProcessor {
         &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema> {
+    ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         let (expressions, names) = self.build_projection(self.statement.clone(), input_schema)?;
         self.expressions = expressions;
         self.build_output_schema(input_schema, &names)
     }
 
-    fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
@@ -134,7 +145,7 @@ impl Processor for ProjectionProcessor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         _state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
             Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),

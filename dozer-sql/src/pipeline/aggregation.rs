@@ -1,5 +1,4 @@
 pub mod aggregator;
-pub mod error;
 pub mod processor;
 pub mod sum;
 
