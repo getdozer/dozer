@@ -25,7 +25,7 @@ fn test_cursor_duplicate_keys() {
 
     let mut db_opt = DatabaseOptions::default();
     db_opt.allow_duplicate_keys = true;
-    let db = Database::open(env.clone(), &tx, "test".to_string(), Some(db_opt))
+    let db = Database::open(env, &tx, "test".to_string(), Some(db_opt))
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     for k in 1..3 {
@@ -54,7 +54,7 @@ fn test_cursor_duplicate_keys() {
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
     assert!(r);
 
-    for i in 'a'..'z' {
+    for i in 'a'..='z' {
         let r = cursor
             .read()
             .unwrap_or_else(|e| panic!("{}", e.to_string()))
@@ -72,7 +72,7 @@ fn test_cursor_duplicate_keys() {
             .unwrap_or_else(|e| panic!("{}", e.to_string()));
     }
 
-    for i in 'a'..'z' {
+    for i in 'a'..='z' {
         let r = cursor
             .read()
             .unwrap_or_else(|e| panic!("{}", e.to_string()))

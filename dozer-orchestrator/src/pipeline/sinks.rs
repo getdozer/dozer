@@ -134,7 +134,12 @@ impl Sink for CacheSink {
                 let key = index::get_primary_key(&schema.primary_index, &old.values);
                 let mut new = new;
                 new.schema_id = schema.identifier.clone();
-                self.cache.update(&key, &new, &schema)?;
+                if index::has_primary_key_changed(&schema.primary_index, &old.values, &new.values) {
+                    self.cache.update(&key, &new, &schema)?;
+                } else {
+                    self.cache.delete(&key)?;
+                    self.cache.insert(&new)?;
+                }
             }
         };
         Ok(())
@@ -147,6 +152,24 @@ impl Sink for CacheSink {
 }
 
 impl CacheSink {
+    pub fn new(
+        cache: Arc<LmdbCache>,
+        counter: i32,
+        before: Instant,
+        input_schemas: HashMap<PortHandle, Schema>,
+        schema_map: HashMap<u64, bool>,
+        api_endpoint: ApiEndpoint,
+    ) -> Self {
+        Self {
+            cache,
+            counter,
+            before,
+            input_schemas,
+            schema_map,
+            api_endpoint,
+        }
+    }
+
     fn get_output_schema(&self, schema: &Schema) -> anyhow::Result<Schema> {
         let mut schema = schema.clone();
         let api_index = &self.api_endpoint.index;
@@ -161,5 +184,78 @@ impl CacheSink {
         }
         schema.primary_index = primary_index;
         Ok(schema)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::test_utils;
+
+    use dozer_cache::cache::{index, Cache};
+
+    use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+    use dozer_core::dag::node::Sink;
+
+    use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
+    use std::panic;
+
+    #[test]
+    // This test cases covers updation of records when primary key changes because of value change in primary_key
+    fn update_record_when_primary_changes() {
+        let schema = test_utils::get_schema();
+
+        let (cache, mut sink) = test_utils::init_sink(&schema);
+
+        let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
+
+        let updated_values = vec![
+            Field::Int(2),
+            Field::String("Film name updated".to_string()),
+        ];
+
+        let insert_operation = Operation::Insert {
+            new: Record {
+                schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
+                values: initial_values.clone(),
+            },
+        };
+
+        let update_operation = Operation::Update {
+            old: Record {
+                schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
+                values: vec![Field::Int(1), Field::Null],
+            },
+            new: Record {
+                schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
+                values: updated_values.clone(),
+            },
+        };
+        let mut state = test_utils::init_state();
+
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation, state.as_mut())
+            .unwrap();
+
+        let key = index::get_primary_key(&schema.primary_index, &initial_values);
+        let record = cache.get(&key).unwrap();
+
+        assert_eq!(initial_values, record.values);
+
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation, state.as_mut())
+            .unwrap();
+
+        // Primary key with old values
+        let key = index::get_primary_key(&schema.primary_index, &initial_values);
+        let record = panic::catch_unwind(|| {
+            cache.get(&key).unwrap();
+        });
+
+        assert!(record.is_err());
+
+        // Primary key with updated values
+        let key = index::get_primary_key(&schema.primary_index, &updated_values);
+        let record = cache.get(&key).unwrap();
+
+        assert_eq!(updated_values, record.values);
     }
 }
