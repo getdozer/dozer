@@ -9,7 +9,7 @@ use dozer_types::{
 };
 
 #[test]
-fn query_secondary() -> anyhow::Result<()> {
+fn query_secondary() {
     let cache = LmdbCache::new(true);
     let schema = test_utils::schema_1();
     let record = Record::new(
@@ -21,8 +21,8 @@ fn query_secondary() -> anyhow::Result<()> {
         ],
     );
 
-    cache.insert_schema("sample", &schema)?;
-    cache.insert(&record)?;
+    cache.insert_schema("sample", &schema).unwrap();
+    cache.insert(&record).unwrap();
 
     let filter = FilterExpression::And(vec![
         FilterExpression::Simple(
@@ -40,9 +40,7 @@ fn query_secondary() -> anyhow::Result<()> {
     // Query with an expression
     let query = QueryExpression::new(Some(filter), vec![], 10, 0);
 
-    let records = cache.query("sample", &query)?;
+    let records = cache.query("sample", &query).unwrap();
     assert_eq!(records.len(), 1, "must be equal");
     assert_eq!(records[0], record, "must be equal");
-
-    Ok(())
 }
