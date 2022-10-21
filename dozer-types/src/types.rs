@@ -148,6 +148,7 @@ impl Schema {
 pub enum IndexType {
     SortedInverted,
     HashInverted,
+    FullText,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
