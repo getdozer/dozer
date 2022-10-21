@@ -214,7 +214,7 @@ fn bench_aggregator() {
         .unwrap_or_else(|_e| panic!("Cannot get schema"));
     assert_eq!(output_schema, get_expected_schema());
 
-    for i in 0..100_000 {
+    for i in 0..1_000_000 {
         let op = Operation::Insert {
             new: gen_in_data(
                 format!("Milan{}", i % 10000).as_str(),
