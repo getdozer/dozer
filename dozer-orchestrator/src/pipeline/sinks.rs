@@ -277,26 +277,16 @@ mod tests {
             },
         };
 
-        sink.process(
-            DEFAULT_PORT_HANDLE,
-            0_u64,
-            insert_operation,
-            state.as_mut(),
-        )
-        .unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation, state.as_mut())
+            .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap();
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(
-            DEFAULT_PORT_HANDLE,
-            0_u64,
-            update_operation,
-            state.as_mut(),
-        )
-        .unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation, state.as_mut())
+            .unwrap();
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = panic::catch_unwind(|| {
             cache.get(&key).unwrap();
