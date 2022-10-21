@@ -2,7 +2,13 @@ use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
-use std::hash::Hasher;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum TypeError {
+    #[error("invalid field index: {0}")]
+    InvalidFieldIndex(usize),
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Field {
@@ -21,21 +27,21 @@ pub enum Field {
 }
 
 impl Field {
-    pub fn to_ne_bytes(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
         match self {
-            Field::Int(i) => Ok(Vec::from(i.to_ne_bytes())),
-            Field::Float(f) => Ok(Vec::from(f.to_ne_bytes())),
+            Field::Int(i) => Ok(Vec::from(i.to_le_bytes())),
+            Field::Float(f) => Ok(Vec::from(f.to_le_bytes())),
             Field::Boolean(b) => Ok(Vec::from(if *b {
-                1_u8.to_ne_bytes()
+                1_u8.to_le_bytes()
             } else {
-                0_u8.to_ne_bytes()
+                0_u8.to_le_bytes()
             })),
             Field::String(s) => Ok(Vec::from(s.as_bytes())),
             Field::Binary(b) => Ok(Vec::from(b.as_slice())),
             Field::Decimal(d) => Ok(Vec::from(d.serialize())),
-            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_ne_bytes())),
+            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_le_bytes())),
             Field::Bson(b) => Ok(b.clone()),
-            Field::Null => Ok(Vec::from(0_u8.to_ne_bytes())),
+            Field::Null => Ok(Vec::from(0_u8.to_le_bytes())),
             _ => Err(anyhow!("Invalid field type")),
         }
     }
@@ -180,10 +186,11 @@ impl Record {
         self.values[idx] = value;
     }
 
-    pub fn get_value(&self, idx: usize) -> anyhow::Result<&Field> {
-        self.values
-            .get(idx)
-            .context(anyhow!("Unable to find field value at index: {}", idx))
+    pub fn get_value(&self, idx: usize) -> Result<&Field, TypeError> {
+        match self.values.get(idx) {
+            Some(f) => Ok(f),
+            _ => Err(TypeError::InvalidFieldIndex(idx)),
+        }
     }
 
     pub fn get_key(&self, indexes: &Vec<usize>) -> anyhow::Result<Vec<u8>> {

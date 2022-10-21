@@ -30,7 +30,6 @@ pub fn field_to_json_value(field: &Field) -> anyhow::Result<String> {
         Field::Timestamp(ts) => ts.to_rfc3339_opts(SecondsFormat::Millis, true),
         Field::Bson(b) => serde_json::to_string(b)?,
         Field::RecordArray(arr) => serde_json::to_string(arr)?,
-        Field::Invalid(s) => serde_json::to_string(s)?,
     };
     Ok(val)
 }
@@ -72,10 +71,6 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> anyhow::Result<Field> 
         FieldType::RecordArray(_) => {
             let records: Vec<Record> = serde_json::from_str(val)?;
             Field::RecordArray(records)
-        }
-        FieldType::Invalid => {
-            let val = serde_json::from_str(val)?;
-            Field::Invalid(val)
         }
     };
     Ok(field)
@@ -133,10 +128,6 @@ mod tests {
                 Field::RecordArray(vec![]),
             ),
             (FieldType::Null, Field::Null),
-            (
-                FieldType::Invalid,
-                Field::Invalid("invalid_String".to_string()),
-            ),
         ];
         for (field_type, field) in fields {
             test_field_conversion(field_type, field)?;

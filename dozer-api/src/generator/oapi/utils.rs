@@ -118,6 +118,5 @@ pub fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldTy
         dozer_types::types::FieldType::Bson => get_type_by_name("string"),
         dozer_types::types::FieldType::Null => get_type_by_name("string"),
         dozer_types::types::FieldType::RecordArray(_) => get_type_by_name("string"),
-        dozer_types::types::FieldType::Invalid => get_type_by_name("string"),
     }
 }
