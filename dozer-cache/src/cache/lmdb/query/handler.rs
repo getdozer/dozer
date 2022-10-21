@@ -119,28 +119,31 @@ impl<'a> LmdbQueryHandler<'a> {
 fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> anyhow::Result<Vec<u8>> {
     let schema_identifier = schema.identifier.clone().context("schema_id expected")?;
 
-    let mut field_bytes: Vec<Option<Vec<u8>>> = vec![];
+    let mut fields = vec![];
 
     for (idx, idf) in index_scan.fields.iter().enumerate() {
         // Convert dynamic json_values to field_values based on field_types
-        field_bytes.push(
-            match idf {
-                Some(val) => {
-                    let field_type = schema
-                        .fields
-                        .get(idx)
-                        .context("field indexes dont match with index_scan")?
-                        .typ
-                        .to_owned();
-                    let field = json_value_to_field(&val.to_string(), &field_type)?;
-                    Some(
-                        bincode::serialize(&field)
-                            .context("field indexes dont match with index_scan")?,
-                    )
-                }
-                None => None,
-            }, // convert value to based on field_type
-        );
+        fields.push(match idf {
+            Some(val) => {
+                let field_type = schema
+                    .fields
+                    .get(idx)
+                    .context("field indexes dont match with index_scan")?
+                    .typ
+                    .to_owned();
+                Some(json_value_to_field(&val.to_string(), &field_type)?)
+            }
+            None => None,
+        });
+    }
+
+    let mut field_bytes = vec![];
+    for field in fields {
+        // convert value to `Vec<u8>`
+        field_bytes.push(match field {
+            Some(field) => Some(bincode::serialize(&field).context("field serialization failed")?),
+            None => None,
+        })
     }
 
     Ok(index::get_secondary_index(
