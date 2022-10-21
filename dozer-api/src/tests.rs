@@ -1,4 +1,4 @@
-use super::server::ApiServer;
+use super::api_server::ApiServer;
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils};
 use dozer_types::serde_json::{json, Value};
 

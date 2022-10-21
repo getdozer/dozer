@@ -3,7 +3,10 @@ use crate::cache::{
     lmdb::cache::LmdbCache,
     test_utils, Cache,
 };
-use dozer_types::types::{Field, Record};
+use dozer_types::{
+    serde_json,
+    types::{Field, Record},
+};
 
 #[test]
 fn query_secondary() -> anyhow::Result<()> {
@@ -21,18 +24,19 @@ fn query_secondary() -> anyhow::Result<()> {
     cache.insert_schema("sample", &schema)?;
     cache.insert(&record)?;
 
-    let filter = FilterExpression::And(
-        Box::new(FilterExpression::Simple(
+    let filter = FilterExpression::And(vec![
+        FilterExpression::Simple(
             "a".to_string(),
             expression::Operator::EQ,
-            Field::Int(1),
-        )),
-        Box::new(FilterExpression::Simple(
+            serde_json::Value::from(1),
+        ),
+        FilterExpression::Simple(
             "b".to_string(),
             expression::Operator::EQ,
-            Field::String("test".to_string()),
-        )),
-    );
+            serde_json::Value::from("test".to_string()),
+        ),
+    ]);
+
     // Query with an expression
     let query = QueryExpression::new(Some(filter), vec![], 10, 0);
 

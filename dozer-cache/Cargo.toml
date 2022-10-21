@@ -19,8 +19,6 @@ async-trait = "0.1.57"
 galil-seiferas = "0.1.5"
 log = "0.4.17"
 log4rs = "1.1.1"
-strum = "0.24.1"
-strum_macros = "0.24.3"
 
 [dev-dependencies]
 criterion = "0.4.0"

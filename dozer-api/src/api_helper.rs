@@ -1,9 +1,11 @@
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use anyhow::Context;
 use dozer_cache::cache::{expression::QueryExpression, index, Cache, LmdbCache};
+use dozer_types::json_value_to_field;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
+use dozer_types::types::{Field, FieldType};
+use dozer_types::{models::api_endpoint::ApiEndpoint, record_to_json};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{generator::oapi::generator::OpenApiGenerator, rest_error::RestError};
@@ -47,8 +49,8 @@ pub async fn get(
     app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>,
 ) -> impl Responder {
     let cache = app_data.0.to_owned();
-    let key_json: Value = serde_json::from_str(&path.into_inner()).unwrap();
-    match get_record(cache, key_json) {
+    let key = path.into_inner();
+    match get_record(cache, key) {
         Ok(map) => {
             let str = serde_json::to_string(&map).unwrap();
             HttpResponse::Ok().body(str)
@@ -65,9 +67,9 @@ pub async fn list(app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>) -> im
 
     match records {
         Ok(maps) => HttpResponse::Ok().json(maps),
-        Err(_) => HttpResponse::Ok()
+        Err(e) => HttpResponse::UnprocessableEntity()
             .content_type(ContentType::json())
-            .body("[]"),
+            .body(e.to_string()),
     }
 }
 
@@ -77,14 +79,14 @@ pub async fn query(
     app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>,
 ) -> Result<HttpResponse, RestError> {
     let cache = app_data.0.to_owned();
-    let filter_expression =
+    let query_expression =
         serde_json::from_value::<QueryExpression>(query_info.0).map_err(|e| {
             RestError::Validation {
                 message: Some(e.to_string()),
                 details: None,
             }
         })?;
-    let records = get_records(cache, filter_expression);
+    let records = get_records(cache, query_expression);
 
     match records {
         Ok(maps) => {
@@ -98,8 +100,17 @@ pub async fn query(
 }
 
 /// Get a single record
-fn get_record(cache: Arc<LmdbCache>, key: Value) -> anyhow::Result<HashMap<String, Value>> {
-    let key = match json_value_to_field(key) {
+fn get_record(cache: Arc<LmdbCache>, key: String) -> anyhow::Result<HashMap<String, String>> {
+    let schema = cache.get_schema_by_name("films")?;
+
+    let field_types: Vec<FieldType> = schema
+        .primary_index
+        .iter()
+        .map(|idx| schema.fields[*idx].typ.clone())
+        .collect();
+    let key = json_value_to_field(&key, &field_types[0]);
+
+    let key: Field = match key {
         Ok(key) => key,
         Err(e) => {
             panic!("error : {:?}", e);
@@ -107,7 +118,7 @@ fn get_record(cache: Arc<LmdbCache>, key: Value) -> anyhow::Result<HashMap<Strin
     };
     let key = index::get_primary_key(&[0], &[key]);
     let rec = cache.get(&key).context("record not found")?;
-    let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;
+
     record_to_json(&rec, &schema)
 }
 
@@ -115,7 +126,7 @@ fn get_record(cache: Arc<LmdbCache>, key: Value) -> anyhow::Result<HashMap<Strin
 fn get_records(
     cache: Arc<LmdbCache>,
     exp: QueryExpression,
-) -> anyhow::Result<Vec<HashMap<String, Value>>> {
+) -> anyhow::Result<Vec<HashMap<String, String>>> {
     let records = cache.query("films", &exp)?;
     let schema = cache.get_schema(
         &records[0]
