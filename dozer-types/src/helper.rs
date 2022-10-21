@@ -51,8 +51,6 @@ pub fn field_to_json_value(field: &Field) -> anyhow::Result<Value> {
         Field::Timestamp(_ts) => todo!(),
         Field::Bson(_) => todo!(),
         Field::RecordArray(_) => todo!(),
-
-        Field::Invalid(_) => todo!(),
     };
     Ok(val)
 }

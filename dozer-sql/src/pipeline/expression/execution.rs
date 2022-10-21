@@ -81,7 +81,6 @@ fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
         Field::Bson(_) => FieldType::Bson,
         Field::RecordArray(_f) => FieldType::Null, //bail!("Record Array not supported: {:?}", f),
         Field::Null => FieldType::Null,
-        Field::Invalid(_f) => FieldType::Null, //bail!("Invalid Field Type: {:?}", f)
     }
 }
 

@@ -53,7 +53,7 @@ fn evaluate_round(
     match value {
         Field::Int(i) => Ok(Field::Int(i)),
         Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
-        Field::Decimal(_) => Ok(Field::Invalid("ROUND doesn't support DECIMAL".to_string())),
+        Field::Decimal(_) => Err(anyhow!("ROUND doesn't support DECIMAL".to_string())),
         _ => Err(anyhow!("ROUND doesn't support {:?}", value)),
     }
 }

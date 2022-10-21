@@ -60,7 +60,6 @@ pub fn evaluate_plus(expression: &Expression, record: &Record) -> anyhow::Result
     match expression_result {
         Field::Int(v) => Ok(Field::Int(v)),
         Field::Float(v) => Ok(Field::Float(v)),
-        Field::Invalid(cause) => Err(anyhow!(cause)),
         _ => Err(anyhow!(
             "Unary Plus Operator doesn't support non numeric types".to_string()
         )),
@@ -73,7 +72,6 @@ pub fn evaluate_minus(expression: &Expression, record: &Record) -> anyhow::Resul
     match expression_result {
         Field::Int(v) => Ok(Field::Int(-v)),
         Field::Float(v) => Ok(Field::Float(-v)),
-        Field::Invalid(cause) => Err(anyhow!(cause)),
         _ => Err(anyhow!(
             "Unary Minus Operator doesn't support non numeric types".to_string()
         )),
