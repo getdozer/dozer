@@ -8,11 +8,15 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 actix-web = "4"
+actix-web-httpauth = "0.8.0"
+actix-cors = "0.6.3"
 dozer-cache = {version = "0.1.0", path = "../dozer-cache"}
 dozer-types = {version = "0.1.0", path = "../dozer-types"}
 handlebars = "4.3.5"
 serde_yaml = "0.9.13"
 tempdir = "0.3.7"
 structopt = "0.3.26"
+tempdir = "0.3.7"
 openapiv3 = "1.0.1"
 indexmap = "1.9.1"
+jsonwebtoken = "8"
