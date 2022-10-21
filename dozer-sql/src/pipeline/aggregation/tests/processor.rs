@@ -1,13 +1,13 @@
-use crate::aggregation::groupby::AggregationProcessor;
-use crate::aggregation::tests::schema::{
+use crate::pipeline::aggregation::processor::AggregationProcessor;
+use crate::pipeline::aggregation::tests::schema::{
     gen_in_data, gen_out_data, get_aggregator_rules, get_expected_schema, get_input_schema,
 };
-use crate::dag::dag::PortHandle;
-use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use crate::dag::node::Processor;
-use crate::state::lmdb::LmdbStateStoreManager;
-use crate::state::memory::MemoryStateStore;
-use crate::state::{StateStoreOptions, StateStoresManager};
+use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::node::Processor;
+use dozer_core::state::lmdb::LmdbStateStoreManager;
+use dozer_core::state::memory::MemoryStateStore;
+use dozer_core::state::{StateStoreOptions, StateStoresManager};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
@@ -214,7 +214,7 @@ fn bench_aggregator() {
         .unwrap_or_else(|_e| panic!("Cannot get schema"));
     assert_eq!(output_schema, get_expected_schema());
 
-    for i in 0..1_000_000 {
+    for i in 0..100_000 {
         let op = Operation::Insert {
             new: gen_in_data(
                 format!("Milan{}", i % 10000).as_str(),

@@ -1,10 +1,6 @@
 use dozer_types::types::{Field, FieldType};
 use dyn_clone::DynClone;
 
-pub mod groupby;
-pub mod sum;
-mod tests;
-
 pub trait Aggregator: DynClone + Send + Sync {
     fn get_return_type(&self, from: FieldType) -> FieldType;
     fn get_type(&self) -> u8;

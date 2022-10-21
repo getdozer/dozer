@@ -1,4 +1,4 @@
-use crate::aggregation::Aggregator;
+use crate::pipeline::aggregation::aggregator::Aggregator;
 use anyhow::anyhow;
 use dozer_types::types::Field::Int;
 use dozer_types::types::{Field, FieldType};
