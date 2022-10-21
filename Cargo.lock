@@ -1165,6 +1165,7 @@ dependencies = [
  "log",
  "log4rs",
  "tempdir",
+ "thiserror",
  "unixstring",
  "uuid",
 ]

@@ -116,7 +116,9 @@ impl AggregationProcessor {
     }
 
     fn init_store(&self, store: &mut dyn StateStore) -> anyhow::Result<()> {
-        store.put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
+        store
+            .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
+            .map_err(|_e| anyhow!("state store error"))
     }
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> anyhow::Result<()> {
