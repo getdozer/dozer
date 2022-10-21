@@ -9,6 +9,7 @@ Features used:
 
 ## Run
 
+cd scripts/tests/src/films
 docker-compose up --build
 sh ./scripts/download_and_insert.sh
 docker exec -d dozer-orchestrator ./target/debug/dozer-schema
