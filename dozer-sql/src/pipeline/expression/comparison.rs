@@ -1,16 +1,16 @@
-use anyhow::anyhow;
+use crate::pipeline::expression::error::ExpressionError;
 use dozer_types::types::{Field, Record};
 use num_traits::cast::*;
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 macro_rules! define_comparison {
-    ($id:ident, $function:expr) => {
+    ($id:ident, $op:expr, $function:expr) => {
         pub fn $id(
             left: &Expression,
             right: &Expression,
             record: &Record,
-        ) -> anyhow::Result<Field> {
+        ) -> Result<Field, ExpressionError> {
             let left_p = left.evaluate(&record)?;
             let right_p = right.evaluate(&record)?;
 
@@ -25,10 +25,7 @@ macro_rules! define_comparison {
                         let left_v_f = f64::from_i64(left_v).unwrap();
                         Ok(Field::Boolean($function(left_v_f, right_v)))
                     }
-                    _ => Err(anyhow!(
-                        "Cannot compare int value {} to the current value",
-                        left_v
-                    )),
+                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
                 },
                 Field::Float(left_v) => match right_p {
                     Field::Float(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
@@ -36,30 +33,19 @@ macro_rules! define_comparison {
                         let right_v_f = f64::from_i64(right_v).unwrap();
                         Ok(Field::Boolean($function(left_v, right_v_f)))
                     }
-                    _ => Err(anyhow!(
-                        "Cannot compare float value {} to the current value",
-                        left_v
-                    )),
+                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
                 },
                 Field::String(left_v) => match right_p {
                     Field::String(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    _ => Err(anyhow!(
-                        "Cannot compare string value {} to the current value",
-                        left_v
-                    )),
+                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
                 },
                 Field::Timestamp(left_v) => match right_p {
                     Field::Timestamp(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
-                    _ => Err(anyhow!(
-                        "Cannot compare timestamp value {} to the current value",
-                        left_v
-                    )),
+                    _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
                 },
-                Field::Binary(_left_v) => {
-                    Err(anyhow!("Cannot compare binary value to the current value "))
-                }
+                Field::Binary(_left_v) => Err(ExpressionError::InvalidOperandType($op.to_string())),
 
-                _ => Err(anyhow!("Cannot compare these values")),
+                _ => Err(ExpressionError::InvalidOperandType($op.to_string())),
             }
         }
     };
@@ -69,7 +55,7 @@ pub fn evaluate_lt(
     left: &Expression,
     right: &Expression,
     record: &Record,
-) -> anyhow::Result<Field> {
+) -> Result<Field, ExpressionError> {
     let left_p = left.evaluate(record)?;
     let right_p = right.evaluate(record)?;
 
@@ -84,10 +70,7 @@ pub fn evaluate_lt(
                 let left_v_f = f64::from_i64(left_v).unwrap();
                 Ok(Field::Boolean(left_v_f < right_v))
             }
-            _ => Err(anyhow!(
-                "Cannot compare int value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Ok(Field::Boolean(left_v < right_v)),
@@ -95,29 +78,18 @@ pub fn evaluate_lt(
                 let right_v_f = f64::from_i64(right_v).unwrap();
                 Ok(Field::Boolean(left_v < right_v_f))
             }
-            _ => Err(anyhow!(
-                "Cannot compare float value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Ok(Field::Boolean(left_v < right_v)),
-            _ => Err(anyhow!(
-                "Cannot compare string value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v < right_v)),
-            _ => Err(anyhow!(
-                "Cannot compare timestamp value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
         },
-        Field::Binary(_left_v) => Err(anyhow!(
-            "Cannot compare binary value to the current value ".to_string()
-        )),
-        _ => Err(anyhow!("Cannot compare these values".to_string())),
+        Field::Binary(_left_v) => Err(ExpressionError::InvalidOperandType("<".to_string())),
+        _ => Err(ExpressionError::InvalidOperandType("<".to_string())),
     }
 }
 
@@ -125,7 +97,7 @@ pub fn evaluate_gt(
     left: &Expression,
     right: &Expression,
     record: &Record,
-) -> anyhow::Result<Field> {
+) -> Result<Field, ExpressionError> {
     let left_p = left.evaluate(record)?;
     let right_p = right.evaluate(record)?;
 
@@ -140,10 +112,7 @@ pub fn evaluate_gt(
                 let left_v_f = f64::from_i64(left_v).unwrap();
                 Ok(Field::Boolean(left_v_f > right_v))
             }
-            _ => Err(anyhow!(
-                "Cannot compare int value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
         },
         Field::Float(left_v) => match right_p {
             Field::Float(right_v) => Ok(Field::Boolean(left_v > right_v)),
@@ -151,39 +120,26 @@ pub fn evaluate_gt(
                 let right_v_f = f64::from_i64(right_v).unwrap();
                 Ok(Field::Boolean(left_v > right_v_f))
             }
-            _ => Err(anyhow!(
-                "Cannot compare float value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Ok(Field::Boolean(left_v > right_v)),
-            _ => Err(anyhow!(
-                "Cannot compare string value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v > right_v)),
-            _ => Err(anyhow!(
-                "Cannot compare timestamp value {} to the current value",
-                left_v
-            )),
+            _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
         },
-        Field::Binary(_left_v) => Err(anyhow!(
-            "Cannot compare binary value to the current value ".to_string()
-        )),
+        Field::Binary(_left_v) => Err(ExpressionError::InvalidOperandType(">".to_string())),
 
-        _ => Err(anyhow!("Cannot compare these values".to_string())),
+        _ => Err(ExpressionError::InvalidOperandType(">".to_string())),
     }
 }
 
-define_comparison!(evaluate_eq, |l, r| { l == r });
-define_comparison!(evaluate_ne, |l, r| { l != r });
-// define_comparison!(evaluate_lt, |l, r| { l < r });
-define_comparison!(evaluate_lte, |l, r| { l <= r });
-//define_comparison!(evaluate_gt, |l, r| { l > r });
-define_comparison!(evaluate_gte, |l, r| { l >= r });
+define_comparison!(evaluate_eq, "=", |l, r| { l == r });
+define_comparison!(evaluate_ne, "!=", |l, r| { l != r });
+define_comparison!(evaluate_lte, "<=", |l, r| { l <= r });
+define_comparison!(evaluate_gte, ">=", |l, r| { l >= r });
 
 #[cfg(test)]
 use crate::pipeline::expression::execution::Expression::Literal;

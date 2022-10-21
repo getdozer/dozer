@@ -1,17 +1,13 @@
+use super::processor::projection::ProjectionProcessorFactory;
+use super::processor::selection::SelectionProcessorFactory;
+use crate::common::utils::normalize_ident;
 use anyhow::{bail, Result};
-use std::collections::HashMap;
-
-use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
-
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::dag::{Endpoint, NodeHandle};
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-
-use crate::common::utils::normalize_ident;
-
-use super::processor::projection::ProjectionProcessorFactory;
-use super::processor::selection::SelectionProcessorFactory;
+use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
+use std::collections::HashMap;
 
 pub struct PipelineBuilder {}
 

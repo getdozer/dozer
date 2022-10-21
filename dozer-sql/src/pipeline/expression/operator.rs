@@ -1,4 +1,5 @@
 use crate::pipeline::expression::comparison::*;
+use crate::pipeline::expression::error::ExpressionError;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
@@ -13,7 +14,7 @@ pub enum UnaryOperatorType {
 }
 
 impl UnaryOperatorType {
-    pub fn evaluate(&self, value: &Expression, record: &Record) -> anyhow::Result<Field> {
+    pub fn evaluate(&self, value: &Expression, record: &Record) -> Result<Field, ExpressionError> {
         match self {
             UnaryOperatorType::Not => evaluate_not(value, record),
             UnaryOperatorType::Plus => evaluate_plus(value, record),
@@ -50,7 +51,7 @@ impl BinaryOperatorType {
         left: &Expression,
         right: &Expression,
         record: &Record,
-    ) -> anyhow::Result<Field> {
+    ) -> Result<Field, ExpressionError> {
         match self {
             BinaryOperatorType::Eq => evaluate_eq(left, right, record),
             BinaryOperatorType::Ne => evaluate_ne(left, right, record),

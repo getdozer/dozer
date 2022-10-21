@@ -2,6 +2,13 @@ use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum TypeError {
+    #[error("invalid field index: {0}")]
+    InvalidFieldIndex(usize),
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Field {
@@ -179,10 +186,11 @@ impl Record {
         self.values[idx] = value;
     }
 
-    pub fn get_value(&self, idx: usize) -> anyhow::Result<&Field> {
-        self.values
-            .get(idx)
-            .context(anyhow!("Unable to find field value at index: {}", idx))
+    pub fn get_value(&self, idx: usize) -> Result<&Field, TypeError> {
+        match self.values.get(idx) {
+            Some(f) => Ok(f),
+            _ => Err(TypeError::InvalidFieldIndex(idx)),
+        }
     }
 
     pub fn get_key(&self, indexes: &Vec<usize>) -> anyhow::Result<Vec<u8>> {

@@ -1,5 +1,5 @@
+use crate::pipeline::expression::error::ExpressionError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use anyhow::{anyhow, bail, Result};
 use dozer_types::types::{Field, Record};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
@@ -9,15 +9,19 @@ pub enum ScalarFunctionType {
 }
 
 impl ScalarFunctionType {
-    pub fn new(name: &str) -> Result<ScalarFunctionType> {
-        Ok(match name {
-            "abs" => ScalarFunctionType::Abs,
-            "round" => ScalarFunctionType::Round,
-            _ => bail!("Unsupported Scalar function: {}", name),
-        })
+    pub fn new(name: &str) -> Result<ScalarFunctionType, ExpressionError> {
+        match name {
+            "abs" => Ok(ScalarFunctionType::Abs),
+            "round" => Ok(ScalarFunctionType::Round),
+            _ => Err(ExpressionError::InvalidFunction(name.to_string())),
+        }
     }
 
-    pub(crate) fn evaluate(&self, args: &[Expression], record: &Record) -> anyhow::Result<Field> {
+    pub(crate) fn evaluate(
+        &self,
+        args: &[Expression],
+        record: &Record,
+    ) -> Result<Field, ExpressionError> {
         match self {
             ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
             ScalarFunctionType::Round => evaluate_round(&args[0], args.get(1), record),
@@ -25,12 +29,12 @@ impl ScalarFunctionType {
     }
 }
 
-fn evaluate_abs(arg: &Expression, record: &Record) -> anyhow::Result<Field> {
+fn evaluate_abs(arg: &Expression, record: &Record) -> Result<Field, ExpressionError> {
     let value = arg.evaluate(record)?;
     match value {
         Field::Int(i) => Ok(Field::Int(i.abs())),
         Field::Float(f) => Ok(Field::Float(f.abs())),
-        _ => Err(anyhow!("ABS doesn't support this type".to_string())),
+        _ => Err(ExpressionError::InvalidOperandType("ABS()".to_string())),
     }
 }
 
@@ -38,7 +42,7 @@ fn evaluate_round(
     arg: &Expression,
     decimals: Option<&Expression>,
     record: &Record,
-) -> anyhow::Result<Field> {
+) -> Result<Field, ExpressionError> {
     let value = arg.evaluate(record)?;
     let mut places = 0;
     if let Some(expression) = decimals {
@@ -53,8 +57,8 @@ fn evaluate_round(
     match value {
         Field::Int(i) => Ok(Field::Int(i)),
         Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
-        Field::Decimal(_) => Err(anyhow!("ROUND doesn't support DECIMAL".to_string())),
-        _ => Err(anyhow!("ROUND doesn't support {:?}", value)),
+        Field::Decimal(_) => Err(ExpressionError::InvalidOperandType("ROUND()".to_string())),
+        _ => Err(ExpressionError::InvalidOperandType("ROUND()".to_string())),
     }
 }
 
