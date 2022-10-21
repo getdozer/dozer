@@ -1,9 +1,11 @@
-use crate::aggregation::Aggregator;
-use crate::dag::dag::PortHandle;
-use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use crate::dag::node::{Processor, ProcessorFactory};
-use crate::state::{StateStore, StateStoreOptions};
+#![allow(dead_code)]
+use crate::pipeline::aggregation::aggregator::Aggregator;
 use anyhow::{anyhow, Context};
+use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::forwarder::ProcessorChannelForwarder;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::node::{Processor, ProcessorFactory};
+use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 use std::collections::HashMap;
 use std::mem::size_of_val;
@@ -451,7 +453,7 @@ impl Processor for AggregationProcessor {
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        fw: &dyn crate::dag::forwarder::ProcessorChannelForwarder,
+        fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
         let ops = self.aggregate(state, op)?;

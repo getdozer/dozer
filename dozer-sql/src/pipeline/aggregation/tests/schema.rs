@@ -1,5 +1,5 @@
-use crate::aggregation::groupby::FieldRule;
-use crate::aggregation::sum::IntegerSumAggregator;
+use crate::pipeline::aggregation::processor::FieldRule;
+use crate::pipeline::aggregation::sum::IntegerSumAggregator;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
 
 pub fn get_input_schema() -> Schema {

@@ -1245,6 +1245,7 @@ dependencies = [
  "chrono",
  "dozer-core",
  "dozer-types",
+ "dyn-clone",
  "log",
  "log4rs",
  "num-traits",
