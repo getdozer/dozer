@@ -1,5 +1,4 @@
 use crate::types::{Field, FieldType, Record, Schema};
-
 use chrono::{DateTime, SecondsFormat, Utc};
 use rust_decimal::Decimal;
 use std::{collections::HashMap, str::FromStr};
