@@ -45,7 +45,8 @@ pub fn simple_expression(key: String, value: Value) -> anyhow::Result<FilterExpr
                 .keys()
                 .next()
                 .context("Missing key in Simple expression")?;
-            let operator: Operator = serde_json::from_str(&format!("\"{}\"", inner_key))?;
+            let operator: Operator = Operator::from_str(inner_key)
+                .context(format!("unidentified operator {}", inner_key))?;
             let scalar_value = pairs
                 .get(inner_key)
                 .context(format!("scalar value by key {:?} is empty", inner_key))?;

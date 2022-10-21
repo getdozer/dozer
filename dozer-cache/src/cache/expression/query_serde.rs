@@ -17,16 +17,10 @@ impl<'de> Deserialize<'de> for Operator {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?.to_lowercase();
-        match s.as_str() {
-            "$lt" => Ok(Operator::LT),
-            "$lte" => Ok(Operator::LTE),
-            "$gt" => Ok(Operator::GT),
-            "$gte" => Ok(Operator::GTE),
-            "$eq" => Ok(Operator::EQ),
-            "$contains" => Ok(Operator::Contains),
-            "$matches_any" => Ok(Operator::MatchesAny),
-            "$matches_all" => Ok(Operator::MatchesAll),
-            op => Err(de::Error::custom(format!("operator not found:  {}", op))),
+
+        match Operator::from_str(s.as_str()) {
+            Some(op) => Ok(op),
+            None => Err(de::Error::custom(format!("operator not found:  {}", s))),
         }
     }
 }

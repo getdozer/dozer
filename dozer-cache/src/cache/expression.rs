@@ -58,6 +58,22 @@ pub enum Operator {
     MatchesAll,
 }
 
+impl Operator {
+    fn from_str(s: &str) -> Option<Operator> {
+        match s {
+            "$lt" => Some(Operator::LT),
+            "$lte" => Some(Operator::LTE),
+            "$gt" => Some(Operator::GT),
+            "$gte" => Some(Operator::GTE),
+            "$eq" => Some(Operator::EQ),
+            "$contains" => Some(Operator::Contains),
+            "$matches_any" => Some(Operator::MatchesAny),
+            "$matches_all" => Some(Operator::MatchesAll),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(crate = "self::serde")]
 pub enum SortDirection {

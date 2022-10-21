@@ -1,6 +1,7 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
 use crate::cache::expression::{QueryExpression, SortOptions};
+use anyhow::Context;
 use dozer_types::serde_json;
 use dozer_types::serde_json::json;
 use dozer_types::serde_json::Value;
@@ -18,14 +19,9 @@ fn test_operators() -> anyhow::Result<()> {
         (Operator::MatchesAll, "$matches_all"),
     ];
     for (op, op_str) in operators {
-        let serialized = serde_json::to_string(&op)?;
+        let fetched = Operator::from_str(op_str).context("op expected")?;
 
-        let formatted = format!("\"{}\"", op_str);
-        assert_eq!(serialized, formatted, "are equal");
-
-        let deserialized: Operator = serde_json::from_str(&formatted)?;
-
-        assert_eq!(op, deserialized, "are equal");
+        assert_eq!(op, fetched, "are equal");
     }
     Ok(())
 }
