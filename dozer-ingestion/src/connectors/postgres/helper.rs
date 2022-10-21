@@ -220,10 +220,7 @@ pub fn map_row_to_operation_event(
     columns: &[Column],
     idx: u32,
 ) -> OperationEvent {
-    let rec = Record {
-        schema_id: Some(identifer),
-        values: get_values(row, columns),
-    };
+    let rec = Record::new(Some(identifer), get_values(row, columns));
 
     let op = Operation::Insert { new: rec };
     let evt: OperationEvent = OperationEvent {

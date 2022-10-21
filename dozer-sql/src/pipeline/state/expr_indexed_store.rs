@@ -1,26 +1,26 @@
-use crate::pipeline::expression::execution::Expression;
-use anyhow::{anyhow, Context};
-use dozer_core::state::StateStore;
-use dozer_types::types::Record;
-use std::sync::Arc;
+// use crate::pipeline::expression::execution::Expression;
+// use anyhow::{anyhow, Context};
+// use dozer_core::state::StateStore;
+// use dozer_types::types::Record;
+// use std::sync::Arc;
 
-pub enum PrimaryIndexDefinition {
-    AutoIncrement,
-    FieldsBased(Vec<usize>),
-}
-
-pub struct SecondaryIndexDefinition {
-    id: u16,
-    exp: Expression,
-}
-
-pub struct ExpressionIndexedStore {
-    dataset_id: u16,
-    store: Arc<dyn StateStore>,
-    primary_idx: PrimaryIndexDefinition,
-    secondary_indexes: Vec<SecondaryIndexDefinition>,
-    counter_key: [u8; 4],
-}
+// pub enum PrimaryIndexDefinition {
+//     AutoIncrement,
+//     FieldsBased(Vec<usize>),
+// }
+//
+// pub struct SecondaryIndexDefinition {
+//     id: u16,
+//     exp: Expression,
+// }
+//
+// pub struct ExpressionIndexedStore {
+//     dataset_id: u16,
+//     store: Arc<dyn StateStore>,
+//     primary_idx: PrimaryIndexDefinition,
+//     secondary_indexes: Vec<SecondaryIndexDefinition>,
+//     counter_key: [u8; 4],
+// }
 
 // impl ExpressionIndexedStore {
 //     pub fn new(

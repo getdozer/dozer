@@ -1,50 +1,58 @@
-use dozer_types::types::Field::Invalid;
+use anyhow::anyhow;
 use dozer_types::types::{Field, Record};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
-pub fn evaluate_and(left: &Expression, right: &Expression, record: &Record) -> Field {
-    let left_p = left.evaluate(record);
+pub fn evaluate_and(
+    left: &Expression,
+    right: &Expression,
+    record: &Record,
+) -> anyhow::Result<Field> {
+    let left_p = left.evaluate(record)?;
 
     match left_p {
         Field::Boolean(left_v) => {
             if left_p == Field::Boolean(false) {
-                return Field::Boolean(false);
+                return Ok(Field::Boolean(false));
             }
-            let right_p = right.evaluate(record);
+            let right_p = right.evaluate(record)?;
             match right_p {
-                Field::Boolean(right_v) => Field::Boolean(left_v && right_v),
-                _ => Field::Boolean(false),
+                Field::Boolean(right_v) => Ok(Field::Boolean(left_v && right_v)),
+                _ => Ok(Field::Boolean(false)),
             }
         }
-        _ => Invalid(format!("Cannot apply {} to this values", "$id")),
+        _ => Err(anyhow!("Cannot apply {} to this values", "$id")),
     }
 }
 
-pub fn evaluate_or(left: &Expression, right: &Expression, record: &Record) -> Field {
-    let left_p = left.evaluate(record);
+pub fn evaluate_or(
+    left: &Expression,
+    right: &Expression,
+    record: &Record,
+) -> anyhow::Result<Field> {
+    let left_p = left.evaluate(record)?;
 
     match left_p {
         Field::Boolean(left_v) => {
             if left_p == Field::Boolean(true) {
-                return Field::Boolean(true);
+                return Ok(Field::Boolean(true));
             }
-            let right_p = right.evaluate(record);
+            let right_p = right.evaluate(record)?;
             match right_p {
-                Field::Boolean(right_v) => Field::Boolean(left_v && right_v),
-                _ => Field::Boolean(false),
+                Field::Boolean(right_v) => Ok(Field::Boolean(left_v && right_v)),
+                _ => Ok(Field::Boolean(false)),
             }
         }
-        _ => Invalid(format!("Cannot apply {} to this values", "$id")),
+        _ => Err(anyhow!("Cannot apply {} to this values", "$id")),
     }
 }
 
-pub fn evaluate_not(value: &Expression, record: &Record) -> Field {
-    let value_p = value.evaluate(record);
+pub fn evaluate_not(value: &Expression, record: &Record) -> anyhow::Result<Field> {
+    let value_p = value.evaluate(record)?;
 
     match value_p {
-        Field::Boolean(value_v) => Field::Boolean(!value_v),
-        _ => Invalid(format!("Cannot apply {} to this values", "$id")),
+        Field::Boolean(value_v) => Ok(Field::Boolean(!value_v)),
+        _ => Err(anyhow!("Cannot apply {} to this values", "$id")),
     }
 }
 
@@ -56,7 +64,10 @@ fn test_bool_bool_and() {
     let row = Record::new(None, vec![]);
     let l = Box::new(Literal(Field::Boolean(true)));
     let r = Box::new(Literal(Field::Boolean(false)));
-    assert!(matches!(evaluate_and(&l, &r, &row), Field::Boolean(false)));
+    assert!(matches!(
+        evaluate_and(&l, &r, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Boolean(false)
+    ));
 }
 
 #[test]
@@ -64,14 +75,20 @@ fn test_bool_bool_or() {
     let row = Record::new(None, vec![]);
     let l = Box::new(Literal(Field::Boolean(true)));
     let r = Box::new(Literal(Field::Boolean(false)));
-    assert!(matches!(evaluate_or(&l, &r, &row), Field::Boolean(true)));
+    assert!(matches!(
+        evaluate_or(&l, &r, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Boolean(true)
+    ));
 }
 
 #[test]
 fn test_bool_not() {
     let row = Record::new(None, vec![]);
     let v = Box::new(Literal(Field::Boolean(true)));
-    assert!(matches!(evaluate_not(&v, &row), Field::Boolean(false)));
+    assert!(matches!(
+        evaluate_not(&v, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Boolean(false)
+    ));
 }
 
 #[test]
@@ -79,7 +96,7 @@ fn test_int_bool_and() {
     let row = Record::new(None, vec![]);
     let l = Box::new(Literal(Field::Int(1)));
     let r = Box::new(Literal(Field::Boolean(true)));
-    assert!(matches!(evaluate_and(&l, &r, &row), Invalid(_)));
+    assert!(evaluate_and(&l, &r, &row).is_err());
 }
 
 #[test]
@@ -87,5 +104,5 @@ fn test_float_bool_and() {
     let row = Record::new(None, vec![]);
     let l = Box::new(Literal(Field::Float(1.1)));
     let r = Box::new(Literal(Field::Boolean(true)));
-    assert!(matches!(evaluate_and(&l, &r, &row), Invalid(_)));
+    assert!(evaluate_and(&l, &r, &row).is_err());
 }

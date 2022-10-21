@@ -1,4 +1,3 @@
-use ahash::AHasher;
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -55,7 +54,6 @@ pub enum FieldType {
     Bson,
     Null,
     RecordArray(Schema),
-    Invalid,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -174,94 +172,35 @@ impl Record {
             values: vec![Field::Null; size],
         }
     }
+
+    pub fn iter(&self) -> core::slice::Iter<'_, Field> {
+        self.values.iter()
+    }
+
     pub fn set_value(&mut self, idx: usize, value: Field) {
         self.values[idx] = value;
     }
 
-    pub fn get_key(&self, indexes: Vec<usize>) -> anyhow::Result<Vec<u8>> {
-        let mut r = Vec::<u8>::new();
-        for i in indexes {
-            match &self.values[i] {
-                Field::Int(i) => {
-                    r.extend(i.to_ne_bytes());
-                }
-                Field::Float(f) => {
-                    r.extend(f.to_ne_bytes());
-                }
-                Field::Boolean(b) => r.extend(if *b {
-                    1_u8.to_ne_bytes()
-                } else {
-                    0_u8.to_ne_bytes()
-                }),
-                Field::String(s) => {
-                    r.extend(s.as_bytes());
-                }
-                Field::Binary(b) => {
-                    r.extend(b);
-                }
-                Field::Decimal(d) => {
-                    r.extend(d.serialize());
-                }
-                Field::Timestamp(t) => r.extend(t.timestamp().to_ne_bytes()),
-                Field::Bson(b) => {
-                    r.extend(b);
-                }
-                Field::Null => r.extend(0_u8.to_ne_bytes()),
-                _ => {
-                    return Err(anyhow!("Invalid field type"));
-                }
-            }
-        }
-        Ok(r)
+    pub fn get_value(&self, idx: usize) -> anyhow::Result<&Field> {
+        self.values
+            .get(idx)
+            .context(anyhow!("Unable to find field value at index: {}", idx))
     }
 
-    pub fn get_hash(&self, indexes: Vec<usize>) -> anyhow::Result<u64> {
-        let mut hasher = AHasher::default();
-
-        for i in indexes.iter().enumerate() {
-            hasher.write_usize(i.0);
-            match &self.values[*i.1] {
-                Field::Int(i) => {
-                    hasher.write_u8(1);
-                    hasher.write_i64(*i);
-                }
-                Field::Float(f) => {
-                    hasher.write_u8(2);
-                    hasher.write(&((*f).to_ne_bytes()));
-                }
-                Field::Boolean(b) => {
-                    hasher.write_u8(3);
-                    hasher.write_u8(if *b { 1_u8 } else { 0_u8 });
-                }
-                Field::String(s) => {
-                    hasher.write_u8(4);
-                    hasher.write(s.as_str().as_bytes());
-                }
-                Field::Binary(b) => {
-                    hasher.write_u8(5);
-                    hasher.write(b.as_ref());
-                }
-                Field::Decimal(d) => {
-                    hasher.write_u8(6);
-                    hasher.write(&d.serialize());
-                }
-                Field::Timestamp(t) => {
-                    hasher.write_u8(7);
-                    hasher.write_i64(t.timestamp())
-                }
-                Field::Bson(b) => {
-                    hasher.write_u8(8);
-                    hasher.write(b.as_ref());
-                }
-                Field::Null => {
-                    hasher.write_u8(0);
-                }
-                _ => {
-                    return Err(anyhow!("Invalid field type"));
-                }
-            }
+    pub fn get_key(&self, indexes: &Vec<usize>) -> anyhow::Result<Vec<u8>> {
+        let mut tot_size = 0_usize;
+        let mut buffers = Vec::<Vec<u8>>::with_capacity(indexes.len());
+        for i in indexes {
+            let bytes = self.values[*i].to_bytes()?;
+            tot_size += bytes.len();
+            buffers.push(bytes);
         }
-        Ok(hasher.finish())
+
+        let mut res_buffer = Vec::<u8>::with_capacity(tot_size);
+        for i in buffers {
+            res_buffer.extend(i);
+        }
+        Ok(res_buffer)
     }
 }
 

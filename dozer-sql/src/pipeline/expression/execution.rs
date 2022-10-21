@@ -31,16 +31,15 @@ pub enum Expression {
 impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &Record) -> Field;
-
+    fn evaluate(&self, record: &Record) -> anyhow::Result<Field>;
     fn get_type(&self, schema: &Schema) -> FieldType;
 }
 
 impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &Record) -> Field {
+    fn evaluate(&self, record: &Record) -> anyhow::Result<Field> {
         match self {
-            Expression::Literal(field) => field.clone(),
-            Expression::Column { index } => record.values.get(*index).unwrap().clone(),
+            Expression::Literal(field) => Ok(field.clone()),
+            Expression::Column { index } => Ok(record.get_value(*index)?.clone()),
             Expression::BinaryOperator {
                 left,
                 operator,
@@ -188,24 +187,44 @@ fn test_column_execution() {
 
     // Column
     let e = Expression::Column { index: 0 };
-    assert!(matches!(e.evaluate(&record), Field::Int(1337)));
+    assert_eq!(
+        e.evaluate(&record)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Int(1337)
+    );
 
     let e = Expression::Column { index: 1 };
-    assert!(e.evaluate(&record) == Field::String("test".to_string()));
+    assert_eq!(
+        e.evaluate(&record)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::String("test".to_string())
+    );
 
     let e = Expression::Column { index: 2 };
-    assert!(e.evaluate(&record) == Field::Float(10.10));
+    assert_eq!(
+        e.evaluate(&record)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Float(10.10)
+    );
 
     // Literal
     let e = Expression::Literal(Field::Int(1337));
-    assert!(e.evaluate(&record) == Field::Int(1337));
+    assert_eq!(
+        e.evaluate(&record)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Int(1337)
+    );
 
     // UnaryOperator
     let e = Expression::UnaryOperator {
         operator: UnaryOperatorType::Not,
         arg: Box::new(Expression::Literal(Field::Boolean(true))),
     };
-    assert!(e.evaluate(&record) == Field::Boolean(false));
+    assert_eq!(
+        e.evaluate(&record)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Boolean(false)
+    );
 
     // BinaryOperator
     let e = Expression::BinaryOperator {
@@ -213,12 +232,20 @@ fn test_column_execution() {
         operator: BinaryOperatorType::And,
         right: Box::new(Expression::Literal(Field::Boolean(false))),
     };
-    assert!(e.evaluate(&record) == Field::Boolean(false));
+    assert_eq!(
+        e.evaluate(&record)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Boolean(false),
+    );
 
     // ScalarFunction
     let e = Expression::ScalarFunction {
         fun: ScalarFunctionType::Abs,
         args: vec![Expression::Literal(Field::Int(-1))],
     };
-    assert!(e.evaluate(&record) == Field::Int(1));
+    assert_eq!(
+        e.evaluate(&record)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Int(1)
+    );
 }
