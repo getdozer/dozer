@@ -21,7 +21,11 @@ impl Default for MemoryStateStore {
 
 impl StateStore for MemoryStateStore {
     fn checkpoint(&mut self) -> anyhow::Result<()> {
-        todo!()
+        Ok(())
+    }
+
+    fn commit(&mut self) -> anyhow::Result<()> {
+        Ok(())
     }
 
     fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {

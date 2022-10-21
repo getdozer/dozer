@@ -8,6 +8,10 @@ impl StateStore for NullStateStore {
         Err(anyhow!("Invalid operation"))
     }
 
+    fn commit(&mut self) -> anyhow::Result<()> {
+        Err(anyhow!("Invalid operation"))
+    }
+
     fn put(&mut self, _key: &[u8], _value: &[u8]) -> anyhow::Result<()> {
         Err(anyhow!("Invalid operation"))
     }
