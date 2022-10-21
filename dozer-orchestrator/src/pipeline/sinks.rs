@@ -250,7 +250,9 @@ mod tests {
             1024 * 1024 * 1024 * 5,
             20_000,
         );
-        let mut state = sm.init_state_store("1".to_string(), StateStoreOptions::default()).unwrap();
+        let mut state = sm
+            .init_state_store("1".to_string(), StateStoreOptions::default())
+            .unwrap();
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 
