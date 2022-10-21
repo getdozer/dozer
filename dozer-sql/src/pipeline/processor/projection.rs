@@ -1,15 +1,13 @@
 use anyhow::Result;
-
-use log::info;
-use sqlparser::ast::SelectItem;
-use std::collections::HashMap;
-
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
+use log::info;
+use sqlparser::ast::SelectItem;
+use std::collections::HashMap;
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
@@ -78,38 +76,38 @@ impl ProjectionProcessor {
         Ok(output_schema)
     }
 
-    fn delete(&mut self, record: &Record) -> Operation {
+    fn delete(&mut self, record: &Record) -> anyhow::Result<Operation> {
         let mut results = vec![];
         for expr in &self.expressions {
-            results.push(expr.evaluate(record));
+            results.push(expr.evaluate(record)?);
         }
-        Operation::Delete {
+        Ok(Operation::Delete {
             old: Record::new(None, results),
-        }
+        })
     }
 
-    fn insert(&mut self, record: &Record) -> Operation {
+    fn insert(&mut self, record: &Record) -> anyhow::Result<Operation> {
         let mut results = vec![];
         for expr in &self.expressions {
-            results.push(expr.evaluate(record));
+            results.push(expr.evaluate(record)?);
         }
-        Operation::Insert {
+        Ok(Operation::Insert {
             new: Record::new(None, results),
-        }
+        })
     }
 
-    fn update(&self, old: &Record, new: &Record) -> Operation {
+    fn update(&self, old: &Record, new: &Record) -> anyhow::Result<Operation> {
         let mut old_results = vec![];
         let mut new_results = vec![];
         for expr in &self.expressions {
-            old_results.push(expr.evaluate(old));
-            new_results.push(expr.evaluate(new));
+            old_results.push(expr.evaluate(old)?);
+            new_results.push(expr.evaluate(new)?);
         }
 
-        Operation::Update {
+        Ok(Operation::Update {
             old: Record::new(None, old_results),
             new: Record::new(None, new_results),
-        }
+        })
     }
 }
 
@@ -138,10 +136,10 @@ impl Processor for ProjectionProcessor {
         _state_store: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
         let _ = match op {
-            Operation::Delete { ref old } => fw.send(self.delete(old), DEFAULT_PORT_HANDLE),
-            Operation::Insert { ref new } => fw.send(self.insert(new), DEFAULT_PORT_HANDLE),
+            Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
+            Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),
             Operation::Update { ref old, ref new } => {
-                fw.send(self.update(old, new), DEFAULT_PORT_HANDLE)
+                fw.send(self.update(old, new)?, DEFAULT_PORT_HANDLE)
             }
         };
         Ok(())

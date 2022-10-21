@@ -1,8 +1,6 @@
-use anyhow::{bail, Result};
-
-use dozer_types::types::{Field, Record};
-
+use crate::pipeline::expression::error::ExpressionError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use dozer_types::types::{Field, Record};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
@@ -11,15 +9,19 @@ pub enum ScalarFunctionType {
 }
 
 impl ScalarFunctionType {
-    pub fn new(name: &str) -> Result<ScalarFunctionType> {
-        Ok(match name {
-            "abs" => ScalarFunctionType::Abs,
-            "round" => ScalarFunctionType::Round,
-            _ => bail!("Unsupported Scalar function: {}", name),
-        })
+    pub fn new(name: &str) -> Result<ScalarFunctionType, ExpressionError> {
+        match name {
+            "abs" => Ok(ScalarFunctionType::Abs),
+            "round" => Ok(ScalarFunctionType::Round),
+            _ => Err(ExpressionError::InvalidFunction(name.to_string())),
+        }
     }
 
-    pub(crate) fn evaluate(&self, args: &[Expression], record: &Record) -> Field {
+    pub(crate) fn evaluate(
+        &self,
+        args: &[Expression],
+        record: &Record,
+    ) -> Result<Field, ExpressionError> {
         match self {
             ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
             ScalarFunctionType::Round => evaluate_round(&args[0], args.get(1), record),
@@ -27,20 +29,24 @@ impl ScalarFunctionType {
     }
 }
 
-fn evaluate_abs(arg: &Expression, record: &Record) -> Field {
-    let value = arg.evaluate(record);
+fn evaluate_abs(arg: &Expression, record: &Record) -> Result<Field, ExpressionError> {
+    let value = arg.evaluate(record)?;
     match value {
-        Field::Int(i) => Field::Int(i.abs()),
-        Field::Float(f) => Field::Float(f.abs()),
-        _ => Field::Invalid("ABS doesn't support this type".to_string()),
+        Field::Int(i) => Ok(Field::Int(i.abs())),
+        Field::Float(f) => Ok(Field::Float(f.abs())),
+        _ => Err(ExpressionError::InvalidOperandType("ABS()".to_string())),
     }
 }
 
-fn evaluate_round(arg: &Expression, decimals: Option<&Expression>, record: &Record) -> Field {
-    let value = arg.evaluate(record);
+fn evaluate_round(
+    arg: &Expression,
+    decimals: Option<&Expression>,
+    record: &Record,
+) -> Result<Field, ExpressionError> {
+    let value = arg.evaluate(record)?;
     let mut places = 0;
     if let Some(expression) = decimals {
-        match expression.evaluate(record) {
+        match expression.evaluate(record)? {
             Field::Int(i) => places = i as i32,
             Field::Float(f) => places = f.round() as i32,
             _ => {} // Truncate value to 0 decimals
@@ -49,10 +55,10 @@ fn evaluate_round(arg: &Expression, decimals: Option<&Expression>, record: &Reco
     let order = 10.0_f64.powi(places);
 
     match value {
-        Field::Int(i) => Field::Int(i),
-        Field::Float(f) => Field::Float((f * order).round() / order),
-        Field::Decimal(_) => Field::Invalid("ROUND doesn't support DECIMAL".to_string()),
-        _ => Field::Invalid(format!("ROUND doesn't support {:?}", value)),
+        Field::Int(i) => Ok(Field::Int(i)),
+        Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
+        Field::Decimal(_) => Err(ExpressionError::InvalidOperandType("ROUND()".to_string())),
+        _ => Err(ExpressionError::InvalidOperandType("ROUND()".to_string())),
     }
 }
 
@@ -65,31 +71,52 @@ fn test_round() {
 
     let v = Box::new(Literal(Field::Int(1)));
     let d = &Box::new(Literal(Field::Int(0)));
-    assert!(evaluate_round(&v, Some(d), &row) == Field::Int(1));
+    assert_eq!(
+        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Int(1)
+    );
 
     let v = Box::new(Literal(Field::Float(2.1)));
     let d = &Box::new(Literal(Field::Int(0)));
-    assert!(evaluate_round(&v, Some(d), &row) == Field::Float(2.0));
+    assert_eq!(
+        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Float(2.0)
+    );
 
     let v = Box::new(Literal(Field::Float(2.6)));
     let d = &Box::new(Literal(Field::Int(0)));
-    assert!(evaluate_round(&v, Some(d), &row) == Field::Float(3.0));
+    assert_eq!(
+        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Float(3.0)
+    );
 
     let v = Box::new(Literal(Field::Float(2.633)));
     let d = &Box::new(Literal(Field::Int(2)));
-    assert!(evaluate_round(&v, Some(d), &row) == Field::Float(2.63));
+    assert_eq!(
+        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Float(2.63)
+    );
 
     let v = Box::new(Literal(Field::Float(212.633)));
     let d = &Box::new(Literal(Field::Int(-2)));
-    assert!(evaluate_round(&v, Some(d), &row) == Field::Float(200.0));
+    assert_eq!(
+        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Float(200.0)
+    );
 
     let v = Box::new(Literal(Field::Float(2.633)));
     let d = &Box::new(Literal(Field::Float(2.1)));
-    assert!(evaluate_round(&v, Some(d), &row) == Field::Float(2.63));
+    assert_eq!(
+        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Float(2.63)
+    );
 
     let v = Box::new(Literal(Field::Float(2.633)));
     let d = &Box::new(Literal(Field::String("2.3".to_string())));
-    assert!(evaluate_round(&v, Some(d), &row) == Field::Float(3.0));
+    assert_eq!(
+        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        Field::Float(3.0)
+    );
 
     // let v = Box::new(Literal(Field::Boolean(true)));
     // let d = &Box::new(Literal(Field::Int(2)));

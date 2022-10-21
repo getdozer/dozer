@@ -116,12 +116,14 @@ impl AggregationProcessor {
     }
 
     fn init_store(&self, store: &mut dyn StateStore) -> anyhow::Result<()> {
-        store.put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
+        store
+            .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
+            .map_err(|_e| anyhow!("state store error"))
     }
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> anyhow::Result<()> {
         for v in &self.out_dimensions {
-            out_rec.values[v.1] = in_rec.values[v.0].clone();
+            out_rec.set_value(v.1, in_rec.get_value(v.0)?.clone());
         }
         Ok(())
     }
@@ -160,36 +162,32 @@ impl AggregationProcessor {
 
             if let Some(e) = curr_state_slice {
                 let curr_value = measure.1.get_value(e);
-                out_rec_delete.values[measure.2] = curr_value;
+                out_rec_delete.set_value(measure.2, curr_value);
             }
 
             let next_state_slice = match op {
                 AggregatorOperation::Insert => {
                     let field = inserted_record
                         .unwrap()
-                        .values
-                        .get(measure.0)
+                        .get_value(measure.0)
                         .context(anyhow!("Invalid field"))?;
                     measure.1.insert(curr_state_slice, field)?
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record
                         .unwrap()
-                        .values
-                        .get(measure.0)
+                        .get_value(measure.0)
                         .context(anyhow!("Invalid field"))?;
                     measure.1.delete(curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record
                         .unwrap()
-                        .values
-                        .get(measure.0)
+                        .get_value(measure.0)
                         .context(anyhow!("Invalid field"))?;
                     let new = inserted_record
                         .unwrap()
-                        .values
-                        .get(measure.0)
+                        .get_value(measure.0)
                         .context(anyhow!("Invalid field"))?;
                     measure.1.update(curr_state_slice, old, new)?
                 }
@@ -201,9 +199,9 @@ impl AggregationProcessor {
             if !next_state_slice.is_empty() {
                 let next_value = measure.1.get_value(next_state_slice.as_slice());
                 next_state.extend(next_state_slice);
-                out_rec_insert.values[measure.2] = next_value;
+                out_rec_insert.set_value(measure.2, next_value);
             } else {
-                out_rec_insert.values[measure.2] = Field::Null;
+                out_rec_insert.set_value(measure.2, Field::Null);
             }
         }
 
@@ -242,7 +240,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -289,7 +287,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -378,7 +376,7 @@ impl AggregationProcessor {
                     )
                 } else {
                     let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
-                    (old.get_key(record_keys.clone())?, new.get_key(record_keys)?)
+                    (old.get_key(&record_keys)?, new.get_key(&record_keys)?)
                 };
 
                 if old_record_hash == new_record_hash {
@@ -457,6 +455,7 @@ impl Processor for AggregationProcessor {
         state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
         let ops = self.aggregate(state, op)?;
+        state.commit()?;
         for op in ops {
             fw.send(op, DEFAULT_PORT_HANDLE)?;
         }

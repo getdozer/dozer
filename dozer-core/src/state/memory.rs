@@ -1,3 +1,4 @@
+use crate::state::error::StateStoreError;
 use crate::state::{StateStore, StateStoreCursor};
 use std::collections::HashMap;
 
@@ -20,25 +21,29 @@ impl Default for MemoryStateStore {
 }
 
 impl StateStore for MemoryStateStore {
-    fn checkpoint(&mut self) -> anyhow::Result<()> {
-        todo!()
+    fn checkpoint(&mut self) -> Result<(), StateStoreError> {
+        Ok(())
     }
 
-    fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {
+    fn commit(&mut self) -> Result<(), StateStoreError> {
+        Ok(())
+    }
+
+    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
         self.data.insert(Vec::from(key), Vec::from(value));
         Ok(())
     }
 
-    fn get(&self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
+    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
         Ok(self.data.get(key).map(|e| e.as_slice()))
     }
 
-    fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
+    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
         self.data.remove(key);
         Ok(())
     }
 
-    fn cursor(&mut self) -> anyhow::Result<Box<dyn StateStoreCursor>> {
+    fn cursor(&mut self) -> Result<Box<dyn StateStoreCursor>, StateStoreError> {
         todo!()
     }
 }

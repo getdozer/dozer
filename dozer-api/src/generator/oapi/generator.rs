@@ -40,7 +40,6 @@ impl OpenApiGenerator {
                 | FieldType::Bson
                 | FieldType::Null
                 | FieldType::RecordArray(_) => Value::Null,
-                FieldType::Invalid => Value::from("invalid_string".to_string()),
             };
             json!({ name: val })
         } else {

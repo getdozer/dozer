@@ -117,13 +117,13 @@ impl XlogMapper {
 
                 let event = OperationEvent {
                     operation: Operation::Insert {
-                        new: Record {
-                            values,
-                            schema_id: Some(dozer_types::types::SchemaIdentifier {
+                        new: Record::new(
+                            Some(dozer_types::types::SchemaIdentifier {
                                 id: table.rel_id as u32,
                                 version: table.rel_id as u16,
                             }),
-                        },
+                            values,
+                        ),
                     },
                     seq_no: 0,
                 };
@@ -137,20 +137,20 @@ impl XlogMapper {
                 let values = Self::convert_values_to_fields(table, new_values);
                 let event = OperationEvent {
                     operation: Operation::Update {
-                        old: Record {
-                            values: vec![],
-                            schema_id: Some(dozer_types::types::SchemaIdentifier {
+                        old: Record::new(
+                            Some(dozer_types::types::SchemaIdentifier {
                                 id: table.rel_id as u32,
                                 version: table.rel_id as u16,
                             }),
-                        },
-                        new: Record {
+                            vec![],
+                        ),
+                        new: Record::new(
+                            Some(dozer_types::types::SchemaIdentifier {
+                                id: table.rel_id as u32,
+                                version: table.rel_id as u16,
+                            }),
                             values,
-                            schema_id: Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id as u32,
-                                version: table.rel_id as u16,
-                            }),
-                        },
+                        ),
                     },
                     seq_no: 0,
                 };
@@ -166,13 +166,13 @@ impl XlogMapper {
 
                 let event = OperationEvent {
                     operation: Operation::Delete {
-                        old: Record {
-                            values,
-                            schema_id: Some(dozer_types::types::SchemaIdentifier {
+                        old: Record::new(
+                            Some(dozer_types::types::SchemaIdentifier {
                                 id: table.rel_id as u32,
                                 version: table.rel_id as u16,
                             }),
-                        },
+                            values,
+                        ),
                     },
                     seq_no: 0,
                 };

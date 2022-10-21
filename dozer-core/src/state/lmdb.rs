@@ -1,8 +1,9 @@
+use crate::state::error::StateStoreError;
+use crate::state::error::StateStoreError::InternalError;
 use crate::state::lmdb_sys::{
     Cursor, Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
 use crate::state::{StateStore, StateStoreCursor, StateStoreOptions, StateStoresManager};
-use anyhow::anyhow;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -28,9 +29,14 @@ impl StateStoresManager for LmdbStateStoreManager {
         &self,
         id: String,
         options: StateStoreOptions,
-    ) -> anyhow::Result<Box<dyn StateStore>> {
+    ) -> Result<Box<dyn StateStore>, StateStoreError> {
         let full_path = Path::new(&self.path).join(&id);
-        fs::create_dir(&full_path)?;
+        fs::create_dir(&full_path).map_err(|_e| {
+            StateStoreError::InternalError(format!(
+                "Unable to create database at location {}",
+                &full_path.to_str().unwrap()
+            ))
+        })?;
 
         let mut env_opt = EnvOptions::default();
         env_opt.no_sync = true;
@@ -38,15 +44,17 @@ impl StateStoresManager for LmdbStateStoreManager {
         env_opt.map_size = Some(self.max_size);
         env_opt.writable_mem_map = true;
 
-        let env = Arc::new(Environment::new(
-            full_path.to_str().unwrap().to_string(),
-            Some(env_opt),
-        )?);
-        let tx = Transaction::begin(env.clone())?;
+        let env = Arc::new(
+            Environment::new(full_path.to_str().unwrap().to_string(), Some(env_opt))
+                .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))?,
+        );
+        let tx = Transaction::begin(env.clone())
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))?;
 
         let mut db_opt = DatabaseOptions::default();
         db_opt.allow_duplicate_keys = options.allow_duplicate_keys;
-        let db = Database::open(env.clone(), &tx, id, Some(db_opt))?;
+        let db = Database::open(env.clone(), &tx, id, Some(db_opt))
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))?;
 
         Ok(Box::new(LmdbStateStore {
             env,
@@ -79,30 +87,43 @@ impl LmdbStateStore {
 }
 
 impl StateStore for LmdbStateStore {
-    fn checkpoint(&mut self) -> anyhow::Result<()> {
+    fn checkpoint(&mut self) -> Result<(), StateStoreError> {
         todo!()
     }
 
-    fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {
-        self.renew_tx()?;
-        self.db.put(&self.tx, key, value, None)?;
+    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError> {
+        self.db
+            .put(&self.tx, key, value, None)
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))?;
         Ok(())
     }
 
-    fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
-        self.renew_tx()?;
-        self.db.del(&self.tx, key, None)?;
+    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError> {
+        self.db
+            .del(&self.tx, key, None)
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))?;
         Ok(())
     }
 
-    fn get(&self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
-        let r = self.db.get(&self.tx, key)?;
+    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError> {
+        let r = self
+            .db
+            .get(&self.tx, key)
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))?;
         Ok(r)
     }
 
-    fn cursor(&mut self) -> anyhow::Result<Box<dyn StateStoreCursor>> {
-        let cursor = self.db.open_cursor(&self.tx)?;
+    fn cursor(&mut self) -> Result<Box<dyn StateStoreCursor>, StateStoreError> {
+        let cursor = self
+            .db
+            .open_cursor(&self.tx)
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))?;
         Ok(Box::new(LmdbStateStoreCursor { cursor }))
+    }
+
+    fn commit(&mut self) -> Result<(), StateStoreError> {
+        self.renew_tx()
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))
     }
 }
 
@@ -111,27 +132,27 @@ pub struct LmdbStateStoreCursor {
 }
 
 impl StateStoreCursor for LmdbStateStoreCursor {
-    fn seek(&mut self, key: &[u8]) -> anyhow::Result<bool> {
+    fn seek(&mut self, key: &[u8]) -> Result<bool, StateStoreError> {
         self.cursor
             .seek(key)
-            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))
     }
 
-    fn next(&mut self) -> anyhow::Result<bool> {
+    fn next(&mut self) -> Result<bool, StateStoreError> {
         self.cursor
             .next()
-            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))
     }
 
-    fn prev(&mut self) -> anyhow::Result<bool> {
+    fn prev(&mut self) -> Result<bool, StateStoreError> {
         self.cursor
             .prev()
-            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))
     }
 
-    fn read(&mut self) -> anyhow::Result<Option<(&[u8], &[u8])>> {
+    fn read(&mut self) -> Result<Option<(&[u8], &[u8])>, StateStoreError> {
         self.cursor
             .read()
-            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
+            .map_err(|e| InternalError(format!("{}: {}", e.err_no, e.err_str)))
     }
 }
