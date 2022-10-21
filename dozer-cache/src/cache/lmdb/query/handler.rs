@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use galil_seiferas::gs_find;
 use lmdb::{Database, RoTransaction, Transaction};
 
@@ -10,7 +10,7 @@ use crate::cache::{
 };
 use dozer_types::{
     json_value_to_field,
-    types::{Record, Schema},
+    types::{Field, Record, Schema},
 };
 
 pub struct LmdbQueryHandler<'a> {
@@ -92,7 +92,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 // Check if the tuple returns a value
                 if let Some((key, val)) = tuple {
                     // Compare partial key
-                    if self.compare_key(key, &starting_key) {
+                    if self.compare_key(key, starting_key) {
                         let rec = helper::get(self.txn, self.db, val)?;
                         pkeys.push(rec);
                     } else {
@@ -137,18 +137,40 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> anyhow::Result
         });
     }
 
-    let mut field_bytes = vec![];
-    for field in fields {
-        // convert value to `Vec<u8>`
-        field_bytes.push(match field {
-            Some(field) => Some(bincode::serialize(&field).context("field serialization failed")?),
-            None => None,
-        })
-    }
+    match index_scan.index_def.typ {
+        dozer_types::types::IndexType::SortedInverted => {
+            let mut field_bytes = vec![];
+            for field in fields {
+                // convert value to `Vec<u8>`
+                field_bytes.push(match field {
+                    Some(field) => {
+                        Some(bincode::serialize(&field).context("field serialization failed")?)
+                    }
+                    None => None,
+                })
+            }
 
-    Ok(index::get_secondary_index(
-        schema_identifier.id,
-        &index_scan.index_def.fields,
-        &field_bytes,
-    ))
+            Ok(index::get_secondary_index(
+                schema_identifier.id,
+                &index_scan.index_def.fields,
+                &field_bytes,
+            ))
+        }
+        dozer_types::types::IndexType::HashInverted => todo!(),
+        dozer_types::types::IndexType::FullText => {
+            if fields.len() != 1 {
+                bail!("Full text index generates one key for each field");
+            }
+            let field_index = index_scan.index_def.fields[0] as u64;
+            let token = match &fields[0] {
+                Some(Field::String(token)) => token,
+                _ => bail!("Must pass string for full text search"),
+            };
+            Ok(index::get_full_text_secondary_index(
+                schema_identifier.id,
+                field_index,
+                token,
+            ))
+        }
+    }
 }

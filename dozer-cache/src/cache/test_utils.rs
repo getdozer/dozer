@@ -65,3 +65,21 @@ pub fn schema_1() -> Schema {
         ],
     }
 }
+
+pub fn schema_full_text_single() -> Schema {
+    Schema {
+        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+        fields: vec![FieldDefinition {
+            name: "foo".to_string(),
+            typ: dozer_types::types::FieldType::String,
+            nullable: false,
+        }],
+        values: vec![0],
+        primary_index: vec![0],
+        secondary_indexes: vec![IndexDefinition {
+            fields: vec![0],
+            typ: IndexType::FullText,
+            sort_direction: vec![true],
+        }],
+    }
+}
