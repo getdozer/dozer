@@ -457,6 +457,7 @@ impl Processor for AggregationProcessor {
         state: &mut dyn StateStore,
     ) -> anyhow::Result<()> {
         let ops = self.aggregate(state, op)?;
+        state.commit()?;
         for op in ops {
             fw.send(op, DEFAULT_PORT_HANDLE)?;
         }

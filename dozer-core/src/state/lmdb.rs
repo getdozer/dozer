@@ -84,13 +84,11 @@ impl StateStore for LmdbStateStore {
     }
 
     fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {
-        self.renew_tx()?;
         self.db.put(&self.tx, key, value, None)?;
         Ok(())
     }
 
     fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
-        self.renew_tx()?;
         self.db.del(&self.tx, key, None)?;
         Ok(())
     }
@@ -103,6 +101,11 @@ impl StateStore for LmdbStateStore {
     fn cursor(&mut self) -> anyhow::Result<Box<dyn StateStoreCursor>> {
         let cursor = self.db.open_cursor(&self.tx)?;
         Ok(Box::new(LmdbStateStoreCursor { cursor }))
+    }
+
+    fn commit(&mut self) -> anyhow::Result<()> {
+        self.renew_tx()
+            .map_err(|e| anyhow!("{}: {}", e.err_no, e.err_str))
     }
 }
 

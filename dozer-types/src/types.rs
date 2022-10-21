@@ -177,7 +177,7 @@ impl Record {
         self.values[idx] = value;
     }
 
-    pub fn get_key(&self, indexes: &Vec<usize>) -> anyhow::Result<Vec<u8>> {
+    pub fn get_key(&self, indexes: Vec<usize>) -> anyhow::Result<Vec<u8>> {
         let mut r = Vec::<u8>::new();
         for i in indexes {
             match &self.values[i] {
