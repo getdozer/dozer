@@ -59,9 +59,6 @@ macro_rules! define_comparison {
                     Err(anyhow!("Cannot compare binary value to the current value "))
                 }
 
-                Field::Invalid(_cause) => Err(anyhow!(
-                    "Cannot compare invalid value to the current value "
-                )),
                 _ => Err(anyhow!("Cannot compare these values")),
             }
         }
@@ -120,7 +117,6 @@ pub fn evaluate_lt(
         Field::Binary(_left_v) => Err(anyhow!(
             "Cannot compare binary value to the current value ".to_string()
         )),
-        Field::Invalid(cause) => Err(anyhow!(cause)),
         _ => Err(anyhow!("Cannot compare these values".to_string())),
     }
 }
@@ -177,7 +173,7 @@ pub fn evaluate_gt(
         Field::Binary(_left_v) => Err(anyhow!(
             "Cannot compare binary value to the current value ".to_string()
         )),
-        Field::Invalid(cause) => Err(anyhow!(cause)),
+
         _ => Err(anyhow!("Cannot compare these values".to_string())),
     }
 }

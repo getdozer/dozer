@@ -18,7 +18,6 @@ pub enum Field {
     Bson(Vec<u8>),
     RecordArray(Vec<Record>),
     Null,
-    Invalid(String),
 }
 
 impl Field {
