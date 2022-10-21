@@ -1,5 +1,6 @@
 use crate::pipeline::aggregation::aggregator::Aggregator;
-use anyhow::anyhow;
+use crate::pipeline::aggregation::error::AggregatorError;
+use crate::pipeline::aggregation::error::AggregatorError::InvalidOperandType;
 use dozer_types::types::Field::Int;
 use dozer_types::types::{Field, FieldType};
 
@@ -29,7 +30,7 @@ impl Aggregator for IntegerSumAggregator {
         INTEGER_SUM_AGGREGATOR_ID
     }
 
-    fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> anyhow::Result<Vec<u8>> {
+    fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, AggregatorError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -38,7 +39,7 @@ impl Aggregator for IntegerSumAggregator {
         let curr = match &new {
             Int(i) => i,
             _ => {
-                return Err(anyhow!("Invalid data type".to_string()));
+                return Err(InvalidOperandType("SUM".to_string()));
             }
         };
 
@@ -50,7 +51,7 @@ impl Aggregator for IntegerSumAggregator {
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, AggregatorError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -59,20 +60,20 @@ impl Aggregator for IntegerSumAggregator {
         let curr_del = match &old {
             Int(i) => i,
             _ => {
-                return Err(anyhow!("Invalid data type".to_string()));
+                return Err(InvalidOperandType("SUM".to_string()));
             }
         };
         let curr_added = match &new {
             Int(i) => i,
             _ => {
-                return Err(anyhow!("Invalid data type".to_string()));
+                return Err(InvalidOperandType("SUM".to_string()));
             }
         };
 
         Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
     }
 
-    fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> anyhow::Result<Vec<u8>> {
+    fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, AggregatorError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -81,7 +82,7 @@ impl Aggregator for IntegerSumAggregator {
         let curr = match &old {
             Int(i) => i,
             _ => {
-                return Err(anyhow!("Invalid data type".to_string()));
+                return Err(InvalidOperandType("SUM".to_string()));
             }
         };
 

@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 use crate::pipeline::aggregation::aggregator::Aggregator;
+use crate::pipeline::aggregation::error::AggregatorError;
+use crate::pipeline::aggregation::error::AggregatorError::{
+    InternalStateStoreError, InternalTypeError,
+};
 use anyhow::{anyhow, Context};
 use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
@@ -92,7 +96,7 @@ impl AggregationProcessor {
         }
     }
 
-    fn populate_rules(&mut self, schema: &Schema) -> anyhow::Result<()> {
+    fn populate_rules(&mut self, schema: &Schema) -> Result<(), AggregatorError> {
         let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
 
@@ -100,7 +104,10 @@ impl AggregationProcessor {
             match rule.1 {
                 FieldRule::Measure(idx, aggr, _nullable, _name) => {
                     out_measures.push((
-                        schema.get_field_index(idx.as_str())?.0,
+                        schema
+                            .get_field_index(idx.as_str())
+                            .map_err(InternalTypeError)?
+                            .0,
                         aggr.clone(),
                         rule.0,
                     ));
@@ -117,20 +124,24 @@ impl AggregationProcessor {
         Ok(())
     }
 
-    fn init_store(&self, store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init_store(&self, store: &mut dyn StateStore) -> Result<(), AggregatorError> {
         store
             .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
-            .map_err(|_e| anyhow!("state store error"))
+            .map_err(InternalStateStoreError)
     }
 
-    fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> anyhow::Result<()> {
+    fn fill_dimensions(
+        &self,
+        in_rec: &Record,
+        out_rec: &mut Record,
+    ) -> Result<(), AggregatorError> {
         for v in &self.out_dimensions {
             out_rec.set_value(v.1, in_rec.get_value(v.0)?.clone());
         }
         Ok(())
     }
 
-    fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> anyhow::Result<Vec<u8>> {
+    fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, AggregatorError> {
         let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
         vec.extend_from_slice(&database_id.to_ne_bytes());
         vec.extend(hash);
@@ -145,7 +156,7 @@ impl AggregationProcessor {
         out_rec_delete: &mut Record,
         out_rec_insert: &mut Record,
         op: AggregatorOperation,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, AggregatorError> {
         let mut next_state = Vec::<u8>::new();
         let mut offset: usize = 0;
 
@@ -172,25 +183,25 @@ impl AggregationProcessor {
                     let field = inserted_record
                         .unwrap()
                         .get_value(measure.0)
-                        .context(anyhow!("Invalid field"))?;
+                        .map_err(InternalTypeError)?;
                     measure.1.insert(curr_state_slice, field)?
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record
                         .unwrap()
                         .get_value(measure.0)
-                        .context(anyhow!("Invalid field"))?;
+                        .map_err(InternalTypeError)?;
                     measure.1.delete(curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record
                         .unwrap()
                         .get_value(measure.0)
-                        .context(anyhow!("Invalid field"))?;
+                        .map_err(InternalTypeError)?;
                     let new = inserted_record
                         .unwrap()
                         .get_value(measure.0)
-                        .context(anyhow!("Invalid field"))?;
+                        .map_err(InternalTypeError)?;
                     measure.1.update(curr_state_slice, old, new)?
                 }
             };
@@ -216,7 +227,7 @@ impl AggregationProcessor {
         key: Vec<u8>,
         delta: u64,
         decr: bool,
-    ) -> anyhow::Result<u64> {
+    ) -> Result<u64, AggregatorError> {
         let bytes = store.get(key.as_slice())?;
 
         let curr_count = match bytes {
@@ -237,7 +248,11 @@ impl AggregationProcessor {
         Ok(curr_count)
     }
 
-    fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> anyhow::Result<Operation> {
+    fn agg_delete(
+        &self,
+        store: &mut dyn StateStore,
+        old: &Record,
+    ) -> Result<Operation, AggregatorError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
@@ -284,7 +299,11 @@ impl AggregationProcessor {
         Ok(res)
     }
 
-    fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> anyhow::Result<Operation> {
+    fn agg_insert(
+        &self,
+        store: &mut dyn StateStore,
+        new: &Record,
+    ) -> Result<Operation, AggregatorError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
@@ -334,7 +353,7 @@ impl AggregationProcessor {
         old: &Record,
         new: &Record,
         record_hash: Vec<u8>,
-    ) -> anyhow::Result<Operation> {
+    ) -> Result<Operation, AggregatorError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
@@ -366,7 +385,7 @@ impl AggregationProcessor {
         &self,
         store: &mut dyn StateStore,
         op: Operation,
-    ) -> anyhow::Result<Vec<Operation>> {
+    ) -> Result<Vec<Operation>, AggregatorError> {
         match op {
             Operation::Insert { ref new } => Ok(vec![self.agg_insert(store, new)?]),
             Operation::Delete { ref old } => Ok(vec![self.agg_delete(store, old)?]),
@@ -447,6 +466,7 @@ impl Processor for AggregationProcessor {
 
     fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()> {
         self.init_store(state)
+            .map_err(|_e| anyhow!("Internal error"))
     }
 
     fn process(

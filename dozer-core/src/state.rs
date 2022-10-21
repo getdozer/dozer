@@ -1,12 +1,12 @@
 #![allow(clippy::type_complexity)]
 use crate::state::error::StateStoreError;
 
+pub mod error;
 pub mod lmdb;
 mod lmdb_sys;
 pub mod memory;
 pub mod null;
 
-mod error;
 #[cfg(test)]
 mod tests;
 
