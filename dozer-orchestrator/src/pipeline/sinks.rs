@@ -172,13 +172,13 @@ impl CacheSink {
 #[cfg(test)]
 mod tests {
     use crate::pipeline::CacheSink;
-    use dozer_cache::cache::lmdb::cache::LmdbCache;
+    use dozer_cache::cache::LmdbCache;
     use dozer_cache::cache::{index, Cache};
     use dozer_core::dag::dag::PortHandle;
     use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::Sink;
     use dozer_core::state::lmdb::LmdbStateStoreManager;
-    use dozer_core::state::StateStoresManager;
+    use dozer_core::state::{StateStoreOptions, StateStoresManager};
     use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
     use dozer_types::types::{
         Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier,
@@ -250,7 +250,7 @@ mod tests {
             1024 * 1024 * 1024 * 5,
             20_000,
         );
-        let mut state = sm.init_state_store("1".to_string()).unwrap();
+        let mut state = sm.init_state_store("1".to_string(), StateStoreOptions::default()).unwrap();
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 
