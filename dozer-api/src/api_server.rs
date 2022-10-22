@@ -2,14 +2,16 @@ use actix_cors::Cors;
 use actix_web::{
     body::MessageBody,
     dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
+    middleware::Condition,
     rt, web, App, HttpMessage, HttpServer,
 };
+use actix_web_httpauth::middleware::HttpAuthentication;
 use dozer_cache::cache::LmdbCache;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::api_helper;
+use crate::{api_helper, api_validator};
 
 #[derive(Clone)]
 pub struct PipelineDetails {
@@ -23,12 +25,18 @@ pub enum CorsOptions {
     // origins, max_age
     Custom(Vec<String>, usize),
 }
-
+#[derive(Clone)]
+pub enum ApiSecurity {
+    None,
+    // Initialize with a JWT_SECRET
+    Jwt(String),
+}
 #[derive(Clone)]
 pub struct ApiServer {
     shutdown_timeout: u64,
     port: u16,
     cors: CorsOptions,
+    security: ApiSecurity,
 }
 
 impl ApiServer {
@@ -37,13 +45,15 @@ impl ApiServer {
             shutdown_timeout: 0,
             port: 8080,
             cors: CorsOptions::Permissive,
+            security: ApiSecurity::None,
         }
     }
-    pub fn new(shutdown_timeout: u64, port: u16, cors: CorsOptions) -> Self {
+    pub fn new(shutdown_timeout: u64, port: u16, cors: CorsOptions, security: ApiSecurity) -> Self {
         Self {
             shutdown_timeout,
             port,
             cors,
+            security,
         }
     }
     fn get_cors(cors: CorsOptions) -> Cors {
@@ -58,6 +68,7 @@ impl ApiServer {
         }
     }
     pub fn create_app_entry(
+        security: ApiSecurity,
         cors: CorsOptions,
         endpoints: Vec<ApiEndpoint>,
         cache: Arc<LmdbCache>,
@@ -74,7 +85,6 @@ impl ApiServer {
         let app = app.app_data(web::Data::new(cache));
 
         let cors = Self::get_cors(cors);
-        let app = app.wrap(cors);
         let app = endpoints.iter().fold(app, |app, endpoint| {
             let endpoint = endpoint.clone();
             let scope = endpoint.path.clone();
@@ -91,19 +101,31 @@ impl ApiServer {
                         srv.call(req)
                     })
                     .route("/query", web::post().to(api_helper::query))
-                    .route("oapi", web::post().to(api_helper::generate_oapi))
+                    .route("/oapi", web::post().to(api_helper::generate_oapi))
                     .route("/{id}", web::get().to(api_helper::get))
                     .route("", web::get().to(api_helper::list)),
             )
         });
-        app
+        // Conditionally enable auth based on endpoint
+        app.wrap(Condition::new(
+            matches!(security, ApiSecurity::Jwt(_)),
+            HttpAuthentication::bearer(api_validator::validate),
+        ))
+        // Cors need to wrap security to return the right headers
+        .wrap(cors)
     }
     pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
         let endpoints = endpoints;
         let cors = self.cors.clone();
+        let security = self.security.clone();
         rt::System::new().block_on(async move {
             HttpServer::new(move || {
-                ApiServer::create_app_entry(cors.to_owned(), endpoints.clone(), cache.clone())
+                ApiServer::create_app_entry(
+                    security.to_owned(),
+                    cors.to_owned(),
+                    endpoints.clone(),
+                    cache.clone(),
+                )
             })
             .bind(("0.0.0.0", self.port.to_owned()))?
             .shutdown_timeout(self.shutdown_timeout.to_owned())

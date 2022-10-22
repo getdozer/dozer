@@ -1,5 +1,9 @@
 use super::api_server::ApiServer;
-use crate::{api_server::CorsOptions, generator::oapi::generator::OpenApiGenerator, test_utils};
+use crate::{
+    api_server::{ApiSecurity, CorsOptions},
+    generator::oapi::generator::OpenApiGenerator,
+    test_utils,
+};
 use dozer_types::serde_json::{json, Value};
 
 #[test]
@@ -25,8 +29,12 @@ async fn list_route() -> anyhow::Result<()> {
     let mut schema_name = endpoint.to_owned().path;
     schema_name.remove(0);
     let cache = test_utils::initialize_cache(&schema_name)?;
-    let api_server =
-        ApiServer::create_app_entry(CorsOptions::Permissive, vec![endpoint.to_owned()], cache);
+    let api_server = ApiServer::create_app_entry(
+        ApiSecurity::None,
+        CorsOptions::Permissive,
+        vec![endpoint.to_owned()],
+        cache,
+    );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::get()
         .uri(&endpoint.path)
@@ -45,8 +53,12 @@ async fn query_route() -> anyhow::Result<()> {
     let mut schema_name = endpoint.to_owned().path;
     schema_name.remove(0);
     let cache = test_utils::initialize_cache(&schema_name)?;
-    let api_server =
-        ApiServer::create_app_entry(CorsOptions::Permissive, vec![endpoint.to_owned()], cache);
+    let api_server = ApiServer::create_app_entry(
+        ApiSecurity::None,
+        CorsOptions::Permissive,
+        vec![endpoint.to_owned()],
+        cache,
+    );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::post()
         .uri(&format!("{}/query", endpoint.path))
@@ -65,8 +77,12 @@ async fn get_route() -> anyhow::Result<()> {
     let mut schema_name = endpoint.to_owned().path;
     schema_name.remove(0);
     let cache = test_utils::initialize_cache(&schema_name)?;
-    let api_server =
-        ApiServer::create_app_entry(CorsOptions::Permissive, vec![endpoint.to_owned()], cache);
+    let api_server = ApiServer::create_app_entry(
+        ApiSecurity::None,
+        CorsOptions::Permissive,
+        vec![endpoint.to_owned()],
+        cache,
+    );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::get()
         .uri(&format!("{}/{}", endpoint.path, 268))
