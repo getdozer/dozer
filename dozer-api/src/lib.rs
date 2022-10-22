@@ -1,8 +1,8 @@
 pub mod api_helper;
-pub mod generator;
-pub mod rest_error;
 pub mod api_server;
-pub mod test_utils;
+pub mod generator;
 pub mod grpc;
+pub mod rest_error;
+pub mod test_utils;
 #[cfg(test)]
 mod tests;

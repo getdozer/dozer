@@ -1,6 +1,6 @@
 pub mod dynamic_codec;
-pub mod server;
 pub mod functions;
+pub mod proto_util;
+pub mod server;
 pub mod services;
 pub mod util;
-pub mod proto_util;

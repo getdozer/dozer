@@ -12,7 +12,7 @@ pub fn get_proto_descriptor(descriptor_dir: String) -> anyhow::Result<Descriptor
     let buffer = read_file_as_byte(descriptor_set_dir)?;
     let my_array_byte = buffer.as_slice();
     let pool2 = DescriptorPool::decode(my_array_byte).unwrap();
-    return Ok(pool2.to_owned());
+    Ok(pool2)
 }
 
 pub fn read_file_as_byte(path: String) -> anyhow::Result<Vec<u8>> {
@@ -36,11 +36,11 @@ pub fn create_descriptor_set(proto_path: &str) -> anyhow::Result<String> {
     let mut prost_build_config2 = prost_build::Config::new();
     prost_build_config2.out_dir(my_path.to_owned());
     tonic_build::configure()
-        .file_descriptor_set_path(my_path_descriptor.to_owned())
+        .file_descriptor_set_path(&my_path_descriptor)
         .disable_package_emission()
         .build_client(false)
         .build_server(false)
-        .out_dir(my_path.to_owned())
+        .out_dir(&my_path)
         .compile_with_config(prost_build_config2, &[proto_path], &["proto_build/"])?;
-    return Ok(my_path_descriptor);
+    Ok(my_path_descriptor)
 }

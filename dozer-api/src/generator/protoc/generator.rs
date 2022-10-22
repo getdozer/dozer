@@ -17,11 +17,7 @@ impl ProtoGenerator<'_> {
         schema_name: String,
         endpoint: ApiEndpoint,
     ) -> anyhow::Result<Self> {
-        let proto_service = ProtoService::new(
-            schema.to_owned(),
-            schema_name.to_owned(),
-            endpoint.to_owned(),
-        )?;
+        let proto_service = ProtoService::new(schema, schema_name.to_owned(), endpoint)?;
         let mut proto_generator = Self {
             handlebars: Handlebars::new(),
             proto_service,

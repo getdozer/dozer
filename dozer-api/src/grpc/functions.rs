@@ -1,6 +1,6 @@
 use dozer_cache::cache::{expression::QueryExpression, LmdbCache};
 use dozer_types::serde_json;
-use prost_reflect::{DynamicMessage, SerializeOptions};
+use prost_reflect::DynamicMessage;
 use serde_json::{Map, Value};
 use std::sync::Arc;
 use tonic::{Code, Request, Response, Status};
@@ -11,8 +11,7 @@ pub async fn grpc_list(
     cache: Arc<LmdbCache>,
     request: Request<DynamicMessage>,
 ) -> Result<Response<Value>, Status> {
-    println!("==== hit grpc_list ");
-    let dynamic_message = request.into_inner();
+    let _dynamic_message = request.into_inner();
     let exp = QueryExpression::new(None, vec![], 50, 0);
     let result = get_records(&schema_name, cache, exp).unwrap();
     let value_json = serde_json::to_value(result).unwrap();
@@ -43,10 +42,9 @@ pub async fn grpc_get_by_id(
     //     "Cannot get input id".to_owned(),
     // ))?;
 
-    let id_field = dynamic_message.get_field_by_name("id").ok_or(Status::new(
-        Code::Internal,
-        "Cannot get input id".to_owned(),
-    ))?;
+    let id_field = dynamic_message
+        .get_field_by_name("id")
+        .ok_or_else(|| Status::new(Code::Internal, "Cannot get input id".to_owned()))?;
     let id_input = id_field.as_str().unwrap_or_default();
     let result = get_record(&schema_name, cache, id_input.to_owned())
         .map_err(|err| Status::new(Code::NotFound, err.to_string()))?;
@@ -60,7 +58,7 @@ pub async fn grpc_query(
     cache: Arc<LmdbCache>,
     request: Request<DynamicMessage>,
 ) -> Result<Response<Value>, Status> {
-    let dynamic_message = request.into_inner();
+    let _dynamic_message = request.into_inner();
     let exp = QueryExpression::new(None, vec![], 50, 0);
     let result = get_records(&schema_name, cache, exp).unwrap();
     let value_json = serde_json::to_value(result).unwrap();

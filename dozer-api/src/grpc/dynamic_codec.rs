@@ -1,7 +1,7 @@
 use bytes::Buf;
+use dozer_types::serde_json::{de::Deserializer, Value};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
-use dozer_types::serde_json::{Value, de::Deserializer};
 
 use tonic::{
     codec::{Codec, Decoder, Encoder},
@@ -10,12 +10,12 @@ use tonic::{
 
 use super::proto_util::get_proto_descriptor;
 
-pub struct MyCodec {
+pub struct DynamicCodec {
+    descriptor_pool: DescriptorPool,
     request_name: String,
     response_name: String,
-    descriptor_pool: DescriptorPool,
 }
-impl MyCodec {
+impl DynamicCodec {
     pub fn new(request_name: String, response_name: String, descriptor_path: String) -> Self {
         let pool_construct = get_proto_descriptor(descriptor_path).unwrap();
         Self {
@@ -26,7 +26,7 @@ impl MyCodec {
     }
 }
 
-impl Codec for MyCodec {
+impl Codec for DynamicCodec {
     type Encode = Value;
 
     type Decode = DynamicMessage;
@@ -36,17 +36,17 @@ impl Codec for MyCodec {
     type Decoder = MyDecoder;
 
     fn encoder(&mut self) -> Self::Encoder {
-        return MyEncoder {
+        MyEncoder {
             descriptor_pool: self.descriptor_pool.to_owned(),
             message_name: self.response_name.to_owned(),
-        };
+        }
     }
 
     fn decoder(&mut self) -> Self::Decoder {
-        return MyDecoder {
+        MyDecoder {
             descriptor_pool: self.descriptor_pool.to_owned(),
             message_name: self.request_name.to_owned(),
-        };
+        }
     }
 }
 
@@ -57,11 +57,9 @@ pub struct MyEncoder {
 
 impl MyEncoder {
     fn _get_message_descriptor(&self) -> Result<MessageDescriptor, Status> {
-        let message_by_name = self
-            .descriptor_pool
+        self.descriptor_pool
             .get_message_by_name(&self.message_name)
-            .ok_or(Status::internal("Cannot ".to_owned()));
-        return message_by_name;
+            .ok_or_else(|| Status::internal("Cannot ".to_owned()))
     }
 }
 impl Encoder for MyEncoder {
@@ -73,11 +71,9 @@ impl Encoder for MyEncoder {
         item: Self::Item,
         dst: &mut tonic::codec::EncodeBuf<'_>,
     ) -> Result<(), Self::Error> {
-        println!("==== hit encode {:?}", item);
         // let message_descriptor = self._get_message_descriptor()?;
         // let mut my_dynamic = DynamicMessage::new(message_descriptor);
         // let get_field_by_name = my_dynamic.get_field_by_name("message").unwrap();
-        // println!("==== field {:?}",get_field_by_name);
         // my_dynamic.set_field_by_name(
         //     "message",
         //     prost_reflect::Value::String("Hello 1233".to_owned()),
@@ -88,10 +84,7 @@ impl Encoder for MyEncoder {
         //     Ok(())
 
         let message_descriptor = self._get_message_descriptor()?;
-        println!("===== message_descriptor {:?}", message_descriptor);
         let json = &item.to_string();
-        println!("===== item.to_string  {:?}", json);
-
         let mut deserializer = Deserializer::from_str(json);
 
         let dynamic_message =
@@ -111,11 +104,9 @@ pub struct MyDecoder {
 
 impl MyDecoder {
     fn _get_message_descriptor(&self) -> Result<MessageDescriptor, Status> {
-        let message_by_name = self
-            .descriptor_pool
+        self.descriptor_pool
             .get_message_by_name(&self.message_name)
-            .ok_or(Status::internal("Cannot ".to_owned()));
-        return message_by_name;
+            .ok_or_else(|| Status::internal("Cannot ".to_owned()))
     }
 }
 
@@ -134,7 +125,7 @@ impl Decoder for MyDecoder {
             .map(Option::Some)
             .map_err(from_decode_error);
         src.advance(length);
-        return dynamic_message;
+        dynamic_message
     }
 }
 

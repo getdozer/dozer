@@ -4,19 +4,18 @@ use std::collections::HashMap;
 use crate::{
     generator::protoc::proto_service::GrpcType,
     grpc::{
-        dynamic_codec::MyCodec,
+        dynamic_codec::DynamicCodec,
         services::{GetByIdService, ListService, QueryService},
         util::get_method_by_name,
     },
 };
 use dozer_cache::cache::LmdbCache;
 use prost_reflect::DescriptorPool;
-use tonic::{
-    codegen::{self, *},
-};
+use tonic::codegen::{self, *};
 
 use super::proto_util::get_proto_descriptor;
 /// The greeting service definition.
+#[derive(Clone)]
 pub struct GRPCServer {
     accept_compression_encodings: EnabledCompressionEncodings,
     send_compression_encodings: EnabledCompressionEncodings,
@@ -24,7 +23,7 @@ pub struct GRPCServer {
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
     cache: Arc<LmdbCache>,
-    schema_name: String
+    schema_name: String,
 }
 impl GRPCServer {
     pub fn new(
@@ -34,15 +33,15 @@ impl GRPCServer {
         schema_name: String,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
-        return GRPCServer {
+        GRPCServer {
             accept_compression_encodings: Default::default(),
             send_compression_encodings: Default::default(),
             descriptor_path,
             descriptor,
             function_types,
             cache,
-            schema_name
-        };
+            schema_name,
+        }
     }
     // pub fn with_interceptor<F>(
     //     inner: T,
@@ -78,7 +77,7 @@ where
         Poll::Ready(Ok(()))
     }
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
-        let current_path: Vec<&str> = req.uri().path().split("/").collect();
+        let current_path: Vec<&str> = req.uri().path().split('/').collect();
         let method_name = current_path[current_path.len() - 1];
         let method = get_method_by_name(self.descriptor.to_owned(), method_name.to_string());
         if let Some(method_descriptor) = method {
@@ -86,9 +85,9 @@ where
             let output = method_descriptor.output();
             let full_name_input = input.full_name();
             let full_name_output = output.full_name();
-            let codec = MyCodec::new(
-                String::from(full_name_input.to_owned()),
-                String::from(full_name_output.to_owned()),
+            let codec = DynamicCodec::new(
+                full_name_input.to_owned(),
+                full_name_output.to_owned(),
                 self.descriptor_path.to_owned(),
             );
             let method_type = &self.function_types[method_name];
@@ -102,15 +101,12 @@ where
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings);
             match method_type {
                 GrpcType::GetById => {
-                    let method = GetByIdService {
-                        cache,
-                        schema_name
-                    };
+                    let method = GetByIdService { cache, schema_name };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
-                    return Box::pin(fut);
+                    Box::pin(fut)
                 }
                 GrpcType::Query => {
                     let method = QueryService { cache, schema_name };
@@ -118,7 +114,7 @@ where
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
-                    return Box::pin(fut);
+                    Box::pin(fut)
                 }
                 GrpcType::List => {
                     let method = ListService { cache, schema_name };
@@ -126,7 +122,7 @@ where
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
-                    return Box::pin(fut);
+                    Box::pin(fut)
                 }
             }
         } else {
@@ -141,22 +137,9 @@ where
         }
     }
 }
-impl Clone for GRPCServer {
-    fn clone(&self) -> Self {
-        Self {
-            accept_compression_encodings: self.accept_compression_encodings,
-            send_compression_encodings: self.send_compression_encodings,
-            descriptor_path: self.descriptor_path.to_owned(),
-            descriptor: self.descriptor.to_owned(),
-            function_types: self.function_types.to_owned(),
-            cache: self.cache.to_owned(),
-            schema_name: self.schema_name.to_owned()
-        }
-    }
-}
 fn get_name() -> &'static str {
-    return "abc";
+    "abc"
 }
 impl tonic::server::NamedService for GRPCServer {
-    const NAME: &'static str = "Dozer.Service";
+    const NAME: &'static str = ":GRPCServer";
 }
