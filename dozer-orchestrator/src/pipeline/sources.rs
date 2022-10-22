@@ -1,13 +1,12 @@
+use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
+use dozer_types::core::node::PortHandle;
+use dozer_types::errors::execution::ExecutionError;
 use log::debug;
 use std::collections::HashMap;
 
-use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::error::ExecutionError;
-use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
-
 use crate::pipeline::ingestion_group::IngestionGroup;
-use dozer_core::dag::node::{Source, SourceFactory};
-use dozer_core::state::{StateStore, StateStoreOptions};
+use dozer_types::core::node::{Source, SourceFactory};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
 

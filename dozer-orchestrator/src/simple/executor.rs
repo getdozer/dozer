@@ -8,14 +8,14 @@ use tempdir::TempDir;
 
 use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
-use dozer_core::dag::error::ExecutionError;
-use dozer_core::dag::error::ExecutionError::InternalStringError;
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
 

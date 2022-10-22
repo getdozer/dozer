@@ -1,9 +1,13 @@
-use crate::dag::dag::PortHandle;
-use crate::dag::error::ExecutionError;
-use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
-use crate::state::{StateStore, StateStoreOptions};
+use dozer_types::core::channels::{
+    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
+};
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::node::{
+    Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
+};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;

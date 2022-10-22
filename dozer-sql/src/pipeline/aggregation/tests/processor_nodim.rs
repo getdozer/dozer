@@ -1,10 +1,10 @@
 use crate::pipeline::aggregation::processor::{AggregationProcessor, FieldRule};
 use crate::pipeline::aggregation::sum::IntegerSumAggregator;
 use crate::pipeline::aggregation::tests::schema::{gen_in_data, get_input_schema};
-use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::Processor;
 use dozer_core::state::memory::MemoryStateStore;
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::node::Processor;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::collections::HashMap;
 

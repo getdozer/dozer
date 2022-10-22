@@ -1,9 +1,9 @@
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::LmdbCache;
-use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::state::lmdb::LmdbStateStoreManager;
-use dozer_core::state::{StateStore, StateStoreOptions, StateStoresManager};
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::state::{StateStore, StateStoreOptions, StateStoresManager};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 use std::collections::HashMap;

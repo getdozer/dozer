@@ -1,11 +1,11 @@
-use crate::dag::dag::PortHandle;
-use crate::dag::error::ExecutionError;
-use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::state::{StateStore, StateStoreOptions};
-use dozer_types::types::{Operation, Schema};
+use crate::core::channels::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::core::state::{StateStore, StateStoreOptions};
+use crate::errors::execution::ExecutionError;
+use crate::types::{Operation, Schema};
 use std::collections::HashMap;
 
-pub trait ExecutionContext: Send + Sync {}
+pub type NodeHandle = String;
+pub type PortHandle = u16;
 
 pub trait ProcessorFactory: Send + Sync {
     fn get_state_store_opts(&self) -> Option<StateStoreOptions>;

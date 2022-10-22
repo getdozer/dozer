@@ -1,18 +1,8 @@
-use crate::types::TypeError::InvalidFieldType;
+use crate::errors::types::TypeError;
+use crate::errors::types::TypeError::InvalidFieldType;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum TypeError {
-    #[error("Invalid field index: {0}")]
-    InvalidFieldIndex(usize),
-    #[error("Invalid field name: {0}")]
-    InvalidFieldName(String),
-    #[error("Invalid field type")]
-    InvalidFieldType,
-}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Field {

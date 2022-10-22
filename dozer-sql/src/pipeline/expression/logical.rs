@@ -1,5 +1,5 @@
-use crate::pipeline::error::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::types::{Field, Record};
 
 pub fn evaluate_and(

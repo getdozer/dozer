@@ -7,11 +7,11 @@ use std::time::Instant;
 use anyhow::Context;
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
-use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::error::ExecutionError;
-use dozer_core::dag::error::ExecutionError::InternalStringError;
-use dozer_core::dag::node::{Sink, SinkFactory};
-use dozer_core::state::{StateStore, StateStoreOptions};
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::node::{Sink, SinkFactory};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use log::debug;
@@ -213,7 +213,7 @@ mod tests {
     use dozer_cache::cache::{index, Cache};
 
     use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-    use dozer_core::dag::node::Sink;
+    use dozer_types::core::node::Sink;
 
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
     use std::panic;
