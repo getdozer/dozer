@@ -1,17 +1,15 @@
-use anyhow::{bail, Result};
-use std::collections::HashMap;
-
-use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
-
-use dozer_core::dag::dag::Dag;
-use dozer_core::dag::dag::NodeType;
-use dozer_core::dag::dag::{Endpoint, NodeHandle};
-use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-
-use crate::common::utils::normalize_ident;
-
 use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
+use crate::common::utils::normalize_ident;
+use dozer_core::dag::dag::Dag;
+use dozer_core::dag::dag::Endpoint;
+use dozer_core::dag::dag::NodeType;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use dozer_types::core::node::NodeHandle;
+use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::pipeline::PipelineError::{InvalidQuery, InvalidRelation};
+use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
+use std::collections::HashMap;
 
 pub struct PipelineBuilder {}
 
@@ -19,35 +17,35 @@ impl PipelineBuilder {
     pub fn statement_to_pipeline(
         &self,
         statement: Statement,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
+    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         match statement {
             Statement::Query(query) => self.query_to_pipeline(*query),
-            _ => bail!("Unsupported Query."),
+            _ => Err(InvalidQuery),
         }
     }
 
     pub fn query_to_pipeline(
         &self,
         query: Query,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
+    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         self.set_expr_to_pipeline(*query.body)
     }
 
     fn set_expr_to_pipeline(
         &self,
         set_expr: SetExpr,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
+    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         match set_expr {
             SetExpr::Select(s) => self.select_to_pipeline(*s),
             SetExpr::Query(q) => self.query_to_pipeline(*q),
-            _ => bail!("Unsupported Query."),
+            _ => Err(InvalidQuery),
         }
     }
 
     fn select_to_pipeline(
         &self,
         select: Select,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint)> {
+    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         // From clause
         let input_endpoints = self.get_input_endpoints(&String::from("selection"), &select.from)?;
 
@@ -84,7 +82,7 @@ impl PipelineBuilder {
         &self,
         node_name: &String,
         from: &[TableWithJoins],
-    ) -> Result<HashMap<String, Endpoint>> {
+    ) -> Result<HashMap<String, Endpoint>, PipelineError> {
         let mut endpoints = HashMap::new();
 
         if from.len() != 1 {
@@ -102,7 +100,7 @@ impl PipelineBuilder {
         Ok(endpoints)
     }
 
-    fn get_input_name(&self, table: &TableWithJoins) -> Result<String> {
+    fn get_input_name(&self, table: &TableWithJoins) -> Result<String, PipelineError> {
         match &table.relation {
             TableFactor::Table { name, alias: _, .. } => {
                 let input_name = name
@@ -114,7 +112,7 @@ impl PipelineBuilder {
 
                 Ok(input_name)
             }
-            _ => bail!("Unsupported Table Name."),
+            _ => Err(InvalidRelation),
         }
     }
 }

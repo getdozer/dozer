@@ -1,16 +1,18 @@
-use log::debug;
+use dozer_types::log::debug;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use super::storage::RocksStorage;
 use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
 // use dozer_schema::registry::{_get_client, context};
+use dozer_types::serde;
 use dozer_types::types::{Commit, OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
 // use tokio::runtime::Runtime;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(crate = "self::serde")]
 pub enum IngestionMessage {
     Begin(),
     OperationEvent(OperationEvent),
@@ -145,10 +147,7 @@ mod tests {
         let operation_event_message = dozer_types::types::OperationEvent {
             seq_no: 0,
             operation: Operation::Insert {
-                new: Record {
-                    schema_id: None,
-                    values: vec![],
-                },
+                new: Record::new(None, vec![]),
             },
         };
 
@@ -156,10 +155,7 @@ mod tests {
         let operation_event_message2 = dozer_types::types::OperationEvent {
             seq_no: 0,
             operation: Operation::Insert {
-                new: Record {
-                    schema_id: None,
-                    values: vec![],
-                },
+                new: Record::new(None, vec![]),
             },
         };
 

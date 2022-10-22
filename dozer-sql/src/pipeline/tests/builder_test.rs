@@ -1,20 +1,19 @@
+use dozer_core::dag::dag::{Endpoint, NodeType};
+use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_core::state::lmdb::LmdbStateStoreManager;
+use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
+use dozer_types::core::node::{PortHandle, Sink, SinkFactory, Source, SourceFactory};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
-use std::collections::HashMap;
-use std::fs;
-use std::sync::Arc;
-
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
+use std::collections::HashMap;
+use std::fs;
+use std::sync::Arc;
 use tempdir::TempDir;
-
-use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
-use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
-use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
-use dozer_core::dag::node::{Sink, SinkFactory, Source, SourceFactory};
-use dozer_core::state::lmdb::LmdbStateStoreManager;
-use dozer_core::state::StateStore;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use crate::pipeline::builder::PipelineBuilder;
 
@@ -30,6 +29,10 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -67,7 +70,7 @@ impl Source for TestSource {
         cm: &dyn ChannelManager,
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         for n in 0..1000000 {
             fw.send(
                 n,
@@ -101,6 +104,10 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory for TestSinkFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -115,11 +122,11 @@ impl Sink for TestSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn init(&mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init(&mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -130,7 +137,7 @@ impl Sink for TestSink {
         _seq: u64,
         _op: Operation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         //    debug!("SINK: Message {} received", _op.seq_no);
         Ok(())
     }

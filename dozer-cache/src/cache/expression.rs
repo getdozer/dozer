@@ -1,11 +1,26 @@
-use dozer_types::types::{Field, IndexDefinition};
-use strum_macros::EnumString;
+use dozer_types::serde::{self, Deserialize, Serialize};
+use dozer_types::serde_json::Value;
+use dozer_types::types::IndexDefinition;
+mod query_helper;
+mod query_serde;
 
+#[cfg(test)]
+mod tests;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(crate = "self::serde")]
 pub struct QueryExpression {
+    #[serde(rename = "$filter", default)]
     pub filter: Option<FilterExpression>,
+    #[serde(rename = "$order_by", default)]
     pub order_by: Vec<SortOptions>,
+    #[serde(rename = "$limit", default = "default_limit")]
     pub limit: usize,
+    #[serde(rename = "$skip", default)]
     pub skip: usize,
+}
+fn default_limit() -> usize {
+    50
 }
 
 impl QueryExpression {
@@ -27,36 +42,60 @@ impl QueryExpression {
 #[derive(Clone, Debug, PartialEq)]
 pub enum FilterExpression {
     // a = 1, a containts "s", a> 4
-    Simple(String, Operator, Field),
-    And(Box<FilterExpression>, Box<FilterExpression>),
+    Simple(String, Operator, Value),
+    And(Vec<FilterExpression>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumString, strum_macros::Display)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Operator {
-    #[strum(serialize = "$lt")]
     LT,
-    #[strum(serialize = "$lte")]
     LTE,
-    #[strum(serialize = "$eq")]
     EQ,
-    #[strum(serialize = "$gt")]
     GT,
-    #[strum(serialize = "$gte")]
     GTE,
-    #[strum(serialize = "$contains")]
     Contains,
-    #[strum(serialize = "$matchesany")]
     MatchesAny,
-    #[strum(serialize = "$matchesall")]
     MatchesAll,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+impl Operator {
+    pub fn convert_str(s: &str) -> Option<Operator> {
+        match s {
+            "$lt" => Some(Operator::LT),
+            "$lte" => Some(Operator::LTE),
+            "$gt" => Some(Operator::GT),
+            "$gte" => Some(Operator::GTE),
+            "$eq" => Some(Operator::EQ),
+            "$contains" => Some(Operator::Contains),
+            "$matches_any" => Some(Operator::MatchesAny),
+            "$matches_all" => Some(Operator::MatchesAll),
+            _ => None,
+        }
+    }
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Operator::LT => "$lt",
+            Operator::LTE => "$lte",
+            Operator::EQ => "$eq",
+            Operator::GT => "$gt",
+            Operator::GTE => "$gte",
+            Operator::Contains => "$contains",
+            Operator::MatchesAny => "$matches_any",
+            Operator::MatchesAll => "$matches_all",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(crate = "self::serde")]
 pub enum SortDirection {
+    #[serde(rename = "asc")]
     Ascending,
+    #[serde(rename = "desc")]
     Descending,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(crate = "self::serde")]
 pub struct SortOptions {
     pub field_name: String,
     pub direction: SortDirection,
@@ -66,10 +105,10 @@ pub enum ExecutionStep {
     IndexScan(IndexScan),
     SeqScan(SeqScan),
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexScan {
     pub index_def: IndexDefinition,
-    pub fields: Vec<Option<Field>>,
+    pub fields: Vec<Option<Value>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeqScan {

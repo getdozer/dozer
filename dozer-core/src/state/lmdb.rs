@@ -1,7 +1,12 @@
 use crate::state::lmdb_sys::{
-    Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
+    Cursor, Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
-use crate::state::{StateStore, StateStoresManager};
+use dozer_types::core::state::{
+    StateStore, StateStoreCursor, StateStoreOptions, StateStoresManager,
+};
+use dozer_types::errors::database::DatabaseError;
+use dozer_types::errors::database::DatabaseError::{InternalError, OpenOrCreateError};
+use dozer_types::internal_err;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -23,9 +28,14 @@ impl LmdbStateStoreManager {
 }
 
 impl StateStoresManager for LmdbStateStoreManager {
-    fn init_state_store(&self, id: String) -> anyhow::Result<Box<dyn StateStore>> {
+    fn init_state_store(
+        &self,
+        id: String,
+        options: StateStoreOptions,
+    ) -> Result<Box<dyn StateStore>, DatabaseError> {
         let full_path = Path::new(&self.path).join(&id);
-        fs::create_dir(&full_path)?;
+        fs::create_dir(&full_path)
+            .map_err(|_e| OpenOrCreateError(full_path.to_str().unwrap().to_string()))?;
 
         let mut env_opt = EnvOptions::default();
         env_opt.no_sync = true;
@@ -33,14 +43,15 @@ impl StateStoresManager for LmdbStateStoreManager {
         env_opt.map_size = Some(self.max_size);
         env_opt.writable_mem_map = true;
 
-        let env = Arc::new(Environment::new(
+        let env = Arc::new(internal_err!(Environment::new(
             full_path.to_str().unwrap().to_string(),
-            Some(env_opt),
-        )?);
-        let tx = Transaction::begin(env.clone())?;
+            Some(env_opt)
+        ))?);
+        let tx = internal_err!(Transaction::begin(env.clone()))?;
 
-        let db_opt = DatabaseOptions::default();
-        let db = Database::open(env.clone(), &tx, id, Some(db_opt))?;
+        let mut db_opt = DatabaseOptions::default();
+        db_opt.allow_duplicate_keys = options.allow_duplicate_keys;
+        let db = internal_err!(Database::open(env.clone(), &tx, id, Some(db_opt)))?;
 
         Ok(Box::new(LmdbStateStore {
             env,
@@ -73,24 +84,53 @@ impl LmdbStateStore {
 }
 
 impl StateStore for LmdbStateStore {
-    fn checkpoint(&mut self) -> anyhow::Result<()> {
+    fn checkpoint(&mut self) -> Result<(), DatabaseError> {
         todo!()
     }
 
-    fn put(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<()> {
-        self.renew_tx()?;
-        self.db.put(&self.tx, key, value, None)?;
+    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), DatabaseError> {
+        internal_err!(self.db.put(&self.tx, key, value, None))?;
         Ok(())
     }
 
-    fn del(&mut self, key: &[u8]) -> anyhow::Result<()> {
-        self.renew_tx()?;
-        self.db.del(&self.tx, key, None)?;
+    fn del(&mut self, key: &[u8]) -> Result<(), DatabaseError> {
+        internal_err!(self.db.del(&self.tx, key, None))?;
         Ok(())
     }
 
-    fn get(&mut self, key: &[u8]) -> anyhow::Result<Option<&[u8]>> {
-        let r = self.db.get(&self.tx, key)?;
+    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, DatabaseError> {
+        let r = internal_err!(self.db.get(&self.tx, key))?;
         Ok(r)
+    }
+
+    fn cursor(&mut self) -> Result<Box<dyn StateStoreCursor>, DatabaseError> {
+        let cursor = internal_err!(self.db.open_cursor(&self.tx))?;
+        Ok(Box::new(LmdbStateStoreCursor { cursor }))
+    }
+
+    fn commit(&mut self) -> Result<(), DatabaseError> {
+        internal_err!(self.renew_tx())
+    }
+}
+
+pub struct LmdbStateStoreCursor {
+    cursor: Cursor,
+}
+
+impl StateStoreCursor for LmdbStateStoreCursor {
+    fn seek(&mut self, key: &[u8]) -> Result<bool, DatabaseError> {
+        internal_err!(self.cursor.seek(key))
+    }
+
+    fn next(&mut self) -> Result<bool, DatabaseError> {
+        internal_err!(self.cursor.next())
+    }
+
+    fn prev(&mut self) -> Result<bool, DatabaseError> {
+        internal_err!(self.cursor.prev())
+    }
+
+    fn read(&mut self) -> Result<Option<(&[u8], &[u8])>, DatabaseError> {
+        internal_err!(self.cursor.read())
     }
 }

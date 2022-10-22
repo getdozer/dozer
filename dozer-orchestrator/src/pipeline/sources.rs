@@ -1,12 +1,12 @@
+use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
+use dozer_types::core::node::PortHandle;
+use dozer_types::errors::execution::ExecutionError;
 use log::debug;
 use std::collections::HashMap;
 
-use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
-
 use crate::pipeline::ingestion_group::IngestionGroup;
-use dozer_core::dag::node::{Source, SourceFactory};
-use dozer_core::state::StateStore;
+use dozer_types::core::node::{Source, SourceFactory};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
 
@@ -52,6 +52,10 @@ impl ConnectorSourceFactory {
 }
 
 impl SourceFactory for ConnectorSourceFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
+
     fn get_output_ports(&self) -> Vec<PortHandle> {
         let keys = self.port_map.to_owned().into_keys().collect();
         debug!("{:?}", keys);
@@ -82,7 +86,7 @@ impl Source for ConnectorSource {
         _cm: &dyn ChannelManager,
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         let ingestion_group = IngestionGroup {};
         let receiver =
             ingestion_group.run_ingestion(self.connections.to_owned(), self.table_names.to_owned());

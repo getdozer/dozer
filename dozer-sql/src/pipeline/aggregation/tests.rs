@@ -1,6 +1,6 @@
 #[cfg(test)]
-mod groupby;
+mod processor;
 #[cfg(test)]
-mod groupby_nodim;
+mod processor_nodim;
 #[cfg(test)]
 mod schema;

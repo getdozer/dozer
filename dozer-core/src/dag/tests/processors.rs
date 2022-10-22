@@ -1,8 +1,13 @@
-use crate::dag::dag::PortHandle;
-use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
-use crate::state::StateStore;
+use dozer_types::core::channels::{
+    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
+};
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::node::{
+    Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
+};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;
@@ -20,6 +25,9 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -53,7 +61,7 @@ impl Source for TestSource {
         cm: &dyn ChannelManager,
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         for n in 0..1_000_000 {
             fw.send(
                 n,
@@ -80,6 +88,9 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory for TestSinkFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        None
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -96,11 +107,11 @@ impl Sink for TestSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn init(&mut self, _: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init(&mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {
         debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -111,7 +122,7 @@ impl Sink for TestSink {
         _seq: u64,
         _op: Operation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -133,6 +144,9 @@ impl TestProcessorFactory {
 }
 
 impl ProcessorFactory for TestProcessorFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        Some(StateStoreOptions::default())
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -159,7 +173,7 @@ impl Processor for TestProcessor {
         &mut self,
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<Schema> {
+    ) -> Result<Schema, ExecutionError> {
         let mut sorted: Vec<PortHandle> = input_schemas.iter().map(|e| *e.0).collect();
         sorted.sort();
         let mut out_schema = Schema::empty();
@@ -177,7 +191,7 @@ impl Processor for TestProcessor {
         Ok(out_schema)
     }
 
-    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
         Ok(())
     }
@@ -188,7 +202,7 @@ impl Processor for TestProcessor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         self.ctr += 1;
         state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes())?;
         fw.send(op, DEFAULT_PORT_HANDLE)?;

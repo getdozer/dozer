@@ -1,4 +1,3 @@
-use anyhow::{bail, Result};
 use std::collections::HashMap;
 
 use sqlparser::ast::{
@@ -6,6 +5,11 @@ use sqlparser::ast::{
     Value as SqlValue,
 };
 
+use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::pipeline::PipelineError::{
+    InvalidExpression, InvalidOperator, InvalidValue,
+};
+use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Field, Schema};
 
 use crate::pipeline::expression::execution::Expression;
@@ -18,14 +22,14 @@ impl SelectionBuilder {
         &self,
         selection: &Option<SqlExpr>,
         schema: &Schema,
-    ) -> Result<Box<Expression>> {
+    ) -> Result<Box<Expression>, PipelineError> {
         match selection {
             Some(expression) => Ok(self.parse_sql_expression(expression, schema)?),
             None => Ok(Box::new(Expression::Literal(Field::Boolean(true)))),
         }
     }
 
-    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize> {
+    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize, PipelineError> {
         let schema_idx: HashMap<String, usize> = schema
             .fields
             .iter()
@@ -36,7 +40,9 @@ impl SelectionBuilder {
         if let Some(index) = schema_idx.get(name).cloned() {
             Ok(index)
         } else {
-            bail!("The Field {} does not exists", &name)
+            Err(PipelineError::InternalTypeError(
+                TypeError::InvalidFieldName(name.clone()),
+            ))
         }
     }
 
@@ -44,7 +50,7 @@ impl SelectionBuilder {
         &self,
         expression: &SqlExpr,
         schema: &Schema,
-    ) -> Result<Box<Expression>> {
+    ) -> Result<Box<Expression>, PipelineError> {
         match expression {
             SqlExpr::Identifier(ident) => Ok(Box::new(Expression::Column {
                 index: self.column_index(&ident.value, schema)?,
@@ -58,16 +64,16 @@ impl SelectionBuilder {
             }
             SqlExpr::UnaryOp { op, expr } => Ok(self.parse_sql_unary_op(op, expr, schema)?),
             SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr, schema)?),
-            _ => bail!("Unsupported Expression.".to_string(),),
+            _ => Err(InvalidExpression("".to_string())),
         }
     }
 
-    fn parse_sql_number(&self, n: &str) -> Result<Box<Expression>> {
+    fn parse_sql_number(&self, n: &str) -> Result<Box<Expression>, PipelineError> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Box::new(Expression::Literal(Field::Int(n)))),
             Err(_) => match n.parse::<f64>() {
                 Ok(f) => Ok(Box::new(Expression::Literal(Field::Float(f)))),
-                Err(_) => bail!("Value is not Numeric.".to_string(),),
+                Err(_) => Err(InvalidValue(n.to_string())),
             },
         }
     }
@@ -77,14 +83,14 @@ impl SelectionBuilder {
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
-    ) -> Result<Box<Expression>> {
+    ) -> Result<Box<Expression>, PipelineError> {
         let arg = self.parse_sql_expression(expr, schema)?;
 
         let operator = match op {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => bail!("Unsupported SQL unary operator {:?}", op),
+            _ => return Err(InvalidOperator(format!("{:?}", op))),
         };
 
         Ok(Box::new(Expression::UnaryOperator { operator, arg }))
@@ -96,7 +102,7 @@ impl SelectionBuilder {
         op: &SqlBinaryOperator,
         right_expr: &SqlExpr,
         schema: &Schema,
-    ) -> Result<Box<Expression>> {
+    ) -> Result<Box<Expression>, PipelineError> {
         let left = self.parse_sql_expression(left_expr, schema)?;
         let right = self.parse_sql_expression(right_expr, schema)?;
 
@@ -120,7 +126,7 @@ impl SelectionBuilder {
             // BinaryOperator::BitwiseAnd => ...
             // BinaryOperator::BitwiseOr => ...
             // BinaryOperator::StringConcat => ...
-            _ => bail!("Unsupported SQL Binary Operator {:?}", op),
+            _ => return Err(InvalidOperator(format!("{:?}", op))),
         };
 
         Ok(Box::new(Expression::BinaryOperator {

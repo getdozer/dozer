@@ -1,17 +1,22 @@
 use std::collections::HashSet;
 
-use anyhow::{bail, Context};
-use log::debug;
+use dozer_types::{
+    errors::cache::{CacheError, IndexError, QueryError},
+    log::debug,
+};
 
 use crate::cache::expression::{
     ExecutionStep, FilterExpression, IndexScan, Operator, QueryExpression, SeqScan, SortDirection,
 };
-use dozer_types::types::{Field, FieldDefinition, IndexDefinition, Schema};
+use dozer_types::{
+    serde_json::Value,
+    types::{FieldDefinition, IndexDefinition, Schema},
+};
 
 struct ScanOp {
     id: usize,
     direction: bool,
-    field: Option<Field>,
+    field: Option<Value>,
 }
 pub struct QueryPlanner {}
 impl QueryPlanner {
@@ -22,20 +27,20 @@ impl QueryPlanner {
         &self,
         schema: &Schema,
         filter: FilterExpression,
-        ops: &mut Vec<(usize, Operator, Option<Field>)>,
-    ) -> anyhow::Result<()> {
+        ops: &mut Vec<(usize, Operator, Option<Value>)>,
+    ) -> Result<(), CacheError> {
         match filter {
             FilterExpression::Simple(field_name, operator, field) => {
                 let field_key = self
                     .get_field_index(field_name, &schema.fields)
-                    .context("field_name is missing")?;
+                    .map_or(Err(CacheError::QueryError(QueryError::FieldNotFound)), Ok)?;
 
                 ops.push((field_key, operator, Some(field)));
             }
-            FilterExpression::And(exp1, exp2) => {
-                self.get_ops_from_filter(schema, *exp1, ops)?;
-
-                self.get_ops_from_filter(schema, *exp2, ops)?;
+            FilterExpression::And(expressions) => {
+                for expr in expressions {
+                    self.get_ops_from_filter(schema, expr, ops)?;
+                }
             }
         };
         Ok(())
@@ -43,9 +48,9 @@ impl QueryPlanner {
 
     fn get_index_scan(
         &self,
-        ops: &Vec<(usize, Operator, Option<Field>)>,
+        ops: &Vec<(usize, Operator, Option<Value>)>,
         indexes: &[IndexDefinition],
-    ) -> anyhow::Result<IndexScan> {
+    ) -> Result<IndexScan, CacheError> {
         let mut range_index = HashSet::new();
         let mut hash_index = HashSet::new();
         let mut mapped_ops = Vec::new();
@@ -64,8 +69,15 @@ impl QueryPlanner {
                 Operator::EQ => {
                     hash_index.insert(op.0);
                 }
-                Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
-                    bail!("full text search queries are not yet supported")
+                Operator::Contains => {
+                    // I'm not sure what `range_index` and `hash_index` are for so not adding another `full_text_index`.
+                }
+                Operator::MatchesAny | Operator::MatchesAll => {
+                    return Err(CacheError::IndexError(
+                        dozer_types::errors::cache::IndexError::UnsupportedIndex(
+                            op.1.to_str().to_string(),
+                        ),
+                    ));
                 }
             }
 
@@ -77,16 +89,26 @@ impl QueryPlanner {
         }
 
         if range_index.len() > 1 {
-            bail!("range queries on multiple fields are not supported ")
+            Err(CacheError::IndexError(
+                IndexError::UnsupportedMultiRangeIndex,
+            ))
         } else {
             let key: Vec<usize> = mapped_ops.iter().map(|o| o.id).collect();
             let direction: Vec<bool> = mapped_ops.iter().map(|o| o.direction).collect();
-            let fields: Vec<Option<Field>> = mapped_ops.iter().map(|o| o.field.clone()).collect();
+            let fields: Vec<Option<Value>> = mapped_ops.iter().map(|o| o.field.clone()).collect();
 
             let index = indexes
                 .iter()
                 .find(|id| id.fields == key && id.sort_direction == *direction)
-                .context(format!("compound_index is required for fields {:?}", key))?;
+                .map_or(
+                    Err(CacheError::IndexError(IndexError::MissingCompoundIndex(
+                        key.iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<String>>()
+                            .join(","),
+                    ))),
+                    Ok,
+                )?;
 
             Ok(IndexScan {
                 index_def: index.clone(),
@@ -95,16 +117,20 @@ impl QueryPlanner {
         }
     }
 
-    pub fn plan(&self, schema: &Schema, query: &QueryExpression) -> anyhow::Result<ExecutionStep> {
+    pub fn plan(
+        &self,
+        schema: &Schema,
+        query: &QueryExpression,
+    ) -> Result<ExecutionStep, CacheError> {
         // construct steps based on expression
         // construct plans with query steps
 
-        let mut ops: Vec<(usize, Operator, Option<Field>)> = vec![];
+        let mut ops: Vec<(usize, Operator, Option<Value>)> = vec![];
 
         for s in query.order_by.clone() {
             let new_field_key = self
                 .get_field_index(s.field_name.clone(), &schema.fields)
-                .context("field_name is missing")?;
+                .map_or(Err(CacheError::QueryError(QueryError::FieldNotFound)), Ok)?;
 
             let op = if s.direction == SortDirection::Ascending {
                 Operator::GT
@@ -135,62 +161,54 @@ mod tests {
         expression::{self, ExecutionStep, FilterExpression, QueryExpression},
         test_utils,
     };
-    use anyhow::bail;
-    use dozer_types::types::Field;
+
+    use dozer_types::serde_json::Value;
 
     #[test]
-    fn test_generate_plan_simple() -> anyhow::Result<()> {
+    fn test_generate_plan_simple() {
         let schema = test_utils::schema_0();
         let planner = QueryPlanner {};
         let query = QueryExpression::new(
             Some(FilterExpression::Simple(
                 "foo".to_string(),
                 expression::Operator::EQ,
-                Field::String("bar".to_string()),
+                Value::from("bar".to_string()),
             )),
             vec![],
             10,
             0,
         );
-        if let ExecutionStep::IndexScan(index_scan) = planner.plan(&schema, &query)? {
+        if let ExecutionStep::IndexScan(index_scan) = planner.plan(&schema, &query).unwrap() {
             assert_eq!(index_scan.index_def, schema.secondary_indexes[0]);
-            assert_eq!(index_scan.fields, &[Some(Field::String("bar".to_string()))]);
+            assert_eq!(index_scan.fields, &[Some(Value::from("bar".to_string()))]);
         } else {
-            bail!("IndexScan expected")
+            panic!("IndexScan expected")
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_generate_plan_and() -> anyhow::Result<()> {
+    fn test_generate_plan_and() {
         let schema = test_utils::schema_1();
         let planner = QueryPlanner {};
 
-        let filter = FilterExpression::And(
-            Box::new(FilterExpression::Simple(
-                "a".to_string(),
-                expression::Operator::EQ,
-                Field::Int(1),
-            )),
-            Box::new(FilterExpression::Simple(
+        let filter = FilterExpression::And(vec![
+            FilterExpression::Simple("a".to_string(), expression::Operator::EQ, Value::from(1)),
+            FilterExpression::Simple(
                 "b".to_string(),
                 expression::Operator::EQ,
-                Field::String("test".to_string()),
-            )),
-        );
+                Value::from("test".to_string()),
+            ),
+        ]);
         let query = QueryExpression::new(Some(filter), vec![], 10, 0);
         // Pick the 3rd index
-        if let ExecutionStep::IndexScan(index_scan) = planner.plan(&schema, &query)? {
+        if let ExecutionStep::IndexScan(index_scan) = planner.plan(&schema, &query).unwrap() {
             assert_eq!(index_scan.index_def, schema.secondary_indexes[3]);
             assert_eq!(
                 index_scan.fields,
-                &[Some(Field::Int(1)), Some(Field::String("test".to_string()))]
+                &[Some(Value::from(1)), Some(Value::from("test".to_string()))]
             );
         } else {
-            bail!("IndexScan expected")
+            panic!("IndexScan expected")
         }
-
-        Ok(())
     }
 }

@@ -1,5 +1,5 @@
 use crate::connectors::storage::RocksStorage;
-use log::debug;
+use dozer_types::log::debug;
 use rocksdb::WriteBatch;
 use std::sync::Arc;
 use std::time::Instant;

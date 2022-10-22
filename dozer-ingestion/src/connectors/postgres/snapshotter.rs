@@ -4,9 +4,9 @@ use crate::connectors::ingestor::Ingestor;
 
 use super::helper;
 use super::schema_helper::SchemaHelper;
-use anyhow::Context;
+use dozer_types::errors::connector::ConnectorError;
+use dozer_types::log::debug;
 use dozer_types::types::Commit;
-use log::debug;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::{Client, NoTls};
@@ -25,7 +25,7 @@ impl PostgresSnapshotter {
         let client = Client::connect(&self.conn_str, NoTls)?;
         Ok(client)
     }
-    pub fn get_tables(&self) -> anyhow::Result<Vec<TableInfo>> {
+    pub fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         match self.tables.as_ref() {
             None => {
                 let mut helper = SchemaHelper {
@@ -38,7 +38,7 @@ impl PostgresSnapshotter {
         }
     }
 
-    pub fn sync_tables(&self) -> anyhow::Result<Vec<String>> {
+    pub fn sync_tables(&self) -> Result<Vec<String>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(helper::connect(self.conn_str.clone())?));
 
         let tables = self.get_tables()?;
@@ -48,14 +48,18 @@ impl PostgresSnapshotter {
             let column_str: Vec<String> = table_info
                 .columns
                 .clone()
-                .context("columns not found")?
+                .map_or(Err(ConnectorError::ColumnsNotFound), Ok)?
                 .iter()
                 .map(|c| format!("\"{}\"", c))
                 .collect();
 
             let column_str = column_str.join(",");
             let query = format!("select {} from {}", column_str, table_info.name);
-            let stmt = client_plain.clone().borrow_mut().prepare(&query)?;
+            let stmt = client_plain
+                .clone()
+                .borrow_mut()
+                .prepare(&query)
+                .map_err(|_| ConnectorError::InvalidQueryError)?;
             let columns = stmt.columns();
 
             // Ingest schema for every table
@@ -69,7 +73,8 @@ impl PostgresSnapshotter {
             for msg in client_plain
                 .clone()
                 .borrow_mut()
-                .query_raw(&stmt, empty_vec)?
+                .query_raw(&stmt, empty_vec)
+                .map_err(|_| ConnectorError::InvalidQueryError)?
                 .iterator()
             {
                 match msg {
@@ -79,7 +84,7 @@ impl PostgresSnapshotter {
                             schema
                                 .identifier
                                 .clone()
-                                .context("identifier is expected in snapshotter")?,
+                                .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
                             &msg,
                             columns,
                             idx,

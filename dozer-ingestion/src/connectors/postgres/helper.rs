@@ -1,8 +1,8 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use bytes::Bytes;
-use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use dozer_types::types::*;
-use log::debug;
+use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
+use dozer_types::errors::connector::ConnectorError;
+use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
@@ -189,7 +189,7 @@ pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) ->
         // TODO: ignore custom types
         // "mpaa_rating" | "_text" => Field::Null,
         // "bytea" | "_bytea" => {
-        //     let val: Result<Vec<u8>, postgres::Error> = row.try_get(idx);
+        //     let val: Result<Vec<u8>, ConnectorError> = row.try_get(idx);
         //     match val {
         //         Ok(val) => Field::Binary(val),
         //         Err(error) => handle_error(error),
@@ -220,10 +220,7 @@ pub fn map_row_to_operation_event(
     columns: &[Column],
     idx: u32,
 ) -> OperationEvent {
-    let rec = Record {
-        schema_id: Some(identifer),
-        values: get_values(row, columns),
-    };
+    let rec = Record::new(Some(identifer), get_values(row, columns));
 
     let op = Operation::Insert { new: rec };
     let evt: OperationEvent = OperationEvent {
@@ -233,23 +230,21 @@ pub fn map_row_to_operation_event(
     evt
 }
 
-pub fn connect(conn_str: String) -> Result<Client, postgres::Error> {
-    let client = Client::connect(&conn_str, NoTls)?;
-    Ok(client)
+pub fn connect(conn_str: String) -> Result<Client, ConnectorError> {
+    Client::connect(&conn_str, NoTls).map_err(|e| ConnectorError::InternalError(Box::new(e)))
 }
 
-pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, postgres::Error> {
+pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, ConnectorError> {
     let (client, connection) = tokio_postgres::connect(&conn_str.clone(), NoTls)
         .await
         .unwrap();
 
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            debug!("connection error: {}", e);
-            panic!("Connection failed!");
-        }
-    });
-    Ok(client)
+    let future = tokio::spawn(async move { connection.await });
+    match future.await {
+        Ok(Ok(())) => Ok(client),
+        Ok(Err(e)) => Err(ConnectorError::InternalError(Box::new(e))),
+        Err(e) => Err(ConnectorError::InternalError(Box::new(e))),
+    }
 }
 
 pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
@@ -277,7 +272,7 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
+    use dozer_types::chrono::NaiveDate;
 
     #[macro_export]
     macro_rules! test_conversion {
@@ -291,7 +286,6 @@ mod tests {
                     r#type: Some($b),
                 },
             );
-            debug!("{:?}", value);
             assert_eq!(value, $c);
         };
     }

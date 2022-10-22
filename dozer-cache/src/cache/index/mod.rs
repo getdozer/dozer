@@ -1,3 +1,4 @@
+use dozer_types::bincode;
 use dozer_types::types::{IndexDefinition, Record};
 
 pub trait CacheIndex {
@@ -20,6 +21,16 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
         .collect();
 
     key.join("#".as_bytes())
+}
+
+pub fn has_primary_key_changed(
+    primary_index: &[usize],
+    old_values: &[Field],
+    new_values: &[Field],
+) -> bool {
+    primary_index
+        .iter()
+        .any(|idx| old_values[*idx] != new_values[*idx])
 }
 
 pub fn get_secondary_index(
@@ -51,6 +62,29 @@ pub fn get_secondary_index(
     .join("#".as_bytes())
 }
 
+pub fn get_full_text_secondary_index(schema_id: u32, field_idx: u64, token: &str) -> Vec<u8> {
+    [
+        "index".as_bytes(),
+        &schema_id.to_be_bytes(),
+        &field_idx.to_be_bytes(),
+        token.as_bytes(),
+    ]
+    .join("#".as_bytes())
+}
+
 pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
     ["schema_name_".as_bytes(), name.as_bytes()].join("#".as_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_full_text_secondary_index;
+
+    #[test]
+    fn test_get_full_text_secondary_index() {
+        assert_eq!(
+            get_full_text_secondary_index(1, 1, "foo"),
+            b"index#\0\0\0\x01#\0\0\0\0\0\0\0\x01#foo",
+        );
+    }
 }

@@ -1,10 +1,10 @@
+use dozer_types::log::debug;
 use lmdb::{Cursor, RoCursor};
 use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
-use log::debug;
 
 enum CacheIteratorState<'a> {
     First {
-        starting_key: Option<&'a Vec<u8>>,
+        starting_key: Option<&'a [u8]>,
         ascending: bool,
     },
     NotFirst {
@@ -74,11 +74,11 @@ impl<'a> Iterator for CacheIterator<'a> {
     }
 }
 impl<'a> CacheIterator<'a> {
-    pub fn new(cursor: &'a RoCursor, starting_key: Option<&'a Vec<u8>>, ascending: bool) -> Self {
+    pub fn new(cursor: &'a RoCursor, starting_key: Option<&'a [u8]>, ascending: bool) -> Self {
         CacheIterator {
             cursor,
             state: CacheIteratorState::First {
-                starting_key: starting_key.map(AsRef::as_ref),
+                starting_key,
                 ascending,
             },
         }

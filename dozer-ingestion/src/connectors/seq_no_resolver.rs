@@ -1,5 +1,6 @@
 use crate::connectors::storage::RocksStorage;
 use atomic_counter::{AtomicCounter, ConsistentCounter};
+use dozer_types::bincode;
 use std::sync::Arc;
 
 pub struct SeqNoResolver {
@@ -49,10 +50,7 @@ mod tests {
         dozer_types::types::OperationEvent {
             seq_no,
             operation: Operation::Insert {
-                new: Record {
-                    schema_id: None,
-                    values: vec![],
-                },
+                new: Record::new(None, vec![]),
             },
         }
     }

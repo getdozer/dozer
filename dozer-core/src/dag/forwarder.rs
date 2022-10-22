@@ -1,24 +1,16 @@
-use crate::dag::dag::PortHandle;
 use crate::dag::mt_executor::ExecutorOperation;
-use anyhow::{anyhow, Context};
 use crossbeam::channel::Sender;
+use dozer_types::core::channels::{
+    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
+};
+use dozer_types::core::node::PortHandle;
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::{InternalError, InvalidPortHandle};
+use dozer_types::internal_err;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::thread::sleep;
 use std::time::Duration;
-
-pub trait SourceChannelForwarder: Send + Sync {
-    fn send(&self, seq: u64, op: Operation, port: PortHandle) -> anyhow::Result<()>;
-    fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()>;
-}
-
-pub trait ProcessorChannelForwarder {
-    fn send(&self, op: Operation, port: PortHandle) -> anyhow::Result<()>;
-}
-
-pub trait ChannelManager {
-    fn terminate(&self) -> anyhow::Result<()>;
-}
 
 pub struct LocalChannelForwarder {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -42,11 +34,11 @@ impl LocalChannelForwarder {
         seq_opt: Option<u64>,
         op: Operation,
         port_id: PortHandle,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         let senders = self
             .senders
             .get(&port_id)
-            .context(anyhow!("Unable to find port id {}", port_id))?;
+            .ok_or(InvalidPortHandle(port_id))?;
 
         let seq = seq_opt.unwrap_or(self.curr_seq_no);
         let exec_op = match op {
@@ -56,20 +48,20 @@ impl LocalChannelForwarder {
         };
 
         if senders.len() == 1 {
-            senders[0].send(exec_op)?;
+            internal_err!(senders[0].send(exec_op))?;
         } else {
             for sender in senders {
-                sender.send(exec_op.clone())?;
+                internal_err!(sender.send(exec_op.clone()))?;
             }
         }
 
         Ok(())
     }
 
-    pub fn send_term(&self) -> anyhow::Result<()> {
+    pub fn send_term(&self) -> Result<(), ExecutionError> {
         for senders in &self.senders {
             for sender in senders.1 {
-                sender.send(ExecutorOperation::Terminate)?;
+                internal_err!(sender.send(ExecutorOperation::Terminate))?;
             }
 
             loop {
@@ -91,16 +83,20 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
-    pub fn send_update_schema(&self, schema: Schema, port_id: PortHandle) -> anyhow::Result<()> {
+    pub fn send_update_schema(
+        &self,
+        schema: Schema,
+        port_id: PortHandle,
+    ) -> Result<(), ExecutionError> {
         let senders = self
             .senders
             .get(&port_id)
-            .context(anyhow!("Unable to find port id {}", port_id))?;
+            .ok_or(InvalidPortHandle(port_id))?;
 
         for s in senders {
-            s.send(ExecutorOperation::SchemaUpdate {
+            internal_err!(s.send(ExecutorOperation::SchemaUpdate {
                 new: schema.clone(),
-            })?;
+            }))?;
         }
 
         Ok(())
@@ -108,23 +104,23 @@ impl LocalChannelForwarder {
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
-    fn send(&self, seq: u64, op: Operation, port: PortHandle) -> anyhow::Result<()> {
+    fn send(&self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
         self.send_op(Some(seq), op, port)
     }
 
-    fn update_schema(&self, schema: Schema, port: PortHandle) -> anyhow::Result<()> {
+    fn update_schema(&self, schema: Schema, port: PortHandle) -> Result<(), ExecutionError> {
         self.send_update_schema(schema, port)
     }
 }
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
-    fn send(&self, op: Operation, port: PortHandle) -> anyhow::Result<()> {
+    fn send(&self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
         self.send_op(None, op, port)
     }
 }
 
 impl ChannelManager for LocalChannelForwarder {
-    fn terminate(&self) -> anyhow::Result<()> {
+    fn terminate(&self) -> Result<(), ExecutionError> {
         self.send_term()
     }
 }

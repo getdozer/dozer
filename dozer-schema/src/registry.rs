@@ -1,8 +1,8 @@
 use crate::storage::{RocksConfig, RocksStorage, Storage};
 use anyhow::Result;
+use dozer_types::log::debug;
 use dozer_types::types::{Schema, SchemaIdentifier};
 use futures::{future, prelude::*};
-use log::debug;
 use std::net::{IpAddr, Ipv6Addr};
 use std::{net::SocketAddr, sync::Arc};
 use tarpc::server::{self, incoming::Incoming, Channel};

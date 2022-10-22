@@ -1,9 +1,16 @@
-use crate::aggregation::Aggregator;
-use crate::dag::dag::PortHandle;
-use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use crate::dag::node::{Processor, ProcessorFactory};
-use crate::state::StateStore;
-use anyhow::{anyhow, Context};
+#![allow(dead_code)]
+use crate::pipeline::aggregation::aggregator::Aggregator;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use dozer_types::core::channels::ProcessorChannelForwarder;
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::node::{Processor, ProcessorFactory};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::{
+    InternalError, InternalPipelineError, InvalidPortHandle,
+};
+use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::pipeline::PipelineError::InternalDatabaseError;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 use std::collections::HashMap;
 use std::mem::size_of_val;
@@ -47,6 +54,10 @@ impl AggregationProcessorFactory {
 }
 
 impl ProcessorFactory for AggregationProcessorFactory {
+    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
+        Some(StateStoreOptions::default())
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -86,7 +97,7 @@ impl AggregationProcessor {
         }
     }
 
-    fn populate_rules(&mut self, schema: &Schema) -> anyhow::Result<()> {
+    fn populate_rules(&mut self, schema: &Schema) -> Result<(), PipelineError> {
         let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
 
@@ -111,18 +122,20 @@ impl AggregationProcessor {
         Ok(())
     }
 
-    fn init_store(&self, store: &mut dyn StateStore) -> anyhow::Result<()> {
-        store.put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
+    fn init_store(&self, store: &mut dyn StateStore) -> Result<(), PipelineError> {
+        store
+            .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
+            .map_err(InternalDatabaseError)
     }
 
-    fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> anyhow::Result<()> {
+    fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> Result<(), PipelineError> {
         for v in &self.out_dimensions {
-            out_rec.values[v.1] = in_rec.values[v.0].clone();
+            out_rec.set_value(v.1, in_rec.get_value(v.0)?.clone());
         }
         Ok(())
     }
 
-    fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> anyhow::Result<Vec<u8>> {
+    fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
         let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
         vec.extend_from_slice(&database_id.to_ne_bytes());
         vec.extend(hash);
@@ -137,7 +150,7 @@ impl AggregationProcessor {
         out_rec_delete: &mut Record,
         out_rec_insert: &mut Record,
         op: AggregatorOperation,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, PipelineError> {
         let mut next_state = Vec::<u8>::new();
         let mut offset: usize = 0;
 
@@ -156,37 +169,21 @@ impl AggregationProcessor {
 
             if let Some(e) = curr_state_slice {
                 let curr_value = measure.1.get_value(e);
-                out_rec_delete.values[measure.2] = curr_value;
+                out_rec_delete.set_value(measure.2, curr_value);
             }
 
             let next_state_slice = match op {
                 AggregatorOperation::Insert => {
-                    let field = inserted_record
-                        .unwrap()
-                        .values
-                        .get(measure.0)
-                        .context(anyhow!("Invalid field"))?;
+                    let field = inserted_record.unwrap().get_value(measure.0)?;
                     measure.1.insert(curr_state_slice, field)?
                 }
                 AggregatorOperation::Delete => {
-                    let field = deleted_record
-                        .unwrap()
-                        .values
-                        .get(measure.0)
-                        .context(anyhow!("Invalid field"))?;
+                    let field = deleted_record.unwrap().get_value(measure.0)?;
                     measure.1.delete(curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
-                    let old = deleted_record
-                        .unwrap()
-                        .values
-                        .get(measure.0)
-                        .context(anyhow!("Invalid field"))?;
-                    let new = inserted_record
-                        .unwrap()
-                        .values
-                        .get(measure.0)
-                        .context(anyhow!("Invalid field"))?;
+                    let old = deleted_record.unwrap().get_value(measure.0)?;
+                    let new = inserted_record.unwrap().get_value(measure.0)?;
                     measure.1.update(curr_state_slice, old, new)?
                 }
             };
@@ -197,9 +194,9 @@ impl AggregationProcessor {
             if !next_state_slice.is_empty() {
                 let next_value = measure.1.get_value(next_state_slice.as_slice());
                 next_state.extend(next_state_slice);
-                out_rec_insert.values[measure.2] = next_value;
+                out_rec_insert.set_value(measure.2, next_value);
             } else {
-                out_rec_insert.values[measure.2] = Field::Null;
+                out_rec_insert.set_value(measure.2, Field::Null);
             }
         }
 
@@ -212,7 +209,7 @@ impl AggregationProcessor {
         key: Vec<u8>,
         delta: u64,
         decr: bool,
-    ) -> anyhow::Result<u64> {
+    ) -> Result<u64, PipelineError> {
         let bytes = store.get(key.as_slice())?;
 
         let curr_count = match bytes {
@@ -233,12 +230,16 @@ impl AggregationProcessor {
         Ok(curr_count)
     }
 
-    fn agg_delete(&self, store: &mut dyn StateStore, old: &Record) -> anyhow::Result<Operation> {
+    fn agg_delete(
+        &self,
+        store: &mut dyn StateStore,
+        old: &Record,
+    ) -> Result<Operation, PipelineError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            old.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -280,12 +281,16 @@ impl AggregationProcessor {
         Ok(res)
     }
 
-    fn agg_insert(&self, store: &mut dyn StateStore, new: &Record) -> anyhow::Result<Operation> {
+    fn agg_insert(
+        &self,
+        store: &mut dyn StateStore,
+        new: &Record,
+    ) -> Result<Operation, PipelineError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            new.get_key(self.out_dimensions.iter().map(|i| i.0).collect())?
+            new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -330,7 +335,7 @@ impl AggregationProcessor {
         old: &Record,
         new: &Record,
         record_hash: Vec<u8>,
-    ) -> anyhow::Result<Operation> {
+    ) -> Result<Operation, PipelineError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
@@ -362,7 +367,7 @@ impl AggregationProcessor {
         &self,
         store: &mut dyn StateStore,
         op: Operation,
-    ) -> anyhow::Result<Vec<Operation>> {
+    ) -> Result<Vec<Operation>, PipelineError> {
         match op {
             Operation::Insert { ref new } => Ok(vec![self.agg_insert(store, new)?]),
             Operation::Delete { ref old } => Ok(vec![self.agg_delete(store, old)?]),
@@ -374,7 +379,7 @@ impl AggregationProcessor {
                     )
                 } else {
                     let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
-                    (old.get_key(record_keys.clone())?, new.get_key(record_keys)?)
+                    (old.get_key(&record_keys)?, new.get_key(&record_keys)?)
                 };
 
                 if old_record_hash == new_record_hash {
@@ -393,14 +398,15 @@ impl AggregationProcessor {
 impl Processor for AggregationProcessor {
     fn update_schema(
         &mut self,
-        _output_port: PortHandle,
+        output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<Schema> {
+    ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .context("Invalid port handle")?;
+            .ok_or(InvalidPortHandle(output_port))?;
 
-        self.populate_rules(input_schema)?;
+        self.populate_rules(input_schema)
+            .map_err(|e| InternalError(Box::new(e)))?;
 
         let mut output_schema = Schema::empty();
 
@@ -441,18 +447,19 @@ impl Processor for AggregationProcessor {
         Ok(output_schema)
     }
 
-    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()> {
-        self.init_store(state)
+    fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError> {
+        self.init_store(state).map_err(InternalPipelineError)
     }
 
     fn process(
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        fw: &dyn crate::dag::forwarder::ProcessorChannelForwarder,
+        fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         let ops = self.aggregate(state, op)?;
+        state.commit()?;
         for op in ops {
             fw.send(op, DEFAULT_PORT_HANDLE)?;
         }

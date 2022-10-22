@@ -429,12 +429,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "beef"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
-
-[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1121,44 +1115,20 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "anyhow",
- "async-trait",
- "bytes",
  "dozer-cache",
  "dozer-types",
  "handlebars",
- "heck 0.4.0",
  "indexmap",
- "log",
- "log4rs",
  "openapiv3",
- "prost",
- "prost-build",
- "prost-derive",
- "prost-reflect",
- "prost-reflect-build",
- "prost-types",
- "prost-wkt",
- "prost-wkt-types",
- "rust_decimal",
- "serde",
- "serde_json",
  "serde_yaml 0.9.13",
  "structopt",
  "tempdir",
- "tokio",
- "tonic",
- "tonic-build",
- "tonic-reflection",
- "tonic-web",
 ]
 
 [[package]]
 name = "dozer-cache"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "async-trait",
- "bincode",
  "criterion",
  "dozer-schema",
  "dozer-types",
@@ -1166,13 +1136,10 @@ dependencies = [
  "galil-seiferas",
  "lmdb-rkv",
  "lmdb-rkv-sys",
- "log",
- "log4rs",
  "rand 0.8.5",
- "strum",
- "strum_macros",
  "tempdir",
  "tokio",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -1180,7 +1147,6 @@ name = "dozer-core"
 version = "0.1.0"
 dependencies = [
  "ahash 0.8.0",
- "anyhow",
  "chrono",
  "crossbeam",
  "dozer-types",
@@ -1190,6 +1156,7 @@ dependencies = [
  "log",
  "log4rs",
  "tempdir",
+ "thiserror",
  "unixstring",
  "uuid",
 ]
@@ -1198,28 +1165,19 @@ dependencies = [
 name = "dozer-ingestion"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "async-trait",
  "atomic-counter",
- "bincode",
  "bytes",
- "chrono",
  "crossbeam",
  "dozer-schema",
  "dozer-types",
  "futures",
- "log",
- "log4rs",
- "postgres 0.19.3",
- "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
- "postgres-types 0.2.3",
+ "postgres",
+ "postgres-protocol",
+ "postgres-types",
  "rocksdb",
- "rust_decimal",
- "serde",
- "serde_json",
  "tempdir",
  "tokio",
- "tokio-postgres 0.7.6",
+ "tokio-postgres",
 ]
 
 [[package]]
@@ -1251,11 +1209,8 @@ name = "dozer-schema"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bincode",
  "dozer-types",
  "futures",
- "log",
- "log4rs",
  "rocksdb",
  "tarpc",
  "tempdir",
@@ -1266,15 +1221,17 @@ dependencies = [
 name = "dozer-sql"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "bincode",
  "chrono",
  "dozer-core",
  "dozer-types",
+ "dyn-clone",
  "log",
  "log4rs",
  "num-traits",
  "sqlparser",
  "tempdir",
+ "thiserror",
 ]
 
 [[package]]
@@ -1286,11 +1243,13 @@ dependencies = [
  "bincode",
  "bson",
  "chrono",
+ "crossbeam",
  "log",
  "log4rs",
  "rust_decimal",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -2111,29 +2070,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "logos"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf8b031682c67a8e3d5446840f9573eb7fe26efe7ec8d195c9ac4c0647c502f1"
-dependencies = [
- "logos-derive",
-]
-
-[[package]]
-name = "logos-derive"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1d849148dbaf9661a6151d1ca82b13bb4c4c128146a88d05253b38d4e2f496c"
-dependencies = [
- "beef",
- "fnv",
- "proc-macro2",
- "quote",
- "regex-syntax",
- "syn",
-]
-
-[[package]]
 name = "matchit"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2555,39 +2491,7 @@ dependencies = [
  "futures",
  "log",
  "tokio",
- "tokio-postgres 0.7.6",
-]
-
-[[package]]
-name = "postgres"
-version = "0.19.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "960c214283ef8f0027974c03e9014517ced5db12f021a9abb66185a5751fab0a"
-dependencies = [
- "bytes",
- "fallible-iterator",
- "futures-util",
- "log",
- "tokio",
- "tokio-postgres 0.7.7",
-]
-
-[[package]]
-name = "postgres-protocol"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "878c6cbf956e03af9aa8204b407b9cbf47c072164800aa918c516cd4b056c50c"
-dependencies = [
- "base64",
- "byteorder",
- "bytes",
- "fallible-iterator",
- "hmac",
- "md-5",
- "memchr",
- "rand 0.8.5",
- "sha2",
- "stringprep",
+ "tokio-postgres",
 ]
 
 [[package]]
@@ -2615,18 +2519,7 @@ dependencies = [
  "bytes",
  "chrono",
  "fallible-iterator",
- "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
-]
-
-[[package]]
-name = "postgres-types"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73d946ec7d256b04dfadc4e6a3292324e6f417124750fc5c0950f981b703a0f1"
-dependencies = [
- "bytes",
- "fallible-iterator",
- "postgres-protocol 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "postgres-protocol",
 ]
 
 [[package]]
@@ -2746,42 +2639,6 @@ checksum = "7345d5f0e08c0536d7ac7229952590239e77abf0a0100a1b1d890add6ea96364"
 dependencies = [
  "anyhow",
  "itertools",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "prost-reflect"
-version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d378290cd658b119ce87621931ef448017ef1a0044d7b681159d779e7e07b8f6"
-dependencies = [
- "base64",
- "logos",
- "prost",
- "prost-reflect-derive",
- "prost-types",
- "serde",
- "serde-value",
-]
-
-[[package]]
-name = "prost-reflect-build"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08aa774b486000d80ef9a63875c4cba1acc4024d4a23a3bb588f8b680e2c64fb"
-dependencies = [
- "prost-build",
- "prost-reflect",
-]
-
-[[package]]
-name = "prost-reflect-derive"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f90bf611b6adcffdb7c42d1826a751b520d078f753f96112ae4ec9ba2eb78663"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn",
@@ -3033,12 +2890,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee9164faf726e4f3ece4978b25ca877ddc6802fa77f38cdccb32c7f805ecd70c"
 dependencies = [
  "arrayvec",
- "byteorder",
- "bytes",
  "num-traits",
- "postgres 0.19.4",
  "serde",
- "tokio-postgres 0.7.7",
 ]
 
 [[package]]
@@ -3055,12 +2908,6 @@ checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
 dependencies = [
  "semver 1.0.14",
 ]
-
-[[package]]
-name = "rustversion"
-version = "1.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97477e48b4cf8603ad5f7aaf897467cf42ab4218a38ef76fb14c2d6773a6d6a8"
 
 [[package]]
 name = "ryu"
@@ -3355,25 +3202,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "strum"
-version = "0.24.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
-
-[[package]]
-name = "strum_macros"
-version = "0.24.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e385be0d24f186b4ce2f9982191e7101bb737312ad61c1f2f984f34bcf85d59"
-dependencies = [
- "heck 0.4.0",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn",
-]
-
-[[package]]
 name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3527,18 +3355,18 @@ checksum = "949517c0cf1bf4ee812e2e07e08ab448e3ae0d23472aee8a06c985f0c8815b16"
 
 [[package]]
 name = "thiserror"
-version = "1.0.36"
+version = "1.0.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a99cb8c4b9a8ef0e7907cd3b617cc8dc04d571c4e73c8ae403d80ac160bb122"
+checksum = "10deb33631e3c9018b9baf9dcbbc4f737320d2b576bac10f6aefa048fa407e3e"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.36"
+version = "1.0.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a891860d3c8d66fec8e73ddb3765f90082374dbaaa833407b904a94f1a7eb43"
+checksum = "982d17546b47146b28f7c22e3d08465f6b8903d0ea13c1660d9d84a6e7adcdbb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3676,32 +3504,8 @@ dependencies = [
  "percent-encoding",
  "phf",
  "pin-project-lite",
- "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
- "postgres-types 0.2.3",
- "socket2",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
-name = "tokio-postgres"
-version = "0.7.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29a12c1b3e0704ae7dfc25562629798b29c72e6b1d0a681b6f29ab4ae5e7f7bf"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes",
- "fallible-iterator",
- "futures-channel",
- "futures-util",
- "log",
- "parking_lot",
- "percent-encoding",
- "phf",
- "pin-project-lite",
- "postgres-protocol 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "postgres-types 0.2.4",
+ "postgres-protocol",
+ "postgres-types",
  "socket2",
  "tokio",
  "tokio-util",
@@ -3760,9 +3564,9 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.8.2"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55b9af819e54b8f33d453655bef9b9acc171568fb49523078d0cc4e7484200ec"
+checksum = "11cd56bdb54ef93935a6a79dbd1d91f1ebd4c64150fd61654031fd6b8b775c91"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3792,30 +3596,15 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.8.2"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48c6fd7c2581e36d63388a9e04c350c21beb7a8b059580b2e93993c526899ddc"
+checksum = "2fbcd2800e34e743b9ae795867d5f77b535d3a3be69fd731e39145719752df8c"
 dependencies = [
  "prettyplease",
  "proc-macro2",
  "prost-build",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tonic-reflection"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0455f730d540a1484bffc3c55c94100b18a662597b982c2e9073f2c55c602616"
-dependencies = [
- "bytes",
- "prost",
- "prost-types",
- "tokio",
- "tokio-stream",
- "tonic",
- "tonic-build",
 ]
 
 [[package]]

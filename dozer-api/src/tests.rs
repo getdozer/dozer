@@ -1,6 +1,6 @@
-use super::server::ApiServer;
+use super::api_server::ApiServer;
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils};
-use serde_json::{json, Value};
+use dozer_types::serde_json::{json, Value};
 
 #[test]
 fn test_generate_oapi() -> anyhow::Result<()> {
@@ -48,7 +48,9 @@ async fn query_route() -> anyhow::Result<()> {
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::post()
         .uri(&format!("{}/query", endpoint.path))
-        .set_json(json!({"$and": [{"film_id":  {"$lt": 500}}, {"film_id":  {"$gte": 2}}]}))
+        .set_json(
+            json!({"$filter": { "$and": [{"film_id":  {"$lt": 500}}, {"film_id":  {"$gte": 2}}]}}),
+        )
         .to_request();
     let resp: Value = actix_web::test::call_and_read_body_json(&app, req).await;
     assert!(resp.is_array());

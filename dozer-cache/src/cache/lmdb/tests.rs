@@ -1,6 +1,9 @@
 use super::super::test_utils;
-use anyhow::{Context, Ok};
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::{
+    errors::cache::CacheError,
+    serde_json::Value,
+    types::{Field, Record, Schema},
+};
 
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
@@ -20,30 +23,25 @@ fn query_and_test(
     inserted_record: &Record,
     schema_name: &str,
     exp: &QueryExpression,
-) -> anyhow::Result<()> {
+) -> Result<(), CacheError> {
     let records = cache.query(schema_name, exp)?;
     assert_eq!(records[0], inserted_record.clone(), "must be equal");
     Ok(())
 }
 
 #[test]
-fn insert_and_get_schema() -> anyhow::Result<()> {
+fn insert_and_get_schema() -> Result<(), CacheError> {
     let (cache, schema) = _setup();
     cache.insert_schema("test", &schema)?;
     let schema = cache.get_schema_by_name("test")?;
 
-    let get_schema = cache.get_schema(
-        &schema
-            .identifier
-            .to_owned()
-            .context("schema_id is expected")?,
-    )?;
+    let get_schema = cache.get_schema(&schema.identifier.to_owned().unwrap())?;
     assert_eq!(get_schema, schema, "must be equal");
     Ok(())
 }
 
 #[test]
-fn insert_get_and_delete_record() -> anyhow::Result<()> {
+fn insert_get_and_delete_record() -> Result<(), CacheError> {
     let val = "bar".to_string();
     let (cache, schema) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
@@ -63,7 +61,7 @@ fn insert_get_and_delete_record() -> anyhow::Result<()> {
 }
 
 #[test]
-fn insert_and_query_record() -> anyhow::Result<()> {
+fn insert_and_query_record() -> Result<(), CacheError> {
     let val = "bar".to_string();
     let (cache, schema) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
@@ -76,7 +74,7 @@ fn insert_and_query_record() -> anyhow::Result<()> {
         Some(FilterExpression::Simple(
             "foo".to_string(),
             expression::Operator::EQ,
-            Field::String("bar".to_string()),
+            Value::from("bar".to_string()),
         )),
         vec![],
         10,

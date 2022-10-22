@@ -1,7 +1,7 @@
 use actix_web::{
     body::MessageBody,
-    dev::{ServiceFactory, ServiceRequest, ServiceResponse},
-    rt, web, App, HttpServer,
+    dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
+    rt, web, App, HttpMessage, HttpServer,
 };
 use dozer_cache::cache::LmdbCache;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -10,12 +10,17 @@ use std::sync::Arc;
 use crate::api_helper;
 
 #[derive(Clone)]
+pub struct PipelineDetails {
+    pub schema_name: String,
+    pub endpoint: ApiEndpoint,
+}
+
+#[derive(Clone)]
 pub struct ApiServer {
     shutdown_timeout: u64,
     port: u16,
 }
 
-// #[async_trait]
 impl ApiServer {
     pub fn default() -> Self {
         Self {
@@ -42,16 +47,27 @@ impl ApiServer {
         >,
     > {
         let app = App::new();
-        let app = app.app_data(web::Data::new((cache, endpoints.clone())));
+        let app = app.app_data(web::Data::new(cache));
+
         let app = endpoints.iter().fold(app, |app, endpoint| {
-            let list_route = &endpoint.path.clone();
-            let get_route = format!("{}/{}", list_route, "{id}");
-            let query_route = format!("{}/query", list_route);
-            app.route(list_route, web::get().to(api_helper::list))
-                .route(&get_route, web::get().to(api_helper::get))
-                .route(&query_route, web::post().to(api_helper::query))
-                .route("oapi", web::post().to(api_helper::generate_oapi))
-                .route("proto", web::post().to(api_helper::generate_proto))
+            let endpoint = endpoint.clone();
+            let scope = endpoint.path.clone();
+            let schema_name = endpoint.name.clone();
+            app.service(
+                web::scope(&scope)
+                    // Inject pipeline_details for generated functions
+                    .wrap_fn(move |req, srv| {
+                        req.extensions_mut().insert(PipelineDetails {
+                            schema_name: schema_name.to_owned(),
+                            endpoint: endpoint.clone(),
+                        });
+                        srv.call(req)
+                    })
+                    .route("/query", web::post().to(api_helper::query))
+                    .route("oapi", web::post().to(api_helper::generate_oapi))
+                    .route("/{id}", web::get().to(api_helper::get))
+                    .route("", web::get().to(api_helper::list)),
+            )
         });
         app
     }
