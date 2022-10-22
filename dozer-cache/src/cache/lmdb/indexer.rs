@@ -1,6 +1,6 @@
-use anyhow::{bail, Context, Ok};
 use dozer_types::{
     bincode,
+    errors::cache::{CacheError, IndexError, QueryError},
     types::{Field, Record, Schema, SchemaIdentifier},
 };
 use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
@@ -22,16 +22,18 @@ impl Indexer {
         rec: &Record,
         schema: &Schema,
         pkey: Vec<u8>,
-    ) -> anyhow::Result<()> {
-        let mut txn = parent_txn.begin_nested_txn()?;
+    ) -> Result<(), CacheError> {
+        let mut txn = parent_txn
+            .begin_nested_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
         let identifier = &schema
             .identifier
             .to_owned()
-            .context("schema_id is expected")?;
+            .map_or(Err(CacheError::SchemaIdentifierNotFound), Ok)?;
 
         if schema.secondary_indexes.is_empty() {
-            bail!("No secondary indexes defined.")
+            return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }
         for index in schema.secondary_indexes.iter() {
             match index.typ {
@@ -43,19 +45,22 @@ impl Indexer {
                         &secondary_key,
                         &pkey,
                         WriteFlags::default(),
-                    )?;
+                    )
+                    .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
                 }
                 dozer_types::types::IndexType::HashInverted => todo!(),
                 dozer_types::types::IndexType::FullText => {
                     for secondary_key in
                         self._build_indices_full_text(identifier, &index.fields, &rec.values)?
                     {
-                        txn.put(self.db, &secondary_key, &pkey, WriteFlags::default())?;
+                        txn.put(self.db, &secondary_key, &pkey, WriteFlags::default())
+                            .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
                     }
                 }
             }
         }
-        txn.commit()?;
+        txn.commit()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
     }
 
@@ -80,14 +85,16 @@ impl Indexer {
         identifier: &SchemaIdentifier,
         index_fields: &[usize],
         values: &'a [Field],
-    ) -> anyhow::Result<Vec<Vec<u8>>> {
+    ) -> Result<Vec<Vec<u8>>, CacheError> {
         let mut fields = vec![];
         for field_index in index_fields {
             if let Some(field) = values.get(*field_index) {
                 if let Field::String(string) = field {
                     fields.push((*field_index, string));
                 } else {
-                    bail!("Field {:?} cannot be indexed using full text", field);
+                    return Err(CacheError::IndexError(IndexError::FieldNotCompatibleIndex(
+                        *field_index,
+                    )));
                 }
             }
         }

@@ -1129,7 +1129,6 @@ dependencies = [
 name = "dozer-cache"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "criterion",
  "dozer-schema",
  "dozer-types",

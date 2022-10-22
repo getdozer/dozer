@@ -11,7 +11,6 @@ lmdb-rkv-sys = "0.11.2"
 dozer-types = {path = "../dozer-types"}
 dozer-schema = {version = "0.1.0", path = "../dozer-schema"}
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
-anyhow = "1.0"
 tempdir = "0.3.7"
 futures = "0.3.24"
 galil-seiferas = "0.1.5"

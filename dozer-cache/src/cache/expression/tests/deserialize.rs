@@ -1,13 +1,13 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
 use crate::cache::expression::{QueryExpression, SortOptions};
-use anyhow::Context;
+use dozer_types::errors::cache::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::json;
 use dozer_types::serde_json::Value;
 
 #[test]
-fn test_operators() -> anyhow::Result<()> {
+fn test_operators() -> Result<(), CacheError> {
     let operators = vec![
         (Operator::GT, "$gt"),
         (Operator::GTE, "$gte"),
@@ -19,7 +19,7 @@ fn test_operators() -> anyhow::Result<()> {
         (Operator::MatchesAll, "$matches_all"),
     ];
     for (op, op_str) in operators {
-        let fetched = Operator::from_str(op_str).context("op expected")?;
+        let fetched = Operator::convert_str(op_str).unwrap();
 
         assert_eq!(op, fetched, "are equal");
     }
@@ -27,92 +27,91 @@ fn test_operators() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_filter_query_deserialize_simple() -> anyhow::Result<()> {
+fn test_filter_query_deserialize_simple() {
     test_deserialize_filter(
         json!({"a":  1}),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(1)),
-    )?;
+    );
     test_deserialize_filter(
         json!({"ab_c":  1}),
         FilterExpression::Simple("ab_c".to_string(), Operator::EQ, Value::from(1)),
-    )?;
+    );
 
     test_deserialize_filter(
         json!({"a":  {"$eq": 1}}),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(1)),
-    )?;
+    );
 
     test_deserialize_filter(
         json!({"a":  {"$gt": 1}}),
         FilterExpression::Simple("a".to_string(), Operator::GT, Value::from(1)),
-    )?;
+    );
 
     test_deserialize_filter(
         json!({"a":  {"$lt": 1}}),
         FilterExpression::Simple("a".to_string(), Operator::LT, Value::from(1)),
-    )?;
+    );
 
     test_deserialize_filter(
         json!({"a":  {"$lte": 1}}),
         FilterExpression::Simple("a".to_string(), Operator::LTE, Value::from(1)),
-    )?;
+    );
     test_deserialize_filter(
         json!({"a":  -64}),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(-64)),
-    )?;
+    );
     test_deserialize_filter(
         json!({"a":  256.0}),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(256.0)),
-    )?;
+    );
     test_deserialize_filter(
         json!({"a":  -256.88393}),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(-256.88393)),
-    )?;
+    );
     test_deserialize_filter(
         json!({"a":  98_222}),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(98222)),
-    )?;
+    );
     test_deserialize_filter(
         json!({"a":  true}),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(true)),
-    )?;
+    );
     test_deserialize_filter(
         json!({ "a": null }),
         FilterExpression::Simple("a".to_string(), Operator::EQ, Value::Null),
-    )?;
+    );
 
     // // special character
-    test_deserialize_filter_error(json!({"_":  1}))?;
-    test_deserialize_filter_error(json!({"'":  1}))?;
-    test_deserialize_filter_error(json!({"\n":  1}))?;
-    test_deserialize_filter_error(json!({"❤":  1}))?;
-    test_deserialize_filter_error(json!({"%":  1}))?;
-    test_deserialize_filter_error(json!({"a":  '💝'}))?;
-    test_deserialize_filter_error(json!({"a":  "❤"}))?;
+    test_deserialize_filter_error(json!({"_":  1}));
+    test_deserialize_filter_error(json!({"'":  1}));
+    test_deserialize_filter_error(json!({"\n":  1}));
+    test_deserialize_filter_error(json!({"❤":  1}));
+    test_deserialize_filter_error(json!({"%":  1}));
+    test_deserialize_filter_error(json!({"a":  '💝'}));
+    test_deserialize_filter_error(json!({"a":  "❤"}));
 
-    test_deserialize_filter_error(json!({"a":  []}))?;
-    test_deserialize_filter_error(json!({"a":  {}}))?;
-    test_deserialize_filter_error(json!({"a":  {"$lte": {}}}))?;
-    test_deserialize_filter_error(json!({"a":  {"$lte": []}}))?;
-    test_deserialize_filter_error(json!({"a":  {"lte": 1}}))?;
-    test_deserialize_filter_error(json!({"$lte":  {"lte": 1}}))?;
-    test_deserialize_filter_error(json!([]))?;
-    test_deserialize_filter_error(json!({}))?;
-    test_deserialize_filter_error(json!(2))?;
-    test_deserialize_filter_error(json!(true))?;
-    test_deserialize_filter_error(json!("abc"))?;
-    test_deserialize_filter_error(json!(2.3))?;
-    Ok(())
+    test_deserialize_filter_error(json!({"a":  []}));
+    test_deserialize_filter_error(json!({"a":  {}}));
+    test_deserialize_filter_error(json!({"a":  {"$lte": {}}}));
+    test_deserialize_filter_error(json!({"a":  {"$lte": []}}));
+    test_deserialize_filter_error(json!({"a":  {"lte": 1}}));
+    test_deserialize_filter_error(json!({"$lte":  {"lte": 1}}));
+    test_deserialize_filter_error(json!([]));
+    test_deserialize_filter_error(json!({}));
+    test_deserialize_filter_error(json!(2));
+    test_deserialize_filter_error(json!(true));
+    test_deserialize_filter_error(json!("abc"));
+    test_deserialize_filter_error(json!(2.3));
 }
 #[test]
-fn test_filter_query_deserialize_complex() -> anyhow::Result<()> {
+fn test_filter_query_deserialize_complex() {
     test_deserialize_filter(
         json!({"a":  {"$lt": 1}, "b":  {"$gte": 3}}),
         FilterExpression::And(vec![
             FilterExpression::Simple("a".to_string(), Operator::LT, Value::from(1)),
             FilterExpression::Simple("b".to_string(), Operator::GTE, Value::from(3)),
         ]),
-    )?;
+    );
     // AND with 3 expression
     let three_fields = FilterExpression::And(vec![
         FilterExpression::Simple("a".to_string(), Operator::LT, Value::from(1)),
@@ -122,7 +121,7 @@ fn test_filter_query_deserialize_complex() -> anyhow::Result<()> {
     test_deserialize_filter(
         json!({"a":  {"$lt": 1}, "b":  {"$gte": 3}, "c": 3}),
         three_fields,
-    )?;
+    );
 
     // Same expression with different conditions
     test_deserialize_filter(
@@ -131,21 +130,20 @@ fn test_filter_query_deserialize_complex() -> anyhow::Result<()> {
             FilterExpression::Simple("film_id".to_string(), Operator::LT, Value::from(500)),
             FilterExpression::Simple("film_id".to_string(), Operator::GTE, Value::from(2)),
         ]),
-    )?;
+    );
 
-    test_deserialize_filter_error(json!({"$and": [{"a":  {"$lt": 1}}]}))?;
-    test_deserialize_filter_error(json!({"$and": []}))?;
-    test_deserialize_filter_error(json!({"$and": {}}))?;
-    test_deserialize_filter_error(json!({"$and": [{"a":  {"lt": 1}}, {"b":  {"$gt": 1}}]}))?;
-    test_deserialize_filter_error(json!({"$and": [{"a":  {"$lt": 1}}, {"b":  {"$gte": {}}}]}))?;
-    test_deserialize_filter_error(json!({"$and": [{"$and":[{"a": 1}]}, {"c": 3}]}))?;
-    test_deserialize_filter_error(json!({"and": [{"a":  {"$lt": 1}}]}))?;
-    Ok(())
+    test_deserialize_filter_error(json!({"$and": [{"a":  {"$lt": 1}}]}));
+    test_deserialize_filter_error(json!({"$and": []}));
+    test_deserialize_filter_error(json!({"$and": {}}));
+    test_deserialize_filter_error(json!({"$and": [{"a":  {"lt": 1}}, {"b":  {"$gt": 1}}]}));
+    test_deserialize_filter_error(json!({"$and": [{"a":  {"$lt": 1}}, {"b":  {"$gte": {}}}]}));
+    test_deserialize_filter_error(json!({"$and": [{"$and":[{"a": 1}]}, {"c": 3}]}));
+    test_deserialize_filter_error(json!({"and": [{"a":  {"$lt": 1}}]}));
 }
 
 #[test]
-fn test_query_expression_deserialize() -> anyhow::Result<()> {
-    test_deserialize_query(json!({}), QueryExpression::new(None, vec![], 50, 0))?;
+fn test_query_expression_deserialize() {
+    test_deserialize_query(json!({}), QueryExpression::new(None, vec![], 50, 0));
     test_deserialize_query(
         json!({"$order_by": [{"field_name": "abc", "direction": "asc"}]}),
         QueryExpression::new(
@@ -157,7 +155,7 @@ fn test_query_expression_deserialize() -> anyhow::Result<()> {
             50,
             0,
         ),
-    )?;
+    );
     test_deserialize_query(
         json!({"$order_by": [{"field_name": "abc", "direction": "asc"}], "$limit": 100, "$skip": 20}),
         QueryExpression::new(
@@ -169,7 +167,7 @@ fn test_query_expression_deserialize() -> anyhow::Result<()> {
             100,
             20,
         ),
-    )?;
+    );
     test_deserialize_query(
         json!({"$filter": {"a":  {"$lt": 1}, "b":  {"$gte": 3}, "c": 3}}),
         QueryExpression::new(
@@ -182,23 +180,20 @@ fn test_query_expression_deserialize() -> anyhow::Result<()> {
             50,
             0,
         ),
-    )?;
-    Ok(())
+    );
 }
 
-fn test_deserialize_query(a: Value, b: QueryExpression) -> anyhow::Result<()> {
-    let parsed_result = serde_json::from_value::<QueryExpression>(a)?;
+fn test_deserialize_query(a: Value, b: QueryExpression) {
+    let parsed_result = serde_json::from_value::<QueryExpression>(a).unwrap();
     assert_eq!(parsed_result, b, "must be equal");
-    Ok(())
 }
 
-fn test_deserialize_filter(a: Value, b: FilterExpression) -> anyhow::Result<()> {
-    let parsed_result = serde_json::from_value::<FilterExpression>(a)?;
+fn test_deserialize_filter(a: Value, b: FilterExpression) {
+    let parsed_result = serde_json::from_value::<FilterExpression>(a).unwrap();
     assert_eq!(parsed_result, b, "must be equal");
-    Ok(())
 }
-fn test_deserialize_filter_error(a: Value) -> anyhow::Result<()> {
+fn test_deserialize_filter_error(a: Value) {
     let parsed_result = serde_json::from_value::<FilterExpression>(a);
+
     assert!(parsed_result.is_err());
-    Ok(())
 }

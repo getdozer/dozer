@@ -33,9 +33,7 @@ impl ConnectionService {
         }
     }
     pub fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>> {
-        self.connector
-            .get_all_schema()
-            .map_err(anyhow::Error::from)
+        self.connector.get_all_schema().map_err(anyhow::Error::from)
     }
 
     pub fn new(connection: Connection) -> Self {
