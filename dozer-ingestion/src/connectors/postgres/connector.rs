@@ -5,7 +5,7 @@ use connector::Connector;
 
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
-use anyhow::Context;
+use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
 use dozer_types::types::{OperationEvent, Schema};
 use postgres::Client;
@@ -45,14 +45,14 @@ impl PostgresConnector {
 }
 
 impl Connector for PostgresConnector {
-    fn get_tables(&self) -> anyhow::Result<Vec<TableInfo>> {
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
         let result_vec = helper.get_tables()?;
         Ok(result_vec)
     }
-    fn get_schema(&self, name: String) -> Result<Schema, anyhow::Error> {
+    fn get_schema(&self, name: String) -> Result<Schema, ConnectorError> {
         let result_vec = self.get_all_schema()?;
         let result = result_vec
             .iter()
@@ -60,29 +60,27 @@ impl Connector for PostgresConnector {
             .map(|v| v.to_owned().1);
         match result {
             Some(schema) => Ok(schema),
-            None => panic!("No schema with input name"),
+            None => Err(ConnectorError::TableNotFound(name)),
         }
     }
 
-    fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>> {
+    fn get_all_schema(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
-        let result_vec = helper.get_schema()?;
-        Ok(result_vec)
+        helper.get_schema()
     }
 
     fn initialize(
         &mut self,
         storage_client: Arc<RocksStorage>,
         tables: Option<Vec<TableInfo>>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ConnectorError> {
         let client = helper::connect(self.conn_str.clone())?;
         self.storage_client = Some(storage_client);
         self.tables = tables;
 
-        self.create_publication(client)
-            .context("Failed create publication")?;
+        self.create_publication(client)?;
         Ok(())
     }
 
@@ -107,8 +105,8 @@ impl Connector for PostgresConnector {
 
     fn stop(&self) {}
 
-    fn test_connection(&self) -> anyhow::Result<()> {
-        helper::connect(self.conn_str.clone()).map_err(Box::new)?;
+    fn test_connection(&self) -> Result<(), ConnectorError> {
+        helper::connect(self.conn_str.clone())?;
         Ok(())
     }
 }
@@ -122,7 +120,7 @@ impl PostgresConnector {
         format!("dozer_slot_{}", self.name)
     }
 
-    fn create_publication(&self, mut client: Client) -> anyhow::Result<()> {
+    fn create_publication(&self, mut client: Client) -> Result<(), ConnectorError> {
         let publication_name = self.get_publication_name();
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
@@ -132,23 +130,23 @@ impl PostgresConnector {
             }
         };
 
-        client.simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())?;
+        client
+            .simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())
+            .map_err(|e| {
+                debug!("failed to drop publication {}", e.to_string());
+                ConnectorError::PostgresConnectorError(PostgresConnectorError::DropPublicationError)
+            })?;
 
-        client.simple_query(
-            format!("CREATE PUBLICATION {} FOR {}", publication_name, table_str).as_str(),
-        )?;
-        Ok(())
-    }
-
-    pub fn drop_replication_slot_if_exists(&self) -> anyhow::Result<()> {
-        let slot = self.get_slot_name();
-        let mut client = helper::connect(self.conn_str.clone())?;
-        let res =
-            client.simple_query(format!("select pg_drop_replication_slot('{}');", slot).as_ref());
-        match res {
-            Ok(_) => debug!("dropped replication slot {}", slot),
-            Err(_) => debug!("failed to drop replication slot..."),
-        }
+        client
+            .simple_query(
+                format!("CREATE PUBLICATION {} FOR {}", publication_name, table_str).as_str(),
+            )
+            .map_err(|e| {
+                debug!("failed to create publication {}", e.to_string());
+                ConnectorError::PostgresConnectorError(
+                    PostgresConnectorError::CreatePublicationError,
+                )
+            })?;
         Ok(())
     }
 }

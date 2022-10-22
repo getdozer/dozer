@@ -1166,7 +1166,6 @@ dependencies = [
 name = "dozer-ingestion"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "atomic-counter",
  "bytes",
  "crossbeam",
