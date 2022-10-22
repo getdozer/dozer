@@ -3,7 +3,8 @@ use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresC
 use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
 
-use log::debug;
+use dozer_types::log::debug;
+use dozer_types::log4rs;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 

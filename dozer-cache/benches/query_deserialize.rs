@@ -6,7 +6,7 @@ use rand::{
     Rng,
 };
 
-fn deserialize(n: usize) -> anyhow::Result<()> {
+fn deserialize(n: usize) {
     let comparision_key = vec![
         "$eq",
         "$lt",
@@ -29,8 +29,7 @@ fn deserialize(n: usize) -> anyhow::Result<()> {
         })
         .collect();
     let complex_ex = json!({"$filter":  { "$and": simple_ex }, "$order_by": {"field_name": "a_b", "direction": "asc"} });
-    serde_json::from_value::<QueryExpression>(complex_ex)?;
-    Ok(())
+    serde_json::from_value::<QueryExpression>(complex_ex).unwrap();
 }
 
 fn query_deserialize(c: &mut Criterion) {
@@ -40,7 +39,7 @@ fn query_deserialize(c: &mut Criterion) {
         &size,
         |b, &s| {
             b.iter(|| {
-                deserialize(s).unwrap();
+                deserialize(s);
             })
         },
     );

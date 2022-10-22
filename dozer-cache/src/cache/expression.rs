@@ -59,7 +59,7 @@ pub enum Operator {
 }
 
 impl Operator {
-    fn from_str(s: &str) -> Option<Operator> {
+    pub fn convert_str(s: &str) -> Option<Operator> {
         match s {
             "$lt" => Some(Operator::LT),
             "$lte" => Some(Operator::LTE),
@@ -70,6 +70,18 @@ impl Operator {
             "$matches_any" => Some(Operator::MatchesAny),
             "$matches_all" => Some(Operator::MatchesAll),
             _ => None,
+        }
+    }
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Operator::LT => "$lt",
+            Operator::LTE => "$lte",
+            Operator::EQ => "$eq",
+            Operator::GT => "$gt",
+            Operator::GTE => "$gte",
+            Operator::Contains => "$contains",
+            Operator::MatchesAny => "$matches_any",
+            Operator::MatchesAll => "$matches_all",
         }
     }
 }

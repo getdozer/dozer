@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use dozer_types::types::*;
+use dozer_types::{bincode, types::*};
 use rocksdb::{DBWithThreadMode, Options, SingleThreaded, DB};
 use tempdir::TempDir;
 pub trait Storage<T> {

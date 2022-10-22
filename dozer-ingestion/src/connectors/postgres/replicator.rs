@@ -1,11 +1,11 @@
 use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
-use chrono::{TimeZone, Utc};
+use dozer_types::chrono::{TimeZone, Utc};
+use dozer_types::errors::connector::ConnectorError;
+use dozer_types::log::{debug, warn};
 use dozer_types::types::Commit;
 use futures::StreamExt;
-use log::{debug, warn};
-use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_types::PgLsn;
 use std::str::FromStr;
@@ -22,7 +22,7 @@ pub struct CDCHandler {
 }
 
 impl CDCHandler {
-    pub async fn start(&self) -> Result<(), Error> {
+    pub async fn start(&self) -> Result<(), ConnectorError> {
         let conn_str = self.conn_str.clone();
         let client: tokio_postgres::Client = helper::async_connect(conn_str).await?;
 
@@ -54,7 +54,10 @@ impl CDCHandler {
                 lsn: last_commit_lsn,
             }));
 
-        let copy_stream = client.copy_both_simple::<bytes::Bytes>(&query).await?;
+        let copy_stream = client
+            .copy_both_simple::<bytes::Bytes>(&query)
+            .await
+            .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
 
         let stream = LogicalReplicationStream::new(copy_stream);
         let mut mapper = XlogMapper::new();

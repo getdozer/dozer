@@ -18,31 +18,19 @@ impl<'de> Deserialize<'de> for Operator {
     {
         let s = String::deserialize(deserializer)?.to_lowercase();
 
-        match Operator::from_str(s.as_str()) {
+        match Operator::convert_str(s.as_str()) {
             Some(op) => Ok(op),
             None => Err(de::Error::custom(format!("operator not found:  {}", s))),
         }
     }
 }
 
-fn get_operator_string(op: &Operator) -> &'static str {
-    match op {
-        Operator::LT => "$lt",
-        Operator::LTE => "$lte",
-        Operator::EQ => "$eq",
-        Operator::GT => "$gt",
-        Operator::GTE => "$gte",
-        Operator::Contains => "$contains",
-        Operator::MatchesAny => "$matches_any",
-        Operator::MatchesAll => "$matches_all",
-    }
-}
 impl Serialize for Operator {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_str(get_operator_string(self))
+        serializer.serialize_str(self.to_str())
     }
 }
 
@@ -71,7 +59,7 @@ impl<'de> Deserialize<'de> for FilterExpression {
                             .map_err(|err| de::Error::custom(err.to_string()))?;
                         expressions.push(expression);
                     } else {
-                        let expression = simple_expression(key, value)
+                        let expression = simple_expression(&key, value)
                             .map_err(|err| de::Error::custom(err.to_string()))?;
                         expressions.push(expression);
                     }
@@ -103,7 +91,7 @@ impl Serialize for FilterExpression {
                 let val = match op {
                     Operator::EQ => field_val.to_owned(),
                     _ => {
-                        let op_val = get_operator_string(op);
+                        let op_val = op.to_str();
 
                         let mut map = HashMap::new();
                         map.insert(op_val, field_val);

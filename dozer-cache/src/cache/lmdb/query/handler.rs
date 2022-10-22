@@ -1,17 +1,19 @@
-use anyhow::{bail, Context};
-use galil_seiferas::gs_find;
-use lmdb::{Database, RoTransaction, Transaction};
-
 use super::{helper, iterator::CacheIterator};
 use crate::cache::{
     expression::{ExecutionStep, IndexScan, QueryExpression},
     index,
     planner::QueryPlanner,
 };
+use dozer_types::errors::cache::{
+    CacheError::{self, DeserializationError, SerializationError},
+    IndexError, QueryError,
+};
 use dozer_types::{
-    json_value_to_field,
+    bincode, json_value_to_field,
     types::{Field, Record, Schema},
 };
+use galil_seiferas::gs_find;
+use lmdb::{Database, RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
     db: Database,
@@ -27,7 +29,11 @@ impl<'a> LmdbQueryHandler<'a> {
         }
     }
 
-    pub fn query(&self, schema: &Schema, query: &QueryExpression) -> anyhow::Result<Vec<Record>> {
+    pub fn query(
+        &self,
+        schema: &Schema,
+        query: &QueryExpression,
+    ) -> Result<Vec<Record>, CacheError> {
         let planner = QueryPlanner {};
         let execution = planner.plan(schema, query)?;
         let records = match execution {
@@ -47,8 +53,11 @@ impl<'a> LmdbQueryHandler<'a> {
         &self,
         limit: usize,
         skip: usize,
-    ) -> anyhow::Result<Vec<Record>> {
-        let cursor = self.txn.open_ro_cursor(self.db)?;
+    ) -> Result<Vec<Record>, CacheError> {
+        let cursor = self
+            .txn
+            .open_ro_cursor(self.db)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         let mut cache_iterator = CacheIterator::new(&cursor, None, true);
         // cache_iterator.skip(skip);
 
@@ -60,7 +69,8 @@ impl<'a> LmdbQueryHandler<'a> {
                 //
             } else if rec.is_some() && idx < limit {
                 if let Some((_key, val)) = rec {
-                    let rec = bincode::deserialize::<Record>(val)?;
+                    let rec = bincode::deserialize::<Record>(val)
+                        .map_err(|_e| CacheError::DeserializationError)?;
                     records.push(rec);
                 } else {
                     break;
@@ -78,8 +88,11 @@ impl<'a> LmdbQueryHandler<'a> {
         starting_key: &[u8],
         limit: usize,
         skip: usize,
-    ) -> anyhow::Result<Vec<Record>> {
-        let cursor = self.txn.open_ro_cursor(self.indexer_db)?;
+    ) -> Result<Vec<Record>, CacheError> {
+        let cursor = self
+            .txn
+            .open_ro_cursor(self.indexer_db)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
         let mut cache_iterator = CacheIterator::new(&cursor, Some(starting_key), true);
         let mut pkeys = vec![];
@@ -116,8 +129,11 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 }
 
-fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> anyhow::Result<Vec<u8>> {
-    let schema_identifier = schema.identifier.clone().context("schema_id expected")?;
+fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>, CacheError> {
+    let schema_identifier = schema
+        .identifier
+        .clone()
+        .map_or(Err(CacheError::SchemaIdentifierNotFound), Ok)?;
 
     let mut fields = vec![];
 
@@ -128,10 +144,13 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> anyhow::Result
                 let field_type = schema
                     .fields
                     .get(idx)
-                    .context("field indexes dont match with index_scan")?
+                    .map_or(Err(CacheError::QueryError(QueryError::GetValue)), Ok)?
                     .typ
                     .to_owned();
-                Some(json_value_to_field(&val.to_string(), &field_type)?)
+                Some(
+                    json_value_to_field(&val.to_string(), &field_type)
+                        .map_err(|_| DeserializationError)?,
+                )
             }
             None => None,
         });
@@ -144,7 +163,7 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> anyhow::Result
                 // convert value to `Vec<u8>`
                 field_bytes.push(match field {
                     Some(field) => {
-                        Some(bincode::serialize(&field).context("field serialization failed")?)
+                        Some(bincode::serialize(&field).map_err(|_| SerializationError)?)
                     }
                     None => None,
                 })
@@ -159,18 +178,19 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> anyhow::Result
         dozer_types::types::IndexType::HashInverted => todo!(),
         dozer_types::types::IndexType::FullText => {
             if fields.len() != 1 {
-                bail!("Full text index generates one key for each field");
+                return Err(CacheError::IndexError(IndexError::ExpectedStringFullText));
             }
             let field_index = index_scan.index_def.fields[0] as u64;
-            let token = match &fields[0] {
-                Some(Field::String(token)) => token,
-                _ => bail!("Must pass string for full text search"),
-            };
-            Ok(index::get_full_text_secondary_index(
-                schema_identifier.id,
-                field_index,
-                token,
-            ))
+
+            if let Some(Field::String(token)) = &fields[0] {
+                Ok(index::get_full_text_secondary_index(
+                    schema_identifier.id,
+                    field_index,
+                    token,
+                ))
+            } else {
+                Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
+            }
         }
     }
 }

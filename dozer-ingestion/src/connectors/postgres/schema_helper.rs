@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::Context;
+use dozer_types::errors::connector::ConnectorError;
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
 use crate::connectors::connector::TableInfo;
@@ -13,7 +13,7 @@ pub struct SchemaHelper {
     pub conn_str: String,
 }
 impl SchemaHelper {
-    pub fn get_tables(&mut self) -> anyhow::Result<Vec<TableInfo>> {
+    pub fn get_tables(&mut self) -> Result<Vec<TableInfo>, ConnectorError> {
         let result_vec = self.get_schema()?;
 
         let mut arr = vec![];
@@ -21,11 +21,7 @@ impl SchemaHelper {
             let columns: Vec<String> = schema.fields.iter().map(|f| f.name.clone()).collect();
             arr.push(TableInfo {
                 name: name.clone(),
-                id: schema
-                    .identifier
-                    .clone()
-                    .context("schema.id is expected in schema helper")?
-                    .id,
+                id: schema.identifier.clone().unwrap().id,
                 columns: Some(columns),
             });
         }
@@ -33,12 +29,14 @@ impl SchemaHelper {
         Ok(arr)
     }
 
-    pub fn get_schema(&mut self) -> anyhow::Result<Vec<(String, Schema)>> {
+    pub fn get_schema(&mut self) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_str.clone())?;
 
         let mut schemas: Vec<(String, Schema)> = Vec::new();
 
-        let results = client.query(SQL, &[])?;
+        let results = client
+            .query(SQL, &[])
+            .map_err(|_| ConnectorError::InvalidQueryError)?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
         results
