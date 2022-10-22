@@ -1,8 +1,7 @@
-use crate::pipeline::expression::error::ExpressionError;
-use dozer_types::types::{Field, FieldType, Record, Schema};
-
+use crate::pipeline::error::PipelineError;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
+use dozer_types::types::{Field, FieldType, Record, Schema};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -32,21 +31,18 @@ pub enum Expression {
 impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &Record) -> Result<Field, ExpressionError>;
+    fn evaluate(&self, record: &Record) -> Result<Field, PipelineError>;
     fn get_type(&self, schema: &Schema) -> FieldType;
 }
 
 impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &Record) -> Result<Field, ExpressionError> {
+    fn evaluate(&self, record: &Record) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
             Expression::Column { index } => Ok(record
                 .get_value(*index)
                 .map_err(|_e| {
-                    ExpressionError::InvalidInputType(format!(
-                        "{} is an invalid field index",
-                        *index
-                    ))
+                    PipelineError::InvalidInputType(format!("{} is an invalid field index", *index))
                 })?
                 .clone()),
             Expression::BinaryOperator {

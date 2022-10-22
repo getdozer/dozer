@@ -1,4 +1,4 @@
-use crate::pipeline::expression::error::ExpressionError;
+use crate::pipeline::error::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{Field, Record};
 
@@ -9,11 +9,11 @@ pub enum ScalarFunctionType {
 }
 
 impl ScalarFunctionType {
-    pub fn new(name: &str) -> Result<ScalarFunctionType, ExpressionError> {
+    pub fn new(name: &str) -> Result<ScalarFunctionType, PipelineError> {
         match name {
             "abs" => Ok(ScalarFunctionType::Abs),
             "round" => Ok(ScalarFunctionType::Round),
-            _ => Err(ExpressionError::InvalidFunction(name.to_string())),
+            _ => Err(PipelineError::InvalidFunction(name.to_string())),
         }
     }
 
@@ -21,7 +21,7 @@ impl ScalarFunctionType {
         &self,
         args: &[Expression],
         record: &Record,
-    ) -> Result<Field, ExpressionError> {
+    ) -> Result<Field, PipelineError> {
         match self {
             ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
             ScalarFunctionType::Round => evaluate_round(&args[0], args.get(1), record),
@@ -29,12 +29,12 @@ impl ScalarFunctionType {
     }
 }
 
-fn evaluate_abs(arg: &Expression, record: &Record) -> Result<Field, ExpressionError> {
+fn evaluate_abs(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
     match value {
         Field::Int(i) => Ok(Field::Int(i.abs())),
         Field::Float(f) => Ok(Field::Float(f.abs())),
-        _ => Err(ExpressionError::InvalidOperandType("ABS()".to_string())),
+        _ => Err(PipelineError::InvalidOperandType("ABS()".to_string())),
     }
 }
 
@@ -42,7 +42,7 @@ fn evaluate_round(
     arg: &Expression,
     decimals: Option<&Expression>,
     record: &Record,
-) -> Result<Field, ExpressionError> {
+) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
     let mut places = 0;
     if let Some(expression) = decimals {
@@ -57,8 +57,8 @@ fn evaluate_round(
     match value {
         Field::Int(i) => Ok(Field::Int(i)),
         Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
-        Field::Decimal(_) => Err(ExpressionError::InvalidOperandType("ROUND()".to_string())),
-        _ => Err(ExpressionError::InvalidOperandType("ROUND()".to_string())),
+        Field::Decimal(_) => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
+        _ => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
     }
 }
 

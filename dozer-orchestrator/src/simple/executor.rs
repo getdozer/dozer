@@ -8,6 +8,8 @@ use tempdir::TempDir;
 
 use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
+use dozer_core::dag::error::ExecutionError;
+use dozer_core::dag::error::ExecutionError::InternalStringError;
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_sql::pipeline::builder::PipelineBuilder;
@@ -27,14 +29,15 @@ impl Executor {
         sources: Vec<Source>,
         api_endpoint: ApiEndpoint,
         cache: Arc<LmdbCache>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         let mut source_schemas: Vec<Schema> = vec![];
         let mut connections: Vec<Connection> = vec![];
         let mut table_names: Vec<String> = vec![];
 
         // Get Source schemas
         for source in sources.iter() {
-            let schema_tuples = get_schema(source.connection.to_owned())?;
+            let schema_tuples = get_schema(source.connection.to_owned())
+                .map_err(|e| InternalStringError(e.to_string()))?;
 
             debug!("{:?}", source.table_name);
             let st = schema_tuples
@@ -75,7 +78,8 @@ impl Executor {
             // TODO: Use real table_name
             let table_name = &table_names[0];
             let port = source_table_map.get(table_name).unwrap();
-            dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)?;
+            dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)
+                .map_err(|e| InternalStringError(e.to_string()))?;
         }
 
         dag.connect(
@@ -101,7 +105,8 @@ impl Executor {
 
         use std::time::Instant;
         let now = Instant::now();
-        exec.start(dag, sm)?;
+        exec.start(dag, sm)
+            .map_err(|e| InternalStringError(e.to_string()))?;
         let elapsed = now.elapsed();
         debug!("Elapsed: {:.2?}", elapsed);
         Ok(())

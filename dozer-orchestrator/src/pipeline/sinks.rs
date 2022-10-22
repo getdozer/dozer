@@ -8,6 +8,8 @@ use anyhow::Context;
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::error::ExecutionError;
+use dozer_core::dag::error::ExecutionError::InternalStringError;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::state::{StateStore, StateStoreOptions};
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -64,7 +66,7 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn init(&mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init(&mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising CacheSink");
         Ok(())
     }
@@ -75,7 +77,7 @@ impl Sink for CacheSink {
         _seq: u64,
         op: Operation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         // debug!("SINK: Message {} received", _op.seq_no);
         self.counter += 1;
         const BACKSPACE: char = 8u8 as char;
@@ -115,37 +117,52 @@ impl Sink for CacheSink {
 
         // Insert if schema not already inserted
         if let std::collections::hash_map::Entry::Vacant(e) = self.schema_map.entry(hash) {
-            self.cache.insert_schema(&self.api_endpoint.name, &schema)?;
+            self.cache
+                .insert_schema(&self.api_endpoint.name, &schema)
+                .map_err(|e| InternalStringError(e.to_string()))?;
             e.insert(true);
         }
 
         match op {
             Operation::Delete { old } => {
                 let key = index::get_primary_key(&schema.primary_index, &old.values);
-                self.cache.delete(&key)?;
+                self.cache
+                    .delete(&key)
+                    .map_err(|e| InternalStringError(e.to_string()))?;
             }
             Operation::Insert { new } => {
                 let mut new = new;
                 new.schema_id = schema.identifier;
 
-                self.cache.insert(&new)?;
+                self.cache
+                    .insert(&new)
+                    .map_err(|e| InternalStringError(e.to_string()))?;
             }
             Operation::Update { old, new } => {
                 let key = index::get_primary_key(&schema.primary_index, &old.values);
                 let mut new = new;
                 new.schema_id = schema.identifier.clone();
                 if index::has_primary_key_changed(&schema.primary_index, &old.values, &new.values) {
-                    self.cache.update(&key, &new, &schema)?;
+                    self.cache
+                        .update(&key, &new, &schema)
+                        .map_err(|e| InternalStringError(e.to_string()))?;
                 } else {
-                    self.cache.delete(&key)?;
-                    self.cache.insert(&new)?;
+                    self.cache
+                        .delete(&key)
+                        .map_err(|e| InternalStringError(e.to_string()))?;
+                    self.cache
+                        .insert(&new)
+                        .map_err(|e| InternalStringError(e.to_string()))?;
                 }
             }
         };
         Ok(())
     }
 
-    fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()> {
+    fn update_schema(
+        &mut self,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
         self.input_schemas = input_schemas.to_owned();
         Ok(())
     }
@@ -170,7 +187,7 @@ impl CacheSink {
         }
     }
 
-    fn get_output_schema(&self, schema: &Schema) -> anyhow::Result<Schema> {
+    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, ExecutionError> {
         let mut schema = schema.clone();
         let api_index = &self.api_endpoint.index;
         let mut primary_index = Vec::new();
@@ -179,7 +196,8 @@ impl CacheSink {
                 .fields
                 .iter()
                 .position(|fd| fd.name == name.clone())
-                .context("column_name not available in index.primary_keys")?;
+                .context("column_name not available in index.primary_keys")
+                .map_err(|e| InternalStringError(e.to_string()))?;
             primary_index.push(idx);
         }
         schema.primary_index = primary_index;

@@ -1,7 +1,8 @@
 use super::selection_builder::SelectionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use anyhow::Result;
 use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::error::ExecutionError;
+use dozer_core::dag::error::ExecutionError::InternalError;
 use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
@@ -55,8 +56,10 @@ impl SelectionProcessor {
         &self,
         statement: Option<SqlExpr>,
         schema: &Schema,
-    ) -> Result<Box<Expression>> {
-        self.builder.build_expression(&statement, schema)
+    ) -> Result<Box<Expression>, ExecutionError> {
+        self.builder
+            .build_expression(&statement, schema)
+            .map_err(|e| InternalError(Box::new(e)))
     }
 
     fn delete(&self, record: &dozer_types::types::Record) -> Operation {
@@ -77,13 +80,13 @@ impl Processor for SelectionProcessor {
         &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<Schema> {
+    ) -> Result<Schema, ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         self.expression = self.build_expression(self.statement.clone(), schema)?;
         Ok(schema.clone())
     }
 
-    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Selection Processor");
         Ok(())
     }
@@ -94,21 +97,39 @@ impl Processor for SelectionProcessor {
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         _state_store: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {
-                if self.expression.evaluate(old)? == Field::Boolean(true) {
+                if self
+                    .expression
+                    .evaluate(old)
+                    .map_err(|e| InternalError(Box::new(e)))?
+                    == Field::Boolean(true)
+                {
                     let _ = fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
-                if self.expression.evaluate(new)? == Field::Boolean(true) {
+                if self
+                    .expression
+                    .evaluate(new)
+                    .map_err(|e| InternalError(Box::new(e)))?
+                    == Field::Boolean(true)
+                {
                     let _ = fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let old_fulfilled = self.expression.evaluate(old)? == Field::Boolean(true);
-                let new_fulfilled = self.expression.evaluate(new)? == Field::Boolean(true);
+                let old_fulfilled = self
+                    .expression
+                    .evaluate(old)
+                    .map_err(|e| InternalError(Box::new(e)))?
+                    == Field::Boolean(true);
+                let new_fulfilled = self
+                    .expression
+                    .evaluate(new)
+                    .map_err(|e| InternalError(Box::new(e)))?
+                    == Field::Boolean(true);
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation

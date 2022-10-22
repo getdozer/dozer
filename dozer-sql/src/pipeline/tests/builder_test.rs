@@ -9,6 +9,7 @@ use sqlparser::parser::Parser;
 use tempdir::TempDir;
 
 use dozer_core::dag::dag::{Endpoint, NodeType, PortHandle};
+use dozer_core::dag::error::ExecutionError;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{Sink, SinkFactory, Source, SourceFactory};
@@ -71,7 +72,7 @@ impl Source for TestSource {
         cm: &dyn ChannelManager,
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         for n in 0..1000000 {
             fw.send(
                 n,
@@ -123,11 +124,11 @@ impl Sink for TestSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn init(&mut self, _state_store: &mut dyn StateStore) -> anyhow::Result<()> {
+    fn init(&mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -138,7 +139,7 @@ impl Sink for TestSink {
         _seq: u64,
         _op: Operation,
         _state: &mut dyn StateStore,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         //    debug!("SINK: Message {} received", _op.seq_no);
         Ok(())
     }

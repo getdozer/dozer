@@ -2,6 +2,7 @@ use log::debug;
 use std::collections::HashMap;
 
 use dozer_core::dag::dag::PortHandle;
+use dozer_core::dag::error::ExecutionError;
 use dozer_core::dag::forwarder::{ChannelManager, SourceChannelForwarder};
 
 use crate::pipeline::ingestion_group::IngestionGroup;
@@ -86,7 +87,7 @@ impl Source for ConnectorSource {
         _cm: &dyn ChannelManager,
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ExecutionError> {
         let ingestion_group = IngestionGroup {};
         let receiver =
             ingestion_group.run_ingestion(self.connections.to_owned(), self.table_names.to_owned());

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use crate::types::TypeError::InvalidFieldType;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
@@ -6,8 +6,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum TypeError {
-    #[error("invalid field index: {0}")]
+    #[error("Invalid field index: {0}")]
     InvalidFieldIndex(usize),
+    #[error("Invalid field name: {0}")]
+    InvalidFieldName(String),
+    #[error("Invalid field type")]
+    InvalidFieldType,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -27,7 +31,7 @@ pub enum Field {
 }
 
 impl Field {
-    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, TypeError> {
         match self {
             Field::Int(i) => Ok(Vec::from(i.to_le_bytes())),
             Field::Float(f) => Ok(Vec::from(f.to_le_bytes())),
@@ -42,7 +46,7 @@ impl Field {
             Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_le_bytes())),
             Field::Bson(b) => Ok(b.clone()),
             Field::Null => Ok(Vec::from(0_u8.to_le_bytes())),
-            _ => Err(anyhow!("Invalid field type")),
+            _ => Err(InvalidFieldType),
         }
     }
 }
@@ -131,12 +135,16 @@ impl Schema {
         self
     }
 
-    pub fn get_field_index(&self, name: &str) -> anyhow::Result<(usize, &FieldDefinition)> {
-        self.fields
+    pub fn get_field_index(&self, name: &str) -> Result<(usize, &FieldDefinition), TypeError> {
+        let r = self
+            .fields
             .iter()
             .enumerate()
-            .find(|f| f.1.name.as_str() == name)
-            .context(anyhow!("Unable to find field"))
+            .find(|f| f.1.name.as_str() == name);
+        match r {
+            Some(v) => Ok(v),
+            _ => Err(TypeError::InvalidFieldName(name.to_string())),
+        }
     }
 
     pub fn get_id(&self) -> u32 {
@@ -194,7 +202,7 @@ impl Record {
         }
     }
 
-    pub fn get_key(&self, indexes: &Vec<usize>) -> anyhow::Result<Vec<u8>> {
+    pub fn get_key(&self, indexes: &Vec<usize>) -> Result<Vec<u8>, TypeError> {
         let mut tot_size = 0_usize;
         let mut buffers = Vec::<Vec<u8>>::with_capacity(indexes.len());
         for i in indexes {

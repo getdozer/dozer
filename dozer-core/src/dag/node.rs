@@ -1,4 +1,5 @@
 use crate::dag::dag::PortHandle;
+use crate::dag::error::ExecutionError;
 use crate::dag::forwarder::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::state::{StateStore, StateStoreOptions};
 use dozer_types::types::{Operation, Schema};
@@ -18,15 +19,15 @@ pub trait Processor {
         &mut self,
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> anyhow::Result<Schema>;
-    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()>;
+    ) -> Result<Schema, ExecutionError>;
+    fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), ExecutionError>;
 }
 
 pub trait SourceFactory: Send + Sync {
@@ -43,7 +44,7 @@ pub trait Source {
         cm: &dyn ChannelManager,
         state: &mut dyn StateStore,
         from_seq: Option<u64>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), ExecutionError>;
 }
 
 pub trait SinkFactory: Send + Sync {
@@ -53,13 +54,16 @@ pub trait SinkFactory: Send + Sync {
 }
 
 pub trait Sink {
-    fn update_schema(&mut self, input_schemas: &HashMap<PortHandle, Schema>) -> anyhow::Result<()>;
-    fn init(&mut self, state: &mut dyn StateStore) -> anyhow::Result<()>;
+    fn update_schema(
+        &mut self,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError>;
+    fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         seq: u64,
         op: Operation,
         state: &mut dyn StateStore,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), ExecutionError>;
 }
