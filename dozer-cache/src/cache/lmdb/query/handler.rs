@@ -9,7 +9,7 @@ use crate::cache::{
     planner::QueryPlanner,
 };
 use dozer_types::{
-    json_value_to_field,
+    bincode, json_value_to_field,
     types::{Field, Record, Schema},
 };
 

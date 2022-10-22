@@ -3,8 +3,9 @@ use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder}
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 use crate::connectors::storage::RocksStorage;
 use crossbeam::channel::unbounded;
+use dozer_types::bincode;
+use dozer_types::log::{debug, error, warn};
 use dozer_types::types::OperationEvent;
-use log::{debug, error, warn};
 use postgres::Error;
 use postgres_types::PgLsn;
 use std::cell::RefCell;

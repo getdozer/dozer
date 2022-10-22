@@ -1,5 +1,8 @@
 use anyhow::{bail, Context, Ok};
-use dozer_types::types::{Field, Record, Schema, SchemaIdentifier};
+use dozer_types::{
+    bincode,
+    types::{Field, Record, Schema, SchemaIdentifier},
+};
 use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 use unicode_segmentation::UnicodeSegmentation;
 

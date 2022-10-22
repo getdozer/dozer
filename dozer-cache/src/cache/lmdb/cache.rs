@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context};
+use dozer_types::bincode;
+use dozer_types::log::debug;
 use lmdb::{
     Cursor, Database, Environment, RoCursor, RoTransaction, RwTransaction, Transaction, WriteFlags,
 };
-use log::debug;
 
 use dozer_schema::registry::context::Context as SchemaContext;
 use dozer_schema::registry::SchemaRegistryClient;

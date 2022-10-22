@@ -6,8 +6,8 @@ use connector::Connector;
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 use anyhow::Context;
+use dozer_types::log::debug;
 use dozer_types::types::{OperationEvent, Schema};
-use log::debug;
 use postgres::Client;
 use std::sync::{Arc, Mutex};
 

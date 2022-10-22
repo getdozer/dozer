@@ -1118,12 +1118,8 @@ dependencies = [
  "dozer-cache",
  "dozer-types",
  "handlebars",
- "heck 0.4.0",
  "indexmap",
- "log",
- "log4rs",
  "openapiv3",
- "rust_decimal",
  "serde_yaml 0.9.13",
  "structopt",
  "tempdir",
@@ -1134,8 +1130,6 @@ name = "dozer-cache"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
- "bincode",
  "criterion",
  "dozer-schema",
  "dozer-types",
@@ -1143,8 +1137,6 @@ dependencies = [
  "galil-seiferas",
  "lmdb-rkv",
  "lmdb-rkv-sys",
- "log",
- "log4rs",
  "rand 0.8.5",
  "tempdir",
  "tokio",
@@ -1175,25 +1167,19 @@ name = "dozer-ingestion"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "atomic-counter",
- "bincode",
  "bytes",
- "chrono",
  "crossbeam",
  "dozer-schema",
  "dozer-types",
  "futures",
- "log",
- "log4rs",
- "postgres 0.19.3",
- "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
- "postgres-types 0.2.3",
+ "postgres",
+ "postgres-protocol",
+ "postgres-types",
  "rocksdb",
- "rust_decimal",
  "tempdir",
  "tokio",
- "tokio-postgres 0.7.6",
+ "tokio-postgres",
 ]
 
 [[package]]
@@ -1225,11 +1211,8 @@ name = "dozer-schema"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bincode",
  "dozer-types",
  "futures",
- "log",
- "log4rs",
  "rocksdb",
  "tarpc",
  "tempdir",
@@ -2510,39 +2493,7 @@ dependencies = [
  "futures",
  "log",
  "tokio",
- "tokio-postgres 0.7.6",
-]
-
-[[package]]
-name = "postgres"
-version = "0.19.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "960c214283ef8f0027974c03e9014517ced5db12f021a9abb66185a5751fab0a"
-dependencies = [
- "bytes",
- "fallible-iterator",
- "futures-util",
- "log",
- "tokio",
- "tokio-postgres 0.7.7",
-]
-
-[[package]]
-name = "postgres-protocol"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "878c6cbf956e03af9aa8204b407b9cbf47c072164800aa918c516cd4b056c50c"
-dependencies = [
- "base64",
- "byteorder",
- "bytes",
- "fallible-iterator",
- "hmac",
- "md-5",
- "memchr",
- "rand 0.8.5",
- "sha2",
- "stringprep",
+ "tokio-postgres",
 ]
 
 [[package]]
@@ -2570,18 +2521,7 @@ dependencies = [
  "bytes",
  "chrono",
  "fallible-iterator",
- "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
-]
-
-[[package]]
-name = "postgres-types"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73d946ec7d256b04dfadc4e6a3292324e6f417124750fc5c0950f981b703a0f1"
-dependencies = [
- "bytes",
- "fallible-iterator",
- "postgres-protocol 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "postgres-protocol",
 ]
 
 [[package]]
@@ -2952,12 +2892,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee9164faf726e4f3ece4978b25ca877ddc6802fa77f38cdccb32c7f805ecd70c"
 dependencies = [
  "arrayvec",
- "byteorder",
- "bytes",
  "num-traits",
- "postgres 0.19.4",
  "serde",
- "tokio-postgres 0.7.7",
 ]
 
 [[package]]
@@ -3570,32 +3506,8 @@ dependencies = [
  "percent-encoding",
  "phf",
  "pin-project-lite",
- "postgres-protocol 0.6.4 (git+https://github.com/materializeInc/rust-postgres)",
- "postgres-types 0.2.3",
- "socket2",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
-name = "tokio-postgres"
-version = "0.7.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29a12c1b3e0704ae7dfc25562629798b29c72e6b1d0a681b6f29ab4ae5e7f7bf"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes",
- "fallible-iterator",
- "futures-channel",
- "futures-util",
- "log",
- "parking_lot",
- "percent-encoding",
- "phf",
- "pin-project-lite",
- "postgres-protocol 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "postgres-types 0.2.4",
+ "postgres-protocol",
+ "postgres-types",
  "socket2",
  "tokio",
  "tokio-util",

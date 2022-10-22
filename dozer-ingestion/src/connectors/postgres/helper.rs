@@ -1,8 +1,8 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use bytes::Bytes;
-use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use dozer_types::types::*;
-use log::debug;
+use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
+use dozer_types::log::debug;
+use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
@@ -274,7 +274,7 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
+    use dozer_types::chrono::NaiveDate;
 
     #[macro_export]
     macro_rules! test_conversion {

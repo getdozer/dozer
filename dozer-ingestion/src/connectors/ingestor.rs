@@ -1,4 +1,4 @@
-use log::debug;
+use dozer_types::log::debug;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 

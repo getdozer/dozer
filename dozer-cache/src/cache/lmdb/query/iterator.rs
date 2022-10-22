@@ -1,6 +1,6 @@
+use dozer_types::log::debug;
 use lmdb::{Cursor, RoCursor};
 use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
-use log::debug;
 
 enum CacheIteratorState<'a> {
     First {

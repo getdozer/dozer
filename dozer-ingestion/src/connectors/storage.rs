@@ -1,4 +1,4 @@
-use dozer_types::types::*;
+use dozer_types::{bincode, types::*};
 use rocksdb::{DBWithThreadMode, Options, ReadOptions, SingleThreaded, DB};
 use std::sync::Arc;
 use tempdir::TempDir;

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{bail, Context};
-use log::debug;
+use dozer_types::log::debug;
 
 use crate::cache::expression::{
     ExecutionStep, FilterExpression, IndexScan, Operator, QueryExpression, SeqScan, SortDirection,

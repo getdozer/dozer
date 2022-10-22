@@ -1,10 +1,10 @@
 use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
-use chrono::{TimeZone, Utc};
+use dozer_types::chrono::{TimeZone, Utc};
+use dozer_types::log::{debug, warn};
 use dozer_types::types::Commit;
 use futures::StreamExt;
-use log::{debug, warn};
 use postgres::Error;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_types::PgLsn;

@@ -1,3 +1,4 @@
+use dozer_types::bincode;
 use dozer_types::types::{IndexDefinition, Record};
 
 pub trait CacheIndex {

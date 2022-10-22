@@ -1,5 +1,6 @@
 use crate::connectors::storage::RocksStorage;
 use atomic_counter::{AtomicCounter, ConsistentCounter};
+use dozer_types::bincode;
 use std::sync::Arc;
 
 pub struct SeqNoResolver {

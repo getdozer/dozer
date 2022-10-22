@@ -21,7 +21,6 @@ pub struct ApiServer {
     port: u16,
 }
 
-// #[async_trait]
 impl ApiServer {
     pub fn default() -> Self {
         Self {

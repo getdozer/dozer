@@ -1,4 +1,4 @@
-use dozer_types::serde;
+use dozer_types::{bincode, serde};
 use lmdb::{Database, RoTransaction, Transaction};
 pub fn get<T>(txn: &RoTransaction, db: Database, key: &[u8]) -> anyhow::Result<T>
 where

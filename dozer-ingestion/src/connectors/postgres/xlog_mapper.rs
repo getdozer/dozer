@@ -1,7 +1,7 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
+use dozer_types::log::debug;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
-use log::debug;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
