@@ -1,25 +1,16 @@
-use crate::dag::dag::PortHandle;
-use crate::dag::error::ExecutionError;
-use crate::dag::error::ExecutionError::InvalidPortHandle;
 use crate::dag::mt_executor::ExecutorOperation;
 use crossbeam::channel::Sender;
+use dozer_types::core::channels::{
+    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
+};
+use dozer_types::core::node::PortHandle;
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::{InternalError, InvalidPortHandle};
+use dozer_types::internal_err;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::thread::sleep;
 use std::time::Duration;
-
-pub trait SourceChannelForwarder: Send + Sync {
-    fn send(&self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError>;
-    fn update_schema(&self, schema: Schema, port: PortHandle) -> Result<(), ExecutionError>;
-}
-
-pub trait ProcessorChannelForwarder {
-    fn send(&self, op: Operation, port: PortHandle) -> Result<(), ExecutionError>;
-}
-
-pub trait ChannelManager {
-    fn terminate(&self) -> Result<(), ExecutionError>;
-}
 
 pub struct LocalChannelForwarder {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -57,10 +48,10 @@ impl LocalChannelForwarder {
         };
 
         if senders.len() == 1 {
-            senders[0].send(exec_op)?;
+            internal_err!(senders[0].send(exec_op))?;
         } else {
             for sender in senders {
-                sender.send(exec_op.clone())?;
+                internal_err!(sender.send(exec_op.clone()))?;
             }
         }
 
@@ -70,7 +61,7 @@ impl LocalChannelForwarder {
     pub fn send_term(&self) -> Result<(), ExecutionError> {
         for senders in &self.senders {
             for sender in senders.1 {
-                sender.send(ExecutorOperation::Terminate)?;
+                internal_err!(sender.send(ExecutorOperation::Terminate))?;
             }
 
             loop {
@@ -103,9 +94,9 @@ impl LocalChannelForwarder {
             .ok_or(InvalidPortHandle(port_id))?;
 
         for s in senders {
-            s.send(ExecutorOperation::SchemaUpdate {
+            internal_err!(s.send(ExecutorOperation::SchemaUpdate {
                 new: schema.clone(),
-            })?;
+            }))?;
         }
 
         Ok(())

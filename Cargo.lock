@@ -1262,6 +1262,7 @@ dependencies = [
  "bincode",
  "bson",
  "chrono",
+ "crossbeam",
  "log",
  "log4rs",
  "rust_decimal",

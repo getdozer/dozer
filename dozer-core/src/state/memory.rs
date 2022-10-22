@@ -1,5 +1,5 @@
-use crate::state::error::StateStoreError;
-use crate::state::{StateStore, StateStoreCursor};
+use dozer_types::core::state::{StateStore, StateStoreCursor};
+use dozer_types::errors::state::StateStoreError;
 use std::collections::HashMap;
 
 pub struct MemoryStateStore {

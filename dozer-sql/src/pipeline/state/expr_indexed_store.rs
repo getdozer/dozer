@@ -1,9 +1,9 @@
+// use crate::pipeline::error::PipelineError;
 // use crate::pipeline::expression::execution::Expression;
-// use anyhow::{anyhow, Context};
-// use dozer_core::state::StateStore;
+// use dozer_types::core::state::StateStore;
 // use dozer_types::types::Record;
 // use std::sync::Arc;
-
+//
 // pub enum PrimaryIndexDefinition {
 //     AutoIncrement,
 //     FieldsBased(Vec<usize>),
@@ -21,7 +21,7 @@
 //     secondary_indexes: Vec<SecondaryIndexDefinition>,
 //     counter_key: [u8; 4],
 // }
-
+//
 // impl ExpressionIndexedStore {
 //     pub fn new(
 //         dataset_id: u16,
@@ -44,13 +44,11 @@
 //
 //     fn compose_key(index_id: u16, value: &[u8]) -> &[u8] {}
 //
-//     pub fn put(&mut self, r: Record) -> anyhow::Result<()> {
+//     pub fn put(&mut self, r: Record) -> Result<(), PipelineError> {
 //         let primary_key = match &self.primary_idx {
 //             PrimaryIndexDefinition::AutoIncrement => {
 //                 let curr_counter = match self.store.get(&self.counter_key)? {
-//                     Some(c) => {
-//                         u64::from_le_bytes(c.try_into().context("Unable to convert counter value")?)
-//                     }
+//                     Some(c) => u64::from_le_bytes(c.try_into()),
 //                     _ => 0_u64,
 //                 } + 1;
 //                 self.store

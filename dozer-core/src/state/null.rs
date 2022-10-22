@@ -1,6 +1,6 @@
-use crate::state::error::StateStoreError;
-use crate::state::error::StateStoreError::InvalidOperation;
-use crate::state::{StateStore, StateStoreCursor};
+use dozer_types::core::state::{StateStore, StateStoreCursor};
+use dozer_types::errors::state::StateStoreError;
+use dozer_types::errors::state::StateStoreError::InvalidOperation;
 
 pub struct NullStateStore {}
 

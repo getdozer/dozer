@@ -1,11 +1,12 @@
 use crate::dag::dag::PortDirection::{Input, Output};
-use crate::dag::error::ExecutionError;
-use crate::dag::error::ExecutionError::{InvalidNode, InvalidNodeType, InvalidPortHandle};
-use crate::dag::node::{ProcessorFactory, SinkFactory, SourceFactory};
+use dozer_types::core::node::{
+    NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
+};
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::{
+    InvalidNode, InvalidNodeType, InvalidPortHandle,
+};
 use std::collections::HashMap;
-
-pub type NodeHandle = String;
-pub type PortHandle = u16;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Endpoint {

@@ -2,12 +2,12 @@ use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::aggregation::tests::schema::{
     gen_in_data, gen_out_data, get_aggregator_rules, get_expected_schema, get_input_schema,
 };
-use dozer_core::dag::dag::PortHandle;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::Processor;
 use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_core::state::memory::MemoryStateStore;
-use dozer_core::state::{StateStoreOptions, StateStoresManager};
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::node::Processor;
+use dozer_types::core::state::{StateStoreOptions, StateStoresManager};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fs;

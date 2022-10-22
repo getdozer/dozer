@@ -1,12 +1,12 @@
 use super::selection_builder::SelectionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use dozer_core::dag::dag::PortHandle;
-use dozer_core::dag::error::ExecutionError;
-use dozer_core::dag::error::ExecutionError::InternalError;
-use dozer_core::dag::forwarder::ProcessorChannelForwarder;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{Processor, ProcessorFactory};
-use dozer_core::state::{StateStore, StateStoreOptions};
+use dozer_types::core::channels::ProcessorChannelForwarder;
+use dozer_types::core::node::PortHandle;
+use dozer_types::core::node::{Processor, ProcessorFactory};
+use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::InternalError;
 use dozer_types::types::{Field, Operation, Schema};
 use log::info;
 use sqlparser::ast::Expr as SqlExpr;

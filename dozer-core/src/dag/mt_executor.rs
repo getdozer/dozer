@@ -1,14 +1,18 @@
 #![allow(clippy::type_complexity)]
-use crate::dag::dag::{Dag, NodeHandle, NodeType, PortDirection, PortHandle};
-use crate::dag::error::ExecutionError;
-use crate::dag::error::ExecutionError::{
-    InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
-};
-use crate::dag::forwarder::{LocalChannelForwarder, SourceChannelForwarder};
-use crate::dag::node::{ProcessorFactory, SinkFactory, SourceFactory};
+use crate::dag::dag::{Dag, NodeType, PortDirection};
+use crate::dag::forwarder::LocalChannelForwarder;
 use crate::state::null::NullStateStore;
-use crate::state::StateStoresManager;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
+use dozer_types::core::channels::SourceChannelForwarder;
+use dozer_types::core::node::{
+    NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
+};
+use dozer_types::core::state::StateStoresManager;
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::execution::ExecutionError::{
+    InternalError, InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
+};
+use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record, Schema};
 use log::{error, warn};
 use std::collections::HashMap;
@@ -74,7 +78,7 @@ impl MultiThreadedDagExecutor {
             ExecutorOperation::Update { seq, old, new } => {
                 Ok((seq, Operation::Update { old, new }))
             }
-            _ => Err(InvalidOperation(op)),
+            _ => Err(InvalidOperation(op.to_string())),
         }
     }
 
@@ -240,7 +244,7 @@ impl MultiThreadedDagExecutor {
             }
             loop {
                 let index = sel.ready();
-                let op = receivers_ls[index].recv()?;
+                let op = internal_err!(receivers_ls[index].recv())?;
                 match op {
                     ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);
@@ -317,7 +321,7 @@ impl MultiThreadedDagExecutor {
             proc.init(state_store.as_mut())?;
             loop {
                 let index = sel.ready();
-                let op = receivers_ls[index].recv()?;
+                let op = internal_err!(receivers_ls[index].recv())?;
                 match op {
                     ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);

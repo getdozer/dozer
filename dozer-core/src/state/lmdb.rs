@@ -1,9 +1,11 @@
-use crate::state::error::StateStoreError;
-use crate::state::error::StateStoreError::InternalError;
 use crate::state::lmdb_sys::{
     Cursor, Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
-use crate::state::{StateStore, StateStoreCursor, StateStoreOptions, StateStoresManager};
+use dozer_types::core::state::{
+    StateStore, StateStoreCursor, StateStoreOptions, StateStoresManager,
+};
+use dozer_types::errors::state::StateStoreError;
+use dozer_types::errors::state::StateStoreError::InternalError;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
