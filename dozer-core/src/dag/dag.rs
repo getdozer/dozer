@@ -4,7 +4,7 @@ use dozer_types::core::node::{
 };
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::{
-    InvalidNode, InvalidNodeType, InvalidPortHandle,
+    InvalidNodeHandle, InvalidNodeType, InvalidPortHandle,
 };
 use std::collections::HashMap;
 
@@ -101,12 +101,12 @@ impl Dag {
     pub fn connect(&mut self, from: Endpoint, to: Endpoint) -> Result<(), ExecutionError> {
         let src_node = self.nodes.get(&from.node);
         if src_node.is_none() {
-            return Err(InvalidNode(from.node));
+            return Err(InvalidNodeHandle(from.node));
         }
 
         let dst_node = self.nodes.get(&to.node);
         if dst_node.is_none() {
-            return Err(InvalidNode(to.node));
+            return Err(InvalidNodeHandle(to.node));
         }
 
         let src_output_ports = self.get_ports(src_node.unwrap(), Output)?;

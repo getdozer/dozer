@@ -1,12 +1,12 @@
 #![allow(clippy::type_complexity)]
-use crate::errors::state::StateStoreError;
+use crate::errors::database::DatabaseError;
 
 pub trait StateStoresManager: Send + Sync {
     fn init_state_store(
         &self,
         id: String,
         options: StateStoreOptions,
-    ) -> Result<Box<dyn StateStore>, StateStoreError>;
+    ) -> Result<Box<dyn StateStore>, DatabaseError>;
 }
 
 pub struct StateStoreOptions {
@@ -22,17 +22,17 @@ impl StateStoreOptions {
 }
 
 pub trait StateStore {
-    fn checkpoint(&mut self) -> Result<(), StateStoreError>;
-    fn commit(&mut self) -> Result<(), StateStoreError>;
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StateStoreError>;
-    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, StateStoreError>;
-    fn del(&mut self, key: &[u8]) -> Result<(), StateStoreError>;
-    fn cursor(&mut self) -> Result<Box<dyn StateStoreCursor>, StateStoreError>;
+    fn checkpoint(&mut self) -> Result<(), DatabaseError>;
+    fn commit(&mut self) -> Result<(), DatabaseError>;
+    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), DatabaseError>;
+    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, DatabaseError>;
+    fn del(&mut self, key: &[u8]) -> Result<(), DatabaseError>;
+    fn cursor(&mut self) -> Result<Box<dyn StateStoreCursor>, DatabaseError>;
 }
 
 pub trait StateStoreCursor {
-    fn seek(&mut self, key: &[u8]) -> Result<bool, StateStoreError>;
-    fn next(&mut self) -> Result<bool, StateStoreError>;
-    fn prev(&mut self) -> Result<bool, StateStoreError>;
-    fn read(&mut self) -> Result<Option<(&[u8], &[u8])>, StateStoreError>;
+    fn seek(&mut self, key: &[u8]) -> Result<bool, DatabaseError>;
+    fn next(&mut self) -> Result<bool, DatabaseError>;
+    fn prev(&mut self) -> Result<bool, DatabaseError>;
+    fn read(&mut self) -> Result<Option<(&[u8], &[u8])>, DatabaseError>;
 }

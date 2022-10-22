@@ -6,9 +6,11 @@ use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{Processor, ProcessorFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
-use dozer_types::errors::execution::ExecutionError::{InternalError, InvalidPortHandle};
+use dozer_types::errors::execution::ExecutionError::{
+    InternalError, InternalPipelineError, InvalidPortHandle,
+};
 use dozer_types::errors::pipeline::PipelineError;
-use dozer_types::errors::pipeline::PipelineError::InternalStateStoreError;
+use dozer_types::errors::pipeline::PipelineError::InternalDatabaseError;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 use std::collections::HashMap;
 use std::mem::size_of_val;
@@ -123,7 +125,7 @@ impl AggregationProcessor {
     fn init_store(&self, store: &mut dyn StateStore) -> Result<(), PipelineError> {
         store
             .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
-            .map_err(InternalStateStoreError)
+            .map_err(InternalDatabaseError)
     }
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> Result<(), PipelineError> {
@@ -446,8 +448,7 @@ impl Processor for AggregationProcessor {
     }
 
     fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError> {
-        self.init_store(state)
-            .map_err(|e| InternalError(Box::new(e)))
+        self.init_store(state).map_err(InternalPipelineError)
     }
 
     fn process(
@@ -457,9 +458,7 @@ impl Processor for AggregationProcessor {
         fw: &dyn ProcessorChannelForwarder,
         state: &mut dyn StateStore,
     ) -> Result<(), ExecutionError> {
-        let ops = self
-            .aggregate(state, op)
-            .map_err(|e| InternalError(Box::new(e)))?;
+        let ops = self.aggregate(state, op)?;
         state.commit()?;
         for op in ops {
             fw.send(op, DEFAULT_PORT_HANDLE)?;

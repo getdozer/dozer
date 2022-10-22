@@ -1,14 +1,10 @@
 #![allow(clippy::enum_variant_names)]
-use crate::errors::state::StateStoreError;
+use crate::errors::database::DatabaseError;
 use crate::errors::types::TypeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum PipelineError {
-    #[error(transparent)]
-    InternalStateStoreError(#[from] StateStoreError),
-    #[error(transparent)]
-    InternalTypeError(#[from] TypeError),
     #[error("Invalid operand type for function: {0}()")]
     InvalidOperandType(String),
     #[error("Invalid input type. Reason: {0}")]
@@ -29,4 +25,10 @@ pub enum PipelineError {
     InvalidRelation,
     #[error("Invalid relation")]
     DataTypeMismatch,
+
+    // Error forwarding
+    #[error(transparent)]
+    InternalDatabaseError(#[from] DatabaseError),
+    #[error(transparent)]
+    InternalTypeError(#[from] TypeError),
 }

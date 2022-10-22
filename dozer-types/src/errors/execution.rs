@@ -1,15 +1,18 @@
 #![allow(clippy::enum_variant_names)]
 use crate::core::node::{NodeHandle, PortHandle};
+use crate::errors::database::DatabaseError;
 use crate::errors::internal::BoxedError;
-use crate::errors::state::StateStoreError;
+use crate::errors::pipeline::PipelineError;
 use crate::errors::types::TypeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {
-    #[error("Invalid port handle {0}")]
+    #[error("Invalid port handle: {0}")]
     InvalidPortHandle(PortHandle),
-    #[error("Invalid operation received {0}")]
+    #[error("Invalid node handle: {0}")]
+    InvalidNodeHandle(NodeHandle),
+    #[error("Invalid operation: {0}")]
     InvalidOperation(String),
     #[error("Schema not initialized")]
     SchemaNotInitialized,
@@ -17,16 +20,20 @@ pub enum ExecutionError {
     MissingNodeInput(NodeHandle),
     #[error("The node {0} does not have any output")]
     MissingNodeOutput(NodeHandle),
-    #[error("The node type is not valid")]
+    #[error("The node type is invalid")]
     InvalidNodeType,
-    #[error("The node {0} is not valid")]
-    InvalidNode(NodeHandle),
-    #[error("{0}")]
-    InternalStringError(String),
+
+    // Error forwarders
+    #[error(transparent)]
+    InternalPipelineError(#[from] PipelineError),
     #[error(transparent)]
     InternalTypeError(#[from] TypeError),
     #[error(transparent)]
-    InternalStateStoreError(#[from] StateStoreError),
+    InternalDatabaseError(#[from] DatabaseError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
+
+    // to remove
+    #[error("{0}")]
+    InternalStringError(String),
 }
