@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
-use dozer_types::errors::state::StateStoreError;
-use dozer_types::types::TypeError;
+use crate::errors::state::StateStoreError;
+use crate::errors::types::TypeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

@@ -1,14 +1,15 @@
-use crate::pipeline::error::PipelineError;
-use crate::pipeline::error::PipelineError::{
-    InternalTypeError, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
-};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
+use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::pipeline::PipelineError::{
+    InternalTypeError, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
+};
+use dozer_types::errors::types::TypeError;
+use dozer_types::types::Field;
 use dozer_types::types::Schema;
-use dozer_types::types::{Field, TypeError};
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,

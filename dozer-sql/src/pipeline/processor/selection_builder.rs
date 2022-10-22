@@ -5,9 +5,12 @@ use sqlparser::ast::{
     Value as SqlValue,
 };
 
-use crate::pipeline::error::PipelineError;
-use crate::pipeline::error::PipelineError::{InvalidExpression, InvalidOperator, InvalidValue};
-use dozer_types::types::{Field, Schema, TypeError};
+use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::pipeline::PipelineError::{
+    InvalidExpression, InvalidOperator, InvalidValue,
+};
+use dozer_types::errors::types::TypeError;
+use dozer_types::types::{Field, Schema};
 
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};

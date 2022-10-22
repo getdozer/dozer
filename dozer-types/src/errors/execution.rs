@@ -2,7 +2,7 @@
 use crate::core::node::{NodeHandle, PortHandle};
 use crate::errors::internal::BoxedError;
 use crate::errors::state::StateStoreError;
-use crate::types::TypeError;
+use crate::errors::types::TypeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

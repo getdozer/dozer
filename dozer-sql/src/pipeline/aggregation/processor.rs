@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 use crate::pipeline::aggregation::aggregator::Aggregator;
-use crate::pipeline::error::PipelineError;
-use crate::pipeline::error::PipelineError::InternalStateStoreError;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::core::channels::ProcessorChannelForwarder;
 use dozer_types::core::node::PortHandle;
@@ -9,6 +7,8 @@ use dozer_types::core::node::{Processor, ProcessorFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::{InternalError, InvalidPortHandle};
+use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::pipeline::PipelineError::InternalStateStoreError;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 use std::collections::HashMap;
 use std::mem::size_of_val;
