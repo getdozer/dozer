@@ -10,6 +10,14 @@ macro_rules! internal_err {
     };
 }
 
+#[macro_export]
+macro_rules! define_internal_err {
+    () => {
+        #[error(transparent)]
+        InternalError(#[from] BoxedError),
+    };
+}
+
 #[derive(Error, Debug)]
 pub enum DataTypeError {
     #[error("Data type mismatch: {0}")]

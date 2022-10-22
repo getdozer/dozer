@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use crate::core::node::{NodeHandle, PortHandle};
-use crate::errors::generic::BoxedError;
+use crate::errors::internal::BoxedError;
 use crate::errors::state::StateStoreError;
 use crate::types::TypeError;
 use thiserror::Error;
