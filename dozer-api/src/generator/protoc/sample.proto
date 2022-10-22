@@ -22,7 +22,7 @@ message GetFilmByIdResponse {
 }
 
 message QueryFilmsRequest {
-
+  optional QueryExpression query = 1;
 }
 
 message QueryFilmsResponse {
@@ -35,3 +35,20 @@ message Film {
   optional string rental_rate = 3;
   string release_year = 4;
 }
+
+message QueryExpression {
+  optional string filter = 1;
+  repeated SortOptions order_by = 2;
+  uint32 limit = 3;
+  uint32 skip = 4;
+}
+
+message SortOptions {
+  enum SortDirection {
+    asc = 0;
+    desc = 1;
+  }
+  string field_name = 1;
+  SortDirection direction = 3;
+}
+

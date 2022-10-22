@@ -43,17 +43,10 @@ impl ProtoGenerator<'_> {
 
     pub fn generate_proto(&self) -> anyhow::Result<(String, HashMap<String, GrpcType>)> {
         let meta_data = self.proto_service.get_grpc_metadata()?;
-        // let tmp_dir = TempDir::new("generated")?;
-        // let temp_dir_path = tmp_dir.path().to_str();
         let mut output_file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(format!("proto_build/{}.proto", self.schema_name.to_owned()))
-            // .open(
-            //     tmp_dir
-            //         .path()
-            //         .join(format!("{}.proto", self.schema_name.to_owned())),
-            // )
             .expect("Couldn't open file");
         let result = self.handlebars.render("main", &meta_data)?;
         self.handlebars
