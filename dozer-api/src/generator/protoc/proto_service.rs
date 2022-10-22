@@ -1,4 +1,4 @@
-use std::vec;
+use std::{collections::HashMap, vec};
 
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use heck::ToPascalCase;
@@ -17,6 +17,7 @@ pub struct ProtoMetadata {
     service_name: String,
     rpc_functions: Vec<RPCFunction>,
     messages: Vec<RPCMessage>,
+    pub functions_with_type: HashMap<String, GrpcType>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RPCFunction {
@@ -28,6 +29,12 @@ pub struct RPCFunction {
 pub struct RPCMessage {
     name: String,
     props: Vec<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum GrpcType {
+    List,
+    GetById,
+    Query,
 }
 
 impl ProtoService {
@@ -54,7 +61,7 @@ impl ProtoService {
             self.endpoint.name.to_owned().to_pascal_case()
         );
         let get_fnc = RPCFunction {
-            name: self.endpoint.name.to_owned().to_pascal_case(),
+            name: self.endpoint.name.to_owned(),
             argument: get_request_str.to_owned(),
             response: get_response_str.to_owned(),
         };
@@ -87,9 +94,14 @@ impl ProtoService {
             argument: get_by_id_req_str.to_owned(),
             response: get_by_id_res_str.to_owned(),
         };
+        //let proto_type = convert_dozer_type_to_proto_type(field.typ.to_owned()).unwrap();
+        let primary_idx = self.schema.primary_index.first().unwrap().to_owned();
+        let primary_type = &self.schema.fields[primary_idx];
+        let primary_proto_type =
+            convert_dozer_type_to_proto_type(primary_type.typ.to_owned()).unwrap();
         let get_by_id_request_model = RPCMessage {
             name: get_by_id_req_str.to_owned(),
-            props: vec!["string id = 1;\n".to_owned()],
+            props: vec![format!("{} id = 1;\n", primary_proto_type)],
         };
 
         let get_by_id_response_model = RPCMessage {
@@ -160,26 +172,37 @@ impl ProtoService {
         Ok(main_model_message)
     }
 
-    pub fn get_rpc_metadata(&self) -> anyhow::Result<ProtoMetadata> {
-        let package_name = format!("Dozer{}", self.endpoint.name.to_owned().to_pascal_case());
-        let service_name = format!("{}Service", self.endpoint.name.to_owned().to_pascal_case());
-
+    pub fn get_grpc_metadata(&self) -> anyhow::Result<ProtoMetadata> {
+        // let package_name = format!("Dozer{}", self.endpoint.name.to_owned().to_pascal_case());
+        // let service_name = format!("{}Service", self.endpoint.name.to_owned().to_pascal_case());
+        let package_name = "Dozer".to_owned();
+        let service_name = "Service".to_owned();
         let get_rpc = self._get_message()?;
         let get_by_id_rpc = self._get_by_id_message()?;
         let query_rpc = self._query_message()?;
         let main_model = self._main_model()?;
 
-        let rpc_functions = vec![get_rpc.0, get_by_id_rpc.0, query_rpc.0];
+        let rpc_functions = vec![
+            get_rpc.to_owned().0,
+            get_by_id_rpc.to_owned().0,
+            query_rpc.to_owned().0,
+        ];
         let mut rpc_message = vec![main_model];
-        rpc_message.extend(get_rpc.1);
-        rpc_message.extend(get_by_id_rpc.1);
-        rpc_message.extend(query_rpc.1);
+        rpc_message.extend(get_rpc.to_owned().1);
+        rpc_message.extend(get_by_id_rpc.to_owned().1);
+        rpc_message.extend(query_rpc.to_owned().1);
+        let mut function_with_type = HashMap::new();
+
+        function_with_type.insert(get_rpc.to_owned().0.name, GrpcType::List);
+        function_with_type.insert(get_by_id_rpc.to_owned().0.name, GrpcType::GetById);
+        function_with_type.insert(query_rpc.to_owned().0.name, GrpcType::Query);
 
         let metadata = ProtoMetadata {
             package_name,
             service_name,
             rpc_functions,
             messages: rpc_message,
+            functions_with_type: function_with_type,
         };
 
         Ok(metadata)

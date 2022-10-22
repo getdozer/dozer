@@ -51,6 +51,7 @@ impl ApiServer {
                 .route(&get_route, web::get().to(api_helper::get))
                 .route(&query_route, web::post().to(api_helper::query))
                 .route("oapi", web::post().to(api_helper::generate_oapi))
+                .route("proto", web::post().to(api_helper::generate_proto))
         });
         app
     }

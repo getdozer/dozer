@@ -4,12 +4,11 @@ service {{service_name}} {
   {{#each rpc_functions}}
 
   rpc {{name}}({{argument}}) returns ({{response}});
-
   {{~/each}}
    
 }
-
 {{#each messages}}
+
 
 message {{name}} {
  {{#each props}}
@@ -18,5 +17,3 @@ message {{name}} {
 }
 
 {{~/each}}
-
-

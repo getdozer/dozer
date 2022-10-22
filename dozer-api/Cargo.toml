@@ -22,3 +22,18 @@ structopt = "0.3.26"
 heck = "0.4.0"
 openapiv3 = "1.0.1"
 indexmap = "1.9.1"
+tonic-build = "0.8.2"
+tonic-web = "0.4.0"
+prost-wkt = "0.3.3"
+prost-wkt-types = "0.3.3"
+tokio = { version = "1", features = ["full"] }
+tonic = {version = "0.8.2"}
+bytes = "1.2.1"
+async-trait = "0.1.57"
+prost = "0.11.0"
+prost-derive = "0.11.0"
+prost-reflect = { version = "0.9.2", features = ["serde", "text-format"] } 
+prost-build = "0.11.1"
+prost-types = "0.11.1"
+prost-reflect-build = "0.9.0"
+tonic-reflection = "0.5.0"

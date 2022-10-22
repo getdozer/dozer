@@ -1,16 +1,18 @@
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
-use anyhow::Context;
 use dozer_cache::cache::{
     expression::{FilterExpression, QueryExpression},
-    index,
     query_helper::value_to_expression,
     Cache, LmdbCache,
 };
-use dozer_types::{json_value_to_field, models::api_endpoint::ApiEndpoint, record_to_json};
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use crate::{generator::oapi::generator::OpenApiGenerator, rest_error::RestError};
+use crate::{
+    common_query::{get_record, get_records},
+    generator::{oapi::generator::OpenApiGenerator, protoc::generator::ProtoGenerator},
+    rest_error::RestError,
+};
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(
@@ -35,6 +37,38 @@ pub async fn generate_oapi(
 
     match oapi_generator.generate_oas3() {
         Ok(result) => Ok(HttpResponse::Ok().json(result)),
+        Err(e) => {
+            let error = RestError::Unknown {
+                message: Some(e.to_string()),
+                details: None,
+            };
+            Ok(HttpResponse::UnprocessableEntity().json(error))
+        }
+    }
+}
+
+/// Generated function to return proto documentation.
+pub async fn generate_proto(
+    app_data: web::Data<(Arc<LmdbCache>, Vec<ApiEndpoint>)>,
+) -> Result<HttpResponse, RestError> {
+    let cache = app_data.0.to_owned();
+    let endpoints = app_data.1.to_owned();
+    let schema_by_name =
+        cache
+            .get_schema_by_name(&endpoints[0].name)
+            .map_err(|e| RestError::Validation {
+                message: Some(e.to_string()),
+                details: None,
+            })?;
+    let schema_name = endpoints[0].clone().name;
+    let proto_generator = ProtoGenerator::new(schema_by_name, schema_name, endpoints[0].clone())
+        .map_err(|e| RestError::Validation {
+            message: Some(e.to_string()),
+            details: None,
+        })?;
+
+    match proto_generator.generate_proto() {
+        Ok(result) => Ok(HttpResponse::Ok().body(result.0)),
         Err(e) => {
             let error = RestError::Unknown {
                 message: Some(e.to_string()),
@@ -105,38 +139,4 @@ pub async fn query(
             .content_type(ContentType::json())
             .body("[]")),
     }
-}
-
-/// Get a single record
-fn get_record(cache: Arc<LmdbCache>, key: Value) -> anyhow::Result<HashMap<String, Value>> {
-    let key = match json_value_to_field(key) {
-        Ok(key) => key,
-        Err(e) => {
-            panic!("error : {:?}", e);
-        }
-    };
-    let key = index::get_primary_key(&[0], &[key]);
-    let rec = cache.get(&key).context("record not found")?;
-    let schema = cache.get_schema(&rec.schema_id.to_owned().context("schema_id not found")?)?;
-    record_to_json(&rec, &schema)
-}
-
-/// Get multiple records
-fn get_records(
-    cache: Arc<LmdbCache>,
-    exp: QueryExpression,
-) -> anyhow::Result<Vec<HashMap<String, Value>>> {
-    let records = cache.query("films", &exp)?;
-    let schema = cache.get_schema(
-        &records[0]
-            .schema_id
-            .to_owned()
-            .context("schema_id not found")?,
-    )?;
-    let mut maps = vec![];
-    for rec in records.iter() {
-        let map = record_to_json(rec, &schema)?;
-        maps.push(map);
-    }
-    Ok(maps)
 }

@@ -1,3 +1,3 @@
 pub mod generator;
-mod proto_service;
+pub mod proto_service;
 mod util;

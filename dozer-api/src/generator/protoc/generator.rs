@@ -1,6 +1,6 @@
-use std::fs::File;
+use std::collections::HashMap;
 
-use super::proto_service::ProtoService;
+use super::proto_service::{GrpcType, ProtoService};
 use anyhow::Context;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use handlebars::Handlebars;
@@ -8,6 +8,7 @@ use handlebars::Handlebars;
 pub struct ProtoGenerator<'a> {
     proto_service: ProtoService,
     handlebars: Handlebars<'a>,
+    schema_name: String,
 }
 
 impl ProtoGenerator<'_> {
@@ -24,6 +25,7 @@ impl ProtoGenerator<'_> {
         let mut proto_generator = Self {
             handlebars: Handlebars::new(),
             proto_service,
+            schema_name,
         };
         proto_generator
             .register_template()
@@ -39,11 +41,23 @@ impl ProtoGenerator<'_> {
         Ok(())
     }
 
-    pub fn generate_proto(&self, path: String) -> anyhow::Result<()> {
-        let mut output_file = File::create(&path)?;
-        let meta_data = self.proto_service.get_rpc_metadata()?;
+    pub fn generate_proto(&self) -> anyhow::Result<(String, HashMap<String, GrpcType>)> {
+        let meta_data = self.proto_service.get_grpc_metadata()?;
+        // let tmp_dir = TempDir::new("generated")?;
+        // let temp_dir_path = tmp_dir.path().to_str();
+        let mut output_file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(format!("proto_build/{}.proto", self.schema_name.to_owned()))
+            // .open(
+            //     tmp_dir
+            //         .path()
+            //         .join(format!("{}.proto", self.schema_name.to_owned())),
+            // )
+            .expect("Couldn't open file");
+        let result = self.handlebars.render("main", &meta_data)?;
         self.handlebars
             .render_to_write("main", &meta_data, &mut output_file)?;
-        Ok(())
+        Ok((result, meta_data.functions_with_type))
     }
 }
