@@ -7,6 +7,7 @@ use dozer_types::record_to_json;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, FieldType};
+use std::ops::Deref;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::api_server::PipelineDetails;
@@ -55,9 +56,10 @@ pub async fn get(
     cache: web::Data<Arc<LmdbCache>>,
 ) -> impl Responder {
     let key = path.into_inner();
-
+    let unwrap_cache = cache.into_inner();
+    let cache = unwrap_cache.deref();
     if let Some(details) = pipeline_details {
-        match get_record(&details.schema_name, cache, key) {
+        match get_record(&details.schema_name, cache.to_owned(), key) {
             Ok(map) => {
                 let str = serde_json::to_string(&map).unwrap();
                 HttpResponse::Ok().body(str)
@@ -75,8 +77,10 @@ pub async fn list(
     cache: web::Data<Arc<LmdbCache>>,
 ) -> impl Responder {
     if let Some(details) = pipeline_details {
+        let unwrap_cache = cache.into_inner();
+        let cache = unwrap_cache.deref();
         let exp = QueryExpression::new(None, vec![], 50, 0);
-        let records = get_records(&details.schema_name, cache, exp);
+        let records = get_records(&details.schema_name, cache.to_owned(), exp);
 
         match records {
             Ok(maps) => HttpResponse::Ok().json(maps),
@@ -95,6 +99,8 @@ pub async fn query(
     query_info: web::Json<Value>,
     cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, RestError> {
+    let unwrap_cache = cache.into_inner();
+    let cache = unwrap_cache.deref();
     if let Some(details) = pipeline_details {
         let query_expression =
             serde_json::from_value::<QueryExpression>(query_info.0).map_err(|e| {
@@ -103,7 +109,7 @@ pub async fn query(
                     details: None,
                 }
             })?;
-        let records = get_records(&details.schema_name, cache, query_expression);
+        let records = get_records(&details.schema_name, cache.to_owned(), query_expression);
 
         match records {
             Ok(maps) => {
@@ -120,9 +126,9 @@ pub async fn query(
 }
 
 /// Get a single record
-fn get_record(
+pub fn get_record(
     schema_name: &str,
-    cache: web::Data<Arc<LmdbCache>>,
+    cache: Arc<LmdbCache>,
     key: String,
 ) -> anyhow::Result<HashMap<String, String>> {
     let schema = cache.get_schema_by_name(schema_name)?;
@@ -147,9 +153,9 @@ fn get_record(
 }
 
 /// Get multiple records
-fn get_records(
+pub fn get_records(
     schema_name: &str,
-    cache: web::Data<Arc<LmdbCache>>,
+    cache: Arc<LmdbCache>,
     exp: QueryExpression,
 ) -> anyhow::Result<Vec<HashMap<String, String>>> {
     let records = cache.query(schema_name, &exp)?;

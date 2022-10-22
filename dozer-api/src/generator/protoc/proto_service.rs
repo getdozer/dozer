@@ -1,8 +1,10 @@
 use std::{collections::HashMap, vec};
 
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::{
+    models::api_endpoint::ApiEndpoint,
+    serde::{self, Deserialize, Serialize},
+};
 use heck::ToPascalCase;
-use serde::{Deserialize, Serialize};
 
 use super::util::convert_dozer_type_to_proto_type;
 
@@ -12,6 +14,7 @@ pub struct ProtoService {
     endpoint: ApiEndpoint,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub struct ProtoMetadata {
     package_name: String,
     service_name: String,
@@ -20,17 +23,20 @@ pub struct ProtoMetadata {
     pub functions_with_type: HashMap<String, GrpcType>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub struct RPCFunction {
     name: String,
     argument: String,
     response: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub struct RPCMessage {
     name: String,
     props: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 pub enum GrpcType {
     List,
     GetById,

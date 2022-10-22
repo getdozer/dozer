@@ -1,13 +1,14 @@
 use bytes::Buf;
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
-use serde_json::de::Deserializer;
-use serde_json::Value;
+use dozer_types::serde_json::{Value, de::Deserializer};
+
 use tonic::{
     codec::{Codec, Decoder, Encoder},
     Code, Status,
 };
-use crate::proto_util::get_proto_descriptor;
+
+use super::proto_util::get_proto_descriptor;
 
 pub struct MyCodec {
     request_name: String,

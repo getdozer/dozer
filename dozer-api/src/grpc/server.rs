@@ -8,13 +8,14 @@ use crate::{
         services::{GetByIdService, ListService, QueryService},
         util::get_method_by_name,
     },
-    proto_util::get_proto_descriptor,
 };
 use dozer_cache::cache::LmdbCache;
 use prost_reflect::DescriptorPool;
 use tonic::{
     codegen::{self, *},
 };
+
+use super::proto_util::get_proto_descriptor;
 /// The greeting service definition.
 pub struct GRPCServer {
     accept_compression_encodings: EnabledCompressionEncodings,
@@ -23,12 +24,14 @@ pub struct GRPCServer {
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
     cache: Arc<LmdbCache>,
+    schema_name: String
 }
 impl GRPCServer {
     pub fn new(
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
         cache: Arc<LmdbCache>,
+        schema_name: String,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
         return GRPCServer {
@@ -38,6 +41,7 @@ impl GRPCServer {
             descriptor,
             function_types,
             cache,
+            schema_name
         };
     }
     // pub fn with_interceptor<F>(
@@ -89,6 +93,7 @@ where
             );
             let method_type = &self.function_types[method_name];
             let cache = self.cache.to_owned();
+            let schema_name = self.schema_name.to_owned();
             #[allow(non_camel_case_types)]
             let accept_compression_encodings = self.accept_compression_encodings;
             let send_compression_encodings = self.send_compression_encodings;
@@ -98,7 +103,8 @@ where
             match method_type {
                 GrpcType::GetById => {
                     let method = GetByIdService {
-                        cache: cache.to_owned(),
+                        cache,
+                        schema_name
                     };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
@@ -107,7 +113,7 @@ where
                     return Box::pin(fut);
                 }
                 GrpcType::Query => {
-                    let method = QueryService { cache };
+                    let method = QueryService { cache, schema_name };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
                         Ok(res)
@@ -115,7 +121,7 @@ where
                     return Box::pin(fut);
                 }
                 GrpcType::List => {
-                    let method = ListService { cache };
+                    let method = ListService { cache, schema_name };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
                         Ok(res)
@@ -144,6 +150,7 @@ impl Clone for GRPCServer {
             descriptor: self.descriptor.to_owned(),
             function_types: self.function_types.to_owned(),
             cache: self.cache.to_owned(),
+            schema_name: self.schema_name.to_owned()
         }
     }
 }
