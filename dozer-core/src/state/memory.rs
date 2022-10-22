@@ -38,7 +38,7 @@ impl StateStore for MemoryStateStore {
         Ok(self.data.get(key).map(|e| e.as_slice()))
     }
 
-    fn del(&mut self, key: &[u8]) -> Result<(), DatabaseError> {
+    fn del(&mut self, key: &[u8], _value: Option<&[u8]>) -> Result<(), DatabaseError> {
         self.data.remove(key);
         Ok(())
     }

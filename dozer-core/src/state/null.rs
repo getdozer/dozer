@@ -21,7 +21,7 @@ impl StateStore for NullStateStore {
         Err(InvalidOperation("GET".to_string()))
     }
 
-    fn del(&mut self, _key: &[u8]) -> Result<(), DatabaseError> {
+    fn del(&mut self, _key: &[u8], _value: Option<&[u8]>) -> Result<(), DatabaseError> {
         Err(InvalidOperation("DEL".to_string()))
     }
 

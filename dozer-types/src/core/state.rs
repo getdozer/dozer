@@ -26,7 +26,7 @@ pub trait StateStore {
     fn commit(&mut self) -> Result<(), DatabaseError>;
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), DatabaseError>;
     fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, DatabaseError>;
-    fn del(&mut self, key: &[u8]) -> Result<(), DatabaseError>;
+    fn del(&mut self, key: &[u8], value: Option<&[u8]>) -> Result<(), DatabaseError>;
     fn cursor(&mut self) -> Result<Box<dyn StateStoreCursor>, DatabaseError>;
 }
 
