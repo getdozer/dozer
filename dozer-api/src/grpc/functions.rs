@@ -6,6 +6,8 @@ use std::sync::Arc;
 use tonic::{Code, Request, Response, Status};
 
 use crate::api_helper::{get_record, get_records};
+
+use super::util::convert_grpc_message_to_query_exp;
 pub async fn grpc_list(
     schema_name: String,
     cache: Arc<LmdbCache>,
@@ -58,10 +60,13 @@ pub async fn grpc_query(
     cache: Arc<LmdbCache>,
     request: Request<DynamicMessage>,
 ) -> Result<Response<Value>, Status> {
-    let _dynamic_message = request.into_inner();
-    let exp = QueryExpression::new(None, vec![], 50, 0);
-    let result = get_records(&schema_name, cache, exp).unwrap();
-    let value_json = serde_json::to_value(result).unwrap();
+    let dynamic_message = request.into_inner();
+    let exp = convert_grpc_message_to_query_exp(dynamic_message)?;
+    let result = get_records(&schema_name, cache, exp)
+        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
+
+    let value_json =
+        serde_json::to_value(result).map_err(|err| Status::new(Code::Internal, err.to_string()))?;
     // wrap to object
     let mut result_json: Map<String, Value> = Map::new();
     result_json.insert("films".to_owned(), value_json);

@@ -139,7 +139,12 @@ impl ProtoService {
         };
         let query_request = RPCMessage {
             name: query_request_str,
-            props: vec!["optional QueryExpression query = 1;".to_owned()],
+            props: vec![
+                "optional string filter = 1; \n".to_owned(),
+                "repeated SortOptions order_by = 2; \n".to_owned(),
+                "optional uint32 limit = 3; \n".to_owned(),
+                "optional uint32 skip = 4; \n".to_owned(),
+            ],
         };
 
         let query_response = RPCMessage {
@@ -151,19 +156,6 @@ impl ProtoService {
             )],
         };
         Ok((query_fnc, vec![query_request, query_response]))
-    }
-
-    fn _query_expression_model(&self) -> anyhow::Result<RPCMessage> {
-        let model_message = RPCMessage {
-            name: "QueryExpression".to_owned(),
-            props: vec![
-                "optional string filter = 1; \n".to_owned(),
-                "repeated SortOptions order_by = 2; \n".to_owned(),
-                "uint32 limit = 3; \n".to_owned(),
-                "uint32 skip = 4; \n".to_owned(),
-            ],
-        };
-        Ok(model_message)
     }
 
     fn _sort_option_model(&self) -> anyhow::Result<RPCMessage> {
@@ -211,7 +203,6 @@ impl ProtoService {
         let get_by_id_rpc = self._get_by_id_message()?;
         let query_rpc = self._query_message()?;
         let main_model = self._main_model()?;
-        let query_exp_model = self._query_expression_model()?;
         let sort_exp_model = self._sort_option_model()?;
 
         let rpc_functions = vec![
@@ -219,7 +210,7 @@ impl ProtoService {
             get_by_id_rpc.to_owned().0,
             query_rpc.to_owned().0,
         ];
-        let mut rpc_message = vec![main_model, query_exp_model, sort_exp_model];
+        let mut rpc_message = vec![main_model, sort_exp_model];
         rpc_message.extend(get_rpc.to_owned().1);
         rpc_message.extend(get_by_id_rpc.to_owned().1);
         rpc_message.extend(query_rpc.to_owned().1);

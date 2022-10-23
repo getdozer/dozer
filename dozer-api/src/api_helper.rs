@@ -159,6 +159,9 @@ pub fn get_records(
     exp: QueryExpression,
 ) -> anyhow::Result<Vec<HashMap<String, String>>> {
     let records = cache.query(schema_name, &exp)?;
+    if records.is_empty() {
+        return Ok(vec![]);
+    }
     let schema = cache.get_schema(
         &records[0]
             .schema_id

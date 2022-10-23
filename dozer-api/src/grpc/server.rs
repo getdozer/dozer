@@ -1,6 +1,5 @@
 #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-use std::collections::HashMap;
-
+use super::util::get_proto_descriptor;
 use crate::{
     generator::protoc::proto_service::GrpcType,
     grpc::{
@@ -11,10 +10,8 @@ use crate::{
 };
 use dozer_cache::cache::LmdbCache;
 use prost_reflect::DescriptorPool;
+use std::collections::HashMap;
 use tonic::codegen::{self, *};
-
-use super::proto_util::get_proto_descriptor;
-/// The greeting service definition.
 #[derive(Clone)]
 pub struct GRPCServer {
     accept_compression_encodings: EnabledCompressionEncodings,

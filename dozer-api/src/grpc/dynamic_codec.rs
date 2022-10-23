@@ -1,14 +1,12 @@
+use super::util::get_proto_descriptor;
 use bytes::Buf;
 use dozer_types::serde_json::{de::Deserializer, Value};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
-
 use tonic::{
     codec::{Codec, Decoder, Encoder},
     Code, Status,
 };
-
-use super::proto_util::get_proto_descriptor;
 
 pub struct DynamicCodec {
     descriptor_pool: DescriptorPool,
@@ -31,38 +29,38 @@ impl Codec for DynamicCodec {
 
     type Decode = DynamicMessage;
 
-    type Encoder = MyEncoder;
+    type Encoder = DynamicEncoder;
 
-    type Decoder = MyDecoder;
+    type Decoder = DynamicDecoder;
 
     fn encoder(&mut self) -> Self::Encoder {
-        MyEncoder {
+        DynamicEncoder {
             descriptor_pool: self.descriptor_pool.to_owned(),
             message_name: self.response_name.to_owned(),
         }
     }
 
     fn decoder(&mut self) -> Self::Decoder {
-        MyDecoder {
+        DynamicDecoder {
             descriptor_pool: self.descriptor_pool.to_owned(),
             message_name: self.request_name.to_owned(),
         }
     }
 }
 
-pub struct MyEncoder {
+pub struct DynamicEncoder {
     descriptor_pool: DescriptorPool,
     message_name: String,
 }
 
-impl MyEncoder {
+impl DynamicEncoder {
     fn _get_message_descriptor(&self) -> Result<MessageDescriptor, Status> {
         self.descriptor_pool
             .get_message_by_name(&self.message_name)
             .ok_or_else(|| Status::internal("Cannot ".to_owned()))
     }
 }
-impl Encoder for MyEncoder {
+impl Encoder for DynamicEncoder {
     type Item = Value;
     type Error = Status;
 
@@ -97,12 +95,12 @@ impl Encoder for MyEncoder {
     }
 }
 
-pub struct MyDecoder {
+pub struct DynamicDecoder {
     descriptor_pool: DescriptorPool,
     message_name: String,
 }
 
-impl MyDecoder {
+impl DynamicDecoder {
     fn _get_message_descriptor(&self) -> Result<MessageDescriptor, Status> {
         self.descriptor_pool
             .get_message_by_name(&self.message_name)
@@ -110,7 +108,7 @@ impl MyDecoder {
     }
 }
 
-impl Decoder for MyDecoder {
+impl Decoder for DynamicDecoder {
     type Item = DynamicMessage;
     type Error = Status;
     fn decode(
@@ -119,7 +117,6 @@ impl Decoder for MyDecoder {
     ) -> Result<Option<Self::Item>, Self::Error> {
         let buf = src.chunk();
         let length = buf.len();
-
         let descriptor = self._get_message_descriptor()?;
         let dynamic_message = DynamicMessage::decode(descriptor, buf)
             .map(Option::Some)
