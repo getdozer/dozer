@@ -1,5 +1,7 @@
 mod registry;
 mod storage;
+
+use dozer_types::log4rs;
 use registry::_serve;
 use storage::RocksConfig;
 

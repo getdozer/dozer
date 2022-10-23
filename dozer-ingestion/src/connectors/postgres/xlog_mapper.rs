@@ -1,7 +1,7 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
-use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
 use dozer_types::log::debug;
+use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
@@ -150,7 +150,7 @@ impl XlogMapper {
                                 id: table.rel_id as u32,
                                 version: table.rel_id as u16,
                             }),
-                            values: old_values,
+                            old_values,
                         ),
                         new: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {

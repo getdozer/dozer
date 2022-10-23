@@ -13,6 +13,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
+use tokio_postgres::Error;
 
 pub struct CDCHandler {
     pub conn_str: String,
