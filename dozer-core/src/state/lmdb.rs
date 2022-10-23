@@ -93,8 +93,8 @@ impl StateStore for LmdbStateStore {
         Ok(())
     }
 
-    fn del(&mut self, key: &[u8]) -> Result<(), DatabaseError> {
-        internal_err!(self.db.del(&self.tx, key, None))?;
+    fn del(&mut self, key: &[u8], value: Option<&[u8]>) -> Result<(), DatabaseError> {
+        internal_err!(self.db.del(&self.tx, key, value))?;
         Ok(())
     }
 

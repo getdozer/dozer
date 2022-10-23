@@ -2,5 +2,6 @@ mod aggregation;
 pub mod builder;
 mod expression;
 mod processor;
-mod state;
+
+#[cfg(test)]
 mod tests;

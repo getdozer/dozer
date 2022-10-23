@@ -276,7 +276,7 @@ impl AggregationProcessor {
         if prev_count > 0 {
             store.put(record_key.as_slice(), new_state.as_slice())?;
         } else {
-            store.del(record_key.as_slice())?
+            store.del(record_key.as_slice(), None)?
         }
         Ok(res)
     }
