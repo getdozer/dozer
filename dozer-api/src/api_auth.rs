@@ -1,5 +1,3 @@
-use anyhow::bail;
-
 use dozer_cache::cache::expression::FilterExpression;
 use dozer_types::serde;
 use jsonwebtoken::{
@@ -8,6 +6,8 @@ use jsonwebtoken::{
 };
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use crate::errors::ApiAuthError;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
@@ -76,7 +76,7 @@ impl<'a> ApiAuth<'a> {
         &self,
         access: Access,
         dur: Option<Duration>,
-    ) -> Result<String, jsonwebtoken::errors::Error> {
+    ) -> Result<String, ApiAuthError> {
         let exp = Self::get_expiry(dur);
 
         let my_claims = Claims {
@@ -91,20 +91,21 @@ impl<'a> ApiAuth<'a> {
             &my_claims,
             &EncodingKey::from_secret(self.secret),
         )
+        .map_err(|e| ApiAuthError::InternalError(Box::new(e)))
     }
 
-    pub fn validate_token(&self, token: String) -> anyhow::Result<TokenData<Claims>> {
+    pub fn validate_token(&self, token: String) -> Result<TokenData<Claims>, ApiAuthError> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.sub = Some(self.sub.to_owned());
         validation.set_audience(&[self.aud.to_owned()]);
 
         match decode::<Claims>(&token, &DecodingKey::from_secret(self.secret), &validation) {
             Ok(c) => Ok(c),
-            Err(err) => match *err.kind() {
-                ErrorKind::InvalidToken => bail!("Token is invalid"),
-                ErrorKind::InvalidIssuer => bail!("Issuer is invalid"),
-                _ => bail!("Error in decoding token"),
-            },
+            Err(err) => Err(match *err.kind() {
+                ErrorKind::InvalidToken => ApiAuthError::InvalidToken,
+                ErrorKind::InvalidIssuer => ApiAuthError::InvalidIssuer,
+                _ => ApiAuthError::InternalError(Box::new(err)),
+            }),
         }
     }
 }
@@ -117,16 +118,14 @@ mod tests {
     use super::ApiAuth;
 
     #[test]
-    fn generate_and_verify_claim() -> anyhow::Result<()> {
+    fn generate_and_verify_claim() {
         let auth_utils = ApiAuth::new(b"secret", None, None);
 
-        let token = auth_utils.generate_token(Access::All, None)?;
+        let token = auth_utils.generate_token(Access::All, None).unwrap();
 
         println!("{:?}", token);
 
-        let token_data = auth_utils.validate_token(token)?;
+        let token_data = auth_utils.validate_token(token).unwrap();
         assert_eq!(token_data.claims.access, Access::All, "must be equal");
-
-        Ok(())
     }
 }

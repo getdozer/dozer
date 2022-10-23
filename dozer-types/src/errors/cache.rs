@@ -5,6 +5,7 @@ use thiserror;
 use thiserror::Error;
 
 use super::internal::BoxedError;
+use super::types::TypeError;
 
 #[derive(Error, Debug)]
 pub enum CacheError {
@@ -16,12 +17,33 @@ pub enum CacheError {
     QueryError(#[from] QueryError),
     #[error(transparent)]
     IndexError(#[from] IndexError),
-    #[error("Failed to serialize")]
-    SerializationError,
-    #[error("Failed to deserialize")]
-    DeserializationError,
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
+}
+
+impl CacheError {
+    pub fn map_serialization_error(e: bincode::Error) -> CacheError {
+        CacheError::TypeError(TypeError::SerializationError(
+            super::types::SerializationError::Bincode(e),
+        ))
+    }
+    pub fn map_deserialization_error(e: bincode::Error) -> CacheError {
+        CacheError::TypeError(TypeError::DeserializationError(
+            super::types::DeserializationError::Bincode(e),
+        ))
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum QueryError {
+    #[error("Failed to get value")]
+    GetValue,
+    #[error("Failed to insert value")]
+    InsertValue,
+    #[error("Field not found")]
+    FieldNotFound,
 }
 
 #[derive(Error, Debug)]
@@ -42,16 +64,6 @@ pub enum IndexError {
     UnsupportedMultiRangeIndex,
     #[error("Compound_index is required for fields: {0}")]
     MissingCompoundIndex(String),
-}
-
-#[derive(Error, Debug)]
-pub enum QueryError {
-    #[error("Failed to get value")]
-    GetValue,
-    #[error("Failed to insert value")]
-    InsertValue,
-    #[error("Field not found")]
-    FieldNotFound,
 }
 
 #[derive(Error, Debug)]

@@ -11,7 +11,7 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{api_helper, api_validator};
+use crate::{api_generator, api_validator};
 
 #[derive(Clone)]
 pub struct PipelineDetails {
@@ -100,10 +100,10 @@ impl ApiServer {
                         });
                         srv.call(req)
                     })
-                    .route("/query", web::post().to(api_helper::query))
-                    .route("/oapi", web::post().to(api_helper::generate_oapi))
-                    .route("/{id}", web::get().to(api_helper::get))
-                    .route("", web::get().to(api_helper::list)),
+                    .route("/query", web::post().to(api_generator::query))
+                    .route("/oapi", web::post().to(api_generator::generate_oapi))
+                    .route("/{id}", web::get().to(api_generator::get))
+                    .route("", web::get().to(api_generator::list)),
             )
         });
         // Conditionally enable auth based on endpoint

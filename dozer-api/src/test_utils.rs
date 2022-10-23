@@ -84,7 +84,7 @@ pub fn get_films() -> Vec<Value> {
     ]
 }
 
-pub fn initialize_cache(schema_name: &str) -> anyhow::Result<Arc<LmdbCache>> {
+pub fn initialize_cache(schema_name: &str) -> Arc<LmdbCache> {
     let cache = Arc::new(LmdbCache::new(true));
     let schema: dozer_types::types::Schema = get_schema();
     let records_value: Vec<Value> = get_films();
@@ -104,9 +104,9 @@ pub fn initialize_cache(schema_name: &str) -> anyhow::Result<Arc<LmdbCache>> {
                     Field::Int(release_year),
                 ],
             );
-            cache.insert_schema(schema_name, &schema)?;
-            cache.insert(&record)?;
+            cache.insert_schema(schema_name, &schema).unwrap();
+            cache.insert(&record).unwrap();
         }
     }
-    Ok(cache)
+    cache
 }
