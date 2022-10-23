@@ -290,12 +290,13 @@ impl PostgresIteratorHandler {
         let publication_name = self.details.publication_name.clone();
         let slot_name = self.details.slot_name.clone();
         rt.block_on(async {
-            let replicator = CDCHandler {
+            let mut replicator = CDCHandler {
                 conn_str: self.details.conn_str.clone(),
                 ingestor,
                 lsn,
                 publication_name,
                 slot_name,
+                last_commit_lsn: 0,
             };
             replicator.start().await
         })
