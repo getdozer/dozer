@@ -1,6 +1,5 @@
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression, SortOptions};
-use dozer_types::serde_json::Value;
-use dozer_types::serde_json::{self, json};
+use dozer_types::serde_json::{self, json, Value};
 use prost_reflect::{DescriptorPool, DynamicMessage, MethodDescriptor, SerializeOptions};
 use std::{
     fs::File,
@@ -80,12 +79,6 @@ pub fn create_descriptor_set(proto_path: &str) -> anyhow::Result<String> {
     let my_path_descriptor = "proto_build/file_descriptor_set.bin".to_owned();
     let mut prost_build_config = prost_build::Config::new();
     prost_build_config.out_dir(my_path.to_owned());
-    // Builder::new()
-    //     .file_descriptor_set_path(my_path_descriptor.to_owned())
-
-    //     .compile_protos_with_config(prost_build_config, &["proto_build/helloworld.proto"], &["proto_build/"])
-    //     .expect("Failed to compile protos");
-
     let mut prost_build_config2 = prost_build::Config::new();
     prost_build_config2.out_dir(my_path.to_owned());
     tonic_build::configure()
