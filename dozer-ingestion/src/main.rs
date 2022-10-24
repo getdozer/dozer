@@ -4,9 +4,9 @@ use dozer_ingestion::connectors::storage::{RocksConfig, RocksStorage, Storage};
 use crate::cli::{load_config, save_config, Args, Config, SubCommand};
 use clap::Parser;
 use dozer_ingestion::{get_connector, get_seq_resolver};
+use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication::PostgresAuthentication;
 use dozer_types::models::connection::{Connection, DBType};
-use dozer_types::log::debug;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
