@@ -99,14 +99,15 @@ impl ProtoService {
             argument: get_by_id_req_str.to_owned(),
             response: get_by_id_res_str.to_owned(),
         };
-        //let proto_type = convert_dozer_type_to_proto_type(field.typ.to_owned()).unwrap();
+
         let primary_idx = self.schema.primary_index.first().unwrap().to_owned();
         let primary_type = &self.schema.fields[primary_idx];
         let primary_proto_type =
             convert_dozer_type_to_proto_type(primary_type.typ.to_owned()).unwrap();
+        let primary_field = primary_type.name.to_owned();
         let get_by_id_request_model = RPCMessage {
             name: get_by_id_req_str,
-            props: vec![format!("{} id = 1;\n", primary_proto_type)],
+            props: vec![format!("{} {} = 1;\n", primary_proto_type, primary_field)],
         };
 
         let get_by_id_response_model = RPCMessage {
