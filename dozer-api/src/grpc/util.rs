@@ -82,19 +82,19 @@ pub fn read_file_as_byte(path: String) -> anyhow::Result<Vec<u8>> {
     Ok(buffer)
 }
 
-pub fn create_descriptor_set(proto_path: &str) -> anyhow::Result<String> {
-    let my_path = "proto_build".to_owned();
-    let my_path_descriptor = "proto_build/file_descriptor_set.bin".to_owned();
+pub fn create_descriptor_set(proto_folder: &str, proto_file_name: &str) -> anyhow::Result<String> {
+    let proto_file_path = format!("{}/{}", proto_folder.to_owned(), proto_file_name.to_owned());
+    let my_path_descriptor = format!("{}/file_descriptor_set.bin", proto_folder.to_owned());
     let mut prost_build_config = prost_build::Config::new();
-    prost_build_config.out_dir(my_path.to_owned());
+    prost_build_config.out_dir(proto_folder.to_owned());
     let mut prost_build_config2 = prost_build::Config::new();
-    prost_build_config2.out_dir(my_path.to_owned());
+    prost_build_config2.out_dir(proto_folder.to_owned());
     tonic_build::configure()
         .file_descriptor_set_path(&my_path_descriptor)
         .disable_package_emission()
         .build_client(false)
         .build_server(false)
-        .out_dir(&my_path)
-        .compile_with_config(prost_build_config2, &[proto_path], &["proto_build/"])?;
+        .out_dir(&proto_folder)
+        .compile_with_config(prost_build_config2, &[proto_file_path], &[proto_folder])?;
     Ok(my_path_descriptor)
 }

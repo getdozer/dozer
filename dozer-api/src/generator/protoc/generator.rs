@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use super::proto_service::{GrpcType, ProtoService};
-use anyhow::Context;
+use anyhow::{Context, ensure};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use handlebars::Handlebars;
+use std::path::Path;
 
 pub struct ProtoGenerator<'a> {
     proto_service: ProtoService,
@@ -37,12 +38,14 @@ impl ProtoGenerator<'_> {
         Ok(())
     }
 
-    pub fn generate_proto(&self) -> anyhow::Result<(String, HashMap<String, GrpcType>)> {
+    pub fn generate_proto(&self, folder_path: String) -> anyhow::Result<(String, HashMap<String, GrpcType>)> {
+        // ensure path is exist
+        ensure!(Path::new(&folder_path.to_owned()).exists(), "input folder must be exist!");
         let meta_data = self.proto_service.get_grpc_metadata()?;
         let mut output_file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(format!("proto_build/{}.proto", self.schema_name.to_owned()))
+            .open(format!("{}/{}.proto", folder_path, self.schema_name.to_owned()))
             .expect("Couldn't open file");
         let result = self.handlebars.render("main", &meta_data)?;
         self.handlebars
