@@ -1,4 +1,4 @@
-use dozer_cache::cache::{expression::QueryExpression, LmdbCache};
+use dozer_cache::cache::{expression::QueryExpression, Cache, LmdbCache};
 use dozer_types::serde_json;
 use prost_reflect::DynamicMessage;
 use serde_json::{Map, Value};
@@ -30,24 +30,16 @@ pub async fn grpc_get_by_id(
     request: Request<DynamicMessage>,
 ) -> Result<Response<Value>, Status> {
     let dynamic_message = request.into_inner();
-    // let options = SerializeOptions::new();
-    // let mut serializer = serde_json::Serializer::new(vec![]);
-    // dynamic_message
-    //     .serialize_with_options(&mut serializer, &options)
-    //     .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    // let string_utf8 = String::from_utf8(serializer.into_inner())
-    //     .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    // let input_object: Value = serde_json::from_str(&string_utf8)
-    //     .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    // let id_input = input_object.get("id").ok_or(Status::new(
-    //     Code::Internal,
-    //     "Cannot get input id".to_owned(),
-    // ))?;
+    let schema = cache
+        .get_schema_by_name(&schema_name)
+        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
+    let primary_idx = schema.primary_index.first().unwrap().to_owned();
+    let primary_field = schema.fields[primary_idx].to_owned();
 
     let id_field = dynamic_message
-        .get_field_by_name("id")
+        .get_field_by_name(&primary_field.name)
         .ok_or_else(|| Status::new(Code::Internal, "Cannot get input id".to_owned()))?;
-    let id_input = id_field.as_str().unwrap_or_default();
+    let id_input = id_field.to_string();
     let result = get_record(&schema_name, cache, id_input.to_owned())
         .map_err(|err| Status::new(Code::NotFound, err.to_string()))?;
     let value_json =
