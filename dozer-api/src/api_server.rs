@@ -11,7 +11,10 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{api_generator, api_validator};
+use crate::{
+    api_generator,
+    auth::api::{auth_route, validate},
+};
 
 #[derive(Clone)]
 pub struct PipelineDetails {
@@ -25,12 +28,14 @@ pub enum CorsOptions {
     // origins, max_age
     Custom(Vec<String>, usize),
 }
+
 #[derive(Clone)]
 pub enum ApiSecurity {
     None,
     // Initialize with a JWT_SECRET
     Jwt(String),
 }
+
 #[derive(Clone)]
 pub struct ApiServer {
     shutdown_timeout: u64,
@@ -38,7 +43,6 @@ pub struct ApiServer {
     cors: CorsOptions,
     security: ApiSecurity,
 }
-
 impl ApiServer {
     pub fn default() -> Self {
         Self {
@@ -67,6 +71,9 @@ impl ApiServer {
                 .max_age(max_age),
         }
     }
+
+    fn auth_route() {}
+
     pub fn create_app_entry(
         security: ApiSecurity,
         cors: CorsOptions,
@@ -84,12 +91,19 @@ impl ApiServer {
         let app = App::new();
         let app = app.app_data(web::Data::new(cache));
 
-        let cors = Self::get_cors(cors);
+        // Injecting API Security
+        let app = app.app_data(security.to_owned());
+
+        let auth_middleware = Condition::new(
+            matches!(security.to_owned(), ApiSecurity::Jwt(_)),
+            HttpAuthentication::bearer(validate),
+        );
+        let cors_middleware = Self::get_cors(cors);
+
         let app = endpoints.iter().fold(app, |app, endpoint| {
             let endpoint = endpoint.clone();
             let scope = endpoint.path.clone();
             let schema_name = endpoint.name.clone();
-
             app.service(
                 web::scope(&scope)
                     // Inject pipeline_details for generated functions
@@ -106,13 +120,12 @@ impl ApiServer {
                     .route("", web::get().to(api_generator::list)),
             )
         });
-        // Conditionally enable auth based on endpoint
-        app.wrap(Condition::new(
-            matches!(security, ApiSecurity::Jwt(_)),
-            HttpAuthentication::bearer(api_validator::validate),
-        ))
-        // Cors need to wrap security to return the right headers
-        .wrap(cors)
+
+        // app.service(web::resource("/auth", web::post().to(auth_route)))
+        // Wrap Api Validator
+        app.wrap(auth_middleware)
+            // Need to wrap CORS around api validator to return the right headers
+            .wrap(cors_middleware)
     }
     pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
         let endpoints = endpoints;

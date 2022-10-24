@@ -1,5 +1,5 @@
 use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
-use crate::errors::ApiGenerationError;
+use crate::errors::GenerationError;
 use dozer_types::serde_json;
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use indexmap::IndexMap;
@@ -188,7 +188,7 @@ impl OpenApiGenerator {
 }
 
 impl OpenApiGenerator {
-    pub fn generate_oas3(&self) -> Result<OpenAPI, ApiGenerationError> {
+    pub fn generate_oas3(&self) -> Result<OpenAPI, GenerationError> {
         let component_schemas = self.generate_component_schema();
         let paths_available = self._generate_available_paths();
 
@@ -220,13 +220,13 @@ impl OpenApiGenerator {
             components: Some(component_schemas),
             ..Default::default()
         };
-        let tmp_dir = TempDir::new("generated").map_err(ApiGenerationError::TmpFile)?;
+        let tmp_dir = TempDir::new("generated").map_err(GenerationError::TmpFile)?;
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(tmp_dir.path().join("openapi.json"))
             .expect("Couldn't open file");
-        serde_json::to_writer(f, &api).map_err(ApiGenerationError::SerializationError)?;
+        serde_json::to_writer(f, &api).map_err(GenerationError::SerializationError)?;
 
         Ok(api)
     }

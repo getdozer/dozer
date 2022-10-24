@@ -1,3 +1,4 @@
+use crate::auth::Access;
 use crate::errors::ApiError;
 use actix_web::web;
 use actix_web::web::ReqData;
@@ -15,17 +16,20 @@ use crate::generator::oapi::generator::OpenApiGenerator;
 pub struct ApiHelper {
     details: ReqData<PipelineDetails>,
     cache: web::Data<Arc<LmdbCache>>,
+    access: Access,
 }
 impl ApiHelper {
     pub fn new(
-        pipeline_details: Option<ReqData<PipelineDetails>>,
+        pipeline_details: ReqData<PipelineDetails>,
         cache: web::Data<Arc<LmdbCache>>,
+        access: Option<ReqData<Access>>,
     ) -> Result<Self, ApiError> {
-        if let Some(details) = pipeline_details {
-            Ok(Self { details, cache })
-        } else {
-            Err(ApiError::PipelineNotInitialized)
-        }
+        Ok(Self {
+            details: pipeline_details,
+            cache,
+            // Initialize with Access:all if no access object is provided
+            access: access.map_or(Access::All, |a| a.into_inner()),
+        })
     }
 
     pub fn generate_oapi3(&self) -> Result<OpenAPI, ApiError> {

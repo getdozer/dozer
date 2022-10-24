@@ -15,17 +15,17 @@ pub enum ApiError {
     #[error("Invalid query provided")]
     InvalidQuery(#[source] QueryValidationError),
     #[error(transparent)]
-    ApiAuthError(#[from] ApiAuthError),
+    ApiAuthError(#[from] AuthError),
     #[error("Failed to generate openapi documentation")]
-    ApiGenerationError(#[source] ApiGenerationError),
+    ApiGenerationError(#[source] GenerationError),
     #[error("Cannot find schema by name")]
     SchemaNotFound(#[source] CacheError),
     #[error("Document not found")]
     NotFound(#[source] CacheError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
-    #[error("pipeline_details not initialized")]
-    PipelineNotInitialized,
+    #[error(transparent)]
+    InitError(#[from] InitError),
     #[error(transparent)]
     TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
@@ -46,7 +46,15 @@ impl ApiError {
 }
 
 #[derive(Error, Debug)]
-pub enum ApiGenerationError {
+pub enum InitError {
+    #[error("pipeline_details not initialized")]
+    PipelineNotInitialized,
+    #[error("api_security not initialized")]
+    SecurityNotInitialized,
+}
+
+#[derive(Error, Debug)]
+pub enum GenerationError {
     #[error("Cannot create temporary file")]
     TmpFile(#[source] std::io::Error),
     #[error("Cannot serialize to file")]
@@ -54,7 +62,9 @@ pub enum ApiGenerationError {
 }
 
 #[derive(Error, Debug)]
-pub enum ApiAuthError {
+pub enum AuthError {
+    #[error("Cannot access this route.")]
+    Unauthorized,
     #[error("Invalid token provided")]
     InvalidToken,
     #[error("Issuer is invalid")]
@@ -76,7 +86,7 @@ impl actix_web::error::ResponseError for ApiError {
             ApiError::ApiAuthError(_) => StatusCode::UNAUTHORIZED,
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
             ApiError::InternalError(_)
-            | ApiError::PipelineNotInitialized
+            | ApiError::InitError(_)
             | ApiError::SchemaIdentifierNotFound => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::ApiGenerationError(_)
             | ApiError::SchemaNotFound(_)

@@ -1,4 +1,4 @@
-use super::api_server::ApiServer;
+use super::super::api_server::ApiServer;
 use crate::{
     api_server::{ApiSecurity, CorsOptions},
     generator::oapi::generator::OpenApiGenerator,
@@ -35,14 +35,16 @@ async fn list_route() {
         cache,
     );
     let app = actix_web::test::init_service(api_server).await;
+
     let req = actix_web::test::TestRequest::get()
         .uri(&endpoint.path)
         .to_request();
-    let resp: Value = actix_web::test::call_and_read_body_json(&app, req).await;
-    assert!(resp.is_array());
-    if let Value::Array(resp) = resp {
-        assert!(!resp.is_empty());
-    }
+    let res = actix_web::test::call_service(&app, req).await;
+    assert!(res.status().is_success());
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    assert!(body.is_array(), "Must return an array");
+    assert!(!body.as_array().unwrap().is_empty(), "Must return records");
 }
 
 #[actix_web::test]
@@ -62,10 +64,12 @@ async fn query_route() {
         .uri(&format!("{}/query", endpoint.path))
         .set_json(json!({"$filter": {"film_id":  268}}))
         .to_request();
-    let resp: Value = actix_web::test::call_and_read_body_json(&app, req).await;
-    assert!(resp.is_array());
-    let arr = resp.as_array().unwrap();
-    assert!(!arr.is_empty(), "must return records");
+    let res = actix_web::test::call_service(&app, req).await;
+    assert!(res.status().is_success());
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    assert!(body.is_array(), "Must return an array");
+    assert!(!body.as_array().unwrap().is_empty(), "Must return records");
 }
 
 #[actix_web::test]
@@ -84,6 +88,16 @@ async fn get_route() {
     let req = actix_web::test::TestRequest::get()
         .uri(&format!("{}/{}", endpoint.path, 268))
         .to_request();
-    let resp: Value = actix_web::test::call_and_read_body_json(&app, req).await;
-    assert!(resp.is_object());
+
+    let res = actix_web::test::call_service(&app, req).await;
+    assert!(res.status().is_success());
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    assert!(body.is_object(), "Must return an object");
+    let val = body.as_object().unwrap();
+    assert_eq!(
+        val.get("film_id").unwrap().to_string(),
+        "\"268\"".to_string(),
+        "Must be equal"
+    );
 }
