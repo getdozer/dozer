@@ -11,24 +11,6 @@ use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
 
-pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
-    let postgres_type: Type = match value {
-        "text" => Type::TEXT,
-        "int2" => Type::INT2,
-        "int4" => Type::INT4,
-        "int8" => Type::INT8,
-        "float4" => Type::FLOAT4,
-        "float8" => Type::FLOAT8,
-        "numeric" => Type::NUMERIC,
-        "timestamp" => Type::TIMESTAMP,
-        "timestampz" => Type::TIMESTAMPTZ,
-        "jsonb" => Type::JSONB,
-        "bool" => Type::BOOL,
-        _ => Type::ANY,
-    };
-    postgres_type_to_dozer_type(Some(postgres_type))
-}
-
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     if let Some(column_type) = &column.r#type {
         match column_type {
@@ -88,6 +70,8 @@ pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> FieldType {
             Type::FLOAT4 | Type::FLOAT8 => FieldType::Float,
             Type::BIT => FieldType::Binary,
             Type::TIMESTAMP | Type::TIMESTAMPTZ => FieldType::Timestamp,
+            Type::NUMERIC => FieldType::Decimal,
+            Type::JSONB => FieldType::Bson,
             _ => FieldType::Null,
         }
     } else {
