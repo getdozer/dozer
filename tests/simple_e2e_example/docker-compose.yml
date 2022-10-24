@@ -25,8 +25,7 @@ services:
       - "8080:8080"
     links:
       - postgres
-    
-    command: ./target/debug/dozer run -c ./tests/src/films/dozer-config.yaml
+#    command: /usr/dozer/target/release/dozer run -c ./tests/src/films/dozer-config.yaml
     stdin_open: true
     tty: true
 

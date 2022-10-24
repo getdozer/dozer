@@ -220,14 +220,12 @@ pub fn map_row_to_operation_event(
     columns: &[Column],
     idx: u32,
 ) -> OperationEvent {
-    let rec = Record::new(Some(identifer), get_values(row, columns));
-
-    let op = Operation::Insert { new: rec };
-    let evt: OperationEvent = OperationEvent {
-        operation: op,
+    OperationEvent {
+        operation: Operation::Insert {
+            new: Record::new(Some(identifer), get_values(row, columns))
+        },
         seq_no: idx as u64,
-    };
-    evt
+    }
 }
 
 pub fn connect(conn_str: String) -> Result<Client, ConnectorError> {

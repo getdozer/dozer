@@ -4,11 +4,12 @@ use clap::Parser;
 
 use log::debug;
 use std::sync::Arc;
+use std::{thread, time};
 
 use crate::cli::{load_config, Args, SubCommand};
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
-use dozer_schema::registry::_get_client;
+use dozer_schema::registry::{_get_client, _serve};
 use tokio::runtime::Runtime;
 
 fn main() -> anyhow::Result<()> {
@@ -28,6 +29,15 @@ fn main() -> anyhow::Result<()> {
     match args.cmd {
         SubCommand::Run { config_path } => {
             let configuration = load_config(config_path);
+
+            thread::spawn(|| {
+                Runtime::new().unwrap().block_on(async {
+                    tokio::spawn(_serve(None)).await.unwrap().unwrap();
+                });
+            });
+
+            let ten_millis = time::Duration::from_millis(100);
+            thread::sleep(ten_millis);
 
             let client = Runtime::new()
                 .unwrap()
