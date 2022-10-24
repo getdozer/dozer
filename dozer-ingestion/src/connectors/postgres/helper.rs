@@ -222,7 +222,7 @@ pub fn map_row_to_operation_event(
 ) -> OperationEvent {
     OperationEvent {
         operation: Operation::Insert {
-            new: Record::new(Some(identifer), get_values(row, columns))
+            new: Record::new(Some(identifer), get_values(row, columns)),
         },
         seq_no: idx as u64,
     }
