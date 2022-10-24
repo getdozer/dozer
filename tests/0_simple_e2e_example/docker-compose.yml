@@ -1,41 +1,41 @@
 version: '3.8'
 services:
-  films-postgres:
-    container_name: dozer-tests-films-db
+  postgres:
+    container_name: users-postgres
     image: debezium/postgres:13
     volumes:
       - ./pg_hba.conf:/var/lib/foo/pg_hba.conf
-      - ./scripts/download_and_insert.sh:/var/scripts/download_and_insert.sh
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    
     command: postgres -c hba_file=/var/lib/foo/pg_hba.conf
     environment:
-      POSTGRES_DB: films
+      POSTGRES_DB: users
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       ALLOW_IP_RANGE: 0.0.0.0/0
     ports:
       - '5432:5432'
 
-  orchestrator:
-    container_name: dozer-orchestrator
-    networks: ["app_net"]
-    build: ../../..
+  dozer:
+    container_name: dozer
+    networks: ["dozer_net"]
+    build: ../..
     ports:
       - "9005:9005"
       - "8080:8080"
     links:
-      - films-postgres
-    volumes:
-      - ./init.sh:/var/lib/init.sh
-#    command: ./target/debug/dozer-orchestrator run -c ./tests/src/films/dozer-run.yaml
+      - postgres
+    
+    command: ./target/debug/dozer run -c ./tests/src/films/dozer-config.yaml
     stdin_open: true
     tty: true
 
-volumes:
-  films:
-    driver: local
+# volumes:
+#   db:
+#     driver: local
 
 networks:
-  app_net:
+  dozer_net:
     enable_ipv6: true
     driver: bridge
     driver_opts:

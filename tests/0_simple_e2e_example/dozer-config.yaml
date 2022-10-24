@@ -1,0 +1,27 @@
+storage_path: null
+sources:
+  - id: null
+    name: users
+    table_name: users
+    connection:
+      db_type: Postgres
+      authentication: !PostgresAuthentication
+        user: postgres
+        password: postgres
+        host: host.docker.internal
+        port: 5432
+        database: films
+      name: film
+      id: null
+    history_type: null
+    refresh_config: RealTime
+endpoints:
+  - id: null
+    name: films
+    path: /films
+    enable_rest: false
+    enable_grpc: true
+    sql: select film_id, description, rental_rate, release_year from film where 1=1;
+    index:
+      primary_key:
+        - film_id

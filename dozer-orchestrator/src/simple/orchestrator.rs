@@ -3,6 +3,7 @@ use std::{sync::Arc, thread};
 use dozer_api::api_server::ApiServer;
 use dozer_cache::cache::LmdbCache;
 use dozer_schema::registry::SchemaRegistryClient;
+use tokio::runtime::Runtime;
 
 use super::executor::Executor;
 use crate::Orchestrator;
@@ -41,6 +42,12 @@ impl Orchestrator for SimpleOrchestrator {
         let _thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
             Executor::run(sources, endpoints2, cache).unwrap();
+        });
+
+        let _thread3 = thread::spawn(move || {
+            Runtime::new()
+                .unwrap()
+                .block_on(async { dozer_schema::run().await })
         });
         thread.join().unwrap();
 

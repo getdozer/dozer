@@ -1,8 +1,9 @@
+use dozer_types::serde;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::{
     errors::connector::ConnectorError,
     types::{OperationEvent, Schema},
 };
-use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
 use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
@@ -24,6 +25,7 @@ pub trait Connector: Send + Sync {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,
     pub id: u32,

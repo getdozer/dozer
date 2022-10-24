@@ -29,5 +29,5 @@ serde_yaml = "0.9.13"
 
 [[bin]]
 edition = "2021"
-name = "dozer-orchestrator"
+name = "dozer"
 path = "src/main.rs"
