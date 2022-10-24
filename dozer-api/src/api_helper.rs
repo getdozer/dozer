@@ -1,3 +1,5 @@
+use crate::api_server::PipelineDetails;
+use crate::{generator::oapi::generator::OpenApiGenerator, rest_error::RestError};
 use actix_web::web::ReqData;
 use actix_web::{http::header::ContentType, web, HttpResponse, Responder};
 use anyhow::Context;
@@ -9,9 +11,6 @@ use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, FieldType};
 use std::ops::Deref;
 use std::{collections::HashMap, sync::Arc};
-
-use crate::api_server::PipelineDetails;
-use crate::{generator::oapi::generator::OpenApiGenerator, rest_error::RestError};
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(

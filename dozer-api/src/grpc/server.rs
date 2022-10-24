@@ -13,7 +13,7 @@ use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use tonic::codegen::{self, *};
 #[derive(Clone)]
-pub struct GRPCServer {
+pub struct TonicServer {
     accept_compression_encodings: EnabledCompressionEncodings,
     send_compression_encodings: EnabledCompressionEncodings,
     descriptor_path: String,
@@ -22,7 +22,7 @@ pub struct GRPCServer {
     cache: Arc<LmdbCache>,
     schema_name: String,
 }
-impl GRPCServer {
+impl TonicServer {
     pub fn new(
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
@@ -30,7 +30,7 @@ impl GRPCServer {
         schema_name: String,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
-        GRPCServer {
+        TonicServer {
             accept_compression_encodings: Default::default(),
             send_compression_encodings: Default::default(),
             descriptor_path,
@@ -40,16 +40,7 @@ impl GRPCServer {
             schema_name,
         }
     }
-    // pub fn with_interceptor<F>(
-    //     inner: T,
-    //     interceptor: F,
-    // ) -> InterceptedService<Self, F>
-    // where
-    //     F: tonic::service::Interceptor,
-    // {
-    //     InterceptedService::new(Self::new(inner), interceptor)
-    // }
-    ///Enable decompressing requests with the given encoding.
+
     #[must_use]
     pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
         self.accept_compression_encodings.enable(encoding);
@@ -62,7 +53,7 @@ impl GRPCServer {
         self
     }
 }
-impl<B> codegen::Service<http::Request<B>> for GRPCServer
+impl<B> codegen::Service<http::Request<B>> for TonicServer
 where
     B: Body + Send + 'static,
     B::Error: Into<StdError> + Send + 'static,
@@ -147,6 +138,6 @@ where
     }
 }
 
-impl tonic::server::NamedService for GRPCServer {
+impl tonic::server::NamedService for TonicServer {
     const NAME: &'static str = ":package.servicename";
 }
