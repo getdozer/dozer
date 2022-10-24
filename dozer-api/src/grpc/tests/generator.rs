@@ -1,4 +1,4 @@
-use crate::grpc::tests::utils::{generate_proto, generate_descriptor};
+use crate::grpc::tests::utils::{generate_descriptor, generate_proto};
 use std::path::Path;
 use tempdir::TempDir;
 
@@ -7,14 +7,10 @@ fn test_generate_proto() -> anyhow::Result<()> {
     let tmp_dir = TempDir::new("proto_generated")?;
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let schema_name = String::from("film");
-    let proto_result = generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned())?;
+    let proto_result = generate_proto(tmp_dir_path, schema_name.to_owned())?;
     let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
-    let path_proto_generated = Path::new(&format!(
-        "{}/{}.proto",
-        tempdir_path.to_owned(),
-        schema_name.to_owned()
-    ))
-    .exists();
+    let path_proto_generated =
+        Path::new(&format!("{}/{}.proto", tempdir_path, schema_name)).exists();
     assert_eq!(
         proto_result.1.len(),
         3,

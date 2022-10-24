@@ -13,3 +13,4 @@ docker/data/
 dozer-sql/data
 *.mdb
 dozer-api/proto_build/
+dozer-api/src/grpc/tests/generated_client/

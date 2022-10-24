@@ -1,8 +1,8 @@
-use std::{sync::Arc, thread};
-use dozer_api::grpc_server::GRPCServer;
 use dozer_api::api_server::ApiServer;
+use dozer_api::grpc_server::GRPCServer;
 use dozer_cache::cache::LmdbCache;
 use dozer_schema::registry::SchemaRegistryClient;
+use std::{sync::Arc, thread};
 
 use super::executor::Executor;
 use crate::Orchestrator;
@@ -43,7 +43,6 @@ impl Orchestrator for SimpleOrchestrator {
             api_server.run(vec![api_endpoint], cache_2).unwrap()
         });
 
-        
         let _thread2 = thread::spawn(move || {
             Executor::run(sources, api_endpoint2, cache).unwrap();
         });
