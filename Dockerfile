@@ -1,6 +1,13 @@
 FROM rust:latest as builder
 WORKDIR "/usr/dozer"
 RUN apt-get update && apt-get install -y \
+      build-essential \
+      autoconf \
+      automake \
+      libtool \
+      make \
+      g++ \
+      libclang-dev \
       protobuf-compiler \
       devscripts \
       debhelper \
