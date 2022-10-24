@@ -5,7 +5,7 @@ use crate::{
     grpc::{
         dynamic_codec::DynamicCodec,
         services::{GetByIdService, ListService, QueryService},
-        util::get_method_by_name,
+        util::{get_method_by_name, get_service_name},
     },
 };
 use dozer_cache::cache::LmdbCache;
@@ -75,8 +75,21 @@ where
     }
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
         let current_path: Vec<&str> = req.uri().path().split('/').collect();
+        let service_name = get_service_name(self.descriptor.to_owned());
         let method_name = current_path[current_path.len() - 1];
         let method = get_method_by_name(self.descriptor.to_owned(), method_name.to_string());
+        let route_match = current_path.len() > 2
+            && Some(current_path[current_path.len() - 2].to_string()) == service_name;
+        if !route_match {
+            return Box::pin(async move {
+                Ok(http::Response::builder()
+                    .status(200)
+                    .header("grpc-status", "12")
+                    .header("content-type", "application/grpc")
+                    .body(empty_body())
+                    .unwrap())
+            });
+        }
         if let Some(method_descriptor) = method {
             let input = method_descriptor.input();
             let output = method_descriptor.output();
@@ -96,7 +109,7 @@ where
             let descriptor_path = self.descriptor_path.to_owned();
             let mut grpc = tonic::server::Grpc::new(codec)
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings);
-            match method_type {
+            return match method_type {
                 GrpcType::GetById => {
                     let method = GetByIdService { cache, schema_name };
                     let fut = async move {
@@ -121,22 +134,19 @@ where
                     };
                     Box::pin(fut)
                 }
-            }
-        } else {
-            Box::pin(async move {
-                Ok(http::Response::builder()
-                    .status(200)
-                    .header("grpc-status", "12")
-                    .header("content-type", "application/grpc")
-                    .body(empty_body())
-                    .unwrap())
-            })
+            };
         }
+        return Box::pin(async move {
+            Ok(http::Response::builder()
+                .status(200)
+                .header("grpc-status", "12")
+                .header("content-type", "application/grpc")
+                .body(empty_body())
+                .unwrap())
+        });
     }
 }
-fn get_name() -> &'static str {
-    "abc"
-}
+
 impl tonic::server::NamedService for GRPCServer {
-    const NAME: &'static str = ":GRPCServer";
+    const NAME: &'static str = ":package.servicename";
 }

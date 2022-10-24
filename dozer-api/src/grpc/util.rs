@@ -6,6 +6,7 @@ use std::{
     io::{BufReader, Read},
 };
 use tonic::{Code, Status};
+
 pub fn from_dynamic_message_to_json(input: DynamicMessage) -> Result<Value, Status> {
     let mut options = SerializeOptions::new();
     options = options.use_proto_field_name(true);
@@ -47,14 +48,21 @@ pub fn convert_grpc_message_to_query_exp(input: DynamicMessage) -> Result<QueryE
     let result_exp = QueryExpression::new(filter_exp, order_by, limit, skip);
     Ok(result_exp)
 }
+
 pub fn get_method_by_name(
     descriptor: DescriptorPool,
     method_name: String,
 ) -> Option<MethodDescriptor> {
     let service_lst = descriptor.services().next().unwrap();
     let mut methods = service_lst.methods();
-
     methods.find(|m| *m.name() == method_name)
+}
+
+pub fn get_service_name(descriptor: DescriptorPool) -> Option<String> {
+    descriptor
+        .services()
+        .next()
+        .map(|s| s.full_name().to_owned())
 }
 
 //https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/DescriptorProtos.FieldDescriptorProto.Type
