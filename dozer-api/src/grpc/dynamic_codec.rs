@@ -69,18 +69,6 @@ impl Encoder for DynamicEncoder {
         item: Self::Item,
         dst: &mut tonic::codec::EncodeBuf<'_>,
     ) -> Result<(), Self::Error> {
-        // let message_descriptor = self._get_message_descriptor()?;
-        // let mut my_dynamic = DynamicMessage::new(message_descriptor);
-        // let get_field_by_name = my_dynamic.get_field_by_name("message").unwrap();
-        // my_dynamic.set_field_by_name(
-        //     "message",
-        //     prost_reflect::Value::String("Hello 1233".to_owned()),
-        // );
-        // my_dynamic
-        //     .encode(dst)
-        //     .map_err(|err| Status::from_error(Box::new(err)))?;
-        //     Ok(())
-
         let message_descriptor = self._get_message_descriptor()?;
         let json = &item.to_string();
         let mut deserializer = Deserializer::from_str(json);

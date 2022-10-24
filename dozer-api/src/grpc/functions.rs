@@ -19,7 +19,7 @@ pub async fn grpc_list(
     let value_json = serde_json::to_value(result).unwrap();
     // wrap to object
     let mut result_json: Map<String, Value> = Map::new();
-    result_json.insert("films".to_owned(), value_json);
+    result_json.insert(schema_name.to_lowercase(), value_json);
     let result = Value::Object(result_json);
     Ok(Response::new(result))
 }
@@ -40,11 +40,15 @@ pub async fn grpc_get_by_id(
         .get_field_by_name(&primary_field.name)
         .ok_or_else(|| Status::new(Code::Internal, "Cannot get input id".to_owned()))?;
     let id_input = id_field.to_string();
-    let result = get_record(&schema_name, cache, id_input.to_owned())
+    let result = get_record(&schema_name, cache, id_input)
         .map_err(|err| Status::new(Code::NotFound, err.to_string()))?;
     let value_json =
         serde_json::to_value(result).map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    Ok(Response::new(value_json))
+    // wrap to object
+    let mut result_json: Map<String, Value> = Map::new();
+    result_json.insert(schema_name.to_lowercase(), value_json);
+    let result = Value::Object(result_json);
+    Ok(Response::new(result))
 }
 
 pub async fn grpc_query(
@@ -61,7 +65,7 @@ pub async fn grpc_query(
         serde_json::to_value(result).map_err(|err| Status::new(Code::Internal, err.to_string()))?;
     // wrap to object
     let mut result_json: Map<String, Value> = Map::new();
-    result_json.insert("films".to_owned(), value_json);
+    result_json.insert(schema_name.to_lowercase(), value_json);
     let result = Value::Object(result_json);
     Ok(Response::new(result))
 }

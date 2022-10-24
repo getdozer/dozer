@@ -70,7 +70,7 @@ pub fn get_proto_descriptor(descriptor_dir: String) -> anyhow::Result<Descriptor
     let descriptor_set_dir = descriptor_dir;
     let buffer = read_file_as_byte(descriptor_set_dir)?;
     let my_array_byte = buffer.as_slice();
-    let pool2 = DescriptorPool::decode(my_array_byte).unwrap();
+    let pool2 = DescriptorPool::decode(my_array_byte)?;
     Ok(pool2)
 }
 

@@ -136,14 +136,14 @@ where
                 }
             };
         }
-        return Box::pin(async move {
+        Box::pin(async move {
             Ok(http::Response::builder()
                 .status(200)
                 .header("grpc-status", "12")
                 .header("content-type", "application/grpc")
                 .body(empty_body())
                 .unwrap())
-        });
+        })
     }
 }
 

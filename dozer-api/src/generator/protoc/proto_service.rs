@@ -191,7 +191,7 @@ impl ProtoService {
             .collect();
 
         let main_model_message = RPCMessage {
-            name: self.endpoint.name.to_owned().to_pascal_case(),
+            name: self.schema_name.to_pascal_case(),
             props: props_message,
         };
         Ok(main_model_message)
