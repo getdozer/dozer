@@ -16,7 +16,7 @@ use super::{authorizer::Authorizer, Access};
 pub fn auth_route(
     access: Option<ReqData<Access>>,
     req: ServiceRequest,
-    tenant_access: web::Json<Value>,
+    _tenant_access: web::Json<Value>,
 ) -> Result<HttpResponse, ApiError> {
     let access = match access {
         Some(access) => access.into_inner(),
@@ -27,7 +27,7 @@ pub fn auth_route(
         // Master Key or Uninitialized
         Access::All => {
             let secret = get_secret(req)?;
-            let auth = Authorizer::new(secret.to_owned(), None, None);
+            let auth = Authorizer::new(secret, None, None);
             let token = auth.generate_token(Access::All, None).unwrap();
             Ok(HttpResponse::Ok().body(json!({ "token": token }).to_string()))
         }
@@ -75,7 +75,7 @@ pub async fn validate(
             Ok(req)
         }
         ApiSecurity::Jwt(secret) => {
-            let api_auth = Authorizer::new(secret.to_owned(), None, None);
+            let api_auth = Authorizer::new(secret, None, None);
             let res = api_auth
                 .validate_token(credentials.token())
                 .map_err(|e| (Error::from(ApiError::ApiAuthError(e))));

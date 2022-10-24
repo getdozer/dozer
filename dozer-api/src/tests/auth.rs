@@ -29,8 +29,8 @@ async fn check_status(
         None => req,
     };
     let req = req.to_request();
-    let res = actix_web::test::call_service(&app, req).await;
-    res
+    
+    actix_web::test::call_service(&app, req).await
 }
 #[actix_web::test]
 async fn verify_token_test() {

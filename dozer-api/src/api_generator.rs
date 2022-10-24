@@ -64,7 +64,7 @@ pub async fn query(
     cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
     let query_expression = serde_json::from_value::<QueryExpression>(query_info.0)
-        .map_err(|e| ApiError::map_deserialization_error(e))?;
+        .map_err(ApiError::map_deserialization_error)?;
     let helper = ApiHelper::new(pipeline_details, cache, access)?;
     helper
         .get_records(query_expression)

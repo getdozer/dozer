@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::{
     api_generator,
-    auth::api::{auth_route, validate},
+    auth::api::{validate},
 };
 
 #[derive(Clone)]
@@ -66,7 +66,7 @@ impl ApiServer {
             CorsOptions::Custom(origins, max_age) => origins
                 .into_iter()
                 .fold(Cors::default(), |cors, origin| {
-                    cors.allowed_origin(&origin.to_owned())
+                    cors.allowed_origin(&origin)
                 })
                 .max_age(max_age),
         }
@@ -95,7 +95,7 @@ impl ApiServer {
         let app = app.app_data(security.to_owned());
 
         let auth_middleware = Condition::new(
-            matches!(security.to_owned(), ApiSecurity::Jwt(_)),
+            matches!(security, ApiSecurity::Jwt(_)),
             HttpAuthentication::bearer(validate),
         );
         let cors_middleware = Self::get_cors(cors);
