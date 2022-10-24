@@ -44,8 +44,9 @@ impl GRPCServer {
         let addr = format!("[::1]:{:}", self.port).parse().unwrap(); // "[::1]:50051".parse().unwrap();
         let grpc_service = TonicServer::new(descriptor_path, generated_proto.1, cache, schema_name);
         let server_future = Server::builder()
+            .accept_http1(true)
             .add_service(inflection_service)
-            .add_service(grpc_service)
+            .add_service(tonic_web::enable(grpc_service))
             .serve(addr);
         let rt = Runtime::new().unwrap();
         rt.block_on(server_future)
