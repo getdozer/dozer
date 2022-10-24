@@ -7,6 +7,7 @@ use dozer_types::core::node::{Processor, ProcessorFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalError;
+use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
 use sqlparser::ast::SelectItem;
@@ -47,7 +48,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
 pub struct ProjectionProcessor {
     statement: Vec<SelectItem>,
-    expressions: Vec<Expression>,
+    expressions: Vec<(String, Expression)>,
     builder: ProjectionBuilder,
 }
 
@@ -56,22 +57,16 @@ impl ProjectionProcessor {
         &self,
         statement: Vec<SelectItem>,
         schema: &Schema,
-    ) -> Result<(Vec<Expression>, Vec<String>), ExecutionError> {
-        self.builder
-            .build_projection(&statement, schema)
-            .map_err(|e| InternalError(Box::new(e)))
+    ) -> Result<Vec<(String, Expression)>, PipelineError> {
+        self.builder.build_projection(&statement, schema)
     }
 
-    fn build_output_schema(
-        &self,
-        input_schema: &Schema,
-        names: &[String],
-    ) -> Result<Schema, ExecutionError> {
-        let mut output_schema = Schema::empty();
+    fn build_output_schema(&self, input_schema: &Schema) -> Result<Schema, ExecutionError> {
+        let mut output_schema = input_schema.clone();
 
-        for (counter, e) in self.expressions.iter().enumerate() {
-            let field_name = names.get(counter).unwrap().clone();
-            let field_type = e.get_type(input_schema);
+        for e in self.expressions.iter() {
+            let field_name = e.0.clone();
+            let field_type = e.1.get_type(input_schema);
             let field_nullable = true;
             output_schema
                 .fields
@@ -83,9 +78,15 @@ impl ProjectionProcessor {
 
     fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
+
+        for field in record.values.iter() {
+            results.push(field.clone());
+        }
+
         for expr in &self.expressions {
             results.push(
-                expr.evaluate(record)
+                expr.1
+                    .evaluate(record)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -98,7 +99,8 @@ impl ProjectionProcessor {
         let mut results = vec![];
         for expr in &self.expressions {
             results.push(
-                expr.evaluate(record)
+                expr.1
+                    .evaluate(record)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -110,9 +112,26 @@ impl ProjectionProcessor {
     fn update(&self, old: &Record, new: &Record) -> Result<Operation, ExecutionError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
+
+        for field in old.values.iter() {
+            old_results.push(field.clone());
+        }
+
+        for field in new.values.iter() {
+            new_results.push(field.clone());
+        }
+
         for expr in &self.expressions {
-            old_results.push(expr.evaluate(old).map_err(|e| InternalError(Box::new(e)))?);
-            new_results.push(expr.evaluate(new).map_err(|e| InternalError(Box::new(e)))?);
+            old_results.push(
+                expr.1
+                    .evaluate(old)
+                    .map_err(|e| InternalError(Box::new(e)))?,
+            );
+            new_results.push(
+                expr.1
+                    .evaluate(new)
+                    .map_err(|e| InternalError(Box::new(e)))?,
+            );
         }
 
         Ok(Operation::Update {
@@ -129,9 +148,9 @@ impl Processor for ProjectionProcessor {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        let (expressions, names) = self.build_projection(self.statement.clone(), input_schema)?;
+        let expressions = self.build_projection(self.statement.clone(), input_schema)?;
         self.expressions = expressions;
-        self.build_output_schema(input_schema, &names)
+        self.build_output_schema(input_schema)
     }
 
     fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {

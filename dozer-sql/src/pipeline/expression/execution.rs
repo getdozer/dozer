@@ -3,6 +3,8 @@ use crate::pipeline::expression::scalar::ScalarFunctionType;
 use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
+use super::aggregate::AggregateFunctionType;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Column {
@@ -22,10 +24,10 @@ pub enum Expression {
         fun: ScalarFunctionType,
         args: Vec<Expression>,
     },
-    // AggregateFunction {
-    //     fun: AggregateFunctionType,
-    //     args: Vec<Expression>,
-    // },
+    AggregateFunction {
+        fun: AggregateFunctionType,
+        args: Vec<Expression>,
+    },
 }
 
 impl Expression {}
@@ -52,7 +54,7 @@ impl ExpressionExecutor for Expression {
             } => operator.evaluate(left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(args, record),
             Expression::UnaryOperator { operator, arg } => operator.evaluate(arg, record),
-            // Expression::AggregateFunction { fun: _, args: _ } => todo!(),
+            Expression::AggregateFunction { fun, args } => todo!(),
         }
     }
 
@@ -69,7 +71,9 @@ impl ExpressionExecutor for Expression {
                 right,
             } => get_binary_operator_type(left, operator, right, schema),
             Expression::ScalarFunction { fun, args } => get_scalar_function_type(fun, args, schema),
-            // Expression::AggregateFunction { fun, args } => get_aggregate_function_type(fun, args, schema),
+            Expression::AggregateFunction { fun, args } => {
+                get_aggregate_function_type(fun, args, schema)
+            }
         }
     }
 }
@@ -154,18 +158,22 @@ fn get_binary_operator_type(
     }
 }
 
-// fn get_aggregate_function_type(function: &AggregateFunctionType, args: &[Expression], schema: &Schema) -> FieldType {
-//     match function {
-//         AggregateFunctionType::Avg => FieldType::Float,
-//         AggregateFunctionType::Count => FieldType::Int,
-//         AggregateFunctionType::Max => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Median => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Min => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Sum => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Stddev => FieldType::Float,
-//         AggregateFunctionType::Variance => FieldType::Float,
-//     }
-// }
+fn get_aggregate_function_type(
+    function: &AggregateFunctionType,
+    args: &[Expression],
+    schema: &Schema,
+) -> FieldType {
+    match function {
+        AggregateFunctionType::Avg => FieldType::Float,
+        AggregateFunctionType::Count => FieldType::Int,
+        AggregateFunctionType::Max => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Median => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Min => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Sum => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Stddev => FieldType::Float,
+        AggregateFunctionType::Variance => FieldType::Float,
+    }
+}
 
 fn get_scalar_function_type(
     function: &ScalarFunctionType,

@@ -1,87 +1,107 @@
-use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::execution::Expression;
-use crate::pipeline::expression::execution::Expression::ScalarFunction;
-use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::expression::scalar::ScalarFunctionType;
-use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::errors::pipeline::PipelineError::{
-    InternalTypeError, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
+    self, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
 };
-use dozer_types::errors::types::TypeError;
-use dozer_types::types::Field;
-use dozer_types::types::Schema;
+use dozer_types::types::{Field, Schema};
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
-use std::collections::HashMap;
 
-pub struct ProjectionBuilder {}
+use crate::pipeline::expression::{
+    aggregate::AggregateFunctionType,
+    execution::Expression,
+    operator::{BinaryOperatorType, UnaryOperatorType},
+    scalar::ScalarFunctionType,
+};
 
-impl ProjectionBuilder {
-    pub fn build_projection(
+use crate::pipeline::expression::execution::Expression::ScalarFunction;
+
+use super::aggregation::FieldRule;
+use super::common::column_index;
+
+pub enum ExpressionVisitControl {
+    /// Continue to visit all the children
+    Continue(Box<Expression>),
+    /// Do not visit the children of this expression
+    Stop(Box<Expression>),
+    /// Bypass all the parents
+    Bypass(Box<Expression>),
+}
+
+pub struct AggregationBuilder {}
+
+impl AggregationBuilder {
+    pub fn build(
         &self,
-        statement: &[SelectItem],
+        select: &[SelectItem],
+        groupby: &[SqlExpr],
         schema: &Schema,
-    ) -> Result<Vec<(String, Expression)>, PipelineError> {
-        // TODO: discard unused fields
-        let expressions = statement
-            .iter()
-            .map(|item| self.parse_sql_select_item(item, schema))
-            .flat_map(|result| match result {
-                Ok(vec) => vec.into_iter().map(Ok).collect(),
-                Err(err) => vec![Err(err)],
-            })
-            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()?;
+    ) -> Result<Vec<FieldRule>, PipelineError> {
+        let groupby_rules = groupby
+            .into_iter()
+            .map(|expr| self.get_groupby_field(expr, schema))
+            .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
-        Ok(expressions)
+        let select_rules = select
+            .into_iter()
+            .map(|item| self.get_aggregation_field(item, schema))
+            .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
+
+        Ok(vec![])
     }
 
-    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize, PipelineError> {
-        let schema_idx: HashMap<String, usize> = schema
-            .fields
-            .iter()
-            .enumerate()
-            .map(|e| (e.1.name.clone(), e.0))
-            .collect();
-
-        if let Some(index) = schema_idx.get(name).cloned() {
-            Ok(index)
-        } else {
-            Err(InternalTypeError(TypeError::InvalidFieldName(name.clone())))
+    pub fn get_groupby_field(
+        &self,
+        expression: &SqlExpr,
+        schema: &Schema,
+    ) -> Result<FieldRule, PipelineError> {
+        match expression {
+            SqlExpr::Identifier(ident) => Ok(FieldRule::Dimension(
+                ident.value.clone(),
+                Box::new(Expression::Column {
+                    index: column_index(&ident.value, schema)?,
+                }),
+                true,
+                None,
+            )),
+            _ => Err(InvalidExpression(
+                "Unsupported Group By Expression".to_string(),
+            )),
         }
     }
 
-    // fn get_select_item_name(&self, item: &SelectItem) -> Result<String> {
-    //     match item {
-    //         SelectItem::UnnamedExpr(expr) => Ok(expr.to_string()),
-    //         SelectItem::ExprWithAlias { expr: _, alias } => Ok(alias.to_string()),
-    //         SelectItem::Wildcard => bail!("Unsupported Wildcard Operator"),
-    //         SelectItem::QualifiedWildcard(ref object_name) => {
-    //             bail!("Unsupported Qualified Wildcard Operator {}", object_name)
-    //         }
-    //     }
-    // }
-
-    fn parse_sql_select_item(
+    pub fn get_aggregation_field(
         &self,
-        sql: &SelectItem,
+        item: &SelectItem,
         schema: &Schema,
-    ) -> Result<Vec<(String, Expression)>, PipelineError> {
-        match sql {
+    ) -> Result<FieldRule, PipelineError> {
+        match item {
             SelectItem::UnnamedExpr(sql_expr) => {
                 match self.parse_sql_expression(sql_expr, schema) {
-                    Ok(expr) => Ok(vec![(sql_expr.to_string(), *expr.0)]),
+                    Ok(expr) => self.create_measure_rule(expr.0),
                     Err(error) => Err(error),
                 }
             }
-            SelectItem::ExprWithAlias { expr, alias } => {
-                Err(InvalidExpression(format!("{}:{}", expr, alias)))
-            }
-            SelectItem::Wildcard => Err(InvalidOperator("*".to_string())),
-            SelectItem::QualifiedWildcard(ref object_name) => {
-                Err(InvalidOperator(object_name.to_string()))
-            }
+            SelectItem::ExprWithAlias { expr, alias } => Err(InvalidExpression(format!(
+                "Unsupported Expression {}:{}",
+                expr, alias
+            ))),
+            SelectItem::Wildcard => Err(InvalidExpression(
+                "Wildcard Operator is not supported".to_string(),
+            )),
+            SelectItem::QualifiedWildcard(ref object_name) => Err(InvalidExpression(
+                "Qualified Wildcard Operator is not supported".to_string(),
+            )),
+        }
+    }
+
+    fn create_measure_rule(&self, expression: Box<Expression>) -> Result<FieldRule, PipelineError> {
+        match *expression {
+            Expression::AggregateFunction { fun, args } => todo!(),
+            _ => Err(InvalidExpression(format!(
+                "Not an Aggreagation function: {:?}",
+                expression
+            ))),
         }
     }
 
@@ -93,7 +113,7 @@ impl ProjectionBuilder {
         match expression {
             SqlExpr::Identifier(ident) => Ok((
                 Box::new(Expression::Column {
-                    index: self.column_index(&ident.value, schema)?,
+                    index: column_index(&ident.value, schema)?,
                 }),
                 false,
             )),
@@ -145,9 +165,15 @@ impl ProjectionBuilder {
                     return Ok((r.0, true));
                 };
 
-                Err(InvalidExpression(format!("{:?}", expression)))
+                Err(InvalidExpression(format!(
+                    "Unsupported Expression: {:?}",
+                    expression
+                )))
             }
-            _ => Err(InvalidExpression(format!("{:?}", expression))),
+            _ => Err(InvalidExpression(format!(
+                "Unsupported Expression: {:?}",
+                expression
+            ))),
         }
     }
 
@@ -164,14 +190,21 @@ impl ProjectionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
-            } => Err(InvalidArgument(format!("{:?}", argument))),
+            } => Err(InvalidArgument(format!(
+                "Unsupported Wildcard Argument: {:?}",
+                argument
+            ))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
                 self.parse_sql_expression(arg, schema)
             }
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
-                Err(InvalidArgument(format!("{:?}", argument)))
-            }
-            _ => Err(InvalidArgument(format!("{:?}", argument))),
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Err(InvalidArgument(format!(
+                "Unsupported Wildcard Argument: {:?}",
+                argument
+            ))),
+            _ => Err(InvalidArgument(format!(
+                "Unsupported Argument: {:?}",
+                argument
+            ))),
         }
     }
 
@@ -190,7 +223,12 @@ impl ProjectionBuilder {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
             SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => return Err(InvalidOperator(format!("{:?}", op))),
+            _ => {
+                return Err(InvalidOperator(format!(
+                    "Unsupported SQL unary operator {:?}",
+                    op
+                )));
+            }
         };
 
         Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
@@ -220,7 +258,10 @@ impl ProjectionBuilder {
                 }),
                 false,
             )),
-            _ => Err(InvalidOperator(format!("{:?}", op))),
+            _ => Err(InvalidOperator(format!(
+                "Unsupported SQL binary operator {:?}",
+                op
+            ))),
         }
     }
 
