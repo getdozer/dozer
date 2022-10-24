@@ -1,17 +1,7 @@
-# Dozer Tests
+## Dozer Tests
 
-## Films
+This module implements end to end test cases as well provides samples for the most common use cases.
 
-Features used:
-- Init project from yaml
-- Ingestion from postgresql source
-- SQL execution
-
-## Run
-
-cd scripts/tests/src/films
-docker-compose up --build
-sh ./scripts/download_and_insert.sh
-docker exec -d dozer-orchestrator ./target/debug/dozer-schema
-docker exec dozer-orchestrator ./target/debug/dozer-orchestrator run -c ./tests/src/films/dozer-run.yaml
-sh ./scripts/run_test.sh
+### Samples
+[End to End Dozer Sample](./simple_e2e_example/README.md)
+[Postgres as an Iterator](./connectors/postgres_as_iterator/README.md)

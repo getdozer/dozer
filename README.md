@@ -4,21 +4,15 @@ This repository follows a `cargo workspace` structure with several packages.
 ```
 dozer
 |
+|-- dozer-admin           # gRPC APIs for Dozer Admin UI
 |-- dozer-ingestion       # Ingestion & Connectors
-|-- dozer-storage         # Initial checkpointing of data from ingestion
-|-- dozer-api             # APIs to be consumed by clients 
-|-- dozer-types          # Library with shared utilities
-|-- dozer-pipeline         # Library with shared utilities
-```
-
-1) Adding a new package as a service
-```
-cargo new --vcs none dozer-storage
-```
-
-2) Adding a new package as a library
-```
-cargo new --vcs none --lib dozer-types
+|-- dozer-api             # Data APIs in REST & gRPC
+|-- dozer-cache           # Cache Implementation
+|-- dozer-core            # Dozer Libaries such as dag, state_store
+|-- dozer-orchestrator    # Dozer Orchestrator & Cli
+|-- dozer-schema          # Schema Registry 
+|-- dozer-types           # Dozer Types
+|-- tests                 # End to end test cases & Samples
 ```
 
 ### Running
@@ -26,7 +20,7 @@ Run a specific service with `-p` flag.
 Note: If you have multiple binaries generated,  you can use `--bin` flag.
 
 ```
-cargo run -p dozer-ingestion
+cargo run --bin dozer
 ```
 
 ### Build Dependencies
@@ -36,6 +30,8 @@ cargo run -p dozer-ingestion
 - `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
 
 
-### References 
-https://doc.rust-lang.org/cargo/reference/workspaces.html
-https://www.youtube.com/watch?v=S3c7NRS698A
+### Samples
+[Samples](./tests/README.md) can be found under tests folder. 
+
+[End to End Dozer Sample](./tests/simple_e2e_example/README.md)
+[Postgres as an Iterator](./tests/connectors/postgres_as_iterator/README.md)
