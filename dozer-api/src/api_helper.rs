@@ -7,7 +7,7 @@ use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::errors::cache::CacheError;
 use dozer_types::json_value_to_field;
 use dozer_types::record_to_json;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::FieldType;
 use openapiv3::OpenAPI;
 use std::{collections::HashMap, sync::Arc};
 
@@ -80,14 +80,8 @@ impl ApiHelper {
             .iter()
             .map(|idx| schema.fields[*idx].typ.clone())
             .collect();
-        let key = json_value_to_field(&key, &field_types[0]);
+        let key = json_value_to_field(&key, &field_types[0]).map_err(CacheError::TypeError)?;
 
-        let key: Field = match key {
-            Ok(key) => key,
-            Err(e) => {
-                panic!("error : {:?}", e);
-            }
-        };
         let key = index::get_primary_key(&[0], &[key]);
         let rec = self.reader.get(&key)?;
 
