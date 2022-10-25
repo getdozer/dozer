@@ -47,7 +47,7 @@ impl StateStoresManager for LmdbStateStoreManager {
             full_path.to_str().unwrap().to_string(),
             Some(env_opt)
         ))?);
-        let tx = internal_err!(Transaction::begin(env.clone()))?;
+        let tx = internal_err!(Transaction::begin(env.clone(), false))?;
 
         let mut db_opt = DatabaseOptions::default();
         db_opt.allow_duplicate_keys = options.allow_duplicate_keys;
@@ -76,7 +76,7 @@ impl LmdbStateStore {
         self.commit_counter += 1;
         if self.commit_counter >= self.commit_threshold {
             self.tx.commit()?;
-            self.tx = Transaction::begin(self.env.clone())?;
+            self.tx = Transaction::begin(self.env.clone(), false)?;
             self.commit_counter = 0;
         }
         Ok(())
@@ -89,22 +89,22 @@ impl StateStore for LmdbStateStore {
     }
 
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), DatabaseError> {
-        internal_err!(self.db.put(&self.tx, key, value, None))?;
+        internal_err!(self.tx.put(&self.db, key, value, None))?;
         Ok(())
     }
 
     fn del(&mut self, key: &[u8], value: Option<&[u8]>) -> Result<(), DatabaseError> {
-        internal_err!(self.db.del(&self.tx, key, value))?;
+        internal_err!(self.tx.del(&self.db, key, value))?;
         Ok(())
     }
 
     fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, DatabaseError> {
-        let r = internal_err!(self.db.get(&self.tx, key))?;
+        let r = internal_err!(self.tx.get(&self.db, key))?;
         Ok(r)
     }
 
     fn cursor(&mut self) -> Result<Box<dyn StateStoreCursor>, DatabaseError> {
-        let cursor = internal_err!(self.db.open_cursor(&self.tx))?;
+        let cursor = internal_err!(self.tx.open_cursor(&self.db))?;
         Ok(Box::new(LmdbStateStoreCursor { cursor }))
     }
 

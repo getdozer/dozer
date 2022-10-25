@@ -1,13 +1,14 @@
 #![allow(clippy::type_complexity)]
 use libc::{c_int, c_uint, c_void, size_t, EACCES, EAGAIN, EINVAL, EIO, ENOENT, ENOMEM, ENOSPC};
 use lmdb_sys::{
-    mdb_cursor_close, mdb_cursor_get, mdb_cursor_open, mdb_dbi_open, mdb_del, mdb_env_close,
-    mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs, mdb_get, mdb_put,
-    mdb_txn_abort, mdb_txn_begin, mdb_txn_commit, MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env,
-    MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL, MDB_DUPFIXED, MDB_DUPSORT, MDB_GET_CURRENT,
-    MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA,
-    MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_PANIC, MDB_PREV,
-    MDB_READERS_FULL, MDB_SET, MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
+    mdb_cursor_close, mdb_cursor_get, mdb_cursor_open, mdb_dbi_close, mdb_dbi_open, mdb_del,
+    mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs, mdb_get,
+    mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit, mdb_txn_reset, MDB_cursor,
+    MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL, MDB_DUPFIXED,
+    MDB_DUPSORT, MDB_GET_CURRENT, MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED,
+    MDB_NEXT, MDB_NODUPDATA, MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC,
+    MDB_NOTFOUND, MDB_NOTLS, MDB_PANIC, MDB_PREV, MDB_RDONLY, MDB_READERS_FULL, MDB_SET,
+    MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -55,6 +56,8 @@ pub struct EnvOptions {
     pub no_meta_sync: bool,
     pub no_subdir: bool,
     pub writable_mem_map: bool,
+    pub no_locking: bool,
+    pub no_thread_local_storage: bool,
 }
 
 impl EnvOptions {
@@ -66,6 +69,8 @@ impl EnvOptions {
             no_meta_sync: false,
             no_subdir: false,
             writable_mem_map: false,
+            no_locking: false,
+            no_thread_local_storage: false,
         }
     }
 }
@@ -107,6 +112,12 @@ impl Environment {
                 if o.writable_mem_map {
                     flags |= MDB_WRITEMAP;
                 }
+                if o.no_locking {
+                    flags |= MDB_NOLOCK;
+                }
+                if o.no_thread_local_storage {
+                    flags |= MDB_NOTLS;
+                }
             }
 
             let r = mdb_env_open(
@@ -146,17 +157,24 @@ pub struct Transaction {
     env: Arc<Environment>,
     txn: *mut MDB_txn,
     parent: Option<Arc<Transaction>>,
+    read_only: bool,
+    active: bool,
 }
 
 unsafe impl Send for Transaction {}
 unsafe impl Sync for Transaction {}
 
 impl Transaction {
-    pub fn begin(env: Arc<Environment>) -> Result<Transaction, LmdbError> {
+    pub fn begin(env: Arc<Environment>, read_only: bool) -> Result<Transaction, LmdbError> {
         unsafe {
             let mut txn_ptr: *mut MDB_txn = ptr::null_mut();
 
-            let r = mdb_txn_begin(env.env_ptr, ptr::null_mut(), 0, addr_of_mut!(txn_ptr));
+            let r = mdb_txn_begin(
+                env.env_ptr,
+                ptr::null_mut(),
+                if read_only { MDB_RDONLY } else { 0 },
+                addr_of_mut!(txn_ptr),
+            );
             match r {
                 MDB_PANIC => { return Err(LmdbError::new(r, "A fatal error occurred earlier and the environment must be shut down".to_string())) }
                 MDB_MAP_RESIZED => { return Err(LmdbError::new(r, "Another process wrote data beyond this MDB_env's mapsize and this environment's map must be resized as well. See mdb_env_set_mapsize()".to_string())) }
@@ -170,6 +188,8 @@ impl Transaction {
                 env,
                 txn: txn_ptr,
                 parent: None,
+                read_only,
+                active: true,
             })
         }
     }
@@ -191,15 +211,18 @@ impl Transaction {
                 _ => {}
             }
 
+            let ro = parent.read_only;
             Ok(Transaction {
                 env,
                 txn: txn_ptr,
                 parent: Some(parent),
+                read_only: ro,
+                active: true,
             })
         }
     }
 
-    pub fn commit(&self) -> Result<(), LmdbError> {
+    pub fn commit(&mut self) -> Result<(), LmdbError> {
         unsafe {
             let r = mdb_txn_commit(self.txn);
             match r {
@@ -220,20 +243,178 @@ impl Transaction {
                 x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
                 _ => {}
             }
+            self.active = false;
             Ok(())
         }
     }
 
-    pub fn abort(&self) -> Result<(), LmdbError> {
+    pub fn abort(&mut self) -> Result<(), LmdbError> {
         unsafe {
             mdb_txn_abort(self.txn);
+            self.active = false;
             Ok(())
+        }
+    }
+
+    pub fn put(
+        &mut self,
+        db: &Database,
+        key: &[u8],
+        value: &[u8],
+        opts: Option<PutOptions>,
+    ) -> Result<(), LmdbError> {
+        unsafe {
+            let mut key_data = MDB_val {
+                mv_size: key.len(),
+                mv_data: key.as_ptr() as *mut c_void,
+            };
+            let mut val_data = MDB_val {
+                mv_size: value.len(),
+                mv_data: value.as_ptr() as *mut c_void,
+            };
+
+            let mut opt_flags: c_uint = 0;
+
+            if let Some(e) = opts {
+                if e.no_duplicates {
+                    opt_flags |= MDB_NODUPDATA
+                }
+                if e.no_overwrite {
+                    opt_flags |= MDB_NOOVERWRITE
+                }
+            }
+
+            let r = mdb_put(
+                self.txn,
+                db.dbi,
+                addr_of_mut!(key_data),
+                addr_of_mut!(val_data),
+                opt_flags,
+            );
+            match r {
+                MDB_MAP_FULL => {
+                    return Err(LmdbError::new(
+                        r,
+                        "The database is full, see mdb_env_set_mapsize()".to_string(),
+                    ))
+                }
+                MDB_TXN_FULL => {
+                    return Err(LmdbError::new(
+                        r,
+                        "the transaction has too many dirty pages".to_string(),
+                    ))
+                }
+                EACCES => {
+                    return Err(LmdbError::new(
+                        r,
+                        "An attempt was made to write in a read-only transaction".to_string(),
+                    ))
+                }
+                EINVAL => return Err(LmdbError::new(r, "Invalid parameter".to_string())),
+                x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
+                _ => {}
+            }
+
+            Ok(())
+        }
+    }
+
+    pub fn get(&self, db: &Database, key: &[u8]) -> Result<Option<&[u8]>, LmdbError> {
+        unsafe {
+            let mut key_data = MDB_val {
+                mv_size: key.len(),
+                mv_data: key.as_ptr() as *mut c_void,
+            };
+            let mut val_data = MDB_val {
+                mv_size: 0,
+                mv_data: ptr::null_mut(),
+            };
+
+            let r = mdb_get(
+                self.txn,
+                db.dbi,
+                addr_of_mut!(key_data),
+                addr_of_mut!(val_data),
+            );
+            match r {
+                MDB_NOTFOUND => return Ok(None),
+                EINVAL => return Err(LmdbError::new(r, "Invalid parameter".to_string())),
+                x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
+                _ => {}
+            }
+
+            Ok(Some(slice::from_raw_parts(
+                val_data.mv_data as *mut u8,
+                val_data.mv_size as usize,
+            )))
+        }
+    }
+
+    pub fn del(
+        &mut self,
+        db: &Database,
+        key: &[u8],
+        value: Option<&[u8]>,
+    ) -> Result<bool, LmdbError> {
+        unsafe {
+            let mut key_data = MDB_val {
+                mv_size: key.len(),
+                mv_data: key.as_ptr() as *mut c_void,
+            };
+            let val_data = value.map(|e| MDB_val {
+                mv_size: e.len(),
+                mv_data: e.as_ptr() as *mut c_void,
+            });
+
+            let r: c_int = match val_data {
+                Some(mut v) => mdb_del(self.txn, db.dbi, addr_of_mut!(key_data), addr_of_mut!(v)),
+                None => mdb_del(self.txn, db.dbi, addr_of_mut!(key_data), ptr::null_mut()),
+            };
+
+            match r {
+                MDB_NOTFOUND => return Ok(false),
+                EACCES => {
+                    return Err(LmdbError::new(
+                        r,
+                        "An attempt was made to write in a read-only transaction".to_string(),
+                    ))
+                }
+                EINVAL => return Err(LmdbError::new(r, "Invalid parameter".to_string())),
+                x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
+                _ => {}
+            }
+
+            Ok(true)
+        }
+    }
+
+    pub fn open_cursor(&self, db: &Database) -> Result<Cursor, LmdbError> {
+        unsafe {
+            let mut cur: *mut MDB_cursor = ptr::null_mut();
+            let r = mdb_cursor_open(self.txn, db.dbi, addr_of_mut!(cur));
+            match r {
+                EINVAL => Err(LmdbError::new(r, "Invalid parameter".to_string())),
+                x if x != 0 => Err(LmdbError::new(r, "Unknown error".to_string())),
+                _ => Ok(Cursor::new(cur)),
+            }
         }
     }
 }
 
 impl Drop for Transaction {
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+
+        unsafe {
+            if self.read_only {
+                mdb_txn_reset(self.txn);
+            } else {
+                mdb_txn_abort(self.txn);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -331,154 +512,14 @@ impl Database {
             Ok(Database { env, dbi })
         }
     }
-
-    pub fn put(
-        &self,
-        txn: &Transaction,
-        key: &[u8],
-        value: &[u8],
-        opts: Option<PutOptions>,
-    ) -> Result<(), LmdbError> {
-        unsafe {
-            let mut key_data = MDB_val {
-                mv_size: key.len(),
-                mv_data: key.as_ptr() as *mut c_void,
-            };
-            let mut val_data = MDB_val {
-                mv_size: value.len(),
-                mv_data: value.as_ptr() as *mut c_void,
-            };
-
-            let mut opt_flags: c_uint = 0;
-
-            if let Some(e) = opts {
-                if e.no_duplicates {
-                    opt_flags |= MDB_NODUPDATA
-                }
-                if e.no_overwrite {
-                    opt_flags |= MDB_NOOVERWRITE
-                }
-            }
-
-            let r = mdb_put(
-                txn.txn,
-                self.dbi,
-                addr_of_mut!(key_data),
-                addr_of_mut!(val_data),
-                opt_flags,
-            );
-            match r {
-                MDB_MAP_FULL => {
-                    return Err(LmdbError::new(
-                        r,
-                        "The database is full, see mdb_env_set_mapsize()".to_string(),
-                    ))
-                }
-                MDB_TXN_FULL => {
-                    return Err(LmdbError::new(
-                        r,
-                        "the transaction has too many dirty pages".to_string(),
-                    ))
-                }
-                EACCES => {
-                    return Err(LmdbError::new(
-                        r,
-                        "An attempt was made to write in a read-only transaction".to_string(),
-                    ))
-                }
-                EINVAL => return Err(LmdbError::new(r, "Invalid parameter".to_string())),
-                x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
-                _ => {}
-            }
-
-            Ok(())
-        }
-    }
-
-    pub fn get(&self, txn: &Transaction, key: &[u8]) -> Result<Option<&[u8]>, LmdbError> {
-        unsafe {
-            let mut key_data = MDB_val {
-                mv_size: key.len(),
-                mv_data: key.as_ptr() as *mut c_void,
-            };
-            let mut val_data = MDB_val {
-                mv_size: 0,
-                mv_data: ptr::null_mut(),
-            };
-
-            let r = mdb_get(
-                txn.txn,
-                self.dbi,
-                addr_of_mut!(key_data),
-                addr_of_mut!(val_data),
-            );
-            match r {
-                MDB_NOTFOUND => return Ok(None),
-                EINVAL => return Err(LmdbError::new(r, "Invalid parameter".to_string())),
-                x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
-                _ => {}
-            }
-
-            Ok(Some(slice::from_raw_parts(
-                val_data.mv_data as *mut u8,
-                val_data.mv_size as usize,
-            )))
-        }
-    }
-
-    pub fn del(
-        &self,
-        txn: &Transaction,
-        key: &[u8],
-        value: Option<&[u8]>,
-    ) -> Result<bool, LmdbError> {
-        unsafe {
-            let mut key_data = MDB_val {
-                mv_size: key.len(),
-                mv_data: key.as_ptr() as *mut c_void,
-            };
-            let val_data = value.map(|e| MDB_val {
-                mv_size: e.len(),
-                mv_data: e.as_ptr() as *mut c_void,
-            });
-
-            let r: c_int = match val_data {
-                Some(mut v) => mdb_del(txn.txn, self.dbi, addr_of_mut!(key_data), addr_of_mut!(v)),
-                None => mdb_del(txn.txn, self.dbi, addr_of_mut!(key_data), ptr::null_mut()),
-            };
-
-            match r {
-                MDB_NOTFOUND => return Ok(false),
-                EACCES => {
-                    return Err(LmdbError::new(
-                        r,
-                        "An attempt was made to write in a read-only transaction".to_string(),
-                    ))
-                }
-                EINVAL => return Err(LmdbError::new(r, "Invalid parameter".to_string())),
-                x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
-                _ => {}
-            }
-
-            Ok(true)
-        }
-    }
-
-    pub fn open_cursor(&self, txn: &Transaction) -> Result<Cursor, LmdbError> {
-        unsafe {
-            let mut cur: *mut MDB_cursor = ptr::null_mut();
-            let r = mdb_cursor_open(txn.txn, self.dbi, addr_of_mut!(cur));
-            match r {
-                EINVAL => Err(LmdbError::new(r, "Invalid parameter".to_string())),
-                x if x != 0 => Err(LmdbError::new(r, "Unknown error".to_string())),
-                _ => Ok(Cursor::new(cur)),
-            }
-        }
-    }
 }
 
 impl Drop for Database {
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        unsafe {
+            mdb_dbi_close(self.env.env_ptr, self.dbi);
+        }
+    }
 }
 
 pub struct Cursor {
@@ -535,6 +576,15 @@ impl Cursor {
                     slice::from_raw_parts(val_data.mv_data as *mut u8, val_data.mv_size as usize),
                 ))),
             }
+        }
+    }
+
+    pub fn seek_gte(&self, key: &[u8]) -> Result<bool, LmdbError> {
+        let r = self.internal_get_cursor_op(MDB_SET_RANGE, Some(key), None);
+        match r {
+            Ok(Some(_v)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
         }
     }
 

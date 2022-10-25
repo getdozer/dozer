@@ -117,6 +117,15 @@ impl StateStoreIndexer {
         Ok(full_pk)
     }
 
+    pub fn get<'a>(
+        &self,
+        store: &'a dyn StateStore,
+        pk_val: &[u8],
+    ) -> Result<Option<&'a [u8]>, DatabaseError> {
+        let full_pk = self.create_key(PRIMARY_IDX_KEY, pk_val);
+        store.get(full_pk.as_slice())
+    }
+
     pub fn get_multi<'a>(
         &self,
         state: &'a mut dyn StateStore,
