@@ -1,4 +1,5 @@
 use crate::{
+    api_server::PipelineDetails,
     generator::protoc::generator::ProtoGenerator,
     grpc::{
         server::TonicServer,
@@ -24,9 +25,11 @@ impl GRPCServer {
         let schema = cache.get_schema_by_name(&schema_name).unwrap();
         let tmp_dir = TempDir::new("proto_generated").unwrap();
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
-
-        let proto_generator =
-            ProtoGenerator::new(schema, schema_name.to_owned(), endpoints[0].clone()).unwrap();
+        let pipeline_details = PipelineDetails {
+            schema_name: schema_name.to_owned(),
+            endpoint: endpoints[0].clone(),
+        };
+        let proto_generator = ProtoGenerator::new(schema, pipeline_details.to_owned()).unwrap();
         let generated_proto = proto_generator
             .generate_proto(tempdir_path.to_owned())
             .unwrap();
@@ -42,7 +45,8 @@ impl GRPCServer {
             .build()
             .unwrap();
         let addr = format!("[::1]:{:}", self.port).parse().unwrap(); // "[::1]:50051".parse().unwrap();
-        let grpc_service = TonicServer::new(descriptor_path, generated_proto.1, cache, schema_name);
+        let grpc_service =
+            TonicServer::new(descriptor_path, generated_proto.1, cache, pipeline_details);
         let server_future = Server::builder()
             .accept_http1(true)
             .add_service(inflection_service)

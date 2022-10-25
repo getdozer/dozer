@@ -1,3 +1,5 @@
+use crate::errors::GenerationError;
+
 use super::util::convert_dozer_type_to_proto_type;
 use dozer_types::{
     models::api_endpoint::ApiEndpoint,
@@ -47,16 +49,15 @@ impl ProtoService {
         schema: dozer_types::types::Schema,
         schema_name: String,
         endpoint: ApiEndpoint,
-    ) -> anyhow::Result<Self> {
-        let service = Self {
+    ) -> Self {
+        Self {
             schema,
             endpoint,
             schema_name,
-        };
-        Ok(service)
+        }
     }
 
-    fn _get_message(&self) -> anyhow::Result<(RPCFunction, Vec<RPCMessage>)> {
+    fn _get_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
         let get_request_str = format!(
             "Get{}Request",
             self.endpoint.name.to_owned().to_pascal_case()
@@ -82,10 +83,10 @@ impl ProtoService {
                 self.schema_name.to_owned().to_lowercase()
             )],
         };
-        Ok((get_fnc, vec![get_request, get_response]))
+        (get_fnc, vec![get_request, get_response])
     }
 
-    fn _get_by_id_message(&self) -> anyhow::Result<(RPCFunction, Vec<RPCMessage>)> {
+    fn _get_by_id_message(&self) -> Result<(RPCFunction, Vec<RPCMessage>), GenerationError> {
         let get_by_id_req_str = format!(
             "Get{}ByIdRequest",
             self.endpoint.name.to_owned().to_pascal_case()
@@ -100,10 +101,11 @@ impl ProtoService {
             response: get_by_id_res_str.to_owned(),
         };
 
-        let primary_idx = self.schema.primary_index.first().unwrap().to_owned();
-        let primary_type = &self.schema.fields[primary_idx];
-        let primary_proto_type =
-            convert_dozer_type_to_proto_type(primary_type.typ.to_owned()).unwrap();
+        let primary_idx = self.schema.primary_index.first().ok_or_else(|| {
+            GenerationError::MissingPrimaryKeyToQueryById(self.endpoint.name.to_owned())
+        })?;
+        let primary_type = &self.schema.fields[primary_idx.to_owned()];
+        let primary_proto_type = convert_dozer_type_to_proto_type(primary_type.typ.to_owned())?;
         let primary_field = primary_type.name.to_owned();
         let get_by_id_request_model = RPCMessage {
             name: get_by_id_req_str,
@@ -124,7 +126,7 @@ impl ProtoService {
         ))
     }
 
-    fn _query_message(&self) -> anyhow::Result<(RPCFunction, Vec<RPCMessage>)> {
+    fn _query_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
         let query_request_str = format!(
             "Query{}Request",
             self.endpoint.name.to_owned().to_pascal_case()
@@ -156,11 +158,11 @@ impl ProtoService {
                 self.schema_name.to_owned().to_lowercase()
             )],
         };
-        Ok((query_fnc, vec![query_request, query_response]))
+        (query_fnc, vec![query_request, query_response])
     }
 
-    fn _sort_option_model(&self) -> anyhow::Result<RPCMessage> {
-        let model_message = RPCMessage {
+    fn _sort_option_model(&self) -> RPCMessage {
+        RPCMessage {
             name: "SortOptions".to_owned(),
             props: vec![
                 "enum SortDirection { \n".to_owned(),
@@ -170,10 +172,9 @@ impl ProtoService {
                 "string field_name = 1; \n".to_owned(),
                 "SortDirection direction = 3; \n".to_owned(),
             ],
-        };
-        Ok(model_message)
+        }
     }
-    fn _main_model(&self) -> anyhow::Result<RPCMessage> {
+    fn _main_model(&self) -> RPCMessage {
         let props_message: Vec<String> = self
             .schema
             .fields
@@ -190,21 +191,20 @@ impl ProtoService {
             })
             .collect();
 
-        let main_model_message = RPCMessage {
+        RPCMessage {
             name: self.schema_name.to_pascal_case(),
             props: props_message,
-        };
-        Ok(main_model_message)
+        }
     }
 
-    pub fn get_grpc_metadata(&self) -> anyhow::Result<ProtoMetadata> {
+    pub fn get_grpc_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = format!("Dozer{}", self.endpoint.name.to_owned().to_pascal_case());
         let service_name = format!("{}Service", self.endpoint.name.to_owned().to_pascal_case());
-        let get_rpc = self._get_message()?;
+        let get_rpc = self._get_message();
         let get_by_id_rpc = self._get_by_id_message()?;
-        let query_rpc = self._query_message()?;
-        let main_model = self._main_model()?;
-        let sort_exp_model = self._sort_option_model()?;
+        let query_rpc = self._query_message();
+        let main_model = self._main_model();
+        let sort_exp_model = self._sort_option_model();
 
         let rpc_functions = vec![
             get_rpc.to_owned().0,

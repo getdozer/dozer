@@ -7,6 +7,8 @@ use std::{
 };
 use tonic::{Code, Status};
 
+use crate::errors::{GRPCError, GenerationError};
+
 pub fn from_dynamic_message_to_json(input: DynamicMessage) -> Result<Value, Status> {
     let mut options = SerializeOptions::new();
     options = options.use_proto_field_name(true);
@@ -66,23 +68,30 @@ pub fn get_service_name(descriptor: DescriptorPool) -> Option<String> {
 }
 
 //https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/DescriptorProtos.FieldDescriptorProto.Type
-pub fn get_proto_descriptor(descriptor_dir: String) -> anyhow::Result<DescriptorPool> {
+pub fn get_proto_descriptor(descriptor_dir: String) -> Result<DescriptorPool, GRPCError> {
     let descriptor_set_dir = descriptor_dir;
-    let buffer = read_file_as_byte(descriptor_set_dir)?;
+    let buffer = read_file_as_byte(descriptor_set_dir)
+        .map_err(|e| GRPCError::InternalError(e.to_string()))?;
     let my_array_byte = buffer.as_slice();
-    let pool2 = DescriptorPool::decode(my_array_byte)?;
+    let pool2 = DescriptorPool::decode(my_array_byte)
+        .map_err(|e| GRPCError::ProtoDescriptorError(e.to_string()))?;
     Ok(pool2)
 }
 
-pub fn read_file_as_byte(path: String) -> anyhow::Result<Vec<u8>> {
-    let f = File::open(path)?;
+pub fn read_file_as_byte(path: String) -> Result<Vec<u8>, GenerationError> {
+    let f = File::open(path).map_err(GenerationError::FileCannotOpen)?;
     let mut reader = BufReader::new(f);
     let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
+    reader
+        .read_to_end(&mut buffer)
+        .map_err(GenerationError::ReadFileBuffer)?;
     Ok(buffer)
 }
 
-pub fn create_descriptor_set(proto_folder: &str, proto_file_name: &str) -> anyhow::Result<String> {
+pub fn create_descriptor_set(
+    proto_folder: &str,
+    proto_file_name: &str,
+) -> Result<String, GenerationError> {
     let proto_file_path = format!("{}/{}", proto_folder.to_owned(), proto_file_name.to_owned());
     let my_path_descriptor = format!("{}/file_descriptor_set.bin", proto_folder.to_owned());
     let mut prost_build_config = prost_build::Config::new();
@@ -95,6 +104,7 @@ pub fn create_descriptor_set(proto_folder: &str, proto_file_name: &str) -> anyho
         .build_client(false)
         .build_server(false)
         .out_dir(&proto_folder)
-        .compile_with_config(prost_build_config2, &[proto_file_path], &[proto_folder])?;
+        .compile_with_config(prost_build_config2, &[proto_file_path], &[proto_folder])
+        .map_err(|e| GenerationError::CannotCreateProtoDescriptor(e.to_string()))?;
     Ok(my_path_descriptor)
 }

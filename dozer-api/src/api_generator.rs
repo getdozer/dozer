@@ -17,7 +17,12 @@ pub async fn generate_oapi(
     pipeline_details: ReqData<PipelineDetails>,
     cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(pipeline_details, cache, access)?;
+    let cache = cache.as_ref().to_owned();
+    let helper = ApiHelper::new(
+        pipeline_details.into_inner(),
+        cache,
+        access.map(|a| a.into_inner()),
+    )?;
 
     helper
         .generate_oapi3()
@@ -31,7 +36,12 @@ pub async fn get(
     path: web::Path<String>,
     cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(pipeline_details, cache, access)?;
+    let cache = cache.as_ref().to_owned();
+    let helper = ApiHelper::new(
+        pipeline_details.into_inner(),
+        cache,
+        access.map(|a| a.into_inner()),
+    )?;
     let key = path.into_inner();
     helper
         .get_record(key)
@@ -48,7 +58,12 @@ pub async fn list(
     pipeline_details: ReqData<PipelineDetails>,
     cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(pipeline_details, cache, access)?;
+    let cache = cache.as_ref().to_owned();
+    let helper = ApiHelper::new(
+        pipeline_details.into_inner(),
+        cache,
+        access.map(|a| a.into_inner()),
+    )?;
     let exp = QueryExpression::new(None, vec![], 50, 0);
     helper
         .get_records(exp)
@@ -65,7 +80,12 @@ pub async fn query(
 ) -> Result<HttpResponse, ApiError> {
     let query_expression = serde_json::from_value::<QueryExpression>(query_info.0)
         .map_err(ApiError::map_deserialization_error)?;
-    let helper = ApiHelper::new(pipeline_details, cache, access)?;
+    let cache = cache.as_ref().to_owned();
+    let helper = ApiHelper::new(
+        pipeline_details.into_inner(),
+        cache,
+        access.map(|a| a.into_inner()),
+    )?;
     helper
         .get_records(query_expression)
         .map(|maps| HttpResponse::Ok().json(maps))

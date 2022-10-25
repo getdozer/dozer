@@ -1,10 +1,13 @@
-use crate::grpc::tests::utils::{generate_descriptor, generate_proto};
+use crate::{
+    errors::GenerationError,
+    grpc::tests::utils::{generate_descriptor, generate_proto},
+};
 use std::path::Path;
 use tempdir::TempDir;
 
 #[test]
-fn test_generate_proto() -> anyhow::Result<()> {
-    let tmp_dir = TempDir::new("proto_generated")?;
+fn test_generate_proto() -> Result<(), GenerationError> {
+    let tmp_dir = TempDir::new("proto_generated").map_err(GenerationError::TmpFile)?;
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let schema_name = String::from("film");
     let proto_result = generate_proto(tmp_dir_path, schema_name.to_owned())?;
@@ -21,8 +24,8 @@ fn test_generate_proto() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_generate_descriptor() -> anyhow::Result<()> {
-    let tmp_dir = TempDir::new("proto_generated")?;
+fn test_generate_descriptor() -> Result<(), GenerationError> {
+    let tmp_dir = TempDir::new("proto_generated").map_err(GenerationError::TmpFile)?;
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let schema_name = String::from("film");
     generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned())?;

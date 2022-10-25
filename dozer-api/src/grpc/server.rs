@@ -1,6 +1,7 @@
 #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
 use super::util::get_proto_descriptor;
 use crate::{
+    api_server::PipelineDetails,
     generator::protoc::proto_service::GrpcType,
     grpc::{
         dynamic_codec::DynamicCodec,
@@ -20,14 +21,14 @@ pub struct TonicServer {
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
     cache: Arc<LmdbCache>,
-    schema_name: String,
+    pipeline_details: PipelineDetails,
 }
 impl TonicServer {
     pub fn new(
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
         cache: Arc<LmdbCache>,
-        schema_name: String,
+        pipeline_details: PipelineDetails,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
         TonicServer {
@@ -37,7 +38,7 @@ impl TonicServer {
             descriptor,
             function_types,
             cache,
-            schema_name,
+            pipeline_details,
         }
     }
 
@@ -93,7 +94,7 @@ where
             );
             let method_type = &self.function_types[method_name];
             let cache = self.cache.to_owned();
-            let schema_name = self.schema_name.to_owned();
+            let schema_name = self.pipeline_details.schema_name.to_owned();
             #[allow(non_camel_case_types)]
             let accept_compression_encodings = self.accept_compression_encodings;
             let send_compression_encodings = self.send_compression_encodings;
@@ -102,7 +103,10 @@ where
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings);
             return match method_type {
                 GrpcType::GetById => {
-                    let method = GetByIdService { cache, schema_name };
+                    let method = GetByIdService {
+                        cache,
+                        pipeline_details: self.pipeline_details.to_owned(),
+                    };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
                         Ok(res)
@@ -110,7 +114,10 @@ where
                     Box::pin(fut)
                 }
                 GrpcType::Query => {
-                    let method = QueryService { cache, schema_name };
+                    let method = QueryService {
+                        cache,
+                        pipeline_details: self.pipeline_details.to_owned(),
+                    };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
                         Ok(res)
@@ -118,7 +125,10 @@ where
                     Box::pin(fut)
                 }
                 GrpcType::List => {
-                    let method = ListService { cache, schema_name };
+                    let method = ListService {
+                        cache,
+                        pipeline_details: self.pipeline_details.to_owned(),
+                    };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
                         Ok(res)

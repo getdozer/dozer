@@ -1,7 +1,5 @@
 use crate::auth::Access;
 use crate::errors::ApiError;
-use actix_web::web;
-use actix_web::web::ReqData;
 use dozer_cache::cache::{expression::QueryExpression, index, Cache, LmdbCache};
 use dozer_types::errors::cache::CacheError;
 use dozer_types::json_value_to_field;
@@ -14,21 +12,21 @@ use crate::api_server::PipelineDetails;
 use crate::generator::oapi::generator::OpenApiGenerator;
 
 pub struct ApiHelper {
-    details: ReqData<PipelineDetails>,
-    cache: web::Data<Arc<LmdbCache>>,
-    access: Access,
+    _access: Access,
+    cache: Arc<LmdbCache>,
+    details: PipelineDetails,
 }
 impl ApiHelper {
     pub fn new(
-        pipeline_details: ReqData<PipelineDetails>,
-        cache: web::Data<Arc<LmdbCache>>,
-        access: Option<ReqData<Access>>,
+        pipeline_details: PipelineDetails,
+        cache: Arc<LmdbCache>,
+        access: Option<Access>,
     ) -> Result<Self, ApiError> {
         Ok(Self {
             details: pipeline_details,
             cache,
             // Initialize with Access:all if no access object is provided
-            access: access.map_or(Access::All, |a| a.into_inner()),
+            _access: access.map_or(Access::All, |a| a),
         })
     }
 

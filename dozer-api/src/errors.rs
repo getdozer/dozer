@@ -9,6 +9,7 @@ use dozer_types::{serde_json, thiserror};
 use dozer_types::errors::cache::{CacheError, QueryValidationError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
+use handlebars::{RenderError, TemplateError};
 
 #[derive(Error, Debug)]
 pub enum ApiError {
@@ -46,6 +47,27 @@ impl ApiError {
 }
 
 #[derive(Error, Debug)]
+pub enum GRPCError {
+    #[error("Internal GRPC server error: {0}")]
+    InternalError(String),
+    #[error("Cannot get Proto descriptor: {0}")]
+    ProtoDescriptorError(String),
+}
+impl From<GRPCError> for tonic::Status {
+    fn from(input: GRPCError) -> Self {
+        match input {
+            GRPCError::InternalError(err) => tonic::Status::new(tonic::Code::Internal, err),
+            GRPCError::ProtoDescriptorError(err) => tonic::Status::new(tonic::Code::Internal, err),
+        }
+    }
+}
+
+impl From<ApiError> for tonic::Status {
+    fn from(input: ApiError) -> Self {
+        tonic::Status::new(tonic::Code::Unknown, input.to_string())
+    }
+}
+#[derive(Error, Debug)]
 pub enum InitError {
     #[error("pipeline_details not initialized")]
     PipelineNotInitialized,
@@ -59,6 +81,22 @@ pub enum GenerationError {
     TmpFile(#[source] std::io::Error),
     #[error("Cannot serialize to file")]
     SerializationError(#[source] serde_json::Error),
+    #[error("Cannot register template")]
+    TemplateError(#[source] TemplateError),
+    #[error("directory path does not exist")]
+    DirPathNotExist,
+    #[error("Read file buffer error")]
+    ReadFileBuffer(#[source] std::io::Error),
+    #[error("Cannot open file")]
+    FileCannotOpen(#[source] std::io::Error),
+    #[error("Cannot render with handlebars template")]
+    RenderError(#[source] RenderError),
+    #[error("DozerType to Proto type not supported: {0}")]
+    DozerToProtoTypeNotSupported(String),
+    #[error("Missing primary key to query by id: {0}")]
+    MissingPrimaryKeyToQueryById(String),
+    #[error("Unable to create proto descriptor: {0}")]
+    CannotCreateProtoDescriptor(String),
 }
 
 #[derive(Error, Debug)]

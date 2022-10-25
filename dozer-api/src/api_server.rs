@@ -11,10 +11,7 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{
-    api_generator,
-    auth::api::{validate},
-};
+use crate::{api_generator, auth::api::validate};
 
 #[derive(Clone)]
 pub struct PipelineDetails {
@@ -65,14 +62,12 @@ impl ApiServer {
             CorsOptions::Permissive => Cors::permissive(),
             CorsOptions::Custom(origins, max_age) => origins
                 .into_iter()
-                .fold(Cors::default(), |cors, origin| {
-                    cors.allowed_origin(&origin)
-                })
+                .fold(Cors::default(), |cors, origin| cors.allowed_origin(&origin))
                 .max_age(max_age),
         }
     }
 
-    fn auth_route() {}
+    fn _auth_route() {}
 
     pub fn create_app_entry(
         security: ApiSecurity,

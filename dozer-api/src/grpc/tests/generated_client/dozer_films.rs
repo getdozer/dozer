@@ -40,7 +40,7 @@ pub mod sort_options {
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct GetFilmsRequest {
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct GetFilmsResponse {
     #[prost(message, repeated, tag="1")]
     pub film: ::prost::alloc::vec::Vec<Film>,
@@ -50,12 +50,12 @@ pub struct GetFilmsByIdRequest {
     #[prost(int32, tag="1")]
     pub film_id: i32,
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct GetFilmsByIdResponse {
     #[prost(message, optional, tag="1")]
     pub film: ::core::option::Option<Film>,
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct QueryFilmsRequest {
     #[prost(string, optional, tag="1")]
     pub filter: ::core::option::Option<::prost::alloc::string::String>,
@@ -66,7 +66,7 @@ pub struct QueryFilmsRequest {
     #[prost(uint32, optional, tag="4")]
     pub skip: ::core::option::Option<u32>,
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct QueryFilmsResponse {
     #[prost(message, repeated, tag="1")]
     pub film: ::prost::alloc::vec::Vec<Film>,

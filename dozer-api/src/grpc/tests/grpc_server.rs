@@ -1,7 +1,10 @@
 use std::{collections::HashMap, time::Duration};
 
 use super::utils::{generate_descriptor, generate_proto};
-use crate::{generator::protoc::proto_service::GrpcType, grpc::server::TonicServer, test_utils};
+use crate::{
+    api_server::PipelineDetails, generator::protoc::proto_service::GrpcType,
+    grpc::server::TonicServer, test_utils,
+};
 use futures_util::FutureExt;
 use tempdir::TempDir;
 use tokio::sync::oneshot;
@@ -34,16 +37,17 @@ async fn test_grpc_list() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let schema_name = String::from("film");
-    let cache = test_utils::initialize_cache(&schema_name.to_owned()).unwrap();
+    let endpoint = test_utils::get_endpoint();
+    let pipeline_details = PipelineDetails {
+        schema_name: schema_name.to_owned(),
+        endpoint,
+    };
+    let cache = test_utils::initialize_cache(&schema_name.to_owned());
     let setup_result = setup(tmp_dir_path, schema_name.to_owned());
     let path_to_descriptor = setup_result.0;
     let function_types = setup_result.1;
-    let grpc_service = TonicServer::new(
-        path_to_descriptor,
-        function_types,
-        cache,
-        schema_name.to_owned(),
-    );
+    let grpc_service =
+        TonicServer::new(path_to_descriptor, function_types, cache, pipeline_details);
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {
@@ -74,16 +78,17 @@ async fn test_grpc_get_by_id() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let schema_name = String::from("film");
-    let cache = test_utils::initialize_cache(&schema_name.to_owned()).unwrap();
+    let endpoint = test_utils::get_endpoint();
+    let pipeline_details = PipelineDetails {
+        schema_name: schema_name.to_owned(),
+        endpoint,
+    };
+    let cache = test_utils::initialize_cache(&pipeline_details.schema_name.to_owned());
     let setup_result = setup(tmp_dir_path, schema_name.to_owned());
     let path_to_descriptor = setup_result.0;
     let function_types = setup_result.1;
-    let grpc_service = TonicServer::new(
-        path_to_descriptor,
-        function_types,
-        cache,
-        schema_name.to_owned(),
-    );
+    let grpc_service =
+        TonicServer::new(path_to_descriptor, function_types, cache, pipeline_details);
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {
@@ -114,16 +119,17 @@ async fn test_grpc_query() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let schema_name = String::from("film");
-    let cache = test_utils::initialize_cache(&schema_name.to_owned()).unwrap();
-    let setup_result = setup(tmp_dir_path, schema_name.to_owned());
+    let endpoint = test_utils::get_endpoint();
+    let pipeline_details = PipelineDetails {
+        schema_name,
+        endpoint,
+    };
+    let cache = test_utils::initialize_cache(&pipeline_details.schema_name.to_owned());
+    let setup_result = setup(tmp_dir_path, pipeline_details.schema_name.to_owned());
     let path_to_descriptor = setup_result.0;
     let function_types = setup_result.1;
-    let grpc_service = TonicServer::new(
-        path_to_descriptor,
-        function_types,
-        cache,
-        schema_name.to_owned(),
-    );
+    let grpc_service =
+        TonicServer::new(path_to_descriptor, function_types, cache, pipeline_details);
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {

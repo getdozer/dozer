@@ -29,7 +29,7 @@ async fn check_status(
         None => req,
     };
     let req = req.to_request();
-    
+
     actix_web::test::call_service(&app, req).await
 }
 #[actix_web::test]
