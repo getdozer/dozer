@@ -108,7 +108,10 @@ impl SchemaHelper {
         self.validate_schema(schemas)
     }
 
-    pub fn validate_schema(&self, schemas: Vec<(String, Schema)>) -> Result<Vec<(String, Schema)>, ConnectorError> {
+    pub fn validate_schema(
+        &self,
+        schemas: Vec<(String, Schema)>,
+    ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let table_without_primary_index = schemas
             .iter()
             .find(|(_table_name, schema)| schema.primary_index.is_empty());
