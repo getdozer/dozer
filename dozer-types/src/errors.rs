@@ -1,4 +1,3 @@
-pub mod api;
 pub mod cache;
 pub mod connector;
 pub mod database;

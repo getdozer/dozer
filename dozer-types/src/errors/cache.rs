@@ -44,6 +44,8 @@ pub enum QueryError {
     InsertValue,
     #[error("Field not found")]
     FieldNotFound,
+    #[error("Cannot access record")]
+    AccessDenied,
 }
 
 #[derive(Error, Debug)]

@@ -12,8 +12,8 @@ use dozer_types::serde::{self, Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{
+    api_auth::{self, validate, ApiSecurity},
     api_generator,
-    auth::api::{validate},
 };
 
 #[derive(Clone)]
@@ -27,13 +27,6 @@ pub enum CorsOptions {
     Permissive,
     // origins, max_age
     Custom(Vec<String>, usize),
-}
-
-#[derive(Clone)]
-pub enum ApiSecurity {
-    None,
-    // Initialize with a JWT_SECRET
-    Jwt(String),
 }
 
 #[derive(Clone)]
@@ -65,14 +58,10 @@ impl ApiServer {
             CorsOptions::Permissive => Cors::permissive(),
             CorsOptions::Custom(origins, max_age) => origins
                 .into_iter()
-                .fold(Cors::default(), |cors, origin| {
-                    cors.allowed_origin(&origin)
-                })
+                .fold(Cors::default(), |cors, origin| cors.allowed_origin(&origin))
                 .max_age(max_age),
         }
     }
-
-    fn auth_route() {}
 
     pub fn create_app_entry(
         security: ApiSecurity,
@@ -89,6 +78,8 @@ impl ApiServer {
         >,
     > {
         let app = App::new();
+
+        // Injecting cache
         let app = app.app_data(web::Data::new(cache));
 
         // Injecting API Security
@@ -100,33 +91,36 @@ impl ApiServer {
         );
         let cors_middleware = Self::get_cors(cors);
 
-        let app = endpoints.iter().fold(app, |app, endpoint| {
-            let endpoint = endpoint.clone();
-            let scope = endpoint.path.clone();
-            let schema_name = endpoint.name.clone();
-            app.service(
-                web::scope(&scope)
-                    // Inject pipeline_details for generated functions
-                    .wrap_fn(move |req, srv| {
-                        req.extensions_mut().insert(PipelineDetails {
-                            schema_name: schema_name.to_owned(),
-                            endpoint: endpoint.clone(),
-                        });
-                        srv.call(req)
-                    })
-                    .route("/query", web::post().to(api_generator::query))
-                    .route("/oapi", web::post().to(api_generator::generate_oapi))
-                    .route("/{id}", web::get().to(api_generator::get))
-                    .route("", web::get().to(api_generator::list)),
-            )
-        });
-
-        // app.service(web::resource("/auth", web::post().to(auth_route)))
-        // Wrap Api Validator
-        app.wrap(auth_middleware)
-            // Need to wrap CORS around api validator to return the right headers
+        endpoints
+            .iter()
+            .fold(app, |app, endpoint| {
+                let endpoint = endpoint.clone();
+                let scope = endpoint.path.clone();
+                let schema_name = endpoint.name.clone();
+                app.service(
+                    web::scope(&scope)
+                        // Inject pipeline_details for generated functions
+                        .wrap_fn(move |req, srv| {
+                            req.extensions_mut().insert(PipelineDetails {
+                                schema_name: schema_name.to_owned(),
+                                endpoint: endpoint.clone(),
+                            });
+                            srv.call(req)
+                        })
+                        .route("/query", web::post().to(api_generator::query))
+                        .route("/oapi", web::post().to(api_generator::generate_oapi))
+                        .route("/{id}", web::get().to(api_generator::get))
+                        .route("", web::get().to(api_generator::list)),
+                )
+            })
+            // Attach token generation route
+            .route("/auth/token", web::post().to(api_auth::auth_route))
+            // Wrap Api Validator
+            .wrap(auth_middleware)
+            // Wrap CORS around api validator. Neededto return the right headers.
             .wrap(cors_middleware)
     }
+
     pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
         let endpoints = endpoints;
         let cors = self.cors.clone();

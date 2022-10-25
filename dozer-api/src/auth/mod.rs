@@ -1,8 +1,9 @@
-use dozer_cache::cache::expression::FilterExpression;
+use std::collections::HashMap;
+
+use dozer_cache::AccessFilter;
 use dozer_types::serde;
 use serde::{Deserialize, Serialize};
-pub mod api;
-mod authorizer;
+pub mod authorizer;
 pub use authorizer::Authorizer;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -19,19 +20,39 @@ pub struct Claims {
 pub enum Access {
     /// Access to all indexes
     All,
-    /// Specific permissions to each of the indexes
-    Custom(Vec<AccessFilter>),
+    /// (endpoint_name, AccessFilter) Specific permissions to each of the indexes
+    Custom(HashMap<String, AccessFilter>),
 }
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-#[serde(crate = "self::serde")]
-/// This filter gets dynamically added to the query.
-pub struct AccessFilter {
-    /// Name of the index
-    indexes: Vec<String>,
 
-    /// FilterExpression to evaluate access
-    filter: Option<FilterExpression>,
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
 
-    /// Fields to be restricted
-    fields: Vec<String>,
+    use dozer_cache::AccessFilter;
+    use dozer_types::serde_json::json;
+
+    use super::Access;
+
+    #[test]
+    fn serialize_access() {
+        let mut access_map = HashMap::new();
+        access_map.insert(
+            "films".to_string(),
+            AccessFilter {
+                filter: None,
+                fields: vec![],
+            },
+        );
+        let access = Access::Custom(access_map);
+        let res = dozer_types::serde_json::to_string(&access);
+
+        assert!(res.is_ok());
+
+        let de_access = dozer_types::serde_json::from_value::<Access>(
+            json!({"Custom":{"films":{"filter":null,"fields":[]}}}),
+        );
+        assert!(de_access.is_ok());
+
+        assert_eq!(de_access.unwrap(), access, "are equal");
+    }
 }

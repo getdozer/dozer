@@ -1,8 +1,9 @@
 use crate::auth::Access;
-use crate::errors::ApiError;
+use crate::errors::{ApiError, AuthError};
 use actix_web::web;
 use actix_web::web::ReqData;
-use dozer_cache::cache::{expression::QueryExpression, index, Cache, LmdbCache};
+use dozer_cache::cache::{expression::QueryExpression, index, LmdbCache};
+use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::errors::cache::CacheError;
 use dozer_types::json_value_to_field;
 use dozer_types::record_to_json;
@@ -15,8 +16,7 @@ use crate::generator::oapi::generator::OpenApiGenerator;
 
 pub struct ApiHelper {
     details: ReqData<PipelineDetails>,
-    cache: web::Data<Arc<LmdbCache>>,
-    access: Access,
+    reader: CacheReader,
 }
 impl ApiHelper {
     pub fn new(
@@ -24,18 +24,39 @@ impl ApiHelper {
         cache: web::Data<Arc<LmdbCache>>,
         access: Option<ReqData<Access>>,
     ) -> Result<Self, ApiError> {
+        let access = access.map_or(Access::All, |a| a.into_inner());
+
+        // Define Access Filter based on token
+        let reader_access = match access {
+            // No access filter.
+            Access::All => AccessFilter {
+                filter: None,
+                fields: vec![],
+            },
+
+            Access::Custom(access_filters) => {
+                if let Some(access_filter) = access_filters.get(&pipeline_details.schema_name) {
+                    access_filter.to_owned()
+                } else {
+                    return Err(ApiError::ApiAuthError(AuthError::InvalidToken));
+                }
+            }
+        };
+
+        let reader = CacheReader {
+            cache: cache.as_ref().to_owned(),
+            access: reader_access,
+        };
         Ok(Self {
             details: pipeline_details,
-            cache,
-            // Initialize with Access:all if no access object is provided
-            access: access.map_or(Access::All, |a| a.into_inner()),
+            reader,
         })
     }
 
     pub fn generate_oapi3(&self) -> Result<OpenAPI, ApiError> {
         let schema_name = self.details.schema_name.clone();
         let schema = self
-            .cache
+            .reader
             .get_schema_by_name(&schema_name)
             .map_err(ApiError::SchemaNotFound)?;
 
@@ -52,7 +73,7 @@ impl ApiHelper {
     }
     /// Get a single record
     pub fn get_record(&self, key: String) -> Result<HashMap<String, String>, CacheError> {
-        let schema = self.cache.get_schema_by_name(&self.details.schema_name)?;
+        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
 
         let field_types: Vec<FieldType> = schema
             .primary_index
@@ -68,7 +89,7 @@ impl ApiHelper {
             }
         };
         let key = index::get_primary_key(&[0], &[key]);
-        let rec = self.cache.get(&key)?;
+        let rec = self.reader.get(&key)?;
 
         record_to_json(&rec, &schema).map_err(CacheError::TypeError)
     }
@@ -76,10 +97,10 @@ impl ApiHelper {
     /// Get multiple records
     pub fn get_records(
         &self,
-        exp: QueryExpression,
+        mut exp: QueryExpression,
     ) -> Result<Vec<HashMap<String, String>>, CacheError> {
-        let schema = self.cache.get_schema_by_name(&self.details.schema_name)?;
-        let records = self.cache.query(&self.details.schema_name, &exp)?;
+        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        let records = self.reader.query(&self.details.schema_name, &mut exp)?;
 
         let mut maps = vec![];
         for rec in records.iter() {
