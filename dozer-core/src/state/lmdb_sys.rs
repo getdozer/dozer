@@ -2,17 +2,16 @@
 use libc::{c_int, c_uint, c_void, size_t, EACCES, EAGAIN, EINVAL, EIO, ENOENT, ENOMEM, ENOSPC};
 use lmdb_sys::{
     mdb_cursor_close, mdb_cursor_get, mdb_cursor_open, mdb_dbi_close, mdb_dbi_open, mdb_del,
-    mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs, mdb_get,
-    mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit, mdb_txn_reset, MDB_cursor,
-    MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL, MDB_DUPFIXED,
-    MDB_DUPSORT, MDB_GET_CURRENT, MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED,
-    MDB_NEXT, MDB_NODUPDATA, MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC,
-    MDB_NOTFOUND, MDB_NOTLS, MDB_PANIC, MDB_PREV, MDB_RDONLY, MDB_READERS_FULL, MDB_SET,
-    MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
+    mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs,
+    mdb_env_set_maxreaders, mdb_get, mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit,
+    MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL,
+    MDB_DUPFIXED, MDB_DUPSORT, MDB_GET_CURRENT, MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL,
+    MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA, MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE,
+    MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_NOTLS, MDB_PANIC, MDB_PREV, MDB_RDONLY,
+    MDB_READERS_FULL, MDB_SET, MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::ops::Deref;
 use std::ptr::addr_of_mut;
 use std::sync::Arc;
 use std::{ptr, slice};
@@ -119,6 +118,7 @@ unsafe impl Sync for Environment {}
 pub struct EnvOptions {
     pub map_size: Option<size_t>,
     pub max_dbs: Option<u32>,
+    pub max_readers: Option<u32>,
     pub no_sync: bool,
     pub no_meta_sync: bool,
     pub no_subdir: bool,
@@ -132,6 +132,7 @@ impl EnvOptions {
         Self {
             map_size: None,
             max_dbs: None,
+            max_readers: None,
             no_sync: false,
             no_meta_sync: false,
             no_subdir: false,
@@ -166,6 +167,14 @@ impl Environment {
                 }
                 if o.max_dbs.is_some() && mdb_env_set_maxdbs(env_ptr, o.max_dbs.unwrap()) != 0 {
                     return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
+                }
+                if o.max_readers.is_some()
+                    && mdb_env_set_maxreaders(env_ptr, o.max_readers.unwrap()) != 0
+                {
+                    return Err(LmdbError::new(
+                        r,
+                        "Invalid max readers size specified".to_string(),
+                    ));
                 }
                 if o.no_sync {
                     flags |= MDB_NOSYNC;
@@ -251,14 +260,14 @@ impl Transaction {
         }
     }
 
-    pub fn child(&self, read_only: bool) -> Result<Transaction, LmdbError> {
+    pub fn child(&self) -> Result<Transaction, LmdbError> {
         unsafe {
             let mut txn_ptr: *mut MDB_txn = ptr::null_mut();
 
             let r = mdb_txn_begin(
                 self.env.env,
                 self.txn.txn,
-                if read_only { MDB_RDONLY } else { 0 },
+                if self.txn.read_only { MDB_RDONLY } else { 0 },
                 addr_of_mut!(txn_ptr),
             );
             match r {

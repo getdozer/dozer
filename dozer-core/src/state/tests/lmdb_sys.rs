@@ -1,8 +1,6 @@
 use crate::state::lmdb_sys::{
     Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use std::{fs, thread};
@@ -91,8 +89,9 @@ fn test_concurrent_tx() {
     let mut env_opt = EnvOptions::default();
     env_opt.no_sync = true;
     env_opt.max_dbs = Some(10);
+    env_opt.max_readers = Some(10);
     env_opt.map_size = Some(1024 * 1024 * 1024);
-    env_opt.writable_mem_map = true;
+    env_opt.writable_mem_map = false;
     env_opt.no_locking = true;
     env_opt.no_thread_local_storage = true;
 
@@ -108,15 +107,14 @@ fn test_concurrent_tx() {
     let db = chk!(Database::open(&env, &tx, "test".to_string(), Some(db_opt)));
     let _created = tx.commit();
 
-    let mut tx = Arc::new(RwLock::new(chk!(Transaction::begin(&env, false))));
-    //let ro_tx = chk!(tx.child(true));
+    let tx = Arc::new(RwLock::new(chk!(Transaction::begin(&env, false))));
 
     let t1_db = db.clone();
     let t1_tx = tx.clone();
     let t1 = thread::spawn(move || -> Result<(), LmdbError> {
         let mut writer = t1_tx.write().unwrap();
-        for i in 1..=5_000_000_u64 {
-            let _r = writer.put(&t1_db, &i.to_le_bytes(), &i.to_ne_bytes(), None);
+        for i in 1..=1_000_000_u64 {
+            writer.put(&t1_db, &i.to_le_bytes(), &i.to_ne_bytes(), None)?
         }
         Ok(())
     });
@@ -127,15 +125,32 @@ fn test_concurrent_tx() {
     let t2_tx = tx.clone();
     let t2 = thread::spawn(move || -> Result<(), LmdbError> {
         let reader = t2_tx.read().unwrap();
-        for i in 1..=5_000_000_u64 {
+        for i in 1..=1_000_000_u64 {
             let r = reader.get(&t2_db, &i.to_le_bytes())?;
             if r.is_none() {
-                panic!("cannot find value")
+                return Err(LmdbError::new(-1, "Not read".to_string()));
             }
         }
         Ok(())
     });
 
-    let _r1 = t1.join();
-    let _r2 = t2.join();
+    let t3_db = db.clone();
+    let t3_tx = tx.clone();
+    let t3 = thread::spawn(move || -> Result<(), LmdbError> {
+        let reader = t3_tx.read().unwrap();
+        for i in 1..=1_000_000_u64 {
+            let r = reader.get(&t3_db, &i.to_le_bytes())?;
+            if r.is_none() {
+                return Err(LmdbError::new(-1, "Not read".to_string()));
+            }
+        }
+        Ok(())
+    });
+
+    let r1 = t1.join();
+    assert!(r1.is_ok());
+    let r2 = t2.join();
+    assert!(r2.is_ok());
+    let r3 = t3.join();
+    assert!(r3.is_ok());
 }
