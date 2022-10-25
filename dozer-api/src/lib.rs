@@ -1,9 +1,11 @@
-pub mod api_helper;
+pub mod api_generator;
+mod api_helper;
 pub mod api_server;
+pub mod auth;
+
+mod errors;
 pub mod generator;
-pub(crate) mod grpc;
-pub mod grpc_server;
-pub mod rest_error;
-pub mod test_utils;
+#[cfg(test)]
+mod test_utils;
 #[cfg(test)]
 mod tests;

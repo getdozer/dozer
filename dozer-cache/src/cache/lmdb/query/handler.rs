@@ -4,9 +4,12 @@ use crate::cache::{
     index,
     planner::QueryPlanner,
 };
-use dozer_types::errors::cache::{
-    CacheError::{self, DeserializationError, SerializationError},
-    IndexError, QueryError,
+use dozer_types::errors::{
+    cache::{
+        CacheError::{self},
+        IndexError, QueryError,
+    },
+    types::TypeError,
 };
 use dozer_types::{
     bincode, json_value_to_field,
@@ -69,8 +72,11 @@ impl<'a> LmdbQueryHandler<'a> {
                 //
             } else if rec.is_some() && idx < limit {
                 if let Some((_key, val)) = rec {
-                    let rec = bincode::deserialize::<Record>(val)
-                        .map_err(|_e| CacheError::DeserializationError)?;
+                    let rec = bincode::deserialize::<Record>(val).map_err(|e| {
+                        TypeError::SerializationError(
+                            dozer_types::errors::types::SerializationError::Bincode(e),
+                        )
+                    })?;
                     records.push(rec);
                 } else {
                     break;
@@ -149,7 +155,7 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
                     .to_owned();
                 Some(
                     json_value_to_field(&val.to_string(), &field_type)
-                        .map_err(|_| DeserializationError)?,
+                        .map_err(CacheError::TypeError)?,
                 )
             }
             None => None,
@@ -162,9 +168,9 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
             for field in fields {
                 // convert value to `Vec<u8>`
                 field_bytes.push(match field {
-                    Some(field) => {
-                        Some(bincode::serialize(&field).map_err(|_| SerializationError)?)
-                    }
+                    Some(field) => Some(
+                        bincode::serialize(&field).map_err(CacheError::map_serialization_error)?,
+                    ),
                     None => None,
                 })
             }

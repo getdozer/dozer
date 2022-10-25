@@ -55,7 +55,7 @@ impl LmdbCache {
         let values = &rec.values;
         let key = index::get_primary_key(p_key, values);
         let encoded: Vec<u8> =
-            bincode::serialize(&rec).map_err(|_e| CacheError::SerializationError)?;
+            bincode::serialize(&rec).map_err(CacheError::map_serialization_error)?;
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())
             .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
@@ -74,14 +74,14 @@ impl LmdbCache {
         name: &str,
     ) -> Result<(), CacheError> {
         let encoded: Vec<u8> =
-            bincode::serialize(&schema).map_err(|_e| CacheError::SerializationError)?;
+            bincode::serialize(&schema).map_err(CacheError::map_serialization_error)?;
         let schema_id = schema.to_owned().identifier.unwrap();
         let key = get_schema_key(&schema_id);
         txn.put::<Vec<u8>, Vec<u8>>(self.schema_db, &key, &encoded, WriteFlags::default())
             .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
 
         let schema_bytes =
-            bincode::serialize(&schema_id).map_err(|_e| CacheError::SerializationError)?;
+            bincode::serialize(&schema_id).map_err(CacheError::map_serialization_error)?;
         let schema_key = index::get_schema_reverse_key(name);
 
         txn.put::<Vec<u8>, Vec<u8>>(
@@ -119,7 +119,7 @@ impl LmdbCache {
             .get(self.schema_db, &schema_reverse_key)
             .map_err(|_e| CacheError::QueryError(QueryError::GetValue))?;
         let schema_id: SchemaIdentifier = bincode::deserialize(schema_identifier)
-            .map_err(|_e| CacheError::DeserializationError)?;
+            .map_err(CacheError::map_deserialization_error)?;
 
         let schema = self._get_schema(txn, &schema_id)?;
 
@@ -136,7 +136,7 @@ impl LmdbCache {
             .get(self.schema_db, &key)
             .map_err(|_e| CacheError::QueryError(QueryError::GetValue))?;
         let schema: Schema =
-            bincode::deserialize(schema).map_err(|_e| CacheError::DeserializationError)?;
+            bincode::deserialize(schema).map_err(CacheError::map_deserialization_error)?;
         Ok(schema)
     }
 
