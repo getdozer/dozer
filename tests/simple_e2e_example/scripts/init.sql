@@ -1,7 +1,3 @@
-CREATE DATABASE users;
-
-GRANT ALL PRIVILEGES ON DATABASE users TO docker;
-
 CREATE SEQUENCE users_id_seq;
 
 CREATE TABLE users (

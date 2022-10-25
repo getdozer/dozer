@@ -6,7 +6,6 @@ services:
     volumes:
       - ./pg_hba.conf:/var/lib/foo/pg_hba.conf
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
-    
     command: postgres -c hba_file=/var/lib/foo/pg_hba.conf
     environment:
       POSTGRES_DB: users
@@ -15,6 +14,11 @@ services:
       ALLOW_IP_RANGE: 0.0.0.0/0
     ports:
       - '5432:5432'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d users" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   dozer:
     container_name: dozer
@@ -23,6 +27,12 @@ services:
     ports:
       - "9005:9005"
       - "8080:8080"
+    volumes:
+      - ./../../log4rs.yaml:/usr/dozer/log4rs.yaml
+      - ./dozer-config.yaml:/usr/local/dozer-config.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
     links:
       - postgres
     command: /usr/local/bin/dozer run -c /usr/local/dozer-config.yaml
