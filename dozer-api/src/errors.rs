@@ -52,13 +52,14 @@ pub enum GRPCError {
     InternalError(String),
     #[error("Cannot get Proto descriptor: {0}")]
     ProtoDescriptorError(String),
+    #[error(transparent)]
+    SerizalizeError(#[from] serde_json::Error),
+    #[error("Missing primary key to query by id: {0}")]
+    MissingPrimaryKeyToQueryById(String),
 }
 impl From<GRPCError> for tonic::Status {
     fn from(input: GRPCError) -> Self {
-        match input {
-            GRPCError::InternalError(err) => tonic::Status::new(tonic::Code::Internal, err),
-            GRPCError::ProtoDescriptorError(err) => tonic::Status::new(tonic::Code::Internal, err),
-        }
+        tonic::Status::new(tonic::Code::Internal, input.to_string())
     }
 }
 
@@ -67,6 +68,7 @@ impl From<ApiError> for tonic::Status {
         tonic::Status::new(tonic::Code::Unknown, input.to_string())
     }
 }
+
 #[derive(Error, Debug)]
 pub enum InitError {
     #[error("pipeline_details not initialized")]

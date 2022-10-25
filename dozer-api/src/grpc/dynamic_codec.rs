@@ -1,4 +1,5 @@
 use super::util::get_proto_descriptor;
+use crate::errors::GRPCError;
 use bytes::Buf;
 use dozer_types::serde_json::{de::Deserializer, Value};
 use prost::Message;
@@ -73,9 +74,9 @@ impl Encoder for DynamicEncoder {
         let json = &item.to_string();
         let mut deserializer = Deserializer::from_str(json);
 
-        let dynamic_message =
-            DynamicMessage::deserialize(message_descriptor, &mut deserializer).unwrap();
-        deserializer.end().unwrap();
+        let dynamic_message = DynamicMessage::deserialize(message_descriptor, &mut deserializer)
+            .map_err(GRPCError::SerizalizeError)?;
+        deserializer.end().map_err(GRPCError::SerizalizeError)?;
         dynamic_message
             .encode(dst)
             .map_err(|err| Status::from_error(Box::new(err)))?;
