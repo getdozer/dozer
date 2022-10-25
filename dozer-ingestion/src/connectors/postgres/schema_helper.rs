@@ -47,7 +47,7 @@ impl SchemaHelper {
                 let table_name: String = row.get(0);
                 let column_name: String = row.get(1);
                 let is_nullable: bool = row.get(2);
-                let is_primary_key: bool = row.get(3);
+                let is_primary_index: bool = row.get(3);
                 let table_id: u32 = if let Some(rel_id) = row.get(4) {
                     rel_id
                 } else {
@@ -63,8 +63,8 @@ impl SchemaHelper {
                         postgres_type_to_dozer_type(Type::from_oid(type_oid)),
                         is_nullable,
                     ),
-                    is_primary_key,
-                    table_id,
+                    is_primary_index,
+                    table_id
                 )
             })
             .for_each(|row| {
@@ -112,10 +112,15 @@ const SQL: &str= "
 SELECT table_info.table_name,
        table_info.column_name,
        CASE WHEN table_info.is_nullable = 'NO' THEN false ELSE true END AS is_nullable,
-       constraint_info.constraint_type IS NOT NULL                      AS is_primary_key,
+       CASE
+           WHEN pc.relreplident = 'd' THEN constraint_info.constraint_type IS NOT NULL
+           WHEN pc.relreplident = 'i' THEN pa.attname IS NOT NULL
+           WHEN pc.relreplident = 'n' THEN false
+           WHEN pc.relreplident = 'f' THEN true
+           END                                                          AS is_primary_index,
        st_user_table.relid,
        pc.relreplident,
-       pt.oid AS type_oid
+       pt.oid                                                           AS type_oid
 FROM (SELECT table_schema,
              table_catalog,
              table_name,
@@ -143,10 +148,11 @@ FROM (SELECT table_schema,
                                       AND table_constraints.constraint_type = 'PRIMARY KEY') constraint_info
                    ON table_info.table_name = constraint_info.table_name
                        AND table_info.column_name = constraint_info.column_name
---          LEFT JOIN pg_
          LEFT JOIN pg_class pc ON st_user_table.relid = pc.oid
          LEFT JOIN pg_type pt ON table_info.udt_name = pt.typname
--- LEFT JOIN pg_att
+         LEFT JOIN pg_index pi ON st_user_table.relid = pi.indrelid AND pi.indisreplident = true
+         LEFT JOIN pg_attribute pa ON pa.attrelid = pi.indrelid AND pa.attnum = ANY (pi.indkey) AND pa.attnum > 0 AND
+                                      pa.attname = table_info.column_name
 ORDER BY table_info.table_schema,
          table_info.table_catalog,
          table_info.table_name;";
