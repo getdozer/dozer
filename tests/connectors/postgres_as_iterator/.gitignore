@@ -12,4 +12,3 @@ dozer-core/.data
 docker/data/
 dozer-sql/data
 *.mdb
-dozer-config.local.yaml

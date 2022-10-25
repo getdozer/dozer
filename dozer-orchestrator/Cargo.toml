@@ -24,3 +24,10 @@ bincode= "1.3.3"
 crossbeam = "0.8.2"
 log = "0.4.17"
 log4rs = "1.1.1"
+clap = {version = "4.0.15", features = ["derive"]}
+serde_yaml = "0.9.13"
+
+[[bin]]
+edition = "2021"
+name = "dozer"
+path = "src/main.rs"

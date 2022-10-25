@@ -2,15 +2,15 @@ use dozer_ingestion::connectors::connector::{Connector, TableInfo};
 use dozer_ingestion::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
+use log::debug;
 
-use dozer_types::log::debug;
-use dozer_types::log4rs;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 fn main() {
     log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+
     let storage_config = RocksConfig::default();
     let storage_client = Arc::new(Storage::new(storage_config));
     let postgres_config = PostgresConfig {

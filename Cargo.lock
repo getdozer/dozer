@@ -597,7 +597,7 @@ dependencies = [
  "atty",
  "bat",
  "cargo-subcommand-metadata",
- "clap 4.0.12",
+ "clap 4.0.18",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -729,9 +729,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.12"
+version = "4.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "385007cbbed899260395a4107435fead4cad80684461b3cc78238bdcb0bad58f"
+checksum = "335867764ed2de42325fafe6d18b8af74ba97ee0c590fa016f157535b42ab04b"
 dependencies = [
  "atty",
  "bitflags",
@@ -744,9 +744,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.0.10"
+version = "4.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db342ce9fda24fb191e2ed4e102055a4d381c1086a06630174cd8da8d5d917ce"
+checksum = "16a1b0f6422af32d5da0c58e2703320f379216ee70198241c84173a8c5ac28f3"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -1187,6 +1187,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "clap 4.0.18",
  "crossbeam",
  "dotenvy",
  "dozer-api",
@@ -1200,6 +1201,7 @@ dependencies = [
  "log4rs",
  "serde",
  "serde_json",
+ "serde_yaml 0.9.13",
  "tempdir",
  "tokio",
  "uuid",
