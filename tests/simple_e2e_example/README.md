@@ -31,7 +31,3 @@ ALTER SEQUENCE users_id_seq
 
 cd scripts/tests/src/films
 docker-compose up --build
-sh ./scripts/download_and_insert.sh
-docker exec -d dozer-orchestrator ./target/debug/dozer-schema
-docker exec dozer-orchestrator ./target/debug/dozer-orchestrator run -c ./tests/src/films/dozer-run.yaml
-sh ./scripts/run_test.sh

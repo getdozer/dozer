@@ -20,7 +20,7 @@ Run a specific service with `-p` flag.
 Note: If you have multiple binaries generated,  you can use `--bin` flag.
 
 ```
-cargo run --bin dozer
+cargo run --bin dozer -c tests/simple_e2e_example/dozer-config.local.yaml
 ```
 
 ### Build Dependencies
