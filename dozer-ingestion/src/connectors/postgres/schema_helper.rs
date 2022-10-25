@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
-use dozer_types::errors::connector::ConnectorError;
+use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
 use crate::connectors::connector::TableInfo;
 
 use super::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
+use dozer_types::errors::connector::PostgresSchemaError::SchemaReplicationIdentityError;
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -64,7 +65,7 @@ impl SchemaHelper {
                         is_nullable,
                     ),
                     is_primary_index,
-                    table_id
+                    table_id,
                 )
             })
             .for_each(|row| {
@@ -104,7 +105,23 @@ impl SchemaHelper {
             schemas.push((table_name, schema));
         }
 
-        Ok(schemas)
+        self.validate_schema(schemas)
+    }
+
+    pub fn validate_schema(&self, schemas: Vec<(String, Schema)>) -> Result<Vec<(String, Schema)>, ConnectorError> {
+        let table_without_primary_index = schemas
+            .iter()
+            .find(|(_table_name, schema)| schema.primary_index.is_empty());
+
+        if let Some((table_name, _)) = table_without_primary_index {
+            Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(SchemaReplicationIdentityError(
+                    table_name.clone(),
+                )),
+            ))
+        } else {
+            Ok(schemas)
+        }
     }
 }
 
@@ -117,6 +134,7 @@ SELECT table_info.table_name,
            WHEN pc.relreplident = 'i' THEN pa.attname IS NOT NULL
            WHEN pc.relreplident = 'n' THEN false
            WHEN pc.relreplident = 'f' THEN true
+           ELSE false
            END                                                          AS is_primary_index,
        st_user_table.relid,
        pc.relreplident,
@@ -133,7 +151,7 @@ FROM (SELECT table_schema,
       FROM information_schema.columns
       WHERE table_name IN (SELECT table_name
                            FROM information_schema.tables
-                           WHERE table_schema = 'public'
+                           WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
                            ORDER BY table_name)
       ORDER BY table_name) table_info
          LEFT JOIN pg_catalog.pg_statio_user_tables st_user_table ON st_user_table.relname = table_info.table_name
