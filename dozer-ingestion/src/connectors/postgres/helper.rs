@@ -2,7 +2,7 @@ use crate::connectors::postgres::xlog_mapper::TableColumn;
 use bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::errors::connector::ConnectorError;
-use dozer_types::log::{error};
+use dozer_types::log::error;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
