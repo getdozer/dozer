@@ -4,12 +4,12 @@ use crate::cache::{
     test_utils, Cache,
 };
 use dozer_types::{
-    serde_json,
+    serde_json::{self, json, Value},
     types::{Field, Record},
 };
 
 #[test]
-fn query_secondary() {
+fn query_secondary_simple() {
     let cache = LmdbCache::new(true);
     let schema = test_utils::schema_1();
     let record = Record::new(
@@ -65,4 +65,55 @@ fn query_secondary() {
     let records = cache.query("full_text_sample", &query).unwrap();
     assert_eq!(records.len(), 1);
     assert_eq!(records[0], record);
+}
+
+#[test]
+fn query_secondary_vars() {
+    let cache = LmdbCache::new(true);
+    let schema = test_utils::schema_1();
+
+    cache.insert_schema("sample", &schema).unwrap();
+
+    let items: Vec<(i64, String, i64)> = vec![
+        (1, "a".to_string(), 521),
+        (2, "a".to_string(), 521),
+        (3, "a".to_string(), 521),
+    ];
+    // 26 alphabets
+    for val in items {
+        test_utils::insert_rec_1(&cache, &schema, val);
+    }
+    test_query(json!({}), 3, &cache);
+
+    test_query(json!({"$filter":{ "a": {"$eq": 1}}}), 1, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$eq": 521}}}), 3, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$gte": 521}}}), 3, &cache);
+
+    test_query(
+        json!({
+            "$filter":{ "c": {"$gte": 521}},
+            "$order_by": [{"field_name": "c", "direction": "asc"}]
+        }),
+        3,
+        &cache,
+    );
+
+    // TODO: Fix comparisions when value is not present
+    // test_query(json!({"$filter":{ "c": {"$gt": 200}}}), 3, &cache);
+    // test_query(json!({"$filter":{ "c": {"$lt": 600}}}), 3, &cache);
+}
+
+fn test_query(query: Value, count: usize, cache: &LmdbCache) {
+    let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    let records = cache.query("sample", &query).unwrap();
+    println!(
+        "{:?}",
+        records
+            .iter()
+            .map(|r| r.values.to_owned())
+            .collect::<Vec<Vec<Field>>>()
+    );
+    assert_eq!(records.len(), count, "Count must be equal");
 }

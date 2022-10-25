@@ -1,9 +1,8 @@
 use dozer_types::bincode;
 use dozer_types::errors::cache::{CacheError, QueryError};
-use dozer_types::log::debug;
 use lmdb::{
-    Cursor, Database, Environment, Error as LmdbError, RoCursor, RoTransaction, RwTransaction,
-    Transaction, WriteFlags,
+    Database, Environment, Error as LmdbError, RoTransaction, RwTransaction, Transaction,
+    WriteFlags,
 };
 
 use dozer_schema::storage::get_schema_key;
@@ -23,12 +22,6 @@ pub struct LmdbCache {
     db: Database,
     indexer_db: Database,
     schema_db: Database,
-}
-
-fn _debug_dump(cursor: RoCursor) {
-    while let Ok((key, val)) = cursor.get(None, None, 8) {
-        debug!("key: {:?}, val: {:?}", key.unwrap(), val);
-    }
 }
 
 impl LmdbCache {
@@ -57,7 +50,7 @@ impl LmdbCache {
         let encoded: Vec<u8> =
             bincode::serialize(&rec).map_err(CacheError::map_serialization_error)?;
 
-        txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())
+        txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::empty())
             .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
 
         let indexer = Indexer::new(self.indexer_db);
@@ -77,7 +70,7 @@ impl LmdbCache {
             bincode::serialize(&schema).map_err(CacheError::map_serialization_error)?;
         let schema_id = schema.to_owned().identifier.unwrap();
         let key = get_schema_key(&schema_id);
-        txn.put::<Vec<u8>, Vec<u8>>(self.schema_db, &key, &encoded, WriteFlags::default())
+        txn.put::<Vec<u8>, Vec<u8>>(self.schema_db, &key, &encoded, WriteFlags::empty())
             .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
 
         let schema_bytes =
@@ -88,25 +81,21 @@ impl LmdbCache {
             self.schema_db,
             &schema_key,
             &schema_bytes,
-            WriteFlags::default(),
+            WriteFlags::empty(),
         )
         .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
 
         Ok(())
     }
 
-    pub fn _debug_dump(&self) -> Result<(), LmdbError> {
-        let txn: RoTransaction = self.env.begin_ro_txn().unwrap();
-
-        debug!("Records:");
-        _debug_dump(txn.open_ro_cursor(self.db)?);
-
-        debug!("Indexes:");
-        _debug_dump(txn.open_ro_cursor(self.indexer_db)?);
-
-        debug!("Schemas:");
-        _debug_dump(txn.open_ro_cursor(self.schema_db)?);
-        Ok(())
+    pub fn get_index_db(&self) -> (&Environment, &Database) {
+        (&self.env, &self.indexer_db)
+    }
+    pub fn get_db(&self) -> (&Environment, &Database) {
+        (&self.env, &self.db)
+    }
+    pub fn get_schema_db(&self) -> (&Environment, &Database) {
+        (&self.env, &self.schema_db)
     }
 
     fn _get_schema_from_reverse_key(
@@ -161,9 +150,9 @@ impl Cache for LmdbCache {
         let schema = self.get_schema(&schema_identifier)?;
 
         self._insert(&mut txn, rec, &schema)?;
+
         txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        Ok(())
+            .map_err(|e| CacheError::InternalError(Box::new(e)))
     }
 
     fn delete(&self, key: &[u8]) -> Result<(), CacheError> {

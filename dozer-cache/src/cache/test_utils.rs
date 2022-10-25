@@ -1,4 +1,9 @@
-use dozer_types::types::{FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    Field, FieldDefinition, IndexDefinition, IndexType, Record, Schema, SchemaIdentifier,
+};
+use lmdb::{Cursor, RoTransaction, Transaction};
+
+use super::{Cache, LmdbCache};
 
 pub fn schema_0() -> Schema {
     Schema {
@@ -56,7 +61,7 @@ pub fn schema_1() -> Schema {
                 typ: IndexType::SortedInverted,
                 sort_direction: vec![true],
             },
-            // composite index
+            // composite index [a, b]
             IndexDefinition {
                 fields: vec![0, 1],
                 typ: IndexType::SortedInverted,
@@ -64,6 +69,14 @@ pub fn schema_1() -> Schema {
             },
         ],
     }
+}
+
+pub fn insert_rec_1(cache: &LmdbCache, schema: &Schema, (a, b, c): (i64, String, i64)) {
+    let record = Record::new(
+        schema.identifier.clone(),
+        vec![Field::Int(a), Field::String(b), Field::Int(c)],
+    );
+    cache.insert(&record).unwrap();
 }
 
 pub fn schema_full_text_single() -> Schema {
@@ -82,4 +95,15 @@ pub fn schema_full_text_single() -> Schema {
             sort_direction: vec![true],
         }],
     }
+}
+
+pub fn get_indexes(cache: &LmdbCache) -> Vec<(&[u8], &[u8])> {
+    let (env, indexer_db) = cache.get_index_db();
+    let txn: RoTransaction = env.begin_ro_txn().unwrap();
+    let mut cursor = txn.open_ro_cursor(*indexer_db).unwrap();
+    cursor
+        .iter_dup()
+        .flatten()
+        .collect::<lmdb::Result<Vec<_>>>()
+        .unwrap()
 }

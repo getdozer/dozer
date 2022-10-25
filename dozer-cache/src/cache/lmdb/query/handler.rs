@@ -168,9 +168,7 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
             for field in fields {
                 // convert value to `Vec<u8>`
                 field_bytes.push(match field {
-                    Some(field) => Some(
-                        bincode::serialize(&field).map_err(CacheError::map_serialization_error)?,
-                    ),
+                    Some(field) => Some(field.to_bytes().map_err(CacheError::TypeError)?),
                     None => None,
                 })
             }

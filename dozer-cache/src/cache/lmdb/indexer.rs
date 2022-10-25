@@ -1,5 +1,4 @@
 use dozer_types::{
-    bincode,
     errors::cache::{CacheError, IndexError, QueryError},
     types::{Field, Record, Schema, SchemaIdentifier},
 };
@@ -44,7 +43,7 @@ impl Indexer {
                         self.db,
                         &secondary_key,
                         &pkey,
-                        WriteFlags::default(),
+                        WriteFlags::empty(),
                     )
                     .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
                 }
@@ -53,15 +52,14 @@ impl Indexer {
                     for secondary_key in
                         self._build_indices_full_text(identifier, &index.fields, &rec.values)?
                     {
-                        txn.put(self.db, &secondary_key, &pkey, WriteFlags::default())
+                        txn.put(self.db, &secondary_key, &pkey, WriteFlags::empty())
                             .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
                     }
                 }
             }
         }
         txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        Ok(())
+            .map_err(|e| CacheError::InternalError(Box::new(e)))
     }
 
     fn _build_index_sorted_inverted(
@@ -74,9 +72,9 @@ impl Indexer {
             .iter()
             .enumerate()
             .filter(|(idx, _)| index_fields.contains(idx))
-            .map(|(_, field)| Some(bincode::serialize(&field).unwrap()))
+            .map(|(_, field)| Some(field.to_bytes().unwrap()))
             .collect();
-
+        
         index::get_secondary_index(identifier.id, index_fields, &values)
     }
 
@@ -113,12 +111,40 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
+
     use crate::cache::{
         lmdb::utils::{init_db, init_env},
-        test_utils::schema_0,
+        test_utils::{self, schema_0},
+        Cache, LmdbCache,
     };
 
     use super::*;
+
+    #[test]
+    fn test_secondary_indexes() {
+        let cache = LmdbCache::new(true);
+        let schema = test_utils::schema_1();
+
+        cache.insert_schema("sample", &schema).unwrap();
+
+        let items: Vec<(i64, String, i64)> = vec![
+            (1, "a".to_string(), 521),
+            (2, "a".to_string(), 521),
+            (3, "a".to_string(), 521),
+        ];
+
+        for val in items.clone() {
+            test_utils::insert_rec_1(&cache, &schema, val);
+        }
+        // No of indexes
+        let indexes = test_utils::get_indexes(&cache);
+        // 3 columns, 1 compound
+        assert_eq!(
+            indexes.len(),
+            items.len() * 4,
+            "Must create index for each indexable field"
+        );
+    }
 
     #[test]
     fn test_build_indices_full_text() {
