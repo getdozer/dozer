@@ -17,8 +17,8 @@ impl Authorizer {
     pub fn new(secret: String, aud: Option<String>, sub: Option<String>) -> Self {
         Self {
             secret: secret.as_bytes().to_owned(),
-            aud: aud.unwrap_or("cache_user".to_owned()),
-            sub: sub.unwrap_or("api@dozer.com".to_owned()),
+            aud: aud.unwrap_or_else(|| "cache_user".to_owned()),
+            sub: sub.unwrap_or_else(|| "api@dozer.com".to_owned()),
         }
     }
 
