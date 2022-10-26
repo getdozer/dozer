@@ -5,7 +5,9 @@ use crate::connectors::ingestor::Ingestor;
 use super::helper;
 use super::schema_helper::SchemaHelper;
 use dozer_types::errors::connector::ConnectorError;
-use dozer_types::log::debug;
+
+use dozer_types::errors::connector::PostgresConnectorError::PostgresSchemaError;
+use dozer_types::errors::connector::PostgresConnectorError::SyncWithSnapshotError;
 use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
@@ -25,6 +27,7 @@ impl PostgresSnapshotter {
         let client = Client::connect(&self.conn_str, NoTls)?;
         Ok(client)
     }
+
     pub fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         match self.tables.as_ref() {
             None => {
@@ -63,7 +66,8 @@ impl PostgresSnapshotter {
             let columns = stmt.columns();
 
             // Ingest schema for every table
-            let schema = helper::map_schema(&table_info.id, columns);
+            let schema = helper::map_schema(&table_info.id, columns)?;
+
             self.ingestor
                 .lock()
                 .unwrap()
@@ -88,15 +92,20 @@ impl PostgresSnapshotter {
                             &msg,
                             columns,
                             idx,
-                        );
+                        )
+                        .map_err(|e| {
+                            ConnectorError::PostgresConnectorError(PostgresSchemaError(e))
+                        })?;
+
                         self.ingestor
                             .lock()
                             .unwrap()
                             .handle_message(IngestionMessage::OperationEvent(evt));
                     }
                     Err(e) => {
-                        debug!("{:?}", e);
-                        panic!("Something happened");
+                        return Err(ConnectorError::PostgresConnectorError(
+                            SyncWithSnapshotError(e.to_string()),
+                        ))
                     }
                 }
                 idx += 1;

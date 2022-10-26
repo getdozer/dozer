@@ -46,6 +46,18 @@ pub enum PostgresConnectorError {
     #[error("fetch of replication slot info failed")]
     FetchReplicationSlot,
 
+    #[error("fetch of replication slot info failed. Error: {0}")]
+    SyncWithSnapshotError(String),
+
+    #[error("Replication stream error. Error: {0}")]
+    ReplicationStreamError(String),
+
+    #[error("Received unexpected message in replication stream")]
+    UnexpectedReplicationMessageError,
+
+    #[error("Replication stream error")]
+    ReplicationStreamEndError,
+
     #[error(transparent)]
     PostgresSchemaError(#[from] PostgresSchemaError),
 }
@@ -60,4 +72,7 @@ pub enum PostgresSchemaError {
 
     #[error("Invalid column type")]
     InvalidColumnType,
+
+    #[error("Value conversion error: {0}")]
+    ValueConversionError(String),
 }

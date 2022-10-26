@@ -3,7 +3,11 @@ use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::errors::connector::ConnectorError;
-use dozer_types::log::{debug, warn};
+use dozer_types::errors::connector::ConnectorError::PostgresConnectorError;
+use dozer_types::errors::connector::PostgresConnectorError::{
+    ReplicationStreamEndError, ReplicationStreamError, UnexpectedReplicationMessageError,
+};
+use dozer_types::log::{debug, error};
 use dozer_types::types::Commit;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
@@ -88,7 +92,8 @@ impl CDCHandler {
                         .unwrap();
                 }
             } else {
-                self.handle_replication_message(message, &mut mapper).await;
+                self.handle_replication_message(message, &mut mapper)
+                    .await?;
             }
         }
     }
@@ -97,25 +102,25 @@ impl CDCHandler {
         &mut self,
         message: Option<Result<ReplicationMessage<LogicalReplicationMessage>, Error>>,
         mapper: &mut XlogMapper,
-    ) {
+    ) -> Result<(), ConnectorError> {
         match message {
             Some(Ok(XLogData(body))) => {
-                let message = mapper.handle_message(body);
+                let message = mapper.handle_message(body)?;
                 if let Some(ingestion_message) = message {
                     if let IngestionMessage::Commit(commit) = ingestion_message {
                         self.last_commit_lsn = commit.lsn;
                     }
                 }
+                Ok(())
             }
             Some(Ok(msg)) => {
-                debug!("{:?}", msg);
-                debug!("why i am here ?");
+                error!("Unexpected message: {:?}", msg);
+                Err(PostgresConnectorError(UnexpectedReplicationMessageError))
             }
-            Some(Err(e)) => {
-                warn!("{:?}", e);
-                panic!("unexpected replication stream error")
-            }
-            None => panic!("unexpected replication stream end"),
+            Some(Err(e)) => Err(PostgresConnectorError(ReplicationStreamError(
+                e.to_string(),
+            ))),
+            None => Err(PostgresConnectorError(ReplicationStreamEndError)),
         }
     }
 }

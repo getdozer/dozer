@@ -1,5 +1,6 @@
 use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
+use dozer_types::errors::connector::ConnectorError;
 use dozer_types::log::debug;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
 use helper::postgres_type_to_dozer_type;
@@ -70,7 +71,7 @@ impl XlogMapper {
     pub fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
-    ) -> Option<IngestionMessage> {
+    ) -> Result<Option<IngestionMessage>, ConnectorError> {
         match &message.data() {
             Relation(relation) => {
                 debug!("relation:");
@@ -85,13 +86,11 @@ impl XlogMapper {
                 let table_option = self.relations_map.get(&relation.rel_id());
                 match table_option {
                     None => {
-                        let schema_change = self.ingest_schema(relation, hash);
-                        return Option::from(schema_change);
+                        return self.ingest_schema(relation, hash);
                     }
                     Some(table) => {
                         if table.hash != hash {
-                            let schema_change = self.ingest_schema(relation, hash);
-                            return Option::from(schema_change);
+                            return self.ingest_schema(relation, hash);
                         }
                     }
                 }
@@ -100,15 +99,15 @@ impl XlogMapper {
                 debug!("commit:");
                 debug!("[Commit] End lsn: {}", commit.end_lsn());
 
-                return Option::from(IngestionMessage::Commit(dozer_types::types::Commit {
+                return Ok(Some(IngestionMessage::Commit(dozer_types::types::Commit {
                     seq_no: 0,
                     lsn: commit.end_lsn(),
-                }));
+                })));
             }
             Begin(begin) => {
                 debug!("begin:");
                 debug!("[Begin] Transaction id: {}", begin.xid());
-                return Option::from(IngestionMessage::Begin());
+                return Ok(Some(IngestionMessage::Begin()));
             }
             Insert(insert) => {
                 let table = self.relations_map.get(&insert.rel_id()).unwrap();
@@ -129,7 +128,7 @@ impl XlogMapper {
                     seq_no: 0,
                 };
 
-                return Option::from(IngestionMessage::OperationEvent(event));
+                return Ok(Some(IngestionMessage::OperationEvent(event)));
             }
             Update(update) => {
                 let table = self.relations_map.get(&update.rel_id()).unwrap();
@@ -164,7 +163,7 @@ impl XlogMapper {
                     seq_no: 0,
                 };
 
-                return Option::from(IngestionMessage::OperationEvent(event));
+                return Ok(Some(IngestionMessage::OperationEvent(event)));
             }
             Delete(delete) => {
                 // TODO: Use only columns with .flags() = 0
@@ -186,15 +185,19 @@ impl XlogMapper {
                     seq_no: 0,
                 };
 
-                return Option::from(IngestionMessage::OperationEvent(event));
+                return Ok(Some(IngestionMessage::OperationEvent(event)));
             }
             _ => {}
         }
 
-        None
+        Ok(None)
     }
 
-    fn ingest_schema(&mut self, relation: &RelationBody, hash: u64) -> IngestionMessage {
+    fn ingest_schema(
+        &mut self,
+        relation: &RelationBody,
+        hash: u64,
+    ) -> Result<Option<IngestionMessage>, ConnectorError> {
         let rel_id = relation.rel_id();
         let columns: Vec<TableColumn> = relation
             .columns()
@@ -213,20 +216,25 @@ impl XlogMapper {
             rel_id,
         };
 
+        let fields: Result<Vec<FieldDefinition>, _> = table
+            .columns
+            .iter()
+            .map(|c| match postgres_type_to_dozer_type(c.r#type.clone()) {
+                Ok(typ) => Ok(FieldDefinition {
+                    name: c.name.clone(),
+                    typ,
+                    nullable: true,
+                }),
+                Err(e) => Err(e),
+            })
+            .collect();
+
         let schema = Schema {
             identifier: Some(dozer_types::types::SchemaIdentifier {
                 id: table.rel_id as u32,
                 version: table.rel_id as u16,
             }),
-            fields: table
-                .columns
-                .iter()
-                .map(|c| FieldDefinition {
-                    name: c.name.to_string(),
-                    typ: postgres_type_to_dozer_type(c.r#type.clone()).unwrap(),
-                    nullable: true,
-                })
-                .collect(),
+            fields: fields?,
             values: vec![0],
             primary_index: vec![0],
             secondary_indexes: vec![],
@@ -234,7 +242,7 @@ impl XlogMapper {
 
         self.relations_map.insert(rel_id, table);
 
-        IngestionMessage::Schema(schema)
+        Ok(Some(IngestionMessage::Schema(schema)))
     }
 
     fn convert_values_to_fields(table: &Table, new_values: &[TupleData]) -> Vec<Field> {
