@@ -23,6 +23,9 @@ pub enum ExecutionError {
     #[error("The node type is invalid")]
     InvalidNodeType,
 
+    #[error("Field not found at position {0}")]
+    FieldNotFound(String),
+
     // Error forwarders
     #[error(transparent)]
     InternalPipelineError(#[from] PipelineError),

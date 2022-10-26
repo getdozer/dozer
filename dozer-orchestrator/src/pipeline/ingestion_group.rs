@@ -1,16 +1,16 @@
 use crate::ConnectionService;
-use anyhow::{bail, Context};
 use crossbeam::channel::{unbounded, Receiver};
 use dozer_ingestion::connectors::connector::TableInfo;
 use dozer_ingestion::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_ingestion::connectors::storage::{RocksConfig, Storage};
+use dozer_types::errors::orchestrator::OrchestrationError;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::{Operation, OperationEvent};
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 
 pub trait IterationForwarder: Send + Sync {
-    fn forward(&self, event: OperationEvent, schema_id: u16) -> anyhow::Result<()>;
+    fn forward(&self, event: OperationEvent, schema_id: u16) -> Result<(), OrchestrationError>;
 }
 
 pub struct ChannelForwarder {
@@ -18,11 +18,11 @@ pub struct ChannelForwarder {
 }
 
 impl IterationForwarder for ChannelForwarder {
-    fn forward(&self, event: OperationEvent, schema_id: u16) -> anyhow::Result<()> {
+    fn forward(&self, event: OperationEvent, schema_id: u16) -> Result<(), OrchestrationError> {
         let send_res = self.sender.send((event, schema_id));
         match send_res {
             Ok(_) => Ok(()),
-            Err(e) => bail!("Ingestion message forwarding failed {:?}", e.to_string()),
+            Err(_) => Err(OrchestrationError::IngestionForwarderError),
         }
     }
 }
@@ -52,7 +52,7 @@ impl IngestionGroup {
             let fw = Arc::clone(&forwarder);
             let t_names = Arc::clone(&table_names_ref);
             let sec_no_resolver = Arc::clone(&seq_no_resolver_ref);
-            spawn(move || -> anyhow::Result<()> {
+            spawn(move || -> Result<(), OrchestrationError> {
                 let mut connector = ConnectionService::get_connector(connection.to_owned());
 
                 let tables = connector.get_tables().unwrap();
@@ -65,7 +65,9 @@ impl IngestionGroup {
                     .cloned()
                     .collect();
 
-                connector.initialize(client, Some(tables)).unwrap();
+                connector
+                    .initialize(client, Some(tables))
+                    .map_err(OrchestrationError::ConnectorError);
 
                 let mut iterator = connector.iterator(sec_no_resolver);
                 loop {
@@ -77,8 +79,7 @@ impl IngestionGroup {
                     }
                     .unwrap();
 
-                    fw.forward(msg, schema_id.id as u16)
-                        .context("Iteration message forward failed")?;
+                    fw.forward(msg, schema_id.id as u16)?;
                 }
             });
         }

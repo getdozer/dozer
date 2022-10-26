@@ -7,7 +7,10 @@ use tokio::runtime::Runtime;
 
 use super::executor::Executor;
 use crate::Orchestrator;
-use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
+use dozer_types::{
+    errors::{execution::ExecutionError, orchestrator::OrchestrationError},
+    models::{api_endpoint::ApiEndpoint, source::Source},
+};
 
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
@@ -28,7 +31,7 @@ impl Orchestrator for SimpleOrchestrator {
         self
     }
 
-    fn run(&mut self) -> anyhow::Result<()> {
+    fn run(&mut self) -> Result<(), OrchestrationError> {
         let cache = Arc::new(LmdbCache::new(true));
         let cache_2 = cache.clone();
         let endpoints = self.api_endpoints.clone();
@@ -39,17 +42,18 @@ impl Orchestrator for SimpleOrchestrator {
             let api_server = ApiServer::default();
             api_server.run(endpoints, cache_2).unwrap()
         });
-        let _thread2 = thread::spawn(move || {
+        let thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
             Executor::run(sources, endpoints2, cache).unwrap();
         });
-
-        let _thread3 = thread::spawn(move || {
-            Runtime::new()
-                .unwrap()
-                .block_on(async { dozer_schema::run().await })
-        });
-        thread.join().unwrap();
+        match thread2.join() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(OrchestrationError::InitializationFailed),
+        }?;
+        match thread.join() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(OrchestrationError::ApiServerFailed),
+        };
 
         Ok(())
     }

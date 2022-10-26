@@ -1,10 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
-use std::hash::Hasher;
-use std::sync::Arc;
-use std::time::Instant;
-
-use anyhow::Context;
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_types::core::node::PortHandle;
@@ -15,6 +8,11 @@ use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use log::debug;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::Hasher;
+use std::sync::Arc;
+use std::time::Instant;
 
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
@@ -196,8 +194,10 @@ impl CacheSink {
                 .fields
                 .iter()
                 .position(|fd| fd.name == name.clone())
-                .context("column_name not available in index.primary_keys")
-                .map_err(|e| InternalStringError(e.to_string()))?;
+                .map_or(Err(ExecutionError::FieldNotFound(name.to_owned())), |p| {
+                    Ok(p)
+                })?;
+
             primary_index.push(idx);
         }
         schema.primary_index = primary_index;

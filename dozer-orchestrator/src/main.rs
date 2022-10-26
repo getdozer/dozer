@@ -2,6 +2,7 @@ mod cli;
 
 use clap::Parser;
 
+use dozer_types::errors::orchestrator::OrchestrationError;
 use log::debug;
 use std::sync::Arc;
 use std::{thread, time};
@@ -12,7 +13,7 @@ use dozer_orchestrator::Orchestrator;
 use dozer_schema::registry::{_get_client, _serve};
 use tokio::runtime::Runtime;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), OrchestrationError> {
     log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
