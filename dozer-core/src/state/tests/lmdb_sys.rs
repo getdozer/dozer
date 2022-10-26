@@ -110,7 +110,7 @@ fn test_concurrent_tx() {
     )));
     let _created = tx.commit();
 
-    let tx = Arc::new(RwLock::new(chk!(Transaction::begin(env.clone(), false))));
+    let tx = Arc::new(RwLock::new(chk!(Transaction::begin(env, false))));
 
     let t1_db = db.clone();
     let t1_tx = tx.clone();
@@ -128,8 +128,8 @@ fn test_concurrent_tx() {
     });
     let _r1 = t1.join();
 
-    let t2_db = db.clone();
-    let t2_tx = tx.clone();
+    let t2_db = db;
+    let t2_tx = tx;
 
     let t2 = thread::spawn(move || -> Result<(), LmdbError> {
         for i in 1..=1000_u64 {

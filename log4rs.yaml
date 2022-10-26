@@ -5,7 +5,6 @@ appenders:
     encoder:
       pattern: "{d} - {m}{n}"
 root:
-  level: debug
+  level: info
   appenders:
     - stdout
-
