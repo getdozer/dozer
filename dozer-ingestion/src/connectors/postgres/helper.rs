@@ -1,7 +1,10 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use dozer_types::errors::connector::ConnectorError;
+use dozer_types::errors::connector::PostgresSchemaError::{
+    ColumnTypeNotSupported, InvalidColumnType,
+};
+use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::error;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};
@@ -61,21 +64,27 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     }
 }
 
-pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> FieldType {
+pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> Result<FieldType, ConnectorError> {
     if let Some(column_type) = col_type {
         match column_type {
-            Type::BOOL => FieldType::Boolean,
-            Type::INT2 | Type::INT4 | Type::INT8 => FieldType::Int,
-            Type::CHAR | Type::TEXT => FieldType::String,
-            Type::FLOAT4 | Type::FLOAT8 => FieldType::Float,
-            Type::BIT => FieldType::Binary,
-            Type::TIMESTAMP | Type::TIMESTAMPTZ => FieldType::Timestamp,
-            Type::NUMERIC => FieldType::Decimal,
-            Type::JSONB => FieldType::Bson,
-            _ => FieldType::Null,
+            Type::BOOL => Ok(FieldType::Boolean),
+            Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
+            Type::CHAR | Type::TEXT | Type::VARCHAR => Ok(FieldType::String),
+            Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
+            Type::BIT => Ok(FieldType::Binary),
+            Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
+            Type::NUMERIC => Ok(FieldType::Decimal),
+            Type::JSONB => Ok(FieldType::Bson),
+            _ => Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
+                    column_type.name().to_string(),
+                )),
+            )),
         }
     } else {
-        FieldType::Null
+        Err(ConnectorError::PostgresConnectorError(
+            PostgresConnectorError::PostgresSchemaError(InvalidColumnType),
+        ))
     }
 }
 
@@ -238,7 +247,7 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
         .iter()
         .map(|col| FieldDefinition {
             name: col.name().to_string(),
-            typ: postgres_type_to_dozer_type(Some(col.type_().clone())),
+            typ: postgres_type_to_dozer_type(Some(col.type_().clone())).unwrap(),
             nullable: true,
         })
         .collect();

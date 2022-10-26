@@ -54,4 +54,10 @@ pub enum PostgresConnectorError {
 pub enum PostgresSchemaError {
     #[error("Schema's '{0}' replication identity settings is not correct. It is either not set or NOTHING")]
     SchemaReplicationIdentityError(String),
+
+    #[error("Column type {0} not supported")]
+    ColumnTypeNotSupported(String),
+
+    #[error("Invalid column type")]
+    InvalidColumnType,
 }

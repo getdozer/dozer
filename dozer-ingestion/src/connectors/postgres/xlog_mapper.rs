@@ -2,6 +2,7 @@ use crate::connectors::ingestor::IngestionMessage;
 use crate::connectors::postgres::helper;
 use dozer_types::log::debug;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
+use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
@@ -222,7 +223,7 @@ impl XlogMapper {
                 .iter()
                 .map(|c| FieldDefinition {
                     name: c.name.to_string(),
-                    typ: helper::postgres_type_to_dozer_type(c.r#type.clone()),
+                    typ: postgres_type_to_dozer_type(c.r#type.clone()).unwrap(),
                     nullable: true,
                 })
                 .collect(),

@@ -105,11 +105,6 @@ impl CDCHandler {
                     if let IngestionMessage::Commit(commit) = ingestion_message {
                         self.last_commit_lsn = commit.lsn;
                     }
-
-                    self.ingestor
-                        .lock()
-                        .unwrap()
-                        .handle_message(ingestion_message);
                 }
             }
             Some(Ok(msg)) => {

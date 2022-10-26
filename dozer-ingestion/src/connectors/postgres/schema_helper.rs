@@ -11,10 +11,12 @@ use dozer_types::errors::connector::PostgresSchemaError::SchemaReplicationIdenti
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use tokio_postgres::Row;
 
 pub struct SchemaHelper {
     pub conn_str: String,
 }
+
 impl SchemaHelper {
     pub fn get_tables(&mut self) -> Result<Vec<TableInfo>, ConnectorError> {
         let result_vec = self.get_schema()?;
@@ -42,47 +44,27 @@ impl SchemaHelper {
             .map_err(|_| ConnectorError::InvalidQueryError)?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
-        results
-            .iter()
-            .map(|row| {
-                let table_name: String = row.get(0);
-                let column_name: String = row.get(1);
-                let is_nullable: bool = row.get(2);
-                let is_primary_index: bool = row.get(3);
-                let table_id: u32 = if let Some(rel_id) = row.get(4) {
-                    rel_id
-                } else {
-                    let mut s = DefaultHasher::new();
-                    table_name.hash(&mut s);
-                    s.finish() as u32
-                };
-                let type_oid: u32 = row.get(6);
-                (
-                    table_name,
-                    FieldDefinition::new(
-                        column_name,
-                        postgres_type_to_dozer_type(Type::from_oid(type_oid)),
-                        is_nullable,
-                    ),
-                    is_primary_index,
-                    table_id,
-                )
-            })
-            .for_each(|row| {
-                let (table_name, field_def, is_primary_key, table_id) = row;
+        results.iter().map(|r| self.convert_row(r)).try_for_each(
+            |row| -> Result<(), ConnectorError> {
+                match row {
+                    Ok((table_name, field_def, is_primary_key, table_id)) => {
+                        let vals = map.get(&table_name);
+                        let (mut fields, mut primary_keys, table_id) = match vals {
+                            Some((fields, primary_keys, table_id)) => {
+                                (fields.clone(), primary_keys.clone(), *table_id)
+                            }
+                            None => (vec![], vec![], table_id),
+                        };
 
-                let vals = map.get(&table_name);
-                let (mut fields, mut primary_keys, table_id) = match vals {
-                    Some((fields, primary_keys, table_id)) => {
-                        (fields.clone(), primary_keys.clone(), *table_id)
+                        fields.push(field_def);
+                        primary_keys.push(is_primary_key);
+                        map.insert(table_name, (fields, primary_keys, table_id));
+                        Ok(())
                     }
-                    None => (vec![], vec![], table_id),
-                };
-
-                fields.push(field_def);
-                primary_keys.push(is_primary_key);
-                map.insert(table_name, (fields, primary_keys, table_id));
-            });
+                    Err(e) => Err(e),
+                }
+            },
+        )?;
 
         for (table_name, (fields, primary_keys, table_id)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys
@@ -126,9 +108,36 @@ impl SchemaHelper {
             Ok(schemas)
         }
     }
+
+    fn convert_row(
+        &self,
+        row: &Row,
+    ) -> Result<(String, FieldDefinition, bool, u32), ConnectorError> {
+        let table_name: String = row.get(0);
+        let column_name: String = row.get(1);
+        let is_nullable: bool = row.get(2);
+        let is_primary_index: bool = row.get(3);
+        let table_id: u32 = if let Some(rel_id) = row.get(4) {
+            rel_id
+        } else {
+            let mut s = DefaultHasher::new();
+            table_name.hash(&mut s);
+            s.finish() as u32
+        };
+        let type_oid: u32 = row.get(6);
+        match postgres_type_to_dozer_type(Type::from_oid(type_oid)) {
+            Ok(typ) => Ok((
+                table_name,
+                FieldDefinition::new(column_name, typ, is_nullable),
+                is_primary_index,
+                table_id,
+            )),
+            Err(e) => Err(e),
+        }
+    }
 }
 
-const SQL: &str= "
+const SQL: &str = "
 SELECT table_info.table_name,
        table_info.column_name,
        CASE WHEN table_info.is_nullable = 'NO' THEN false ELSE true END AS is_nullable,
