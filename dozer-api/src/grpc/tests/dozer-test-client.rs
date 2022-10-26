@@ -72,15 +72,15 @@ pub struct QueryFilmsResponse {
     pub film: ::prost::alloc::vec::Vec<Film>,
 }
 /// Generated client implementations.
-pub mod films_service_client {
+pub mod films_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
-    pub struct FilmsServiceClient<T> {
+    pub struct FilmsClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl FilmsServiceClient<tonic::transport::Channel> {
+    impl FilmsClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -91,7 +91,7 @@ pub mod films_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> FilmsServiceClient<T>
+    impl<T> FilmsClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -109,7 +109,7 @@ pub mod films_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> FilmsServiceClient<InterceptedService<T, F>>
+        ) -> FilmsClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -123,7 +123,7 @@ pub mod films_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            FilmsServiceClient::new(InterceptedService::new(inner, interceptor))
+            FilmsClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -154,12 +154,10 @@ pub mod films_service_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/DozerFilms.FilmsService/films",
-            );
+            let path = http::uri::PathAndQuery::from_static("/Dozer.Films/films");
             self.inner.unary(request.into_request(), path, codec).await
         }
-        pub async fn films_by_id(
+        pub async fn by_id(
             &mut self,
             request: impl tonic::IntoRequest<super::GetFilmsByIdRequest>,
         ) -> Result<tonic::Response<super::GetFilmsByIdResponse>, tonic::Status> {
@@ -173,12 +171,10 @@ pub mod films_service_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/DozerFilms.FilmsService/films_by_id",
-            );
+            let path = http::uri::PathAndQuery::from_static("/Dozer.Films/by_id");
             self.inner.unary(request.into_request(), path, codec).await
         }
-        pub async fn query_films(
+        pub async fn query(
             &mut self,
             request: impl tonic::IntoRequest<super::QueryFilmsRequest>,
         ) -> Result<tonic::Response<super::QueryFilmsResponse>, tonic::Status> {
@@ -192,9 +188,7 @@ pub mod films_service_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/DozerFilms.FilmsService/query_films",
-            );
+            let path = http::uri::PathAndQuery::from_static("/Dozer.Films/query");
             self.inner.unary(request.into_request(), path, codec).await
         }
     }

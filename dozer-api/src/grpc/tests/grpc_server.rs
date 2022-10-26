@@ -17,18 +17,7 @@ fn setup(tmp_dir_path: String, schema_name: String) -> (String, HashMap<String, 
     let proto_generated_result =
         generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned()).unwrap();
     let path_to_descriptor =
-        generate_descriptor(tmp_dir_path.to_owned(), schema_name.to_owned()).unwrap();
-
-    // generate client
-    tonic_build::configure()
-        .build_client(true)
-        .build_server(false)
-        .out_dir("src/grpc/tests/generated_client")
-        .compile(
-            &[format!("{}/{}.proto", tmp_dir_path, schema_name)],
-            &[tmp_dir_path],
-        )
-        .unwrap();
+        generate_descriptor(tmp_dir_path, schema_name).unwrap();
     (path_to_descriptor, proto_generated_result.1)
 }
 
@@ -59,7 +48,7 @@ async fn test_grpc_list() {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
     pub mod dozer_client_generated {
-        include!("generated_client/dozer.rs");
+        include!("dozer-test-client.rs");
     }
     use dozer_client_generated::films_client::FilmsClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1400")
@@ -100,7 +89,7 @@ async fn test_grpc_get_by_id() {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
     pub mod dozer_client_generated {
-        include!("generated_client/dozer.rs");
+        include!("dozer-test-client.rs");
     }
     use dozer_client_generated::films_client::FilmsClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1401")
@@ -141,7 +130,7 @@ async fn test_grpc_query() {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
     pub mod dozer_client_generated {
-        include!("generated_client/dozer.rs");
+        include!("dozer-test-client.rs");
     }
     use dozer_client_generated::films_client::FilmsClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1402")
