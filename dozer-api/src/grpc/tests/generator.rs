@@ -31,6 +31,6 @@ fn test_generate_descriptor() -> Result<(), GenerationError> {
     generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned())?;
     let path_to_descriptor = generate_descriptor(tmp_dir_path, schema_name)?;
     let check_exist = Path::new(&path_to_descriptor).exists();
-    assert!(check_exist, "protofile must be existed !");
+    assert!(check_exist, "proto file must be present!");
     Ok(())
 }

@@ -96,15 +96,13 @@ pub fn create_descriptor_set(
     let my_path_descriptor = format!("{}/file_descriptor_set.bin", proto_folder.to_owned());
     let mut prost_build_config = prost_build::Config::new();
     prost_build_config.out_dir(proto_folder.to_owned());
-    let mut prost_build_config2 = prost_build::Config::new();
-    prost_build_config2.out_dir(proto_folder.to_owned());
     tonic_build::configure()
         .file_descriptor_set_path(&my_path_descriptor)
         .disable_package_emission()
         .build_client(false)
         .build_server(false)
         .out_dir(&proto_folder)
-        .compile_with_config(prost_build_config2, &[proto_file_path], &[proto_folder])
+        .compile_with_config(prost_build_config, &[proto_file_path], &[proto_folder])
         .map_err(|e| GenerationError::CannotCreateProtoDescriptor(e.to_string()))?;
     Ok(my_path_descriptor)
 }

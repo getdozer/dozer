@@ -1,7 +1,9 @@
 use super::util::get_proto_descriptor;
 use crate::errors::GRPCError;
-use bytes::Buf;
-use dozer_types::serde_json::{de::Deserializer, Value};
+use dozer_types::{
+    bytes::Buf,
+    serde_json::{de::Deserializer, Value},
+};
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
 use tonic::{
