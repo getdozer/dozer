@@ -18,7 +18,7 @@ endpoints:
     path: /users
     enable_rest: false
     enable_grpc: true
-    sql: select id, email, phone where 1=1;
+    sql: select id, email, phone from users where 1=1;
     index:
       primary_key:
         - id
