@@ -56,7 +56,7 @@ pub fn create_reference_response(description: String, schema_reference_path: Str
 pub fn convert_cache_to_oapi_schema(
     cache_schema: dozer_types::types::Schema,
     name: String,
-) -> anyhow::Result<Schema> {
+) -> Schema {
     let mut properties: IndexMap<String, ReferenceOr<Box<Schema>>> = IndexMap::new();
     let mut required_properties: Vec<String> = Vec::new();
     for field in cache_schema.fields {
@@ -72,7 +72,7 @@ pub fn convert_cache_to_oapi_schema(
         );
     }
 
-    let result = Schema {
+    Schema {
         schema_data: SchemaData {
             description: Some(format!("A representation of {}", name)),
             ..Default::default()
@@ -82,8 +82,7 @@ pub fn convert_cache_to_oapi_schema(
             required: required_properties,
             ..Default::default()
         })),
-    };
-    Ok(result)
+    }
 }
 
 fn get_type_by_name(name: &str) -> Type {
