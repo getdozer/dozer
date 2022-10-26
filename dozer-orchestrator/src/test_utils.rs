@@ -9,7 +9,7 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
-use std::time::Instant;
+
 use tempdir::TempDir;
 
 pub fn get_schema() -> Schema {

@@ -195,7 +195,7 @@ impl CacheSink {
             before: Instant::now(),
             input_schemas,
             schema_map,
-            api_endpoint: api_endpoint.to_owned(),
+            api_endpoint,
             pb: get_progress(),
         }
     }
