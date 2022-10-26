@@ -154,7 +154,7 @@ pub mod films_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/Dozer.Films/films");
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/films");
             self.inner.unary(request.into_request(), path, codec).await
         }
         pub async fn by_id(
@@ -171,7 +171,7 @@ pub mod films_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/Dozer.Films/by_id");
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/by_id");
             self.inner.unary(request.into_request(), path, codec).await
         }
         pub async fn query(
@@ -188,7 +188,7 @@ pub mod films_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/Dozer.Films/query");
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/query");
             self.inner.unary(request.into_request(), path, codec).await
         }
     }

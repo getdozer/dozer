@@ -1,7 +1,6 @@
 syntax = "proto3";
 package Dozer;
-service Films {
-
+service FilmsService {
   rpc films(GetFilmsRequest) returns (GetFilmsResponse);
   rpc by_id(GetFilmsByIdRequest) returns (GetFilmsByIdResponse);
   rpc query(QueryFilmsRequest) returns (QueryFilmsResponse);   
