@@ -1,3 +1,4 @@
+use crate::errors::{GRPCError, GenerationError};
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression, SortOptions};
 use dozer_types::serde_json::{self, json, Value};
 use prost_reflect::{DescriptorPool, DynamicMessage, MethodDescriptor, SerializeOptions};
@@ -6,8 +7,6 @@ use std::{
     io::{BufReader, Read},
 };
 use tonic::{Code, Status};
-
-use crate::errors::{GRPCError, GenerationError};
 
 pub fn from_dynamic_message_to_json(input: DynamicMessage) -> Result<Value, Status> {
     let mut options = SerializeOptions::new();
@@ -70,8 +69,7 @@ pub fn get_service_name(descriptor: DescriptorPool) -> Option<String> {
 //https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/DescriptorProtos.FieldDescriptorProto.Type
 pub fn get_proto_descriptor(descriptor_dir: String) -> Result<DescriptorPool, GRPCError> {
     let descriptor_set_dir = descriptor_dir;
-    let buffer = read_file_as_byte(descriptor_set_dir)
-        .map_err(|e| GRPCError::InternalError(e.to_string()))?;
+    let buffer = read_file_as_byte(descriptor_set_dir)?;
     let my_array_byte = buffer.as_slice();
     let pool2 = DescriptorPool::decode(my_array_byte)
         .map_err(|e| GRPCError::ProtoDescriptorError(e.to_string()))?;

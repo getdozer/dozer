@@ -1,5 +1,6 @@
 use crate::{
     api_server::PipelineDetails,
+    errors::GRPCError,
     generator::protoc::generator::ProtoGenerator,
     grpc::{
         server::TonicServer,
@@ -21,29 +22,31 @@ impl GRPCServer {
     pub fn default() -> Self {
         Self { port: 50051 }
     }
-    pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>, schema_name: String) {
-        let schema = cache.get_schema_by_name(&schema_name).unwrap();
+    pub fn run(
+        &self,
+        endpoints: Vec<ApiEndpoint>,
+        cache: Arc<LmdbCache>,
+        schema_name: String,
+    ) -> Result<(), GRPCError> {
+        let schema = cache.get_schema_by_name(&schema_name)?;
         let tmp_dir = TempDir::new("proto_generated").unwrap();
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
         let pipeline_details = PipelineDetails {
             schema_name: schema_name.to_owned(),
             endpoint: endpoints[0].clone(),
         };
-        let proto_generator = ProtoGenerator::new(schema, pipeline_details.to_owned()).unwrap();
-        let generated_proto = proto_generator
-            .generate_proto(tempdir_path.to_owned())
-            .unwrap();
+        let proto_generator = ProtoGenerator::new(schema, pipeline_details.to_owned())?;
+        let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
 
         let descriptor_path = create_descriptor_set(
             &tempdir_path,
             &format!("{}.proto", schema_name.to_lowercase()),
         )
         .unwrap();
-        let vec_byte = read_file_as_byte(descriptor_path.to_owned()).unwrap();
+        let vec_byte = read_file_as_byte(descriptor_path.to_owned())?;
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
-            .build()
-            .unwrap();
+            .build()?;
         let addr = format!("[::1]:{:}", self.port).parse().unwrap(); // "[::1]:50051".parse().unwrap();
         let grpc_service =
             TonicServer::new(descriptor_path, generated_proto.1, cache, pipeline_details);
@@ -55,5 +58,6 @@ impl GRPCServer {
         let rt = Runtime::new().unwrap();
         rt.block_on(server_future)
             .expect("failed to successfully run the future on RunTime");
+        Ok(())
     }
 }

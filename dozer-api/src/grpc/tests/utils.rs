@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     api_server::PipelineDetails,
     errors::GenerationError,
@@ -7,6 +5,7 @@ use crate::{
     grpc::util::create_descriptor_set,
     test_utils,
 };
+use std::collections::HashMap;
 
 pub fn generate_proto(
     dir_path: String,

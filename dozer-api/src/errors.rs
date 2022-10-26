@@ -56,6 +56,12 @@ pub enum GRPCError {
     SerizalizeError(#[from] serde_json::Error),
     #[error("Missing primary key to query by id: {0}")]
     MissingPrimaryKeyToQueryById(String),
+    #[error(transparent)]
+    GenerationError(#[from] GenerationError),
+    #[error(transparent)]
+    SchemaNotFound(#[from] CacheError),
+    #[error(transparent)]
+    ServerReflectionError(#[from] tonic_reflection::server::Error),
 }
 impl From<GRPCError> for tonic::Status {
     fn from(input: GRPCError) -> Self {

@@ -1,11 +1,10 @@
-use std::{collections::HashMap, time::Duration};
-
 use super::utils::{generate_descriptor, generate_proto};
 use crate::{
     api_server::PipelineDetails, generator::protoc::proto_service::GrpcType,
     grpc::server::TonicServer, test_utils,
 };
 use futures_util::FutureExt;
+use std::{collections::HashMap, time::Duration};
 use tempdir::TempDir;
 use tokio::sync::oneshot;
 use tonic::{
@@ -16,8 +15,7 @@ use tonic::{
 fn setup(tmp_dir_path: String, schema_name: String) -> (String, HashMap<String, GrpcType>) {
     let proto_generated_result =
         generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned()).unwrap();
-    let path_to_descriptor =
-        generate_descriptor(tmp_dir_path, schema_name).unwrap();
+    let path_to_descriptor = generate_descriptor(tmp_dir_path, schema_name).unwrap();
     (path_to_descriptor, proto_generated_result.1)
 }
 
