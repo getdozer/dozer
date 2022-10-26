@@ -30,7 +30,7 @@ fn main() -> Result<(), OrchestrationError> {
         SubCommand::Run { config_path } => {
             let configuration = load_config(config_path);
 
-            let thread = thread::spawn(|| {
+            let _thread = thread::spawn(|| {
                 Runtime::new().unwrap().block_on(async {
                     tokio::spawn(_serve(None)).await.unwrap().unwrap();
                 });
@@ -47,10 +47,6 @@ fn main() -> Result<(), OrchestrationError> {
             dozer.add_sources(configuration.sources);
             dozer.add_endpoints(configuration.endpoints);
             dozer.run()?;
-            match thread.join() {
-                Ok(_) => Ok(()),
-                Err(_) => Err(OrchestrationError::SchemaServerFailed),
-            }?;
             Ok(())
         }
     }

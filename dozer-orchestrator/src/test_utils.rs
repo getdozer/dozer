@@ -44,11 +44,9 @@ pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
 
     let sink = CacheSink::new(
         Arc::clone(&cache),
-        0,
-        Instant::now(),
+        init_endpoint(),
         input_schemas,
         schema_map,
-        init_endpoint(),
     );
     (cache, sink)
 }

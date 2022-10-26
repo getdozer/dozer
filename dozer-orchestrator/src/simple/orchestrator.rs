@@ -41,17 +41,13 @@ impl Orchestrator for SimpleOrchestrator {
             let api_server = ApiServer::default();
             api_server.run(endpoints, cache_2).unwrap()
         });
-        let thread2 = thread::spawn(move || {
+        let _thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
             Executor::run(sources, endpoints2, cache).unwrap();
         });
-        match thread2.join() {
-            Ok(_) => Ok(()),
-            Err(_) => Err(OrchestrationError::InitializationFailed),
-        }?;
         match thread.join() {
             Ok(_) => Ok(()),
-            Err(_) => Err(OrchestrationError::ApiServerFailed),
+            Err(_) => Err(OrchestrationError::InitializationFailed),
         }?;
 
         Ok(())
