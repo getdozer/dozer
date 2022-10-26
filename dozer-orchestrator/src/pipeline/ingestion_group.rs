@@ -67,7 +67,7 @@ impl IngestionGroup {
 
                 connector
                     .initialize(client, Some(tables))
-                    .map_err(OrchestrationError::ConnectorError);
+                    .map_err(OrchestrationError::ConnectorError)?;
 
                 let mut iterator = connector.iterator(sec_no_resolver);
                 loop {

@@ -31,7 +31,7 @@ fn main() -> Result<(), OrchestrationError> {
         SubCommand::Run { config_path } => {
             let configuration = load_config(config_path);
 
-            thread::spawn(|| {
+            let thread = thread::spawn(|| {
                 Runtime::new().unwrap().block_on(async {
                     tokio::spawn(_serve(None)).await.unwrap().unwrap();
                 });
@@ -47,7 +47,12 @@ fn main() -> Result<(), OrchestrationError> {
             let mut dozer = Dozer::new(Arc::new(client));
             dozer.add_sources(configuration.sources);
             dozer.add_endpoints(configuration.endpoints);
-            dozer.run()
+            dozer.run()?;
+            match thread.join() {
+                Ok(_) => Ok(()),
+                Err(_) => Err(OrchestrationError::SchemaServerFailed),
+            }?;
+            Ok(())
         }
     }
 }

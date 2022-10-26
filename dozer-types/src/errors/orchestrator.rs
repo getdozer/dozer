@@ -10,6 +10,8 @@ pub enum OrchestrationError {
     InitializationFailed,
     #[error("Failed to initialize api server..")]
     ApiServerFailed,
+    #[error("Failed to initialize schema registry..")]
+    SchemaServerFailed,
     #[error("Ingestion message forwarding failed")]
     IngestionForwarderError,
     #[error(transparent)]

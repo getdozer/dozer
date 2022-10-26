@@ -3,12 +3,11 @@ use std::{sync::Arc, thread};
 use dozer_api::api_server::ApiServer;
 use dozer_cache::cache::LmdbCache;
 use dozer_schema::registry::SchemaRegistryClient;
-use tokio::runtime::Runtime;
 
 use super::executor::Executor;
 use crate::Orchestrator;
 use dozer_types::{
-    errors::{execution::ExecutionError, orchestrator::OrchestrationError},
+    errors::orchestrator::OrchestrationError,
     models::{api_endpoint::ApiEndpoint, source::Source},
 };
 
@@ -48,12 +47,12 @@ impl Orchestrator for SimpleOrchestrator {
         });
         match thread2.join() {
             Ok(_) => Ok(()),
-            Err(e) => Err(OrchestrationError::InitializationFailed),
+            Err(_) => Err(OrchestrationError::InitializationFailed),
         }?;
         match thread.join() {
             Ok(_) => Ok(()),
-            Err(e) => Err(OrchestrationError::ApiServerFailed),
-        };
+            Err(_) => Err(OrchestrationError::ApiServerFailed),
+        }?;
 
         Ok(())
     }
