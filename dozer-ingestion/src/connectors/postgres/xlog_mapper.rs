@@ -134,7 +134,15 @@ impl XlogMapper {
                 let table = self.relations_map.get(&update.rel_id()).unwrap();
                 let new_values = update.new_tuple().tuple_data();
 
+                debug!("old tuple: {:?}", update.old_tuple());
+                debug!("key tuple: {:?}", update.key_tuple());
                 let values = Self::convert_values_to_fields(table, new_values);
+                let old_values = if let Some(key_values) = update.key_tuple() {
+                    Self::convert_values_to_fields(table, key_values.tuple_data())
+                } else {
+                    vec![]
+                };
+
                 let event = OperationEvent {
                     operation: Operation::Update {
                         old: Record::new(
@@ -142,7 +150,7 @@ impl XlogMapper {
                                 id: table.rel_id as u32,
                                 version: table.rel_id as u16,
                             }),
-                            vec![],
+                            old_values,
                         ),
                         new: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {

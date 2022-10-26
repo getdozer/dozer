@@ -1,3 +1,5 @@
+use dozer_types::serde;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::{
     errors::connector::ConnectorError,
     types::{OperationEvent, Schema},
@@ -22,7 +24,8 @@ pub trait Connector: Send + Sync {
     fn test_connection(&self) -> Result<(), ConnectorError>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,
     pub id: u32,

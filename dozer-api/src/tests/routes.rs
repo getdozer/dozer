@@ -1,7 +1,6 @@
 use super::super::api_server::ApiServer;
 use crate::{
-    api_server::{ApiSecurity, CorsOptions},
-    generator::oapi::generator::OpenApiGenerator,
+    api_auth::ApiSecurity, api_server::CorsOptions, generator::oapi::generator::OpenApiGenerator,
     test_utils,
 };
 use dozer_types::serde_json::{json, Value};

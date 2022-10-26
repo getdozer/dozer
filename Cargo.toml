@@ -10,3 +10,4 @@ members = [
   "dozer-cache",
   "dozer-schema",
 ]
+exclude = ["tests/**/**"]
