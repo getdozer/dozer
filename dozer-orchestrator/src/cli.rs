@@ -17,8 +17,8 @@ pub enum SubCommand {
     #[command(
         author,
         version,
-        about = "Run orchestration",
-        long_about = "Run orchestration"
+        about = "Run dozer",
+        long_about = "Runs dozer orchestrator which brings up all the modules"
     )]
     Run {
         #[arg(short = 'c', long, default_value = "./dozer-config.yaml")]
