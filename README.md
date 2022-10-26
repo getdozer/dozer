@@ -23,9 +23,18 @@ dozer
 
 #### Running a sample
 Each of the samples have a `docker-compose.yaml` file. 
+
+Using docker
 ```
 docker-compose up
 ```
+
+Using binary
+```
+dozer run
+dozer run -c dozer-config.yaml
+```
+
 
 ## Local development
 
@@ -40,7 +49,7 @@ docker-compose up
 By default `config` file is loaded from `dozer-config.yaml`
 ```
 cp dozer-config.sample.yaml dozer-config.yaml
-dozer run
+cargo run --bin dozer run
 ```
 or with a config file
 ```
