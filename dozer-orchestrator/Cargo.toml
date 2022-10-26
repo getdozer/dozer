@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
 dozer-api = {version = "0.1.0", path = "../dozer-api"}
 dozer-ingestion = {version = "0.1.0", path = "../dozer-ingestion"}
 dozer-core = {version = "0.1.0", path = "../dozer-core"}
@@ -26,6 +25,7 @@ log = "0.4.17"
 log4rs = "1.1.1"
 clap = {version = "4.0.15", features = ["derive"]}
 serde_yaml = "0.9.13"
+indicatif = "0.17.1"
 
 [[bin]]
 edition = "2021"

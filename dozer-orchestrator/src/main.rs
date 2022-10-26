@@ -2,6 +2,7 @@ mod cli;
 
 use clap::Parser;
 
+use dozer_types::errors::orchestrator::OrchestrationError;
 use log::debug;
 use std::sync::Arc;
 use std::{thread, time};
@@ -12,7 +13,7 @@ use dozer_orchestrator::Orchestrator;
 use dozer_schema::registry::{_get_client, _serve};
 use tokio::runtime::Runtime;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), OrchestrationError> {
     log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
@@ -25,12 +26,11 @@ fn main() -> anyhow::Result<()> {
      |____/ \\___/____|_____|_| \\_\\"
     );
     let args = Args::parse();
-
     match args.cmd {
         SubCommand::Run { config_path } => {
             let configuration = load_config(config_path);
 
-            thread::spawn(|| {
+            let _thread = thread::spawn(|| {
                 Runtime::new().unwrap().block_on(async {
                     tokio::spawn(_serve(None)).await.unwrap().unwrap();
                 });
@@ -46,7 +46,8 @@ fn main() -> anyhow::Result<()> {
             let mut dozer = Dozer::new(Arc::new(client));
             dozer.add_sources(configuration.sources);
             dozer.add_endpoints(configuration.endpoints);
-            dozer.run()
+            dozer.run()?;
+            Ok(())
         }
     }
 }

@@ -2,8 +2,11 @@ use dozer_ingestion::connectors::{
     connector::Connector,
     postgres::connector::{PostgresConfig, PostgresConnector},
 };
-use dozer_types::models::connection::{Authentication, Connection};
 use dozer_types::types::Schema;
+use dozer_types::{
+    errors::connector::ConnectorError,
+    models::connection::{Authentication, Connection},
+};
 
 pub struct ConnectionService {
     connector: Box<dyn Connector>,
@@ -32,8 +35,8 @@ impl ConnectionService {
             }
         }
     }
-    pub fn get_all_schema(&self) -> anyhow::Result<Vec<(String, Schema)>> {
-        self.connector.get_all_schema().map_err(anyhow::Error::from)
+    pub fn get_all_schema(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
+        self.connector.get_all_schema()
     }
 
     pub fn new(connection: Connection) -> Self {
@@ -41,9 +44,7 @@ impl ConnectionService {
         Self { connector }
     }
 
-    pub fn test_connection(&self) -> anyhow::Result<()> {
-        self.connector
-            .test_connection()
-            .map_err(anyhow::Error::from)
+    pub fn test_connection(&self) -> Result<(), ConnectorError> {
+        self.connector.test_connection()
     }
 }

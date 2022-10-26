@@ -157,6 +157,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn insert_and_get_schema_tcp() {
         thread::spawn(|| {
             Runtime::new().unwrap().block_on(async {

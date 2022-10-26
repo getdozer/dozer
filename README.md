@@ -15,13 +15,28 @@ dozer
 |-- tests                 # End to end test cases & Samples
 ```
 
-### Running
-Run a specific service with `-p` flag. 
-Note: If you have multiple binaries generated,  you can use `--bin` flag.
 
+### Samples
+[Samples](./tests/README.md) can be found under tests folder. 
+[End to End Dozer Sample](./tests/simple_e2e_example/README.md)
+[Postgres as an Iterator](./tests/connectors/postgres_as_iterator/README.md)
+
+#### Running a sample
+Each of the samples have a `docker-compose.yaml` file. 
+
+Using docker
 ```
-cargo run --bin dozer -c tests/simple_e2e_example/dozer-config.local.yaml
+docker-compose up
 ```
+
+Using binary
+```
+dozer run
+dozer run -c dozer-config.yaml
+```
+
+
+## Local development
 
 ### Build Dependencies
 
@@ -29,9 +44,24 @@ cargo run --bin dozer -c tests/simple_e2e_example/dozer-config.local.yaml
 - [`protoc`](https://github.com/protocolbuffers/protobuf/releases) latest release on your `PATH`
 - `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
 
+### Local development
 
-### Samples
-[Samples](./tests/README.md) can be found under tests folder. 
+By default `config` file is loaded from `dozer-config.yaml`
+```
+cp dozer-config.sample.yaml dozer-config.yaml
+cargo run --bin dozer run
+```
+or with a config file
+```
+cargo run --bin dozer run -c dozer-config.sample.yaml
+```
 
-[End to End Dozer Sample](./tests/simple_e2e_example/README.md)
-[Postgres as an Iterator](./tests/connectors/postgres_as_iterator/README.md)
+### Running individual modules
+dozer-schema, dozer-api are instantiated part of `dozer` (short for `dozer-orchestrator`).
+
+They can be run separately for local testing using `--bin` flags.
+Individual 
+```
+cargo run --bin dozer-api
+cargo run --bin dozer-schema
+```
