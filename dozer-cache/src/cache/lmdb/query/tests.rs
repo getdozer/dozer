@@ -10,7 +10,7 @@ use dozer_types::{
 
 #[test]
 fn query_secondary() {
-    let cache = LmdbCache::new(true);
+    let cache = LmdbCache::new(true, None);
     let schema = test_utils::schema_1();
     let record = Record::new(
         schema.identifier.clone(),
