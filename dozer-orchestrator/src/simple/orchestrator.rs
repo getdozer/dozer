@@ -35,7 +35,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let endpoints = self.api_endpoints.clone();
         let endpoints2 = self.api_endpoints.get(0).unwrap().clone();
-        let endpoints3 = self.api_endpoints.get(0).unwrap().clone();
+        let endpoint3 = self.api_endpoints.get(0).unwrap().clone();
 
         let sources = self.sources.clone();
 
@@ -47,14 +47,13 @@ impl Orchestrator for SimpleOrchestrator {
             //TODO: Have to wait until cache is initialized and schema is exist => GRPC have to know schema before starting
             thread::sleep(std::time::Duration::from_millis(1000));
             let grpc_server = GRPCServer::default();
-            grpc_server.run(endpoints3, cache_3).unwrap()
+            grpc_server.run(endpoint3, cache_3).unwrap()
         });
 
         let _thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
             Executor::run(sources, endpoints2, cache).unwrap();
         });
-
         match thread.join() {
             Ok(_) => Ok(()),
             Err(_) => Err(OrchestrationError::InitializationFailed),
