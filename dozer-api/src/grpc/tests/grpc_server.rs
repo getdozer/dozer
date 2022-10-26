@@ -59,14 +59,14 @@ async fn test_grpc_list() {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
     pub mod dozer_client_generated {
-        include!("generated_client/dozer_films.rs");
+        include!("generated_client/dozer.rs");
     }
-    use dozer_client_generated::films_service_client::FilmsServiceClient;
+    use dozer_client_generated::films_client::FilmsClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1400")
         .connect()
         .await
         .unwrap();
-    let mut client = FilmsServiceClient::new(channel);
+    let mut client = FilmsClient::new(channel);
     let request = dozer_client_generated::GetFilmsRequest {};
     let res = client.films(Request::new(request)).await.unwrap();
     let request_response: dozer_client_generated::GetFilmsResponse = res.into_inner();
@@ -100,16 +100,16 @@ async fn test_grpc_get_by_id() {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
     pub mod dozer_client_generated {
-        include!("generated_client/dozer_films.rs");
+        include!("generated_client/dozer.rs");
     }
-    use dozer_client_generated::films_service_client::FilmsServiceClient;
+    use dozer_client_generated::films_client::FilmsClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1401")
         .connect()
         .await
         .unwrap();
-    let mut client = FilmsServiceClient::new(channel);
+    let mut client = FilmsClient::new(channel);
     let request = dozer_client_generated::GetFilmsByIdRequest { film_id: 524 };
-    let res = client.films_by_id(Request::new(request)).await.unwrap();
+    let res = client.by_id(Request::new(request)).await.unwrap();
     let request_response: dozer_client_generated::GetFilmsByIdResponse = res.into_inner();
     assert!(request_response.film.is_some());
 }
@@ -141,21 +141,21 @@ async fn test_grpc_query() {
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
     pub mod dozer_client_generated {
-        include!("generated_client/dozer_films.rs");
+        include!("generated_client/dozer.rs");
     }
-    use dozer_client_generated::films_service_client::FilmsServiceClient;
+    use dozer_client_generated::films_client::FilmsClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1402")
         .connect()
         .await
         .unwrap();
-    let mut client = FilmsServiceClient::new(channel);
+    let mut client = FilmsClient::new(channel);
     let request = dozer_client_generated::QueryFilmsRequest {
         limit: Some(50),
         skip: Some(0),
         filter: None,
         order_by: vec![],
     };
-    let res = client.query_films(Request::new(request)).await.unwrap();
+    let res = client.query(Request::new(request)).await.unwrap();
     let request_response: dozer_client_generated::QueryFilmsResponse = res.into_inner();
     assert!(!request_response.film.is_empty());
 }

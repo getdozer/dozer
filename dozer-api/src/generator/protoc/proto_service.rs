@@ -96,7 +96,7 @@ impl ProtoService {
             self.endpoint.name.to_owned().to_pascal_case()
         );
         let get_byid_fnc = RPCFunction {
-            name: format!("{}_by_id", self.endpoint.name.to_owned()),
+            name: String::from("by_id"),
             argument: get_by_id_req_str.to_owned(),
             response: get_by_id_res_str.to_owned(),
         };
@@ -136,7 +136,7 @@ impl ProtoService {
             self.endpoint.name.to_owned().to_pascal_case()
         );
         let query_fnc = RPCFunction {
-            name: format!("query_{}", self.endpoint.name.to_owned()),
+            name: String::from("query"),
             argument: query_request_str.to_owned(),
             response: query_response_str.to_owned(),
         };
@@ -198,8 +198,8 @@ impl ProtoService {
     }
 
     pub fn get_grpc_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
-        let package_name = format!("Dozer{}", self.endpoint.name.to_owned().to_pascal_case());
-        let service_name = format!("{}Service", self.endpoint.name.to_owned().to_pascal_case());
+        let package_name = String::from("Dozer");
+        let service_name = self.endpoint.name.to_owned().to_pascal_case();
         let get_rpc = self._get_message();
         let get_by_id_rpc = self._get_by_id_message()?;
         let query_rpc = self._query_message();

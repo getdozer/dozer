@@ -1,54 +1,51 @@
 syntax = "proto3";
-package DozerFilmPackage;
-service DozerFilmService {
+package Dozer;
+service Films {
+
   rpc films(GetFilmsRequest) returns (GetFilmsResponse);
-  rpc film_by_id(GetFilmByIdRequest) returns (GetFilmByIdResponse);
-  rpc query_films(QueryFilmsRequest) returns (QueryFilmsResponse);
+  rpc by_id(GetFilmsByIdRequest) returns (GetFilmsByIdResponse);
+  rpc query(QueryFilmsRequest) returns (QueryFilmsResponse);   
+}
+
+
+message Film {
+ optional int32 film_id = 1; 
+ optional string description = 2; 
+ optional string rental_rate = 3; 
+ optional int32 release_year = 4; 
+}
+
+message SortOptions {
+ enum SortDirection { 
+   asc = 0; 
+   desc = 1; 
+ } 
+ string field_name = 1; 
+ SortDirection direction = 3; 
 }
 
 message GetFilmsRequest {
 }
 
 message GetFilmsResponse {
-  repeated Film film = 1;
+ repeated Film film = 1;
 }
 
-message GetFilmByIdRequest {
-  string id = 1;
+message GetFilmsByIdRequest {
+ int32 film_id = 1;
 }
 
-message GetFilmByIdResponse {
-  optional Film film = 1;
+message GetFilmsByIdResponse {
+ optional Film film = 1;
 }
 
 message QueryFilmsRequest {
-  optional QueryExpression query = 1;
+ optional string filter = 1; 
+ repeated SortOptions order_by = 2; 
+ optional uint32 limit = 3; 
+ optional uint32 skip = 4; 
 }
 
 message QueryFilmsResponse {
-  repeated Film film = 1;
+ repeated Film film = 1;
 }
-
-message Film {
-  string film_id = 1;
-  string description = 2;
-  optional string rental_rate = 3;
-  string release_year = 4;
-}
-
-message QueryExpression {
-  optional string filter = 1;
-  repeated SortOptions order_by = 2;
-  uint32 limit = 3;
-  uint32 skip = 4;
-}
-
-message SortOptions {
-  enum SortDirection {
-    asc = 0;
-    desc = 1;
-  }
-  string field_name = 1;
-  SortDirection direction = 3;
-}
-
