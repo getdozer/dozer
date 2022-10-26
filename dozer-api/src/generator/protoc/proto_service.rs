@@ -199,7 +199,7 @@ impl ProtoService {
 
     pub fn get_grpc_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = String::from("Dozer");
-        let service_name = self.endpoint.name.to_owned().to_pascal_case();
+        let service_name = format!("{}Service", self.endpoint.name.to_owned().to_pascal_case());
         let get_rpc = self._get_message();
         let get_by_id_rpc = self._get_by_id_message()?;
         let query_rpc = self._query_message();

@@ -22,27 +22,21 @@ impl GRPCServer {
     pub fn default() -> Self {
         Self { port: 50051 }
     }
-    pub fn run(
-        &self,
-        endpoints: Vec<ApiEndpoint>,
-        cache: Arc<LmdbCache>,
-        schema_name: String,
-    ) -> Result<(), GRPCError> {
+    pub fn run(&self, endpoint: ApiEndpoint, cache: Arc<LmdbCache>) -> Result<(), GRPCError> {
+        let schema_name = endpoint.name.to_owned();
         let schema = cache.get_schema_by_name(&schema_name)?;
         let tmp_dir = TempDir::new("proto_generated").unwrap();
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
         let pipeline_details = PipelineDetails {
             schema_name: schema_name.to_owned(),
-            endpoint: endpoints[0].clone(),
+            endpoint,
         };
         let proto_generator = ProtoGenerator::new(schema, pipeline_details.to_owned())?;
         let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
-
         let descriptor_path = create_descriptor_set(
             &tempdir_path,
             &format!("{}.proto", schema_name.to_lowercase()),
-        )
-        .unwrap();
+        )?;
         let vec_byte = read_file_as_byte(descriptor_path.to_owned())?;
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
