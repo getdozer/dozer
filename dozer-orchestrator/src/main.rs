@@ -26,7 +26,6 @@ fn main() -> Result<(), OrchestrationError> {
      |____/ \\___/____|_____|_| \\_\\"
     );
     let args = Args::parse();
-    println!("{:?}", args);
     match args.cmd {
         SubCommand::Run { config_path } => {
             let configuration = load_config(config_path);
