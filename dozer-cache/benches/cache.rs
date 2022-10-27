@@ -3,32 +3,25 @@ use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, test_utils, Cache};
 use dozer_types::serde_json::Value;
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::types::{Field, Schema};
 use std::sync::Arc;
 
 fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) {
     let val = format!("bar_{}", n);
-
-    let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
-
-    cache.insert(&record).unwrap();
-    let key = index::get_primary_key(&[0], &[Field::String(val)]);
-
-    let _get_record = cache.get(&key).unwrap();
+    test_utils::insert_rec_1(&cache, &schema, (n as i64, val, (n + 1000) as i64));
 }
 
 fn get(cache: Arc<LmdbCache>, n: usize) {
-    let val = format!("bar_{}", n);
-    let key = index::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::Int(n as i64)]);
     let _get_record = cache.get(&key).unwrap();
 }
 
-fn query(cache: Arc<LmdbCache>, _n: usize) {
+fn query(cache: Arc<LmdbCache>, n: usize) {
     let exp = QueryExpression::new(
         Some(FilterExpression::Simple(
-            "foo".to_string(),
+            "a".to_string(),
             expression::Operator::EQ,
-            Value::from("bar".to_string()),
+            Value::from(n),
         )),
         vec![],
         10,
@@ -39,7 +32,7 @@ fn query(cache: Arc<LmdbCache>, _n: usize) {
 }
 
 fn cache(c: &mut Criterion) {
-    let schema = test_utils::schema_0();
+    let schema = test_utils::schema_1();
     let cache = Arc::new(LmdbCache::new(true));
 
     cache.insert_schema("benches", &schema).unwrap();

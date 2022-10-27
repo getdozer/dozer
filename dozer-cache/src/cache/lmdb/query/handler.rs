@@ -2,7 +2,7 @@ use super::{helper, iterator::CacheIterator};
 use crate::cache::{
     expression::{ExecutionStep, IndexScan, QueryExpression},
     index,
-    planner::QueryPlanner,
+    plan::QueryPlanner,
 };
 use dozer_types::errors::{
     cache::{

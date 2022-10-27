@@ -1,15 +1,15 @@
+pub mod expression;
+pub mod index;
 mod lmdb;
+mod plan;
+pub mod test_utils;
 use self::expression::QueryExpression;
 pub use self::lmdb::cache::LmdbCache;
 use dozer_types::{
     errors::cache::CacheError,
     types::{Record, Schema, SchemaIdentifier},
 };
-
-pub mod expression;
-pub mod index;
-mod planner;
-pub mod test_utils;
+pub use plan::QueryPlanner;
 pub trait Cache {
     // Schema Operations
     fn insert_schema(&self, name: &str, schema: &Schema) -> Result<(), CacheError>;
