@@ -7,6 +7,8 @@ use sqlparser::ast::{
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
+use crate::pipeline::aggregation::aggregator::Aggregator;
+use crate::pipeline::aggregation::sum::IntegerSumAggregator;
 use crate::pipeline::expression::{
     aggregate::AggregateFunctionType,
     execution::Expression,
@@ -19,14 +21,14 @@ use crate::pipeline::expression::execution::Expression::ScalarFunction;
 use super::aggregation::FieldRule;
 use super::common::column_index;
 
-pub enum ExpressionVisitControl {
-    /// Continue to visit all the children
-    Continue(Box<Expression>),
-    /// Do not visit the children of this expression
-    Stop(Box<Expression>),
-    /// Bypass all the parents
-    Bypass(Box<Expression>),
-}
+// pub enum ExpressionVisitControl {
+//     /// Continue to visit all the children
+//     Continue(Box<Expression>),
+//     /// Do not visit the children of this expression
+//     Stop(Box<Expression>),
+//     /// Bypass all the parents
+//     Bypass(Box<Expression>),
+// }
 
 pub struct AggregationBuilder {}
 
@@ -37,17 +39,19 @@ impl AggregationBuilder {
         groupby: &[SqlExpr],
         schema: &Schema,
     ) -> Result<Vec<FieldRule>, PipelineError> {
-        let groupby_rules = groupby
-            .into_iter()
+        let mut groupby_rules = groupby
+            .iter()
             .map(|expr| self.get_groupby_field(expr, schema))
             .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
-        let select_rules = select
-            .into_iter()
+        let mut select_rules = select
+            .iter()
             .map(|item| self.get_aggregation_field(item, schema))
             .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
-        Ok(vec![])
+        groupby_rules.append(&mut select_rules);
+
+        Ok(groupby_rules)
     }
 
     pub fn get_groupby_field(
@@ -64,9 +68,10 @@ impl AggregationBuilder {
                 true,
                 None,
             )),
-            _ => Err(InvalidExpression(
-                "Unsupported Group By Expression".to_string(),
-            )),
+            _ => Err(InvalidExpression(format!(
+                "Unsupported Group By Expression {:?}",
+                expression
+            ))),
         }
     }
 
@@ -78,7 +83,12 @@ impl AggregationBuilder {
         match item {
             SelectItem::UnnamedExpr(sql_expr) => {
                 match self.parse_sql_expression(sql_expr, schema) {
-                    Ok(expr) => self.create_measure_rule(expr.0),
+                    Ok(expr) => Ok(FieldRule::Measure(
+                        sql_expr.to_string(),
+                        self.get_aggregator(expr.0)?,
+                        true,
+                        Some(item.to_string()),
+                    )),
                     Err(error) => Err(error),
                 }
             }
@@ -89,15 +99,24 @@ impl AggregationBuilder {
             SelectItem::Wildcard => Err(InvalidExpression(
                 "Wildcard Operator is not supported".to_string(),
             )),
-            SelectItem::QualifiedWildcard(ref object_name) => Err(InvalidExpression(
+            SelectItem::QualifiedWildcard(ref _object_name) => Err(InvalidExpression(
                 "Qualified Wildcard Operator is not supported".to_string(),
             )),
         }
     }
 
-    fn create_measure_rule(&self, expression: Box<Expression>) -> Result<FieldRule, PipelineError> {
+    fn get_aggregator(
+        &self,
+        expression: Box<Expression>,
+    ) -> Result<Box<dyn Aggregator>, PipelineError> {
         match *expression {
-            Expression::AggregateFunction { fun, args } => todo!(),
+            Expression::AggregateFunction { fun, args: _ } => match fun {
+                AggregateFunctionType::Sum => Ok(Box::new(IntegerSumAggregator::new())),
+                _ => Err(InvalidExpression(format!(
+                    "Not implemented Aggreagation function: {:?}",
+                    fun
+                ))),
+            },
             _ => Err(InvalidExpression(format!(
                 "Not an Aggreagation function: {:?}",
                 expression
@@ -159,10 +178,31 @@ impl AggregationBuilder {
                     ));
                 };
 
-                if AggregateFunctionType::new(&name).is_ok() {
-                    let arg = sql_function.args.first().unwrap();
-                    let r = self.parse_sql_function_arg(arg, schema)?;
-                    return Ok((r.0, true));
+                if let Ok(function) = AggregateFunctionType::new(&name) {
+                    let mut arg_exprs = vec![];
+                    for arg in &sql_function.args {
+                        let r = self.parse_sql_function_arg(arg, schema);
+                        match r {
+                            Ok(result) => {
+                                if result.1 {
+                                    return Ok(result);
+                                } else {
+                                    arg_exprs.push(*result.0);
+                                }
+                            }
+                            Err(error) => {
+                                return Err(error);
+                            }
+                        }
+                    }
+
+                    return Ok((
+                        Box::new(Expression::AggregateFunction {
+                            fun: function,
+                            args: arg_exprs,
+                        }),
+                        true, // switch bypass to true, since this Aggregation must be the final result
+                    ));
                 };
 
                 Err(InvalidExpression(format!(

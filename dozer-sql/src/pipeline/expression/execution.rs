@@ -54,7 +54,12 @@ impl ExpressionExecutor for Expression {
             } => operator.evaluate(left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(args, record),
             Expression::UnaryOperator { operator, arg } => operator.evaluate(arg, record),
-            Expression::AggregateFunction { fun, args } => todo!(),
+            Expression::AggregateFunction { fun, args: _ } => {
+                Err(PipelineError::InvalidExpression(format!(
+                    "Aggregate Function {:?} should not be executed at this point",
+                    fun
+                )))
+            }
         }
     }
 
@@ -88,7 +93,7 @@ fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
         Field::Decimal(_) => FieldType::Decimal,
         Field::Timestamp(_) => FieldType::Timestamp,
         Field::Bson(_) => FieldType::Bson,
-        Field::RecordArray(_f) => FieldType::Null, //bail!("Record Array not supported: {:?}", f),
+        Field::RecordArray(_f) => FieldType::Null, //Error ("Record Array not supported: {:?}", f),
         Field::Null => FieldType::Null,
     }
 }
@@ -107,7 +112,7 @@ fn get_unary_operator_type(
         UnaryOperatorType::Not => {
             match field_type {
                 FieldType::Boolean => field_type,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}", field_type)
+                _ => FieldType::Null, //Error ("Invalid Field Type: {:?}", field_type)
             }
         }
         UnaryOperatorType::Plus => field_type,
@@ -134,7 +139,7 @@ fn get_binary_operator_type(
         BinaryOperatorType::And | BinaryOperatorType::Or => {
             match (left_field_type, right_field_type) {
                 (FieldType::Boolean, FieldType::Boolean) => FieldType::Boolean,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
             }
         }
 
@@ -144,7 +149,7 @@ fn get_binary_operator_type(
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => FieldType::Float,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
             }
         }
         BinaryOperatorType::Div | BinaryOperatorType::Mod => {
@@ -152,7 +157,7 @@ fn get_binary_operator_type(
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => FieldType::Float,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
             }
         }
     }
