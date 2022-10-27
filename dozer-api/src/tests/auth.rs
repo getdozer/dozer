@@ -1,8 +1,7 @@
 use super::super::api_server::ApiServer;
 use crate::{
-    api_auth::ApiSecurity,
     api_server::CorsOptions,
-    auth::{Access, Authorizer},
+    auth::{api::ApiSecurity, Access, Authorizer},
     test_utils,
 };
 use actix_web::{body::MessageBody, dev::ServiceResponse};

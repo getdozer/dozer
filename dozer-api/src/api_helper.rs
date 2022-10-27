@@ -1,7 +1,5 @@
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
-use actix_web::web;
-use actix_web::web::ReqData;
 use dozer_cache::cache::{expression::QueryExpression, index, LmdbCache};
 use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::errors::cache::CacheError;
@@ -15,16 +13,16 @@ use crate::api_server::PipelineDetails;
 use crate::generator::oapi::generator::OpenApiGenerator;
 
 pub struct ApiHelper {
-    details: ReqData<PipelineDetails>,
+    details: PipelineDetails,
     reader: CacheReader,
 }
 impl ApiHelper {
     pub fn new(
-        pipeline_details: ReqData<PipelineDetails>,
-        cache: web::Data<Arc<LmdbCache>>,
-        access: Option<ReqData<Access>>,
+        pipeline_details: PipelineDetails,
+        cache: Arc<LmdbCache>,
+        access: Option<Access>,
     ) -> Result<Self, ApiError> {
-        let access = access.map_or(Access::All, |a| a.into_inner());
+        let access = access.map_or(Access::All, |a| a);
 
         // Define Access Filter based on token
         let reader_access = match access {
@@ -44,7 +42,7 @@ impl ApiHelper {
         };
 
         let reader = CacheReader {
-            cache: cache.as_ref().to_owned(),
+            cache,
             access: reader_access,
         };
         Ok(Self {

@@ -8,8 +8,7 @@ use dozer_types::serde_json::{json, Value};
 
 use crate::errors::{ApiError, AuthError};
 
-use super::{auth::authorizer::Authorizer, auth::Access};
-
+use super::{Access, Authorizer};
 #[derive(Clone)]
 pub enum ApiSecurity {
     None,

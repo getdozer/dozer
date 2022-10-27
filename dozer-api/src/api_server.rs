@@ -12,8 +12,8 @@ use dozer_types::serde::{self, Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{
-    api_auth::{self, validate, ApiSecurity},
     api_generator,
+    auth::api::{auth_route, validate, ApiSecurity},
 };
 
 #[derive(Clone)]
@@ -114,7 +114,7 @@ impl ApiServer {
                 )
             })
             // Attach token generation route
-            .route("/auth/token", web::post().to(api_auth::auth_route))
+            .route("/auth/token", web::post().to(auth_route))
             // Wrap Api Validator
             .wrap(auth_middleware)
             // Wrap CORS around api validator. Neededto return the right headers.

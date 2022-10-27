@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use dozer_cache::AccessFilter;
 use dozer_types::serde;
 use serde::{Deserialize, Serialize};
+pub mod api;
 pub mod authorizer;
 pub use authorizer::Authorizer;
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(crate = "self::serde")]
 pub struct Claims {

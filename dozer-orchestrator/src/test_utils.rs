@@ -47,6 +47,7 @@ pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
         init_endpoint(),
         input_schemas,
         schema_map,
+        None,
     );
     (cache, sink)
 }
