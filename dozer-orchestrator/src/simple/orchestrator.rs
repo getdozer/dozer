@@ -1,5 +1,6 @@
 use super::executor::Executor;
 use crate::Orchestrator;
+use crossbeam::channel::{self};
 use dozer_api::{api_server::ApiServer, grpc_server::GRPCServer};
 use dozer_cache::cache::LmdbCache;
 use dozer_schema::registry::SchemaRegistryClient;
@@ -43,17 +44,20 @@ impl Orchestrator for SimpleOrchestrator {
             let api_server = ApiServer::default();
             api_server.run(endpoints, cache_2).unwrap()
         });
-        let _thread3 = thread::spawn(move || {
-            //TODO: Have to wait until cache is initialized and schema is exist => GRPC have to know schema before starting
-            thread::sleep(std::time::Duration::from_millis(1000));
-            let grpc_server = GRPCServer::default();
-            grpc_server.run(endpoint3, cache_3).unwrap()
-        });
-
+        let (sender, receiver) = channel::unbounded::<bool>();
         let _thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
-            Executor::run(sources, endpoints2, cache).unwrap();
+            Executor::run(sources, endpoints2, cache, sender).unwrap();
         });
+
+        let schema_inserted = receiver.recv();
+        if schema_inserted.is_ok() {
+            let _thread3 = thread::spawn(move || {
+                let grpc_server = GRPCServer::default();
+                grpc_server.run(endpoint3, cache_3).unwrap()
+            });
+        }
+
         match thread.join() {
             Ok(_) => Ok(()),
             Err(_) => Err(OrchestrationError::InitializationFailed),

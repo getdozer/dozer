@@ -29,6 +29,7 @@ impl Executor {
         sources: Vec<Source>,
         api_endpoint: ApiEndpoint,
         cache: Arc<LmdbCache>,
+        schema_change_notifier: crossbeam::channel::Sender<bool>,
     ) -> Result<(), OrchestrationError> {
         let mut source_schemas: Vec<Schema> = vec![];
         let mut connections: Vec<Connection> = vec![];
@@ -67,7 +68,12 @@ impl Executor {
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
-        let sink = CacheSinkFactory::new(vec![DEFAULT_PORT_HANDLE], cache, api_endpoint);
+        let sink = CacheSinkFactory::new(
+            vec![DEFAULT_PORT_HANDLE],
+            cache,
+            api_endpoint,
+            schema_change_notifier,
+        );
 
         let source_table_map = source.table_map.clone();
 

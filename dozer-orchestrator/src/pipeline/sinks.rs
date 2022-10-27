@@ -19,6 +19,7 @@ pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
+    schema_change_notifier: crossbeam::channel::Sender<bool>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -45,11 +46,13 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
+        schema_change_notifier: crossbeam::channel::Sender<bool>,
     ) -> Self {
         Self {
             input_ports,
             cache,
             api_endpoint,
+            schema_change_notifier,
         }
     }
 }
@@ -68,6 +71,7 @@ impl SinkFactory for CacheSinkFactory {
             self.api_endpoint.clone(),
             HashMap::new(),
             HashMap::new(),
+            Some(self.schema_change_notifier.clone()),
         ))
     }
 }
@@ -80,6 +84,7 @@ pub struct CacheSink {
     schema_map: HashMap<u64, bool>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
+    schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
 }
 
 impl Sink for CacheSink {
@@ -135,6 +140,11 @@ impl Sink for CacheSink {
                 .insert_schema(&self.api_endpoint.name, &schema)
                 .map_err(|e| InternalStringError(e.to_string()))?;
             e.insert(true);
+            if let Some(notifier) = &self.schema_change_notifier {
+                notifier
+                    .try_send(true)
+                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+            }
         }
 
         match op {
@@ -188,6 +198,7 @@ impl CacheSink {
         api_endpoint: ApiEndpoint,
         input_schemas: HashMap<PortHandle, Schema>,
         schema_map: HashMap<u64, bool>,
+        schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
     ) -> Self {
         Self {
             cache,
@@ -197,6 +208,7 @@ impl CacheSink {
             schema_map,
             api_endpoint,
             pb: get_progress(),
+            schema_change_notifier,
         }
     }
 
