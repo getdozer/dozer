@@ -145,6 +145,9 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
+    log4rs::init_file("../log4rs.yaml", Default::default())
+        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+
     let sql = "SELECT Country, ROUND(SUM(ROUND(Spending))) \
                             FROM Customers \
                             WHERE Spending >= 1 \
