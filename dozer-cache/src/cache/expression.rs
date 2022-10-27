@@ -1,6 +1,6 @@
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::serde_json::Value;
-use dozer_types::types::IndexDefinition;
+use dozer_types::types::{IndexDefinition, SortDirection};
 mod query_helper;
 mod query_serde;
 
@@ -10,8 +10,9 @@ mod tests;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(crate = "self::serde")]
 pub struct QueryExpression {
+    /// Final results must pass all the filters.
     #[serde(rename = "$filter", default)]
-    pub filter: Option<FilterExpression>,
+    pub filters: Vec<FilterExpression>,
     #[serde(rename = "$order_by", default)]
     pub order_by: Vec<SortOptions>,
     #[serde(rename = "$limit", default = "default_limit")]
@@ -39,11 +40,12 @@ impl QueryExpression {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum FilterExpression {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FilterExpression {
     // a = 1, a containts "s", a> 4
-    Simple(String, Operator, Value),
-    And(Vec<FilterExpression>),
+    pub field_name: String,
+    pub operator: Operator,
+    pub value: Value,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,30 +90,27 @@ impl Operator {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(crate = "self::serde")]
-pub enum SortDirection {
-    #[serde(rename = "asc")]
-    Ascending,
-    #[serde(rename = "desc")]
-    Descending,
-}
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(crate = "self::serde")]
 pub struct SortOptions {
     pub field_name: String,
     pub direction: SortDirection,
 }
 
-pub enum ExecutionStep {
-    IndexScan(IndexScan),
-    SeqScan(SeqScan),
-}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexScan {
     pub index_def: IndexDefinition,
-    pub fields: Vec<Option<Value>>,
+    pub filters: Vec<FilterExpression>,
 }
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeqScan {
-    // ascending / descending
-    pub direction: bool,
+    pub direction: SortDirection,
+}
+
+pub enum PlanningResult {
+    /// These indices are needed to execute this query, but not present in the schema.
+    NeedIndices(Vec<IndexDefinition>),
+    /// The query should be carried out with multiple `IndexScan`s and results are the intersection of all `IndexScan` results.
+    IndexScans(Vec<IndexScan>),
+    /// Just split out the results in specified direction.
+    SeqScan(SeqScan),
 }

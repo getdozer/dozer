@@ -13,6 +13,8 @@ use dozer_types::{
     types::{FieldDefinition, IndexDefinition, Schema},
 };
 
+use super::expression::PlanningResult;
+
 struct ScanOp {
     id: usize,
     direction: bool,
@@ -121,7 +123,7 @@ impl QueryPlanner {
         &self,
         schema: &Schema,
         query: &QueryExpression,
-    ) -> Result<ExecutionStep, CacheError> {
+    ) -> Result<PlanningResult, CacheError> {
         // construct steps based on expression
         // construct plans with query steps
 
