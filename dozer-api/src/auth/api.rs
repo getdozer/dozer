@@ -1,41 +1,46 @@
 use actix_web::{
     dev::ServiceRequest,
     web::{self, ReqData},
-    Error, HttpMessage, HttpResponse,
+    Error, HttpMessage, HttpRequest, HttpResponse,
 };
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use dozer_types::serde_json::{json, Value};
 
-use crate::{
-    api_server::ApiSecurity,
-    errors::{ApiError, AuthError},
-};
+use crate::errors::{ApiError, AuthError};
 
-use super::{authorizer::Authorizer, Access};
+use super::{Access, Authorizer};
+#[derive(Clone)]
+pub enum ApiSecurity {
+    None,
+    // Initialize with a JWT_SECRET
+    Jwt(String),
+}
 
-pub fn auth_route(
+pub async fn auth_route(
     access: Option<ReqData<Access>>,
-    req: ServiceRequest,
-    _tenant_access: web::Json<Value>,
+    req: HttpRequest,
+    tenant_access: web::Json<Value>,
 ) -> Result<HttpResponse, ApiError> {
     let access = match access {
         Some(access) => access.into_inner(),
         None => Access::All,
     };
 
+    let tenant_access = dozer_types::serde_json::from_value(tenant_access.0)
+        .map_err(ApiError::map_deserialization_error)?;
     match access {
         // Master Key or Uninitialized
         Access::All => {
             let secret = get_secret(req)?;
             let auth = Authorizer::new(secret, None, None);
-            let token = auth.generate_token(Access::All, None).unwrap();
+            let token = auth.generate_token(tenant_access, None).unwrap();
             Ok(HttpResponse::Ok().body(json!({ "token": token }).to_string()))
         }
         Access::Custom(_) => Err(ApiError::ApiAuthError(AuthError::Unauthorized)),
     }
 }
 
-pub fn get_secret(req: ServiceRequest) -> Result<String, AuthError> {
+fn get_secret(req: HttpRequest) -> Result<String, AuthError> {
     let api_security = req.app_data::<ApiSecurity>().map(|a| a.to_owned());
 
     match api_security {
