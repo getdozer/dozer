@@ -14,7 +14,7 @@ use super::cache::LmdbCache;
 
 fn _setup() -> (LmdbCache, Schema) {
     let schema = test_utils::schema_0();
-    let cache = LmdbCache::new(true, None);
+    let cache = LmdbCache::new(true);
     (cache, schema)
 }
 

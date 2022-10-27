@@ -1,5 +1,3 @@
-use std::sync::{Arc, Condvar, Mutex};
-
 use dozer_types::bincode;
 use dozer_types::errors::cache::{CacheError, QueryError};
 use dozer_types::log::debug;
@@ -25,7 +23,6 @@ pub struct LmdbCache {
     db: Database,
     indexer_db: Database,
     schema_db: Database,
-    schema_change_notifier: Option<Arc<(Mutex<bool>, Condvar)>>,
 }
 
 fn _debug_dump(cursor: RoCursor) {
@@ -35,10 +32,7 @@ fn _debug_dump(cursor: RoCursor) {
 }
 
 impl LmdbCache {
-    pub fn new(
-        temp_storage: bool,
-        schema_change_notifier: Option<Arc<(Mutex<bool>, Condvar)>>,
-    ) -> Self {
+    pub fn new(temp_storage: bool) -> Self {
         let env = utils::init_env(temp_storage).unwrap();
         let db = utils::init_db(&env, Some("records")).unwrap();
         let indexer_db = utils::init_db(&env, Some("indexes")).unwrap();
@@ -48,7 +42,6 @@ impl LmdbCache {
             db,
             indexer_db,
             schema_db,
-            schema_change_notifier,
         }
     }
 
@@ -237,16 +230,6 @@ impl Cache for LmdbCache {
         self._insert_schema(&mut txn, schema, name)?;
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        if let Some(notifier) = &self.schema_change_notifier {
-            let lock = &notifier.0;
-            let cvar = &notifier.1;
-            let lock_result = lock.lock();
-            if let Ok(mut inserted) = lock_result {
-                // We notify the condvar that the value has changed.
-                *inserted = true;
-                cvar.notify_all();
-            }
-        }
         Ok(())
     }
 }

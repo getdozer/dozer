@@ -34,7 +34,7 @@ pub fn get_schema() -> Schema {
 }
 
 pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
-    let cache = Arc::new(LmdbCache::new(true, None));
+    let cache = Arc::new(LmdbCache::new(true));
 
     let mut schema_map: HashMap<u64, bool> = HashMap::new();
     schema_map.insert(1, true);

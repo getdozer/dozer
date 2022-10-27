@@ -7,10 +7,7 @@ use dozer_types::{
     errors::orchestrator::OrchestrationError,
     models::{api_endpoint::ApiEndpoint, source::Source},
 };
-use std::{
-    sync::{Arc, Condvar, Mutex},
-    thread,
-};
+use std::{sync::Arc, thread};
 
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
@@ -32,15 +29,13 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn run(&mut self) -> Result<(), OrchestrationError> {
-        let schema_notifier = Arc::new((Mutex::new(false), Condvar::new()));
-        let schema_notifier2 = schema_notifier.clone();
-
-        let cache = Arc::new(LmdbCache::new(true, Some(schema_notifier)));
+        let cache = Arc::new(LmdbCache::new(true));
         let cache_2 = cache.clone();
         let cache_3 = cache.clone();
 
         let endpoints = self.api_endpoints.clone();
         let endpoints2 = self.api_endpoints.get(0).unwrap().clone();
+        let endpoint3 = self.api_endpoints.get(0).unwrap().clone();
 
         let sources = self.sources.clone();
 
@@ -48,28 +43,17 @@ impl Orchestrator for SimpleOrchestrator {
             let api_server = ApiServer::default();
             api_server.run(endpoints, cache_2).unwrap()
         });
+        let _thread3 = thread::spawn(move || {
+            //TODO: Have to wait until cache is initialized and schema is exist => GRPC have to know schema before starting
+            thread::sleep(std::time::Duration::from_millis(1000));
+            let grpc_server = GRPCServer::default();
+            grpc_server.run(endpoint3, cache_3).unwrap()
+        });
 
         let _thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
             Executor::run(sources, endpoints2, cache).unwrap();
         });
-
-        // Wait for the thread to start up.
-        let &(ref lock, ref cvar) = &*schema_notifier2;
-        let mut schema_inserted = lock.lock().unwrap();
-        // As long as the value inside the `Mutex` is false, we wait.
-        while !*schema_inserted {
-            schema_inserted = cvar.wait(schema_inserted).unwrap();
-            if schema_inserted.to_owned() {
-                let cache = cache_3.clone();
-                let endpoint3 = self.api_endpoints.get(0).unwrap().clone();
-                let _thread3 = thread::spawn(move || {
-                    let grpc_server = GRPCServer::default();
-                    grpc_server.run(endpoint3, cache).unwrap()
-                });
-            }
-        }
-
         match thread.join() {
             Ok(_) => Ok(()),
             Err(_) => Err(OrchestrationError::InitializationFailed),
