@@ -12,7 +12,7 @@ mod tests;
 pub struct QueryExpression {
     /// Final results must pass all the filters.
     #[serde(rename = "$filter", default)]
-    pub filters: Vec<FilterExpression>,
+    pub filter: Option<FilterExpression>,
     #[serde(rename = "$order_by", default)]
     pub order_by: Vec<SortOptions>,
     #[serde(rename = "$limit", default = "default_limit")]
@@ -40,12 +40,18 @@ impl QueryExpression {
     }
 }
 
+// a = 1, a containts "s", a> 4
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FilterExpression {
-    // a = 1, a containts "s", a> 4
-    pub field_name: String,
-    pub operator: Operator,
-    pub value: Value,
+pub struct SimpleFilterExpression {
+    field_name: String,
+    operator: Operator,
+    value: Value,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FilterExpression {
+    Simple(SimpleFilterExpression),
+    And(Vec<FilterExpression>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,7 +104,7 @@ pub struct SortOptions {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexScan {
     pub index_def: IndexDefinition,
-    pub filters: Vec<FilterExpression>,
+    pub filters: Vec<SimpleFilterExpression>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
