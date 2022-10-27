@@ -171,7 +171,7 @@ impl ProtoService {
                 "  desc = 1; \n".to_owned(),
                 "} \n".to_owned(),
                 "string field_name = 1; \n".to_owned(),
-                "SortDirection direction = 3; \n".to_owned(),
+                "SortDirection direction = 2; \n".to_owned(),
             ],
         }
     }
@@ -212,7 +212,7 @@ impl ProtoService {
     fn _and_filter_expression_model(&self) -> RPCMessage {
         RPCMessage {
             name: "AndExpression".to_owned(),
-            props: vec!["repeated FilterExpression and_expression = 1;\n".to_owned()],
+            props: vec!["repeated FilterExpression filter_expressions = 1;\n".to_owned()],
         }
     }
 
