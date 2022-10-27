@@ -13,7 +13,7 @@ use lmdb_sys::{
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::ptr::addr_of_mut;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{ptr, slice};
 use unixstring::UnixString;
 
@@ -58,11 +58,22 @@ impl Drop for EnvPtr {
 struct TxnPtr {
     txn: *mut MDB_txn,
     read_only: bool,
+    active: bool,
 }
 
 impl TxnPtr {
     pub fn new(txn: *mut MDB_txn, read_only: bool) -> Self {
-        Self { txn, read_only }
+        Self {
+            txn,
+            read_only,
+            active: true,
+        }
+    }
+}
+
+impl Drop for TxnPtr {
+    fn drop(&mut self) {
+        unsafe { if self.active {} }
     }
 }
 
@@ -113,6 +124,14 @@ pub struct Environment {
 
 unsafe impl Send for Environment {}
 unsafe impl Sync for Environment {}
+
+impl Clone for Environment {
+    fn clone(&self) -> Self {
+        Environment {
+            env_ptr: self.env_ptr.clone(),
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct EnvOptions {
@@ -216,6 +235,10 @@ impl Environment {
                 env_ptr: Arc::new(EnvPtr::new(env_ptr)),
             })
         }
+    }
+
+    pub fn tx_begin(&mut self) -> Result<Transaction, LmdbError> {
+        Transaction::begin(&self, false)
     }
 }
 
