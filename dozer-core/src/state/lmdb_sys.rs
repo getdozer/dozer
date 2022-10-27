@@ -237,8 +237,8 @@ impl Environment {
         }
     }
 
-    pub fn tx_begin(&mut self) -> Result<Transaction, LmdbError> {
-        Transaction::begin(&self, false)
+    pub fn tx_begin(&mut self, read_only: bool) -> Result<Transaction, LmdbError> {
+        Transaction::begin(&self, read_only)
     }
 }
 
