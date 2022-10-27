@@ -21,6 +21,7 @@ pub struct ProtoMetadata {
     service_name: String,
     rpc_functions: Vec<RPCFunction>,
     messages: Vec<RPCMessage>,
+    import_libs: Vec<String>,
     pub functions_with_type: HashMap<String, GrpcType>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,7 +144,7 @@ impl ProtoService {
         let query_request = RPCMessage {
             name: query_request_str,
             props: vec![
-                "optional string filter = 1; \n".to_owned(),
+                "optional FilterExpression filter = 1; \n".to_owned(),
                 "repeated SortOptions order_by = 2; \n".to_owned(),
                 "optional uint32 limit = 3; \n".to_owned(),
                 "optional uint32 skip = 4; \n".to_owned(),
@@ -174,6 +175,47 @@ impl ProtoService {
             ],
         }
     }
+
+    fn _filter_expression_model(&self) -> RPCMessage {
+        RPCMessage {
+            name: "FilterExpression".to_owned(),
+            props: vec![
+                "oneof expression {\n".to_owned(),
+                "  SimpleExpression simple = 1;\n".to_owned(),
+                "  AndExpression and = 2;\n".to_owned(),
+                "} \n".to_owned(),
+            ],
+        }
+    }
+
+    fn _simple_filter_expression_model(&self) -> RPCMessage {
+        RPCMessage {
+            name: "SimpleExpression".to_owned(),
+            props: vec![
+                "enum Operator {\n".to_owned(),
+                "  LT = 0;\n".to_owned(),
+                "  LTE = 1;\n".to_owned(),
+                "  EQ = 2;\n".to_owned(),
+                "  GT = 3;\n".to_owned(),
+                "  GTE = 4;\n".to_owned(),
+                "  Contains = 5;\n".to_owned(),
+                "  MatchesAny = 6;\n".to_owned(),
+                "  MatchesAll = 7;\n".to_owned(),
+                "} \n".to_owned(),
+                "string field = 1;\n".to_owned(),
+                "Operator operator = 2;\n".to_owned(),
+                "google.protobuf.Value value = 3;\n".to_owned(),
+            ],
+        }
+    }
+
+    fn _and_filter_expression_model(&self) -> RPCMessage {
+        RPCMessage {
+            name: "AndExpression".to_owned(),
+            props: vec!["repeated FilterExpression and_expression = 1;\n".to_owned()],
+        }
+    }
+
     fn _main_model(&self) -> RPCMessage {
         let props_message: Vec<String> = self
             .schema
@@ -205,13 +247,22 @@ impl ProtoService {
         let query_rpc = self._query_message();
         let main_model = self._main_model();
         let sort_exp_model = self._sort_option_model();
+        let filter_expression_model = self._filter_expression_model();
+        let simple_expression_model = self._simple_filter_expression_model();
+        let and_expression_model = self._and_filter_expression_model();
 
         let rpc_functions = vec![
             get_rpc.to_owned().0,
             get_by_id_rpc.to_owned().0,
             query_rpc.to_owned().0,
         ];
-        let mut rpc_message = vec![main_model, sort_exp_model];
+        let mut rpc_message = vec![
+            main_model,
+            sort_exp_model,
+            filter_expression_model,
+            simple_expression_model,
+            and_expression_model,
+        ];
         rpc_message.extend(get_rpc.to_owned().1);
         rpc_message.extend(get_by_id_rpc.to_owned().1);
         rpc_message.extend(query_rpc.to_owned().1);
@@ -221,12 +272,14 @@ impl ProtoService {
         function_with_type.insert(get_by_id_rpc.0.name, GrpcType::GetById);
         function_with_type.insert(query_rpc.0.name, GrpcType::Query);
 
+        let import_libs = vec![String::from("google/protobuf/struct.proto")];
         let metadata = ProtoMetadata {
             package_name,
             service_name,
             rpc_functions,
             messages: rpc_message,
             functions_with_type: function_with_type,
+            import_libs: import_libs,
         };
 
         Ok(metadata)
