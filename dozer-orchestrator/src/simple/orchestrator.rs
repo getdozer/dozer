@@ -12,6 +12,7 @@ use dozer_types::{
     models::{api_endpoint::ApiEndpoint, source::Source},
 };
 
+#[derive(Default)]
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
     pub api_endpoints: Vec<ApiEndpoint>,

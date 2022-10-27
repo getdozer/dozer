@@ -41,7 +41,7 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
                     .parse::<f64>()
                     .unwrap(),
             ),
-            &Type::TEXT => Field::String(String::from_utf8(value.to_vec()).unwrap()),
+            &Type::TEXT | &Type::VARCHAR => Field::String(String::from_utf8(value.to_vec()).unwrap()),
             &Type::BYTEA => Field::Binary(value.to_vec()),
             &Type::NUMERIC => Field::Decimal(
                 Decimal::from_f64(
