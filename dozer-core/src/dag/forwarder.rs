@@ -45,6 +45,7 @@ impl LocalChannelForwarder {
             Operation::Insert { new } => ExecutorOperation::Insert { seq, new },
             Operation::Update { old, new } => ExecutorOperation::Update { seq, old, new },
             Operation::Delete { old } => ExecutorOperation::Delete { seq, old },
+            Operation::SchemaUpdate { schema } => ExecutorOperation::SchemaUpdate { new: schema },
         };
 
         if senders.len() == 1 {

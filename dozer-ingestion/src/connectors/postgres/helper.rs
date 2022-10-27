@@ -26,7 +26,7 @@ pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
         "bool" => Type::BOOL,
         _ => Type::ANY,
     };
-    postgres_type_to_dozer_type(Some(&postgres_type))
+    postgres_type_to_dozer_type(Some(postgres_type))
 }
 
 pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
@@ -77,15 +77,15 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
     }
 }
 
-pub fn postgres_type_to_dozer_type(col_type: Option<&Type>) -> FieldType {
+pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> FieldType {
     if let Some(column_type) = col_type {
         match column_type {
-            &Type::BOOL => FieldType::Boolean,
-            &Type::INT2 | &Type::INT4 | &Type::INT8 => FieldType::Int,
-            &Type::CHAR | &Type::TEXT => FieldType::String,
-            &Type::FLOAT4 | &Type::FLOAT8 => FieldType::Float,
-            &Type::BIT => FieldType::Binary,
-            &Type::TIMESTAMP | &Type::TIMESTAMPTZ => FieldType::Timestamp,
+            Type::BOOL => FieldType::Boolean,
+            Type::INT2 | Type::INT4 | Type::INT8 => FieldType::Int,
+            Type::CHAR | Type::TEXT => FieldType::String,
+            Type::FLOAT4 | Type::FLOAT8 => FieldType::Float,
+            Type::BIT => FieldType::Binary,
+            Type::TIMESTAMP | Type::TIMESTAMPTZ => FieldType::Timestamp,
             _ => FieldType::Null,
         }
     } else {
@@ -252,7 +252,7 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
         .iter()
         .map(|col| FieldDefinition {
             name: col.name().to_string(),
-            typ: postgres_type_to_dozer_type(Some(col.type_())),
+            typ: postgres_type_to_dozer_type(Some(col.type_().clone())),
             nullable: true,
         })
         .collect();

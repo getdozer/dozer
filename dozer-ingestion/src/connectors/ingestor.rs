@@ -4,9 +4,8 @@ use std::time::Instant;
 
 use super::storage::RocksStorage;
 use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
-// use dozer_schema::registry::{_get_client, context};
 use dozer_types::serde;
-use dozer_types::types::{Commit, OperationEvent, Schema};
+use dozer_types::types::{Commit, Operation, OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
 // use tokio::runtime::Runtime;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
@@ -72,19 +71,12 @@ impl Ingestor {
                 self.writer.insert(key.as_ref(), encoded);
                 self.sender.forward(event);
             }
-            IngestionMessage::Schema(_schema) => {
-                let _seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
-                // TODO: fix usage of schema registry update
-                // let schema_update = Runtime::new()
-                //     .unwrap()
-                //     .block_on(async {
-                //         let client = _get_client().await.unwrap();
-                //         client.insert(context::current(), schema).await
-                //     });
-
-                // if let Err(_) = schema_update {
-                //     debug!("Igoring schema updated error");
-                // }
+            IngestionMessage::Schema(schema) => {
+                let seq_no: u64 = self.seq_no_resolver.lock().unwrap().get_next_seq_no() as u64;
+                self.sender.forward(OperationEvent {
+                    seq_no,
+                    operation: Operation::SchemaUpdate { schema },
+                });
             }
             IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();

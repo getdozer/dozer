@@ -457,6 +457,7 @@ impl AggregationProcessor {
                     ])
                 }
             }
+            Operation::SchemaUpdate { .. } => Ok(vec![]),
         }
     }
 }

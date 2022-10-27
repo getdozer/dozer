@@ -222,7 +222,7 @@ impl XlogMapper {
                 .iter()
                 .map(|c| FieldDefinition {
                     name: c.name.to_string(),
-                    typ: helper::postgres_type_to_dozer_type(c.r#type.as_ref()),
+                    typ: helper::postgres_type_to_dozer_type(c.r#type.clone()),
                     nullable: true,
                 })
                 .collect(),

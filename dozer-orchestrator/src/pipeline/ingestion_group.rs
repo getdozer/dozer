@@ -76,6 +76,7 @@ impl IngestionGroup {
                         Operation::Delete { old } => old.schema_id,
                         Operation::Insert { new } => new.schema_id,
                         Operation::Update { old: _, new } => new.schema_id,
+                        Operation::SchemaUpdate { schema } => schema.identifier,
                     }
                     .unwrap();
 

@@ -8,6 +8,7 @@ use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_types::core::node::{Source, SourceFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::models::connection::Connection;
+use dozer_types::types::Operation::SchemaUpdate;
 use dozer_types::types::Schema;
 
 pub struct ConnectorSourceFactory {
@@ -93,7 +94,11 @@ impl Source for ConnectorSource {
 
         loop {
             let (op, port) = receiver.iter().next().unwrap();
-            fw.send(op.seq_no, op.operation, port)?;
+            if let SchemaUpdate { schema } = op.operation {
+                fw.update_schema(schema, port)?;
+            } else {
+                fw.send(op.seq_no, op.operation, port)?;
+            }
         }
     }
 

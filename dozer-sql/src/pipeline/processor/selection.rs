@@ -148,6 +148,7 @@ impl Processor for SelectionProcessor {
                     }
                 }
             }
+            Operation::SchemaUpdate { schema: _ } => {}
         }
         Ok(())
     }

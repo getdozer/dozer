@@ -9,7 +9,6 @@ edition = "2021"
 lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 dozer-types = {path = "../dozer-types"}
-dozer-schema = {version = "0.1.0", path = "../dozer-schema"}
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tempdir = "0.3.7"
 futures = "0.3.24"

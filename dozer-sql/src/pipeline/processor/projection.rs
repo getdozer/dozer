@@ -192,6 +192,7 @@ impl Processor for ProjectionProcessor {
             Operation::Update { ref old, ref new } => {
                 fw.send(self.update(old, new)?, DEFAULT_PORT_HANDLE)
             }
+            Operation::SchemaUpdate { schema: _ } => Ok(()),
         };
         Ok(())
     }
