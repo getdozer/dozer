@@ -1,23 +1,21 @@
-use dozer_types::errors::orchestrator::OrchestrationError;
-use log::debug;
-use std::fs;
-use std::sync::Arc;
-
-use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::source::Source;
-use tempdir::TempDir;
-
 use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
-use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
+use dozer_types::chk;
 use dozer_types::errors::execution::ExecutionError::InternalStringError;
+use dozer_types::errors::orchestrator::OrchestrationError;
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::source::Source;
+use dozer_types::test_helper::get_temp_dir;
 use dozer_types::types::Schema;
+use log::debug;
+use rocksdb::{Options, DB};
+use std::sync::Arc;
 
 use crate::get_schema;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
@@ -96,20 +94,15 @@ impl Executor {
 
         let exec = MultiThreadedDagExecutor::new(100000);
 
-        let tmp_dir =
-            TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-        if tmp_dir.path().exists() {
-            fs::remove_dir_all(tmp_dir.path())
-                .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-        }
-        fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+        let mut opts = Options::default();
+        opts.set_allow_mmap_writes(true);
+        opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+        opts.set_bytes_per_sync(1024 * 1024 * 10);
+        opts.set_manual_wal_flush(true);
+        opts.create_if_missing(true);
+        let db = chk!(DB::open(&opts, get_temp_dir()));
 
-        let sm = Arc::new(LmdbStateStoreManager::new(
-            tmp_dir.path().to_str().unwrap().to_string(),
-            1024 * 1024 * 1024 * 5,
-            20_000,
-        ));
-        exec.start(dag, sm)
+        exec.start(dag, db)
             .map_err(OrchestrationError::ExecutionError)
     }
 }

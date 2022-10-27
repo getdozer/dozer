@@ -2,13 +2,13 @@ use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{Sink, SinkFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
+use rocksdb::DB;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
@@ -58,10 +58,6 @@ impl CacheSinkFactory {
 }
 
 impl SinkFactory for CacheSinkFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -88,7 +84,7 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn init(&mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init(&mut self, _db: Arc<DB>) -> Result<(), ExecutionError> {
         info!("SINK: Initialising CacheSink");
         Ok(())
     }
@@ -98,7 +94,7 @@ impl Sink for CacheSink {
         from_port: PortHandle,
         _seq: u64,
         op: Operation,
-        _state: &mut dyn StateStore,
+        _db: &DB,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
         if self.counter % 100 == 0 {
@@ -278,7 +274,7 @@ mod tests {
         };
         let mut state = test_utils::init_state();
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation, state.as_mut())
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation, &state)
             .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
@@ -286,7 +282,7 @@ mod tests {
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation, state.as_mut())
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation, &state)
             .unwrap();
 
         // Primary key with old values

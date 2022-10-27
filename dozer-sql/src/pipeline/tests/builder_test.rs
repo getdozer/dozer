@@ -1,12 +1,13 @@
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
-use dozer_core::state::lmdb::LmdbStateStoreManager;
+use dozer_types::chk;
 use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_types::core::node::{PortHandle, Sink, SinkFactory, Source, SourceFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
+use dozer_types::test_helper::get_temp_dir;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
+use rocksdb::{Options, DB};
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -29,10 +30,6 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
-
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -68,7 +65,7 @@ impl Source for TestSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         cm: &dyn ChannelManager,
-        _state: &mut dyn StateStore,
+        _db: Arc<DB>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         for n in 0..1000000 {
@@ -104,10 +101,6 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory for TestSinkFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -126,7 +119,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init(&mut self, _db: Arc<DB>) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -136,7 +129,7 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
-        _state: &mut dyn StateStore,
+        _db: &DB,
     ) -> Result<(), ExecutionError> {
         //    debug!("SINK: Message {} received", _op.seq_no);
         Ok(())
@@ -180,22 +173,20 @@ fn test_pipeline_builder() {
         Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
     );
 
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-    if tmp_dir.path().exists() {
-        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-    }
-    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-
     let exec = MultiThreadedDagExecutor::new(100000);
-    let sm = Arc::new(LmdbStateStoreManager::new(
-        tmp_dir.path().to_str().unwrap().to_string(),
-        1024 * 1024 * 1024 * 5,
-        20_000,
-    ));
+
+    let mut opts = Options::default();
+    opts.set_allow_mmap_writes(true);
+    opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+    opts.set_bytes_per_sync(1024 * 1024 * 10);
+    opts.set_manual_wal_flush(true);
+    opts.create_if_missing(true);
+
+    let db = chk!(DB::open(&opts, get_temp_dir()));
 
     use std::time::Instant;
     let now = Instant::now();
-    let _ = exec.start(dag, sm);
+    let _ = exec.start(dag, db);
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }

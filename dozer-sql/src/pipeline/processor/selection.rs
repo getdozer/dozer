@@ -4,13 +4,14 @@ use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::core::channels::ProcessorChannelForwarder;
 use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{Processor, ProcessorFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalError;
 use dozer_types::types::{Field, Operation, Schema};
 use log::info;
+use rocksdb::DB;
 use sqlparser::ast::Expr as SqlExpr;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct SelectionProcessorFactory {
     statement: Option<SqlExpr>,
@@ -24,10 +25,6 @@ impl SelectionProcessorFactory {
 }
 
 impl ProcessorFactory for SelectionProcessorFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -86,7 +83,7 @@ impl Processor for SelectionProcessor {
         Ok(schema.clone())
     }
 
-    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, _state_store: Arc<DB>) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Selection Processor");
         Ok(())
     }
@@ -96,7 +93,7 @@ impl Processor for SelectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        _state_store: &mut dyn StateStore,
+        _db: &DB,
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {

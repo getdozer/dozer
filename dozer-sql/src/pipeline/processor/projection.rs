@@ -4,13 +4,14 @@ use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::core::channels::ProcessorChannelForwarder;
 use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{Processor, ProcessorFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalError;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
+use rocksdb::DB;
 use sqlparser::ast::SelectItem;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct ProjectionProcessorFactory {
     statement: Vec<SelectItem>,
@@ -24,10 +25,6 @@ impl ProjectionProcessorFactory {
 }
 
 impl ProcessorFactory for ProjectionProcessorFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -134,7 +131,7 @@ impl Processor for ProjectionProcessor {
         self.build_output_schema(input_schema, &names)
     }
 
-    fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, _: Arc<DB>) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
@@ -144,7 +141,7 @@ impl Processor for ProjectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        _state_store: &mut dyn StateStore,
+        _db: &DB,
     ) -> Result<(), ExecutionError> {
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),

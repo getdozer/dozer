@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
+
 use crate::core::node::{NodeHandle, PortHandle};
-use crate::errors::database::DatabaseError;
 use crate::errors::internal::BoxedError;
 use crate::errors::pipeline::PipelineError;
 use crate::errors::types::TypeError;
@@ -32,7 +32,7 @@ pub enum ExecutionError {
     #[error(transparent)]
     InternalTypeError(#[from] TypeError),
     #[error(transparent)]
-    InternalDatabaseError(#[from] DatabaseError),
+    InternalDatabaseError(#[from] rocksdb::Error),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
 

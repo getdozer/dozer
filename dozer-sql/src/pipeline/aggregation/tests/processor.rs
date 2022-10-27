@@ -3,12 +3,12 @@ use crate::pipeline::aggregation::tests::schema::{
     gen_in_data, gen_out_data, get_aggregator_rules, get_expected_schema, get_input_schema,
 };
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_core::state::lmdb::LmdbStateStoreManager;
-use dozer_core::state::memory::MemoryStateStore;
+use dozer_types::chk;
 use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::Processor;
-use dozer_types::core::state::{StateStoreOptions, StateStoresManager};
+use dozer_types::test_helper::get_temp_dir;
 use dozer_types::types::{Operation, Schema};
+use rocksdb::{Options, WriteBatch, DB};
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
@@ -27,21 +27,26 @@ fn test_schema_building() {
 
 #[test]
 fn test_insert_update_delete() {
-    let mut store = MemoryStateStore::new();
+    let mut opts = Options::default();
+    opts.set_allow_mmap_writes(true);
+    opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+    opts.set_bytes_per_sync(1024 * 1024 * 10);
+    opts.set_manual_wal_flush(true);
+    opts.create_if_missing(true);
+
+    let db = chk!(DB::open(&opts, get_temp_dir()));
 
     let mut agg = AggregationProcessor::new(get_aggregator_rules());
     let mut input_schemas = HashMap::<PortHandle, Schema>::new();
     input_schemas.insert(DEFAULT_PORT_HANDLE, get_input_schema());
-    let _output_schema = agg
-        .update_schema(DEFAULT_PORT_HANDLE, &input_schemas)
-        .unwrap_or_else(|_e| panic!("Cannot get schema"));
+    let _output_schema = chk!(agg.update_schema(DEFAULT_PORT_HANDLE, &input_schemas));
 
     let inp = Operation::Insert {
         new: gen_in_data("Milan", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Insert {
         new: gen_out_data("Milan", "Italy", 10),
     }];
@@ -50,9 +55,9 @@ fn test_insert_update_delete() {
     let inp = Operation::Insert {
         new: gen_in_data("Milan", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Update {
         old: gen_out_data("Milan", "Italy", 10),
         new: gen_out_data("Milan", "Italy", 20),
@@ -63,9 +68,9 @@ fn test_insert_update_delete() {
         old: gen_in_data("Milan", "Lombardy", "Italy", 10),
         new: gen_in_data("Milan", "Lombardy", "Italy", 5),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Update {
         old: gen_out_data("Milan", "Italy", 20),
         new: gen_out_data("Milan", "Italy", 15),
@@ -75,9 +80,9 @@ fn test_insert_update_delete() {
     let inp = Operation::Delete {
         old: gen_in_data("Milan", "Lombardy", "Italy", 5),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Update {
         old: gen_out_data("Milan", "Italy", 15),
         new: gen_out_data("Milan", "Italy", 10),
@@ -87,9 +92,9 @@ fn test_insert_update_delete() {
     let inp = Operation::Insert {
         new: gen_in_data("Brescia", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Insert {
         new: gen_out_data("Brescia", "Italy", 10),
     }];
@@ -98,9 +103,9 @@ fn test_insert_update_delete() {
     let inp = Operation::Delete {
         old: gen_in_data("Brescia", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Delete {
         old: gen_out_data("Brescia", "Italy", 10),
     }];
@@ -109,9 +114,9 @@ fn test_insert_update_delete() {
     let inp = Operation::Delete {
         old: gen_in_data("Milan", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Delete {
         old: gen_out_data("Milan", "Italy", 10),
     }];
@@ -120,21 +125,26 @@ fn test_insert_update_delete() {
 
 #[test]
 fn test_insert_update_change_dims() {
-    let mut store = MemoryStateStore::new();
+    let mut opts = Options::default();
+    opts.set_allow_mmap_writes(true);
+    opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+    opts.set_bytes_per_sync(1024 * 1024 * 10);
+    opts.set_manual_wal_flush(true);
+    opts.create_if_missing(true);
+
+    let db = chk!(DB::open(&opts, get_temp_dir()));
 
     let mut agg = AggregationProcessor::new(get_aggregator_rules());
     let mut input_schemas = HashMap::<PortHandle, Schema>::new();
     input_schemas.insert(DEFAULT_PORT_HANDLE, get_input_schema());
-    let _output_schema = agg
-        .update_schema(DEFAULT_PORT_HANDLE, &input_schemas)
-        .unwrap_or_else(|_e| panic!("Cannot get schema"));
+    let _output_schema = chk!(agg.update_schema(DEFAULT_PORT_HANDLE, &input_schemas));
 
     let inp = Operation::Insert {
         new: gen_in_data("Milan", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Insert {
         new: gen_out_data("Milan", "Italy", 10),
     }];
@@ -143,9 +153,9 @@ fn test_insert_update_change_dims() {
     let inp = Operation::Insert {
         new: gen_in_data("Milan", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![Operation::Update {
         old: gen_out_data("Milan", "Italy", 10),
         new: gen_out_data("Milan", "Italy", 20),
@@ -156,9 +166,9 @@ fn test_insert_update_change_dims() {
         old: gen_in_data("Milan", "Lombardy", "Italy", 10),
         new: gen_in_data("Brescia", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![
         Operation::Update {
             old: gen_out_data("Milan", "Italy", 20),
@@ -174,9 +184,9 @@ fn test_insert_update_change_dims() {
         old: gen_in_data("Milan", "Lombardy", "Italy", 10),
         new: gen_in_data("Brescia", "Lombardy", "Italy", 10),
     };
-    let out = agg
-        .aggregate(&mut store, inp)
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+    let mut b = WriteBatch::default();
+    let out = chk!(agg.aggregate(&db, &mut b, inp));
+    chk!(db.write(b));
     let exp = vec![
         Operation::Delete {
             old: gen_out_data("Milan", "Italy", 10),
@@ -191,27 +201,19 @@ fn test_insert_update_change_dims() {
 
 #[test]
 fn bench_aggregator() {
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-    if tmp_dir.path().exists() {
-        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-    }
-    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    let mut opts = Options::default();
+    opts.set_allow_mmap_writes(true);
+    opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+    opts.set_bytes_per_sync(1024 * 1024 * 10);
+    opts.set_manual_wal_flush(true);
+    opts.create_if_missing(true);
 
-    let ss = Arc::new(LmdbStateStoreManager::new(
-        tmp_dir.path().to_str().unwrap().to_string(),
-        1024 * 1024 * 1024 * 10,
-        20_000,
-    ));
-    let mut store = ss
-        .init_state_store("test".to_string(), StateStoreOptions::default())
-        .unwrap();
+    let db = chk!(DB::open(&opts, get_temp_dir()));
 
     let mut agg = AggregationProcessor::new(get_aggregator_rules());
     let mut input_schemas = HashMap::<PortHandle, Schema>::new();
     input_schemas.insert(DEFAULT_PORT_HANDLE, get_input_schema());
-    let output_schema = agg
-        .update_schema(DEFAULT_PORT_HANDLE, &input_schemas)
-        .unwrap_or_else(|_e| panic!("Cannot get schema"));
+    let output_schema = chk!(agg.update_schema(DEFAULT_PORT_HANDLE, &input_schemas));
     assert_eq!(output_schema, get_expected_schema());
 
     for i in 0..100_000 {
@@ -223,6 +225,8 @@ fn bench_aggregator() {
                 1,
             ),
         };
-        assert!(agg.aggregate(store.as_mut(), op).is_ok());
+        let mut batch = WriteBatch::default();
+        assert!(agg.aggregate(&db, &mut batch, op).is_ok());
+        chk!(db.write(batch));
     }
 }

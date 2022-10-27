@@ -1,14 +1,14 @@
+use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_types::core::node::PortHandle;
-use dozer_types::errors::execution::ExecutionError;
-use log::debug;
-use std::collections::HashMap;
-
-use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_types::core::node::{Source, SourceFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
+use log::debug;
+use rocksdb::DB;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -52,10 +52,6 @@ impl ConnectorSourceFactory {
 }
 
 impl SourceFactory for ConnectorSourceFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
-
     fn get_output_ports(&self) -> Vec<PortHandle> {
         let keys = self.port_map.to_owned().into_keys().collect();
         debug!("{:?}", keys);
@@ -84,7 +80,7 @@ impl Source for ConnectorSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         _cm: &dyn ChannelManager,
-        _state: &mut dyn StateStore,
+        _db: Arc<DB>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         let ingestion_group = IngestionGroup {};

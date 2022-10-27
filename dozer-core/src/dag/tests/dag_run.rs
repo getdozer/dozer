@@ -1,17 +1,17 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{TestProcessorFactory, TestSinkFactory, TestSourceFactory};
-use crate::state::lmdb::LmdbStateStoreManager;
+use dozer_types::chk;
+use dozer_types::test_helper::{get_temp_dir, init_logger};
 use log::info;
+use rocksdb::{Options, DB};
 use std::fs;
 use std::sync::Arc;
 use tempdir::TempDir;
 
 #[test]
 fn test_run_dag() {
-    log4rs::init_file("../log4rs.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
-
+    init_logger();
     info!("Running test_run_dag");
 
     let src = TestSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
@@ -36,18 +36,19 @@ fn test_run_dag() {
     );
     assert!(proc1_to_sink.is_ok());
 
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-    if tmp_dir.path().exists() {
-        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-    }
-    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    let tmp_dir = get_temp_dir();
 
     let exec = MultiThreadedDagExecutor::new(100000);
-    let sm = Arc::new(LmdbStateStoreManager::new(
-        tmp_dir.path().to_str().unwrap().to_string(),
-        1024 * 1024 * 1024 * 5,
-        20_000,
-    ));
 
-    assert!(exec.start(dag, sm).is_ok());
+    let mut opts = Options::default();
+    opts.set_allow_mmap_writes(true);
+    opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+    opts.set_bytes_per_sync(1024 * 1024 * 100);
+    opts.set_manual_wal_flush(true);
+    opts.create_if_missing(true);
+    opts.set_allow_mmap_reads(true);
+
+    let db = chk!(DB::open(&opts, tmp_dir));
+
+    assert!(exec.start(dag, db).is_ok());
 }

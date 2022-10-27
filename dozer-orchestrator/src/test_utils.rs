@@ -1,15 +1,16 @@
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_types::core::node::PortHandle;
-use dozer_types::core::state::{StateStore, StateStoreOptions, StateStoresManager};
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+use rocksdb::{Options, DB};
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
 
+use dozer_types::chk;
+use dozer_types::test_helper::get_temp_dir;
 use tempdir::TempDir;
 
 pub fn get_schema() -> Schema {
@@ -52,22 +53,15 @@ pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
     (cache, sink)
 }
 
-pub fn init_state() -> Box<dyn StateStore> {
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-    if tmp_dir.path().exists() {
-        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-    }
-    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+pub fn init_state() -> DB {
+    let mut opts = Options::default();
+    opts.set_allow_mmap_writes(true);
+    opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+    opts.set_bytes_per_sync(1024 * 1024 * 10);
+    opts.set_manual_wal_flush(true);
+    opts.create_if_missing(true);
 
-    let sm = LmdbStateStoreManager::new(
-        tmp_dir.path().to_str().unwrap().to_string(),
-        1024 * 1024 * 1024 * 5,
-        20_000,
-    );
-    let state = sm
-        .init_state_store("1".to_string(), StateStoreOptions::default())
-        .unwrap();
-    state
+    chk!(DB::open(&opts, get_temp_dir()))
 }
 pub fn init_endpoint() -> ApiEndpoint {
     ApiEndpoint {

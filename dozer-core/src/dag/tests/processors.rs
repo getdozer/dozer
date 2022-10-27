@@ -6,11 +6,12 @@ use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{
     Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
+use rocksdb::DB;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Test Source
 pub struct TestSourceFactory {
@@ -25,9 +26,6 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -59,10 +57,10 @@ impl Source for TestSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         cm: &dyn ChannelManager,
-        _state: &mut dyn StateStore,
+        _db: Arc<DB>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1_000_000 {
+        for n in 0..100_000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -88,9 +86,6 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory for TestSinkFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
-    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -111,7 +106,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init(&mut self, _: Arc<DB>) -> Result<(), ExecutionError> {
         debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -121,7 +116,7 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
-        _state: &mut dyn StateStore,
+        _: &DB,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -144,9 +139,6 @@ impl TestProcessorFactory {
 }
 
 impl ProcessorFactory for TestProcessorFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        Some(StateStoreOptions::default())
-    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -155,7 +147,6 @@ impl ProcessorFactory for TestProcessorFactory {
     }
     fn build(&self) -> Box<dyn Processor> {
         Box::new(TestProcessor {
-            state: None,
             id: self.id,
             ctr: 0,
         })
@@ -163,7 +154,6 @@ impl ProcessorFactory for TestProcessorFactory {
 }
 
 pub struct TestProcessor {
-    state: Option<Box<dyn StateStore>>,
     id: i32,
     ctr: u64,
 }
@@ -191,7 +181,7 @@ impl Processor for TestProcessor {
         Ok(out_schema)
     }
 
-    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, _db: Arc<DB>) -> Result<(), ExecutionError> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
         Ok(())
     }
@@ -201,10 +191,11 @@ impl Processor for TestProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        state_store: &mut dyn StateStore,
+        db: &DB,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
-        state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes())?;
+        db.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes())?;
+        //    db.get(&self.ctr.to_ne_bytes())?;
         fw.send(op, DEFAULT_PORT_HANDLE)?;
         Ok(())
     }

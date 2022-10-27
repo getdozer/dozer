@@ -1,5 +1,4 @@
 #![allow(clippy::enum_variant_names)]
-use crate::errors::database::DatabaseError;
 use crate::errors::types::TypeError;
 use thiserror::Error;
 
@@ -28,7 +27,7 @@ pub enum PipelineError {
 
     // Error forwarding
     #[error(transparent)]
-    InternalDatabaseError(#[from] DatabaseError),
+    InternalDatabaseError(#[from] rocksdb::Error),
     #[error(transparent)]
     InternalTypeError(#[from] TypeError),
 }

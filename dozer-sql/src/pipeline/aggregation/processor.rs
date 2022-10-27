@@ -4,7 +4,6 @@ use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::core::channels::ProcessorChannelForwarder;
 use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{Processor, ProcessorFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::{
     InternalError, InternalPipelineError, InvalidPortHandle,
@@ -12,8 +11,10 @@ use dozer_types::errors::execution::ExecutionError::{
 use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::errors::pipeline::PipelineError::InternalDatabaseError;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
+use rocksdb::{WriteBatch, DB};
 use std::collections::HashMap;
 use std::mem::size_of_val;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub enum FieldRule {
@@ -54,10 +55,6 @@ impl AggregationProcessorFactory {
 }
 
 impl ProcessorFactory for AggregationProcessorFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        Some(StateStoreOptions::default())
-    }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -122,9 +119,8 @@ impl AggregationProcessor {
         Ok(())
     }
 
-    fn init_store(&self, store: &mut dyn StateStore) -> Result<(), PipelineError> {
-        store
-            .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
+    fn init_store(&self, db: Arc<DB>) -> Result<(), PipelineError> {
+        db.put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
             .map_err(InternalDatabaseError)
     }
 
@@ -144,7 +140,7 @@ impl AggregationProcessor {
 
     fn calc_and_fill_measures(
         &self,
-        curr_state: Option<&[u8]>,
+        curr_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
         out_rec_delete: &mut Record,
@@ -205,19 +201,20 @@ impl AggregationProcessor {
 
     fn update_segment_count(
         &self,
-        store: &mut dyn StateStore,
+        db: &DB,
+        batch: &mut WriteBatch,
         key: Vec<u8>,
         delta: u64,
         decr: bool,
     ) -> Result<u64, PipelineError> {
-        let bytes = store.get(key.as_slice())?;
+        let bytes = db.get(key.as_slice())?;
 
         let curr_count = match bytes {
             Some(b) => u64::from_ne_bytes(b.try_into().unwrap()),
             None => 0_u64,
         };
 
-        store.put(
+        batch.put(
             key.as_slice(),
             (if decr {
                 curr_count - delta
@@ -226,13 +223,14 @@ impl AggregationProcessor {
             })
             .to_ne_bytes()
             .as_slice(),
-        )?;
+        );
         Ok(curr_count)
     }
 
     fn agg_delete(
         &self,
-        store: &mut dyn StateStore,
+        db: &DB,
+        batch: &mut WriteBatch,
         old: &Record,
     ) -> Result<Operation, PipelineError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
@@ -247,11 +245,11 @@ impl AggregationProcessor {
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        let prev_count = self.update_segment_count(store, record_count_key, 1, true)?;
+        let prev_count = self.update_segment_count(db, batch, record_count_key, 1, true)?;
 
-        let curr_state = store.get(record_key.as_slice())?;
+        let curr_state = db.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            curr_state,
+            &curr_state,
             Some(old),
             None,
             &mut out_rec_delete,
@@ -274,16 +272,17 @@ impl AggregationProcessor {
         };
 
         if prev_count > 0 {
-            store.put(record_key.as_slice(), new_state.as_slice())?;
+            batch.put(record_key.as_slice(), new_state.as_slice());
         } else {
-            store.del(record_key.as_slice(), None)?
+            batch.delete(record_key.as_slice())
         }
         Ok(res)
     }
 
     fn agg_insert(
         &self,
-        store: &mut dyn StateStore,
+        db: &DB,
+        batch: &mut WriteBatch,
         new: &Record,
     ) -> Result<Operation, PipelineError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
@@ -298,11 +297,11 @@ impl AggregationProcessor {
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        self.update_segment_count(store, record_count_key, 1, false)?;
+        self.update_segment_count(db, batch, record_count_key, 1, false)?;
 
-        let curr_state = store.get(record_key.as_slice())?;
+        let curr_state = db.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            curr_state,
+            &curr_state,
             None,
             Some(new),
             &mut out_rec_delete,
@@ -324,14 +323,15 @@ impl AggregationProcessor {
             }
         };
 
-        store.put(record_key.as_slice(), new_state.as_slice())?;
+        batch.put(record_key.as_slice(), new_state.as_slice());
 
         Ok(res)
     }
 
     fn agg_update(
         &self,
-        store: &mut dyn StateStore,
+        db: &DB,
+        batch: &mut WriteBatch,
         old: &Record,
         new: &Record,
         record_hash: Vec<u8>,
@@ -340,9 +340,9 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
-        let curr_state = store.get(record_key.as_slice())?;
+        let curr_state = db.get(record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            curr_state,
+            &curr_state,
             Some(old),
             Some(new),
             &mut out_rec_delete,
@@ -358,19 +358,20 @@ impl AggregationProcessor {
             old: out_rec_delete,
         };
 
-        store.put(record_key.as_slice(), new_state.as_slice())?;
+        batch.put(record_key.as_slice(), new_state.as_slice());
 
         Ok(res)
     }
 
     pub fn aggregate(
         &self,
-        store: &mut dyn StateStore,
+        db: &DB,
+        batch: &mut WriteBatch,
         op: Operation,
     ) -> Result<Vec<Operation>, PipelineError> {
         match op {
-            Operation::Insert { ref new } => Ok(vec![self.agg_insert(store, new)?]),
-            Operation::Delete { ref old } => Ok(vec![self.agg_delete(store, old)?]),
+            Operation::Insert { ref new } => Ok(vec![self.agg_insert(db, batch, new)?]),
+            Operation::Delete { ref old } => Ok(vec![self.agg_delete(db, batch, old)?]),
             Operation::Update { ref old, ref new } => {
                 let (old_record_hash, new_record_hash) = if self.out_dimensions.is_empty() {
                     (
@@ -383,11 +384,17 @@ impl AggregationProcessor {
                 };
 
                 if old_record_hash == new_record_hash {
-                    Ok(vec![self.agg_update(store, old, new, old_record_hash)?])
+                    Ok(vec![self.agg_update(
+                        db,
+                        batch,
+                        old,
+                        new,
+                        old_record_hash,
+                    )?])
                 } else {
                     Ok(vec![
-                        self.agg_delete(store, old)?,
-                        self.agg_insert(store, new)?,
+                        self.agg_delete(db, batch, old)?,
+                        self.agg_insert(db, batch, new)?,
                     ])
                 }
             }
@@ -447,8 +454,8 @@ impl Processor for AggregationProcessor {
         Ok(output_schema)
     }
 
-    fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError> {
-        self.init_store(state).map_err(InternalPipelineError)
+    fn init(&mut self, db: Arc<DB>) -> Result<(), ExecutionError> {
+        self.init_store(db).map_err(InternalPipelineError)
     }
 
     fn process(
@@ -456,10 +463,11 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        state: &mut dyn StateStore,
+        db: &DB,
     ) -> Result<(), ExecutionError> {
-        let ops = self.aggregate(state, op)?;
-        state.commit()?;
+        let mut batch = WriteBatch::default();
+        let ops = self.aggregate(db, &mut batch, op)?;
+        db.write(batch)?;
         for op in ops {
             fw.send(op, DEFAULT_PORT_HANDLE)?;
         }
