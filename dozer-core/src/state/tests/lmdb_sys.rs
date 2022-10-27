@@ -131,8 +131,21 @@ fn test_concurrent_tx() {
         Ok(())
     });
 
+    let mut env_t3 = env.clone();
+    let mut db_t3 = db.clone();
+    let t3 = thread::spawn(move || -> Result<(), LmdbError> {
+        for i in 1..=1_000_000_u64 {
+            let mut tx = chk!(env_t3.tx_begin());
+            let v = tx.get(&db_t3, &i.to_le_bytes())?;
+            assert!(v.is_some());
+        }
+        Ok(())
+    });
+
     let r1 = t1.join();
     assert!(r1.is_ok());
     let r2 = t2.join();
     assert!(r2.is_ok());
+    let r3 = t3.join();
+    assert!(r3.is_ok());
 }

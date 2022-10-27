@@ -13,7 +13,7 @@ use lmdb_sys::{
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::ptr::addr_of_mut;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::{ptr, slice};
 use unixstring::UnixString;
 
@@ -336,7 +336,7 @@ impl Transaction {
         }
     }
 
-    pub fn abort(&mut self) -> Result<(), LmdbError> {
+    pub fn abort(&self) -> Result<(), LmdbError> {
         unsafe {
             mdb_txn_abort(self.txn.txn);
             Ok(())
