@@ -7,6 +7,9 @@ use std::fs;
 #[derive(Parser, Debug)]
 #[command(author, version)]
 pub struct Args {
+    #[arg(short = 'c', long, default_value = "./dozer-config.yaml")]
+    config_path: String,
+
     #[clap(subcommand)]
     pub cmd: SubCommand,
 }
