@@ -13,7 +13,7 @@ use dozer_types::errors::execution::ExecutionError::{
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record, Schema};
 use log::{error, warn};
-use rocksdb::DB;
+use rocksdb::{Transaction, DB};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;

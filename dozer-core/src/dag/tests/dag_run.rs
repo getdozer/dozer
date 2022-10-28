@@ -3,10 +3,11 @@ use crate::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{TestProcessorFactory, TestSinkFactory, TestSourceFactory};
 use dozer_types::chk;
 use dozer_types::test_helper::{get_temp_dir, init_logger};
+use libc::thread_info;
 use log::info;
-use rocksdb::{Options, DB};
-use std::fs;
-use std::sync::Arc;
+use rocksdb::{OptimisticTransactionDB, Options, SingleThreaded, DB};
+use std::sync::{Arc, Mutex};
+use std::{fs, thread};
 use tempdir::TempDir;
 
 #[test]
@@ -51,4 +52,33 @@ fn test_run_dag() {
     let db = chk!(DB::open(&opts, tmp_dir));
 
     assert!(exec.start(dag, db).is_ok());
+}
+
+#[test]
+fn test_my() {
+    let tmp_dir = get_temp_dir();
+
+    let exec = MultiThreadedDagExecutor::new(100000);
+
+    let mut opts = Options::default();
+    opts.set_allow_mmap_writes(true);
+    opts.optimize_for_point_lookup(1024 * 1024 * 1024);
+    opts.set_bytes_per_sync(1024 * 1024 * 100);
+    opts.set_manual_wal_flush(true);
+    opts.create_if_missing(true);
+    opts.set_allow_mmap_reads(true);
+
+    let db: OptimisticTransactionDB<SingleThreaded> =
+        OptimisticTransactionDB::open(&opts, tmp_dir).unwrap();
+    let db = Arc::new(db);
+
+    let db_clone = db.clone();
+    let tx = db_clone.transaction();
+    let tx_ = Arc::new(Mutex::new(tx));
+
+    let t1_tx = tx_.clone();
+    let tt = thread::spawn(move || {
+        chk!(t1_tx.lock().unwrap().put("a".as_bytes(), "b".as_bytes()));
+    });
+    tt.join();
 }
