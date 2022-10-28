@@ -70,6 +70,12 @@ pub enum PostgresSchemaError {
     #[error("Column type {0} not supported")]
     ColumnTypeNotSupported(String),
 
+    #[error("CustomTypeNotSupported")]
+    CustomTypeNotSupported,
+
+    #[error("ColumnTypeNotFound")]
+    ColumnTypeNotFound,
+
     #[error("Invalid column type")]
     InvalidColumnType,
 

@@ -113,7 +113,7 @@ impl XlogMapper {
                 let table = self.relations_map.get(&insert.rel_id()).unwrap();
                 let new_values = insert.tuple().tuple_data();
 
-                let values = Self::convert_values_to_fields(table, new_values);
+                let values = Self::convert_values_to_fields(table, new_values)?;
 
                 let event = OperationEvent {
                     operation: Operation::Insert {
@@ -136,9 +136,9 @@ impl XlogMapper {
 
                 debug!("old tuple: {:?}", update.old_tuple());
                 debug!("key tuple: {:?}", update.key_tuple());
-                let values = Self::convert_values_to_fields(table, new_values);
+                let values = Self::convert_values_to_fields(table, new_values)?;
                 let old_values = if let Some(key_values) = update.key_tuple() {
-                    Self::convert_values_to_fields(table, key_values.tuple_data())
+                    Self::convert_values_to_fields(table, key_values.tuple_data())?
                 } else {
                     vec![]
                 };
@@ -170,7 +170,7 @@ impl XlogMapper {
                 let table = self.relations_map.get(&delete.rel_id()).unwrap();
                 let key_values = delete.key_tuple().unwrap().tuple_data();
 
-                let values = Self::convert_values_to_fields(table, key_values);
+                let values = Self::convert_values_to_fields(table, key_values)?;
 
                 let event = OperationEvent {
                     operation: Operation::Delete {
@@ -245,17 +245,20 @@ impl XlogMapper {
         Ok(Some(IngestionMessage::Schema(schema)))
     }
 
-    fn convert_values_to_fields(table: &Table, new_values: &[TupleData]) -> Vec<Field> {
+    fn convert_values_to_fields(
+        table: &Table,
+        new_values: &[TupleData],
+    ) -> Result<Vec<Field>, ConnectorError> {
         let mut values: Vec<Field> = vec![];
 
         for i in 0..new_values.len() {
             let value = new_values.get(i).unwrap();
             let column = table.columns.get(i).unwrap();
             if let TupleData::Text(text) = value {
-                values.push(helper::postgres_type_to_field(text, column));
+                values.push(helper::postgres_type_to_field(text, column)?);
             }
         }
 
-        values
+        Ok(values)
     }
 }

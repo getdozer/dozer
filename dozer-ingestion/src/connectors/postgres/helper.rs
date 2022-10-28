@@ -2,7 +2,8 @@ use crate::connectors::postgres::xlog_mapper::TableColumn;
 use bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::errors::connector::PostgresSchemaError::{
-    ColumnTypeNotSupported, InvalidColumnType, ValueConversionError,
+    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, InvalidColumnType,
+    ValueConversionError,
 };
 use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::log::error;
@@ -30,23 +31,26 @@ impl<'a> FromSql<'a> for DecimalWrapper {
     }
 }
 
-pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
+pub fn postgres_type_to_field(
+    value: &Bytes,
+    column: &TableColumn,
+) -> Result<Field, ConnectorError> {
     if let Some(column_type) = &column.r#type {
         match column_type {
-            &Type::INT2 | &Type::INT4 | &Type::INT8 => {
-                Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap())
-            }
-            &Type::FLOAT4 | &Type::FLOAT8 => Field::Float(
+            &Type::INT2 | &Type::INT4 | &Type::INT8 => Ok(Field::Int(
+                String::from_utf8(value.to_vec()).unwrap().parse().unwrap(),
+            )),
+            &Type::FLOAT4 | &Type::FLOAT8 => Ok(Field::Float(
                 String::from_utf8(value.to_vec())
                     .unwrap()
                     .parse::<f64>()
                     .unwrap(),
-            ),
+            )),
             &Type::TEXT | &Type::VARCHAR => {
-                Field::String(String::from_utf8(value.to_vec()).unwrap())
+                Ok(Field::String(String::from_utf8(value.to_vec()).unwrap()))
             }
-            &Type::BYTEA => Field::Binary(value.to_vec()),
-            &Type::NUMERIC => Field::Decimal(
+            &Type::BYTEA => Ok(Field::Binary(value.to_vec())),
+            &Type::NUMERIC => Ok(Field::Decimal(
                 Decimal::from_f64(
                     String::from_utf8(value.to_vec())
                         .unwrap()
@@ -54,14 +58,14 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
                         .unwrap(),
                 )
                 .unwrap(),
-            ),
+            )),
             &Type::TIMESTAMP => {
                 let date = NaiveDateTime::parse_from_str(
                     String::from_utf8(value.to_vec()).unwrap().as_str(),
                     "%Y-%m-%d %H:%M:%S",
                 )
                 .unwrap();
-                Field::Timestamp(DateTime::<Utc>::from_utc(date, Utc))
+                Ok(Field::Timestamp(DateTime::<Utc>::from_utc(date, Utc)))
             }
             &Type::TIMESTAMPTZ => {
                 let date: DateTime<FixedOffset> = DateTime::parse_from_str(
@@ -69,14 +73,23 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
                     "%Y-%m-%d %H:%M:%S%.f%#z",
                 )
                 .unwrap();
-                Field::Timestamp(DateTime::<Utc>::from_utc(date.naive_utc(), Utc))
+                Ok(Field::Timestamp(DateTime::<Utc>::from_utc(
+                    date.naive_utc(),
+                    Utc,
+                )))
             }
-            &Type::JSONB | &Type::JSON => Field::Bson(value.to_vec()),
-            &Type::BOOL => Field::Boolean(value.slice(0..1) == "t"),
-            _ => Field::Null,
+            &Type::JSONB | &Type::JSON => Ok(Field::Bson(value.to_vec())),
+            &Type::BOOL => Ok(Field::Boolean(value.slice(0..1) == "t")),
+            _ => Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
+                    column_type.name().to_string(),
+                )),
+            )),
         }
     } else {
-        Field::Null
+        Err(ConnectorError::PostgresConnectorError(
+            PostgresConnectorError::PostgresSchemaError(ColumnTypeNotFound),
+        ))
     }
 }
 
@@ -140,29 +153,24 @@ pub fn value_to_field(
         &Type::FLOAT8 => convert_row_value_to_field!(row, idx, f64),
         &Type::TIMESTAMP => convert_row_value_to_field!(row, idx, NaiveDateTime),
         &Type::TIMESTAMPTZ => convert_row_value_to_field!(row, idx, DateTime<FixedOffset>),
+        &Type::BYTEA => {
+            let value: Result<Vec<u8>, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
+        }
         &Type::NUMERIC => {
             let value: Result<DecimalWrapper, _> = row.try_get(idx);
             value.map_or_else(handle_error, |d| Ok(Field::from(d.dec)))
         }
-        &Type::TS_VECTOR => {
-            // Not supported type
-            Ok(Field::Null)
+        &Type::JSONB => {
+            let value: Result<Vec<u8>, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |v| Ok(Field::Bson(v)))
         }
-        // "date" | "tsvector" => Field::Null,
-        // TODO: ignore custom types
-        // "mpaa_rating" | "_text" => Field::Null,
-        // "bytea" | "_bytea" => {
-        //     let val: Result<Vec<u8>, ConnectorError> = row.try_get(idx);
-        //     match val {
-        //         Ok(val) => Field::Binary(val),
-        //         Err(error) => handle_error(error),
-        //     }
-        // }
         _ => {
             if col_type.schema() == "pg_catalog" {
-                // debug!("UNSUPPORTED TYPE: {:?}", col_type);
+                Err(ColumnTypeNotSupported(col_type.name().to_string()))
+            } else {
+                Err(CustomTypeNotSupported)
             }
-            Ok(Field::Null)
         }
     }
 }
@@ -259,7 +267,7 @@ mod tests {
                     r#type: Some($b),
                 },
             );
-            assert_eq!(value, $c);
+            assert_eq!(value.unwrap(), $c);
         };
     }
 
