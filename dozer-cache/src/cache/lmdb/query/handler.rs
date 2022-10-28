@@ -1,9 +1,5 @@
 use super::{helper, iterator::CacheIterator};
-use crate::cache::{
-    expression::{ExecutionStep, IndexScan, QueryExpression},
-    index,
-    plan::QueryPlanner,
-};
+use crate::cache::{expression::QueryExpression, index, plan::QueryPlanner};
 use dozer_types::errors::{
     cache::{
         CacheError::{self},
@@ -37,14 +33,17 @@ impl<'a> LmdbQueryHandler<'a> {
         schema: &Schema,
         query: &QueryExpression,
     ) -> Result<Vec<Record>, CacheError> {
-        let planner = QueryPlanner {};
-        let execution = planner.plan(schema, query)?;
-        let records = match execution {
-            ExecutionStep::IndexScan(index_scan) => {
+        let planner = QueryPlanner::new(schema, query)?;
+        let plan = planner.plan()?;
+
+        let records = match plan {
+            crate::cache::plan::Plan::IndexScans(scans) => {
+                // TODO:
+                let index_scan = scans.get(0).unwrap();
                 let starting_key = build_starting_key(schema, &index_scan)?;
                 self.query_with_secondary_index(&starting_key, query.limit, query.skip)?
             }
-            ExecutionStep::SeqScan(_seq_scan) => {
+            crate::cache::plan::Plan::SeqScan(_) => {
                 self.iterate_and_deserialize(query.limit, query.skip)?
             }
         };

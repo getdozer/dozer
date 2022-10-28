@@ -18,6 +18,8 @@ pub enum CacheError {
     #[error(transparent)]
     IndexError(#[from] IndexError),
     #[error(transparent)]
+    PlanError(#[from] PlanError),
+    #[error(transparent)]
     TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
@@ -94,6 +96,17 @@ pub enum QueryValidationError {
 
     #[error("Invalid Expression")]
     InvalidAndExpression,
+}
+#[derive(Error, Debug)]
+pub enum PlanError {
+    #[error("Generated a plan combination that shouldnt be possible.")]
+    UnexpectedError,
+    #[error("Cannot have more than one range query")]
+    RangeQueryLimit,
+    #[error("Field not found")]
+    FieldNotFound,
+    #[error("Matching index not found")]
+    MatchingIndexNotFound,
 }
 
 pub fn validate_query(

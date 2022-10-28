@@ -1,15 +1,7 @@
-use dozer_types::{serde_json::Value, thiserror::Error};
+use dozer_types::{errors::cache::PlanError, serde_json::Value};
 
 use crate::cache::expression::Operator;
 use itertools::Itertools;
-
-#[derive(Error, Debug)]
-pub enum PlanError {
-    #[error("Generated a plan combination that shouldnt be possible.")]
-    _UnexpectedError,
-    #[error("Cannot have more than one range query")]
-    _RangeQueryLimit,
-}
 
 pub struct Helper {
     filters: Vec<(usize, Operator, Value)>,
@@ -26,7 +18,7 @@ impl Helper {
             let left = comb
                 .chunks(prefix_len)
                 .next()
-                .map_or(Err(PlanError::_UnexpectedError), |v| Ok(v))?
+                .map_or(Err(PlanError::UnexpectedError), |v| Ok(v))?
                 .to_vec();
             bool = left == self.order_by;
         }
@@ -45,7 +37,7 @@ impl Helper {
         }
     }
     /// Spit out all possible secondary indexes that can answer the query.
-    fn get_all_indexes(&self) -> Result<(), PlanError> {
+    pub fn get_all_indexes(&self) -> Result<Vec<Vec<(usize, bool)>>, PlanError> {
         // get all combinations of fields+order
         let fields_idx: Vec<usize> = self
             .filters
@@ -65,7 +57,7 @@ impl Helper {
             .count();
 
         if range_count > 1 {
-            return Err(PlanError::_RangeQueryLimit);
+            return Err(PlanError::RangeQueryLimit);
         }
 
         //combine with all both asc/desc combinations
@@ -75,7 +67,7 @@ impl Helper {
             .multi_cartesian_product()
             .collect();
         println!("{:?}", combinations);
-        Ok(())
+        Ok(combinations)
     }
 }
 

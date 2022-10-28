@@ -100,18 +100,3 @@ pub struct SortOptions {
     pub field_name: String,
     pub direction: SortDirection,
 }
-
-pub enum ExecutionStep {
-    IndexScan(IndexScan),
-    SeqScan(SeqScan),
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct IndexScan {
-    pub index_def: IndexDefinition,
-    pub fields: Vec<Option<Value>>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SeqScan {
-    // ascending / descending
-    pub direction: bool,
-}
