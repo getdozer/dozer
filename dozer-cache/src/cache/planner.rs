@@ -117,6 +117,7 @@ enum RangeFilter {
 
 #[derive(Debug)]
 struct EqFilter {
+    field_index: usize,
     filter: SimpleFilterExpression,
     state: EqFilterState,
 }
@@ -124,7 +125,6 @@ struct EqFilter {
 #[derive(Debug)]
 enum EqFilterState {
     NotIndexedWithEqFilter {
-        field_index: usize,
         indexed_with_range_filter: bool,
     },
     IndexedWithEqFilter {
@@ -156,11 +156,10 @@ fn range_filter_contains_filed_index(filters: &[RangeFilter], index: usize) -> b
 fn eq_filter_contains_field_index(filters: &[EqFilter], index: usize) -> bool {
     for filter in filters {
         if let EqFilterState::NotIndexedWithEqFilter {
-            field_index,
             indexed_with_range_filter: false,
         } = &filter.state
         {
-            if *field_index == index {
+            if filter.field_index == index {
                 return true;
             }
         } else {
@@ -208,9 +207,9 @@ fn classify_filters(
                 Operator::EQ => {
                     if !eq_filter_contains_field_index(eq_filters, field_index) {
                         eq_filters.push(EqFilter {
+                            field_index,
                             filter: simple.clone(),
                             state: EqFilterState::NotIndexedWithEqFilter {
-                                field_index,
                                 indexed_with_range_filter: false,
                             },
                         });
@@ -239,17 +238,11 @@ fn collect_eq_filters(
 ) -> Option<Vec<usize>> {
     let mut result = vec![];
     for field in fields {
-        if let Some((eq_filter_index, _)) = filters.iter().enumerate().find(|(_, filter)| {
-            if let EqFilterState::NotIndexedWithEqFilter { field_index, .. } = &filter.state {
-                *field_index == field.index
-            } else {
-                debug_assert!(
-                    false,
-                    "Eq filter must be not indexed with eq filter at this time"
-                );
-                false
-            }
-        }) {
+        if let Some((eq_filter_index, _)) = filters
+            .iter()
+            .enumerate()
+            .find(|(_, filter)| filter.field_index == field.index)
+        {
             result.push(eq_filter_index);
         } else {
             return None;
@@ -310,13 +303,11 @@ fn try_using_index_for_eq_filter(
     eq_filters: &mut [EqFilter],
     eq_filter_index: usize,
 ) -> bool {
+    let field_index = eq_filters[eq_filter_index].field_index;
     if let EqFilterState::NotIndexedWithEqFilter {
-        field_index,
         indexed_with_range_filter: false,
-        ..
     } = &eq_filters[eq_filter_index].state
     {
-        let field_index = *field_index;
         if let IndexDefinition::SortedInverted { fields } = index {
             // Check if this index contains current filter's field.
             if fields.iter().any(|field| field.index == field_index) {
