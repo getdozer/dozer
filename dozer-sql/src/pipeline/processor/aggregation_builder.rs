@@ -47,6 +47,7 @@ impl AggregationBuilder {
         let mut select_rules = select
             .iter()
             .map(|item| self.get_aggregation_field(item, schema))
+            .filter(|e| e.is_ok())
             .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
         groupby_rules.append(&mut select_rules);

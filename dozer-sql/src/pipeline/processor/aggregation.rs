@@ -64,7 +64,9 @@ impl AggregationProcessorFactory {
 
 impl ProcessorFactory for AggregationProcessorFactory {
     fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
+        Some(StateStoreOptions {
+            allow_duplicate_keys: false,
+        })
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -117,15 +119,11 @@ impl AggregationProcessor {
         self.builder.build(select, groupby, schema)
     }
 
-    fn populate_rules(
-        &mut self,
-        schema: &Schema,
-        field_rules: &[FieldRule],
-    ) -> Result<(), PipelineError> {
+    fn populate_rules(&mut self, schema: &Schema) -> Result<(), PipelineError> {
         let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, Box<Expression>, usize)> = Vec::new();
 
-        for rule in field_rules.iter().enumerate() {
+        for rule in self.output_field_rules.iter().enumerate() {
             match rule.1 {
                 FieldRule::Measure(idx, aggr, _nullable, _name) => {
                     out_measures.push((
@@ -150,14 +148,10 @@ impl AggregationProcessor {
         Ok(())
     }
 
-    fn build_output_schema(
-        &self,
-        input_schema: &Schema,
-        field_rules: &[FieldRule],
-    ) -> Result<Schema, ExecutionError> {
+    fn build_output_schema(&self, input_schema: &Schema) -> Result<Schema, ExecutionError> {
         let mut output_schema = Schema::empty();
 
-        for e in field_rules.iter().enumerate() {
+        for e in self.output_field_rules.iter().enumerate() {
             match e.1 {
                 FieldRule::Dimension(idx, expression, is_value, name) => {
                     let src_fld = input_schema.get_field_index(idx.as_str())?;
@@ -479,15 +473,16 @@ impl Processor for AggregationProcessor {
 
         let field_rules = self.build(&self.select, &self.groupby, input_schema)?;
 
-        self.populate_rules(input_schema, &field_rules)
+        self.output_field_rules = field_rules;
+
+        self.populate_rules(input_schema)
             .map_err(|e| InternalError(Box::new(e)))?;
 
-        self.build_output_schema(input_schema, &field_rules)
+        self.build_output_schema(input_schema)
     }
 
     fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError> {
         self.init_store(state).map_err(InternalPipelineError)
-        //Ok(())
     }
 
     fn process(

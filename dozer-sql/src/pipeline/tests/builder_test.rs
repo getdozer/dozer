@@ -11,8 +11,9 @@ use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
-use std::fs;
 use std::sync::Arc;
+use std::time::Duration;
+use std::{fs, thread};
 use tempdir::TempDir;
 
 use crate::pipeline::builder::PipelineBuilder;
@@ -71,7 +72,7 @@ impl Source for TestSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..10000000 {
+        for n in 0..100000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -145,7 +146,8 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    log4rs::init_file("../log4rs.yaml", Default::default())
+    println!("{:?}", std::env::current_dir());
+    log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let sql = "SELECT Country, ROUND(SUM(ROUND(Spending))) \

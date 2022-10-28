@@ -1,3 +1,4 @@
+use super::common::column_index;
 use super::projection_builder::ProjectionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
@@ -40,6 +41,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
     fn build(&self) -> Box<dyn Processor> {
         Box::new(ProjectionProcessor {
             statement: self.statement.clone(),
+            input_schema: Schema::empty(),
             expressions: vec![],
             builder: ProjectionBuilder {},
         })
@@ -48,6 +50,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
 pub struct ProjectionProcessor {
     statement: Vec<SelectItem>,
+    input_schema: Schema,
     expressions: Vec<(String, Expression)>,
     builder: ProjectionBuilder,
 }
@@ -56,21 +59,31 @@ impl ProjectionProcessor {
     fn build_projection(
         &self,
         statement: Vec<SelectItem>,
-        schema: &Schema,
+        input_schema: &Schema,
     ) -> Result<Vec<(String, Expression)>, PipelineError> {
-        self.builder.build_projection(&statement, schema)
+        self.builder.build_projection(&statement, input_schema)
     }
 
-    fn build_output_schema(&self, input_schema: &Schema) -> Result<Schema, ExecutionError> {
+    fn build_output_schema(
+        &mut self,
+        input_schema: &Schema,
+        expressions: Vec<(String, Expression)>,
+    ) -> Result<Schema, ExecutionError> {
+        self.input_schema = input_schema.clone();
         let mut output_schema = input_schema.clone();
 
-        for e in self.expressions.iter() {
+        for e in expressions.iter() {
             let field_name = e.0.clone();
             let field_type = e.1.get_type(input_schema);
             let field_nullable = true;
-            output_schema
-                .fields
-                .push(FieldDefinition::new(field_name, field_type, field_nullable));
+
+            if column_index(&field_name, &output_schema).is_err() {
+                output_schema.fields.push(FieldDefinition::new(
+                    field_name,
+                    field_type,
+                    field_nullable,
+                ));
+            }
         }
 
         Ok(output_schema)
@@ -97,12 +110,20 @@ impl ProjectionProcessor {
 
     fn insert(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
-        for expr in &self.expressions {
-            results.push(
-                expr.1
-                    .evaluate(record)
-                    .map_err(|e| InternalError(Box::new(e)))?,
-            );
+        for field in record.values.clone() {
+            results.push(field);
+        }
+
+        for expr in self.expressions.clone() {
+            if let Ok(idx) = column_index(&expr.0, &self.input_schema) {
+                let _ = std::mem::replace(&mut results[idx], expr.1.evaluate(record)?);
+            } else {
+                results.push(
+                    expr.1
+                        .evaluate(record)
+                        .map_err(|e| InternalError(Box::new(e)))?,
+                );
+            }
         }
         Ok(Operation::Insert {
             new: Record::new(None, results),
@@ -149,8 +170,8 @@ impl Processor for ProjectionProcessor {
     ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         let expressions = self.build_projection(self.statement.clone(), input_schema)?;
-        self.expressions = expressions;
-        self.build_output_schema(input_schema)
+        self.expressions = expressions.clone();
+        self.build_output_schema(input_schema, expressions)
     }
 
     fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {
