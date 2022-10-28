@@ -1,6 +1,7 @@
 use crate::errors::types::TypeError;
 use crate::errors::types::TypeError::InvalidFieldType;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
+
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 
@@ -80,6 +81,12 @@ impl From<f32> for Field {
 impl From<f64> for Field {
     fn from(value: f64) -> Self {
         Field::Float(value)
+    }
+}
+
+impl From<Decimal> for Field {
+    fn from(value: Decimal) -> Self {
+        Field::Decimal(value)
     }
 }
 

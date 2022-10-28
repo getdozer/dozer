@@ -8,7 +8,7 @@ use crate::connectors::connector::TableInfo;
 use super::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
 use dozer_types::errors::connector::PostgresSchemaError::SchemaReplicationIdentityError;
-use postgres_types::Type;
+use postgres_types_materialize::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use tokio_postgres::Row;

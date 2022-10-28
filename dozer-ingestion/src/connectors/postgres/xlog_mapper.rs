@@ -10,7 +10,7 @@ use postgres_protocol::message::backend::LogicalReplicationMessage::{
 use postgres_protocol::message::backend::{
     LogicalReplicationMessage, RelationBody, TupleData, XLogDataBody,
 };
-use postgres_types::Type;
+use postgres_types_materialize::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};

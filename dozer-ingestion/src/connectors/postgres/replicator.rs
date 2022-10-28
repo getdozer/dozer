@@ -12,7 +12,7 @@ use dozer_types::types::Commit;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
-use postgres_types::PgLsn;
+use postgres_types_materialize::PgLsn;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
