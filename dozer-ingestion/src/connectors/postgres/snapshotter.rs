@@ -10,31 +10,24 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
-use postgres::Error;
-use postgres::{Client, NoTls};
 use std::cell::RefCell;
 use std::sync::Arc;
+use crate::connectors::postgres::connection_helper;
 
 // 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<TableInfo>>,
-    pub conn_str: String,
+    pub replication_conn_config: tokio_postgres::Config,
     pub ingestor: Arc<RwLock<Ingestor>>,
     pub connector_id: u64,
 }
 
 impl PostgresSnapshotter {
-    fn _connect(&mut self) -> Result<Client, Error> {
-        let client = Client::connect(&self.conn_str, NoTls)?;
-        Ok(client)
-    }
-
-    pub fn get_tables(
-        &self,
+    pub fn get_tables(&self,
         table_names: Option<Vec<String>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
         let mut helper = SchemaHelper {
-            conn_str: self.conn_str.clone(),
+            conn_config: self.replication_conn_config.clone(),
         };
         let arr = helper.get_tables(table_names)?;
         match self.tables.as_ref() {
@@ -53,7 +46,7 @@ impl PostgresSnapshotter {
     }
 
     pub fn sync_tables(&self) -> Result<Vec<String>, ConnectorError> {
-        let client_plain = Arc::new(RefCell::new(helper::connect(self.conn_str.clone())?));
+        let client_plain = Arc::new(RefCell::new(connection_helper::connect(self.replication_conn_config.clone())?));
 
         let tables = self.get_tables(None)?;
 

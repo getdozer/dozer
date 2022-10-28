@@ -24,7 +24,7 @@ pub enum Authentication {
         user: String,
         password: String,
         host: String,
-        port: u32,
+        port: u16,
         database: String,
     },
     EthereumAuthentication {

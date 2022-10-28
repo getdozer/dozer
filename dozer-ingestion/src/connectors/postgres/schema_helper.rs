@@ -5,6 +5,7 @@ use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
 use crate::connectors::TableInfo;
 
+use super::helper::convert_str_to_dozer_field_type;
 use super::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
 use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
@@ -12,10 +13,11 @@ use dozer_types::log::error;
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use crate::connectors::postgres::connection_helper;
 use tokio_postgres::Row;
 
 pub struct SchemaHelper {
-    pub conn_str: String,
+    pub conn_config: tokio_postgres::Config,
 }
 
 impl SchemaHelper {
@@ -42,7 +44,7 @@ impl SchemaHelper {
         &mut self,
         table_name: Option<Vec<String>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
-        let mut client = helper::connect(self.conn_str.clone())?;
+        let mut client = connection_helper::connect(self.conn_config.clone())?;
 
         let mut schemas: Vec<(String, Schema)> = Vec::new();
 

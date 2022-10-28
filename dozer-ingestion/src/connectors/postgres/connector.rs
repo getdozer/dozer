@@ -9,34 +9,38 @@ use dozer_types::types::Schema;
 use postgres::Client;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use tokio_postgres::Config;
+use tokio_postgres::config::ReplicationMode;
 
-use super::helper;
+use super::connection_helper;
 
 #[derive(Clone, Debug)]
 pub struct PostgresConfig {
     pub name: String,
     pub tables: Option<Vec<TableInfo>>,
-    pub conn_str: String,
+    pub config: Config,
 }
 
 pub struct PostgresConnector {
     pub id: u64,
     name: String,
-    conn_str: String,
-    conn_str_plain: String,
     tables: Option<Vec<TableInfo>>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
+    replication_conn_config: Config,
+    conn_config: Config,
 }
 impl PostgresConnector {
     pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
-        let mut conn_str = config.conn_str.to_owned();
-        conn_str.push_str(" replication=database");
+        let mut replication_conn_config = config.config.clone();
+        replication_conn_config.replication_mode(ReplicationMode::Logical);
 
+        // conn_str - replication_conn_config
+        // conn_str_plain- conn_config
         PostgresConnector {
             id,
             name: config.name,
-            conn_str,
-            conn_str_plain: config.conn_str,
+            conn_config: config.config,
+            replication_conn_config,
             tables: config.tables,
             ingestor: None,
         }
@@ -46,7 +50,7 @@ impl PostgresConnector {
 impl Connector for PostgresConnector {
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         let mut helper = SchemaHelper {
-            conn_str: self.conn_str_plain.clone(),
+            conn_config: self.conn_config.clone(),
         };
         let result_vec = helper.get_tables(None)?;
         Ok(result_vec)
@@ -57,7 +61,7 @@ impl Connector for PostgresConnector {
         table_names: Option<Vec<String>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut helper = SchemaHelper {
-            conn_str: self.conn_str_plain.clone(),
+            conn_config: self.conn_config.clone(),
         };
         helper.get_schemas(table_names)
     }
@@ -67,7 +71,7 @@ impl Connector for PostgresConnector {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        let client = helper::connect(self.conn_str.clone())?;
+        let client = connection_helper::connect(self.replication_conn_config.clone())?;
         self.tables = tables;
         self.create_publication(client)?;
         self.ingestor = Some(ingestor);
@@ -79,8 +83,7 @@ impl Connector for PostgresConnector {
             self.get_publication_name(),
             self.get_slot_name(),
             self.tables.to_owned(),
-            self.conn_str.clone(),
-            self.conn_str_plain.clone(),
+            self.replication_conn_config.clone(),
             self.ingestor
                 .as_ref()
                 .map_or(Err(ConnectorError::InitializationError), Ok)?
@@ -92,7 +95,7 @@ impl Connector for PostgresConnector {
     fn stop(&self) {}
 
     fn test_connection(&self) -> Result<(), ConnectorError> {
-        helper::connect(self.conn_str.clone())?;
+        connection_helper::connect(self.replication_conn_config.clone())?;
         Ok(())
     }
 }
