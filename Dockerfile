@@ -29,6 +29,5 @@ WORKDIR "/usr/dozer"
 COPY --from=builder /usr/dozer/target/release/dozer /usr/local/bin
 COPY --from=builder /usr/dozer/log4rs.yaml /usr/local/bin
 COPY --from=builder /usr/dozer/tests/simple_e2e_example/dozer-config.yaml /usr/local/
-RUN ls
-#ENTRYPOINT ["/usr/local/bin/dozer"]
+ENTRYPOINT ["/usr/local/bin/dozer"]
 EXPOSE 8080
