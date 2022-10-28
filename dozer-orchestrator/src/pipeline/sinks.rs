@@ -5,6 +5,7 @@ use dozer_types::core::node::{Sink, SinkFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalStringError;
+use dozer_types::events::Event;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -19,7 +20,7 @@ pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    schema_change_notifier: crossbeam::channel::Sender<bool>,
+    notifier: crossbeam::channel::Sender<Event>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -46,13 +47,13 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        schema_change_notifier: crossbeam::channel::Sender<bool>,
+        notifier: crossbeam::channel::Sender<Event>,
     ) -> Self {
         Self {
             input_ports,
             cache,
             api_endpoint,
-            schema_change_notifier,
+            notifier,
         }
     }
 }
@@ -71,7 +72,7 @@ impl SinkFactory for CacheSinkFactory {
             self.api_endpoint.clone(),
             HashMap::new(),
             HashMap::new(),
-            Some(self.schema_change_notifier.clone()),
+            Some(self.notifier.clone()),
         ))
     }
 }
@@ -84,7 +85,7 @@ pub struct CacheSink {
     schema_map: HashMap<u64, bool>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
-    schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
+    notifier: Option<crossbeam::channel::Sender<Event>>,
 }
 
 impl Sink for CacheSink {
@@ -140,9 +141,9 @@ impl Sink for CacheSink {
                 .insert_schema(&self.api_endpoint.name, &schema)
                 .map_err(|e| InternalStringError(e.to_string()))?;
             e.insert(true);
-            if let Some(notifier) = &self.schema_change_notifier {
+            if let Some(notifier) = &self.notifier {
                 notifier
-                    .try_send(true)
+                    .try_send(Event::SchemaChange(schema.to_owned()))
                     .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
             }
         }
@@ -165,7 +166,7 @@ impl Sink for CacheSink {
             Operation::Update { old, new } => {
                 let key = index::get_primary_key(&schema.primary_index, &old.values);
                 let mut new = new;
-                new.schema_id = schema.identifier.clone();
+                new.schema_id = schema.to_owned().identifier;
                 if index::has_primary_key_changed(&schema.primary_index, &old.values, &new.values) {
                     self.cache
                         .update(&key, &new, &schema)
@@ -198,7 +199,7 @@ impl CacheSink {
         api_endpoint: ApiEndpoint,
         input_schemas: HashMap<PortHandle, Schema>,
         schema_map: HashMap<u64, bool>,
-        schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
+        notifier: Option<crossbeam::channel::Sender<Event>>,
     ) -> Self {
         Self {
             cache,
@@ -208,7 +209,7 @@ impl CacheSink {
             schema_map,
             api_endpoint,
             pb: get_progress(),
-            schema_change_notifier,
+            notifier,
         }
     }
 

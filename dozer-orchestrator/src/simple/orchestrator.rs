@@ -1,11 +1,12 @@
 use super::executor::Executor;
 use crate::Orchestrator;
-use crossbeam::channel::{self};
+use crossbeam::channel::{self, Select};
 use dozer_api::{api_server::ApiServer, grpc_server::GRPCServer};
 use dozer_cache::cache::LmdbCache;
 use dozer_schema::registry::SchemaRegistryClient;
 use dozer_types::{
     errors::orchestrator::OrchestrationError,
+    events::Event,
     models::{api_endpoint::ApiEndpoint, source::Source},
 };
 use std::{sync::Arc, thread};
@@ -36,34 +37,42 @@ impl Orchestrator for SimpleOrchestrator {
 
         let endpoints = self.api_endpoints.clone();
         let endpoints2 = self.api_endpoints.get(0).unwrap().clone();
-        let endpoint3 = self.api_endpoints.get(0).unwrap().clone();
 
         let sources = self.sources.clone();
 
-        let thread = thread::spawn(move || {
+        let _ = thread::spawn(move || {
             let api_server = ApiServer::default();
             api_server.run(endpoints, cache_2).unwrap()
         });
-        let (sender, receiver) = channel::unbounded::<bool>();
+        let (sender, receiver) = channel::unbounded::<Event>();
         let _thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
             Executor::run(sources, endpoints2, cache, sender).unwrap();
         });
-
-        let schema_inserted = receiver.recv();
-        if schema_inserted.is_ok() {
-            let _thread3 = thread::spawn(move || {
-                let grpc_server = GRPCServer::default();
-                grpc_server.run(endpoint3, cache_3).unwrap()
-            });
+        let mut sel = Select::new();
+        sel.recv(&receiver);
+        loop {
+            sel.ready();
+            let event_receiver = receiver.try_recv();
+            if let Ok(event) = event_receiver {
+                match event {
+                    Event::SchemaChange(_) => {
+                        let endpoint4 = self.api_endpoints.get(0).unwrap().clone();
+                        let cache_4 = cache_3.clone();
+                        let _thread3 = thread::spawn(move || {
+                            let grpc_server = GRPCServer::default();
+                            grpc_server.run(endpoint4, cache_4).unwrap()
+                        });
+                    }
+                    Event::RecordUpdate(_) => todo!(),
+                    Event::RecordInsert(_) => todo!(),
+                    Event::RecordDelete(_) => todo!(),
+                }
+            } else {
+                return Ok(());
+            }
+            //let list_event = event_receiver.collect();
         }
-
-        match thread.join() {
-            Ok(_) => Ok(()),
-            Err(_) => Err(OrchestrationError::InitializationFailed),
-        }?;
-
-        Ok(())
     }
 }
 

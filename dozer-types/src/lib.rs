@@ -1,5 +1,6 @@
 pub mod core;
 pub mod errors;
+pub mod events;
 pub mod helper;
 pub mod models;
 pub mod types;

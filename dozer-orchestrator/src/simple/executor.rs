@@ -1,4 +1,5 @@
 use dozer_types::errors::orchestrator::OrchestrationError;
+use dozer_types::events::Event;
 use log::debug;
 use std::fs;
 use std::sync::Arc;
@@ -29,7 +30,7 @@ impl Executor {
         sources: Vec<Source>,
         api_endpoint: ApiEndpoint,
         cache: Arc<LmdbCache>,
-        schema_change_notifier: crossbeam::channel::Sender<bool>,
+        notifier: crossbeam::channel::Sender<Event>,
     ) -> Result<(), OrchestrationError> {
         let mut source_schemas: Vec<Schema> = vec![];
         let mut connections: Vec<Connection> = vec![];
@@ -68,12 +69,7 @@ impl Executor {
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
-        let sink = CacheSinkFactory::new(
-            vec![DEFAULT_PORT_HANDLE],
-            cache,
-            api_endpoint,
-            schema_change_notifier,
-        );
+        let sink = CacheSinkFactory::new(vec![DEFAULT_PORT_HANDLE], cache, api_endpoint, notifier);
 
         let source_table_map = source.table_map.clone();
 
