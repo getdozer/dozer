@@ -1,3 +1,4 @@
+use dozer_ingestion::connectors::ingestor::IngestionOperation;
 use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_types::core::node::PortHandle;
 use dozer_types::errors::execution::ExecutionError;
@@ -8,7 +9,6 @@ use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_types::core::node::{Source, SourceFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::models::connection::Connection;
-use dozer_types::types::Operation::SchemaUpdate;
 use dozer_types::types::Schema;
 
 pub struct ConnectorSourceFactory {
@@ -94,10 +94,9 @@ impl Source for ConnectorSource {
 
         loop {
             let (op, port) = receiver.iter().next().unwrap();
-            if let SchemaUpdate { schema } = op.operation {
-                fw.update_schema(schema, port)?;
-            } else {
-                fw.send(op.seq_no, op.operation, port)?;
+            match op {
+                IngestionOperation::OperationEvent(op) => fw.send(op.seq_no, op.operation, port)?,
+                IngestionOperation::SchemaUpdate(schema) => fw.update_schema(schema, port)?,
             }
         }
     }

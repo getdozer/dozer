@@ -179,7 +179,6 @@ impl Sink for CacheSink {
                         .map_err(|e| InternalStringError(e.to_string()))?;
                 }
             }
-            Operation::SchemaUpdate { .. } => {}
         };
         Ok(())
     }
