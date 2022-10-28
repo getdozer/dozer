@@ -48,12 +48,21 @@ dozer run -c dozer-config.yaml
 
 By default `config` file is loaded from `dozer-config.yaml`
 ```
+# Initialize config
 cp dozer-config.sample.yaml dozer-config.yaml
-cargo run --bin dozer run
+
+# Run
+cargo run 
 ```
 or with a config file
 ```
-cargo run --bin dozer run -c dozer-config.sample.yaml
+cargo run -c dozer-config.sample.yaml
+```
+
+#### Logging
+Initialize `log4rs.yaml`
+```
+cp log4rs.sample.yaml log4rs.yaml
 ```
 
 ### Running individual modules
@@ -62,6 +71,7 @@ dozer-schema, dozer-api are instantiated part of `dozer` (short for `dozer-orche
 They can be run separately for local testing using `--bin` flags.
 Individual 
 ```
+cargo run --bin dozer
 cargo run --bin dozer-api
 cargo run --bin dozer-schema
 ```
