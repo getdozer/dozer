@@ -1148,6 +1148,8 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-reflect",
+ "prost-wkt",
+ "prost-wkt-types",
  "tempdir",
  "tokio",
  "tonic",

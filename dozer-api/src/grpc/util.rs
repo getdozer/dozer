@@ -1,52 +1,17 @@
 use crate::errors::{GRPCError, GenerationError};
-use dozer_cache::cache::expression::{FilterExpression, QueryExpression, SortOptions};
-use dozer_types::serde_json::{self, json, Value};
-use prost_reflect::{DescriptorPool, DynamicMessage, MethodDescriptor, SerializeOptions};
+use dozer_cache::cache::expression::QueryExpression;
+use prost_reflect::{DescriptorPool, DynamicMessage, MethodDescriptor};
 use std::{
     fs::File,
     io::{BufReader, Read},
 };
 use tonic::{Code, Status};
 
-pub fn from_dynamic_message_to_json(input: DynamicMessage) -> Result<Value, Status> {
-    let mut options = SerializeOptions::new();
-    options = options.use_proto_field_name(true);
-    let mut serializer = serde_json::Serializer::new(vec![]);
-    input
-        .serialize_with_options(&mut serializer, &options)
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let string_utf8 = String::from_utf8(serializer.into_inner())
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let result: Value = serde_json::from_str(&string_utf8)
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    Ok(result)
-}
-
 pub fn convert_grpc_message_to_query_exp(input: DynamicMessage) -> Result<QueryExpression, Status> {
-    let json_present = from_dynamic_message_to_json(input)?;
-    let default_filter = json!("");
-    let filter_field = json_present.get("filter").unwrap_or(&default_filter);
-
-    let default_order_by = json!([]);
-    let order_by_field = json_present.get("order_by").unwrap_or(&default_order_by);
-
-    let default_skip = json!(0);
-    let skip_field = json_present.get("skip").unwrap_or(&default_skip);
-
-    let default_limit = json!(50);
-    let limit_field = json_present.get("limit").unwrap_or(&default_limit);
-
-    let filter_exp_str = filter_field.as_str().unwrap_or_default();
-    let filter_exp = serde_json::from_str::<FilterExpression>(filter_exp_str)
-        .map_or_else(|_| Option::None, Option::Some);
-
-    let order_by: Vec<SortOptions> = serde_json::from_value(order_by_field.to_owned())
+    let request = input
+        .transcode_to::<super::proto_query_models::QueryExpressionRequest>()
         .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let limit: usize = serde_json::from_value(limit_field.to_owned())
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let skip: usize = serde_json::from_value(skip_field.to_owned())
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let result_exp = QueryExpression::new(filter_exp, order_by, limit, skip);
+    let result_exp = QueryExpression::try_from(request)?;
     Ok(result_exp)
 }
 
@@ -96,6 +61,7 @@ pub fn create_descriptor_set(
     prost_build_config.out_dir(proto_folder.to_owned());
     tonic_build::configure()
         .file_descriptor_set_path(&my_path_descriptor)
+        .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
         .disable_package_emission()
         .build_client(false)
         .build_server(false)

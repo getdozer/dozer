@@ -279,7 +279,7 @@ impl ProtoService {
             rpc_functions,
             messages: rpc_message,
             functions_with_type: function_with_type,
-            import_libs: import_libs,
+            import_libs,
         };
 
         Ok(metadata)
