@@ -14,13 +14,12 @@ use dozer_types::errors::execution::ExecutionError::{
 };
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record, Schema};
-use log::{debug, error, warn};
+use log::{error, warn};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExecutorOperation {
@@ -325,33 +324,17 @@ impl MultiThreadedDagExecutor {
                 let op = internal_err!(receivers_ls[index].recv())?;
                 match op {
                     ExecutorOperation::SchemaUpdate { new } => {
-                        debug!("Received schema update for processor: [{}]", handle);
                         input_schemas.insert(handles_ls[index], new);
                         let input_ports = proc_factory.get_input_ports();
-                        debug!(
-                            "Input ports for [{}] processor = {}",
-                            handle,
-                            input_ports
-                                .iter()
-                                .map(|e| format!("{}", *e))
-                                .collect::<Vec<String>>()
-                                .join(",")
-                        );
                         let count = input_ports
                             .iter()
                             .filter(|e| !input_schemas.contains_key(*e))
                             .count();
-                        debug!("count: [{}]", count);
                         if count == 0 {
                             for out_port in proc_factory.get_output_ports() {
-                                debug!(
-                                    "Updating schema update for processor: {} - output: port: {}",
-                                    handle, out_port
-                                );
                                 let r = proc.update_schema(out_port, &input_schemas);
                                 match r {
                                     Ok(out_schema) => {
-                                        debug!("Updated schema update for processor: {} - output: port: {}. Notifying downstream...", handle, out_port);
                                         output_schemas.insert(out_port, out_schema.clone());
                                         fw.update_schema(out_schema, out_port)?;
                                         schema_initialized = true;
@@ -365,12 +348,10 @@ impl MultiThreadedDagExecutor {
                         }
                     }
                     ExecutorOperation::Terminate => {
-                        debug!("Received terminate for processor: [{}]", handle);
                         fw.send_term()?;
                         return Ok(());
                     }
                     _ => {
-                        debug!("Received operation for processor: [{}]", handle);
                         if !schema_initialized {
                             error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
                             return Err(SchemaNotInitialized);
@@ -427,8 +408,6 @@ impl MultiThreadedDagExecutor {
             handles.push(proc_handle);
         }
 
-        thread::sleep(Duration::from_millis(1000));
-
         for source in sources {
             handles.push(self.start_source(
                 source.0.clone(),
@@ -441,7 +420,7 @@ impl MultiThreadedDagExecutor {
         for sh in handles {
             sh.join().unwrap()?;
         }
-        debug!("Exiting");
+
         Ok(())
     }
 }
