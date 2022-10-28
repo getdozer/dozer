@@ -71,7 +71,7 @@ impl Source for TestSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1000000 {
+        for n in 0..100000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -80,7 +80,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
-                            Field::Int(2000),
+                            Field::Int(5),
                         ],
                     ),
                 },
@@ -145,11 +145,10 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT 1+1.0, Country, COUNT(Spending+2000), ROUND(SUM(ROUND(-Spending))) \
+    let sql = "SELECT Country, ROUND(SUM(ROUND(Spending))) \
                             FROM Customers \
-                            WHERE Spending+500 >= 1000 \
-                            GROUP BY Country \
-                            HAVING COUNT(CustomerID) > 1;";
+                            WHERE Spending >= 1 \
+                            GROUP BY Country;";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
@@ -165,19 +164,19 @@ fn test_pipeline_builder() {
     let source = TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
     let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
-    dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
-    dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
+    dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
 
     let input_point = in_handle.remove("customers").unwrap();
 
     let _source_to_input = dag.connect(
-        Endpoint::new(1.to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("source".to_string(), DEFAULT_PORT_HANDLE),
         Endpoint::new(input_point.node, input_point.port),
     );
 
     let _output_to_sink = dag.connect(
         Endpoint::new(out_handle.node, out_handle.port),
-        Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("sink".to_string(), DEFAULT_PORT_HANDLE),
     );
 
     let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));

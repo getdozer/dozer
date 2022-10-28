@@ -3,6 +3,8 @@ use crate::pipeline::expression::scalar::ScalarFunctionType;
 use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
+use super::aggregate::AggregateFunctionType;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Column {
@@ -22,10 +24,10 @@ pub enum Expression {
         fun: ScalarFunctionType,
         args: Vec<Expression>,
     },
-    // AggregateFunction {
-    //     fun: AggregateFunctionType,
-    //     args: Vec<Expression>,
-    // },
+    AggregateFunction {
+        fun: AggregateFunctionType,
+        args: Vec<Expression>,
+    },
 }
 
 impl Expression {}
@@ -52,7 +54,12 @@ impl ExpressionExecutor for Expression {
             } => operator.evaluate(left, right, record),
             Expression::ScalarFunction { fun, args } => fun.evaluate(args, record),
             Expression::UnaryOperator { operator, arg } => operator.evaluate(arg, record),
-            // Expression::AggregateFunction { fun: _, args: _ } => todo!(),
+            Expression::AggregateFunction { fun, args: _ } => {
+                Err(PipelineError::InvalidExpression(format!(
+                    "Aggregate Function {:?} should not be executed at this point",
+                    fun
+                )))
+            }
         }
     }
 
@@ -69,7 +76,9 @@ impl ExpressionExecutor for Expression {
                 right,
             } => get_binary_operator_type(left, operator, right, schema),
             Expression::ScalarFunction { fun, args } => get_scalar_function_type(fun, args, schema),
-            // Expression::AggregateFunction { fun, args } => get_aggregate_function_type(fun, args, schema),
+            Expression::AggregateFunction { fun, args } => {
+                get_aggregate_function_type(fun, args, schema)
+            }
         }
     }
 }
@@ -84,7 +93,7 @@ fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
         Field::Decimal(_) => FieldType::Decimal,
         Field::Timestamp(_) => FieldType::Timestamp,
         Field::Bson(_) => FieldType::Bson,
-        Field::RecordArray(_f) => FieldType::Null, //bail!("Record Array not supported: {:?}", f),
+        Field::RecordArray(_f) => FieldType::Null, //Error ("Record Array not supported: {:?}", f),
         Field::Null => FieldType::Null,
     }
 }
@@ -103,7 +112,7 @@ fn get_unary_operator_type(
         UnaryOperatorType::Not => {
             match field_type {
                 FieldType::Boolean => field_type,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}", field_type)
+                _ => FieldType::Null, //Error ("Invalid Field Type: {:?}", field_type)
             }
         }
         UnaryOperatorType::Plus => field_type,
@@ -130,7 +139,7 @@ fn get_binary_operator_type(
         BinaryOperatorType::And | BinaryOperatorType::Or => {
             match (left_field_type, right_field_type) {
                 (FieldType::Boolean, FieldType::Boolean) => FieldType::Boolean,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
             }
         }
 
@@ -140,7 +149,7 @@ fn get_binary_operator_type(
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => FieldType::Float,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
             }
         }
         BinaryOperatorType::Div | BinaryOperatorType::Mod => {
@@ -148,24 +157,28 @@ fn get_binary_operator_type(
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => FieldType::Float,
-                _ => FieldType::Null, //bail!("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
             }
         }
     }
 }
 
-// fn get_aggregate_function_type(function: &AggregateFunctionType, args: &[Expression], schema: &Schema) -> FieldType {
-//     match function {
-//         AggregateFunctionType::Avg => FieldType::Float,
-//         AggregateFunctionType::Count => FieldType::Int,
-//         AggregateFunctionType::Max => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Median => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Min => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Sum => args.get(0).unwrap().get_type(schema),
-//         AggregateFunctionType::Stddev => FieldType::Float,
-//         AggregateFunctionType::Variance => FieldType::Float,
-//     }
-// }
+fn get_aggregate_function_type(
+    function: &AggregateFunctionType,
+    args: &[Expression],
+    schema: &Schema,
+) -> FieldType {
+    match function {
+        AggregateFunctionType::Avg => FieldType::Float,
+        AggregateFunctionType::Count => FieldType::Int,
+        AggregateFunctionType::Max => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Median => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Min => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Sum => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Stddev => FieldType::Float,
+        AggregateFunctionType::Variance => FieldType::Float,
+    }
+}
 
 fn get_scalar_function_type(
     function: &ScalarFunctionType,

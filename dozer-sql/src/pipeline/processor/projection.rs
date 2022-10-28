@@ -1,3 +1,4 @@
+use super::common::column_index;
 use super::projection_builder::ProjectionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
@@ -7,6 +8,7 @@ use dozer_types::core::node::{Processor, ProcessorFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalError;
+use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
 use sqlparser::ast::SelectItem;
@@ -39,6 +41,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
     fn build(&self) -> Box<dyn Processor> {
         Box::new(ProjectionProcessor {
             statement: self.statement.clone(),
+            input_schema: Schema::empty(),
             expressions: vec![],
             builder: ProjectionBuilder {},
         })
@@ -47,7 +50,8 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
 pub struct ProjectionProcessor {
     statement: Vec<SelectItem>,
-    expressions: Vec<Expression>,
+    input_schema: Schema,
+    expressions: Vec<(String, Expression)>,
     builder: ProjectionBuilder,
 }
 
@@ -55,27 +59,31 @@ impl ProjectionProcessor {
     fn build_projection(
         &self,
         statement: Vec<SelectItem>,
-        schema: &Schema,
-    ) -> Result<(Vec<Expression>, Vec<String>), ExecutionError> {
-        self.builder
-            .build_projection(&statement, schema)
-            .map_err(|e| InternalError(Box::new(e)))
+        input_schema: &Schema,
+    ) -> Result<Vec<(String, Expression)>, PipelineError> {
+        self.builder.build_projection(&statement, input_schema)
     }
 
     fn build_output_schema(
-        &self,
+        &mut self,
         input_schema: &Schema,
-        names: &[String],
+        expressions: Vec<(String, Expression)>,
     ) -> Result<Schema, ExecutionError> {
-        let mut output_schema = Schema::empty();
+        self.input_schema = input_schema.clone();
+        let mut output_schema = input_schema.clone();
 
-        for (counter, e) in self.expressions.iter().enumerate() {
-            let field_name = names.get(counter).unwrap().clone();
-            let field_type = e.get_type(input_schema);
+        for e in expressions.iter() {
+            let field_name = e.0.clone();
+            let field_type = e.1.get_type(input_schema);
             let field_nullable = true;
-            output_schema
-                .fields
-                .push(FieldDefinition::new(field_name, field_type, field_nullable));
+
+            if column_index(&field_name, &output_schema).is_err() {
+                output_schema.fields.push(FieldDefinition::new(
+                    field_name,
+                    field_type,
+                    field_nullable,
+                ));
+            }
         }
 
         Ok(output_schema)
@@ -83,9 +91,15 @@ impl ProjectionProcessor {
 
     fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
+
+        for field in record.values.iter() {
+            results.push(field.clone());
+        }
+
         for expr in &self.expressions {
             results.push(
-                expr.evaluate(record)
+                expr.1
+                    .evaluate(record)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -96,11 +110,20 @@ impl ProjectionProcessor {
 
     fn insert(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
-        for expr in &self.expressions {
-            results.push(
-                expr.evaluate(record)
-                    .map_err(|e| InternalError(Box::new(e)))?,
-            );
+        for field in record.values.clone() {
+            results.push(field);
+        }
+
+        for expr in self.expressions.clone() {
+            if let Ok(idx) = column_index(&expr.0, &self.input_schema) {
+                let _ = std::mem::replace(&mut results[idx], expr.1.evaluate(record)?);
+            } else {
+                results.push(
+                    expr.1
+                        .evaluate(record)
+                        .map_err(|e| InternalError(Box::new(e)))?,
+                );
+            }
         }
         Ok(Operation::Insert {
             new: Record::new(None, results),
@@ -110,9 +133,26 @@ impl ProjectionProcessor {
     fn update(&self, old: &Record, new: &Record) -> Result<Operation, ExecutionError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
+
+        for field in old.values.iter() {
+            old_results.push(field.clone());
+        }
+
+        for field in new.values.iter() {
+            new_results.push(field.clone());
+        }
+
         for expr in &self.expressions {
-            old_results.push(expr.evaluate(old).map_err(|e| InternalError(Box::new(e)))?);
-            new_results.push(expr.evaluate(new).map_err(|e| InternalError(Box::new(e)))?);
+            old_results.push(
+                expr.1
+                    .evaluate(old)
+                    .map_err(|e| InternalError(Box::new(e)))?,
+            );
+            new_results.push(
+                expr.1
+                    .evaluate(new)
+                    .map_err(|e| InternalError(Box::new(e)))?,
+            );
         }
 
         Ok(Operation::Update {
@@ -129,9 +169,9 @@ impl Processor for ProjectionProcessor {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        let (expressions, names) = self.build_projection(self.statement.clone(), input_schema)?;
-        self.expressions = expressions;
-        self.build_output_schema(input_schema, &names)
+        let expressions = self.build_projection(self.statement.clone(), input_schema)?;
+        self.expressions = expressions.clone();
+        self.build_output_schema(input_schema, expressions)
     }
 
     fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {

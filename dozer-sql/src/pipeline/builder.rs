@@ -1,3 +1,4 @@
+use super::processor::aggregation::AggregationProcessorFactory;
 use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
 use crate::common::utils::normalize_ident;
@@ -53,7 +54,11 @@ impl PipelineBuilder {
         let selection = SelectionProcessorFactory::new(select.selection);
 
         // Select clause
-        let projection = ProjectionProcessorFactory::new(select.projection);
+        let projection = ProjectionProcessorFactory::new(select.projection.clone());
+
+        // Group by clause
+        let aggregation =
+            AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
 
         let mut dag = Dag::new();
 
@@ -65,16 +70,25 @@ impl PipelineBuilder {
             NodeType::Processor(Box::new(projection)),
             String::from("projection"),
         );
+        dag.add_node(
+            NodeType::Processor(Box::new(aggregation)),
+            String::from("aggregation"),
+        );
 
         let _ = dag.connect(
             Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
             Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
         );
 
+        let _ = dag.connect(
+            Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+            Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
+        );
+
         Ok((
             dag,
             input_endpoints,
-            Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+            Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
         ))
     }
 
