@@ -52,11 +52,11 @@ By default `config` file is loaded from `dozer-config.yaml`
 cp dozer-config.sample.yaml dozer-config.yaml
 
 # Run
-cargo run --bin dozer run
+cargo run 
 ```
 or with a config file
 ```
-cargo run --bin dozer run -c dozer-config.sample.yaml
+cargo run -c dozer-config.sample.yaml
 ```
 
 #### Logging
@@ -71,6 +71,7 @@ dozer-schema, dozer-api are instantiated part of `dozer` (short for `dozer-orche
 They can be run separately for local testing using `--bin` flags.
 Individual 
 ```
+cargo run --bin dozer
 cargo run --bin dozer-api
 cargo run --bin dozer-schema
 ```

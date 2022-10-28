@@ -2,10 +2,14 @@
 
 use thiserror::Error;
 
-use super::{connector::ConnectorError, execution::ExecutionError};
+use super::{connector::ConnectorError, execution::ExecutionError, internal::BoxedError};
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
+    #[error("Couldnt read file")]
+    FailedToLoadFile(#[source] std::io::Error),
+    #[error("Failed to parse dozer config..")]
+    FailedToParseYaml(#[source] BoxedError),
     #[error("Failed to initialize dozer config..")]
     InitializationFailed,
     #[error("Failed to initialize api server..")]
