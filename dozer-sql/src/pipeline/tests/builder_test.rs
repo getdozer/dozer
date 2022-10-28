@@ -11,9 +11,8 @@ use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
+use std::fs;
 use std::sync::Arc;
-use std::time::Duration;
-use std::{fs, thread};
 use tempdir::TempDir;
 
 use crate::pipeline::builder::PipelineBuilder;
