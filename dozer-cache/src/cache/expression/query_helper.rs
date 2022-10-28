@@ -3,10 +3,11 @@ use dozer_types::serde_json::{self};
 use dozer_types::serde_json::{json, Value};
 
 use super::super::expression::{FilterExpression, Operator};
+use super::SimpleFilterExpression;
 
 fn construct_simple_expression(
     key: &str,
-    op: Operator,
+    operator: Operator,
     value: Value,
 ) -> Result<FilterExpression, QueryValidationError> {
     validate_query(
@@ -22,7 +23,11 @@ fn construct_simple_expression(
         !(value.is_array() && value.as_array().unwrap().is_empty()),
         EmptyArrayAsValue,
     )?;
-    let expression = FilterExpression::Simple(key.to_owned(), op, value);
+    let expression = FilterExpression::Simple(SimpleFilterExpression {
+        field_name: key.to_owned(),
+        operator,
+        value,
+    });
     Ok(expression)
 }
 

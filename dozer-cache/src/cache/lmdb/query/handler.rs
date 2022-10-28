@@ -1,19 +1,22 @@
 use super::{helper, iterator::CacheIterator};
 use crate::cache::{
-    expression::{ExecutionStep, IndexScan, QueryExpression},
+    expression::{IndexScan, PlanResult, QueryExpression},
     index,
     planner::QueryPlanner,
-};
-use dozer_types::errors::{
-    cache::{
-        CacheError::{self},
-        IndexError, QueryError,
-    },
-    types::TypeError,
 };
 use dozer_types::{
     bincode, json_value_to_field,
     types::{Field, Record, Schema},
+};
+use dozer_types::{
+    errors::{
+        cache::{
+            CacheError::{self},
+            IndexError, QueryError,
+        },
+        types::TypeError,
+    },
+    types::IndexDefinition,
 };
 use galil_seiferas::gs_find;
 use lmdb::{Database, RoTransaction, Transaction};
@@ -40,13 +43,18 @@ impl<'a> LmdbQueryHandler<'a> {
         let planner = QueryPlanner {};
         let execution = planner.plan(schema, query)?;
         let records = match execution {
-            ExecutionStep::IndexScan(index_scan) => {
-                let starting_key = build_starting_key(schema, &index_scan)?;
+            PlanResult::IndexScans(index_scans) => {
+                if index_scans.len() > 1 {
+                    todo!("Combine filtered results from multiple index scans");
+                }
+                debug_assert!(
+                    index_scans.len() == 1,
+                    "Planner should guarentee index scans is not empty"
+                );
+                let starting_key = build_starting_key(schema, &index_scans[0])?;
                 self.query_with_secondary_index(&starting_key, query.limit, query.skip)?
             }
-            ExecutionStep::SeqScan(_seq_scan) => {
-                self.iterate_and_deserialize(query.limit, query.skip)?
-            }
+            PlanResult::SeqScan(_) => self.iterate_and_deserialize(query.limit, query.skip)?,
         };
 
         Ok(records)
@@ -143,29 +151,28 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
 
     let mut fields = vec![];
 
-    for (idx, idf) in index_scan.fields.iter().enumerate() {
+    for (idx, filter) in index_scan.filters.iter().enumerate() {
         // Convert dynamic json_values to field_values based on field_types
-        fields.push(match idf {
-            Some(val) => {
-                let field_type = schema
-                    .fields
-                    .get(idx)
-                    .map_or(Err(CacheError::QueryError(QueryError::GetValue)), Ok)?
-                    .typ
-                    .to_owned();
-                Some(
-                    json_value_to_field(&val.to_string(), &field_type)
-                        .map_err(CacheError::TypeError)?,
-                )
-            }
-            None => None,
+        fields.push({
+            let field_type = schema
+                .fields
+                .get(idx)
+                .map_or(Err(CacheError::QueryError(QueryError::GetValue)), Ok)?
+                .typ
+                .to_owned();
+            Some(
+                json_value_to_field(&filter.value.to_string(), &field_type)
+                    .map_err(CacheError::TypeError)?,
+            )
         });
     }
 
-    match index_scan.index_def.typ {
-        dozer_types::types::IndexType::SortedInverted => {
+    match &index_scan.index_def {
+        IndexDefinition::SortedInverted { .. } => {
+            let mut field_idx = vec![];
             let mut field_bytes = vec![];
-            for field in fields {
+            for (index, field) in fields.into_iter().enumerate() {
+                field_idx.push(index);
                 // convert value to `Vec<u8>`
                 field_bytes.push(match field {
                     Some(field) => Some(
@@ -177,21 +184,20 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
 
             Ok(index::get_secondary_index(
                 schema_identifier.id,
-                &index_scan.index_def.fields,
+                &field_idx,
                 &field_bytes,
             ))
         }
-        dozer_types::types::IndexType::HashInverted => todo!(),
-        dozer_types::types::IndexType::FullText => {
-            if fields.len() != 1 {
-                return Err(CacheError::IndexError(IndexError::ExpectedStringFullText));
-            }
-            let field_index = index_scan.index_def.fields[0] as u64;
-
+        IndexDefinition::HashInverted => todo!(),
+        IndexDefinition::FullText { field_index } => {
+            debug_assert!(
+                fields.len() == 1,
+                "Planner should guarentee full text filter has exactly one field"
+            );
             if let Some(Field::String(token)) = &fields[0] {
                 Ok(index::get_full_text_secondary_index(
                     schema_identifier.id,
-                    field_index,
+                    *field_index as _,
                     token,
                 ))
             } else {

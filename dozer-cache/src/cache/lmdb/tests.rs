@@ -6,7 +6,7 @@ use dozer_types::{
 };
 
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression},
+    expression::{self, FilterExpression, QueryExpression, SimpleFilterExpression},
     index, Cache,
 };
 
@@ -71,11 +71,11 @@ fn insert_and_query_record() -> Result<(), CacheError> {
 
     // Query with an expression
     let exp = QueryExpression::new(
-        Some(FilterExpression::Simple(
-            "foo".to_string(),
-            expression::Operator::EQ,
-            Value::from("bar".to_string()),
-        )),
+        Some(FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "foo".to_string(),
+            operator: expression::Operator::EQ,
+            value: Value::from("bar".to_string()),
+        })),
         vec![],
         10,
         0,

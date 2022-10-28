@@ -1,5 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression};
+use dozer_cache::cache::expression::{
+    self, FilterExpression, QueryExpression, SimpleFilterExpression,
+};
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, test_utils, Cache};
 use dozer_types::serde_json::Value;
@@ -25,11 +27,11 @@ fn get(cache: Arc<LmdbCache>, n: usize) {
 
 fn query(cache: Arc<LmdbCache>, _n: usize) {
     let exp = QueryExpression::new(
-        Some(FilterExpression::Simple(
-            "foo".to_string(),
-            expression::Operator::EQ,
-            Value::from("bar".to_string()),
-        )),
+        Some(FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "foo".to_string(),
+            operator: expression::Operator::EQ,
+            value: Value::from("bar".to_string()),
+        })),
         vec![],
         10,
         0,

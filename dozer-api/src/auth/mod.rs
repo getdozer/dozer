@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 pub mod api;
 pub mod authorizer;
 pub use authorizer::Authorizer;
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[serde(crate = "self::serde")]
 pub struct Claims {
     pub aud: String,
@@ -14,7 +15,7 @@ pub struct Claims {
     pub exp: usize,
     pub access: Access,
 }
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[serde(crate = "self::serde")]
 // Access gets resolved in cache query, get and list functions
 pub enum Access {

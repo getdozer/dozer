@@ -1,5 +1,6 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
+use crate::cache::expression::SimpleFilterExpression;
 use crate::cache::expression::{QueryExpression, SortOptions};
 use dozer_types::errors::cache::CacheError;
 use dozer_types::serde_json;
@@ -30,55 +31,103 @@ fn test_operators() -> Result<(), CacheError> {
 fn test_filter_query_deserialize_simple() {
     test_deserialize_filter(
         json!({"a":  1}),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(1)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(1),
+        }),
     );
     test_deserialize_filter(
         json!({"ab_c":  1}),
-        FilterExpression::Simple("ab_c".to_string(), Operator::EQ, Value::from(1)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "ab_c".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(1),
+        }),
     );
 
     test_deserialize_filter(
         json!({"a":  {"$eq": 1}}),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(1)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(1),
+        }),
     );
 
     test_deserialize_filter(
         json!({"a":  {"$gt": 1}}),
-        FilterExpression::Simple("a".to_string(), Operator::GT, Value::from(1)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::GT,
+            value: Value::from(1),
+        }),
     );
 
     test_deserialize_filter(
         json!({"a":  {"$lt": 1}}),
-        FilterExpression::Simple("a".to_string(), Operator::LT, Value::from(1)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::LT,
+            value: Value::from(1),
+        }),
     );
 
     test_deserialize_filter(
         json!({"a":  {"$lte": 1}}),
-        FilterExpression::Simple("a".to_string(), Operator::LTE, Value::from(1)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::LTE,
+            value: Value::from(1),
+        }),
     );
     test_deserialize_filter(
         json!({"a":  -64}),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(-64)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(-64),
+        }),
     );
     test_deserialize_filter(
         json!({"a":  256.0}),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(256.0)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(256.0),
+        }),
     );
     test_deserialize_filter(
         json!({"a":  -256.88393}),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(-256.88393)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(-256.88393),
+        }),
     );
     test_deserialize_filter(
         json!({"a":  98_222}),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(98222)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(98222),
+        }),
     );
     test_deserialize_filter(
         json!({"a":  true}),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(true)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(true),
+        }),
     );
     test_deserialize_filter(
         json!({ "a": null }),
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::Null),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::EQ,
+            value: Value::Null,
+        }),
     );
 
     // // special character
@@ -108,15 +157,35 @@ fn test_filter_query_deserialize_complex() {
     test_deserialize_filter(
         json!({"a":  {"$lt": 1}, "b":  {"$gte": 3}}),
         FilterExpression::And(vec![
-            FilterExpression::Simple("a".to_string(), Operator::LT, Value::from(1)),
-            FilterExpression::Simple("b".to_string(), Operator::GTE, Value::from(3)),
+            FilterExpression::Simple(SimpleFilterExpression {
+                field_name: "a".to_string(),
+                operator: Operator::LT,
+                value: Value::from(1),
+            }),
+            FilterExpression::Simple(SimpleFilterExpression {
+                field_name: "b".to_string(),
+                operator: Operator::GTE,
+                value: Value::from(3),
+            }),
         ]),
     );
     // AND with 3 expression
     let three_fields = FilterExpression::And(vec![
-        FilterExpression::Simple("a".to_string(), Operator::LT, Value::from(1)),
-        FilterExpression::Simple("b".to_string(), Operator::GTE, Value::from(3)),
-        FilterExpression::Simple("c".to_string(), Operator::EQ, Value::from(3)),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: Operator::LT,
+            value: Value::from(1),
+        }),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "b".to_string(),
+            operator: Operator::GTE,
+            value: Value::from(3),
+        }),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "c".to_string(),
+            operator: Operator::EQ,
+            value: Value::from(3),
+        }),
     ]);
     test_deserialize_filter(
         json!({"a":  {"$lt": 1}, "b":  {"$gte": 3}, "c": 3}),
@@ -127,8 +196,16 @@ fn test_filter_query_deserialize_complex() {
     test_deserialize_filter(
         json!({ "$and": [{"film_id":  {"$lt": 500}}, {"film_id":  {"$gte": 2}}]}),
         FilterExpression::And(vec![
-            FilterExpression::Simple("film_id".to_string(), Operator::LT, Value::from(500)),
-            FilterExpression::Simple("film_id".to_string(), Operator::GTE, Value::from(2)),
+            FilterExpression::Simple(SimpleFilterExpression {
+                field_name: "film_id".to_string(),
+                operator: Operator::LT,
+                value: Value::from(500),
+            }),
+            FilterExpression::Simple(SimpleFilterExpression {
+                field_name: "film_id".to_string(),
+                operator: Operator::GTE,
+                value: Value::from(2),
+            }),
         ]),
     );
 
@@ -172,9 +249,21 @@ fn test_query_expression_deserialize() {
         json!({"$filter": {"a":  {"$lt": 1}, "b":  {"$gte": 3}, "c": 3}}),
         QueryExpression::new(
             Some(FilterExpression::And(vec![
-                FilterExpression::Simple("a".to_string(), Operator::LT, Value::from(1)),
-                FilterExpression::Simple("b".to_string(), Operator::GTE, Value::from(3)),
-                FilterExpression::Simple("c".to_string(), Operator::EQ, Value::from(3)),
+                FilterExpression::Simple(SimpleFilterExpression {
+                    field_name: "a".to_string(),
+                    operator: Operator::LT,
+                    value: Value::from(1),
+                }),
+                FilterExpression::Simple(SimpleFilterExpression {
+                    field_name: "b".to_string(),
+                    operator: Operator::GTE,
+                    value: Value::from(3),
+                }),
+                FilterExpression::Simple(SimpleFilterExpression {
+                    field_name: "c".to_string(),
+                    operator: Operator::EQ,
+                    value: Value::from(3),
+                }),
             ])),
             vec![],
             50,

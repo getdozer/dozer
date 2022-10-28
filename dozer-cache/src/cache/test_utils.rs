@@ -1,4 +1,7 @@
-use dozer_types::types::{FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, FieldIndexAndDirection, IndexDefinition, Schema, SchemaIdentifier,
+    SortDirection::Ascending,
+};
 
 pub fn schema_0() -> Schema {
     Schema {
@@ -10,10 +13,11 @@ pub fn schema_0() -> Schema {
         }],
         values: vec![0],
         primary_index: vec![0],
-        secondary_indexes: vec![IndexDefinition {
-            fields: vec![0],
-            typ: IndexType::SortedInverted,
-            sort_direction: vec![true],
+        secondary_indexes: vec![IndexDefinition::SortedInverted {
+            fields: vec![FieldIndexAndDirection {
+                index: 0,
+                direction: Ascending,
+            }],
         }],
     }
 }
@@ -41,26 +45,36 @@ pub fn schema_1() -> Schema {
         values: vec![0],
         primary_index: vec![0],
         secondary_indexes: vec![
-            IndexDefinition {
-                fields: vec![0],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true],
+            IndexDefinition::SortedInverted {
+                fields: vec![FieldIndexAndDirection {
+                    index: 0,
+                    direction: Ascending,
+                }],
             },
-            IndexDefinition {
-                fields: vec![1],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true],
+            IndexDefinition::SortedInverted {
+                fields: vec![FieldIndexAndDirection {
+                    index: 1,
+                    direction: Ascending,
+                }],
             },
-            IndexDefinition {
-                fields: vec![2],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true],
+            IndexDefinition::SortedInverted {
+                fields: vec![FieldIndexAndDirection {
+                    index: 2,
+                    direction: Ascending,
+                }],
             },
             // composite index
-            IndexDefinition {
-                fields: vec![0, 1],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true, true],
+            IndexDefinition::SortedInverted {
+                fields: vec![
+                    FieldIndexAndDirection {
+                        index: 0,
+                        direction: Ascending,
+                    },
+                    FieldIndexAndDirection {
+                        index: 1,
+                        direction: Ascending,
+                    },
+                ],
             },
         ],
     }
@@ -76,10 +90,6 @@ pub fn schema_full_text_single() -> Schema {
         }],
         values: vec![0],
         primary_index: vec![0],
-        secondary_indexes: vec![IndexDefinition {
-            fields: vec![0],
-            typ: IndexType::FullText,
-            sort_direction: vec![true],
-        }],
+        secondary_indexes: vec![IndexDefinition::FullText { field_index: 0 }],
     }
 }

@@ -153,8 +153,8 @@ pub enum SortDirection {
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FieldIndexAndDirection {
-    index: usize,
-    direction: SortDirection,
+    pub index: usize,
+    pub direction: SortDirection,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]

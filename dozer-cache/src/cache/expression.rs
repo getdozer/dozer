@@ -7,7 +7,7 @@ mod query_serde;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(crate = "self::serde")]
 pub struct QueryExpression {
     /// Final results must pass all the filters.
@@ -43,9 +43,9 @@ impl QueryExpression {
 // a = 1, a containts "s", a> 4
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimpleFilterExpression {
-    field_name: String,
-    operator: Operator,
-    value: Value,
+    pub field_name: String,
+    pub operator: Operator,
+    pub value: Value,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -112,9 +112,7 @@ pub struct SeqScan {
     pub direction: SortDirection,
 }
 
-pub enum PlanningResult {
-    /// These indices are needed to execute this query, but not present in the schema.
-    NeedIndices(Vec<IndexDefinition>),
+pub enum PlanResult {
     /// The query should be carried out with multiple `IndexScan`s and results are the intersection of all `IndexScan` results.
     IndexScans(Vec<IndexScan>),
     /// Just split out the results in specified direction.

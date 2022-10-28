@@ -36,10 +36,11 @@ impl Indexer {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }
         for index in schema.secondary_indexes.iter() {
-            match index.typ {
-                dozer_types::types::IndexType::SortedInverted => {
+            match index {
+                dozer_types::types::IndexDefinition::SortedInverted { fields } => {
+                    let index_fields = fields.iter().map(|field| field.index).collect::<Vec<_>>();
                     let secondary_key =
-                        self._build_index_sorted_inverted(identifier, &index.fields, &rec.values);
+                        self._build_index_sorted_inverted(identifier, &index_fields, &rec.values);
                     txn.put::<Vec<u8>, Vec<u8>>(
                         self.db,
                         &secondary_key,
@@ -48,10 +49,10 @@ impl Indexer {
                     )
                     .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
                 }
-                dozer_types::types::IndexType::HashInverted => todo!(),
-                dozer_types::types::IndexType::FullText => {
+                dozer_types::types::IndexDefinition::HashInverted => todo!(),
+                dozer_types::types::IndexDefinition::FullText { field_index } => {
                     for secondary_key in
-                        self._build_indices_full_text(identifier, &index.fields, &rec.values)?
+                        self._build_indices_full_text(identifier, *field_index, &rec.values)?
                     {
                         txn.put(self.db, &secondary_key, &pkey, WriteFlags::default())
                             .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
@@ -80,33 +81,20 @@ impl Indexer {
         index::get_secondary_index(identifier.id, index_fields, &values)
     }
 
-    fn _build_indices_full_text<'a>(
+    fn _build_indices_full_text(
         &self,
         identifier: &SchemaIdentifier,
-        index_fields: &[usize],
-        values: &'a [Field],
+        field_index: usize,
+        fields: &[Field],
     ) -> Result<Vec<Vec<u8>>, CacheError> {
-        let mut fields = vec![];
-        for field_index in index_fields {
-            if let Some(field) = values.get(*field_index) {
-                if let Field::String(string) = field {
-                    fields.push((*field_index, string));
-                } else {
-                    return Err(CacheError::IndexError(IndexError::FieldNotCompatibleIndex(
-                        *field_index,
-                    )));
-                }
-            }
-        }
+        let string = match &fields[field_index] {
+            Field::String(string) => string,
+            _ => return Err(CacheError::IndexError(IndexError::ExpectedStringFullText)),
+        };
 
-        let tokens = fields.iter().flat_map(|(field_index, string)| {
-            string.unicode_words().map(|token| (*field_index, token))
-        });
-
-        Ok(tokens
-            .map(|(field_index, token)| {
-                get_full_text_secondary_index(identifier.id, field_index as _, token)
-            })
+        Ok(string
+            .unicode_words()
+            .map(|token| get_full_text_secondary_index(identifier.id, field_index as _, token))
             .collect())
     }
 }
@@ -133,7 +121,7 @@ mod tests {
             indexer
                 ._build_indices_full_text(
                     identifier,
-                    &[field_index],
+                    field_index,
                     &[Field::String("today is a good day".into())]
                 )
                 .unwrap(),

@@ -19,6 +19,8 @@ pub enum CacheError {
     IndexError(#[from] IndexError),
     #[error(transparent)]
     TypeError(#[from] TypeError),
+    #[error(transparent)]
+    PlanError(#[from] PlanError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
 }
@@ -94,6 +96,14 @@ pub enum QueryValidationError {
 
     #[error("Invalid Expression")]
     InvalidAndExpression,
+}
+
+#[derive(Error, Debug)]
+pub enum PlanError {
+    #[error("Cannot find field: {0}")]
+    CannotFindField(String),
+    #[error("Necessary index is missing for executing this query")]
+    NeedIndex,
 }
 
 pub fn validate_query(

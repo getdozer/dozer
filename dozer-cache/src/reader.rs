@@ -10,7 +10,7 @@ use dozer_types::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[serde(crate = "self::serde")]
 
 /// This filter gets dynamically added to the query.

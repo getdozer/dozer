@@ -9,7 +9,7 @@ use dozer_types::{serde, serde_json};
 use crate::cache::expression::query_helper::{and_expression, simple_expression};
 
 use super::super::expression::FilterExpression;
-use super::Operator;
+use super::{Operator, SimpleFilterExpression};
 
 impl<'de> Deserialize<'de> for Operator {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -85,20 +85,24 @@ impl Serialize for FilterExpression {
         S: Serializer,
     {
         match self {
-            FilterExpression::Simple(name, op, field_val) => {
+            FilterExpression::Simple(SimpleFilterExpression {
+                field_name,
+                operator,
+                value,
+            }) => {
                 let mut state = serializer.serialize_map(Some(1))?;
 
-                let val = match op {
-                    Operator::EQ => field_val.to_owned(),
+                let val = match operator {
+                    Operator::EQ => value.to_owned(),
                     _ => {
-                        let op_val = op.to_str();
+                        let op_val = operator.to_str();
 
                         let mut map = HashMap::new();
-                        map.insert(op_val, field_val);
+                        map.insert(op_val, value);
                         serde_json::to_value(map).map_err(|e| ser::Error::custom(e.to_string()))?
                     }
                 };
-                state.serialize_entry(name, &val)?;
+                state.serialize_entry(field_name, &val)?;
                 state.end()
             }
             FilterExpression::And(expressions) => {

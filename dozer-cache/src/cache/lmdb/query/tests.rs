@@ -1,5 +1,5 @@
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression},
+    expression::{self, FilterExpression, QueryExpression, SimpleFilterExpression},
     lmdb::cache::LmdbCache,
     test_utils, Cache,
 };
@@ -25,16 +25,16 @@ fn query_secondary() {
     cache.insert(&record).unwrap();
 
     let filter = FilterExpression::And(vec![
-        FilterExpression::Simple(
-            "a".to_string(),
-            expression::Operator::EQ,
-            serde_json::Value::from(1),
-        ),
-        FilterExpression::Simple(
-            "b".to_string(),
-            expression::Operator::EQ,
-            serde_json::Value::from("test".to_string()),
-        ),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "a".to_string(),
+            operator: expression::Operator::EQ,
+            value: serde_json::Value::from(1),
+        }),
+        FilterExpression::Simple(SimpleFilterExpression {
+            field_name: "b".to_string(),
+            operator: expression::Operator::EQ,
+            value: serde_json::Value::from("test".to_string()),
+        }),
     ]);
 
     // Query with an expression
@@ -54,11 +54,11 @@ fn query_secondary() {
     cache.insert_schema("full_text_sample", &schema).unwrap();
     cache.insert(&record).unwrap();
 
-    let filter = FilterExpression::Simple(
-        "foo".into(),
-        expression::Operator::Contains,
-        "good".to_string().into(),
-    );
+    let filter = FilterExpression::Simple(SimpleFilterExpression {
+        field_name: "foo".into(),
+        operator: expression::Operator::Contains,
+        value: "good".to_string().into(),
+    });
 
     let query = QueryExpression::new(Some(filter), vec![], 10, 0);
 
