@@ -2,18 +2,12 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{TestProcessorFactory, TestSinkFactory, TestSourceFactory};
 use crate::state::lmdb::LmdbStateStoreManager;
-use log::info;
 use std::fs;
 use std::sync::Arc;
 use tempdir::TempDir;
 
 #[test]
 fn test_run_dag() {
-    log4rs::init_file("../log4rs.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
-
-    info!("Running test_run_dag");
-
     let src = TestSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
     let proc = TestProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
     let sink = TestSinkFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
