@@ -48,12 +48,21 @@ dozer run -c dozer-config.yaml
 
 By default `config` file is loaded from `dozer-config.yaml`
 ```
+# Initialize config
 cp dozer-config.sample.yaml dozer-config.yaml
+
+# Run
 cargo run --bin dozer run
 ```
 or with a config file
 ```
 cargo run --bin dozer run -c dozer-config.sample.yaml
+```
+
+#### Logging
+Initialize `log4rs.yaml`
+```
+cp log4rs.sample.yaml log4rs.yaml
 ```
 
 ### Running individual modules

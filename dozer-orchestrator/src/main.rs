@@ -3,7 +3,7 @@ mod cli;
 use clap::Parser;
 
 use dozer_types::errors::orchestrator::OrchestrationError;
-use log::debug;
+use log::warn;
 use std::sync::Arc;
 use std::{thread, time};
 
@@ -17,7 +17,7 @@ fn main() -> Result<(), OrchestrationError> {
     log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    debug!(
+    warn!(
         "
       ____   ___ __________ ____
      |  _ \\ / _ \\__  / ____|  _ \\
