@@ -10,7 +10,7 @@ use dozer_orchestrator::Orchestrator;
 
 fn run(config_path: String) -> Result<(), OrchestrationError> {
     let configuration = load_config(config_path)?;
-            let mut dozer = Dozer::new();
+    let mut dozer = Dozer::new();
     dozer.add_sources(configuration.sources);
     dozer.add_endpoints(configuration.endpoints);
     dozer.run()
