@@ -9,6 +9,31 @@ use dozer_types::{
 };
 
 #[test]
+fn query_seq() {
+    let cache = LmdbCache::new(true);
+    let schema = test_utils::schema_0();
+    cache.insert_schema("sample", &schema).unwrap();
+
+    let record0 = Record::new(
+        schema.identifier.clone(),
+        vec![Field::String("aa".into())]
+    );
+    cache.insert(&record0).unwrap();
+
+    let record1 = Record::new(
+        schema.identifier.clone(),
+        vec![Field::String("b".into())]
+    );
+    cache.insert(&record1).unwrap();
+
+    let query = QueryExpression::new(None, vec![], 2, 0);
+    let records = cache.query("sample", &query).unwrap();
+    assert_eq!(records.len(), 2);
+    assert_eq!(records[0], record0);
+    assert_eq!(records[1], record1);
+}
+
+#[test]
 fn query_secondary() {
     let cache = LmdbCache::new(true);
     let schema = test_utils::schema_1();
