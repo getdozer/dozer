@@ -42,6 +42,7 @@ pub enum GrpcType {
     List,
     GetById,
     Query,
+    ServerStreaming
 }
 
 impl ProtoService {
@@ -161,6 +162,27 @@ impl ProtoService {
         (query_fnc, vec![query_request, query_response])
     }
 
+    fn _on_change_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
+        let on_change_request_str = "OnChangeRequest".to_string();
+        let on_change_response_str = "OnChangeResponse".to_string();
+        let on_change_fnc = RPCFunction {
+            name: String::from("on_change"),
+            argument: on_change_request_str.to_owned(),
+            response:  format!("stream {}",on_change_response_str.to_owned()) ,
+        };
+        let on_change_request = RPCMessage {
+            name: on_change_request_str,
+            props: vec![
+                
+            ],
+        };
+
+        let on_change_response = RPCMessage {
+            name: on_change_response_str,
+            props: vec!["optional string test = 1;\n".to_owned()],
+        };
+        (on_change_fnc, vec![on_change_request, on_change_response])
+    }
     fn _sort_option_model(&self) -> RPCMessage {
         RPCMessage {
             name: "SortOptions".to_owned(),
@@ -174,6 +196,7 @@ impl ProtoService {
             ],
         }
     }
+    
     fn _main_model(&self) -> RPCMessage {
         let props_message: Vec<String> = self
             .schema
@@ -203,6 +226,7 @@ impl ProtoService {
         let get_rpc = self._get_message();
         let get_by_id_rpc = self._get_by_id_message()?;
         let query_rpc = self._query_message();
+        let on_change_rpc = self._on_change_message();
         let main_model = self._main_model();
         let sort_exp_model = self._sort_option_model();
 
@@ -210,16 +234,20 @@ impl ProtoService {
             get_rpc.to_owned().0,
             get_by_id_rpc.to_owned().0,
             query_rpc.to_owned().0,
+            on_change_rpc.to_owned().0,
         ];
         let mut rpc_message = vec![main_model, sort_exp_model];
         rpc_message.extend(get_rpc.to_owned().1);
         rpc_message.extend(get_by_id_rpc.to_owned().1);
         rpc_message.extend(query_rpc.to_owned().1);
+        rpc_message.extend(on_change_rpc.to_owned().1);
         let mut function_with_type = HashMap::new();
 
         function_with_type.insert(get_rpc.0.name, GrpcType::List);
         function_with_type.insert(get_by_id_rpc.0.name, GrpcType::GetById);
         function_with_type.insert(query_rpc.0.name, GrpcType::Query);
+        function_with_type.insert(on_change_rpc.0.name, GrpcType::ServerStreaming);
+
 
         let metadata = ProtoMetadata {
             package_name,

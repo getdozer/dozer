@@ -1,12 +1,16 @@
 use super::util::convert_grpc_message_to_query_exp;
 use crate::{api_helper, api_server::PipelineDetails, errors::GRPCError};
 use dozer_cache::cache::{expression::QueryExpression, Cache, LmdbCache};
-use dozer_types::{errors::cache::CacheError, serde_json};
+use dozer_types::{
+    errors::cache::CacheError,
+    events::Event,
+    serde_json::{self, json},
+};
 use prost_reflect::DynamicMessage;
 use serde_json::{Map, Value};
 use std::sync::Arc;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Code, Request, Response, Status};
-
 pub async fn grpc_list(
     pipeline_details: PipelineDetails,
     cache: Arc<LmdbCache>,
@@ -71,6 +75,38 @@ pub async fn grpc_query(
     result_json.insert(pipeline_details.schema_name.to_lowercase(), value_json);
     let result = Value::Object(result_json);
     Ok(Response::new(result))
+}
+
+pub async fn grpc_server_stream(
+    pipeline_details: PipelineDetails,
+    cache: Arc<LmdbCache>,
+    _: Request<DynamicMessage>,
+    event_notifier: tokio::sync::broadcast::Receiver<Event>, //crossbeam::channel::Receiver<Event>,
+) -> Result<Response<ReceiverStream<Result<Value, tonic::Status>>>, Status> {
+    let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), cache, None)?;
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    // create subscribe
+    let mut broadcast_receiver = event_notifier.resubscribe();
+    tokio::spawn(async move {
+        while let Ok(event) = broadcast_receiver.recv().await {
+            match event {
+                Event::RecordInsert(record) => {
+                    let converted_record = api_helper.convert_record_to_json(record).unwrap();
+                    let value_json = serde_json::to_value(converted_record)
+                        .map_err(GRPCError::SerizalizeError)
+                        .unwrap();
+                    let title = value_json["title"].as_str().unwrap();
+                    let value_feature = json!({ "test": title });
+                    if let Err(_) = tx.send(Ok(value_feature)).await {
+                        // receiver drop
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+    Ok(Response::new(ReceiverStream::new(rx)))
 }
 
 fn from_cache_error(error: CacheError) -> Status {

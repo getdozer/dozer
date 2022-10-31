@@ -1,5 +1,5 @@
 #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-use super::util::get_proto_descriptor;
+use super::{services::StreamingService, util::get_proto_descriptor};
 use crate::{
     api_server::PipelineDetails,
     generator::protoc::proto_service::GrpcType,
@@ -10,10 +10,10 @@ use crate::{
     },
 };
 use dozer_cache::cache::LmdbCache;
+use dozer_types::events::Event;
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use tonic::codegen::{self, *};
-#[derive(Clone)]
 pub struct TonicServer {
     accept_compression_encodings: EnabledCompressionEncodings,
     send_compression_encodings: EnabledCompressionEncodings,
@@ -22,6 +22,22 @@ pub struct TonicServer {
     function_types: HashMap<String, GrpcType>,
     cache: Arc<LmdbCache>,
     pipeline_details: PipelineDetails,
+    //event_notifier: crossbeam::channel::Receiver<Event>
+    event_notifier: tokio::sync::broadcast::Receiver<Event>,
+}
+impl Clone for TonicServer {
+    fn clone(&self) -> Self {
+        Self {
+            accept_compression_encodings: self.accept_compression_encodings.clone(),
+            send_compression_encodings: self.send_compression_encodings.clone(),
+            descriptor_path: self.descriptor_path.clone(),
+            descriptor: self.descriptor.clone(),
+            function_types: self.function_types.clone(),
+            cache: self.cache.clone(),
+            pipeline_details: self.pipeline_details.clone(),
+            event_notifier: self.event_notifier.resubscribe(),
+        }
+    }
 }
 impl TonicServer {
     pub fn new(
@@ -29,6 +45,8 @@ impl TonicServer {
         function_types: HashMap<String, GrpcType>,
         cache: Arc<LmdbCache>,
         pipeline_details: PipelineDetails,
+        //event_notifier: crossbeam::channel::Receiver<Event>
+        event_notifier: tokio::sync::broadcast::Receiver<Event>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
         TonicServer {
@@ -39,6 +57,7 @@ impl TonicServer {
             function_types,
             cache,
             pipeline_details,
+            event_notifier,
         }
     }
 
@@ -131,6 +150,18 @@ where
                     };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                GrpcType::ServerStreaming => {
+                    let method = StreamingService {
+                        cache,
+                        pipeline_details: self.pipeline_details.to_owned(),
+                        event_notifier: self.event_notifier.resubscribe(),
+                    };
+                    let fut = async move {
+                        let res = grpc.server_streaming(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

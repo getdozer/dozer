@@ -162,6 +162,11 @@ impl Sink for CacheSink {
                 self.cache
                     .insert(&new)
                     .map_err(|e| InternalStringError(e.to_string()))?;
+                if let Some(notifier) = &self.notifier {
+                    notifier
+                        .try_send(Event::RecordInsert(new.to_owned()))
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                }
             }
             Operation::Update { old, new } => {
                 let key = index::get_primary_key(&schema.primary_index, &old.values);
@@ -178,6 +183,11 @@ impl Sink for CacheSink {
                     self.cache
                         .insert(&new)
                         .map_err(|e| InternalStringError(e.to_string()))?;
+                }
+                if let Some(notifier) = &self.notifier {
+                    notifier
+                        .try_send(Event::RecordUpdate(new.to_owned()))
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                 }
             }
         };

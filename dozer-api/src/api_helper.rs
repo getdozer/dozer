@@ -5,7 +5,7 @@ use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::errors::cache::CacheError;
 use dozer_types::json_value_to_field;
 use dozer_types::record_to_json;
-use dozer_types::types::FieldType;
+use dozer_types::types::{FieldType, Record};
 use openapiv3::OpenAPI;
 use std::{collections::HashMap, sync::Arc};
 
@@ -100,5 +100,10 @@ impl ApiHelper {
             maps.push(map);
         }
         Ok(maps)
+    }
+
+    pub fn convert_record_to_json(&self, record: Record) -> Result<HashMap<String, String>, CacheError>  {
+        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        record_to_json(&record, &schema).map_err(CacheError::TypeError)
     }
 }

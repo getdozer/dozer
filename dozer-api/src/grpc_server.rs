@@ -8,21 +8,54 @@ use crate::{
     },
 };
 use dozer_cache::cache::{Cache, LmdbCache};
-use dozer_types::models::api_endpoint::ApiEndpoint;
-use std::sync::Arc;
+use dozer_types::{events::Event, models::api_endpoint::ApiEndpoint};
+use std::{sync::Arc, thread};
 use tempdir::TempDir;
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, sync::broadcast};
 use tonic::transport::Server;
 
 pub struct GRPCServer {
     port: u16,
+    event_notifier: crossbeam::channel::Receiver<Event>,
 }
 
 impl GRPCServer {
-    pub fn default() -> Self {
-        Self { port: 50051 }
+    pub fn new(event_notifier: crossbeam::channel::Receiver<Event>, port: u16) -> Self {
+        Self {
+            port,
+            event_notifier: event_notifier.clone(),
+        }
     }
     pub fn run(&self, endpoint: ApiEndpoint, cache: Arc<LmdbCache>) -> Result<(), GRPCError> {
+        let event = self.event_notifier.clone().recv();
+        if let Ok(event) = event {
+            match event {
+                Event::SchemaChange(_) => {
+                    self._run(endpoint, cache, self.event_notifier.to_owned())?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    fn _run(
+        &self,
+        endpoint: ApiEndpoint,
+        cache: Arc<LmdbCache>,
+        event_notifier: crossbeam::channel::Receiver<Event>,
+    ) -> Result<(), GRPCError> {
+        // create broadcast channel
+        let (tx, rx1) = broadcast::channel::<Event>(16);
+        let _thread = thread::spawn(|| {
+            Runtime::new().unwrap().block_on(async {
+                tokio::spawn(async move {
+                    while let Some(event) = event_notifier.iter().next() {
+                        _ = tx.send(event);
+                    }
+                });
+            });
+        });
+
         let schema_name = endpoint.name.to_owned();
         let schema = cache.get_schema_by_name(&schema_name)?;
         let tmp_dir = TempDir::new("proto_generated").unwrap();
@@ -42,10 +75,16 @@ impl GRPCServer {
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
             .build()?;
         let addr = format!("[::1]:{:}", self.port).parse().unwrap(); // "[::1]:50051".parse().unwrap();
-        let grpc_service =
-            TonicServer::new(descriptor_path, generated_proto.1, cache, pipeline_details);
+        let grpc_service = TonicServer::new(
+            descriptor_path,
+            generated_proto.1,
+            cache,
+            pipeline_details,
+            rx1,
+        );
         let server_future = Server::builder()
             .accept_http1(true)
+            .concurrency_limit_per_connection(32)
             .add_service(inflection_service)
             .add_service(tonic_web::enable(grpc_service))
             .serve(addr);

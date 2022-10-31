@@ -3,10 +3,15 @@ package Dozer;
 service FilmsService {
   rpc films(GetFilmsRequest) returns (GetFilmsResponse);
   rpc by_id(GetFilmsByIdRequest) returns (GetFilmsByIdResponse);
-  rpc query(QueryFilmsRequest) returns (QueryFilmsResponse);   
+  rpc query(QueryFilmsRequest) returns (QueryFilmsResponse);
+  rpc on_change(OnChangeRequest) returns (stream OnChangeResponse);
 }
 
+message OnChangeRequest {}
 
+message OnChangeResponse {
+  optional string test = 1;
+}
 message Film {
  optional int32 film_id = 1; 
  optional string description = 2; 
