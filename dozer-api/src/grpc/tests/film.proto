@@ -1,4 +1,5 @@
 syntax = "proto3";
+import "google/protobuf/any.proto";
 package Dozer;
 service FilmsService {
   rpc films(GetFilmsRequest) returns (GetFilmsResponse);
@@ -44,7 +45,7 @@ message GetFilmsByIdResponse {
 }
 
 message QueryFilmsRequest {
- optional string filter = 1; 
+ optional FilterExpression filter = 1; 
  repeated SortOptions order_by = 2; 
  optional uint32 limit = 3; 
  optional uint32 skip = 4; 
@@ -52,4 +53,31 @@ message QueryFilmsRequest {
 
 message QueryFilmsResponse {
  repeated Film film = 1;
+}
+
+message FilterExpression {
+  oneof expression {
+    SimpleExpression simple = 1;
+    AndExpression and = 2;
+  }
+}
+
+message SimpleExpression {
+  enum Operator { 
+    LT = 0; 
+    LTE = 1; 
+    EQ = 2;
+    GT = 3;
+    GTE = 4;
+    Contains = 5;
+    MatchesAny = 6;
+    MatchesAll = 7;
+  } 
+  string field = 1;
+  Operator operator = 2;
+  google.protobuf.Any value = 3;
+}
+
+message AndExpression {
+  repeated FilterExpression and_expression = 1;
 }

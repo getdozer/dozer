@@ -30,7 +30,7 @@ pub fn field_to_json_value(field: &Field) -> Result<String, TypeError> {
         Field::Boolean(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
         Field::String(s) => Ok(s.to_owned()),
         Field::Binary(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::Null => Ok("null".to_string()),
+        Field::Null => Ok("null".to_owned()),
         Field::Decimal(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Timestamp(ts) => Ok(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Bson(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
