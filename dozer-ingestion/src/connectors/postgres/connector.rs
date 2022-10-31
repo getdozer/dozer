@@ -1,9 +1,16 @@
+use crate::connectors::connector::{self, TableInfo};
+use crate::connectors::postgres::schema_helper::SchemaHelper;
+use crate::connectors::storage::RocksStorage;
+use connector::Connector;
+
+use crate::connectors::postgres::connection::validator::validate_connection;
+use crate::connectors::ingestor::IngestionOperation;
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::{Connector, TableInfo};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::log::{debug, info};
+use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Schema;
 use postgres::Client;

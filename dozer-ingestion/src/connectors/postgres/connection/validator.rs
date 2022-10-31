@@ -1,16 +1,15 @@
 use crate::connectors::connector::TableInfo;
 use crate::connectors::postgres::connector::ReplicationSlotInfo;
-use crate::debug;
+
 use dozer_types::errors::connector::ConnectorError;
 use dozer_types::errors::connector::ConnectorError::InvalidQueryError;
 use dozer_types::errors::connector::PostgresConnectorError;
-use dozer_types::errors::connector::PostgresConnectorError::SlotIsInUseError;
+
 use dozer_types::log::warn;
 use postgres::Client;
 use postgres_types::PgLsn;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
-use tokio_postgres::{Config, Error};
 
 pub fn validate_connection(
     config: tokio_postgres::Config,
@@ -59,7 +58,7 @@ fn validate_user(client: &mut Client) -> Result<(), ConnectorError> {
 fn validate_wal_level(client: &mut Client) -> Result<(), ConnectorError> {
     let result = client
         .query_one("SHOW wal_level", &[])
-        .map_err(|e| PostgresConnectorError::WALLevelIsNotCorrect())?;
+        .map_err(|_e| PostgresConnectorError::WALLevelIsNotCorrect())?;
 
     let wal_level: Result<String, _> = result.try_get(0);
 
@@ -96,7 +95,7 @@ fn validate_tables(client: &mut Client, table_info: Vec<TableInfo>) -> Result<()
         tables_names.remove(&table_name);
     }
 
-    if tables_names.len() > 0 {
+    if !tables_names.is_empty() {
         let table_name_keys = tables_names.keys().cloned().collect();
         Err(ConnectorError::PostgresConnectorError(
             PostgresConnectorError::TableError(table_name_keys),

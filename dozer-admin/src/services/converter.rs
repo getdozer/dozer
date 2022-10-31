@@ -97,7 +97,7 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
             let authentication = item.authentication.unwrap();
             let result = match authentication {
                 authentication::Authentication::Postgres(postgres_authentication) => {
-                    let port_int = postgres_authentication.port.parse::<u32>()?;
+                    let port_int = postgres_authentication.port.parse::<u16>()?;
                     models::connection::Authentication::PostgresAuthentication {
                         user: postgres_authentication.user,
                         password: postgres_authentication.password,
