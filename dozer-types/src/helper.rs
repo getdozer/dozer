@@ -53,9 +53,7 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
         FieldType::Boolean => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Boolean),
-        FieldType::String => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::String),
+        FieldType::String => Ok(Field::String(val.to_string())),
         FieldType::Binary => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Binary),

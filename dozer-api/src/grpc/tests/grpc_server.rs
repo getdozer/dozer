@@ -1,14 +1,13 @@
 use super::utils::{generate_descriptor, generate_proto};
 use crate::{
     api_server::PipelineDetails,
-    generator::protoc::proto_service::GrpcType,
     grpc::{server::TonicServer, tests::utils::mock_event_notifier},
     grpc_server::GRPCServer,
     test_utils,
 };
 use dozer_types::events::Event;
 use futures_util::FutureExt;
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 use tempdir::TempDir;
 use tokio::sync::{broadcast, oneshot};
 use tonic::{
@@ -16,39 +15,37 @@ use tonic::{
     Request,
 };
 
-fn setup(tmp_dir_path: String, schema_name: String) -> (String, HashMap<String, GrpcType>) {
-    let proto_generated_result =
-        generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned()).unwrap();
-    let path_to_descriptor = generate_descriptor(tmp_dir_path, schema_name).unwrap();
-    (path_to_descriptor, proto_generated_result.1)
-}
-
-#[tokio::test]
-async fn test_grpc_list() {
-    let tmp_dir = TempDir::new("proto_generated").unwrap();
-    let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
+fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
     let schema_name = String::from("film");
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
         schema_name: schema_name.to_owned(),
         endpoint,
     };
-    let cache = test_utils::initialize_cache(&schema_name.to_owned());
-    let setup_result = setup(tmp_dir_path, schema_name.to_owned());
-    let path_to_descriptor = setup_result.0;
-    let function_types = setup_result.1;
+    let cache = test_utils::initialize_cache(&schema_name);
+    let proto_generated_result =
+        generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned()).unwrap();
+    let path_to_descriptor = generate_descriptor(tmp_dir_path, schema_name).unwrap();
+    let function_types = proto_generated_result.1;
     let event_notifier = mock_event_notifier();
     let (tx, rx1) = broadcast::channel::<Event>(16);
     GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
-    let grpc_service = TonicServer::new(
+    
+    TonicServer::new(
         path_to_descriptor,
         function_types,
         cache,
         pipeline_details,
         rx1,
-    );
-    let (_tx, rx) = oneshot::channel::<()>();
+    )
+}
 
+#[tokio::test]
+async fn test_grpc_list() {
+    let tmp_dir = TempDir::new("proto_generated").unwrap();
+    let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
+    let grpc_service = setup_grpc_service(tmp_dir_path);
+    let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
         Server::builder()
             .add_service(grpc_service)
@@ -61,12 +58,12 @@ async fn test_grpc_list() {
     pub mod dozer_client_generated {
         include!("dozer-test-client.rs");
     }
-    use dozer_client_generated::films_client::FilmsClient;
+    use dozer_client_generated::films_service_client::FilmsServiceClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1400")
         .connect()
         .await
         .unwrap();
-    let mut client = FilmsClient::new(channel);
+    let mut client = FilmsServiceClient::new(channel);
     let request = dozer_client_generated::GetFilmsRequest {};
     let res = client.films(Request::new(request)).await.unwrap();
     let request_response: dozer_client_generated::GetFilmsResponse = res.into_inner();
@@ -77,26 +74,7 @@ async fn test_grpc_list() {
 async fn test_grpc_get_by_id() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
-    let schema_name = String::from("film");
-    let endpoint = test_utils::get_endpoint();
-    let pipeline_details = PipelineDetails {
-        schema_name: schema_name.to_owned(),
-        endpoint,
-    };
-    let cache = test_utils::initialize_cache(&pipeline_details.schema_name.to_owned());
-    let setup_result = setup(tmp_dir_path, schema_name.to_owned());
-    let path_to_descriptor = setup_result.0;
-    let function_types = setup_result.1;
-    let event_notifier = mock_event_notifier();
-    let (tx, rx1) = broadcast::channel::<Event>(16);
-    GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
-    let grpc_service = TonicServer::new(
-        path_to_descriptor,
-        function_types,
-        cache,
-        pipeline_details,
-        rx1,
-    );
+    let grpc_service = setup_grpc_service(tmp_dir_path);
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {
@@ -110,12 +88,12 @@ async fn test_grpc_get_by_id() {
     pub mod dozer_client_generated {
         include!("dozer-test-client.rs");
     }
-    use dozer_client_generated::films_client::FilmsClient;
+    use dozer_client_generated::films_service_client::FilmsServiceClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1401")
         .connect()
         .await
         .unwrap();
-    let mut client = FilmsClient::new(channel);
+    let mut client = FilmsServiceClient::new(channel);
     let request = dozer_client_generated::GetFilmsByIdRequest { film_id: 524 };
     let res = client.by_id(Request::new(request)).await.unwrap();
     let request_response: dozer_client_generated::GetFilmsByIdResponse = res.into_inner();
@@ -126,26 +104,7 @@ async fn test_grpc_get_by_id() {
 async fn test_grpc_query() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
-    let schema_name = String::from("film");
-    let endpoint = test_utils::get_endpoint();
-    let pipeline_details = PipelineDetails {
-        schema_name,
-        endpoint,
-    };
-    let cache = test_utils::initialize_cache(&pipeline_details.schema_name.to_owned());
-    let setup_result = setup(tmp_dir_path, pipeline_details.schema_name.to_owned());
-    let path_to_descriptor = setup_result.0;
-    let function_types = setup_result.1;
-    let event_notifier = mock_event_notifier();
-    let (tx, rx1) = broadcast::channel::<Event>(16);
-    GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
-    let grpc_service = TonicServer::new(
-        path_to_descriptor,
-        function_types,
-        cache,
-        pipeline_details,
-        rx1,
-    );
+    let grpc_service = setup_grpc_service(tmp_dir_path);
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {
@@ -159,12 +118,12 @@ async fn test_grpc_query() {
     pub mod dozer_client_generated {
         include!("dozer-test-client.rs");
     }
-    use dozer_client_generated::films_client::FilmsClient;
+    use dozer_client_generated::films_service_client::FilmsServiceClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1402")
         .connect()
         .await
         .unwrap();
-    let mut client = FilmsClient::new(channel);
+    let mut client = FilmsServiceClient::new(channel);
     let request = dozer_client_generated::QueryFilmsRequest {
         limit: Some(50),
         skip: Some(0),

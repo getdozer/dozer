@@ -62,7 +62,6 @@ pub fn create_descriptor_set(
     tonic_build::configure()
         .file_descriptor_set_path(&my_path_descriptor)
         .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
-        .disable_package_emission()
         .build_client(false)
         .build_server(false)
         .out_dir(&proto_folder)
