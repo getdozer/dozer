@@ -47,11 +47,11 @@ impl StateStoresManager for LmdbStateStoreManager {
             full_path.to_str().unwrap().to_string(),
             Some(env_opt)
         ))?);
-        let tx = internal_err!(Transaction::begin(env.clone(), false))?;
+        let tx = internal_err!(Transaction::begin(&env, false))?;
 
         let mut db_opt = DatabaseOptions::default();
         db_opt.allow_duplicate_keys = options.allow_duplicate_keys;
-        let db = internal_err!(Database::open(env.clone(), &tx, id, Some(db_opt)))?;
+        let db = internal_err!(Database::open(&env, &tx, id, Some(db_opt)))?;
 
         Ok(Box::new(LmdbStateStore {
             env,
@@ -76,7 +76,7 @@ impl LmdbStateStore {
         self.commit_counter += 1;
         if self.commit_counter >= self.commit_threshold {
             self.tx.commit()?;
-            self.tx = Transaction::begin(self.env.clone(), false)?;
+            self.tx = Transaction::begin(&self.env, false)?;
             self.commit_counter = 0;
         }
         Ok(())

@@ -6,3 +6,4 @@ pub mod null;
 
 #[cfg(test)]
 mod tests;
+mod versioning_writer;
