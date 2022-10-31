@@ -1,3 +1,6 @@
+use crossbeam::channel;
+use dozer_types::events::Event;
+
 use crate::{
     api_server::PipelineDetails,
     errors::GenerationError,
@@ -28,4 +31,9 @@ pub fn generate_descriptor(
 ) -> Result<String, GenerationError> {
     let descriptor_path = create_descriptor_set(&tmp_dir, &format!("{}.proto", schema_name))?;
     Ok(descriptor_path)
+}
+
+pub fn mock_event_notifier() -> channel::Receiver<Event> {
+    let (_sender, receiver) = channel::unbounded::<Event>();
+    receiver
 }

@@ -169,7 +169,7 @@ impl ProtoService {
         let on_change_fnc = RPCFunction {
             name: String::from("on_change"),
             argument: on_change_request_str.to_owned(),
-            response: format!("stream {}", on_change_response_str.to_owned()),
+            response: format!("stream {}", on_change_response_str),
         };
         let on_change_request = RPCMessage {
             name: on_change_request_str,
@@ -300,7 +300,7 @@ impl ProtoService {
             filter_expression_model,
             simple_expression_model,
             and_expression_model,
-            event_on_change_model
+            event_on_change_model,
         ];
         rpc_message.extend(get_rpc.to_owned().1);
         rpc_message.extend(get_by_id_rpc.to_owned().1);

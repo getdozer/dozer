@@ -59,7 +59,7 @@ impl tonic::server::UnaryService<DynamicMessage> for QueryService {
 pub struct StreamingService {
     pub(crate) cache: Arc<LmdbCache>,
     pub(crate) pipeline_details: PipelineDetails,
-    pub(crate) event_notifier: tokio::sync::broadcast::Receiver<Event> //crossbeam::channel::Receiver<Event>,
+    pub(crate) event_notifier: tokio::sync::broadcast::Receiver<Event>, //crossbeam::channel::Receiver<Event>,
 }
 impl tonic::server::ServerStreamingService<DynamicMessage> for StreamingService {
     type Response = Value;

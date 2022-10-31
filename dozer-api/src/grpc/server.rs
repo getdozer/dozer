@@ -28,8 +28,8 @@ pub struct TonicServer {
 impl Clone for TonicServer {
     fn clone(&self) -> Self {
         Self {
-            accept_compression_encodings: self.accept_compression_encodings.clone(),
-            send_compression_encodings: self.send_compression_encodings.clone(),
+            accept_compression_encodings: self.accept_compression_encodings,
+            send_compression_encodings: self.send_compression_encodings,
             descriptor_path: self.descriptor_path.clone(),
             descriptor: self.descriptor.clone(),
             function_types: self.function_types.clone(),
@@ -45,7 +45,6 @@ impl TonicServer {
         function_types: HashMap<String, GrpcType>,
         cache: Arc<LmdbCache>,
         pipeline_details: PipelineDetails,
-        //event_notifier: crossbeam::channel::Receiver<Event>
         event_notifier: tokio::sync::broadcast::Receiver<Event>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();

@@ -102,7 +102,10 @@ impl ApiHelper {
         Ok(maps)
     }
 
-    pub fn convert_record_to_json(&self, record: Record) -> Result<HashMap<String, String>, CacheError>  {
+    pub fn convert_record_to_json(
+        &self,
+        record: Record,
+    ) -> Result<HashMap<String, String>, CacheError> {
         let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
         record_to_json(&record, &schema).map_err(CacheError::TypeError)
     }

@@ -86,14 +86,16 @@ pub async fn grpc_server_stream(
     _: Request<DynamicMessage>,
     event_notifier: tokio::sync::broadcast::Receiver<Event>, //crossbeam::channel::Receiver<Event>,
 ) -> Result<Response<ReceiverStream<Result<Value, tonic::Status>>>, Status> {
-    let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), cache, None)?;
+    let api_helper = api_helper::ApiHelper::new(pipeline_details, cache, None)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     // create subscribe
     let mut broadcast_receiver = event_notifier.resubscribe();
     tokio::spawn(async move {
         while let Ok(event) = broadcast_receiver.recv().await {
             match event {
-                Event::RecordInsert(record) => {
+                Event::RecordInsert(record)
+                | Event::RecordDelete(record)
+                | Event::RecordUpdate(record) => {
                     let converted_record = api_helper.convert_record_to_json(record).unwrap();
                     let value_json = serde_json::to_value(converted_record)
                         .map_err(GRPCError::SerizalizeError)
@@ -108,9 +110,7 @@ pub async fn grpc_server_stream(
                         event: Some(event_response),
                     };
                     let result_respone = serde_json::to_value(on_change_response).unwrap();
-                    //let title = value_json["title"].as_str().unwrap();
-                    //let value_feature = json!({ "test": title });
-                    if let Err(_) = tx.send(Ok(result_respone)).await {
+                    if (tx.send(Ok(result_respone)).await).is_err() {
                         // receiver drop
                         break;
                     }

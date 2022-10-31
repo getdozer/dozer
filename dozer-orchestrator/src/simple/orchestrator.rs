@@ -49,7 +49,7 @@ impl Orchestrator for SimpleOrchestrator {
             api_server.run(endpoints, cache_2)
         });
         let (sender, receiver) = channel::unbounded::<Event>();
-        let receiver1 = receiver.clone();
+        let receiver1 = receiver;
         let _executor_thread = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
             _ = Executor::run(sources, endpoints2, cache, sender);

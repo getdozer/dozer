@@ -1,12 +1,16 @@
 use super::utils::{generate_descriptor, generate_proto};
 use crate::{
-    api_server::PipelineDetails, generator::protoc::proto_service::GrpcType,
-    grpc::server::TonicServer, test_utils,
+    api_server::PipelineDetails,
+    generator::protoc::proto_service::GrpcType,
+    grpc::{server::TonicServer, tests::utils::mock_event_notifier},
+    grpc_server::GRPCServer,
+    test_utils,
 };
+use dozer_types::events::Event;
 use futures_util::FutureExt;
 use std::{collections::HashMap, time::Duration};
 use tempdir::TempDir;
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 use tonic::{
     transport::{Endpoint, Server},
     Request,
@@ -33,8 +37,16 @@ async fn test_grpc_list() {
     let setup_result = setup(tmp_dir_path, schema_name.to_owned());
     let path_to_descriptor = setup_result.0;
     let function_types = setup_result.1;
-    let grpc_service =
-        TonicServer::new(path_to_descriptor, function_types, cache, pipeline_details);
+    let event_notifier = mock_event_notifier();
+    let (tx, rx1) = broadcast::channel::<Event>(16);
+    GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
+    let grpc_service = TonicServer::new(
+        path_to_descriptor,
+        function_types,
+        cache,
+        pipeline_details,
+        rx1,
+    );
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {
@@ -45,6 +57,7 @@ async fn test_grpc_list() {
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
+
     pub mod dozer_client_generated {
         include!("dozer-test-client.rs");
     }
@@ -74,8 +87,16 @@ async fn test_grpc_get_by_id() {
     let setup_result = setup(tmp_dir_path, schema_name.to_owned());
     let path_to_descriptor = setup_result.0;
     let function_types = setup_result.1;
-    let grpc_service =
-        TonicServer::new(path_to_descriptor, function_types, cache, pipeline_details);
+    let event_notifier = mock_event_notifier();
+    let (tx, rx1) = broadcast::channel::<Event>(16);
+    GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
+    let grpc_service = TonicServer::new(
+        path_to_descriptor,
+        function_types,
+        cache,
+        pipeline_details,
+        rx1,
+    );
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {
@@ -115,8 +136,16 @@ async fn test_grpc_query() {
     let setup_result = setup(tmp_dir_path, pipeline_details.schema_name.to_owned());
     let path_to_descriptor = setup_result.0;
     let function_types = setup_result.1;
-    let grpc_service =
-        TonicServer::new(path_to_descriptor, function_types, cache, pipeline_details);
+    let event_notifier = mock_event_notifier();
+    let (tx, rx1) = broadcast::channel::<Event>(16);
+    GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
+    let grpc_service = TonicServer::new(
+        path_to_descriptor,
+        function_types,
+        cache,
+        pipeline_details,
+        rx1,
+    );
     let (_tx, rx) = oneshot::channel::<()>();
 
     let _jh = tokio::spawn(async move {

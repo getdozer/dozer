@@ -164,7 +164,7 @@ impl Sink for CacheSink {
                     .map_err(|e| InternalStringError(e.to_string()))?;
                 if let Some(notifier) = &self.notifier {
                     notifier
-                        .try_send(Event::RecordInsert(new.to_owned()))
+                        .try_send(Event::RecordInsert(new))
                         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                 }
             }
@@ -186,7 +186,7 @@ impl Sink for CacheSink {
                 }
                 if let Some(notifier) = &self.notifier {
                     notifier
-                        .try_send(Event::RecordUpdate(new.to_owned()))
+                        .try_send(Event::RecordUpdate(new))
                         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                 }
             }
