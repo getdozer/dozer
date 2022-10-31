@@ -16,8 +16,8 @@ fn test_generate_proto() -> Result<(), GenerationError> {
         Path::new(&format!("{}/{}.proto", tempdir_path, schema_name)).exists();
     assert_eq!(
         proto_result.1.len(),
-        3,
-        " 3 service message must be generated"
+        4,
+        " 4 service message must be generated"
     );
     assert!(path_proto_generated, "protofile must be existed !");
     Ok(())
