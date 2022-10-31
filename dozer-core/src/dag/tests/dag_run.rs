@@ -9,8 +9,8 @@ use tempdir::TempDir;
 
 #[test]
 fn test_run_dag() {
-    log4rs::init_file("../log4rs.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    //  log4rs::init_file("../log4rs.yaml", Default::default())
+    //      .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     info!("Running test_run_dag");
 

@@ -13,7 +13,7 @@ use lmdb_sys::{
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::ptr::addr_of_mut;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 use std::{ptr, slice};
 use unixstring::UnixString;
 
@@ -73,7 +73,7 @@ impl TxnPtr {
 
 impl Drop for TxnPtr {
     fn drop(&mut self) {
-        unsafe { if self.active {} }
+        if self.active {}
     }
 }
 
@@ -238,7 +238,7 @@ impl Environment {
     }
 
     pub fn tx_begin(&mut self, read_only: bool) -> Result<Transaction, LmdbError> {
-        Transaction::begin(&self, read_only)
+        Transaction::begin(self, read_only)
     }
 }
 
