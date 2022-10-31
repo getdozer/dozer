@@ -2,8 +2,7 @@ use crate::state::lmdb_sys::{
     Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
 use log::info;
-use std::sync::{Arc, Mutex, RwLock};
-use std::time::Duration;
+use std::sync::Arc;
 use std::{fs, thread};
 use tempdir::TempDir;
 
