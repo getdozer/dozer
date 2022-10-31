@@ -1,10 +1,13 @@
-use super::util::convert_grpc_message_to_query_exp;
+use super::{
+    models::on_change::{EventType, OnChangeResponse},
+    util::convert_grpc_message_to_query_exp,
+};
 use crate::{api_helper, api_server::PipelineDetails, errors::GRPCError};
 use dozer_cache::cache::{expression::QueryExpression, Cache, LmdbCache};
 use dozer_types::{
     errors::cache::CacheError,
     events::Event,
-    serde_json::{self, json},
+    serde_json::{self},
 };
 use prost_reflect::DynamicMessage;
 use serde_json::{Map, Value};
@@ -95,9 +98,19 @@ pub async fn grpc_server_stream(
                     let value_json = serde_json::to_value(converted_record)
                         .map_err(GRPCError::SerizalizeError)
                         .unwrap();
-                    let title = value_json["title"].as_str().unwrap();
-                    let value_feature = json!({ "test": title });
-                    if let Err(_) = tx.send(Ok(value_feature)).await {
+                    let my_detail: prost_wkt_types::Value =
+                        serde_json::from_value(value_json).unwrap();
+                    let event_response = super::models::on_change::Event {
+                        r#type: EventType::RecordInsert as i32,
+                        detail: Some(my_detail),
+                    };
+                    let on_change_response = OnChangeResponse {
+                        event: Some(event_response),
+                    };
+                    let result_respone = serde_json::to_value(on_change_response).unwrap();
+                    //let title = value_json["title"].as_str().unwrap();
+                    //let value_feature = json!({ "test": title });
+                    if let Err(_) = tx.send(Ok(result_respone)).await {
                         // receiver drop
                         break;
                     }

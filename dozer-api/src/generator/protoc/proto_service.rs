@@ -178,7 +178,7 @@ impl ProtoService {
 
         let on_change_response = RPCMessage {
             name: on_change_response_str,
-            props: vec!["optional string test = 1;\n".to_owned()],
+            props: vec!["optional Event event = 1;\n".to_owned()],
         };
         (on_change_fnc, vec![on_change_request, on_change_response])
     }
@@ -236,6 +236,21 @@ impl ProtoService {
         }
     }
 
+    fn _event_on_change_model(&self) -> RPCMessage {
+        RPCMessage {
+            name: "Event".to_owned(),
+            props: vec![
+                "enum EventType { \n".to_owned(),
+                "  schema_change = 0; \n".to_owned(),
+                "  record_update = 1; \n".to_owned(),
+                "  record_insert = 2; \n".to_owned(),
+                "  record_delete = 3; \n".to_owned(),
+                "} \n".to_owned(),
+                "EventType type = 1; \n".to_owned(),
+                "google.protobuf.Value detail = 2; \n".to_owned(),
+            ],
+        }
+    }
     fn _main_model(&self) -> RPCMessage {
         let props_message: Vec<String> = self
             .schema
@@ -271,6 +286,7 @@ impl ProtoService {
         let filter_expression_model = self._filter_expression_model();
         let simple_expression_model = self._simple_filter_expression_model();
         let and_expression_model = self._and_filter_expression_model();
+        let event_on_change_model = self._event_on_change_model();
 
         let rpc_functions = vec![
             get_rpc.to_owned().0,
@@ -284,6 +300,7 @@ impl ProtoService {
             filter_expression_model,
             simple_expression_model,
             and_expression_model,
+            event_on_change_model
         ];
         rpc_message.extend(get_rpc.to_owned().1);
         rpc_message.extend(get_by_id_rpc.to_owned().1);
