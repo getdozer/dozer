@@ -11,6 +11,5 @@ where
     let rec = txn
         .get(db, &key)
         .map_err(|_e| CacheError::QueryError(QueryError::GetValue))?;
-    let rec: T = bincode::deserialize(rec).map_err(|_e| CacheError::DeserializationError)?;
-    Ok(rec)
+    bincode::deserialize(rec).map_err(CacheError::map_deserialization_error)
 }

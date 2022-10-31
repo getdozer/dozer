@@ -12,4 +12,9 @@ dozer-core/.data
 docker/data/
 dozer-sql/data
 *.mdb
-dozer-config.local.yaml
+
+configs/
+
+# Local configuration for development
+dozer-config.yaml
+log4rs.yaml

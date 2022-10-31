@@ -9,7 +9,7 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
-use std::time::Instant;
+
 use tempdir::TempDir;
 
 pub fn get_schema() -> Schema {
@@ -44,11 +44,10 @@ pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
 
     let sink = CacheSink::new(
         Arc::clone(&cache),
-        0,
-        Instant::now(),
+        init_endpoint(),
         input_schemas,
         schema_map,
-        init_endpoint(),
+        None,
     );
     (cache, sink)
 }

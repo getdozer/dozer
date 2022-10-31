@@ -1,3 +1,4 @@
+use dozer_types::errors::orchestrator::OrchestrationError;
 use log::debug;
 use std::fs;
 use std::sync::Arc;
@@ -14,7 +15,6 @@ use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
-use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
@@ -29,7 +29,8 @@ impl Executor {
         sources: Vec<Source>,
         api_endpoint: ApiEndpoint,
         cache: Arc<LmdbCache>,
-    ) -> Result<(), ExecutionError> {
+        schema_change_notifier: crossbeam::channel::Sender<bool>,
+    ) -> Result<(), OrchestrationError> {
         let mut source_schemas: Vec<Schema> = vec![];
         let mut connections: Vec<Connection> = vec![];
         let mut table_names: Vec<String> = vec![];
@@ -67,7 +68,12 @@ impl Executor {
         let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
-        let sink = CacheSinkFactory::new(vec![DEFAULT_PORT_HANDLE], cache, api_endpoint);
+        let sink = CacheSinkFactory::new(
+            vec![DEFAULT_PORT_HANDLE],
+            cache,
+            api_endpoint,
+            schema_change_notifier,
+        );
 
         let source_table_map = source.table_map.clone();
 
@@ -85,7 +91,8 @@ impl Executor {
         dag.connect(
             out_handle,
             Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
-        )?;
+        )
+        .map_err(OrchestrationError::ExecutionError)?;
 
         let exec = MultiThreadedDagExecutor::new(100000);
 
@@ -102,13 +109,7 @@ impl Executor {
             1024 * 1024 * 1024 * 5,
             20_000,
         ));
-
-        use std::time::Instant;
-        let now = Instant::now();
         exec.start(dag, sm)
-            .map_err(|e| InternalStringError(e.to_string()))?;
-        let elapsed = now.elapsed();
-        debug!("Elapsed: {:.2?}", elapsed);
-        Ok(())
+            .map_err(OrchestrationError::ExecutionError)
     }
 }

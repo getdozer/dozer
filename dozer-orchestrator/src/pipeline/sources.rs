@@ -23,7 +23,7 @@ impl ConnectorSourceFactory {
         table_names: Vec<String>,
         source_schemas: Vec<Schema>,
     ) -> Self {
-        let (port_map, table_map) = Self::_get_maps(&source_schemas, &table_names).unwrap();
+        let (port_map, table_map) = Self::_get_maps(&source_schemas, &table_names);
         Self {
             connections,
             port_map,
@@ -35,7 +35,7 @@ impl ConnectorSourceFactory {
     fn _get_maps(
         source_schemas: &[Schema],
         table_names: &[String],
-    ) -> anyhow::Result<(HashMap<u16, Schema>, HashMap<String, u16>)> {
+    ) -> (HashMap<u16, Schema>, HashMap<String, u16>) {
         let mut port_map: HashMap<u16, Schema> = HashMap::new();
         let mut table_map: HashMap<String, u16> = HashMap::new();
         let mut idx = 0;
@@ -47,7 +47,7 @@ impl ConnectorSourceFactory {
             idx += 1;
         });
 
-        Ok((port_map, table_map))
+        (port_map, table_map)
     }
 }
 

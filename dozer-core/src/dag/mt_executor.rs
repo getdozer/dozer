@@ -339,8 +339,8 @@ impl MultiThreadedDagExecutor {
                                         fw.update_schema(out_schema, out_port)?;
                                         schema_initialized = true;
                                     }
-                                    Err(_e) => {
-                                        warn!("New schema is not compatible with older version. Handling it.");
+                                    Err(e) => {
+                                        warn!("New schema is not compatible with older version. Handling it. {:?}", e);
                                         todo!("Schema is not compatible with order version. Handle it!")
                                     }
                                 }

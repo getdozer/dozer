@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, UnaryOperator as SqlUnaryOperator,
     Value as SqlValue,
@@ -9,11 +7,13 @@ use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::errors::pipeline::PipelineError::{
     InvalidExpression, InvalidOperator, InvalidValue,
 };
-use dozer_types::errors::types::TypeError;
+
 use dozer_types::types::{Field, Schema};
 
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
+
+use super::common::column_index;
 
 pub struct SelectionBuilder {}
 
@@ -29,32 +29,16 @@ impl SelectionBuilder {
         }
     }
 
-    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize, PipelineError> {
-        let schema_idx: HashMap<String, usize> = schema
-            .fields
-            .iter()
-            .enumerate()
-            .map(|e| (e.1.name.clone(), e.0))
-            .collect();
-
-        if let Some(index) = schema_idx.get(name).cloned() {
-            Ok(index)
-        } else {
-            Err(PipelineError::InternalTypeError(
-                TypeError::InvalidFieldName(name.clone()),
-            ))
-        }
-    }
-
     pub fn parse_sql_expression(
         &self,
         expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
         match expression {
-            SqlExpr::Identifier(ident) => Ok(Box::new(Expression::Column {
-                index: self.column_index(&ident.value, schema)?,
-            })),
+            SqlExpr::Identifier(ident) => {
+                let idx = column_index(&ident.value, schema)?;
+                Ok(Box::new(Expression::Column { index: idx }))
+            }
             SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(n)?),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 Ok(Box::new(Expression::Literal(Field::String(s.to_string()))))
