@@ -3,10 +3,11 @@ use std::collections::HashSet;
 use dozer_types::{
     errors::cache::{CacheError, IndexError, QueryError},
     log::debug,
+    types::SortDirection,
 };
 
 use crate::cache::expression::{
-    ExecutionStep, FilterExpression, IndexScan, Operator, QueryExpression, SeqScan, SortDirection,
+    ExecutionStep, FilterExpression, IndexScan, Operator, QueryExpression, SeqScan,
 };
 use dozer_types::{
     serde_json::Value,
@@ -15,7 +16,7 @@ use dozer_types::{
 
 struct ScanOp {
     id: usize,
-    direction: bool,
+    direction: SortDirection,
     field: Option<Value>,
 }
 pub struct QueryPlanner {}
@@ -58,7 +59,7 @@ impl QueryPlanner {
         for op in ops {
             // ascending
             debug!("{:?}", op);
-            let direction = true;
+            let direction = SortDirection::Ascending;
             match op.1 {
                 Operator::LT | Operator::LTE => {
                     range_index.insert(op.0);
@@ -93,17 +94,23 @@ impl QueryPlanner {
                 IndexError::UnsupportedMultiRangeIndex,
             ))
         } else {
-            let key: Vec<usize> = mapped_ops.iter().map(|o| o.id).collect();
-            let direction: Vec<bool> = mapped_ops.iter().map(|o| o.direction).collect();
+            let key: Vec<(usize, SortDirection)> =
+                mapped_ops.iter().map(|o| (o.id, o.direction)).collect();
             let fields: Vec<Option<Value>> = mapped_ops.iter().map(|o| o.field.clone()).collect();
 
             let index = indexes
                 .iter()
-                .find(|id| id.fields == key && id.sort_direction == *direction)
+                .find(|id| {
+                    if let IndexDefinition::SortedInverted(fields) = id {
+                        fields == &key
+                    } else {
+                        false
+                    }
+                })
                 .map_or(
                     Err(CacheError::IndexError(IndexError::MissingCompoundIndex(
                         key.iter()
-                            .map(|s| s.to_string())
+                            .map(|s| s.0.to_string())
                             .collect::<Vec<String>>()
                             .join(","),
                     ))),

@@ -142,20 +142,21 @@ impl Schema {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub enum IndexType {
-    SortedInverted,
-    HashInverted,
-    FullText,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(crate = "self::serde")]
+pub enum SortDirection {
+    #[serde(rename = "asc")]
+    Ascending,
+    #[serde(rename = "desc")]
+    Descending,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct IndexDefinition {
-    /// Indexes of the fields forming the index key
-    pub fields: Vec<usize>,
-    pub sort_direction: Vec<bool>,
-    /// Type of index (i.e. hash inverted index, tree inverted index, full-text index, geo index, facet index, etc)
-    pub typ: IndexType,
+pub enum IndexDefinition {
+    /// The sorted inverted index, supporting `Eq` filter on multiple fields and `LT`, `LTE`, `GT`, `GTE` filter on at most one field.
+    SortedInverted(Vec<(usize, SortDirection)>),
+    /// Full text index, supporting `Contains`, `MatchesAny` and `MatchesAll` filter on exactly one field.
+    FullText(usize),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]

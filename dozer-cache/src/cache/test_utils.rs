@@ -1,4 +1,6 @@
-use dozer_types::types::{FieldDefinition, IndexDefinition, IndexType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier, SortDirection::Ascending,
+};
 
 pub fn schema_0() -> Schema {
     Schema {
@@ -10,11 +12,7 @@ pub fn schema_0() -> Schema {
         }],
         values: vec![0],
         primary_index: vec![0],
-        secondary_indexes: vec![IndexDefinition {
-            fields: vec![0],
-            typ: IndexType::SortedInverted,
-            sort_direction: vec![true],
-        }],
+        secondary_indexes: vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
     }
 }
 
@@ -41,27 +39,11 @@ pub fn schema_1() -> Schema {
         values: vec![0],
         primary_index: vec![0],
         secondary_indexes: vec![
-            IndexDefinition {
-                fields: vec![0],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true],
-            },
-            IndexDefinition {
-                fields: vec![1],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true],
-            },
-            IndexDefinition {
-                fields: vec![2],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true],
-            },
+            IndexDefinition::SortedInverted(vec![(0, Ascending)]),
+            IndexDefinition::SortedInverted(vec![(1, Ascending)]),
+            IndexDefinition::SortedInverted(vec![(2, Ascending)]),
             // composite index
-            IndexDefinition {
-                fields: vec![0, 1],
-                typ: IndexType::SortedInverted,
-                sort_direction: vec![true, true],
-            },
+            IndexDefinition::SortedInverted(vec![(0, Ascending), (1, Ascending)]),
         ],
     }
 }
@@ -76,10 +58,6 @@ pub fn schema_full_text_single() -> Schema {
         }],
         values: vec![0],
         primary_index: vec![0],
-        secondary_indexes: vec![IndexDefinition {
-            fields: vec![0],
-            typ: IndexType::FullText,
-            sort_direction: vec![true],
-        }],
+        secondary_indexes: vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
     }
 }
