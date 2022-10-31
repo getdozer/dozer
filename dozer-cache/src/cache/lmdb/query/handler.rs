@@ -44,6 +44,7 @@ impl<'a> LmdbQueryHandler<'a> {
         let execution = planner.plan(schema, query)?;
         let records = match execution {
             ExecutionStep::IndexScan(index_scan) => {
+                dbg!(&index_scan);
                 let starting_key = build_starting_key(schema, &index_scan)?;
                 self.query_with_secondary_index(&starting_key, query.limit, query.skip)?
             }

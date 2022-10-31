@@ -58,6 +58,6 @@ pub fn schema_full_text_single() -> Schema {
         }],
         values: vec![0],
         primary_index: vec![0],
-        secondary_indexes: vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
+        secondary_indexes: vec![IndexDefinition::FullText(0)],
     }
 }

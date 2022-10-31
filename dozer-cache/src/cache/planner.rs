@@ -100,11 +100,10 @@ impl QueryPlanner {
 
             let index = indexes
                 .iter()
-                .find(|id| {
-                    if let IndexDefinition::SortedInverted(fields) = id {
-                        fields == &key
-                    } else {
-                        false
+                .find(|id| match id {
+                    IndexDefinition::SortedInverted(fields) => fields == &key,
+                    IndexDefinition::FullText(field_index) => {
+                        key.len() == 1 && key[0].0 == *field_index
                     }
                 })
                 .map_or(
