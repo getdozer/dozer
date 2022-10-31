@@ -14,12 +14,14 @@ pub struct QueryExpression {
     pub filter: Option<FilterExpression>,
     #[serde(rename = "$order_by", default)]
     pub order_by: Vec<SortOptions>,
-    #[serde(rename = "$limit", default)]
+    #[serde(rename = "$limit", default = "default_limit")]
     pub limit: usize,
     #[serde(rename = "$skip", default)]
     pub skip: usize,
 }
-
+fn default_limit() -> usize {
+    50
+}
 impl Default for QueryExpression {
     fn default() -> Self {
         Self {
