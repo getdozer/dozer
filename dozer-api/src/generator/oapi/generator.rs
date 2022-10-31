@@ -1,6 +1,5 @@
 use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
-use anyhow::Result;
-
+use crate::errors::GenerationError;
 use dozer_types::serde_json;
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use indexmap::IndexMap;
@@ -48,7 +47,7 @@ impl OpenApiGenerator {
         // Simple expression
     }
 
-    fn generate_get_route(&self) -> Result<ReferenceOr<PathItem>> {
+    fn generate_get_route(&self) -> ReferenceOr<PathItem> {
         let responses = Responses {
             responses: indexmap::indexmap! {
                 StatusCode::Code(200) =>
@@ -86,13 +85,13 @@ impl OpenApiGenerator {
             responses,
             ..Default::default()
         });
-        Ok(ReferenceOr::Item(PathItem {
+        ReferenceOr::Item(PathItem {
             get: get_operation,
             ..Default::default()
-        }))
+        })
     }
 
-    fn generate_list_route(&self) -> Result<ReferenceOr<PathItem>> {
+    fn generate_list_route(&self) -> ReferenceOr<PathItem> {
         let responses = Responses {
             responses: indexmap::indexmap! {
                 StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}",self.get_plural_name())))
@@ -109,13 +108,13 @@ impl OpenApiGenerator {
             responses,
             ..Default::default()
         });
-        Ok(ReferenceOr::Item(PathItem {
+        ReferenceOr::Item(PathItem {
             get: operation,
             ..Default::default()
-        }))
+        })
     }
 
-    fn generate_query_route(&self) -> Result<ReferenceOr<PathItem>> {
+    fn generate_query_route(&self) -> ReferenceOr<PathItem> {
         let request_body = RequestBody {
             content: indexmap::indexmap! {
                 "application/json".to_owned() => MediaType { example: Some(self.generate_query_example()), ..Default::default() }
@@ -140,31 +139,30 @@ impl OpenApiGenerator {
             responses,
             ..Default::default()
         });
-        Ok(ReferenceOr::Item(PathItem {
+        ReferenceOr::Item(PathItem {
             post: operation,
             ..Default::default()
-        }))
+        })
     }
 
-    fn _generate_available_paths(&self) -> Result<Paths> {
-        let get_list = self.generate_list_route()?;
-        let get_by_id_item = self.generate_get_route()?;
-        let query_list = self.generate_query_route()?;
+    fn _generate_available_paths(&self) -> Paths {
+        let get_list = self.generate_list_route();
+        let get_by_id_item = self.generate_get_route();
+        let query_list = self.generate_query_route();
         let path_items = indexmap::indexmap! {
             self.endpoint.path.to_owned() => get_list,
             format!("{}/{}", self.endpoint.path.to_owned(), "{id}") => get_by_id_item,
             format!("{}/query", self.endpoint.path.to_owned()) => query_list
         };
-        let paths_available: Paths = Paths {
+        Paths {
             paths: path_items,
             ..Default::default()
-        };
-        Ok(paths_available)
+        }
     }
 
-    fn generate_component_schema(&self) -> Result<Option<Components>> {
+    fn generate_component_schema(&self) -> Components {
         let generated_schema =
-            convert_cache_to_oapi_schema(self.schema.to_owned(), self.schema_name.to_owned())?;
+            convert_cache_to_oapi_schema(self.schema.to_owned(), self.schema_name.to_owned());
 
         let schemas = indexmap::indexmap! {
             self.get_singular_name() => ReferenceOr::Item(generated_schema),
@@ -182,18 +180,17 @@ impl OpenApiGenerator {
                     })
         };
 
-        let component_schemas = Some(Components {
+        Components {
             schemas,
             ..Default::default()
-        });
-        Ok(component_schemas)
+        }
     }
 }
 
 impl OpenApiGenerator {
-    pub fn generate_oas3(&self) -> Result<OpenAPI> {
-        let component_schemas = self.generate_component_schema()?;
-        let paths_available = self._generate_available_paths()?;
+    pub fn generate_oas3(&self) -> Result<OpenAPI, GenerationError> {
+        let component_schemas = self.generate_component_schema();
+        let paths_available = self._generate_available_paths();
 
         let api = OpenAPI {
             openapi: "3.0.0".to_owned(),
@@ -220,16 +217,16 @@ impl OpenApiGenerator {
                 })
                 .collect(),
             paths: paths_available,
-            components: component_schemas,
+            components: Some(component_schemas),
             ..Default::default()
         };
-        let tmp_dir = TempDir::new("generated")?;
+        let tmp_dir = TempDir::new("generated").map_err(GenerationError::TmpFile)?;
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(tmp_dir.path().join("openapi.json"))
             .expect("Couldn't open file");
-        serde_json::to_writer(f, &api)?;
+        serde_json::to_writer(f, &api).map_err(GenerationError::SerializationError)?;
 
         Ok(api)
     }

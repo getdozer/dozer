@@ -1,13 +1,14 @@
-use std::{sync::Arc, thread};
-
-use dozer_api::api_server::ApiServer;
-use dozer_cache::cache::LmdbCache;
-use dozer_schema::registry::SchemaRegistryClient;
-use tokio::runtime::Runtime;
-
 use super::executor::Executor;
 use crate::Orchestrator;
-use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
+use crossbeam::channel::{self};
+use dozer_api::{api_server::ApiServer, grpc_server::GRPCServer};
+use dozer_cache::cache::LmdbCache;
+use dozer_schema::registry::SchemaRegistryClient;
+use dozer_types::{
+    errors::orchestrator::OrchestrationError,
+    models::{api_endpoint::ApiEndpoint, source::Source},
+};
+use std::{sync::Arc, thread};
 
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
@@ -28,28 +29,39 @@ impl Orchestrator for SimpleOrchestrator {
         self
     }
 
-    fn run(&mut self) -> anyhow::Result<()> {
+    fn run(&mut self) -> Result<(), OrchestrationError> {
         let cache = Arc::new(LmdbCache::new(true));
         let cache_2 = cache.clone();
+        let cache_3 = cache.clone();
+
         let endpoints = self.api_endpoints.clone();
         let endpoints2 = self.api_endpoints.get(0).unwrap().clone();
+        let endpoint3 = self.api_endpoints.get(0).unwrap().clone();
+
         let sources = self.sources.clone();
 
         let thread = thread::spawn(move || {
             let api_server = ApiServer::default();
             api_server.run(endpoints, cache_2).unwrap()
         });
+        let (sender, receiver) = channel::unbounded::<bool>();
         let _thread2 = thread::spawn(move || {
             // TODO: Refactor add endpoint method to support multiple endpoints
-            Executor::run(sources, endpoints2, cache).unwrap();
+            Executor::run(sources, endpoints2, cache, sender).unwrap();
         });
 
-        let _thread3 = thread::spawn(move || {
-            Runtime::new()
-                .unwrap()
-                .block_on(async { dozer_schema::run().await })
-        });
-        thread.join().unwrap();
+        let schema_inserted = receiver.recv();
+        if schema_inserted.is_ok() {
+            let _thread3 = thread::spawn(move || {
+                let grpc_server = GRPCServer::default();
+                grpc_server.run(endpoint3, cache_3).unwrap()
+            });
+        }
+
+        match thread.join() {
+            Ok(_) => Ok(()),
+            Err(_) => Err(OrchestrationError::InitializationFailed),
+        }?;
 
         Ok(())
     }

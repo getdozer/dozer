@@ -1,26 +1,33 @@
-#![allow(dead_code)]
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::core::channels::ProcessorChannelForwarder;
-use dozer_types::core::node::PortHandle;
-use dozer_types::core::node::{Processor, ProcessorFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
-use dozer_types::errors::execution::ExecutionError;
-use dozer_types::errors::execution::ExecutionError::{
-    InternalError, InternalPipelineError, InvalidPortHandle,
-};
-use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::execution::ExecutionError::InternalError;
+use dozer_types::errors::execution::ExecutionError::InternalPipelineError;
+use dozer_types::errors::execution::ExecutionError::InvalidPortHandle;
 use dozer_types::errors::pipeline::PipelineError::InternalDatabaseError;
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
-use std::collections::HashMap;
-use std::mem::size_of_val;
+use dozer_types::{
+    core::{
+        node::{PortHandle, Processor, ProcessorFactory},
+        state::{StateStore, StateStoreOptions},
+    },
+    errors::{execution::ExecutionError, pipeline::PipelineError},
+    types::{Field, FieldDefinition, Operation, Record, Schema},
+};
+use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 
-#[derive(Clone)]
+use std::{collections::HashMap, mem::size_of_val};
+
+use crate::pipeline::expression::execution::ExpressionExecutor;
+use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
+
+use super::aggregation_builder::AggregationBuilder;
+
 pub enum FieldRule {
     /// Represents a dimension field, generally used in the GROUP BY clause
     Dimension(
         /// Field to be used as a dimension in the source schema
         String,
+        /// Expression for this dimension
+        Box<Expression>,
         /// true of this field should be included in the list of values of the
         /// output schema, otherwise false. Generally, this value is true if the field appears
         /// in the output results in addition to being in the list of the GROUP BY fields
@@ -44,18 +51,22 @@ pub enum FieldRule {
 }
 
 pub struct AggregationProcessorFactory {
-    output_field_rules: Vec<FieldRule>,
+    select: Vec<SelectItem>,
+    groupby: Vec<SqlExpr>,
 }
 
 impl AggregationProcessorFactory {
-    pub fn new(output_field_rules: Vec<FieldRule>) -> Self {
-        Self { output_field_rules }
+    /// Creates a new [`AggregationProcessorFactory`].
+    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>) -> Self {
+        Self { select, groupby }
     }
 }
 
 impl ProcessorFactory for AggregationProcessorFactory {
     fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        Some(StateStoreOptions::default())
+        Some(StateStoreOptions {
+            allow_duplicate_keys: false,
+        })
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -67,14 +78,24 @@ impl ProcessorFactory for AggregationProcessorFactory {
     }
 
     fn build(&self) -> Box<dyn Processor> {
-        Box::new(AggregationProcessor::new(self.output_field_rules.clone()))
+        Box::new(AggregationProcessor {
+            select: self.select.clone(),
+            groupby: self.groupby.clone(),
+            output_field_rules: vec![],
+            out_dimensions: vec![],
+            out_measures: vec![],
+            builder: AggregationBuilder {},
+        })
     }
 }
 
 pub struct AggregationProcessor {
+    select: Vec<SelectItem>,
+    groupby: Vec<SqlExpr>,
     output_field_rules: Vec<FieldRule>,
-    out_dimensions: Vec<(usize, usize)>,
+    out_dimensions: Vec<(usize, Box<Expression>, usize)>,
     out_measures: Vec<(usize, Box<dyn Aggregator>, usize)>,
+    builder: AggregationBuilder,
 }
 
 enum AggregatorOperation {
@@ -89,17 +110,18 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
-    pub fn new(output_field_rules: Vec<FieldRule>) -> Self {
-        Self {
-            output_field_rules,
-            out_measures: vec![],
-            out_dimensions: vec![],
-        }
+    fn build(
+        &self,
+        select: &[SelectItem],
+        groupby: &[SqlExpr],
+        schema: &Schema,
+    ) -> Result<Vec<FieldRule>, PipelineError> {
+        self.builder.build(select, groupby, schema)
     }
 
     fn populate_rules(&mut self, schema: &Schema) -> Result<(), PipelineError> {
         let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
-        let mut out_dimensions: Vec<(usize, usize)> = Vec::new();
+        let mut out_dimensions: Vec<(usize, Box<Expression>, usize)> = Vec::new();
 
         for rule in self.output_field_rules.iter().enumerate() {
             match rule.1 {
@@ -110,8 +132,12 @@ impl AggregationProcessor {
                         rule.0,
                     ));
                 }
-                FieldRule::Dimension(idx, _nullable, _name) => {
-                    out_dimensions.push((schema.get_field_index(idx.as_str())?.0, rule.0));
+                FieldRule::Dimension(idx, expression, _nullable, _name) => {
+                    out_dimensions.push((
+                        schema.get_field_index(idx.as_str())?.0,
+                        expression.clone(),
+                        rule.0,
+                    ));
                 }
             }
         }
@@ -122,6 +148,46 @@ impl AggregationProcessor {
         Ok(())
     }
 
+    fn build_output_schema(&self, input_schema: &Schema) -> Result<Schema, ExecutionError> {
+        let mut output_schema = Schema::empty();
+
+        for e in self.output_field_rules.iter().enumerate() {
+            match e.1 {
+                FieldRule::Dimension(idx, expression, is_value, name) => {
+                    let src_fld = input_schema.get_field_index(idx.as_str())?;
+                    output_schema.fields.push(FieldDefinition::new(
+                        match name {
+                            Some(n) => n.clone(),
+                            _ => src_fld.1.name.clone(),
+                        },
+                        expression.get_type(input_schema),
+                        false,
+                    ));
+                    if *is_value {
+                        output_schema.values.push(e.0);
+                    }
+                    output_schema.primary_index.push(e.0);
+                }
+
+                FieldRule::Measure(idx, aggr, is_value, name) => {
+                    let src_fld = input_schema.get_field_index(idx)?;
+                    output_schema.fields.push(FieldDefinition::new(
+                        match name {
+                            Some(n) => n.clone(),
+                            _ => src_fld.1.name.clone(),
+                        },
+                        aggr.get_return_type(src_fld.1.typ.clone()),
+                        false,
+                    ));
+                    if *is_value {
+                        output_schema.values.push(e.0);
+                    }
+                }
+            }
+        }
+        Ok(output_schema)
+    }
+
     fn init_store(&self, store: &mut dyn StateStore) -> Result<(), PipelineError> {
         store
             .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
@@ -130,7 +196,7 @@ impl AggregationProcessor {
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> Result<(), PipelineError> {
         for v in &self.out_dimensions {
-            out_rec.set_value(v.1, in_rec.get_value(v.0)?.clone());
+            out_rec.set_value(v.2, in_rec.get_value(v.0)?.clone());
         }
         Ok(())
     }
@@ -405,46 +471,14 @@ impl Processor for AggregationProcessor {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(InvalidPortHandle(output_port))?;
 
+        let field_rules = self.build(&self.select, &self.groupby, input_schema)?;
+
+        self.output_field_rules = field_rules;
+
         self.populate_rules(input_schema)
             .map_err(|e| InternalError(Box::new(e)))?;
 
-        let mut output_schema = Schema::empty();
-
-        for e in self.output_field_rules.iter().enumerate() {
-            match e.1 {
-                FieldRule::Dimension(idx, is_value, name) => {
-                    let src_fld = input_schema.get_field_index(idx.as_str())?;
-                    output_schema.fields.push(FieldDefinition::new(
-                        match name {
-                            Some(n) => n.clone(),
-                            _ => src_fld.1.name.clone(),
-                        },
-                        src_fld.1.typ.clone(),
-                        false,
-                    ));
-                    if *is_value {
-                        output_schema.values.push(e.0);
-                    }
-                    output_schema.primary_index.push(e.0);
-                }
-
-                FieldRule::Measure(idx, aggr, is_value, name) => {
-                    let src_fld = input_schema.get_field_index(idx)?;
-                    output_schema.fields.push(FieldDefinition::new(
-                        match name {
-                            Some(n) => n.clone(),
-                            _ => src_fld.1.name.clone(),
-                        },
-                        aggr.get_return_type(src_fld.1.typ.clone()),
-                        false,
-                    ));
-                    if *is_value {
-                        output_schema.values.push(e.0);
-                    }
-                }
-            }
-        }
-        Ok(output_schema)
+        self.build_output_schema(input_schema)
     }
 
     fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError> {
