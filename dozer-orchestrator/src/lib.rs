@@ -15,3 +15,8 @@ pub trait Orchestrator {
 
 // Re-exports
 pub use dozer_ingestion::connectors::{get_connector, Connector, TableInfo};
+
+pub fn validate(input: Connection) -> Result<(), ConnectorError> {
+    let connection_service = ConnectionService::new(input);
+    connection_service.validate()
+}

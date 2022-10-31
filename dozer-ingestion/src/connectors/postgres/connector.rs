@@ -3,7 +3,7 @@ use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::{Connector, TableInfo};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::log::debug;
+use dozer_types::log::{debug, info};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Schema;
 use postgres::Client;
@@ -11,8 +11,9 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio_postgres::Config;
 use tokio_postgres::config::ReplicationMode;
+use tokio_postgres::Config;
 
-use super::connection_helper;
+use super::connection::helper;
 
 #[derive(Clone, Debug)]
 pub struct PostgresConfig {
@@ -29,6 +30,13 @@ pub struct PostgresConnector {
     replication_conn_config: Config,
     conn_config: Config,
 }
+
+#[derive(Debug)]
+pub struct ReplicationSlotInfo {
+    pub name: String,
+    pub start_lsn: PgLsn,
+}
+
 impl PostgresConnector {
     pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
         let mut replication_conn_config = config.config.clone();
@@ -36,6 +44,7 @@ impl PostgresConnector {
 
         // conn_str - replication_conn_config
         // conn_str_plain- conn_config
+
         PostgresConnector {
             id,
             name: config.name,
@@ -71,7 +80,7 @@ impl Connector for PostgresConnector {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        let client = connection_helper::connect(self.replication_conn_config.clone())?;
+        let client = helper::connect(self.replication_conn_config.clone())?;
         self.tables = tables;
         self.create_publication(client)?;
         self.ingestor = Some(ingestor);
@@ -95,7 +104,12 @@ impl Connector for PostgresConnector {
     fn stop(&self) {}
 
     fn test_connection(&self) -> Result<(), ConnectorError> {
-        connection_helper::connect(self.replication_conn_config.clone())?;
+        helper::connect(self.replication_conn_config.clone())?;
+        Ok(())
+    }
+
+    fn validate(&self) -> Result<(), ConnectorError> {
+        validate_connection(self.conn_config.clone(), self.tables.clone(), None)?;
         Ok(())
     }
 }

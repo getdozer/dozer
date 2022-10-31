@@ -1,4 +1,4 @@
-use crate::connectors::postgres::connection_helper;
+use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use crate::errors::ConnectorError;
 use crate::errors::ConnectorError::PostgresConnectorError;
@@ -35,7 +35,7 @@ pub struct CDCHandler {
 impl CDCHandler {
     pub async fn start(&mut self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
         let replication_conn_config = self.replication_conn_config.clone();
-        let client: tokio_postgres::Client = connection_helper::async_connect(replication_conn_config).await?;
+        let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;
 
         let lsn = self.lsn.clone();
         let options = format!(

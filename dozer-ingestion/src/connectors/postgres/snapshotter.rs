@@ -3,6 +3,7 @@ use crate::ingestion::Ingestor;
 
 use super::helper;
 use super::schema_helper::SchemaHelper;
+use crate::connectors::postgres::connection::helper as connection_helper;
 use crate::errors::ConnectorError;
 use crate::errors::PostgresConnectorError::PostgresSchemaError;
 use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
@@ -12,7 +13,6 @@ use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
 use std::cell::RefCell;
 use std::sync::Arc;
-use crate::connectors::postgres::connection_helper;
 
 // 0.4.10
 pub struct PostgresSnapshotter {
@@ -46,7 +46,9 @@ impl PostgresSnapshotter {
     }
 
     pub fn sync_tables(&self) -> Result<Vec<String>, ConnectorError> {
-        let client_plain = Arc::new(RefCell::new(connection_helper::connect(self.replication_conn_config.clone())?));
+        let client_plain = Arc::new(RefCell::new(connection_helper::connect(
+            self.replication_conn_config.clone(),
+        )?));
 
         let tables = self.get_tables(None)?;
 

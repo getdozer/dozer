@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::connectors::postgres::connection_helper;
+use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use postgres::Client;
@@ -23,7 +23,7 @@ pub struct Details {
     publication_name: String,
     slot_name: String,
     tables: Option<Vec<TableInfo>>,
-    replication_conn_config: tokio_postgres::Config
+    replication_conn_config: tokio_postgres::Config,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -53,7 +53,7 @@ impl PostgresIterator {
             publication_name,
             slot_name,
             tables,
-            replication_conn_config
+            replication_conn_config,
         });
         PostgresIterator {
             details,
@@ -126,7 +126,7 @@ impl PostgresIteratorHandler {
     pub fn _start(&mut self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
-        let client = Arc::new(RefCell::new(connection_helper::connect(replication_conn_config)?));
+        let client = Arc::new(RefCell::new(helper::connect(replication_conn_config)?));
 
         // TODO: Handle cases:
         // - When snapshot replication is not completed
