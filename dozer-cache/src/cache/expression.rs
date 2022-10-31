@@ -104,6 +104,5 @@ pub struct IndexScan {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeqScan {
-    // ascending / descending
-    pub direction: bool,
+    pub direction: SortDirection,
 }

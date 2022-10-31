@@ -151,7 +151,9 @@ impl QueryPlanner {
         };
 
         if ops.is_empty() {
-            Ok(ExecutionStep::SeqScan(SeqScan { direction: true }))
+            Ok(ExecutionStep::SeqScan(SeqScan {
+                direction: SortDirection::Ascending,
+            }))
         } else {
             Ok(ExecutionStep::IndexScan(
                 self.get_index_scan(&ops, &schema.secondary_indexes)?,
