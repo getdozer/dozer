@@ -1,6 +1,6 @@
 use super::{helper, iterator::CacheIterator};
 use crate::cache::{
-    expression::{ExecutionStep, IndexScan, QueryExpression},
+    expression::{IndexScan, Plan, QueryExpression},
     index,
     planner::QueryPlanner,
 };
@@ -43,14 +43,18 @@ impl<'a> LmdbQueryHandler<'a> {
         let planner = QueryPlanner {};
         let execution = planner.plan(schema, query)?;
         let records = match execution {
-            ExecutionStep::IndexScan(index_scan) => {
-                dbg!(&index_scan);
-                let starting_key = build_starting_key(schema, &index_scan)?;
+            Plan::IndexScans(index_scans) => {
+                if index_scans.len() > 1 {
+                    todo!("Combine results from multiple index scans");
+                }
+                debug_assert!(
+                    !index_scans.is_empty(),
+                    "Planner should not generate empty index scan"
+                );
+                let starting_key = build_starting_key(schema, &index_scans[0])?;
                 self.query_with_secondary_index(&starting_key, query.limit, query.skip)?
             }
-            ExecutionStep::SeqScan(_seq_scan) => {
-                self.iterate_and_deserialize(query.limit, query.skip)?
-            }
+            Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(query.limit, query.skip)?,
         };
 
         Ok(records)

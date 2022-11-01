@@ -1164,6 +1164,7 @@ dependencies = [
  "dozer-types",
  "futures",
  "galil-seiferas",
+ "itertools",
  "lmdb-rkv",
  "lmdb-rkv-sys",
  "rand 0.8.5",

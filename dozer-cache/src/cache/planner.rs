@@ -1,172 +1,148 @@
-use std::collections::HashSet;
-
-use dozer_types::{
-    errors::cache::{CacheError, IndexError, QueryError},
-    log::debug,
-    types::SortDirection,
-};
+use dozer_types::{errors::cache::PlanError, types::SortDirection};
 
 use crate::cache::expression::{
-    ExecutionStep, FilterExpression, IndexScan, Operator, QueryExpression, SeqScan,
+    FilterExpression, IndexScan, Operator, Plan, QueryExpression, SeqScan,
 };
 use dozer_types::{
     serde_json::Value,
-    types::{FieldDefinition, IndexDefinition, Schema},
+    types::{FieldDefinition, Schema},
 };
 
-struct ScanOp {
-    id: usize,
-    direction: SortDirection,
-    field: Option<Value>,
-}
+use self::helper::RangeQuery;
+
+mod helper;
+
 pub struct QueryPlanner {}
 impl QueryPlanner {
-    fn get_field_index(&self, field_name: String, fields: &[FieldDefinition]) -> Option<usize> {
-        fields.iter().position(|f| f.name == field_name)
-    }
-    fn get_ops_from_filter(
-        &self,
-        schema: &Schema,
-        filter: FilterExpression,
-        ops: &mut Vec<(usize, Operator, Option<Value>)>,
-    ) -> Result<(), CacheError> {
-        match filter {
-            FilterExpression::Simple(field_name, operator, field) => {
-                let field_key = self
-                    .get_field_index(field_name, &schema.fields)
-                    .map_or(Err(CacheError::QueryError(QueryError::FieldNotFound)), Ok)?;
-
-                ops.push((field_key, operator, Some(field)));
-            }
-            FilterExpression::And(expressions) => {
-                for expr in expressions {
-                    self.get_ops_from_filter(schema, expr, ops)?;
-                }
-            }
-        };
-        Ok(())
-    }
-
-    fn get_index_scan(
-        &self,
-        ops: &Vec<(usize, Operator, Option<Value>)>,
-        indexes: &[IndexDefinition],
-    ) -> Result<IndexScan, CacheError> {
-        let mut range_index = HashSet::new();
-        let mut hash_index = HashSet::new();
-        let mut mapped_ops = Vec::new();
-
-        for op in ops {
-            // ascending
-            debug!("{:?}", op);
-            let direction = SortDirection::Ascending;
-            match op.1 {
-                Operator::LT | Operator::LTE => {
-                    range_index.insert(op.0);
-                }
-                Operator::GTE | Operator::GT => {
-                    range_index.insert(op.0);
-                }
-                Operator::EQ => {
-                    hash_index.insert(op.0);
-                }
-                Operator::Contains => {
-                    // I'm not sure what `range_index` and `hash_index` are for so not adding another `full_text_index`.
-                }
-                Operator::MatchesAny | Operator::MatchesAll => {
-                    return Err(CacheError::IndexError(
-                        dozer_types::errors::cache::IndexError::UnsupportedIndex(
-                            op.1.to_str().to_string(),
-                        ),
-                    ));
-                }
-            }
-
-            mapped_ops.push(ScanOp {
-                id: op.0,
-                direction,
-                field: op.2.clone(),
-            });
+    pub fn plan(&self, schema: &Schema, query: &QueryExpression) -> Result<Plan, PlanError> {
+        // Collect all the filters.
+        // TODO: Handle filters like And([a > 0, a < 10]).
+        let mut filters = vec![];
+        if let Some(expression) = &query.filter {
+            collect_filters(schema, expression, &mut filters)?;
         }
 
-        if range_index.len() > 1 {
-            Err(CacheError::IndexError(
-                IndexError::UnsupportedMultiRangeIndex,
-            ))
-        } else {
-            let key: Vec<(usize, SortDirection)> =
-                mapped_ops.iter().map(|o| (o.id, o.direction)).collect();
-            let fields: Vec<Option<Value>> = mapped_ops.iter().map(|o| o.field.clone()).collect();
-
-            let index = indexes
-                .iter()
-                .find(|id| match id {
-                    IndexDefinition::SortedInverted(fields) => fields == &key,
-                    IndexDefinition::FullText(field_index) => {
-                        key.len() == 1 && key[0].0 == *field_index
-                    }
-                })
-                .map_or(
-                    Err(CacheError::IndexError(IndexError::MissingCompoundIndex(
-                        key.iter()
-                            .map(|s| s.0.to_string())
-                            .collect::<Vec<String>>()
-                            .join(","),
-                    ))),
-                    Ok,
-                )?;
-
-            Ok(IndexScan {
-                index_def: index.clone(),
-                fields,
-            })
-        }
-    }
-
-    pub fn plan(
-        &self,
-        schema: &Schema,
-        query: &QueryExpression,
-    ) -> Result<ExecutionStep, CacheError> {
-        // construct steps based on expression
-        // construct plans with query steps
-
-        let mut ops: Vec<(usize, Operator, Option<Value>)> = vec![];
-
-        for s in query.order_by.clone() {
-            let new_field_key = self
-                .get_field_index(s.field_name.clone(), &schema.fields)
-                .map_or(Err(CacheError::QueryError(QueryError::FieldNotFound)), Ok)?;
-
-            let op = if s.direction == SortDirection::Ascending {
-                Operator::GT
-            } else {
-                Operator::LT
-            };
-            ops.push((new_field_key, op, None));
+        // Filter the sort options.
+        // TODO: Handle duplicate fields.
+        let mut order_by = vec![];
+        for order in &query.order_by {
+            if order.direction != SortDirection::Ascending {
+                todo!("Support descending sort option");
+            }
+            // Find the field index.
+            let field_index = get_field_index(&order.field_name, &schema.fields)
+                .ok_or(PlanError::FieldNotFound)?;
+            // If the field is already in a filter supported by `SortedInverted`, we can skip sorting it.
+            if seen_in_sorted_inverted_filter(field_index, &filters) {
+                continue;
+            }
+            // This sort option needs to be in the plan.
+            order_by.push((field_index, order.direction));
         }
 
-        if let Some(filter) = query.filter.clone() {
-            self.get_ops_from_filter(schema, filter, &mut ops)?;
-        };
-
-        if ops.is_empty() {
-            Ok(ExecutionStep::SeqScan(SeqScan {
+        // If no filter and sort is requested, return a SeqScan.
+        if filters.is_empty() && order_by.is_empty() {
+            return Ok(Plan::SeqScan(SeqScan {
                 direction: SortDirection::Ascending,
-            }))
-        } else {
-            Ok(ExecutionStep::IndexScan(
-                self.get_index_scan(&ops, &schema.secondary_indexes)?,
-            ))
+            }));
+        }
+
+        // Find the range query, can be a range filter or a sort option.
+        let range_query = find_range_query(&mut filters, &order_by)?;
+
+        // Generate some index scans that can answer this query, lazily.
+        let all_index_scans = helper::get_all_indexes(filters, range_query);
+
+        // Check if existing secondary indexes can satisfy any of the scans.
+        for index_scans in all_index_scans {
+            if all_indexes_are_present(schema, &index_scans) {
+                return Ok(Plan::IndexScans(index_scans));
+            }
+        }
+
+        Err(PlanError::MatchingIndexNotFound)
+    }
+}
+
+fn get_field_index(field_name: &str, fields: &[FieldDefinition]) -> Option<usize> {
+    fields.iter().position(|f| f.name == field_name)
+}
+
+fn collect_filters(
+    schema: &Schema,
+    expression: &FilterExpression,
+    filters: &mut Vec<(usize, Operator, Value)>,
+) -> Result<(), PlanError> {
+    match expression {
+        FilterExpression::Simple(field_name, operator, value) => {
+            let field_index =
+                get_field_index(field_name, &schema.fields).ok_or(PlanError::FieldNotFound)?;
+            filters.push((field_index, *operator, value.clone()));
+        }
+        FilterExpression::And(expressions) => {
+            for expression in expressions {
+                collect_filters(schema, expression, filters)?;
+            }
         }
     }
+    Ok(())
+}
+
+fn seen_in_sorted_inverted_filter(
+    field_index: usize,
+    filters: &[(usize, Operator, Value)],
+) -> bool {
+    filters
+        .iter()
+        .any(|filter| filter.0 == field_index && filter.1.supported_by_sorted_inverted())
+}
+
+fn find_range_query(
+    filters: &mut Vec<(usize, Operator, Value)>,
+    order_by: &[(usize, SortDirection)],
+) -> Result<Option<RangeQuery>, PlanError> {
+    let mut num_range_ops = 0;
+    let mut range_filter_index = None;
+    for (i, filter) in filters.iter().enumerate() {
+        if filter.1.is_range_operator() {
+            num_range_ops += 1;
+            range_filter_index = Some(i);
+        }
+    }
+    num_range_ops += order_by.len();
+    if num_range_ops > 1 {
+        return Err(PlanError::RangeQueryLimit);
+    }
+    Ok(if let Some(range_filter_index) = range_filter_index {
+        let (field_index, operator, value) = filters.remove(range_filter_index);
+        Some(RangeQuery {
+            field_index,
+            operator_and_value: Some((operator, value)),
+        })
+    } else if let Some((field_index, _)) = order_by.first() {
+        Some(RangeQuery {
+            field_index: *field_index,
+            operator_and_value: None,
+        })
+    } else {
+        None
+    })
+}
+
+fn all_indexes_are_present(schema: &Schema, index_scans: &[IndexScan]) -> bool {
+    index_scans.iter().all(|index_scan| {
+        schema
+            .secondary_indexes
+            .iter()
+            .any(|i| i == &index_scan.index_def)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::QueryPlanner;
     use crate::cache::{
-        expression::{self, ExecutionStep, FilterExpression, QueryExpression},
+        expression::{self, FilterExpression, Plan, QueryExpression},
         test_utils,
     };
 
@@ -186,9 +162,13 @@ mod tests {
             10,
             0,
         );
-        if let ExecutionStep::IndexScan(index_scan) = planner.plan(&schema, &query).unwrap() {
-            assert_eq!(index_scan.index_def, schema.secondary_indexes[0]);
-            assert_eq!(index_scan.fields, &[Some(Value::from("bar".to_string()))]);
+        if let Plan::IndexScans(index_scans) = planner.plan(&schema, &query).unwrap() {
+            assert_eq!(index_scans.len(), 1);
+            assert_eq!(index_scans[0].index_def, schema.secondary_indexes[0]);
+            assert_eq!(
+                index_scans[0].fields,
+                &[Some(Value::from("bar".to_string()))]
+            );
         } else {
             panic!("IndexScan expected")
         }
@@ -209,10 +189,11 @@ mod tests {
         ]);
         let query = QueryExpression::new(Some(filter), vec![], 10, 0);
         // Pick the 3rd index
-        if let ExecutionStep::IndexScan(index_scan) = planner.plan(&schema, &query).unwrap() {
-            assert_eq!(index_scan.index_def, schema.secondary_indexes[3]);
+        if let Plan::IndexScans(index_scans) = planner.plan(&schema, &query).unwrap() {
+            assert_eq!(index_scans.len(), 1);
+            assert_eq!(index_scans[0].index_def, schema.secondary_indexes[3]);
             assert_eq!(
-                index_scan.fields,
+                index_scans[0].fields,
                 &[Some(Value::from(1)), Some(Value::from("test".to_string()))]
             );
         } else {
