@@ -2,7 +2,10 @@ use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
-    types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
+    types::{
+        FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier,
+        SortDirection::Ascending,
+    },
 };
 use std::sync::Arc;
 
@@ -34,11 +37,7 @@ pub fn get_schema() -> Schema {
     let secondary_indexes = fields
         .iter()
         .enumerate()
-        .map(|(idx, _f)| IndexDefinition {
-            fields: vec![idx],
-            sort_direction: vec![true],
-            typ: dozer_types::types::IndexType::SortedInverted,
-        })
+        .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
         .collect();
     Schema {
         identifier: Some(SchemaIdentifier {
