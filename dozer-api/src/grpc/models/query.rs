@@ -27,7 +27,12 @@ impl TryFrom<QueryExpressionRequest> for QueryExpression {
 impl TryFrom<SimpleExpression> for dozer_cache::cache::expression::FilterExpression {
     type Error = crate::errors::GRPCError;
     fn try_from(input: SimpleExpression) -> Result<Self, Self::Error> {
-        let value = serde_json::to_value(input.to_owned().value.unwrap()).unwrap();
+        let mut value = serde_json::to_value(input.to_owned().value.unwrap())?;
+        //TODO: Since Proto ANY force all number to be double => consider handle this case in this or in query
+        if let Some(double_value) = value.as_f64() {
+            let integer_value: i32 = double_value as i32;
+            value = serde_json::to_value(integer_value).unwrap();
+        }
         let input_operator = Operator::from_i32(input.operator).unwrap();
         Ok(dozer_cache::cache::expression::FilterExpression::Simple(
             input.field,

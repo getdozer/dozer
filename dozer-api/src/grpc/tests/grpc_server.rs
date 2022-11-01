@@ -1,12 +1,26 @@
-use super::utils::{generate_descriptor, generate_proto};
+use super::{
+    dozer_test_client::{GetFilmsByIdResponse, GetFilmsResponse, QueryFilmsResponse},
+    utils::{generate_descriptor, generate_proto},
+};
 use crate::{
     api_server::PipelineDetails,
-    grpc::{server::TonicServer, tests::utils::mock_event_notifier},
+    grpc::{
+        server::TonicServer,
+        tests::{
+            dozer_test_client::{
+                films_service_client::FilmsServiceClient, filter_expression::Expression,
+                simple_expression::Operator, FilterExpression, GetFilmsByIdRequest,
+                GetFilmsRequest, QueryFilmsRequest, SimpleExpression,
+            },
+            utils::mock_event_notifier,
+        },
+    },
     grpc_server::GRPCServer,
     test_utils,
 };
 use dozer_types::events::Event;
 use futures_util::FutureExt;
+use prost_wkt_types::Value;
 use std::time::Duration;
 use tempdir::TempDir;
 use tokio::sync::{broadcast, oneshot};
@@ -30,7 +44,7 @@ fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
     let event_notifier = mock_event_notifier();
     let (tx, rx1) = broadcast::channel::<Event>(16);
     GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
-    
+
     TonicServer::new(
         path_to_descriptor,
         function_types,
@@ -54,19 +68,14 @@ async fn test_grpc_list() {
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-
-    pub mod dozer_client_generated {
-        include!("dozer-test-client.rs");
-    }
-    use dozer_client_generated::films_service_client::FilmsServiceClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1400")
         .connect()
         .await
         .unwrap();
     let mut client = FilmsServiceClient::new(channel);
-    let request = dozer_client_generated::GetFilmsRequest {};
+    let request = GetFilmsRequest {};
     let res = client.films(Request::new(request)).await.unwrap();
-    let request_response: dozer_client_generated::GetFilmsResponse = res.into_inner();
+    let request_response: GetFilmsResponse = res.into_inner();
     assert!(!request_response.film.is_empty());
 }
 
@@ -85,18 +94,14 @@ async fn test_grpc_get_by_id() {
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-    pub mod dozer_client_generated {
-        include!("dozer-test-client.rs");
-    }
-    use dozer_client_generated::films_service_client::FilmsServiceClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1401")
         .connect()
         .await
         .unwrap();
     let mut client = FilmsServiceClient::new(channel);
-    let request = dozer_client_generated::GetFilmsByIdRequest { film_id: 524 };
+    let request = GetFilmsByIdRequest { film_id: 524 };
     let res = client.by_id(Request::new(request)).await.unwrap();
-    let request_response: dozer_client_generated::GetFilmsByIdResponse = res.into_inner();
+    let request_response: GetFilmsByIdResponse = res.into_inner();
     assert!(request_response.film.is_some());
 }
 
@@ -115,22 +120,27 @@ async fn test_grpc_query() {
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-    pub mod dozer_client_generated {
-        include!("dozer-test-client.rs");
-    }
-    use dozer_client_generated::films_service_client::FilmsServiceClient;
     let channel = Endpoint::from_static("http://127.0.0.1:1402")
         .connect()
         .await
         .unwrap();
     let mut client = FilmsServiceClient::new(channel);
-    let request = dozer_client_generated::QueryFilmsRequest {
+    // create filter expression
+    let expression = Expression::Simple(SimpleExpression {
+        field: "film_id".to_string(),
+        operator: Operator::Eq as i32,
+        value: Some(Value::from(524.0)),
+    });
+    let filter_expression = FilterExpression {
+        expression: Some(expression),
+    };
+    let request = QueryFilmsRequest {
         limit: Some(50),
         skip: Some(0),
-        filter: None,
+        filter: Some(filter_expression),
         order_by: vec![],
     };
     let res = client.query(Request::new(request)).await.unwrap();
-    let request_response: dozer_client_generated::QueryFilmsResponse = res.into_inner();
-    assert!(!request_response.film.is_empty());
+    let request_response: QueryFilmsResponse = res.into_inner();
+    assert!(!request_response.film.len() > 0);
 }

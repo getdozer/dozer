@@ -1,23 +1,27 @@
+use dozer_types::serde::{self, Deserialize, Serialize};
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct Film {
-    #[prost(int32, optional, tag="1")]
+    #[prost(int32, optional, tag = "1")]
     pub film_id: ::core::option::Option<i32>,
-    #[prost(string, optional, tag="2")]
+    #[prost(string, optional, tag = "2")]
     pub description: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag="3")]
+    #[prost(string, optional, tag = "3")]
     pub rental_rate: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(int32, optional, tag="4")]
+    #[prost(int32, optional, tag = "4")]
     pub release_year: ::core::option::Option<i32>,
 }
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct SortOptions {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub field_name: ::prost::alloc::string::String,
-    #[prost(enumeration="sort_options::SortDirection", tag="2")]
+    #[prost(enumeration = "sort_options::SortDirection", tag = "2")]
     pub direction: i32,
 }
 /// Nested message and enum types in `SortOptions`.
 pub mod sort_options {
+    use dozer_types::serde::{self, Deserialize, Serialize};
+    #[derive(Serialize, Deserialize)]
+    #[serde(crate = "self::serde")]
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum SortDirection {
@@ -37,32 +41,42 @@ pub mod sort_options {
         }
     }
 }
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilterExpression {
-    #[prost(oneof="filter_expression::Expression", tags="1, 2")]
+    #[prost(oneof = "filter_expression::Expression", tags = "1, 2")]
     pub expression: ::core::option::Option<filter_expression::Expression>,
 }
 /// Nested message and enum types in `FilterExpression`.
 pub mod filter_expression {
+    use dozer_types::serde::{self, Deserialize, Serialize};
+    #[derive(Serialize, Deserialize)]
+    #[serde(crate = "self::serde")]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Expression {
-        #[prost(message, tag="1")]
+        #[prost(message, tag = "1")]
         Simple(super::SimpleExpression),
-        #[prost(message, tag="2")]
+        #[prost(message, tag = "2")]
         And(super::AndExpression),
     }
 }
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SimpleExpression {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub field: ::prost::alloc::string::String,
-    #[prost(enumeration="simple_expression::Operator", tag="2")]
+    #[prost(enumeration = "simple_expression::Operator", tag = "2")]
     pub operator: i32,
-    #[prost(message, optional, tag="3")]
+    #[prost(message, optional, tag = "3")]
     pub value: ::core::option::Option<::prost_wkt_types::Value>,
 }
 /// Nested message and enum types in `SimpleExpression`.
 pub mod simple_expression {
+    use dozer_types::serde::{self, Deserialize, Serialize};
+    #[derive(Serialize, Deserialize)]
+    #[serde(crate = "self::serde")]
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Operator {
@@ -94,16 +108,20 @@ pub mod simple_expression {
         }
     }
 }
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AndExpression {
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub filter_expressions: ::prost::alloc::vec::Vec<FilterExpression>,
 }
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Event {
-    #[prost(enumeration="event::EventType", tag="1")]
+    #[prost(enumeration = "event::EventType", tag = "1")]
     pub r#type: i32,
-    #[prost(message, optional, tag="2")]
+    #[prost(message, optional, tag = "2")]
     pub detail: ::core::option::Option<::prost_wkt_types::Value>,
 }
 /// Nested message and enum types in `Event`.
@@ -131,53 +149,52 @@ pub mod event {
         }
     }
 }
+
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
-pub struct GetFilmsRequest {
-}
+pub struct GetFilmsRequest {}
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct GetFilmsResponse {
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub film: ::prost::alloc::vec::Vec<Film>,
 }
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct GetFilmsByIdRequest {
-    #[prost(int32, tag="1")]
+    #[prost(int32, tag = "1")]
     pub film_id: i32,
 }
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct GetFilmsByIdResponse {
-    #[prost(message, optional, tag="1")]
+    #[prost(message, optional, tag = "1")]
     pub film: ::core::option::Option<Film>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFilmsRequest {
-    #[prost(message, optional, tag="1")]
+    #[prost(message, optional, tag = "1")]
     pub filter: ::core::option::Option<FilterExpression>,
-    #[prost(message, repeated, tag="2")]
+    #[prost(message, repeated, tag = "2")]
     pub order_by: ::prost::alloc::vec::Vec<SortOptions>,
-    #[prost(uint32, optional, tag="3")]
+    #[prost(uint32, optional, tag = "3")]
     pub limit: ::core::option::Option<u32>,
-    #[prost(uint32, optional, tag="4")]
+    #[prost(uint32, optional, tag = "4")]
     pub skip: ::core::option::Option<u32>,
 }
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct QueryFilmsResponse {
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub film: ::prost::alloc::vec::Vec<Film>,
 }
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
-pub struct OnChangeRequest {
-}
+pub struct OnChangeRequest {}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OnChangeResponse {
-    #[prost(message, optional, tag="1")]
+    #[prost(message, optional, tag = "1")]
     pub event: ::core::option::Option<Event>,
 }
 /// Generated client implementations.
 pub mod films_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct FilmsServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -221,9 +238,8 @@ pub mod films_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + Send + Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             FilmsServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -246,15 +262,12 @@ pub mod films_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::GetFilmsRequest>,
         ) -> Result<tonic::Response<super::GetFilmsResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/films");
             self.inner.unary(request.into_request(), path, codec).await
@@ -263,15 +276,12 @@ pub mod films_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::GetFilmsByIdRequest>,
         ) -> Result<tonic::Response<super::GetFilmsByIdResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/by_id");
             self.inner.unary(request.into_request(), path, codec).await
@@ -280,15 +290,12 @@ pub mod films_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::QueryFilmsRequest>,
         ) -> Result<tonic::Response<super::QueryFilmsResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/query");
             self.inner.unary(request.into_request(), path, codec).await
@@ -296,24 +303,19 @@ pub mod films_service_client {
         pub async fn on_change(
             &mut self,
             request: impl tonic::IntoRequest<super::OnChangeRequest>,
-        ) -> Result<
-            tonic::Response<tonic::codec::Streaming<super::OnChangeResponse>>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> Result<tonic::Response<tonic::codec::Streaming<super::OnChangeResponse>>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/Dozer.FilmsService/on_change",
-            );
-            self.inner.server_streaming(request.into_request(), path, codec).await
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/on_change");
+            self.inner
+                .server_streaming(request.into_request(), path, codec)
+                .await
         }
     }
 }
