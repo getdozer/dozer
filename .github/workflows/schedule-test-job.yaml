@@ -1,0 +1,100 @@
+name: Nightly Schedule
+# Long running tests, Performance benchmarks, Code vulnerability, Code coverage etc
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+concurrency:
+  group: schedule-job
+  cancel-in-progress: true
+
+jobs:
+  nightly-schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check for println!()
+        run: (! grep -R -a -n --include "*.rs" --exclude-dir target "println\!" *)
+
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-
+
+      - run: rustup toolchain update nightly && rustup default nightly
+      - name: Run Bench
+        continue-on-error: true
+        run: cargo +nightly bench
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - uses: keithweaver/aws-s3-github-action@v1.0.0
+        with:
+          command: sync
+          source: ./target/criterion
+          destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/criterion
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+          aws_region: ap-southeast-1
+        
+      - name: Run Tests
+        continue-on-error: true
+        run: cargo test --verbose | tee test_result.txt
+
+      - uses: keithweaver/aws-s3-github-action@v1.0.0
+        with:
+          command: cp
+          source: ./test_result.txt
+          destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/test_result.txt
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+          aws_region: ap-southeast-1
+
+      - name: compress result
+        run: |
+          zip -r target/${{ steps.date.outputs.date }}.zip target/criterion test_result.txt
+          ls target
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.date.outputs.date }}
+          path: |
+            target/${{ steps.date.outputs.date }}.zip    
+
+      - name: Post to a Slack channel
+        id: slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: 'release-notifications'
+          slack-message: |
+           ```New test & bench was upload, click here to check detail: 
+           bench: https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/criterion/report/index.html
+           test: https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/test_result.txt
+           ```
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+
