@@ -5,7 +5,9 @@ use dozer_types::{
     types::{IndexDefinition, SortDirection},
 };
 
-use crate::cache::expression::{IndexScan, Operator};
+use crate::cache::expression::Operator;
+
+use super::IndexScan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeQuery {

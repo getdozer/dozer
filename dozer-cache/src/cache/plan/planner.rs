@@ -1,36 +1,42 @@
 use dozer_types::{errors::cache::PlanError, types::SortDirection};
 
-use crate::cache::expression::{
-    FilterExpression, IndexScan, Operator, Plan, QueryExpression, SeqScan,
-};
+use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use dozer_types::{
     serde_json::Value,
     types::{FieldDefinition, Schema},
 };
 
-use self::helper::RangeQuery;
+use super::{
+    helper::{self, RangeQuery},
+    IndexScan, Plan, SeqScan,
+};
 
-mod helper;
+pub struct QueryPlanner<'a> {
+    schema: &'a Schema,
+    query: &'a QueryExpression,
+}
+impl<'a> QueryPlanner<'a> {
+    pub fn new(schema: &'a Schema, query: &'a QueryExpression) -> Self {
+        Self { schema, query }
+    }
 
-pub struct QueryPlanner {}
-impl QueryPlanner {
-    pub fn plan(&self, schema: &Schema, query: &QueryExpression) -> Result<Plan, PlanError> {
+    pub fn plan(&self) -> Result<Plan, PlanError> {
         // Collect all the filters.
         // TODO: Handle filters like And([a > 0, a < 10]).
         let mut filters = vec![];
-        if let Some(expression) = &query.filter {
-            collect_filters(schema, expression, &mut filters)?;
+        if let Some(expression) = &self.query.filter {
+            collect_filters(self.schema, expression, &mut filters)?;
         }
 
         // Filter the sort options.
         // TODO: Handle duplicate fields.
         let mut order_by = vec![];
-        for order in &query.order_by {
+        for order in &self.query.order_by {
             if order.direction != SortDirection::Ascending {
                 todo!("Support descending sort option");
             }
             // Find the field index.
-            let field_index = get_field_index(&order.field_name, &schema.fields)
+            let field_index = get_field_index(&order.field_name, &self.schema.fields)
                 .ok_or(PlanError::FieldNotFound)?;
             // If the field is already in a filter supported by `SortedInverted`, we can skip sorting it.
             if seen_in_sorted_inverted_filter(field_index, &filters) {
@@ -55,7 +61,7 @@ impl QueryPlanner {
 
         // Check if existing secondary indexes can satisfy any of the scans.
         for index_scans in all_index_scans {
-            if all_indexes_are_present(schema, &index_scans) {
+            if all_indexes_are_present(self.schema, &index_scans) {
                 return Ok(Plan::IndexScans(index_scans));
             }
         }
@@ -136,68 +142,4 @@ fn all_indexes_are_present(schema: &Schema, index_scans: &[IndexScan]) -> bool {
             .iter()
             .any(|i| i == &index_scan.index_def)
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::QueryPlanner;
-    use crate::cache::{
-        expression::{self, FilterExpression, Plan, QueryExpression},
-        test_utils,
-    };
-
-    use dozer_types::serde_json::Value;
-
-    #[test]
-    fn test_generate_plan_simple() {
-        let schema = test_utils::schema_0();
-        let planner = QueryPlanner {};
-        let query = QueryExpression::new(
-            Some(FilterExpression::Simple(
-                "foo".to_string(),
-                expression::Operator::EQ,
-                Value::from("bar".to_string()),
-            )),
-            vec![],
-            10,
-            0,
-        );
-        if let Plan::IndexScans(index_scans) = planner.plan(&schema, &query).unwrap() {
-            assert_eq!(index_scans.len(), 1);
-            assert_eq!(index_scans[0].index_def, schema.secondary_indexes[0]);
-            assert_eq!(
-                index_scans[0].fields,
-                &[Some(Value::from("bar".to_string()))]
-            );
-        } else {
-            panic!("IndexScan expected")
-        }
-    }
-
-    #[test]
-    fn test_generate_plan_and() {
-        let schema = test_utils::schema_1();
-        let planner = QueryPlanner {};
-
-        let filter = FilterExpression::And(vec![
-            FilterExpression::Simple("a".to_string(), expression::Operator::EQ, Value::from(1)),
-            FilterExpression::Simple(
-                "b".to_string(),
-                expression::Operator::EQ,
-                Value::from("test".to_string()),
-            ),
-        ]);
-        let query = QueryExpression::new(Some(filter), vec![], 10, 0);
-        // Pick the 3rd index
-        if let Plan::IndexScans(index_scans) = planner.plan(&schema, &query).unwrap() {
-            assert_eq!(index_scans.len(), 1);
-            assert_eq!(index_scans[0].index_def, schema.secondary_indexes[3]);
-            assert_eq!(
-                index_scans[0].fields,
-                &[Some(Value::from(1)), Some(Value::from("test".to_string()))]
-            );
-        } else {
-            panic!("IndexScan expected")
-        }
-    }
 }

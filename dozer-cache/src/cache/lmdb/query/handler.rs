@@ -1,8 +1,8 @@
 use super::{helper, iterator::CacheIterator};
 use crate::cache::{
-    expression::{IndexScan, Plan, QueryExpression},
+    expression::QueryExpression,
     index,
-    planner::QueryPlanner,
+    plan::{IndexScan, Plan, QueryPlanner},
 };
 use dozer_types::{
     bincode, json_value_to_field,
@@ -40,8 +40,8 @@ impl<'a> LmdbQueryHandler<'a> {
         schema: &Schema,
         query: &QueryExpression,
     ) -> Result<Vec<Record>, CacheError> {
-        let planner = QueryPlanner {};
-        let execution = planner.plan(schema, query)?;
+        let planner = QueryPlanner::new(schema, query);
+        let execution = planner.plan()?;
         let records = match execution {
             Plan::IndexScans(index_scans) => {
                 if index_scans.len() > 1 {
