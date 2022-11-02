@@ -62,7 +62,7 @@ impl Source for TestSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1_000_000 {
+        for n in 0..1_000 {
             fw.send(
                 n,
                 Operation::Insert {

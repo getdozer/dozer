@@ -2,13 +2,13 @@
 use libc::{c_int, c_uint, c_void, size_t, EACCES, EAGAIN, EINVAL, EIO, ENOENT, ENOMEM, ENOSPC};
 use lmdb_sys::{
     mdb_cursor_close, mdb_cursor_get, mdb_cursor_open, mdb_dbi_close, mdb_dbi_open, mdb_del,
-    mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs, mdb_get,
-    mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit, mdb_txn_reset, MDB_cursor,
-    MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL, MDB_DUPFIXED,
-    MDB_DUPSORT, MDB_GET_CURRENT, MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED,
-    MDB_NEXT, MDB_NODUPDATA, MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC,
-    MDB_NOTFOUND, MDB_NOTLS, MDB_PANIC, MDB_PREV, MDB_RDONLY, MDB_READERS_FULL, MDB_SET,
-    MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
+    mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs,
+    mdb_env_set_maxreaders, mdb_get, mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit,
+    MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL,
+    MDB_DUPFIXED, MDB_DUPSORT, MDB_GET_CURRENT, MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL,
+    MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA, MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE,
+    MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_NOTLS, MDB_PANIC, MDB_PREV, MDB_RDONLY,
+    MDB_READERS_FULL, MDB_SET, MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -37,21 +37,107 @@ impl LmdbError {
     }
 }
 
+struct EnvPtr {
+    env: *mut MDB_env,
+}
+
+impl EnvPtr {
+    pub fn new(env: *mut MDB_env) -> Self {
+        Self { env }
+    }
+}
+
+impl Drop for EnvPtr {
+    fn drop(&mut self) {
+        unsafe {
+            mdb_env_close(self.env);
+        }
+    }
+}
+
+struct TxnPtr {
+    txn: *mut MDB_txn,
+    read_only: bool,
+    active: bool,
+}
+
+impl TxnPtr {
+    pub fn new(txn: *mut MDB_txn, read_only: bool) -> Self {
+        Self {
+            txn,
+            read_only,
+            active: true,
+        }
+    }
+}
+
+impl Drop for TxnPtr {
+    fn drop(&mut self) {
+        if self.active {}
+    }
+}
+
+struct DbPtr {
+    env: Arc<EnvPtr>,
+    db: MDB_dbi,
+}
+
+impl DbPtr {
+    pub fn new(env: Arc<EnvPtr>, db: MDB_dbi) -> Self {
+        Self { env, db }
+    }
+}
+
+impl Drop for DbPtr {
+    fn drop(&mut self) {
+        unsafe {
+            mdb_dbi_close(self.env.env, self.db);
+        }
+    }
+}
+
+struct CursorPtr {
+    cursor: *mut MDB_cursor,
+}
+
+impl CursorPtr {
+    pub fn new(cursor: *mut MDB_cursor) -> Self {
+        Self { cursor }
+    }
+}
+
+impl Drop for Cursor {
+    fn drop(&mut self) {
+        unsafe {
+            mdb_cursor_close(self.cursor.cursor);
+        }
+    }
+}
+
 /***********************************************************************************
  Environment
 ***********************************************************************************/
 
 pub struct Environment {
-    env_ptr: *mut MDB_env,
+    env_ptr: Arc<EnvPtr>,
 }
 
 unsafe impl Send for Environment {}
 unsafe impl Sync for Environment {}
 
+impl Clone for Environment {
+    fn clone(&self) -> Self {
+        Environment {
+            env_ptr: self.env_ptr.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct EnvOptions {
     pub map_size: Option<size_t>,
     pub max_dbs: Option<u32>,
+    pub max_readers: Option<u32>,
     pub no_sync: bool,
     pub no_meta_sync: bool,
     pub no_subdir: bool,
@@ -65,6 +151,7 @@ impl EnvOptions {
         Self {
             map_size: None,
             max_dbs: None,
+            max_readers: None,
             no_sync: false,
             no_meta_sync: false,
             no_subdir: false,
@@ -99,6 +186,14 @@ impl Environment {
                 }
                 if o.max_dbs.is_some() && mdb_env_set_maxdbs(env_ptr, o.max_dbs.unwrap()) != 0 {
                     return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
+                }
+                if o.max_readers.is_some()
+                    && mdb_env_set_maxreaders(env_ptr, o.max_readers.unwrap()) != 0
+                {
+                    return Err(LmdbError::new(
+                        r,
+                        "Invalid max readers size specified".to_string(),
+                    ));
                 }
                 if o.no_sync {
                     flags |= MDB_NOSYNC;
@@ -136,16 +231,14 @@ impl Environment {
                 _ => {}
             }
 
-            Ok(Environment { env_ptr })
+            Ok(Environment {
+                env_ptr: Arc::new(EnvPtr::new(env_ptr)),
+            })
         }
     }
-}
 
-impl Drop for Environment {
-    fn drop(&mut self) {
-        unsafe {
-            mdb_env_close(self.env_ptr);
-        }
+    pub fn tx_begin(&mut self, read_only: bool) -> Result<Transaction, LmdbError> {
+        Transaction::begin(self, read_only)
     }
 }
 
@@ -154,23 +247,21 @@ impl Drop for Environment {
 ***********************************************************************************/
 
 pub struct Transaction {
-    env: Arc<Environment>,
-    txn: *mut MDB_txn,
-    parent: Option<Arc<Transaction>>,
-    read_only: bool,
-    active: bool,
+    env: Arc<EnvPtr>,
+    txn: Arc<TxnPtr>,
+    parent: Option<Arc<TxnPtr>>,
 }
 
 unsafe impl Send for Transaction {}
 unsafe impl Sync for Transaction {}
 
 impl Transaction {
-    pub fn begin(env: Arc<Environment>, read_only: bool) -> Result<Transaction, LmdbError> {
+    pub fn begin(env: &Environment, read_only: bool) -> Result<Transaction, LmdbError> {
         unsafe {
             let mut txn_ptr: *mut MDB_txn = ptr::null_mut();
 
             let r = mdb_txn_begin(
-                env.env_ptr,
+                env.env_ptr.env,
                 ptr::null_mut(),
                 if read_only { MDB_RDONLY } else { 0 },
                 addr_of_mut!(txn_ptr),
@@ -185,46 +276,44 @@ impl Transaction {
             }
 
             Ok(Transaction {
-                env,
-                txn: txn_ptr,
+                env: env.env_ptr.clone(),
+                txn: Arc::new(TxnPtr::new(txn_ptr, read_only)),
                 parent: None,
-                read_only,
-                active: true,
             })
         }
     }
 
-    pub fn child(
-        env: Arc<Environment>,
-        parent: Arc<Transaction>,
-    ) -> Result<Transaction, LmdbError> {
+    pub fn child(&self) -> Result<Transaction, LmdbError> {
         unsafe {
             let mut txn_ptr: *mut MDB_txn = ptr::null_mut();
 
-            let r = mdb_txn_begin(env.env_ptr, parent.txn, 0, addr_of_mut!(txn_ptr));
+            let r = mdb_txn_begin(
+                self.env.env,
+                self.txn.txn,
+                if self.txn.read_only { MDB_RDONLY } else { 0 },
+                addr_of_mut!(txn_ptr),
+            );
             match r {
                 MDB_PANIC => { return Err(LmdbError::new(r, "A fatal error occurred earlier and the environment must be shut down".to_string())) }
                 MDB_MAP_RESIZED => { return Err(LmdbError::new(r, "Another process wrote data beyond this MDB_env's mapsize and this environment's map must be resized as well. See mdb_env_set_mapsize()".to_string())) }
                 MDB_READERS_FULL => { return Err(LmdbError::new(r, "A read-only transaction was requested and the reader lock table is full. See mdb_env_set_maxreaders()".to_string())) }
                 ENOMEM => { return Err(LmdbError::new(r, "Out of Memory".to_string())) }
+                -30782 => { return Err(LmdbError::new(r, "Bad transaction".to_string())) }
                 x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
                 _ => {}
             }
 
-            let ro = parent.read_only;
             Ok(Transaction {
-                env,
-                txn: txn_ptr,
-                parent: Some(parent),
-                read_only: ro,
-                active: true,
+                env: self.env.clone(),
+                txn: Arc::new(TxnPtr::new(txn_ptr, self.txn.read_only)),
+                parent: Some(self.txn.clone()),
             })
         }
     }
 
     pub fn commit(&mut self) -> Result<(), LmdbError> {
         unsafe {
-            let r = mdb_txn_commit(self.txn);
+            let r = mdb_txn_commit(self.txn.txn);
             match r {
                 EINVAL => {
                     return Err(LmdbError::new(
@@ -243,15 +332,13 @@ impl Transaction {
                 x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
                 _ => {}
             }
-            self.active = false;
             Ok(())
         }
     }
 
-    pub fn abort(&mut self) -> Result<(), LmdbError> {
+    pub fn abort(&self) -> Result<(), LmdbError> {
         unsafe {
-            mdb_txn_abort(self.txn);
-            self.active = false;
+            mdb_txn_abort(self.txn.txn);
             Ok(())
         }
     }
@@ -285,8 +372,8 @@ impl Transaction {
             }
 
             let r = mdb_put(
-                self.txn,
-                db.dbi,
+                self.txn.txn,
+                db.dbi.db,
                 addr_of_mut!(key_data),
                 addr_of_mut!(val_data),
                 opt_flags,
@@ -331,8 +418,8 @@ impl Transaction {
             };
 
             let r = mdb_get(
-                self.txn,
-                db.dbi,
+                self.txn.txn,
+                db.dbi.db,
                 addr_of_mut!(key_data),
                 addr_of_mut!(val_data),
             );
@@ -367,8 +454,18 @@ impl Transaction {
             });
 
             let r: c_int = match val_data {
-                Some(mut v) => mdb_del(self.txn, db.dbi, addr_of_mut!(key_data), addr_of_mut!(v)),
-                None => mdb_del(self.txn, db.dbi, addr_of_mut!(key_data), ptr::null_mut()),
+                Some(mut v) => mdb_del(
+                    self.txn.txn,
+                    db.dbi.db,
+                    addr_of_mut!(key_data),
+                    addr_of_mut!(v),
+                ),
+                None => mdb_del(
+                    self.txn.txn,
+                    db.dbi.db,
+                    addr_of_mut!(key_data),
+                    ptr::null_mut(),
+                ),
             };
 
             match r {
@@ -391,27 +488,15 @@ impl Transaction {
     pub fn open_cursor(&self, db: &Database) -> Result<Cursor, LmdbError> {
         unsafe {
             let mut cur: *mut MDB_cursor = ptr::null_mut();
-            let r = mdb_cursor_open(self.txn, db.dbi, addr_of_mut!(cur));
+            let r = mdb_cursor_open(self.txn.txn, db.dbi.db, addr_of_mut!(cur));
             match r {
                 EINVAL => Err(LmdbError::new(r, "Invalid parameter".to_string())),
                 x if x != 0 => Err(LmdbError::new(r, "Unknown error".to_string())),
-                _ => Ok(Cursor::new(cur)),
-            }
-        }
-    }
-}
-
-impl Drop for Transaction {
-    fn drop(&mut self) {
-        if !self.active {
-            return;
-        }
-
-        unsafe {
-            if self.read_only {
-                mdb_txn_reset(self.txn);
-            } else {
-                mdb_txn_abort(self.txn);
+                _ => Ok(Cursor::new(
+                    db.dbi.clone(),
+                    self.txn.clone(),
+                    Arc::new(CursorPtr::new(cur)),
+                )),
             }
         }
     }
@@ -455,12 +540,19 @@ impl DatabaseOptions {
 ***********************************************************************************/
 
 pub struct Database {
-    env: Arc<Environment>,
-    dbi: MDB_dbi,
+    dbi: Arc<DbPtr>,
 }
 
 unsafe impl Send for Database {}
 unsafe impl Sync for Database {}
+
+impl Clone for Database {
+    fn clone(&self) -> Self {
+        Database {
+            dbi: self.dbi.clone(),
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct PutOptions {
@@ -470,7 +562,7 @@ pub struct PutOptions {
 
 impl Database {
     pub fn open(
-        env: Arc<Environment>,
+        env: &Environment,
         txn: &Transaction,
         name: String,
         opts: Option<DatabaseOptions>,
@@ -496,7 +588,7 @@ impl Database {
             }
 
             let r = mdb_dbi_open(
-                txn.txn,
+                txn.txn.txn,
                 UnixString::from_string(name).unwrap().as_ptr(),
                 opt_flags,
                 addr_of_mut!(dbi),
@@ -509,26 +601,22 @@ impl Database {
                 _ => {}
             }
 
-            Ok(Database { env, dbi })
-        }
-    }
-}
-
-impl Drop for Database {
-    fn drop(&mut self) {
-        unsafe {
-            mdb_dbi_close(self.env.env_ptr, self.dbi);
+            Ok(Database {
+                dbi: Arc::new(DbPtr::new(env.env_ptr.clone(), dbi)),
+            })
         }
     }
 }
 
 pub struct Cursor {
-    cursor: *mut MDB_cursor,
+    db: Arc<DbPtr>,
+    txn: Arc<TxnPtr>,
+    cursor: Arc<CursorPtr>,
 }
 
 impl Cursor {
-    pub fn new(cursor: *mut MDB_cursor) -> Self {
-        Self { cursor }
+    fn new(db: Arc<DbPtr>, txn: Arc<TxnPtr>, cursor: Arc<CursorPtr>) -> Self {
+        Self { db, txn, cursor }
     }
 
     fn internal_get_cursor_op(
@@ -561,7 +649,7 @@ impl Cursor {
             };
 
             let r = mdb_cursor_get(
-                self.cursor,
+                self.cursor.cursor,
                 addr_of_mut!(key_data),
                 addr_of_mut!(val_data),
                 op,
@@ -625,14 +713,6 @@ impl Cursor {
             Ok(Some(_v)) => Ok(true),
             Ok(None) => Ok(false),
             Err(e) => Err(e),
-        }
-    }
-}
-
-impl Drop for Cursor {
-    fn drop(&mut self) {
-        unsafe {
-            mdb_cursor_close(self.cursor);
         }
     }
 }

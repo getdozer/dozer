@@ -35,7 +35,7 @@ services:
         condition: service_healthy
     links:
       - postgres
-    command: /usr/local/bin/dozer run -c /usr/local/dozer-config.yaml
+    command: /usr/local/bin/dozer -c /usr/local/dozer-config.yaml
     stdin_open: true
     tty: true
 

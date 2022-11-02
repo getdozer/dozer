@@ -7,7 +7,9 @@ use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::events::Event;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
+};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
 use std::collections::hash_map::DefaultHasher;
@@ -128,11 +130,7 @@ impl Sink for CacheSink {
             .fields
             .iter()
             .enumerate()
-            .map(|(idx, _f)| IndexDefinition {
-                fields: vec![idx],
-                sort_direction: vec![true],
-                typ: dozer_types::types::IndexType::SortedInverted,
-            })
+            .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
             .collect();
 
         // Insert if schema not already inserted

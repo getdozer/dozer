@@ -54,6 +54,8 @@ pub enum IndexError {
     MismatchedIndexAndValues,
     #[error("Expected strings for full text search")]
     ExpectedStringFullText,
+    #[error("Field index out of range")]
+    FieldIndexOutOfRange,
     #[error("Full text index generates one key for each field")]
     IndexSingleField,
     #[error("Field {0} cannot be indexed using full text")]

@@ -4,16 +4,19 @@ use crate::cache::{
     index,
     planner::QueryPlanner,
 };
-use dozer_types::errors::{
-    cache::{
-        CacheError::{self},
-        IndexError, QueryError,
-    },
-    types::TypeError,
-};
 use dozer_types::{
     bincode, json_value_to_field,
     types::{Field, Record, Schema},
+};
+use dozer_types::{
+    errors::{
+        cache::{
+            CacheError::{self},
+            IndexError, QueryError,
+        },
+        types::TypeError,
+    },
+    types::IndexDefinition,
 };
 use galil_seiferas::gs_find;
 use lmdb::{Database, RoTransaction, Transaction};
@@ -41,6 +44,7 @@ impl<'a> LmdbQueryHandler<'a> {
         let execution = planner.plan(schema, query)?;
         let records = match execution {
             ExecutionStep::IndexScan(index_scan) => {
+                dbg!(&index_scan);
                 let starting_key = build_starting_key(schema, &index_scan)?;
                 self.query_with_secondary_index(&starting_key, query.limit, query.skip)?
             }
@@ -162,8 +166,9 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
         });
     }
 
-    match index_scan.index_def.typ {
-        dozer_types::types::IndexType::SortedInverted => {
+    match &index_scan.index_def {
+        IndexDefinition::SortedInverted(field_indcies) => {
+            let field_indices: Vec<_> = field_indcies.iter().map(|(index, _)| *index).collect();
             let mut field_bytes = vec![];
             for field in fields {
                 // convert value to `Vec<u8>`
@@ -177,21 +182,15 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
 
             Ok(index::get_secondary_index(
                 schema_identifier.id,
-                &index_scan.index_def.fields,
+                &field_indices,
                 &field_bytes,
             ))
         }
-        dozer_types::types::IndexType::HashInverted => todo!(),
-        dozer_types::types::IndexType::FullText => {
-            if fields.len() != 1 {
-                return Err(CacheError::IndexError(IndexError::ExpectedStringFullText));
-            }
-            let field_index = index_scan.index_def.fields[0] as u64;
-
+        IndexDefinition::FullText(field_index) => {
             if let Some(Field::String(token)) = &fields[0] {
                 Ok(index::get_full_text_secondary_index(
                     schema_identifier.id,
-                    field_index,
+                    *field_index as _,
                     token,
                 ))
             } else {

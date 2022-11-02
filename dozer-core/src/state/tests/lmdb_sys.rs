@@ -1,7 +1,8 @@
 use crate::state::lmdb_sys::{
     Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
 };
-use std::sync::{Arc, RwLock};
+use log::info;
+use std::sync::Arc;
 use std::{fs, thread};
 use tempdir::TempDir;
 
@@ -29,11 +30,11 @@ fn test_cursor_duplicate_keys() {
         tmp_dir.path().to_str().unwrap().to_string(),
         Some(env_opt)
     )));
-    let mut tx = chk!(Transaction::begin(env.clone(), false));
+    let mut tx = chk!(Transaction::begin(&env, false));
 
     let mut db_opt = DatabaseOptions::default();
     db_opt.allow_duplicate_keys = true;
-    let db = chk!(Database::open(env, &tx, "test".to_string(), Some(db_opt)));
+    let db = chk!(Database::open(&env, &tx, "test".to_string(), Some(db_opt)));
 
     for k in 1..3 {
         for i in 'a'..'s' {
@@ -77,9 +78,8 @@ fn test_cursor_duplicate_keys() {
     }
 }
 
-#[test]
-fn test_concurrent_tx() {
-    let tmp_dir = chk!(TempDir::new("example"));
+fn create_env() -> (Environment, Database) {
+    let tmp_dir = chk!(TempDir::new("concurrent"));
     if tmp_dir.path().exists() {
         chk!(fs::remove_dir_all(tmp_dir.path()));
     }
@@ -88,55 +88,61 @@ fn test_concurrent_tx() {
     let mut env_opt = EnvOptions::default();
     env_opt.no_sync = true;
     env_opt.max_dbs = Some(10);
+    env_opt.max_readers = Some(10);
     env_opt.map_size = Some(1024 * 1024 * 1024);
-    env_opt.writable_mem_map = true;
+    env_opt.writable_mem_map = false;
+    env_opt.no_sync = true;
     env_opt.no_locking = true;
     env_opt.no_thread_local_storage = true;
 
-    let env = Arc::new(chk!(Environment::new(
+    let mut env = chk!(Environment::new(
         tmp_dir.path().to_str().unwrap().to_string(),
         Some(env_opt)
-    )));
+    ));
 
-    let mut tx = chk!(Transaction::begin(env.clone(), false));
-
+    let mut tx = chk!(env.tx_begin(false));
     let mut db_opt = DatabaseOptions::default();
     db_opt.allow_duplicate_keys = false;
-    let db = Arc::new(chk!(Database::open(
-        env.clone(),
-        &tx,
-        "test".to_string(),
-        Some(db_opt)
-    )));
-    let _created = tx.commit();
+    let db = chk!(Database::open(&env, &tx, "test".to_string(), Some(db_opt)));
+    chk!(tx.commit());
 
-    let tx = Arc::new(RwLock::new(chk!(Transaction::begin(env, false))));
+    (env, db)
+}
 
-    let t1_db = db.clone();
-    let t1_tx = tx.clone();
+#[test]
+fn test_concurrent_tx() {
+    //  log4rs::init_file("./log4rs.yaml", Default::default())
+    //      .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+
+    let mut e1 = create_env();
+    let mut e2 = create_env();
 
     let t1 = thread::spawn(move || -> Result<(), LmdbError> {
-        for i in 1..=1000_u64 {
-            let _r = t1_tx.write().unwrap().put(
-                t1_db.as_ref(),
-                &i.to_le_bytes(),
-                &i.to_ne_bytes(),
-                None,
-            );
+        for i in 1..=1_000_u64 {
+            let mut tx = chk!(e1.0.tx_begin(false));
+            tx.put(&e1.1, &i.to_le_bytes(), &i.to_le_bytes(), None)?;
+            chk!(tx.commit());
+            if i % 10000 == 0 {
+                info!("Writer 1: {}", i)
+            }
         }
         Ok(())
     });
-    let _r1 = t1.join();
-
-    let t2_db = db;
-    let t2_tx = tx;
 
     let t2 = thread::spawn(move || -> Result<(), LmdbError> {
-        for i in 1..=1000_u64 {
-            let reader = t2_tx.read().unwrap();
-            let _r = reader.get(t2_db.as_ref(), &i.to_le_bytes())?;
+        for i in 1..=1_000_u64 {
+            let mut tx = chk!(e2.0.tx_begin(false));
+            tx.put(&e2.1, &i.to_le_bytes(), &i.to_le_bytes(), None)?;
+            chk!(tx.commit());
+            if i % 10000 == 0 {
+                info!("Writer 2: {}", i)
+            }
         }
         Ok(())
     });
-    let _r2 = t2.join();
+
+    let r1 = t1.join();
+    assert!(r1.is_ok());
+    let r2 = t2.join();
+    assert!(r2.is_ok());
 }

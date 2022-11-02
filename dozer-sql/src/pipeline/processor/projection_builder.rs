@@ -5,16 +5,16 @@ use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorTyp
 use crate::pipeline::expression::scalar::ScalarFunctionType;
 use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::errors::pipeline::PipelineError::{
-    InternalTypeError, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
+    InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
 };
-use dozer_types::errors::types::TypeError;
 use dozer_types::types::Field;
 use dozer_types::types::Schema;
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, FunctionArg, FunctionArgExpr, SelectItem,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
-use std::collections::HashMap;
+
+use super::common::column_index;
 
 pub struct ProjectionBuilder {}
 
@@ -23,59 +23,36 @@ impl ProjectionBuilder {
         &self,
         statement: &[SelectItem],
         schema: &Schema,
-    ) -> Result<(Vec<Expression>, Vec<String>), PipelineError> {
+    ) -> Result<Vec<(String, Expression)>, PipelineError> {
+        // TODO: discard unused fields
         let expressions = statement
             .iter()
-            .map(|expr| self.parse_sql_select_item(expr, schema))
-            .flat_map(|result| match result {
-                Ok(vec) => vec.into_iter().map(Ok).collect(),
-                Err(err) => vec![Err(err)],
-            })
-            .collect::<Result<Vec<Expression>, PipelineError>>()?;
+            .map(|item| self.parse_sql_select_item(item, schema))
+            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()?;
 
-        let names = statement
-            .iter()
-            .map(|item| self.get_select_item_name(item))
-            .collect::<Result<Vec<String>, PipelineError>>()?;
-
-        Ok((expressions, names))
+        Ok(expressions)
     }
 
-    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize, PipelineError> {
-        let schema_idx: HashMap<String, usize> = schema
-            .fields
-            .iter()
-            .enumerate()
-            .map(|e| (e.1.name.clone(), e.0))
-            .collect();
-
-        if let Some(index) = schema_idx.get(name).cloned() {
-            Ok(index)
-        } else {
-            Err(InternalTypeError(TypeError::InvalidFieldName(name.clone())))
-        }
-    }
-
-    fn get_select_item_name(&self, item: &SelectItem) -> Result<String, PipelineError> {
-        match item {
-            SelectItem::UnnamedExpr(expr) => Ok(expr.to_string()),
-            SelectItem::ExprWithAlias { expr: _, alias } => Ok(alias.to_string()),
-            SelectItem::Wildcard => Err(InvalidOperator("*".to_string())),
-            SelectItem::QualifiedWildcard(ref object_name) => {
-                Err(InvalidOperator(object_name.to_string()))
-            }
-        }
-    }
+    // fn get_select_item_name(&self, item: &SelectItem) -> Result<String> {
+    //     match item {
+    //         SelectItem::UnnamedExpr(expr) => Ok(expr.to_string()),
+    //         SelectItem::ExprWithAlias { expr: _, alias } => Ok(alias.to_string()),
+    //         SelectItem::Wildcard => bail!("Unsupported Wildcard Operator"),
+    //         SelectItem::QualifiedWildcard(ref object_name) => {
+    //             bail!("Unsupported Qualified Wildcard Operator {}", object_name)
+    //         }
+    //     }
+    // }
 
     fn parse_sql_select_item(
         &self,
         sql: &SelectItem,
         schema: &Schema,
-    ) -> Result<Vec<Expression>, PipelineError> {
+    ) -> Result<(String, Expression), PipelineError> {
         match sql {
             SelectItem::UnnamedExpr(sql_expr) => {
                 match self.parse_sql_expression(sql_expr, schema) {
-                    Ok(expr) => Ok(vec![*expr.0]),
+                    Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
                     Err(error) => Err(error),
                 }
             }
@@ -97,7 +74,7 @@ impl ProjectionBuilder {
         match expression {
             SqlExpr::Identifier(ident) => Ok((
                 Box::new(Expression::Column {
-                    index: self.column_index(&ident.value, schema)?,
+                    index: column_index(&ident.value, schema)?,
                 }),
                 false,
             )),
@@ -146,7 +123,7 @@ impl ProjectionBuilder {
                 if AggregateFunctionType::new(&name).is_ok() {
                     let arg = sql_function.args.first().unwrap();
                     let r = self.parse_sql_function_arg(arg, schema)?;
-                    return Ok((r.0, true));
+                    return Ok((r.0, true)); // switch bypass to true, since the argument of this Aggregation must be the final result
                 };
 
                 Err(InvalidExpression(format!("{:?}", expression)))

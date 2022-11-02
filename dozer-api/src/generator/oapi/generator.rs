@@ -1,6 +1,7 @@
 use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
 use crate::errors::GenerationError;
 use dozer_types::serde_json;
+use dozer_types::types::IndexDefinition;
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
 use indexmap::IndexMap;
 use openapiv3::*;
@@ -24,23 +25,25 @@ impl OpenApiGenerator {
     // Generate first secondary_index as an example
     fn generate_query_example(&self) -> Value {
         if !self.schema.secondary_indexes.is_empty() {
-            let fields_idx = self.schema.secondary_indexes[0].fields.to_owned();
-
-            let field_def = &self.schema.fields[fields_idx[0]];
-            let name = field_def.name.clone();
-            let val = match field_def.typ {
-                FieldType::Int => Value::from(1),
-                FieldType::Float => Value::from(1.1),
-                FieldType::Boolean => Value::from(true),
-                FieldType::String => Value::from("foo".to_string()),
-                FieldType::Binary
-                | FieldType::Decimal
-                | FieldType::Timestamp
-                | FieldType::Bson
-                | FieldType::Null
-                | FieldType::RecordArray(_) => Value::Null,
-            };
-            json!({ name: val })
+            if let IndexDefinition::SortedInverted(fields) = &self.schema.secondary_indexes[0] {
+                let field_def = &self.schema.fields[fields[0].0];
+                let name = field_def.name.clone();
+                let val = match field_def.typ {
+                    FieldType::Int => Value::from(1),
+                    FieldType::Float => Value::from(1.1),
+                    FieldType::Boolean => Value::from(true),
+                    FieldType::String => Value::from("foo".to_string()),
+                    FieldType::Binary
+                    | FieldType::Decimal
+                    | FieldType::Timestamp
+                    | FieldType::Bson
+                    | FieldType::Null
+                    | FieldType::RecordArray(_) => Value::Null,
+                };
+                json!({ name: val })
+            } else {
+                json!({})
+            }
         } else {
             json!({})
         }

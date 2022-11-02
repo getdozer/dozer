@@ -1,6 +1,6 @@
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::serde_json::Value;
-use dozer_types::types::IndexDefinition;
+use dozer_types::types::{IndexDefinition, SortDirection};
 mod query_helper;
 mod query_serde;
 
@@ -96,14 +96,6 @@ impl Operator {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(crate = "self::serde")]
-pub enum SortDirection {
-    #[serde(rename = "asc")]
-    Ascending,
-    #[serde(rename = "desc")]
-    Descending,
-}
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(crate = "self::serde")]
 pub struct SortOptions {
