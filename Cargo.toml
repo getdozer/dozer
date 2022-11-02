@@ -15,4 +15,4 @@ exclude = ["tests/**/**"]
 postgres = { git = "https://github.com/getdozer/rust-postgres" }
 postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
 postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
-tokio-postgres = { git = "https://github.com/getdozer/rust-postgres", features = ["with-chrono-0_4"] }
+tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }
