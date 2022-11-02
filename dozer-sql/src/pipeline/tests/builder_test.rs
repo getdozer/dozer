@@ -71,7 +71,7 @@ impl Source for TestSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..100000 {
+        for n in 0..10000000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -145,10 +145,9 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, ROUND(SUM(ROUND(Spending))) \
+    let sql = "SELECT Country, ROUND(Spending) \
                             FROM Customers \
-                            WHERE Spending >= 1 \
-                            GROUP BY Country;";
+                            WHERE Spending >= 1";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
