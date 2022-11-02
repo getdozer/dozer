@@ -109,11 +109,39 @@ impl Indexer {
 #[cfg(test)]
 mod tests {
     use crate::cache::{
+        lmdb::test_utils as lmdb_utils,
         lmdb::utils::{init_db, init_env},
-        test_utils::schema_0,
+        test_utils::{self, schema_0},
+        Cache, LmdbCache,
     };
 
     use super::*;
+
+    #[test]
+    fn test_secondary_indexes() {
+        let cache = LmdbCache::new(true);
+        let schema = test_utils::schema_1();
+
+        cache.insert_schema("sample", &schema).unwrap();
+
+        let items: Vec<(i64, String, i64)> = vec![
+            (1, "a".to_string(), 521),
+            (2, "a".to_string(), 521),
+            (3, "a".to_string(), 521),
+        ];
+
+        for val in items.clone() {
+            lmdb_utils::insert_rec_1(&cache, &schema, val);
+        }
+        // No of indexes
+        let indexes = lmdb_utils::get_indexes(&cache);
+        // 3 columns, 1 compound
+        assert_eq!(
+            indexes.len(),
+            items.len() * 4,
+            "Must create index for each indexable field"
+        );
+    }
 
     #[test]
     fn test_build_indices_full_text() {

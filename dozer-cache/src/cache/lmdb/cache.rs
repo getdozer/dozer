@@ -1,9 +1,9 @@
 use dozer_types::bincode;
 use dozer_types::errors::cache::{CacheError, QueryError};
-use dozer_types::log::debug;
+
 use lmdb::{
-    Cursor, Database, Environment, Error as LmdbError, RoCursor, RoTransaction, RwTransaction,
-    Transaction, WriteFlags,
+    Database, Environment, Error as LmdbError, RoTransaction, RwTransaction, Transaction,
+    WriteFlags,
 };
 
 use dozer_types::types::Record;
@@ -24,11 +24,6 @@ pub struct LmdbCache {
     schema_db: Database,
 }
 
-fn _debug_dump(cursor: RoCursor) {
-    while let Ok((key, val)) = cursor.get(None, None, 8) {
-        debug!("key: {:?}, val: {:?}", key.unwrap(), val);
-    }
-}
 pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
     [
         "sc".as_bytes(),
@@ -102,18 +97,14 @@ impl LmdbCache {
         Ok(())
     }
 
-    pub fn _debug_dump(&self) -> Result<(), LmdbError> {
-        let txn: RoTransaction = self.env.begin_ro_txn().unwrap();
-
-        debug!("Records:");
-        _debug_dump(txn.open_ro_cursor(self.db)?);
-
-        debug!("Indexes:");
-        _debug_dump(txn.open_ro_cursor(self.indexer_db)?);
-
-        debug!("Schemas:");
-        _debug_dump(txn.open_ro_cursor(self.schema_db)?);
-        Ok(())
+    pub fn get_index_db(&self) -> (&Environment, &Database) {
+        (&self.env, &self.indexer_db)
+    }
+    pub fn get_db(&self) -> (&Environment, &Database) {
+        (&self.env, &self.db)
+    }
+    pub fn get_schema_db(&self) -> (&Environment, &Database) {
+        (&self.env, &self.schema_db)
     }
 
     fn _get_schema_from_reverse_key(
