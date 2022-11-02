@@ -9,27 +9,11 @@ use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError, Pos
 use dozer_types::log::error;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};
-use postgres_types::{FromSql as FromSqlDef, Type as TypeDef};
-use postgres_types_materialize::{FromSql, Type, WasNull};
+use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
-
-struct DecimalWrapper {
-    pub dec: Decimal,
-}
-
-impl<'a> FromSql<'a> for DecimalWrapper {
-    fn from_sql(_ty: &Type, raw: &'a [u8]) -> Result<DecimalWrapper, Box<dyn Error + Sync + Send>> {
-        let val: Result<Decimal, _> = FromSqlDef::from_sql(&TypeDef::NUMERIC, raw);
-        val.map(|val| DecimalWrapper { dec: val })
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        matches!(*ty, Type::NUMERIC)
-    }
-}
 
 pub fn postgres_type_to_field(
     value: &Bytes,
@@ -153,13 +137,10 @@ pub fn value_to_field(
         &Type::FLOAT8 => convert_row_value_to_field!(row, idx, f64),
         &Type::TIMESTAMP => convert_row_value_to_field!(row, idx, NaiveDateTime),
         &Type::TIMESTAMPTZ => convert_row_value_to_field!(row, idx, DateTime<FixedOffset>),
+        &Type::NUMERIC => convert_row_value_to_field!(row, idx, Decimal),
         &Type::BYTEA => {
             let value: Result<Vec<u8>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
-        }
-        &Type::NUMERIC => {
-            let value: Result<DecimalWrapper, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |d| Ok(Field::from(d.dec)))
         }
         &Type::JSONB => {
             let value: Result<Vec<u8>, _> = row.try_get(idx);
