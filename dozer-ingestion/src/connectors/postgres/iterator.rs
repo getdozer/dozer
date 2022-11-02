@@ -1,12 +1,14 @@
 use crate::connectors::connector::TableInfo;
-use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
+use crate::connectors::ingestor::{
+    ChannelForwarder, IngestionOperation, Ingestor, IngestorForwarder,
+};
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 use crate::connectors::storage::RocksStorage;
 use crossbeam::channel::unbounded;
 use dozer_types::bincode;
 use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::{debug, warn};
-use dozer_types::types::OperationEvent;
+
 use postgres::Error;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
@@ -38,7 +40,7 @@ pub enum ReplicationState {
 }
 
 pub struct PostgresIterator {
-    receiver: RefCell<Option<crossbeam::channel::Receiver<OperationEvent>>>,
+    receiver: RefCell<Option<crossbeam::channel::Receiver<IngestionOperation>>>,
     details: Arc<Details>,
     storage_client: Arc<RocksStorage>,
 }
@@ -78,7 +80,7 @@ impl PostgresIterator {
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
 
-        let (tx, rx) = unbounded::<OperationEvent>();
+        let (tx, rx) = unbounded::<IngestionOperation>();
 
         self.receiver.replace(Some(rx));
 
@@ -123,7 +125,7 @@ impl PostgresIterator {
 }
 
 impl Iterator for PostgresIterator {
-    type Item = OperationEvent;
+    type Item = IngestionOperation;
     fn next(&mut self) -> Option<Self::Item> {
         let msg = self.receiver.borrow().as_ref().unwrap().recv();
         match msg {

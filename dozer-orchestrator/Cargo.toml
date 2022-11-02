@@ -9,7 +9,6 @@ default-run = "dozer"
 dozer-api = {version = "0.1.0", path = "../dozer-api"}
 dozer-ingestion = {version = "0.1.0", path = "../dozer-ingestion"}
 dozer-core = {version = "0.1.0", path = "../dozer-core"}
-dozer-schema = {version = "0.1.0", path = "../dozer-schema"}
 dozer-cache = {version = "0.1.0", path = "../dozer-cache"}
 dozer-sql = {version = "0.1.0", path = "../dozer-sql"}
 dozer-types = {version = "0.1.0", path = "../dozer-types"}

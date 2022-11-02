@@ -3,11 +3,12 @@ use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
 
+use crate::connectors::ingestor::IngestionOperation;
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::seq_no_resolver::SeqNoResolver;
 use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
-use dozer_types::types::{OperationEvent, Schema};
+use dozer_types::types::Schema;
 use postgres::Client;
 use std::sync::{Arc, Mutex};
 
@@ -87,7 +88,7 @@ impl Connector for PostgresConnector {
     fn iterator(
         &mut self,
         seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
-    ) -> Box<dyn Iterator<Item = OperationEvent> + 'static> {
+    ) -> Box<dyn Iterator<Item = IngestionOperation> + 'static> {
         let storage_client = self.storage_client.as_ref().unwrap().clone();
         let iterator = PostgresIterator::new(
             self.id,

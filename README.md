@@ -10,7 +10,6 @@ dozer
 |-- dozer-cache           # Cache Implementation
 |-- dozer-core            # Dozer Libaries such as dag, state_store
 |-- dozer-orchestrator    # Dozer Orchestrator & Cli
-|-- dozer-schema          # Schema Registry 
 |-- dozer-types           # Dozer Types
 |-- tests                 # End to end test cases & Samples
 ```
@@ -66,12 +65,11 @@ cp log4rs.sample.yaml log4rs.yaml
 ```
 
 ### Running individual modules
-dozer-schema, dozer-api are instantiated part of `dozer` (short for `dozer-orchestrator`).
+dozer-api are instantiated part of `dozer` (short for `dozer-orchestrator`).
 
 They can be run separately for local testing using `--bin` flags.
 Individual 
 ```
 cargo run --bin dozer
 cargo run --bin dozer-api
-cargo run --bin dozer-schema
 ```

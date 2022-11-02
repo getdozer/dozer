@@ -1,9 +1,7 @@
+use crate::connectors::ingestor::IngestionOperation;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
-use dozer_types::{
-    errors::connector::ConnectorError,
-    types::{OperationEvent, Schema},
-};
+use dozer_types::{errors::connector::ConnectorError, types::Schema};
 use std::sync::{Arc, Mutex};
 
 use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
@@ -19,7 +17,7 @@ pub trait Connector: Send + Sync {
     fn iterator(
         &mut self,
         seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
-    ) -> Box<dyn Iterator<Item = OperationEvent> + 'static>;
+    ) -> Box<dyn Iterator<Item = IngestionOperation> + 'static>;
     fn stop(&self);
     fn test_connection(&self) -> Result<(), ConnectorError>;
 }
