@@ -1,18 +1,23 @@
 use crate::errors::{GRPCError, GenerationError};
-use dozer_cache::cache::expression::QueryExpression;
-use prost_reflect::{DescriptorPool, DynamicMessage, MethodDescriptor};
+use dozer_types::serde_json;
+use prost_reflect::{DescriptorPool, DynamicMessage, MethodDescriptor, SerializeOptions};
 use std::{
     fs::File,
     io::{BufReader, Read},
 };
 use tonic::{Code, Status};
-
-pub fn convert_grpc_message_to_query_exp(input: DynamicMessage) -> Result<QueryExpression, Status> {
-    let request = input
-        .transcode_to::<super::models::query::QueryExpressionRequest>()
+pub fn from_dynamic_message_to_json(input: DynamicMessage) -> Result<serde_json::Value, Status> {
+    let mut options = SerializeOptions::new();
+    options = options.use_proto_field_name(true);
+    let mut serializer = serde_json::Serializer::new(vec![]);
+    input
+        .serialize_with_options(&mut serializer, &options)
         .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let result_exp = QueryExpression::try_from(request)?;
-    Ok(result_exp)
+    let string_utf8 = String::from_utf8(serializer.into_inner())
+        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
+    let result: serde_json::Value = serde_json::from_str(&string_utf8)
+        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
+    Ok(result)
 }
 
 pub fn get_method_by_name(

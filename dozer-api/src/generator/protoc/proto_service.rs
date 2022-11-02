@@ -1,11 +1,10 @@
-use crate::errors::GenerationError;
-
 use super::util::convert_dozer_type_to_proto_type;
+use crate::errors::GenerationError;
 use dozer_types::{
     models::api_endpoint::ApiEndpoint,
     serde::{self, Deserialize, Serialize},
 };
-use heck::ToPascalCase;
+use heck::{ToPascalCase, ToUpperCamelCase};
 use std::fmt::Write;
 use std::{collections::HashMap, vec};
 
@@ -43,7 +42,10 @@ pub enum GrpcType {
     List,
     GetById,
     Query,
-    ServerStreaming,
+    OnInsert,
+    OnUpdate,
+    OnDelete,
+    OnSchemaChange,
 }
 
 impl ProtoService {
@@ -128,6 +130,68 @@ impl ProtoService {
         ))
     }
 
+    fn _filter_expression_model(&self) -> RPCMessage {
+        let props_message: Vec<String> = self
+            .schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(idx, field)| -> String {
+                let mut result = "".to_owned();
+                let proto_type = convert_dozer_type_to_proto_type(field.typ.to_owned()).unwrap();
+                let _ = writeln!(
+                    result,
+                    "  {}Expression {} = {}; ",
+                    proto_type.to_upper_camel_case(),
+                    field.name,
+                    idx + 1
+                );
+                result
+            })
+            .collect();
+        let mut props_array: Vec<String> = vec!["oneof expression {\n".to_owned()];
+        props_array.extend(props_message);
+        props_array.push("}\n".to_owned());
+        props_array.push("repeated FilterExpression and = 5;\n".to_owned());
+
+        RPCMessage {
+            name: "FilterExpression".to_owned(),
+            props: props_array,
+        }
+    }
+
+    fn _type_expression(&self) -> Vec<RPCMessage> {
+        let operator = vec!["eq", "lt", "lte", "gt", "gte"];
+        let mut types: Vec<String> = self
+            .schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(_idx, field)| -> String {
+                convert_dozer_type_to_proto_type(field.typ.to_owned()).unwrap()
+            })
+            .collect();
+        types.sort();
+        types.dedup();
+        let result: Vec<RPCMessage> = types
+            .iter()
+            .map(|type_name| {
+                let mut props_array: Vec<String> = operator
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, &opt)| format!("  {} {} = {};\n", type_name, opt, idx + 1))
+                    .collect();
+                props_array.insert(0, "oneof exp {\n".to_owned());
+                props_array.push("}\n".to_owned());
+                RPCMessage {
+                    name: format!("{}Expression", type_name.to_upper_camel_case()),
+                    props: props_array,
+                }
+            })
+            .collect();
+        result
+    }
+
     fn _query_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
         let query_request_str = format!(
             "Query{}Request",
@@ -163,24 +227,87 @@ impl ProtoService {
         (query_fnc, vec![query_request, query_response])
     }
 
-    fn _on_change_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
-        let on_change_request_str = "OnChangeRequest".to_string();
-        let on_change_response_str = "OnChangeResponse".to_string();
-        let on_change_fnc = RPCFunction {
-            name: String::from("on_change"),
-            argument: on_change_request_str.to_owned(),
-            response: format!("stream {}", on_change_response_str),
+    fn _on_insert_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
+        let on_insert_request_str = "OnInsertRequest".to_string();
+        let on_insert_response_str = "OnInsertResponse".to_string();
+        let on_insert_fnc = RPCFunction {
+            name: String::from("on_insert"),
+            argument: on_insert_request_str.to_owned(),
+            response: format!("stream {}", on_insert_response_str),
         };
-        let on_change_request = RPCMessage {
-            name: on_change_request_str,
+        let on_insert_request = RPCMessage {
+            name: on_insert_request_str,
             props: vec![],
         };
 
-        let on_change_response = RPCMessage {
-            name: on_change_response_str,
-            props: vec!["optional Event event = 1;\n".to_owned()],
+        let on_insert_response = RPCMessage {
+            name: on_insert_response_str,
+            props: vec!["google.protobuf.Value detail = 1;\n".to_owned()],
         };
-        (on_change_fnc, vec![on_change_request, on_change_response])
+        (on_insert_fnc, vec![on_insert_request, on_insert_response])
+    }
+
+    fn _on_update_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
+        let on_update_request_str = "OnUpdateRequest".to_string();
+        let on_update_response_str = "OnUpdateResponse".to_string();
+        let on_update_fnc = RPCFunction {
+            name: String::from("on_update"),
+            argument: on_update_request_str.to_owned(),
+            response: format!("stream {}", on_update_response_str),
+        };
+        let on_update_request = RPCMessage {
+            name: on_update_request_str,
+            props: vec![],
+        };
+
+        let on_update_response = RPCMessage {
+            name: on_update_response_str,
+            props: vec!["google.protobuf.Value detail = 1;\n".to_owned()],
+        };
+        (on_update_fnc, vec![on_update_request, on_update_response])
+    }
+
+    fn _on_delete_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
+        let on_delete_request_str = "OnDeleteRequest".to_string();
+        let on_delete_response_str = "OnDeleteResponse".to_string();
+        let on_delete_fnc = RPCFunction {
+            name: String::from("on_delete"),
+            argument: on_delete_request_str.to_owned(),
+            response: format!("stream {}", on_delete_response_str),
+        };
+        let on_delete_request = RPCMessage {
+            name: on_delete_request_str,
+            props: vec![],
+        };
+
+        let on_delete_response = RPCMessage {
+            name: on_delete_response_str,
+            props: vec!["google.protobuf.Value detail = 1;\n".to_owned()],
+        };
+        (on_delete_fnc, vec![on_delete_request, on_delete_response])
+    }
+
+    fn _on_schema_change_message(&self) -> (RPCFunction, Vec<RPCMessage>) {
+        let on_schema_change_request_str = "OnSchemaChangeRequest".to_string();
+        let on_schema_change_response_str = "OnSchemaChangeResponse".to_string();
+        let on_schema_change_fnc = RPCFunction {
+            name: String::from("on_schema_change"),
+            argument: on_schema_change_request_str.to_owned(),
+            response: format!("stream {}", on_schema_change_response_str),
+        };
+        let on_schema_change_request = RPCMessage {
+            name: on_schema_change_request_str,
+            props: vec![],
+        };
+
+        let on_schema_change_response = RPCMessage {
+            name: on_schema_change_response_str,
+            props: vec!["google.protobuf.Value detail = 1;\n".to_owned()],
+        };
+        (
+            on_schema_change_fnc,
+            vec![on_schema_change_request, on_schema_change_response],
+        )
     }
     fn _sort_option_model(&self) -> RPCMessage {
         RPCMessage {
@@ -196,61 +323,6 @@ impl ProtoService {
         }
     }
 
-    fn _filter_expression_model(&self) -> RPCMessage {
-        RPCMessage {
-            name: "FilterExpression".to_owned(),
-            props: vec![
-                "oneof expression {\n".to_owned(),
-                "  SimpleExpression simple = 1;\n".to_owned(),
-                "  AndExpression and = 2;\n".to_owned(),
-                "} \n".to_owned(),
-            ],
-        }
-    }
-
-    fn _simple_filter_expression_model(&self) -> RPCMessage {
-        RPCMessage {
-            name: "SimpleExpression".to_owned(),
-            props: vec![
-                "enum Operator {\n".to_owned(),
-                "  LT = 0;\n".to_owned(),
-                "  LTE = 1;\n".to_owned(),
-                "  EQ = 2;\n".to_owned(),
-                "  GT = 3;\n".to_owned(),
-                "  GTE = 4;\n".to_owned(),
-                "  Contains = 5;\n".to_owned(),
-                "  MatchesAny = 6;\n".to_owned(),
-                "  MatchesAll = 7;\n".to_owned(),
-                "} \n".to_owned(),
-                "string field = 1;\n".to_owned(),
-                "Operator operator = 2;\n".to_owned(),
-                "google.protobuf.Value value = 3;\n".to_owned(),
-            ],
-        }
-    }
-
-    fn _and_filter_expression_model(&self) -> RPCMessage {
-        RPCMessage {
-            name: "AndExpression".to_owned(),
-            props: vec!["repeated FilterExpression filter_expressions = 1;\n".to_owned()],
-        }
-    }
-
-    fn _event_on_change_model(&self) -> RPCMessage {
-        RPCMessage {
-            name: "Event".to_owned(),
-            props: vec![
-                "enum EventType { \n".to_owned(),
-                "  schema_change = 0; \n".to_owned(),
-                "  record_update = 1; \n".to_owned(),
-                "  record_insert = 2; \n".to_owned(),
-                "  record_delete = 3; \n".to_owned(),
-                "} \n".to_owned(),
-                "EventType type = 1; \n".to_owned(),
-                "google.protobuf.Value detail = 2; \n".to_owned(),
-            ],
-        }
-    }
     fn _main_model(&self) -> RPCMessage {
         let props_message: Vec<String> = self
             .schema
@@ -277,41 +349,48 @@ impl ProtoService {
     pub fn get_grpc_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = String::from("Dozer");
         let service_name = format!("{}Service", self.endpoint.name.to_owned().to_pascal_case());
+
         let get_rpc = self._get_message();
         let get_by_id_rpc = self._get_by_id_message()?;
         let query_rpc = self._query_message();
-        let on_change_rpc = self._on_change_message();
+        let on_insert_rpc = self._on_insert_message();
+        let on_update_rpc = self._on_update_message();
+        let on_delete_rpc = self._on_delete_message();
+        let on_schema_change_rpc = self._on_schema_change_message();
+
         let main_model = self._main_model();
+        let filter_exp_model = self._filter_expression_model();
+        let type_exp_model = self._type_expression();
         let sort_exp_model = self._sort_option_model();
-        let filter_expression_model = self._filter_expression_model();
-        let simple_expression_model = self._simple_filter_expression_model();
-        let and_expression_model = self._and_filter_expression_model();
-        let event_on_change_model = self._event_on_change_model();
 
         let rpc_functions = vec![
             get_rpc.to_owned().0,
             get_by_id_rpc.to_owned().0,
             query_rpc.to_owned().0,
-            on_change_rpc.to_owned().0,
+            on_insert_rpc.to_owned().0,
+            on_update_rpc.to_owned().0,
+            on_delete_rpc.to_owned().0,
+            on_schema_change_rpc.to_owned().0,
         ];
-        let mut rpc_message = vec![
-            main_model,
-            sort_exp_model,
-            filter_expression_model,
-            simple_expression_model,
-            and_expression_model,
-            event_on_change_model,
-        ];
+        let mut rpc_message = vec![main_model, sort_exp_model];
         rpc_message.extend(get_rpc.to_owned().1);
         rpc_message.extend(get_by_id_rpc.to_owned().1);
         rpc_message.extend(query_rpc.to_owned().1);
-        rpc_message.extend(on_change_rpc.to_owned().1);
-        let mut function_with_type = HashMap::new();
+        rpc_message.push(filter_exp_model);
+        rpc_message.extend(type_exp_model);
+        rpc_message.extend(on_insert_rpc.to_owned().1);
+        rpc_message.extend(on_update_rpc.to_owned().1);
+        rpc_message.extend(on_delete_rpc.to_owned().1);
+        rpc_message.extend(on_schema_change_rpc.to_owned().1);
 
+        let mut function_with_type = HashMap::new();
         function_with_type.insert(get_rpc.0.name, GrpcType::List);
         function_with_type.insert(get_by_id_rpc.0.name, GrpcType::GetById);
         function_with_type.insert(query_rpc.0.name, GrpcType::Query);
-        function_with_type.insert(on_change_rpc.0.name, GrpcType::ServerStreaming);
+        function_with_type.insert(on_insert_rpc.0.name, GrpcType::OnInsert);
+        function_with_type.insert(on_update_rpc.0.name, GrpcType::OnUpdate);
+        function_with_type.insert(on_delete_rpc.0.name, GrpcType::OnDelete);
+        function_with_type.insert(on_schema_change_rpc.0.name, GrpcType::OnSchemaChange);
 
         let import_libs = vec![String::from("google/protobuf/struct.proto")];
         let metadata = ProtoMetadata {

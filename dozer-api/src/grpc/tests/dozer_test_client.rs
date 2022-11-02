@@ -1,4 +1,3 @@
-use dozer_types::serde::{self, Deserialize, Serialize};
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct Film {
     #[prost(int32, optional, tag = "1")]
@@ -19,9 +18,6 @@ pub struct SortOptions {
 }
 /// Nested message and enum types in `SortOptions`.
 pub mod sort_options {
-    use dozer_types::serde::{self, Deserialize, Serialize};
-    #[derive(Serialize, Deserialize)]
-    #[serde(crate = "self::serde")]
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum SortDirection {
@@ -41,115 +37,6 @@ pub mod sort_options {
         }
     }
 }
-#[derive(Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FilterExpression {
-    #[prost(oneof = "filter_expression::Expression", tags = "1, 2")]
-    pub expression: ::core::option::Option<filter_expression::Expression>,
-}
-/// Nested message and enum types in `FilterExpression`.
-pub mod filter_expression {
-    use dozer_types::serde::{self, Deserialize, Serialize};
-    #[derive(Serialize, Deserialize)]
-    #[serde(crate = "self::serde")]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Expression {
-        #[prost(message, tag = "1")]
-        Simple(super::SimpleExpression),
-        #[prost(message, tag = "2")]
-        And(super::AndExpression),
-    }
-}
-#[derive(Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SimpleExpression {
-    #[prost(string, tag = "1")]
-    pub field: ::prost::alloc::string::String,
-    #[prost(enumeration = "simple_expression::Operator", tag = "2")]
-    pub operator: i32,
-    #[prost(message, optional, tag = "3")]
-    pub value: ::core::option::Option<::prost_wkt_types::Value>,
-}
-/// Nested message and enum types in `SimpleExpression`.
-pub mod simple_expression {
-    use dozer_types::serde::{self, Deserialize, Serialize};
-    #[derive(Serialize, Deserialize)]
-    #[serde(crate = "self::serde")]
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-    #[repr(i32)]
-    pub enum Operator {
-        Lt = 0,
-        Lte = 1,
-        Eq = 2,
-        Gt = 3,
-        Gte = 4,
-        Contains = 5,
-        MatchesAny = 6,
-        MatchesAll = 7,
-    }
-    impl Operator {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                Operator::Lt => "LT",
-                Operator::Lte => "LTE",
-                Operator::Eq => "EQ",
-                Operator::Gt => "GT",
-                Operator::Gte => "GTE",
-                Operator::Contains => "Contains",
-                Operator::MatchesAny => "MatchesAny",
-                Operator::MatchesAll => "MatchesAll",
-            }
-        }
-    }
-}
-#[derive(Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AndExpression {
-    #[prost(message, repeated, tag = "1")]
-    pub filter_expressions: ::prost::alloc::vec::Vec<FilterExpression>,
-}
-#[derive(Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Event {
-    #[prost(enumeration = "event::EventType", tag = "1")]
-    pub r#type: i32,
-    #[prost(message, optional, tag = "2")]
-    pub detail: ::core::option::Option<::prost_wkt_types::Value>,
-}
-/// Nested message and enum types in `Event`.
-pub mod event {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-    #[repr(i32)]
-    pub enum EventType {
-        SchemaChange = 0,
-        RecordUpdate = 1,
-        RecordInsert = 2,
-        RecordDelete = 3,
-    }
-    impl EventType {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                EventType::SchemaChange => "schema_change",
-                EventType::RecordUpdate => "record_update",
-                EventType::RecordInsert => "record_insert",
-                EventType::RecordDelete => "record_delete",
-            }
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct GetFilmsRequest {}
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
@@ -183,12 +70,96 @@ pub struct QueryFilmsResponse {
     #[prost(message, repeated, tag = "1")]
     pub film: ::prost::alloc::vec::Vec<Film>,
 }
-#[derive(Clone, PartialEq, Eq, ::prost::Message)]
-pub struct OnChangeRequest {}
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct OnChangeResponse {
+pub struct FilterExpression {
+    #[prost(message, repeated, tag = "5")]
+    pub and: ::prost::alloc::vec::Vec<FilterExpression>,
+    #[prost(oneof = "filter_expression::Expression", tags = "1, 2, 3, 4")]
+    pub expression: ::core::option::Option<filter_expression::Expression>,
+}
+/// Nested message and enum types in `FilterExpression`.
+pub mod filter_expression {
+    #[derive(Clone, PartialEq, Eq, ::prost::Oneof)]
+    pub enum Expression {
+        #[prost(message, tag = "1")]
+        FilmId(super::Int32Expression),
+        #[prost(message, tag = "2")]
+        Description(super::StringExpression),
+        #[prost(message, tag = "3")]
+        RentalRate(super::StringExpression),
+        #[prost(message, tag = "4")]
+        ReleaseYear(super::Int32Expression),
+    }
+}
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
+pub struct Int32Expression {
+    #[prost(oneof = "int32_expression::Exp", tags = "1, 2, 3, 4, 5")]
+    pub exp: ::core::option::Option<int32_expression::Exp>,
+}
+/// Nested message and enum types in `Int32Expression`.
+pub mod int32_expression {
+    #[derive(Clone, PartialEq, Eq, ::prost::Oneof)]
+    pub enum Exp {
+        #[prost(int32, tag = "1")]
+        Eq(i32),
+        #[prost(int32, tag = "2")]
+        Lt(i32),
+        #[prost(int32, tag = "3")]
+        Lte(i32),
+        #[prost(int32, tag = "4")]
+        Gt(i32),
+        #[prost(int32, tag = "5")]
+        Gte(i32),
+    }
+}
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
+pub struct StringExpression {
+    #[prost(oneof = "string_expression::Exp", tags = "1, 2, 3, 4, 5")]
+    pub exp: ::core::option::Option<string_expression::Exp>,
+}
+/// Nested message and enum types in `StringExpression`.
+pub mod string_expression {
+    #[derive(Clone, PartialEq, Eq, ::prost::Oneof)]
+    pub enum Exp {
+        #[prost(string, tag = "1")]
+        Eq(::prost::alloc::string::String),
+        #[prost(string, tag = "2")]
+        Lt(::prost::alloc::string::String),
+        #[prost(string, tag = "3")]
+        Lte(::prost::alloc::string::String),
+        #[prost(string, tag = "4")]
+        Gt(::prost::alloc::string::String),
+        #[prost(string, tag = "5")]
+        Gte(::prost::alloc::string::String),
+    }
+}
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
+pub struct OnInsertRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OnInsertResponse {
     #[prost(message, optional, tag = "1")]
-    pub event: ::core::option::Option<Event>,
+    pub detail: ::core::option::Option<::prost_wkt_types::Value>,
+}
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
+pub struct OnUpdateRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OnUpdateResponse {
+    #[prost(message, optional, tag = "1")]
+    pub detail: ::core::option::Option<::prost_wkt_types::Value>,
+}
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
+pub struct OnDeleteRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OnDeleteResponse {
+    #[prost(message, optional, tag = "1")]
+    pub detail: ::core::option::Option<::prost_wkt_types::Value>,
+}
+#[derive(Clone, PartialEq, Eq, ::prost::Message)]
+pub struct OnSchemaChangeRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OnSchemaChangeResponse {
+    #[prost(message, optional, tag = "1")]
+    pub detail: ::core::option::Option<::prost_wkt_types::Value>,
 }
 /// Generated client implementations.
 pub mod films_service_client {
@@ -300,10 +271,10 @@ pub mod films_service_client {
             let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/query");
             self.inner.unary(request.into_request(), path, codec).await
         }
-        pub async fn on_change(
+        pub async fn on_insert(
             &mut self,
-            request: impl tonic::IntoRequest<super::OnChangeRequest>,
-        ) -> Result<tonic::Response<tonic::codec::Streaming<super::OnChangeResponse>>, tonic::Status>
+            request: impl tonic::IntoRequest<super::OnInsertRequest>,
+        ) -> Result<tonic::Response<tonic::codec::Streaming<super::OnInsertResponse>>, tonic::Status>
         {
             self.inner.ready().await.map_err(|e| {
                 tonic::Status::new(
@@ -312,7 +283,60 @@ pub mod films_service_client {
                 )
             })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/on_change");
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/on_insert");
+            self.inner
+                .server_streaming(request.into_request(), path, codec)
+                .await
+        }
+        pub async fn on_update(
+            &mut self,
+            request: impl tonic::IntoRequest<super::OnUpdateRequest>,
+        ) -> Result<tonic::Response<tonic::codec::Streaming<super::OnUpdateResponse>>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/on_update");
+            self.inner
+                .server_streaming(request.into_request(), path, codec)
+                .await
+        }
+        pub async fn on_delete(
+            &mut self,
+            request: impl tonic::IntoRequest<super::OnDeleteRequest>,
+        ) -> Result<tonic::Response<tonic::codec::Streaming<super::OnDeleteResponse>>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/on_delete");
+            self.inner
+                .server_streaming(request.into_request(), path, codec)
+                .await
+        }
+        pub async fn on_schema_change(
+            &mut self,
+            request: impl tonic::IntoRequest<super::OnSchemaChangeRequest>,
+        ) -> Result<
+            tonic::Response<tonic::codec::Streaming<super::OnSchemaChangeResponse>>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/Dozer.FilmsService/on_schema_change");
             self.inner
                 .server_streaming(request.into_request(), path, codec)
                 .await

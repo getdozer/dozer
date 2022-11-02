@@ -1,5 +1,10 @@
 use crossbeam::channel;
-use dozer_types::events::Event;
+use dozer_types::{
+    events::Event,
+    serde_json::{self, json},
+    types::Record,
+};
+use tokio::time;
 
 use crate::{
     api_server::PipelineDetails,
@@ -8,7 +13,7 @@ use crate::{
     grpc::util::create_descriptor_set,
     test_utils,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, thread};
 
 pub fn generate_proto(
     dir_path: String,
@@ -34,6 +39,12 @@ pub fn generate_descriptor(
 }
 
 pub fn mock_event_notifier() -> channel::Receiver<Event> {
-    let (_sender, receiver) = channel::unbounded::<Event>();
+    let (sender, receiver) = channel::unbounded::<Event>();
+    let _executor_thread = thread::spawn(move || loop {
+        thread::sleep(time::Duration::from_millis(1000));
+        let record_json = json!({"schema_id":{"id":1811503150,"version":1},"values":[{"Int":1048},{"String":"Test33"},"Null",{"Int":2006}]});
+        let fake_record: Record = serde_json::from_value(record_json).unwrap();
+        sender.try_send(Event::RecordInsert(fake_record)).unwrap();
+    });
     receiver
 }

@@ -1,5 +1,5 @@
-use super::functions::{grpc_get_by_id, grpc_list, grpc_query};
-use crate::{api_server::PipelineDetails, grpc::functions::grpc_server_stream};
+use super::def::{grpc_get_by_id, grpc_list, grpc_query};
+use crate::{api_server::PipelineDetails, grpc::def::grpc_server_stream};
 use dozer_cache::cache::LmdbCache;
 use dozer_types::{events::Event, serde_json::Value};
 use prost_reflect::DynamicMessage;

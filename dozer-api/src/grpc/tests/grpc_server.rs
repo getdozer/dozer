@@ -1,5 +1,7 @@
 use super::{
-    dozer_test_client::{GetFilmsByIdResponse, GetFilmsResponse, QueryFilmsResponse},
+    dozer_test_client::{
+        GetFilmsByIdResponse, GetFilmsResponse, OnInsertRequest, QueryFilmsResponse,
+    },
     utils::{generate_descriptor, generate_proto},
 };
 use crate::{
@@ -8,9 +10,10 @@ use crate::{
         server::TonicServer,
         tests::{
             dozer_test_client::{
-                films_service_client::FilmsServiceClient, filter_expression::Expression,
-                simple_expression::Operator, FilterExpression, GetFilmsByIdRequest,
-                GetFilmsRequest, QueryFilmsRequest, SimpleExpression,
+                films_service_client::FilmsServiceClient,
+                filter_expression::{self},
+                FilterExpression, GetFilmsByIdRequest, GetFilmsRequest, Int32Expression,
+                OnInsertResponse, QueryFilmsRequest,
             },
             utils::mock_event_notifier,
         },
@@ -20,10 +23,11 @@ use crate::{
 };
 use dozer_types::events::Event;
 use futures_util::FutureExt;
-use prost_wkt_types::Value;
+
 use std::time::Duration;
 use tempdir::TempDir;
 use tokio::sync::{broadcast, oneshot};
+use tokio_stream::StreamExt;
 use tonic::{
     transport::{Endpoint, Server},
     Request,
@@ -126,13 +130,12 @@ async fn test_grpc_query() {
         .unwrap();
     let mut client = FilmsServiceClient::new(channel);
     // create filter expression
-    let expression = Expression::Simple(SimpleExpression {
-        field: "film_id".to_string(),
-        operator: Operator::Eq as i32,
-        value: Some(Value::from(524.0)),
+    let expression = filter_expression::Expression::FilmId(Int32Expression {
+        exp: Some(crate::grpc::tests::dozer_test_client::int32_expression::Exp::Eq(524)),
     });
     let filter_expression = FilterExpression {
         expression: Some(expression),
+        and: vec![],
     };
     let request = QueryFilmsRequest {
         limit: Some(50),
@@ -143,4 +146,38 @@ async fn test_grpc_query() {
     let res = client.query(Request::new(request)).await.unwrap();
     let request_response: QueryFilmsResponse = res.into_inner();
     assert!(!request_response.film.len() > 0);
+}
+
+#[tokio::test]
+async fn test_grpc_insert_streaming() {
+    let tmp_dir = TempDir::new("proto_generated").unwrap();
+    let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
+    let grpc_service = setup_grpc_service(tmp_dir_path);
+    let (_tx, rx) = oneshot::channel::<()>();
+
+    let _jh = tokio::spawn(async move {
+        Server::builder()
+            .add_service(grpc_service)
+            .serve_with_shutdown("127.0.0.1:1403".parse().unwrap(), rx.map(drop))
+            .await
+            .unwrap();
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let channel = Endpoint::from_static("http://127.0.0.1:1403")
+        .connect()
+        .await
+        .unwrap();
+    let mut client = FilmsServiceClient::new(channel);
+
+    let request = OnInsertRequest {};
+    let stream = client
+        .on_insert(Request::new(request))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut stream = stream.take(1);
+    while let Some(item) = stream.next().await {
+        let response: OnInsertResponse = item.unwrap();
+        assert!(response.detail.is_some());
+    }
 }

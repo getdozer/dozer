@@ -1,5 +1,6 @@
 syntax = "proto3";
-import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
+
 package Dozer;
 service FilmsService {
   rpc films(GetFilmsRequest) returns (GetFilmsResponse);
@@ -45,7 +46,7 @@ message GetFilmsByIdResponse {
 }
 
 message QueryFilmsRequest {
- optional FilterExpression filter = 1; 
+ optional google.protobuf.Struct filter = 1; 
  repeated SortOptions order_by = 2; 
  optional uint32 limit = 3; 
  optional uint32 skip = 4; 
@@ -75,7 +76,7 @@ message SimpleExpression {
   } 
   string field = 1;
   Operator operator = 2;
-  google.protobuf.Any value = 3;
+  google.protobuf.Struct value = 3;
 }
 
 message AndExpression {
