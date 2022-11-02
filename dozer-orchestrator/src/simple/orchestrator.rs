@@ -1,19 +1,21 @@
+use std::{sync::Arc, thread};
+
+use dozer_api::api_server::ApiServer;
+use dozer_cache::cache::LmdbCache;
+
 use super::executor::Executor;
 use crate::Orchestrator;
 use crossbeam::channel::{self};
-use dozer_api::{api_server::ApiServer, grpc_server::GRPCServer};
-use dozer_cache::cache::LmdbCache;
-use dozer_schema::registry::SchemaRegistryClient;
+use dozer_api::grpc_server::GRPCServer;
 use dozer_types::{
     errors::orchestrator::OrchestrationError,
     models::{api_endpoint::ApiEndpoint, source::Source},
 };
-use std::{sync::Arc, thread};
 
+#[derive(Default)]
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
     pub api_endpoints: Vec<ApiEndpoint>,
-    pub schema_client: Arc<SchemaRegistryClient>,
 }
 
 impl Orchestrator for SimpleOrchestrator {
@@ -68,11 +70,10 @@ impl Orchestrator for SimpleOrchestrator {
 }
 
 impl SimpleOrchestrator {
-    pub fn new(schema_client: Arc<SchemaRegistryClient>) -> Self {
+    pub fn new() -> Self {
         Self {
             sources: vec![],
             api_endpoints: vec![],
-            schema_client,
         }
     }
 }

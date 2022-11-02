@@ -6,7 +6,6 @@ use lmdb::{
     Transaction, WriteFlags,
 };
 
-use dozer_schema::storage::get_schema_key;
 use dozer_types::types::Record;
 use dozer_types::types::{Schema, SchemaIdentifier};
 
@@ -29,6 +28,14 @@ fn _debug_dump(cursor: RoCursor) {
     while let Ok((key, val)) = cursor.get(None, None, 8) {
         debug!("key: {:?}, val: {:?}", key.unwrap(), val);
     }
+}
+pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
+    [
+        "sc".as_bytes(),
+        schema_id.id.to_be_bytes().as_ref(),
+        schema_id.version.to_be_bytes().as_ref(),
+    ]
+    .join("#".as_bytes())
 }
 
 impl LmdbCache {

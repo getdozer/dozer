@@ -3,13 +3,17 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use super::storage::RocksStorage;
+use crate::connectors::seq_no_resolver::SeqNoResolver;
 use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
-// use dozer_schema::registry::{_get_client, context};
 use dozer_types::serde;
 use dozer_types::types::{Commit, OperationEvent, Schema};
 use serde::{Deserialize, Serialize};
-// use tokio::runtime::Runtime;
-use crate::connectors::seq_no_resolver::SeqNoResolver;
+
+#[derive(Clone, Debug)]
+pub enum IngestionOperation {
+    OperationEvent(OperationEvent),
+    SchemaUpdate(Schema),
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(crate = "self::serde")]
@@ -20,15 +24,15 @@ pub enum IngestionMessage {
     Commit(Commit),
 }
 pub trait IngestorForwarder: Send + Sync {
-    fn forward(&self, msg: OperationEvent);
+    fn forward(&self, msg: IngestionOperation);
 }
 
 pub struct ChannelForwarder {
-    pub sender: crossbeam::channel::Sender<OperationEvent>,
+    pub sender: crossbeam::channel::Sender<IngestionOperation>,
 }
 
 impl IngestorForwarder for ChannelForwarder {
-    fn forward(&self, event: OperationEvent) {
+    fn forward(&self, event: IngestionOperation) {
         let send_res = self.sender.send(event);
         match send_res {
             Ok(_) => {}
@@ -70,21 +74,13 @@ impl Ingestor {
 
                 let (key, encoded) = self.storage_client.map_operation_event(&event);
                 self.writer.insert(key.as_ref(), encoded);
-                self.sender.forward(event);
+                self.sender
+                    .forward(IngestionOperation::OperationEvent(event));
             }
-            IngestionMessage::Schema(_schema) => {
-                let _seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
-                // TODO: fix usage of schema registry update
-                // let schema_update = Runtime::new()
-                //     .unwrap()
-                //     .block_on(async {
-                //         let client = _get_client().await.unwrap();
-                //         client.insert(context::current(), schema).await
-                //     });
-
-                // if let Err(_) = schema_update {
-                //     debug!("Igoring schema updated error");
-                // }
+            IngestionMessage::Schema(schema) => {
+                let _seq_no: u64 = self.seq_no_resolver.lock().unwrap().get_next_seq_no() as u64;
+                self.sender
+                    .forward(IngestionOperation::SchemaUpdate(schema));
             }
             IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
@@ -109,7 +105,9 @@ unsafe impl Sync for Ingestor {}
 #[cfg(test)]
 mod tests {
     use crate::connectors::ingestor::IngestionMessage::{Begin, Commit, OperationEvent, Schema};
-    use crate::connectors::ingestor::{ChannelForwarder, Ingestor, IngestorForwarder};
+    use crate::connectors::ingestor::{
+        ChannelForwarder, IngestionOperation, Ingestor, IngestorForwarder,
+    };
     use crate::connectors::seq_no_resolver::SeqNoResolver;
     use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
     use crossbeam::channel::unbounded;
@@ -124,7 +122,7 @@ mod tests {
 
         let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
 
-        let (tx, _rx) = unbounded::<dozer_types::types::OperationEvent>();
+        let (tx, _rx) = unbounded::<IngestionOperation>();
         let forwarder: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
 

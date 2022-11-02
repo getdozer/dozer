@@ -102,7 +102,7 @@ impl CDCHandler {
             Some(Ok(XLogData(body))) => {
                 let message = mapper.handle_message(body);
                 if let Some(ingestion_message) = message {
-                    if let &IngestionMessage::Commit(commit) = &ingestion_message {
+                    if let IngestionMessage::Commit(commit) = ingestion_message {
                         self.last_commit_lsn = commit.lsn;
                     }
 

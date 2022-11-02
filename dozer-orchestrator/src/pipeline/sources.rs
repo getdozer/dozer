@@ -1,3 +1,4 @@
+use dozer_ingestion::connectors::ingestor::IngestionOperation;
 use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_types::core::node::PortHandle;
 use dozer_types::errors::execution::ExecutionError;
@@ -93,7 +94,10 @@ impl Source for ConnectorSource {
 
         loop {
             let (op, port) = receiver.iter().next().unwrap();
-            fw.send(op.seq_no, op.operation, port)?;
+            match op {
+                IngestionOperation::OperationEvent(op) => fw.send(op.seq_no, op.operation, port)?,
+                IngestionOperation::SchemaUpdate(schema) => fw.update_schema(schema, port)?,
+            }
         }
     }
 
