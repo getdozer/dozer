@@ -181,7 +181,7 @@ impl<'a> LmdbQueryHandler<'a> {
         current_key: &[u8],
         sort_order: bool,
     ) -> bool {
-        let val = last_filter.map_or(false, |f| match f.op {
+        last_filter.map_or(false, |f| match f.op {
             Operator::LT => {
                 if sort_order {
                     false
@@ -204,8 +204,7 @@ impl<'a> LmdbQueryHandler<'a> {
             | Operator::Contains
             | Operator::MatchesAny
             | Operator::MatchesAll => false,
-        });
-        val
+        })
     }
 
     fn compare_key(
@@ -220,42 +219,39 @@ impl<'a> LmdbQueryHandler<'a> {
         let cmp = lmdb_cmp(self.txn, db, key, start_key);
         let end_cmp = lmdb_cmp(self.txn, db, key, end_key);
 
-        last_filter.map_or(cmp == 0, |f| {
-            let valid = match f.op {
-                Operator::LT => {
-                    if sort_order {
-                        end_cmp < 0
-                    } else {
-                        cmp >= 0
-                    }
+        last_filter.map_or(cmp == 0, |f| match f.op {
+            Operator::LT => {
+                if sort_order {
+                    end_cmp < 0
+                } else {
+                    cmp >= 0
                 }
-                Operator::LTE => {
-                    if sort_order {
-                        end_cmp <= 0
-                    } else {
-                        cmp > 0
-                    }
+            }
+            Operator::LTE => {
+                if sort_order {
+                    end_cmp <= 0
+                } else {
+                    cmp > 0
                 }
+            }
 
-                Operator::GT => {
-                    if sort_order {
-                        cmp > 0
-                    } else {
-                        end_cmp <= 0
-                    }
+            Operator::GT => {
+                if sort_order {
+                    cmp > 0
+                } else {
+                    end_cmp <= 0
                 }
-                Operator::GTE => {
-                    if sort_order {
-                        cmp >= 0
-                    } else {
-                        end_cmp < 0
-                    }
+            }
+            Operator::GTE => {
+                if sort_order {
+                    cmp >= 0
+                } else {
+                    end_cmp < 0
                 }
-                Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
-                    cmp == 0
-                }
-            };
-            valid
+            }
+            Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
+                cmp == 0
+            }
         })
     }
 
