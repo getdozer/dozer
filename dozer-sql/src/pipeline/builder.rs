@@ -64,7 +64,7 @@ impl PipelineBuilder {
 
         if let Some(selection) = select.selection {
             // Where clause
-            let selection = SelectionProcessorFactory::new(Some(selection));
+            let selection = SelectionProcessorFactory::new(selection);
             first_node_name = String::from("selection");
 
             dag.add_node(

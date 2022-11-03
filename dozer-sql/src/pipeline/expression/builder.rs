@@ -28,16 +28,29 @@ use super::{
 pub type Bypass = bool;
 
 pub enum ExpressionType {
-    PreAggregation(Box<Expression>),
-    PostAggregation(Box<Expression>),
-    FullExpression(Box<Expression>),
+    PreAggregation,
+    Aggregation,
+    // PostAggregation,
+    FullExpression,
 }
 
-struct ExpressionBuilder;
+pub struct ExpressionBuilder;
 
 impl ExpressionBuilder {
-    fn parse_sql_expression(
+    pub fn build(
         &self,
+        expression_type: &ExpressionType,
+        sql_expression: &SqlExpr,
+        schema: &Schema,
+    ) -> Result<Box<Expression>, PipelineError> {
+        let (expression, _bypass) =
+            self.parse_sql_expression(expression_type, sql_expression, schema)?;
+        Ok(expression)
+    }
+
+    pub fn parse_sql_expression(
+        &self,
+        expression_type: &ExpressionType,
         expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
@@ -50,14 +63,36 @@ impl ExpressionBuilder {
                     false,
                 ))
             }
-            SqlExpr::UnaryOp { expr, op } => Ok(self.parse_sql_unary_op(op, expr, schema)?),
+            SqlExpr::UnaryOp { expr, op } => {
+                Ok(self.parse_sql_unary_op(expression_type, op, expr, schema)?)
+            }
             SqlExpr::BinaryOp { left, op, right } => {
-                Ok(self.parse_sql_binary_op(left, op, right, schema)?)
+                Ok(self.parse_sql_binary_op(expression_type, left, op, right, schema)?)
             }
-            SqlExpr::Nested(expr) => Ok(self.parse_sql_expression(expr, schema)?),
-            SqlExpr::Function(sql_function) => {
-                Ok(self.parse_sql_function_pre_aggregation(sql_function, schema, expression)?)
+            SqlExpr::Nested(expr) => {
+                Ok(self.parse_sql_expression(expression_type, expr, schema)?)
             }
+            SqlExpr::Function(sql_function) => match expression_type {
+                ExpressionType::PreAggregation => Ok(self.parse_sql_function_pre_aggregation(
+                    expression_type,
+                    sql_function,
+                    schema,
+                    expression,
+                )?),
+                ExpressionType::Aggregation => Ok(self.parse_sql_function_aggregation(
+                    expression_type,
+                    sql_function,
+                    schema,
+                    expression,
+                )?),
+                // ExpressionType::PostAggregation => todo!(),
+                ExpressionType::FullExpression => Ok(self.parse_sql_function(
+                    expression_type,
+                    sql_function,
+                    schema,
+                    expression,
+                )?),
+            },
             _ => Err(InvalidExpression(format!("{:?}", expression))),
         }
     }
@@ -69,7 +104,7 @@ impl ExpressionBuilder {
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         Ok((
             Box::new(Expression::Column {
-                index: self.column_index(&ident.value, schema)?,
+                index: column_index(&ident.value, schema)?,
             }),
             false,
         ))
@@ -77,6 +112,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function(
         &self,
+        expression_type: &ExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -85,7 +121,7 @@ impl ExpressionBuilder {
         if let Ok(function) = ScalarFunctionType::new(&name) {
             let mut arg_exprs = vec![];
             for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(arg, schema);
+                let r = self.parse_sql_function_arg(expression_type, arg, schema);
                 match r {
                     Ok(result) => {
                         if result.1 {
@@ -110,7 +146,7 @@ impl ExpressionBuilder {
         };
         if AggregateFunctionType::new(&name).is_ok() {
             let arg = sql_function.args.first().unwrap();
-            let r = self.parse_sql_function_arg(arg, schema)?;
+            let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
             return Ok((r.0, false)); // switch bypass to true, since the argument of this Aggregation must be the final result
         };
         Err(InvalidExpression(format!("{:?}", expression)))
@@ -118,6 +154,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_pre_aggregation(
         &self,
+        expression_type: &ExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -127,7 +164,7 @@ impl ExpressionBuilder {
         if let Ok(function) = ScalarFunctionType::new(&name) {
             let mut arg_exprs = vec![];
             for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(arg, schema);
+                let r = self.parse_sql_function_arg(expression_type, arg, schema);
                 match r {
                     Ok(result) => {
                         if result.1 {
@@ -152,7 +189,7 @@ impl ExpressionBuilder {
         };
         if AggregateFunctionType::new(&name).is_ok() {
             let arg = sql_function.args.first().unwrap();
-            let r = self.parse_sql_function_arg(arg, schema)?;
+            let r = self.parse_sql_function_arg(expression_type, arg, schema)?;
             return Ok((r.0, true)); // switch bypass to true, since the argument of this Aggregation must be the final result
         };
         Err(InvalidExpression(format!("{:?}", expression)))
@@ -160,6 +197,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_aggregation(
         &self,
+        expression_type: &ExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -169,7 +207,7 @@ impl ExpressionBuilder {
         if let Ok(function) = ScalarFunctionType::new(&name) {
             let mut arg_exprs = vec![];
             for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(arg, schema);
+                let r = self.parse_sql_function_arg(expression_type, arg, schema);
                 match r {
                     Ok(result) => {
                         if result.1 {
@@ -196,7 +234,7 @@ impl ExpressionBuilder {
         if let Ok(function) = AggregateFunctionType::new(&name) {
             let mut arg_exprs = vec![];
             for arg in &sql_function.args {
-                let r = self.parse_sql_function_arg(arg, schema);
+                let r = self.parse_sql_function_arg(expression_type, arg, schema);
                 match r {
                     Ok(result) => {
                         if result.1 {
@@ -228,6 +266,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_arg(
         &self,
+        expression_type: &ExpressionType,
         argument: &FunctionArg,
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
@@ -235,13 +274,13 @@ impl ExpressionBuilder {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Expr(arg),
-            } => self.parse_sql_expression(arg, schema),
+            } => self.parse_sql_expression(expression_type, arg, schema),
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
             } => Err(InvalidArgument(format!("{:?}", argument))),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                self.parse_sql_expression(arg, schema)
+                self.parse_sql_expression(expression_type, arg, schema)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => {
                 Err(InvalidArgument(format!("{:?}", argument)))
@@ -252,11 +291,12 @@ impl ExpressionBuilder {
 
     fn parse_sql_unary_op(
         &self,
+        expression_type: &ExpressionType,
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
     ) -> Result<(Box<Expression>, Bypass), PipelineError> {
-        let (arg, bypass) = self.parse_sql_expression(expr, schema)?;
+        let (arg, bypass) = self.parse_sql_expression(expression_type, expr, schema)?;
         if bypass {
             return Ok((arg, bypass));
         }
@@ -271,18 +311,19 @@ impl ExpressionBuilder {
         Ok((Box::new(Expression::UnaryOperator { operator, arg }), false))
     }
 
-    pub fn parse_sql_binary_op(
+    fn parse_sql_binary_op(
         &self,
+        expression_type: &ExpressionType,
         left: &SqlExpr,
         op: &SqlBinaryOperator,
         right: &SqlExpr,
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
-        let (left_op, bypass_left) = self.parse_sql_expression(left, schema)?;
+        let (left_op, bypass_left) = self.parse_sql_expression(expression_type, left, schema)?;
         if bypass_left {
             return Ok((left_op, bypass_left));
         }
-        let (right_op, bypass_right) = self.parse_sql_expression(right, schema)?;
+        let (right_op, bypass_right) = self.parse_sql_expression(expression_type, right, schema)?;
         if bypass_right {
             return Ok((right_op, bypass_right));
         }
@@ -320,22 +361,7 @@ impl ExpressionBuilder {
         ))
     }
 
-    pub fn column_index(&self, name: &String, schema: &Schema) -> Result<usize, PipelineError> {
-        let schema_idx: HashMap<String, usize> = schema
-            .fields
-            .iter()
-            .enumerate()
-            .map(|e| (e.1.name.clone(), e.0))
-            .collect();
-
-        if let Some(index) = schema_idx.get(name).cloned() {
-            Ok(index)
-        } else {
-            Err(InternalTypeError(InvalidFieldName(name.clone())))
-        }
-    }
-
-    pub fn parse_sql_number(&self, n: &str) -> Result<(Box<Expression>, Bypass), PipelineError> {
+    fn parse_sql_number(&self, n: &str) -> Result<(Box<Expression>, Bypass), PipelineError> {
         match n.parse::<i64>() {
             Ok(n) => Ok((Box::new(Expression::Literal(Field::Int(n))), false)),
             Err(_) => match n.parse::<f64>() {
@@ -343,5 +369,20 @@ impl ExpressionBuilder {
                 Err(_) => Err(InvalidValue(n.to_string())),
             },
         }
+    }
+}
+
+pub fn column_index(name: &String, schema: &Schema) -> Result<usize, PipelineError> {
+    let schema_idx: HashMap<String, usize> = schema
+        .fields
+        .iter()
+        .enumerate()
+        .map(|e| (e.1.name.clone(), e.0))
+        .collect();
+
+    if let Some(index) = schema_idx.get(name).cloned() {
+        Ok(index)
+    } else {
+        Err(InternalTypeError(InvalidFieldName(name.clone())))
     }
 }

@@ -1,5 +1,4 @@
-use super::common::column_index;
-use super::projection_builder::ProjectionBuilder;
+use crate::pipeline::expression::builder::{column_index, ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_types::core::channels::ProcessorChannelForwarder;
@@ -9,6 +8,8 @@ use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalError;
 use dozer_types::errors::pipeline::PipelineError;
+use dozer_types::errors::pipeline::PipelineError::InvalidExpression;
+use dozer_types::errors::pipeline::PipelineError::InvalidOperator;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
 use sqlparser::ast::SelectItem;
@@ -43,7 +44,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             statement: self.statement.clone(),
             input_schema: Schema::empty(),
             expressions: vec![],
-            builder: ProjectionBuilder {},
+            builder: ExpressionBuilder {},
         })
     }
 }
@@ -52,7 +53,7 @@ pub struct ProjectionProcessor {
     statement: Vec<SelectItem>,
     input_schema: Schema,
     expressions: Vec<(String, Expression)>,
-    builder: ProjectionBuilder,
+    builder: ExpressionBuilder,
 }
 
 impl ProjectionProcessor {
@@ -61,7 +62,38 @@ impl ProjectionProcessor {
         statement: Vec<SelectItem>,
         input_schema: &Schema,
     ) -> Result<Vec<(String, Expression)>, PipelineError> {
-        self.builder.build_projection(&statement, input_schema)
+        let expressions = statement
+            .iter()
+            .map(|item| self.parse_sql_select_item(item, input_schema))
+            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()?;
+
+        Ok(expressions)
+    }
+
+    fn parse_sql_select_item(
+        &self,
+        sql: &SelectItem,
+        schema: &Schema,
+    ) -> Result<(String, Expression), PipelineError> {
+        match sql {
+            SelectItem::UnnamedExpr(sql_expr) => {
+                match self.builder.parse_sql_expression(
+                    &ExpressionType::PreAggregation,
+                    sql_expr,
+                    schema,
+                ) {
+                    Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
+                    Err(error) => Err(error),
+                }
+            }
+            SelectItem::ExprWithAlias { expr, alias } => {
+                Err(InvalidExpression(format!("{}:{}", expr, alias)))
+            }
+            SelectItem::Wildcard => Err(InvalidOperator("*".to_string())),
+            SelectItem::QualifiedWildcard(ref object_name) => {
+                Err(InvalidOperator(object_name.to_string()))
+            }
+        }
     }
 
     fn build_output_schema(
