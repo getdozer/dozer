@@ -3,8 +3,8 @@ use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::storage::RocksStorage;
 use connector::Connector;
 
-use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::ingestor::IngestionOperation;
+use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::{Connector, TableInfo};

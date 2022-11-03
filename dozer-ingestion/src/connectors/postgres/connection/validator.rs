@@ -5,7 +5,6 @@ use dozer_types::errors::connector::ConnectorError;
 use dozer_types::errors::connector::ConnectorError::InvalidQueryError;
 use dozer_types::errors::connector::PostgresConnectorError;
 
-
 use postgres::Client;
 use postgres_types::PgLsn;
 use std::borrow::BorrowMut;
