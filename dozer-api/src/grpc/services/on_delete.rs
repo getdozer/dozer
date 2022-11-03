@@ -12,7 +12,7 @@ use tonic::{codegen::BoxFuture, Request, Response, Status};
 pub struct OnDeleteService {
     pub(crate) cache: Arc<LmdbCache>,
     pub(crate) pipeline_details: PipelineDetails,
-    pub(crate) event_notifier: tokio::sync::broadcast::Receiver<Event>, //crossbeam::channel::Receiver<Event>,
+    pub(crate) event_notifier: tokio::sync::broadcast::Receiver<Event>,
 }
 impl tonic::server::ServerStreamingService<DynamicMessage> for OnDeleteService {
     type Response = Value;
@@ -41,7 +41,7 @@ async fn on_delete_grpc_server_stream(
     pipeline_details: PipelineDetails,
     cache: Arc<LmdbCache>,
     _: Request<DynamicMessage>,
-    event_notifier: tokio::sync::broadcast::Receiver<Event>, //crossbeam::channel::Receiver<Event>,
+    event_notifier: tokio::sync::broadcast::Receiver<Event>,
 ) -> Result<Response<ReceiverStream<Result<Value, tonic::Status>>>, Status> {
     let api_helper = api_helper::ApiHelper::new(pipeline_details, cache, None)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1);

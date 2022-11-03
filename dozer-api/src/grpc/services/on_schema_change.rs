@@ -23,7 +23,7 @@ impl tonic::server::ServerStreamingService<DynamicMessage> for OnSchemaChangeSer
 
 async fn on_schema_change_grpc_server_stream(
     _: Request<DynamicMessage>,
-    event_notifier: tokio::sync::broadcast::Receiver<Event>, //crossbeam::channel::Receiver<Event>,
+    event_notifier: tokio::sync::broadcast::Receiver<Event>,
 ) -> Result<Response<ReceiverStream<Result<Value, tonic::Status>>>, Status> {
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     // create subscribe

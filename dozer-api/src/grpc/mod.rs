@@ -1,5 +1,4 @@
 pub mod dynamic_codec;
-pub mod models;
 pub mod server;
 pub mod services;
 #[cfg(test)]
