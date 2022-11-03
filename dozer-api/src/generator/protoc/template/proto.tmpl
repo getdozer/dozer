@@ -1,11 +1,17 @@
 syntax = "proto3";
+{{#each import_libs}}
+
+import "{{this}}";
+
+{{~/each}}
+
 package {{package_name}};
 service {{service_name}} {
   {{#each rpc_functions}}
 
   rpc {{name}}({{argument}}) returns ({{response}});
   {{~/each}}
-   
+
 }
 {{#each messages}}
 
@@ -15,5 +21,6 @@ message {{name}} {
  {{{this}}}
  {{~/each}}
 }
+
 
 {{~/each}}
