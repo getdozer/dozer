@@ -5,7 +5,9 @@ use dozer_types::{
     types::{IndexDefinition, SortDirection},
 };
 
-use crate::cache::expression::{IndexScan, Operator};
+use crate::cache::expression::Operator;
+
+use super::{IndexFilter, IndexScan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeQuery {
@@ -24,7 +26,9 @@ pub fn get_all_indexes(
         if filter.1.supported_by_full_text() {
             full_text_scans.push(IndexScan {
                 index_def: IndexDefinition::FullText(filter.0),
-                fields: vec![Some(filter.2)],
+                // filters: vec![Some(filter.2)],
+                filters: vec![Some(IndexFilter::new(filter.1, filter.2))],
+                index_id: None,
             });
         } else {
             debug_assert!(filter.1 == Operator::EQ);
@@ -45,7 +49,7 @@ pub fn get_all_indexes(
                 .collect::<Vec<_>>();
             let mut values = filters
                 .into_iter()
-                .map(|(_, value)| Some(value))
+                .map(|(_, value)| Some(IndexFilter::equals(value)))
                 .collect::<Vec<_>>();
             // Append range query if necessary.
             if let Some(RangeQuery {
@@ -54,7 +58,7 @@ pub fn get_all_indexes(
             }) = range_query.clone()
             {
                 fields.push((field_index, SortDirection::Ascending));
-                values.push(operator_and_value.map(|(_, value)| value));
+                values.push(operator_and_value.map(|(op, val)| IndexFilter::new(op, val)));
             }
 
             let mut index_scans = full_text_scans.clone();
@@ -62,7 +66,8 @@ pub fn get_all_indexes(
             if !fields.is_empty() {
                 index_scans.push(IndexScan {
                     index_def: IndexDefinition::SortedInverted(fields),
-                    fields: values,
+                    filters: values,
+                    index_id: None,
                 });
             }
             index_scans

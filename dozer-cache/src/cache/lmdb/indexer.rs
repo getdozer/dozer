@@ -1,19 +1,22 @@
+use std::sync::Arc;
+
 use dozer_types::{
-    bincode,
     errors::cache::{CacheError, IndexError, QueryError},
     types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier},
 };
-use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
+use lmdb::{RwTransaction, Transaction, WriteFlags};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
 
+use super::cache::IndexMetaData;
+
 pub struct Indexer {
-    db: Database,
+    pub index_metadata: Arc<IndexMetaData>,
 }
 impl Indexer {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn get_key(schema: &Schema, idx: usize) -> usize {
+        schema.identifier.as_ref().unwrap().id as usize * 100000 + idx
     }
 
     pub fn build_indexes(
@@ -35,26 +38,23 @@ impl Indexer {
         if schema.secondary_indexes.is_empty() {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }
-        for index in schema.secondary_indexes.iter() {
+        for (idx, index) in schema.secondary_indexes.iter().enumerate() {
+            let db = self.index_metadata.get_db(schema, idx);
+
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     // TODO: use `SortDirection`.
                     let fields: Vec<_> = fields.iter().map(|(index, _)| *index).collect();
                     let secondary_key =
                         self._build_index_sorted_inverted(identifier, &fields, &rec.values);
-                    txn.put::<Vec<u8>, Vec<u8>>(
-                        self.db,
-                        &secondary_key,
-                        &pkey,
-                        WriteFlags::default(),
-                    )
-                    .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
+                    txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
+                        .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         self._build_indices_full_text(identifier, *field_index, &rec.values)?
                     {
-                        txn.put(self.db, &secondary_key, &pkey, WriteFlags::default())
+                        txn.put(db, &secondary_key, &pkey, WriteFlags::default())
                             .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
                     }
                 }
@@ -75,7 +75,7 @@ impl Indexer {
             .iter()
             .enumerate()
             .filter(|(idx, _)| index_fields.contains(idx))
-            .map(|(_, field)| Some(bincode::serialize(&field).unwrap()))
+            .map(|(_, field)| Some(field.to_bytes().unwrap()))
             .collect();
 
         index::get_secondary_index(identifier.id, index_fields, &values)
@@ -110,7 +110,6 @@ impl Indexer {
 mod tests {
     use crate::cache::{
         lmdb::test_utils as lmdb_utils,
-        lmdb::utils::{init_db, init_env},
         test_utils::{self, schema_0},
         Cache, LmdbCache,
     };
@@ -133,21 +132,21 @@ mod tests {
         for val in items.clone() {
             lmdb_utils::insert_rec_1(&cache, &schema, val);
         }
-        // No of indexes
+        // No of index dbs
         let indexes = lmdb_utils::get_indexes(&cache);
+
+        let index_count = indexes.iter().flatten().count();
         // 3 columns, 1 compound
-        assert_eq!(
-            indexes.len(),
-            items.len() * 4,
-            "Must create index for each indexable field"
-        );
+        assert_eq!(indexes.len(), 4, "Must create db for each index");
+
+        assert_eq!(index_count, items.len() * 4, "Must index each field");
     }
 
     #[test]
     fn test_build_indices_full_text() {
-        let env = init_env(true).unwrap();
-        let db = init_db(&env, None).unwrap();
-        let indexer = Indexer { db };
+        let indexer = Indexer {
+            index_metadata: Arc::new(IndexMetaData::new()),
+        };
         let schema = schema_0();
 
         let identifier = schema.identifier.as_ref().unwrap();
