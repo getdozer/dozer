@@ -1,4 +1,4 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use dozer_types::{
     errors::cache::{CacheError, IndexError, QueryError},
@@ -132,14 +132,14 @@ mod tests {
         for val in items.clone() {
             lmdb_utils::insert_rec_1(&cache, &schema, val);
         }
-        // No of indexes
+        // No of index dbs
         let indexes = lmdb_utils::get_indexes(&cache);
+
+        let index_count = indexes.iter().flatten().count();
         // 3 columns, 1 compound
-        assert_eq!(
-            indexes.len(),
-            items.len() * 4,
-            "Must create index for each indexable field"
-        );
+        assert_eq!(indexes.len(), 4, "Must create db for each index");
+
+        assert_eq!(index_count, items.len() * 4, "Must index each field");
     }
 
     #[test]

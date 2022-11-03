@@ -34,6 +34,7 @@ impl<'a> Iterator for CacheIterator<'a> {
                                 Err(lmdb::Error::NotFound) => {
                                     self.cursor.get(None, None, MDB_FIRST)
                                 }
+
                                 Err(e) => Err(e),
                             }
                         } else {
@@ -165,6 +166,16 @@ mod tests {
             Some(&starting_key),
             true,
             vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
+        );
+
+        // Test ascending from non existing key.
+        let starting_key = b"00".to_vec();
+        check(
+            Some(&starting_key),
+            true,
+            vec![
+                b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
+            ],
         );
 
         // Test descending from existing key.

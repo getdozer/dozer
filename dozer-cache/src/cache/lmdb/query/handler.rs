@@ -138,16 +138,17 @@ impl<'a> LmdbQueryHandler<'a> {
                 if let Some((key, val)) = tuple {
                     // Skip Eq Values
                     if self.skip_eq_values(
+                        &db,
                         last_filter.as_ref(),
                         start_key.as_ref(),
                         end_key.as_ref(),
                         key,
                         sort_order,
                     ) {
-                        println!("skipping....");
                     }
                     // Compare partial key
                     else if self.compare_key(
+                        &db,
                         key,
                         start_key.as_ref(),
                         end_key.as_ref(),
@@ -173,6 +174,7 @@ impl<'a> LmdbQueryHandler<'a> {
     // Based on the filters provided and sort_order, determine to include the first result.
     fn skip_eq_values(
         &self,
+        db: &Database,
         last_filter: Option<&IndexFilter>,
         start_key: Option<&Vec<u8>>,
         end_key: Option<&Vec<u8>>,
@@ -184,13 +186,13 @@ impl<'a> LmdbQueryHandler<'a> {
                 if sort_order {
                     false
                 } else {
-                    let end_cmp = lmdb_cmp(self.txn, self.db, current_key, end_key);
+                    let end_cmp = lmdb_cmp(self.txn, db, current_key, end_key);
                     end_cmp == 0
                 }
             }
             Operator::GT => {
                 if sort_order {
-                    let cmp = lmdb_cmp(self.txn, self.db, current_key, start_key);
+                    let cmp = lmdb_cmp(self.txn, db, current_key, start_key);
                     cmp == 0
                 } else {
                     false
@@ -203,23 +205,20 @@ impl<'a> LmdbQueryHandler<'a> {
             | Operator::MatchesAny
             | Operator::MatchesAll => false,
         });
-
-        println!("skip_eq_values: {:?}", val);
         val
     }
 
     fn compare_key(
         &self,
+        db: &Database,
         key: &[u8],
         start_key: Option<&Vec<u8>>,
         end_key: Option<&Vec<u8>>,
         sort_order: bool,
         last_filter: Option<&IndexFilter>,
     ) -> bool {
-        let cmp = lmdb_cmp(self.txn, self.db, key, start_key);
-        let end_cmp = lmdb_cmp(self.txn, self.db, key, end_key);
-
-        println!("Cmp: {:?}, End Cmp: {:?}", cmp, end_cmp);
+        let cmp = lmdb_cmp(self.txn, db, key, start_key);
+        let end_cmp = lmdb_cmp(self.txn, db, key, end_key);
 
         last_filter.map_or(cmp == 0, |f| {
             let valid = match f.op {
@@ -256,7 +255,6 @@ impl<'a> LmdbQueryHandler<'a> {
                     cmp == 0
                 }
             };
-            println!("--valid: {:?}, operator: {:?}", valid, f.op);
             valid
         })
     }

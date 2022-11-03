@@ -17,10 +17,9 @@ pub fn get_indexes(cache: &LmdbCache) -> Vec<Vec<(&[u8], &[u8])>> {
 
     let indexes = index_metadata.get_all_raw();
     let mut items = Vec::new();
-    for (k, db) in indexes {
+    for (_, db) in indexes {
         let mut cursor = txn.open_ro_cursor(db).unwrap();
-        items.insert(
-            k,
+        items.push(
             cursor
                 .iter_dup()
                 .flatten()

@@ -87,6 +87,7 @@ fn query_secondary_vars() {
     for val in items {
         insert_rec_1(&cache, &schema, val);
     }
+
     test_query(json!({}), 7, &cache);
 
     test_query(json!({"$filter":{ "a": {"$eq": 1}}}), 1, &cache);
@@ -121,7 +122,7 @@ fn query_secondary_vars() {
     test_query(json!({"$filter":{ "c": {"$lte": 524}}}), 4, &cache);
 
     test_query(json!({"$filter":{ "c": {"$lt": 524}}}), 3, &cache);
-    test_query(json!({"$filter":{ "c": {"$gt": 200}}}), 7, &cache);
+
     test_query(json!({"$filter":{ "c": {"$lt": 600}}}), 7, &cache);
 }
 
@@ -138,13 +139,6 @@ fn test_query_err(query: Value, cache: &LmdbCache) {
     }
 }
 fn test_query(query: Value, count: usize, cache: &LmdbCache) {
-    println!();
-    println!("========================================");
-
-    println!("query: {:?}, count: {:?}", query, count);
-
-    println!("========================================");
-    println!();
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let records = cache.query("sample", &query).unwrap();
 
