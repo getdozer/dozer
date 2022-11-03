@@ -1,10 +1,10 @@
-use std::{ffi::c_void, sync::Arc};
+use std::sync::Arc;
 
 use super::{helper, iterator::CacheIterator};
 use crate::cache::{
     expression::{Operator, QueryExpression},
     index::{self},
-    lmdb::cache::IndexMetaData,
+    lmdb::{cache::IndexMetaData, query::helper::lmdb_cmp},
     plan::{IndexFilter, IndexScan, Plan, QueryPlanner},
 };
 use dozer_types::{
@@ -22,9 +22,9 @@ use dozer_types::{
     types::IndexDefinition,
 };
 use lmdb::{Database, RoTransaction, Transaction};
-use lmdb_sys as ffi;
+
 pub struct LmdbQueryHandler<'a> {
-    db: Database,
+    db: &'a Database,
     index_metadata: Arc<IndexMetaData>,
     txn: &'a RoTransaction<'a>,
     schema: &'a Schema,
@@ -32,7 +32,7 @@ pub struct LmdbQueryHandler<'a> {
 }
 impl<'a> LmdbQueryHandler<'a> {
     pub fn new(
-        db: Database,
+        db: &'a Database,
         index_metadata: Arc<IndexMetaData>,
         txn: &'a RoTransaction,
         schema: &'a Schema,
@@ -70,7 +70,7 @@ impl<'a> LmdbQueryHandler<'a> {
     pub fn iterate_and_deserialize(&self) -> Result<Vec<Record>, CacheError> {
         let cursor = self
             .txn
-            .open_ro_cursor(self.db)
+            .open_ro_cursor(*self.db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         let mut cache_iterator = CacheIterator::new(&cursor, None, true);
         // cache_iterator.skip(skip);
@@ -154,7 +154,7 @@ impl<'a> LmdbQueryHandler<'a> {
                         sort_order,
                         last_filter.as_ref(),
                     ) {
-                        let rec = helper::get(self.txn, self.db, val)?;
+                        let rec = helper::get(self.txn, *self.db, val)?;
                         pkeys.push(rec);
                     } else {
                         break;
@@ -184,13 +184,13 @@ impl<'a> LmdbQueryHandler<'a> {
                 if sort_order {
                     false
                 } else {
-                    let end_cmp = self.lmdb_cmp(current_key, end_key);
+                    let end_cmp = lmdb_cmp(self.txn, self.db, current_key, end_key);
                     end_cmp == 0
                 }
             }
             Operator::GT => {
                 if sort_order {
-                    let cmp = self.lmdb_cmp(current_key, start_key);
+                    let cmp = lmdb_cmp(self.txn, self.db, current_key, start_key);
                     cmp == 0
                 } else {
                     false
@@ -208,22 +208,6 @@ impl<'a> LmdbQueryHandler<'a> {
         val
     }
 
-    fn lmdb_cmp(&self, a: &[u8], b: Option<&Vec<u8>>) -> i32 {
-        if let Some(b) = b {
-            let key_val: ffi::MDB_val = ffi::MDB_val {
-                mv_size: a.len(),
-                mv_data: a.as_ptr() as *mut c_void,
-            };
-            let start_key_val: ffi::MDB_val = ffi::MDB_val {
-                mv_size: b.len(),
-                mv_data: b.as_ptr() as *mut c_void,
-            };
-            unsafe { lmdb_sys::mdb_cmp(self.txn.txn(), self.db.dbi(), &key_val, &start_key_val) }
-        } else {
-            2
-        }
-    }
-
     fn compare_key(
         &self,
         key: &[u8],
@@ -232,8 +216,8 @@ impl<'a> LmdbQueryHandler<'a> {
         sort_order: bool,
         last_filter: Option<&IndexFilter>,
     ) -> bool {
-        let cmp = self.lmdb_cmp(key, start_key);
-        let end_cmp = self.lmdb_cmp(key, end_key);
+        let cmp = lmdb_cmp(self.txn, self.db, key, start_key);
+        let end_cmp = lmdb_cmp(self.txn, self.db, key, end_key);
 
         println!("Cmp: {:?}, End Cmp: {:?}", cmp, end_cmp);
 
