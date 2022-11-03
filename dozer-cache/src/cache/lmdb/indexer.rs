@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc};
 
 use dozer_types::{
     errors::cache::{CacheError, IndexError, QueryError},
@@ -110,7 +110,6 @@ impl Indexer {
 mod tests {
     use crate::cache::{
         lmdb::test_utils as lmdb_utils,
-        lmdb::utils::{init_db, init_env},
         test_utils::{self, schema_0},
         Cache, LmdbCache,
     };
@@ -119,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_secondary_indexes() {
-        let mut cache = LmdbCache::new(true);
+        let cache = LmdbCache::new(true);
         let schema = test_utils::schema_1();
 
         cache.insert_schema("sample", &schema).unwrap();

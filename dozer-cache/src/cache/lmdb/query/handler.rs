@@ -102,7 +102,7 @@ impl<'a> LmdbQueryHandler<'a> {
 
     fn query_with_secondary_index(
         &self,
-        index_scans: &Vec<IndexScan>,
+        index_scans: &[IndexScan],
     ) -> Result<Vec<Record>, CacheError> {
         // TODO: Use the opposite sort on reversed queries.
         let sort_order = true;
@@ -138,7 +138,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 if let Some((key, val)) = tuple {
                     // Skip Eq Values
                     if self.skip_eq_values(
-                        last_filter.to_owned(),
+                        last_filter.as_ref(),
                         start_key.as_ref(),
                         end_key.as_ref(),
                         key,
@@ -152,8 +152,8 @@ impl<'a> LmdbQueryHandler<'a> {
                         start_key.as_ref(),
                         end_key.as_ref(),
                         sort_order,
-                        &index_scan,
-                    )? {
+                        last_filter.as_ref(),
+                    ) {
                         let rec = helper::get(self.txn, self.db, val)?;
                         pkeys.push(rec);
                     } else {
@@ -173,7 +173,7 @@ impl<'a> LmdbQueryHandler<'a> {
     // Based on the filters provided and sort_order, determine to include the first result.
     fn skip_eq_values(
         &self,
-        last_filter: Option<IndexFilter>,
+        last_filter: Option<&IndexFilter>,
         start_key: Option<&Vec<u8>>,
         end_key: Option<&Vec<u8>>,
         current_key: &[u8],
@@ -210,22 +210,15 @@ impl<'a> LmdbQueryHandler<'a> {
 
     fn lmdb_cmp(&self, a: &[u8], b: Option<&Vec<u8>>) -> i32 {
         if let Some(b) = b {
-            let mut key_val: ffi::MDB_val = ffi::MDB_val {
+            let key_val: ffi::MDB_val = ffi::MDB_val {
                 mv_size: a.len(),
                 mv_data: a.as_ptr() as *mut c_void,
             };
-            let mut start_key_val: ffi::MDB_val = ffi::MDB_val {
+            let start_key_val: ffi::MDB_val = ffi::MDB_val {
                 mv_size: b.len(),
                 mv_data: b.as_ptr() as *mut c_void,
             };
-            unsafe {
-                lmdb_sys::mdb_cmp(
-                    self.txn.txn(),
-                    self.db.dbi(),
-                    &mut key_val,
-                    &mut start_key_val,
-                )
-            }
+            unsafe { lmdb_sys::mdb_cmp(self.txn.txn(), self.db.dbi(), &key_val, &start_key_val) }
         } else {
             2
         }
@@ -237,58 +230,51 @@ impl<'a> LmdbQueryHandler<'a> {
         start_key: Option<&Vec<u8>>,
         end_key: Option<&Vec<u8>>,
         sort_order: bool,
-        ids: &IndexScan,
-    ) -> Result<bool, CacheError> {
-        let mut valid = true;
-
+        last_filter: Option<&IndexFilter>,
+    ) -> bool {
         let cmp = self.lmdb_cmp(key, start_key);
         let end_cmp = self.lmdb_cmp(key, end_key);
 
         println!("Cmp: {:?}, End Cmp: {:?}", cmp, end_cmp);
 
-        for filter in ids.filters.to_owned() {
-            if let Some(idf) = filter {
-                let value = match idf.op {
-                    Operator::LT => {
-                        if sort_order {
-                            end_cmp < 0
-                        } else {
-                            cmp >= 0
-                        }
+        last_filter.map_or(cmp == 0, |f| {
+            let valid = match f.op {
+                Operator::LT => {
+                    if sort_order {
+                        end_cmp < 0
+                    } else {
+                        cmp >= 0
                     }
-                    Operator::LTE => {
-                        if sort_order {
-                            end_cmp <= 0
-                        } else {
-                            cmp > 0
-                        }
+                }
+                Operator::LTE => {
+                    if sort_order {
+                        end_cmp <= 0
+                    } else {
+                        cmp > 0
                     }
+                }
 
-                    Operator::GT => {
-                        if sort_order {
-                            cmp > 0
-                        } else {
-                            end_cmp <= 0
-                        }
+                Operator::GT => {
+                    if sort_order {
+                        cmp > 0
+                    } else {
+                        end_cmp <= 0
                     }
-                    Operator::GTE => {
-                        if sort_order {
-                            cmp >= 0
-                        } else {
-                            end_cmp < 0
-                        }
+                }
+                Operator::GTE => {
+                    if sort_order {
+                        cmp >= 0
+                    } else {
+                        end_cmp < 0
                     }
-                    Operator::EQ
-                    | Operator::Contains
-                    | Operator::MatchesAny
-                    | Operator::MatchesAll => cmp == 0,
-                };
-                println!("--valid: {:?}, operator: {:?}", valid, idf.op);
-                valid = valid && value;
-            }
-        }
-
-        Ok(valid)
+                }
+                Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
+                    cmp == 0
+                }
+            };
+            println!("--valid: {:?}, operator: {:?}", valid, f.op);
+            valid
+        })
     }
 
     fn build_comparision_key(&self, index_scan: &'a IndexScan) -> Result<Vec<u8>, CacheError> {
@@ -340,7 +326,7 @@ impl<'a> LmdbQueryHandler<'a> {
 
     fn build_composite_range_key(
         &self,
-        field_indices: &Vec<(usize, SortDirection)>,
+        field_indices: &[(usize, SortDirection)],
         fields: Vec<Option<Field>>,
     ) -> Result<Vec<u8>, CacheError> {
         let schema_identifier = self
@@ -364,13 +350,6 @@ impl<'a> LmdbQueryHandler<'a> {
             &field_indices,
             &field_bytes,
         ))
-    }
-}
-
-fn is_range(op: Operator) -> bool {
-    match op {
-        Operator::LT | Operator::LTE | Operator::GT | Operator::GTE => true,
-        Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => false,
     }
 }
 

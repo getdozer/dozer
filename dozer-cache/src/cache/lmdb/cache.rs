@@ -24,7 +24,11 @@ pub struct IndexMetaData {
     //schema_id, secondary_key
     indexes: RwLock<HashMap<usize, Database>>,
 }
-
+impl Default for IndexMetaData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl IndexMetaData {
     pub fn new() -> Self {
         Self {
@@ -73,7 +77,7 @@ impl LmdbCache {
         Self {
             env,
             db,
-            index_metadata: Arc::new(IndexMetaData::new()),
+            index_metadata: Arc::new(IndexMetaData::default()),
             schema_db,
         }
     }
