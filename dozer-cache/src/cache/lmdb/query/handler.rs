@@ -162,7 +162,7 @@ fn build_starting_key(schema: &Schema, index_scan: &IndexScan) -> Result<Vec<u8>
                     .typ
                     .to_owned();
                 Some(
-                    json_value_to_field(&val.to_string(), &field_type)
+                    json_value_to_field(val.as_str().unwrap_or(&val.to_string()), &field_type)
                         .map_err(CacheError::TypeError)?,
                 )
             }
