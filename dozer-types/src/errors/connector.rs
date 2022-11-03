@@ -45,4 +45,40 @@ pub enum PostgresConnectorError {
 
     #[error("fetch of replication slot info failed")]
     FetchReplicationSlot,
+
+    #[error("fetch of replication slot info failed. Error: {0}")]
+    SyncWithSnapshotError(String),
+
+    #[error("Replication stream error. Error: {0}")]
+    ReplicationStreamError(String),
+
+    #[error("Received unexpected message in replication stream")]
+    UnexpectedReplicationMessageError,
+
+    #[error("Replication stream error")]
+    ReplicationStreamEndError,
+
+    #[error(transparent)]
+    PostgresSchemaError(#[from] PostgresSchemaError),
+}
+
+#[derive(Error, Debug)]
+pub enum PostgresSchemaError {
+    #[error("Schema's '{0}' replication identity settings is not correct. It is either not set or NOTHING")]
+    SchemaReplicationIdentityError(String),
+
+    #[error("Column type {0} not supported")]
+    ColumnTypeNotSupported(String),
+
+    #[error("CustomTypeNotSupported")]
+    CustomTypeNotSupported,
+
+    #[error("ColumnTypeNotFound")]
+    ColumnTypeNotFound,
+
+    #[error("Invalid column type")]
+    InvalidColumnType,
+
+    #[error("Value conversion error: {0}")]
+    ValueConversionError(String),
 }

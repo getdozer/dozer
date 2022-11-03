@@ -180,7 +180,7 @@ impl PostgresIteratorHandler {
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
                 .map_err(|_e| {
                     debug!("failed to begin txn for replication");
-                    ConnectorError::PostgresConnectorError(PostgresConnectorError::BeginReplication)
+                    PostgresConnectorError::BeginReplication
                 })?;
 
             let replication_slot_lsn = self.create_replication_slot(client.clone())?;

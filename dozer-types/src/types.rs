@@ -1,6 +1,7 @@
 use crate::errors::types::TypeError;
 use crate::errors::types::TypeError::InvalidFieldType;
 use chrono::{DateTime, Utc};
+
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 
