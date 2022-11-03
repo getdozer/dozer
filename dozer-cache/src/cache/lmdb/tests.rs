@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::super::test_utils;
 use dozer_types::{
     errors::cache::CacheError,

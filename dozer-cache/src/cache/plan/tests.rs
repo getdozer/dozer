@@ -1,6 +1,7 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
+    plan::IndexFilter,
     test_utils,
 };
 
@@ -25,8 +26,8 @@ fn test_generate_plan_simple() {
         assert_eq!(index_scans.len(), 1);
         assert_eq!(index_scans[0].index_def, schema.secondary_indexes[0]);
         assert_eq!(
-            index_scans[0].fields,
-            &[Some(Value::from("bar".to_string()))]
+            index_scans[0].filters,
+            vec![Some(IndexFilter::equals(Value::from("bar".to_string())))]
         );
     } else {
         panic!("IndexScan expected")
@@ -52,8 +53,11 @@ fn test_generate_plan_and() {
         assert_eq!(index_scans.len(), 1);
         assert_eq!(index_scans[0].index_def, schema.secondary_indexes[3]);
         assert_eq!(
-            index_scans[0].fields,
-            &[Some(Value::from(1)), Some(Value::from("test".to_string()))]
+            index_scans[0].filters,
+            vec![
+                Some(IndexFilter::new(expression::Operator::EQ, Value::from(1))),
+                Some(IndexFilter::equals(Value::from("test".to_string())))
+            ]
         );
     } else {
         panic!("IndexScan expected")

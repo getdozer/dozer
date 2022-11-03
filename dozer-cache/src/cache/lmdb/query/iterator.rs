@@ -29,7 +29,13 @@ impl<'a> Iterator for CacheIterator<'a> {
                 let res = match starting_key {
                     Some(starting_key) => {
                         if ascending {
-                            self.cursor.get(Some(starting_key), None, MDB_SET_RANGE)
+                            match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
+                                Ok((key, value)) => Ok((key, value)),
+                                Err(lmdb::Error::NotFound) => {
+                                    self.cursor.get(None, None, MDB_FIRST)
+                                }
+                                Err(e) => Err(e),
+                            }
                         } else {
                             match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
                                 Ok((key, value)) => {

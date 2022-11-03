@@ -61,7 +61,7 @@ impl<'a> QueryPlanner<'a> {
 
         // Check if existing secondary indexes can satisfy any of the scans.
         for index_scans in all_index_scans {
-            if all_indexes_are_present(self.schema, &index_scans) {
+            if let Some(index_scans) = all_indexes_are_present(self.schema, &index_scans) {
                 return Ok(Plan::IndexScans(index_scans));
             }
         }
@@ -135,11 +135,23 @@ fn find_range_query(
     })
 }
 
-fn all_indexes_are_present(schema: &Schema, index_scans: &[IndexScan]) -> bool {
-    index_scans.iter().all(|index_scan| {
-        schema
+fn all_indexes_are_present(schema: &Schema, index_scans: &[IndexScan]) -> Option<Vec<IndexScan>> {
+    let mut scans = vec![];
+    for index_scan in index_scans {
+        let found = schema
             .secondary_indexes
             .iter()
-            .any(|i| i == &index_scan.index_def)
-    })
+            .enumerate()
+            .find(|(_, i)| *i == &index_scan.index_def);
+
+        match found {
+            Some((idx, _)) => {
+                let mut scan = index_scan.clone();
+                scan.index_id = Some(idx);
+                scans.push(scan);
+            }
+            None => return None,
+        }
+    }
+    Some(scans)
 }
