@@ -47,48 +47,62 @@ impl PipelineBuilder {
         &self,
         select: Select,
     ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
-        // From clause
-        let input_endpoints = self.get_input_endpoints(&String::from("selection"), &select.from)?;
+        let mut dag = Dag::new();
 
-        // Where clause
-        let selection = SelectionProcessorFactory::new(select.selection);
+        // The simplest query can contains just SELECT and FROM
+        // Until the implementation of FROM clause, projection (or selection) comes first
+        let mut first_node_name = String::from("projection");
+        let mut last_node_name = String::from("projection");
 
         // Select clause
         let projection = ProjectionProcessorFactory::new(select.projection.clone());
 
-        // Group by clause
-        let aggregation =
-            AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
-
-        let mut dag = Dag::new();
-
-        dag.add_node(
-            NodeType::Processor(Box::new(selection)),
-            String::from("selection"),
-        );
         dag.add_node(
             NodeType::Processor(Box::new(projection)),
             String::from("projection"),
         );
-        dag.add_node(
-            NodeType::Processor(Box::new(aggregation)),
-            String::from("aggregation"),
-        );
 
-        let _ = dag.connect(
-            Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
-            Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
-        );
+        if let Some(selection) = select.selection {
+            // Where clause
+            let selection = SelectionProcessorFactory::new(Some(selection));
+            first_node_name = String::from("selection");
 
-        let _ = dag.connect(
-            Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
-            Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
-        );
+            dag.add_node(
+                NodeType::Processor(Box::new(selection)),
+                String::from("selection"),
+            );
+
+            let _ = dag.connect(
+                Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+            );
+        }
+
+        // Group by clause
+        if !select.group_by.is_empty() {
+            let aggregation =
+                AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
+
+            last_node_name = String::from("aggregation");
+
+            dag.add_node(
+                NodeType::Processor(Box::new(aggregation)),
+                String::from("aggregation"),
+            );
+
+            let _ = dag.connect(
+                Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
+            );
+        }
+
+        // From clause
+        let input_endpoints = self.get_input_endpoints(&first_node_name, &select.from)?;
 
         Ok((
             dag,
             input_endpoints,
-            Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
+            Endpoint::new(last_node_name, DEFAULT_PORT_HANDLE),
         ))
     }
 
