@@ -9,10 +9,10 @@ pub fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String,
         FieldType::Boolean => Ok("bool".to_owned()),
         FieldType::String => Ok("string".to_owned()),
         FieldType::Decimal => Ok("int32".to_owned()),
-        FieldType::Timestamp => Ok("Timestamp".to_owned()),
-        FieldType::Bson => Ok("Any".to_owned()),
+        FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
+        FieldType::Bson => Ok("google.protobuf.Any".to_owned()),
         FieldType::Null => Ok("string".to_owned()),
-        FieldType::RecordArray(_) => Ok("ListValue".to_owned()),
+        FieldType::RecordArray(_) => Ok("google.protobuf.ListValue".to_owned()),
         _ => Err(GenerationError::DozerToProtoTypeNotSupported(format!(
             "{:?}",
             field_type

@@ -18,8 +18,8 @@ use std::{collections::HashMap, thread};
 pub fn generate_proto(
     dir_path: String,
     schema_name: String,
+    schema: dozer_types::types::Schema,
 ) -> Result<(std::string::String, HashMap<std::string::String, GrpcType>), GenerationError> {
-    let schema: dozer_types::types::Schema = test_utils::get_schema();
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
         schema_name,

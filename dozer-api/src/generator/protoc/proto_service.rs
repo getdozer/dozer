@@ -345,6 +345,33 @@ impl ProtoService {
             props: props_message,
         }
     }
+    pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
+        let type_need_import_libs = [
+            "google.protobuf.Timestamp",
+            "google.protobuf.Value",
+            "google.protobuf.ListValue",
+        ];
+        let mut libs_import: Vec<String> = self
+            .schema
+            .fields
+            .iter()
+            .map(|field| convert_dozer_type_to_proto_type(field.to_owned().typ).unwrap())
+            .filter(|proto_type| -> bool {
+                type_need_import_libs.contains(&proto_type.to_owned().as_str())
+            })
+            .map(|proto_type| match proto_type.as_str() {
+                "google.protobuf.Timestamp" => "google/protobuf/timestamp.proto".to_owned(),
+                "google.protobuf.ListValue" => "google/protobuf/struct.proto".to_owned(),
+                "google.protobuf.Any" => "google/protobuf/any.proto".to_owned(),
+                _ => "".to_owned(),
+            })
+            .collect();
+        // default always have struct for streaming on change type
+        libs_import.push("google/protobuf/struct.proto".to_owned());
+        libs_import.sort();
+        libs_import.dedup();
+        Ok(libs_import)
+    }
 
     pub fn get_grpc_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = String::from("Dozer");
@@ -392,7 +419,7 @@ impl ProtoService {
         function_with_type.insert(on_delete_rpc.0.name, GrpcType::OnDelete);
         function_with_type.insert(on_schema_change_rpc.0.name, GrpcType::OnSchemaChange);
 
-        let import_libs = vec![String::from("google/protobuf/struct.proto")];
+        let import_libs: Vec<String> = self.libs_by_type()?;
         let metadata = ProtoMetadata {
             package_name,
             service_name,
@@ -401,7 +428,6 @@ impl ProtoService {
             functions_with_type: function_with_type,
             import_libs,
         };
-
         Ok(metadata)
     }
 }
