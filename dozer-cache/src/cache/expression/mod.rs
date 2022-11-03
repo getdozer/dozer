@@ -56,7 +56,7 @@ pub enum FilterExpression {
     And(Vec<FilterExpression>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operator {
     LT,
     LTE,
@@ -94,6 +94,29 @@ impl Operator {
             Operator::MatchesAll => "$matches_all",
         }
     }
+
+    pub fn supported_by_sorted_inverted(&self) -> bool {
+        match self {
+            Operator::LT | Operator::LTE | Operator::EQ | Operator::GT | Operator::GTE => true,
+            Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => false,
+        }
+    }
+
+    pub fn supported_by_full_text(&self) -> bool {
+        match self {
+            Operator::LT | Operator::LTE | Operator::EQ | Operator::GT | Operator::GTE => false,
+            Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => true,
+        }
+    }
+
+    pub fn is_range_operator(&self) -> bool {
+        match self {
+            Operator::LT | Operator::LTE | Operator::GT | Operator::GTE => true,
+            Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
+                false
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -103,8 +126,8 @@ pub struct SortOptions {
     pub direction: SortDirection,
 }
 
-pub enum ExecutionStep {
-    IndexScan(IndexScan),
+pub enum Plan {
+    IndexScans(Vec<IndexScan>),
     SeqScan(SeqScan),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,6 +137,5 @@ pub struct IndexScan {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeqScan {
-    // ascending / descending
-    pub direction: bool,
+    pub direction: SortDirection,
 }
