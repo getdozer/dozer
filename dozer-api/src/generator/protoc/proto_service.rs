@@ -21,6 +21,7 @@ pub struct ProtoMetadata {
     service_name: String,
     rpc_functions: Vec<RPCFunction>,
     messages: Vec<RPCMessage>,
+    import_libs: Vec<String>,
     pub functions_with_type: HashMap<String, GrpcType>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +197,31 @@ impl ProtoService {
             props: props_message,
         }
     }
+    pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
+        let type_need_import_libs = [
+            "google.protobuf.Timestamp",
+            "google.protobuf.Value",
+            "google.protobuf.ListValue",
+        ];
+        let mut libs_import: Vec<String> = self
+            .schema
+            .fields
+            .iter()
+            .map(|field| convert_dozer_type_to_proto_type(field.to_owned().typ).unwrap())
+            .filter(|proto_type| -> bool {
+                type_need_import_libs.contains(&proto_type.to_owned().as_str())
+            })
+            .map(|proto_type| match proto_type.as_str() {
+                "google.protobuf.Timestamp" => "google/protobuf/timestamp.proto".to_owned(),
+                "google.protobuf.ListValue" => "google/protobuf/struct.proto".to_owned(),
+                "google.protobuf.Any" => "google/protobuf/any.proto".to_owned(),
+                _ => "".to_owned(),
+            })
+            .collect();
+        libs_import.sort();
+        libs_import.dedup();
+        Ok(libs_import)
+    }
 
     pub fn get_grpc_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = String::from("Dozer");
@@ -220,15 +246,15 @@ impl ProtoService {
         function_with_type.insert(get_rpc.0.name, GrpcType::List);
         function_with_type.insert(get_by_id_rpc.0.name, GrpcType::GetById);
         function_with_type.insert(query_rpc.0.name, GrpcType::Query);
-
+        let import_libs: Vec<String> = self.libs_by_type()?;
         let metadata = ProtoMetadata {
             package_name,
             service_name,
             rpc_functions,
             messages: rpc_message,
             functions_with_type: function_with_type,
+            import_libs,
         };
-
         Ok(metadata)
     }
 }
