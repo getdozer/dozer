@@ -5,8 +5,7 @@ use dozer_types::errors::orchestrator::OrchestrationError;
 use log::warn;
 
 use crate::cli::{load_config, Args, SubCommand};
-use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
-use dozer_orchestrator::Orchestrator;
+use dozer_orchestrator::{simple::SimpleOrchestrator as Dozer, Orchestrator};
 
 fn run(config_path: String) -> Result<(), OrchestrationError> {
     let configuration = load_config(config_path)?;

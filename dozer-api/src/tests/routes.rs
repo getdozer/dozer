@@ -1,9 +1,9 @@
 use super::super::api_server::ApiServer;
 use crate::{
-    api_server::CorsOptions, auth::api::ApiSecurity, generator::oapi::generator::OpenApiGenerator,
+    api_server::CorsOptions, generator::oapi::generator::OpenApiGenerator,
     test_utils,
 };
-use dozer_types::serde_json::{json, Value};
+use dozer_types::{serde_json::{json, Value}, models::api_security::ApiSecurity};
 
 #[test]
 fn test_generate_oapi() {

@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use dozer_types::models::api_endpoint::APIConfig;
 use dozer_types::models::source::Source;
 use dozer_types::{errors::orchestrator::OrchestrationError, models::api_endpoint::ApiEndpoint};
 use serde::{Deserialize, Serialize};
@@ -31,10 +32,10 @@ pub struct Config {
     pub storage_path: Option<String>,
     pub sources: Vec<Source>,
     pub endpoints: Vec<ApiEndpoint>,
+    pub api_config: Option<APIConfig>
 }
 
 pub fn load_config(config_path: String) -> Result<Config, OrchestrationError> {
     let contents = fs::read_to_string(config_path).map_err(OrchestrationError::FailedToLoadFile)?;
-
     serde_yaml::from_str(&contents).map_err(|e| OrchestrationError::FailedToParseYaml(Box::new(e)))
 }

@@ -9,13 +9,17 @@ use crossbeam::channel::{self};
 use dozer_api::grpc_server::GRPCServer;
 use dozer_types::{
     errors::orchestrator::OrchestrationError,
-    models::{api_endpoint::ApiEndpoint, source::Source},
+    models::{
+        api_endpoint::{APIConfig, ApiEndpoint},
+        source::Source,
+    },
 };
 
 #[derive(Default)]
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
     pub api_endpoints: Vec<ApiEndpoint>,
+    pub api_config: Option<APIConfig>,
 }
 
 impl Orchestrator for SimpleOrchestrator {
@@ -41,9 +45,19 @@ impl Orchestrator for SimpleOrchestrator {
         let endpoint3 = self.api_endpoints.get(0).unwrap().clone();
 
         let sources = self.sources.clone();
+        let api_config = self.api_config.clone();
+        let rest_config = api_config
+            .clone()
+            .map_or_else(|| None, |config| config.rest);
+        let grpc_config = api_config
+            .clone()
+            .map_or_else(|| None, |config| config.grpc);
 
         let thread = thread::spawn(move || {
-            let api_server = ApiServer::default();
+            let api_server = match rest_config {
+                Some(rest_config) => ApiServer::new(rest_config.port, rest_config.security),
+                None => ApiServer::default(),
+            };
             api_server.run(endpoints, cache_2).unwrap()
         });
         let (sender, receiver) = channel::unbounded::<bool>();
@@ -55,7 +69,10 @@ impl Orchestrator for SimpleOrchestrator {
         let schema_inserted = receiver.recv();
         if schema_inserted.is_ok() {
             let _thread3 = thread::spawn(move || {
-                let grpc_server = GRPCServer::default();
+                let grpc_server = match grpc_config {
+                    Some(grpc_config) => GRPCServer::new(grpc_config.port, grpc_config.security),
+                    None => GRPCServer::default(),
+                };
                 grpc_server.run(endpoint3, cache_3).unwrap()
             });
         }
@@ -74,6 +91,7 @@ impl SimpleOrchestrator {
         Self {
             sources: vec![],
             api_endpoints: vec![],
+            api_config: None,
         }
     }
 }

@@ -1,14 +1,14 @@
 use super::super::api_server::ApiServer;
 use crate::{
     api_server::CorsOptions,
-    auth::{api::ApiSecurity, Access, Authorizer},
+    auth::{Access, Authorizer},
     test_utils,
 };
 use actix_web::{body::MessageBody, dev::ServiceResponse};
 use dozer_types::{
     serde,
     serde::{Deserialize, Serialize},
-    serde_json::{json, Value},
+    serde_json::{json, Value}, models::api_security::ApiSecurity,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

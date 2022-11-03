@@ -1,20 +1,15 @@
+use super::{Access, Authorizer};
+use crate::errors::{ApiError, AuthError};
 use actix_web::{
     dev::ServiceRequest,
     web::{self, ReqData},
     Error, HttpMessage, HttpRequest, HttpResponse,
 };
 use actix_web_httpauth::extractors::bearer::BearerAuth;
-use dozer_types::serde_json::{json, Value};
-
-use crate::errors::{ApiError, AuthError};
-
-use super::{Access, Authorizer};
-#[derive(Clone)]
-pub enum ApiSecurity {
-    None,
-    // Initialize with a JWT_SECRET
-    Jwt(String),
-}
+use dozer_types::{
+    models::api_security::ApiSecurity,
+    serde_json::{json, Value},
+};
 
 pub async fn auth_route(
     access: Option<ReqData<Access>>,

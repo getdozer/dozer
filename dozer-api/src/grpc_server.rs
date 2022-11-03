@@ -1,5 +1,5 @@
 use crate::{
-    api_server::PipelineDetails,
+    api_server::{CorsOptions, PipelineDetails},
     errors::GRPCError,
     generator::protoc::generator::ProtoGenerator,
     grpc::{
@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use dozer_cache::cache::{Cache, LmdbCache};
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::{api_endpoint::ApiEndpoint, api_security::ApiSecurity};
 use std::sync::Arc;
 use tempdir::TempDir;
 use tokio::runtime::Runtime;
@@ -16,11 +16,24 @@ use tonic::transport::Server;
 
 pub struct GRPCServer {
     port: u16,
+    cors: CorsOptions,
+    security: ApiSecurity,
 }
 
 impl GRPCServer {
     pub fn default() -> Self {
-        Self { port: 50051 }
+        Self {
+            port: 50051,
+            cors: CorsOptions::Permissive,
+            security: ApiSecurity::None,
+        }
+    }
+    pub fn new(port: u16, security: ApiSecurity) -> Self {
+        Self {
+            port,
+            cors: CorsOptions::Permissive,
+            security,
+        }
     }
     pub fn run(&self, endpoint: ApiEndpoint, cache: Arc<LmdbCache>) -> Result<(), GRPCError> {
         let schema_name = endpoint.name.to_owned();

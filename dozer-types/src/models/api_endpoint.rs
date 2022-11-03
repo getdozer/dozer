@@ -1,3 +1,4 @@
+use super::api_security::APIConfiguration;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -15,3 +16,11 @@ pub struct ApiEndpoint {
     pub sql: String,
     pub index: ApiIndex,
 }
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct APIConfig {
+    pub rest: Option<APIConfiguration>,
+    pub grpc: Option<APIConfiguration>,
+}
+
+

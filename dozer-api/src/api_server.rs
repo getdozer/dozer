@@ -7,13 +7,13 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use dozer_cache::cache::LmdbCache;
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::{api_endpoint::ApiEndpoint, api_security::ApiSecurity};
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{
     api_generator,
-    auth::api::{auth_route, validate, ApiSecurity},
+    auth::api::{auth_route, validate},
 };
 
 #[derive(Clone)]
@@ -45,11 +45,11 @@ impl ApiServer {
             security: ApiSecurity::None,
         }
     }
-    pub fn new(shutdown_timeout: u64, port: u16, cors: CorsOptions, security: ApiSecurity) -> Self {
+    pub fn new(port: u16, security: ApiSecurity) -> Self {
         Self {
-            shutdown_timeout,
+            shutdown_timeout: 0,
             port,
-            cors,
+            cors: CorsOptions::Permissive,
             security,
         }
     }
