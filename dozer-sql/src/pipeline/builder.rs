@@ -1,7 +1,7 @@
+use super::expression::builder::normalize_ident;
 use super::processor::aggregation::AggregationProcessorFactory;
 use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
-use crate::common::utils::normalize_ident;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::NodeType;
