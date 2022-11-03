@@ -124,6 +124,8 @@ fn query_secondary_vars() {
     test_query(json!({"$filter":{ "c": {"$lt": 524}}}), 3, &cache);
 
     test_query(json!({"$filter":{ "c": {"$lt": 600}}}), 7, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$gt": 200}}}), 7, &cache);
 }
 
 fn test_query_err(query: Value, cache: &LmdbCache) {
