@@ -1,5 +1,6 @@
+pub mod ethereum;
+pub mod events;
 pub mod postgres;
-
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -14,8 +15,7 @@ use std::sync::Arc;
 
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
-    fn get_schema(&self, name: String) -> Result<Schema, ConnectorError>;
-    fn get_all_schema(&self) -> Result<Vec<(String, Schema)>, ConnectorError>;
+    fn get_schemas(&self) -> Result<Vec<(String, Schema)>, ConnectorError>;
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
     fn test_connection(&self) -> Result<(), ConnectorError>;
     fn initialize(

@@ -36,7 +36,7 @@ impl ConnectionService {
         }
     }
     pub fn get_all_schema(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
-        self.connector.get_all_schema()
+        self.connector.get_schemas()
     }
 
     pub fn new(connection: Connection) -> Self {

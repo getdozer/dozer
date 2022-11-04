@@ -50,23 +50,12 @@ impl Connector for PostgresConnector {
         let result_vec = helper.get_tables()?;
         Ok(result_vec)
     }
-    fn get_schema(&self, name: String) -> Result<Schema, ConnectorError> {
-        let result_vec = self.get_all_schema()?;
-        let result = result_vec
-            .iter()
-            .find(|&el| el.0 == name)
-            .map(|v| v.to_owned().1);
-        match result {
-            Some(schema) => Ok(schema),
-            None => Err(ConnectorError::TableNotFound(name)),
-        }
-    }
 
-    fn get_all_schema(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
+    fn get_schemas(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
-        helper.get_schema()
+        helper.get_schemas()
     }
 
     fn initialize(
