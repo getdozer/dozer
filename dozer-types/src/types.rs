@@ -7,17 +7,23 @@ use serde::{self, Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Field {
+    UInt(u64),
     Int(i64),
     Float(f64),
     Boolean(bool),
     String(String),
+    Text(String),
     Binary(Vec<u8>),
+    UIntArray(Vec<u64>),
+    IntArray(Vec<i64>),
+    FloatArray(Vec<f64>),
+    BooleanArray(Vec<bool>),
+    StringArray(Vec<String>),
     #[serde(with = "rust_decimal::serde::float")]
     Decimal(Decimal),
     #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     Timestamp(DateTime<Utc>),
     Bson(Vec<u8>),
-    RecordArray(Vec<Record>),
     Null,
 }
 
@@ -44,16 +50,22 @@ impl Field {
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum FieldType {
+    UInt,
     Int,
     Float,
     Boolean,
     String,
+    Text,
     Binary,
+    UIntArray,
+    IntArray,
+    FloatArray,
+    BooleanArray,
+    StringArray,
     Decimal,
     Timestamp,
     Bson,
     Null,
-    RecordArray(Schema),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
