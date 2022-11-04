@@ -3,10 +3,8 @@ use sqlparser::ast::{
     Value as SqlValue,
 };
 
-use dozer_types::errors::pipeline::PipelineError;
-use dozer_types::errors::pipeline::PipelineError::{
-    InvalidExpression, InvalidOperator, InvalidValue,
-};
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::{InvalidExpression, InvalidOperator, InvalidValue};
 
 use dozer_types::types::{Field, Schema};
 

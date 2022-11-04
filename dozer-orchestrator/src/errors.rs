@@ -2,8 +2,8 @@
 
 use crossbeam::channel::RecvError;
 use dozer_api::errors::GRPCError;
+use dozer_core::dag::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
-use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;

@@ -1,5 +1,5 @@
-use crate::state::lmdb_sys::{
-    Database, DatabaseOptions, EnvOptions, Environment, LmdbError, Transaction,
+use crate::storage::lmdb_sys::{
+    Database, DatabaseOptions, EnvOptions, Environment, LmdbError, PutOptions, Transaction,
 };
 use log::info;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ fn test_cursor_duplicate_keys() {
 
     let env = Arc::new(chk!(Environment::new(
         tmp_dir.path().to_str().unwrap().to_string(),
-        Some(env_opt)
+        env_opt
     )));
     let mut tx = chk!(Transaction::begin(&env, false));
 
@@ -42,7 +42,7 @@ fn test_cursor_duplicate_keys() {
                 &db,
                 format!("key_{}", k).as_bytes(),
                 format!("val_{}", i).as_bytes(),
-                None,
+                PutOptions::default(),
             ));
         }
     }
@@ -97,7 +97,7 @@ fn create_env() -> (Environment, Database) {
 
     let mut env = chk!(Environment::new(
         tmp_dir.path().to_str().unwrap().to_string(),
-        Some(env_opt)
+        env_opt
     ));
 
     let mut tx = chk!(env.tx_begin(false));
@@ -120,7 +120,12 @@ fn test_concurrent_tx() {
     let t1 = thread::spawn(move || -> Result<(), LmdbError> {
         for i in 1..=1_000_u64 {
             let mut tx = chk!(e1.0.tx_begin(false));
-            tx.put(&e1.1, &i.to_le_bytes(), &i.to_le_bytes(), None)?;
+            tx.put(
+                &e1.1,
+                &i.to_le_bytes(),
+                &i.to_le_bytes(),
+                PutOptions::default(),
+            )?;
             chk!(tx.commit());
             if i % 10000 == 0 {
                 info!("Writer 1: {}", i)
@@ -132,7 +137,12 @@ fn test_concurrent_tx() {
     let t2 = thread::spawn(move || -> Result<(), LmdbError> {
         for i in 1..=1_000_u64 {
             let mut tx = chk!(e2.0.tx_begin(false));
-            tx.put(&e2.1, &i.to_le_bytes(), &i.to_le_bytes(), None)?;
+            tx.put(
+                &e2.1,
+                &i.to_le_bytes(),
+                &i.to_le_bytes(),
+                PutOptions::default(),
+            )?;
             chk!(tx.commit());
             if i % 10000 == 0 {
                 info!("Writer 2: {}", i)

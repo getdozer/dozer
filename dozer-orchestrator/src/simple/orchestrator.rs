@@ -4,7 +4,8 @@ use dozer_api::api_server::ApiServer;
 use dozer_cache::cache::LmdbCache;
 
 use super::executor::Executor;
-use crate::{errors::OrchestrationError, Orchestrator};
+use crate::errors::OrchestrationError;
+use crate::Orchestrator;
 use crossbeam::channel::{self};
 use dozer_api::grpc_server::GRPCServer;
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};

@@ -1,9 +1,8 @@
 #![allow(clippy::enum_variant_names)]
-use crate::core::node::{NodeHandle, PortHandle};
-use crate::errors::database::DatabaseError;
-use crate::errors::internal::BoxedError;
-use crate::errors::pipeline::PipelineError;
-use crate::errors::types::TypeError;
+use crate::dag::node::{NodeHandle, PortHandle};
+use crate::storage::lmdb_sys::LmdbError;
+use dozer_types::errors::internal::BoxedError;
+use dozer_types::errors::types::TypeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -22,17 +21,17 @@ pub enum ExecutionError {
     MissingNodeOutput(NodeHandle),
     #[error("The node type is invalid")]
     InvalidNodeType,
+    #[error("The database is invalid")]
+    InvalidDatabase,
 
     #[error("Field not found at position {0}")]
     FieldNotFound(String),
 
     // Error forwarders
     #[error(transparent)]
-    InternalPipelineError(#[from] PipelineError),
-    #[error(transparent)]
     InternalTypeError(#[from] TypeError),
     #[error(transparent)]
-    InternalDatabaseError(#[from] DatabaseError),
+    InternalDatabaseError(#[from] LmdbError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
 

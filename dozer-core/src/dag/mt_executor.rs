@@ -1,25 +1,27 @@
 #![allow(clippy::type_complexity)]
+use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::{Dag, NodeType, PortDirection};
-use crate::dag::forwarder::LocalChannelForwarder;
-use crate::state::null::NullStateStore;
-use crossbeam::channel::{bounded, Receiver, Select, Sender};
-use dozer_types::core::channels::SourceChannelForwarder;
-use dozer_types::core::node::{
-    NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
-};
-use dozer_types::core::state::StateStoresManager;
-use dozer_types::errors::execution::ExecutionError;
-use dozer_types::errors::execution::ExecutionError::{
+use crate::dag::errors::ExecutionError;
+use crate::dag::errors::ExecutionError::{
     InternalError, InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
+use crate::dag::forwarder::LocalChannelForwarder;
+use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::storage::lmdb_sys::{EnvOptions, Environment, LmdbError};
+use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record, Schema};
+use libc::size_t;
 use log::{error, warn};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::thread::JoinHandle;
+
+const DEFAULT_MAX_DBS: u32 = 256;
+const DEFAULT_MAX_READERS: u32 = 256;
+const DEFAULT_MAX_MAP_SZ: size_t = 1024 * 1024 * 1024 * 64;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExecutorOperation {
@@ -179,24 +181,26 @@ impl MultiThreadedDagExecutor {
         handle: NodeHandle,
         src_factory: Box<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        state_manager: Arc<dyn StateStoresManager>,
+        base_path: PathBuf,
     ) -> JoinHandle<Result<(), ExecutionError>> {
-        let local_sm = state_manager.clone();
         let fw = LocalChannelForwarder::new(senders);
 
         thread::spawn(move || -> Result<(), ExecutionError> {
-            let mut state_store = match src_factory.get_state_store_opts() {
-                Some(opt) => local_sm.init_state_store(handle.to_string(), opt)?,
-                None => Box::new(NullStateStore {}),
-            };
-
             let src = src_factory.build();
             for p in src_factory.get_output_ports() {
                 let schema = src.get_output_schema(p);
-
                 fw.update_schema(schema, p)?
             }
-            src.start(&fw, &fw, state_store.as_mut(), None)
+
+            match src_factory.is_stateful() {
+                true => {
+                    let mut env =
+                        MultiThreadedDagExecutor::start_env(base_path, handle.to_string())?;
+                    let mut txn = env.tx_begin(false)?;
+                    src.start(&fw, &fw, Some(&mut txn), None)
+                }
+                false => src.start(&fw, &fw, None, None),
+            }
         })
     }
 
@@ -219,21 +223,28 @@ impl MultiThreadedDagExecutor {
         handle: NodeHandle,
         snk_factory: Box<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        state_manager: Arc<dyn StateStoresManager>,
+        base_path: PathBuf,
     ) -> JoinHandle<Result<(), ExecutionError>> {
-        let local_sm = state_manager.clone();
         thread::spawn(move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build();
-
-            let mut state_store = match snk_factory.get_state_store_opts() {
-                Some(opt) => local_sm.init_state_store(handle.to_string(), opt)?,
-                None => Box::new(NullStateStore {}),
-            };
 
             let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
 
-            snk.init(state_store.as_mut())?;
+            let mut env = match snk_factory.is_stateful() {
+                true => {
+                    let mut env =
+                        MultiThreadedDagExecutor::start_env(base_path, handle.to_string())?;
+                    let mut txn = env.tx_begin(false)?;
+                    snk.init(Some(&mut txn))?;
+                    let _ = &txn.commit()?;
+                    Some(env)
+                }
+                false => {
+                    snk.init(None)?;
+                    None
+                }
+            };
 
             let mut input_schemas = HashMap::<PortHandle, Schema>::new();
             let mut schema_initialized = false;
@@ -276,12 +287,22 @@ impl MultiThreadedDagExecutor {
                         }
 
                         let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
-                        snk.process(
-                            handles_ls[index],
-                            data_op.0,
-                            data_op.1,
-                            state_store.as_mut(),
-                        )?;
+
+                        match env.as_mut() {
+                            Some(e) => {
+                                let mut txn = e.tx_begin(false)?;
+                                snk.process(
+                                    handles_ls[index],
+                                    data_op.0,
+                                    data_op.1,
+                                    Some(&mut txn),
+                                )?;
+                                let _ = &txn.commit()?;
+                            }
+                            None => {
+                                snk.process(handles_ls[index], data_op.0, data_op.1, None)?;
+                            }
+                        }
                     }
                 }
             }
@@ -294,16 +315,10 @@ impl MultiThreadedDagExecutor {
         proc_factory: Box<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        state_manager: Arc<dyn StateStoresManager>,
+        base_path: PathBuf,
     ) -> JoinHandle<Result<(), ExecutionError>> {
-        let local_sm = state_manager.clone();
         thread::spawn(move || -> Result<(), ExecutionError> {
             let mut proc = proc_factory.build();
-
-            let mut state_store = match proc_factory.get_state_store_opts() {
-                Some(opt) => local_sm.init_state_store(handle.to_string(), opt)?,
-                None => Box::new(NullStateStore {}),
-            };
 
             let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -318,7 +333,21 @@ impl MultiThreadedDagExecutor {
             let mut output_schemas = HashMap::<PortHandle, Schema>::new();
             let mut schema_initialized = false;
 
-            proc.init(state_store.as_mut())?;
+            let mut env = match proc_factory.is_stateful() {
+                true => {
+                    let mut env =
+                        MultiThreadedDagExecutor::start_env(base_path, handle.to_string())?;
+                    let mut txn = env.tx_begin(false)?;
+                    proc.init(Some(&mut txn))?;
+                    txn.commit()?;
+                    Some(env)
+                }
+                false => {
+                    proc.init(None)?;
+                    None
+                }
+            };
+
             loop {
                 let index = sel.ready();
                 let op = internal_err!(receivers_ls[index].recv())?;
@@ -359,22 +388,40 @@ impl MultiThreadedDagExecutor {
 
                         let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
                         fw.update_seq_no(data_op.0);
-                        proc.process(handles_ls[index], data_op.1, &fw, state_store.as_mut())?;
+
+                        match env.as_mut() {
+                            Some(e) => {
+                                let mut txn = e.tx_begin(false)?;
+                                proc.process(handles_ls[index], data_op.1, &fw, Some(&mut txn))?;
+                                let _ = &txn.commit()?;
+                            }
+                            None => {
+                                proc.process(handles_ls[index], data_op.1, &fw, None)?;
+                            }
+                        }
                     }
                 }
             }
         })
     }
 
-    pub fn start(
-        &self,
-        dag: Dag,
-        state_manager: Arc<dyn StateStoresManager>,
-    ) -> Result<(), ExecutionError> {
+    fn start_env(base_path: PathBuf, name: String) -> Result<Environment, LmdbError> {
+        let full_path = base_path.join(Path::new(name.as_str()));
+
+        let mut env_opt = EnvOptions::default();
+        env_opt.no_sync = true;
+        env_opt.max_dbs = Some(DEFAULT_MAX_DBS);
+        env_opt.map_size = Some(DEFAULT_MAX_MAP_SZ);
+        env_opt.max_readers = Some(DEFAULT_MAX_READERS);
+        env_opt.writable_mem_map = true;
+
+        Environment::new(base_path.to_str().unwrap().to_string(), env_opt)
+    }
+
+    pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = self.index_edges(&dag);
         let (sources, processors, sinks) = self.get_node_types(dag);
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
-        let global_sm = state_manager.clone();
 
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
@@ -382,8 +429,7 @@ impl MultiThreadedDagExecutor {
                 return Err(MissingNodeInput(snk.0));
             }
 
-            let snk_handle =
-                self.start_sink(snk.0, snk.1, snk_receivers.unwrap(), global_sm.clone());
+            let snk_handle = self.start_sink(snk.0, snk.1, snk_receivers.unwrap(), path.clone());
             handles.push(snk_handle);
         }
 
@@ -403,7 +449,7 @@ impl MultiThreadedDagExecutor {
                 processor.1,
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
-                global_sm.clone(),
+                path.clone(),
             );
             handles.push(proc_handle);
         }
@@ -413,7 +459,7 @@ impl MultiThreadedDagExecutor {
                 source.0.clone(),
                 source.1,
                 senders.remove(&source.0.clone()).unwrap(),
-                global_sm.clone(),
+                path.clone(),
             ));
         }
 

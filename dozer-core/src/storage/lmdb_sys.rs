@@ -163,7 +163,7 @@ impl EnvOptions {
 }
 
 impl Environment {
-    pub fn new(path: String, opts: Option<EnvOptions>) -> Result<Environment, LmdbError> {
+    pub fn new(path: String, o: EnvOptions) -> Result<Environment, LmdbError> {
         unsafe {
             let mut env_ptr: *mut MDB_env = ptr::null_mut();
 
@@ -180,39 +180,37 @@ impl Environment {
 
             let mut flags: c_uint = 0;
 
-            if let Some(o) = opts {
-                if o.map_size.is_some() && mdb_env_set_mapsize(env_ptr, o.map_size.unwrap()) != 0 {
-                    return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
-                }
-                if o.max_dbs.is_some() && mdb_env_set_maxdbs(env_ptr, o.max_dbs.unwrap()) != 0 {
-                    return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
-                }
-                if o.max_readers.is_some()
-                    && mdb_env_set_maxreaders(env_ptr, o.max_readers.unwrap()) != 0
-                {
-                    return Err(LmdbError::new(
-                        r,
-                        "Invalid max readers size specified".to_string(),
-                    ));
-                }
-                if o.no_sync {
-                    flags |= MDB_NOSYNC;
-                }
-                if o.no_meta_sync {
-                    flags |= MDB_NOMETASYNC;
-                }
-                if o.no_subdir {
-                    flags |= MDB_NOSUBDIR;
-                }
-                if o.writable_mem_map {
-                    flags |= MDB_WRITEMAP;
-                }
-                if o.no_locking {
-                    flags |= MDB_NOLOCK;
-                }
-                if o.no_thread_local_storage {
-                    flags |= MDB_NOTLS;
-                }
+            if o.map_size.is_some() && mdb_env_set_mapsize(env_ptr, o.map_size.unwrap()) != 0 {
+                return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
+            }
+            if o.max_dbs.is_some() && mdb_env_set_maxdbs(env_ptr, o.max_dbs.unwrap()) != 0 {
+                return Err(LmdbError::new(r, "Invalid map size specified".to_string()));
+            }
+            if o.max_readers.is_some()
+                && mdb_env_set_maxreaders(env_ptr, o.max_readers.unwrap()) != 0
+            {
+                return Err(LmdbError::new(
+                    r,
+                    "Invalid max readers size specified".to_string(),
+                ));
+            }
+            if o.no_sync {
+                flags |= MDB_NOSYNC;
+            }
+            if o.no_meta_sync {
+                flags |= MDB_NOMETASYNC;
+            }
+            if o.no_subdir {
+                flags |= MDB_NOSUBDIR;
+            }
+            if o.writable_mem_map {
+                flags |= MDB_WRITEMAP;
+            }
+            if o.no_locking {
+                flags |= MDB_NOLOCK;
+            }
+            if o.no_thread_local_storage {
+                flags |= MDB_NOTLS;
             }
 
             let r = mdb_env_open(
@@ -283,6 +281,45 @@ impl Transaction {
         }
     }
 
+    pub fn open_database(&self, name: String, o: DatabaseOptions) -> Result<Database, LmdbError> {
+        unsafe {
+            let mut dbi: MDB_dbi = 0;
+
+            let mut opt_flags: c_uint = 0;
+
+            if o.create {
+                opt_flags |= MDB_CREATE
+            }
+            if o.allow_duplicate_keys {
+                opt_flags |= MDB_DUPSORT
+            }
+            if o.integer_keys {
+                opt_flags |= MDB_INTEGERKEY
+            }
+            if o.fixed_key_size {
+                opt_flags |= MDB_DUPFIXED
+            }
+
+            let r = mdb_dbi_open(
+                self.txn.txn,
+                UnixString::from_string(name).unwrap().as_ptr(),
+                opt_flags,
+                addr_of_mut!(dbi),
+            );
+
+            match r {
+                MDB_NOTFOUND => { return Err(LmdbError::new(r, "The specified database doesn't exist in the environment and MDB_CREATE was not specified".to_string())) }
+                MDB_DBS_FULL => { return Err(LmdbError::new(r, "Too many databases have been opened. See mdb_env_set_maxdbs()".to_string())) }
+                x if x != 0 => { return Err(LmdbError::new(r, "Unknown error".to_string())) }
+                _ => {}
+            }
+
+            Ok(Database {
+                dbi: Arc::new(DbPtr::new(self.env.clone(), dbi)),
+            })
+        }
+    }
+
     pub fn child(&self) -> Result<Transaction, LmdbError> {
         unsafe {
             let mut txn_ptr: *mut MDB_txn = ptr::null_mut();
@@ -348,7 +385,7 @@ impl Transaction {
         db: &Database,
         key: &[u8],
         value: &[u8],
-        opts: Option<PutOptions>,
+        o: PutOptions,
     ) -> Result<(), LmdbError> {
         unsafe {
             let mut key_data = MDB_val {
@@ -362,13 +399,11 @@ impl Transaction {
 
             let mut opt_flags: c_uint = 0;
 
-            if let Some(e) = opts {
-                if e.no_duplicates {
-                    opt_flags |= MDB_NODUPDATA
-                }
-                if e.no_overwrite {
-                    opt_flags |= MDB_NOOVERWRITE
-                }
+            if o.no_duplicates {
+                opt_flags |= MDB_NODUPDATA
+            }
+            if o.no_overwrite {
+                opt_flags |= MDB_NOOVERWRITE
             }
 
             let r = mdb_put(
@@ -558,6 +593,15 @@ impl Clone for Database {
 pub struct PutOptions {
     no_duplicates: bool,
     no_overwrite: bool,
+}
+
+impl PutOptions {
+    pub fn default() -> Self {
+        Self {
+            no_duplicates: false,
+            no_overwrite: false,
+        }
+    }
 }
 
 impl Database {
