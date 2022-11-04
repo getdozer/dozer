@@ -8,6 +8,7 @@ use crate::connectors::TableInfo;
 use super::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
 use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
+use dozer_types::log::error;
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -29,8 +30,11 @@ impl SchemaHelper {
             None => Err(ConnectorError::TableNotFound(name)),
         }
     }
-    pub fn get_tables(&mut self) -> Result<Vec<TableInfo>, ConnectorError> {
-        let result_vec = self.get_schemas()?;
+    pub fn get_tables(
+        &mut self,
+        table_names: Option<&Vec<String>>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let result_vec = self.get_schemas(table_names)?;
 
         let mut arr = vec![];
         for (name, schema) in result_vec.iter() {
@@ -45,14 +49,26 @@ impl SchemaHelper {
         Ok(arr)
     }
 
-    pub fn get_schemas(&mut self) -> Result<Vec<(String, Schema)>, ConnectorError> {
+    pub fn get_schemas(
+        &mut self,
+        table_name: Option<&Vec<String>>,
+    ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_str.clone())?;
 
         let mut schemas: Vec<(String, Schema)> = Vec::new();
 
-        let results = client
-            .query(SQL, &[])
-            .map_err(|_| ConnectorError::InvalidQueryError)?;
+        let query = if let Some(table) = table_name {
+            let sql = str::replace(SQL, ":tables_condition", "= ANY($1)");
+            client.query(&sql, &[table])
+        } else {
+            let sql = str::replace(SQL, ":tables_condition", TABLES_CONDITION);
+            client.query(&sql, &[])
+        };
+
+        let results = query.map_err(|e| {
+            error!("{}", e);
+            ConnectorError::InvalidQueryError
+        })?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
         results.iter().map(|r| self.convert_row(r)).try_for_each(
@@ -148,6 +164,11 @@ impl SchemaHelper {
     }
 }
 
+const TABLES_CONDITION: &str = "IN (SELECT table_name
+                           FROM information_schema.tables
+                           WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                           ORDER BY table_name)";
+
 const SQL: &str = "
 SELECT table_info.table_name,
        table_info.column_name,
@@ -172,10 +193,7 @@ FROM (SELECT table_schema,
              udt_name,
              character_maximum_length
       FROM information_schema.columns
-      WHERE table_name IN (SELECT table_name
-                           FROM information_schema.tables
-                           WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-                           ORDER BY table_name)
+      WHERE table_name :tables_condition
       ORDER BY table_name) table_info
          LEFT JOIN pg_catalog.pg_statio_user_tables st_user_table ON st_user_table.relname = table_info.table_name
          LEFT JOIN (SELECT constraintUsage.table_name,

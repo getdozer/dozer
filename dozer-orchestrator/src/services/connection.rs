@@ -16,6 +16,9 @@ impl ConnectionService {
     pub fn get_all_schema(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
         self.connector.get_schemas()
     }
+    pub fn get_schema(&self, table_name: String) -> Result<Schema, ConnectorError> {
+        self.connector.get_schema(table_name)
+    }
 
     pub fn new(connection: Connection) -> Self {
         let connector: Box<dyn Connector> = Self::get_connector(connection);
