@@ -31,6 +31,7 @@ impl Field {
     pub fn to_bytes(&self) -> Result<Vec<u8>, TypeError> {
         match self {
             Field::Int(i) => Ok(Vec::from(i.to_be_bytes())),
+            Field::UInt(i) => Ok(Vec::from(i.to_be_bytes())),
             Field::Float(f) => Ok(Vec::from(f.to_be_bytes())),
             Field::Boolean(b) => Ok(Vec::from(if *b {
                 1_u8.to_be_bytes()
@@ -38,6 +39,7 @@ impl Field {
                 0_u8.to_be_bytes()
             })),
             Field::String(s) => Ok(Vec::from(s.as_bytes())),
+            Field::Text(s) => Ok(Vec::from(s.as_bytes())),
             Field::Binary(b) => Ok(Vec::from(b.as_slice())),
             Field::Decimal(d) => Ok(Vec::from(d.serialize())),
             Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
