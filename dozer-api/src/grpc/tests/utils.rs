@@ -13,7 +13,7 @@ use crate::{
     grpc::util::create_descriptor_set,
     test_utils,
 };
-use std::{collections::HashMap, thread};
+use std::{collections::HashMap, io, thread};
 
 pub fn generate_proto(
     dir_path: String,
@@ -30,10 +30,7 @@ pub fn generate_proto(
     Ok(generated_proto)
 }
 
-pub fn generate_descriptor(
-    tmp_dir: String,
-    schema_name: String,
-) -> Result<String, GenerationError> {
+pub fn generate_descriptor(tmp_dir: String, schema_name: String) -> Result<String, io::Error> {
     let descriptor_path = create_descriptor_set(&tmp_dir, &format!("{}.proto", schema_name))?;
     Ok(descriptor_path)
 }

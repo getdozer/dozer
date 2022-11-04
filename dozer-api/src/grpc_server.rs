@@ -44,15 +44,6 @@ impl GRPCServer {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<Event>(16);
         GRPCServer::setup_broad_cast_channel(tx, event_notifier)?;
-        // let _thread = thread::spawn(|| {
-        //     Runtime::new().unwrap().block_on(async {
-        //         tokio::spawn(async move {
-        //             while let Some(event) = event_notifier.iter().next() {
-        //                 _ = tx.send(event);
-        //             }
-        //         });
-        //     });
-        // });
 
         let schema_name = endpoint.name.to_owned();
         let schema = cache.get_schema_by_name(&schema_name)?;
@@ -67,8 +58,10 @@ impl GRPCServer {
         let descriptor_path = create_descriptor_set(
             &tempdir_path,
             &format!("{}.proto", schema_name.to_lowercase()),
-        )?;
-        let vec_byte = read_file_as_byte(descriptor_path.to_owned())?;
+        )
+        .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
+        let vec_byte = read_file_as_byte(descriptor_path.to_owned())
+            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
             .build()?;
