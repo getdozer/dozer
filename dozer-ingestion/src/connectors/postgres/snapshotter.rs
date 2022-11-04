@@ -17,7 +17,7 @@ use std::sync::Arc;
 // 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<TableInfo>>,
-    pub replication_conn_config: tokio_postgres::Config,
+    pub conn_config: tokio_postgres::Config,
     pub ingestor: Arc<RwLock<Ingestor>>,
     pub connector_id: u64,
 }
@@ -27,7 +27,7 @@ impl PostgresSnapshotter {
         table_names: Option<Vec<String>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
         let mut helper = SchemaHelper {
-            conn_config: self.replication_conn_config.clone(),
+            conn_config: self.conn_config.clone(),
         };
         let arr = helper.get_tables(table_names)?;
         match self.tables.as_ref() {
@@ -47,7 +47,7 @@ impl PostgresSnapshotter {
 
     pub fn sync_tables(&self) -> Result<Vec<String>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(connection_helper::connect(
-            self.replication_conn_config.clone(),
+            self.conn_config.clone(),
         )?));
 
         let tables = self.get_tables(None)?;

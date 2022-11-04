@@ -24,6 +24,7 @@ pub struct Details {
     slot_name: String,
     tables: Option<Vec<TableInfo>>,
     replication_conn_config: tokio_postgres::Config,
+    conn_config: tokio_postgres::Config,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -47,6 +48,8 @@ impl PostgresIterator {
         tables: Option<Vec<TableInfo>>,
         replication_conn_config: tokio_postgres::Config,
         ingestor: Arc<RwLock<Ingestor>>,
+        conn_config: tokio_postgres::Config,
+        storage_client: Arc<RocksStorage>,
     ) -> Self {
         let details = Arc::new(Details {
             id,
@@ -54,6 +57,7 @@ impl PostgresIterator {
             slot_name,
             tables,
             replication_conn_config,
+            conn_config,
         });
         PostgresIterator {
             details,
@@ -159,7 +163,7 @@ impl PostgresIteratorHandler {
 
             let snapshotter = PostgresSnapshotter {
                 tables: details.tables.clone(),
-                replication_conn_config: details.replication_conn_config.to_owned(),
+                conn_config: details.conn_config.to_owned(),
                 ingestor: Arc::clone(&self.ingestor),
                 connector_id: self.connector_id,
             };
