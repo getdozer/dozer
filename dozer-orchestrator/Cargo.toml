@@ -25,6 +25,8 @@ log4rs = "1.1.1"
 clap = {version = "4.0.15", features = ["derive"]}
 serde_yaml = "0.9.13"
 indicatif = "0.17.1"
+opentelemetry = { version="0.16", features = ["serialize", "rt-tokio"] }
+opentelemetry-jaeger = { version="0.15", features = ["rt-tokio"] }
 
 [[bin]]
 edition = "2021"

@@ -3,10 +3,28 @@ mod cli;
 use clap::Parser;
 use dozer_types::errors::orchestrator::OrchestrationError;
 use log::warn;
+use opentelemetry::global;
+use opentelemetry::global::shutdown_tracer_provider;
+use opentelemetry::sdk::trace::Config;
+use opentelemetry::sdk::{trace as sdktrace, Resource};
+use opentelemetry::trace::TraceError;
+use opentelemetry::{
+    trace::{TraceContextExt, Tracer}, Key, KeyValue,
+};
+use std::error::Error;
 
 use crate::cli::{load_config, Args, SubCommand};
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
+
+fn init_tracer() -> Result<sdktrace::Tracer, TraceError> {
+    opentelemetry_jaeger::new_pipeline()
+        .with_service_name("trace-demo")
+        .with_trace_config(Config::default().with_resource(Resource::new(vec![
+            KeyValue::new("exporter", "otlp-jaeger"),
+        ])))
+        .install_batch(opentelemetry::runtime::Tokio)
+}
 
 fn run(config_path: String) -> Result<(), OrchestrationError> {
     let configuration = load_config(config_path)?;
@@ -19,6 +37,7 @@ fn generate_token() -> Result<(), OrchestrationError> {
     todo!()
 }
 fn main() -> Result<(), OrchestrationError> {
+    let _tracer = init_tracer()?;
     log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
@@ -39,4 +58,5 @@ fn main() -> Result<(), OrchestrationError> {
     } else {
         run(args.config_path)
     }
+    shutdown_tracer_provider();
 }
