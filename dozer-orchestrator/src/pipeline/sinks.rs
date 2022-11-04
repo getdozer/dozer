@@ -6,6 +6,7 @@ use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::types::FieldType;
 use dozer_types::types::{
     IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
 };
@@ -129,7 +130,29 @@ impl Sink for CacheSink {
             .fields
             .iter()
             .enumerate()
-            .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
+            .filter_map(|(idx, f)| match f.typ {
+                // Create secondary indexes for these fields
+                FieldType::UInt
+                | FieldType::Int
+                | FieldType::Float
+                | FieldType::Boolean
+                | FieldType::String
+                | FieldType::Decimal
+                | FieldType::Timestamp
+                | FieldType::Null => Some(IndexDefinition::SortedInverted(vec![(idx, Ascending)])),
+
+                // Create full text indexes for text fields
+                FieldType::Text => Some(IndexDefinition::FullText(idx)),
+
+                // Skip creating indexes
+                FieldType::Binary
+                | FieldType::UIntArray
+                | FieldType::IntArray
+                | FieldType::FloatArray
+                | FieldType::BooleanArray
+                | FieldType::StringArray
+                | FieldType::Bson => None,
+            })
             .collect();
 
         // Insert if schema not already inserted
