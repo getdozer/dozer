@@ -69,7 +69,7 @@ pub fn create_descriptor_set(
         .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
         .build_client(false)
         .build_server(false)
-        .out_dir(&proto_folder)
+        .out_dir(proto_folder)
         .compile_with_config(prost_build_config, &[proto_file_path], &[proto_folder])
         .map_err(|e| GenerationError::CannotCreateProtoDescriptor(e.to_string()))?;
     Ok(my_path_descriptor)

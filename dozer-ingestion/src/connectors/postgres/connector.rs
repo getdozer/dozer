@@ -135,7 +135,7 @@ impl PostgresConnector {
             .simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())
             .map_err(|e| {
                 debug!("failed to drop publication {}", e.to_string());
-                ConnectorError::PostgresConnectorError(PostgresConnectorError::DropPublicationError)
+                PostgresConnectorError::DropPublicationError
             })?;
 
         client
@@ -144,9 +144,7 @@ impl PostgresConnector {
             )
             .map_err(|e| {
                 debug!("failed to create publication {}", e.to_string());
-                ConnectorError::PostgresConnectorError(
-                    PostgresConnectorError::CreatePublicationError,
-                )
+                PostgresConnectorError::CreatePublicationError
             })?;
         Ok(())
     }

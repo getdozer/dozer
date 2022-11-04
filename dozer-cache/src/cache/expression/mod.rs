@@ -1,6 +1,6 @@
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::serde_json::Value;
-use dozer_types::types::{IndexDefinition, SortDirection};
+use dozer_types::types::SortDirection;
 mod query_helper;
 mod query_serde;
 
@@ -123,19 +123,5 @@ impl Operator {
 #[serde(crate = "self::serde")]
 pub struct SortOptions {
     pub field_name: String,
-    pub direction: SortDirection,
-}
-
-pub enum Plan {
-    IndexScans(Vec<IndexScan>),
-    SeqScan(SeqScan),
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct IndexScan {
-    pub index_def: IndexDefinition,
-    pub fields: Vec<Option<Value>>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SeqScan {
     pub direction: SortDirection,
 }

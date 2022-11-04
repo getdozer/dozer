@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-postgres = { git = "https://github.com/materializeInc/rust-postgres" }
-postgres-protocol = { git = "https://github.com/materializeInc/rust-postgres" }
-postgres-types = { git = "https://github.com/materializeInc/rust-postgres" }
-tokio-postgres = { git = "https://github.com/materializeInc/rust-postgres", features=["with-chrono-0_4"] }
+postgres = "0.19.4"
+postgres-protocol = "0.6.4"
+postgres-types = "0.2.4"
+tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4"] }
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.24"
 bytes = "1.2.1"
-dozer-types = {version = "0.1.0", path = "../dozer-types"}
+dozer-types = { version = "0.1.0", path = "../dozer-types" }
 rocksdb = "0.19.0"
 crossbeam = "0.8.2"
 tempdir = "0.3.7"

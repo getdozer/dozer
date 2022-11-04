@@ -8,7 +8,7 @@ use dozer_types::{
 
 pub mod expression;
 pub mod index;
-mod planner;
+mod plan;
 pub mod test_utils;
 pub trait Cache {
     // Schema Operations
