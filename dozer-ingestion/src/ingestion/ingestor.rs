@@ -1,4 +1,4 @@
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{unbounded, Receiver};
 use dozer_types::ingestion_types::{
     IngestionMessage, IngestionOperation, IngestorError, IngestorForwarder,
 };
@@ -42,28 +42,6 @@ impl Iterator for IngestionIterator {
         }
     }
 }
-pub struct IngestorFactory {
-    pub rx: Receiver<(u64, IngestionOperation)>,
-    pub tx: Sender<(u64, IngestionOperation)>,
-}
-
-impl IngestorFactory {
-    pub fn new() -> Self {
-        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
-        Self { rx, tx }
-    }
-
-    pub fn build(&self, config: IngestionConfig) -> (Arc<RwLock<Ingestor>>, IngestionIterator) {
-        let sender: Arc<Box<dyn IngestorForwarder>> = Arc::new(Box::new(ChannelForwarder {
-            sender: self.tx.to_owned(),
-        }));
-        let ingestor = Arc::new(RwLock::new(Ingestor::new(config, sender)));
-        let iterator = IngestionIterator {
-            rx: self.rx.to_owned(),
-        };
-        (ingestor, iterator)
-    }
-}
 
 pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
@@ -74,6 +52,17 @@ pub struct Ingestor {
 }
 
 impl Ingestor {
+    pub fn initialize_channel(
+        config: IngestionConfig,
+    ) -> (Arc<RwLock<Ingestor>>, IngestionIterator) {
+        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
+        let sender: Arc<Box<dyn IngestorForwarder>> =
+            Arc::new(Box::new(ChannelForwarder { sender: tx }));
+        let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
+
+        let iterator = IngestionIterator { rx };
+        (ingestor, iterator)
+    }
     pub fn new(config: IngestionConfig, sender: Arc<Box<dyn IngestorForwarder + 'static>>) -> Self {
         Self {
             storage_client: config.storage_client,

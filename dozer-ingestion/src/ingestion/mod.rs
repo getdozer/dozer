@@ -9,7 +9,7 @@ mod storage;
 mod writer;
 
 pub use ingestor::ChannelForwarder;
-pub use ingestor::{IngestionIterator, Ingestor, IngestorFactory};
+pub use ingestor::{IngestionIterator, Ingestor};
 pub struct IngestionConfig {
     pub storage_client: Arc<RocksStorage>,
     pub seq_resolver: Arc<Mutex<SeqNoResolver>>,

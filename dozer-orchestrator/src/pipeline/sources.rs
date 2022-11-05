@@ -1,7 +1,7 @@
 use crate::services::connection::ConnectionService;
 use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::errors::ConnectorError;
-use dozer_ingestion::ingestion::{IngestionConfig, IngestorFactory};
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{Source, SourceFactory};
@@ -91,8 +91,7 @@ impl Source for ConnectorSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        let factory = IngestorFactory::new();
-        let (ingestor, mut iterator) = factory.build(IngestionConfig::default());
+        let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         let mut threads = vec![];
         for connection in &self.connections {
