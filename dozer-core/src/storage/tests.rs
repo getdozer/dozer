@@ -1,4 +1,4 @@
 #[cfg(test)]
-mod indexer;
+mod indexed_db;
 #[cfg(test)]
 mod lmdb_sys;
