@@ -1,18 +1,31 @@
-### Providing APIs on top of Ethereum Data
+### Connector Samples
+
+Samples to demonstrate utilising connectors as iterators.
 
 
-### Build Dependencies
+### Postgres
+
+```
+docker-compose -d
+cargo run --bin postgres
+```
+
+
+### Eth
+
+Dependencies
 - [`Ganache`](https://github.com/trufflesuite/ganache)
 
-### Install & Run Ganache
 ```
 npm install ganache --global
 
 ganache -m "quote mandate cliff boil scheme abstract monitor bike other destroy panic abandon"
+
+cargo run --bin eth
 ```
 
-```
-ganache --fork https://wiser-smart-sound.ethereum-goerli.discover.quiknode.pro/c94c6154019a91660db7f9d2b718622d3355e471/
+Links
+
 ```
 https://goerli.etherscan.io/tx/0x2578c4ff3ee0ea6907cae77b4d6c89d2a56e3e48bd17b408438bfb93ba189b0e
 

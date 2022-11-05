@@ -10,3 +10,14 @@ log = "0.4.17"
 log4rs = "1.1.1"
 
 [workspace]
+
+
+[[bin]]
+edition = "2021"
+name = "postgres"
+path = "src/postgres.rs"
+
+[[bin]]
+edition = "2021"
+name = "eth"
+path = "src/eth.rs"
