@@ -1,5 +1,5 @@
 use crate::connectors::postgres::helper;
-use dozer_types::errors::connector::ConnectorError;
+use crate::errors::ConnectorError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};

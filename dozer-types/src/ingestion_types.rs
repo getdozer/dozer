@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-use crate::types::{Commit, OperationEvent, Schema};
+use crate::{
+    errors::internal::BoxedError,
+    types::{Commit, OperationEvent, Schema},
+};
 
 #[derive(Clone, Debug)]
 pub enum IngestionOperation {
@@ -15,6 +19,13 @@ pub enum IngestionMessage {
     Schema(Schema),
     Commit(Commit),
 }
+
+#[derive(Error, Debug)]
+pub enum IngestorError {
+    #[error("Failed to send message on channel")]
+    ChannelError(#[from] BoxedError),
+}
+
 pub trait IngestorForwarder: Send + Sync {
-    fn forward(&self, msg: (u64, IngestionOperation));
+    fn forward(&self, msg: (u64, IngestionOperation)) -> Result<(), IngestorError>;
 }

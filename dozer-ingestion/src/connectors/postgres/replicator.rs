@@ -1,12 +1,12 @@
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
-use crate::ingestion::Ingestor;
-use dozer_types::chrono::{TimeZone, Utc};
-use dozer_types::errors::connector::ConnectorError;
-use dozer_types::errors::connector::ConnectorError::PostgresConnectorError;
-use dozer_types::errors::connector::PostgresConnectorError::{
+use crate::errors::ConnectorError;
+use crate::errors::ConnectorError::PostgresConnectorError;
+use crate::errors::PostgresConnectorError::{
     ReplicationStreamEndError, ReplicationStreamError, UnexpectedReplicationMessageError,
 };
+use crate::ingestion::Ingestor;
+use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{debug, error};
 use dozer_types::types::Commit;
@@ -55,13 +55,17 @@ impl CDCHandler {
 
         debug!("last_commit_lsn: {:?}", self.last_commit_lsn);
         // Marking point of replication start
-        self.ingestor.write().unwrap().handle_message((
-            self.connector_id,
-            IngestionMessage::Commit(Commit {
-                seq_no: 0,
-                lsn: self.last_commit_lsn,
-            }),
-        ));
+        self.ingestor
+            .write()
+            .unwrap()
+            .handle_message((
+                self.connector_id,
+                IngestionMessage::Commit(Commit {
+                    seq_no: 0,
+                    lsn: self.last_commit_lsn,
+                }),
+            ))
+            .map_err(ConnectorError::IngestorError)?;
 
         let copy_stream = client
             .copy_both_simple::<bytes::Bytes>(&query)
@@ -116,7 +120,8 @@ impl CDCHandler {
                     self.ingestor
                         .write()
                         .unwrap()
-                        .handle_message((self.connector_id, ingestion_message));
+                        .handle_message((self.connector_id, ingestion_message))
+                        .map_err(ConnectorError::IngestorError)?;
                 }
                 Ok(())
             }

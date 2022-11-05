@@ -1,8 +1,8 @@
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::postgres::schema_helper::SchemaHelper;
 use crate::connectors::{Connector, TableInfo};
+use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
 use dozer_types::types::Schema;
 use postgres::Client;

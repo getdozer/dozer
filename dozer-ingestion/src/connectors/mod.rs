@@ -1,13 +1,14 @@
 pub mod postgres;
 
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication::PostgresAuthentication;
 use dozer_types::models::connection::Connection;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
-use dozer_types::{errors::connector::ConnectorError, types::Schema};
+use dozer_types::types::Schema;
 use std::sync::{Arc, RwLock};
 
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};

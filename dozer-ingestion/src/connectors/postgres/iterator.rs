@@ -1,8 +1,8 @@
 use crate::connectors::TableInfo;
 
+use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::bincode;
-use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
 
 use postgres_types::PgLsn;
@@ -66,7 +66,7 @@ impl PostgresIterator {
 
 impl PostgresIterator {
     pub fn start(&self) -> Result<(), ConnectorError> {
-        let lsn = RefCell::new(self.get_last_lsn_for_connection());
+        let lsn = RefCell::new(self.get_last_lsn_for_connection()?);
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
         let ingestor = self.ingestor.clone();
@@ -82,21 +82,22 @@ impl PostgresIterator {
         stream_inner._start()
     }
 
-    pub fn get_last_lsn_for_connection(&self) -> Option<String> {
+    pub fn get_last_lsn_for_connection(&self) -> Result<Option<String>, ConnectorError> {
         let storage_client = self.ingestor.read().unwrap().storage_client.clone();
         let commit_key = storage_client.get_commit_message_key(&(self.details.id as usize));
         let commit_message = storage_client.get_db().get(commit_key);
         match commit_message {
             Ok(Some(value)) => {
-                let (_, message): (usize, u64) = bincode::deserialize(value.as_slice()).unwrap();
+                let (_, message): (usize, u64) = bincode::deserialize(value.as_slice())
+                    .map_err(ConnectorError::map_bincode_serialization_error)?;
                 if message == 0 {
-                    None
+                    Ok(None)
                 } else {
                     debug!("lsn: {:?}", PgLsn::from(message).to_string());
-                    Some(PgLsn::from(message).to_string())
+                    Ok(Some(PgLsn::from(message).to_string()))
                 }
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 }

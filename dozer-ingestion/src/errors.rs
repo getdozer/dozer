@@ -1,6 +1,11 @@
 #![allow(clippy::enum_variant_names)]
-use crate::errors::internal::BoxedError;
-use thiserror::Error;
+
+use dozer_types::errors::internal::BoxedError;
+use dozer_types::errors::types::{SerializationError, TypeError};
+use dozer_types::ingestion_types::IngestorError;
+use dozer_types::thiserror;
+use dozer_types::thiserror::Error;
+use dozer_types::{bincode, serde_json};
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
@@ -21,9 +26,25 @@ pub enum ConnectorError {
 
     #[error(transparent)]
     PostgresConnectorError(#[from] PostgresConnectorError),
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
 
     #[error(transparent)]
     InternalError(#[from] BoxedError),
+
+    #[error("Failed to send message on channel")]
+    IngestorError(#[source] IngestorError),
+}
+impl ConnectorError {
+    pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {
+        ConnectorError::TypeError(TypeError::SerializationError(SerializationError::Json(e)))
+    }
+
+    pub fn map_bincode_serialization_error(e: bincode::Error) -> ConnectorError {
+        ConnectorError::TypeError(TypeError::SerializationError(SerializationError::Bincode(
+            e,
+        )))
+    }
 }
 
 #[derive(Error, Debug)]

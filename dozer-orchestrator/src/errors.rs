@@ -1,8 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 
-use thiserror::Error;
-
-use super::{connector::ConnectorError, execution::ExecutionError, internal::BoxedError};
+use dozer_ingestion::errors::ConnectorError;
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::internal::BoxedError;
+use dozer_types::thiserror;
+use dozer_types::thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {

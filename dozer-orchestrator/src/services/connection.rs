@@ -1,12 +1,12 @@
-use dozer_ingestion::connectors::{
-    postgres::connector::{PostgresConfig, PostgresConnector},
-    Connector,
+use dozer_ingestion::{
+    connectors::{
+        postgres::connector::{PostgresConfig, PostgresConnector},
+        Connector,
+    },
+    errors::ConnectorError,
 };
+use dozer_types::models::connection::{Authentication, Connection};
 use dozer_types::types::Schema;
-use dozer_types::{
-    errors::connector::ConnectorError,
-    models::connection::{Authentication, Connection},
-};
 
 pub struct ConnectionService {
     connector: Box<dyn Connector>,

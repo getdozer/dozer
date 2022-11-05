@@ -3,10 +3,9 @@ use crate::ingestion::Ingestor;
 
 use super::helper;
 use super::schema_helper::SchemaHelper;
-use dozer_types::errors::connector::ConnectorError;
-
-use dozer_types::errors::connector::PostgresConnectorError::PostgresSchemaError;
-use dozer_types::errors::connector::PostgresConnectorError::SyncWithSnapshotError;
+use crate::errors::ConnectorError;
+use crate::errors::PostgresConnectorError::PostgresSchemaError;
+use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
@@ -73,7 +72,8 @@ impl PostgresSnapshotter {
             self.ingestor
                 .write()
                 .unwrap()
-                .handle_message((self.connector_id, IngestionMessage::Schema(schema.clone())));
+                .handle_message((self.connector_id, IngestionMessage::Schema(schema.clone())))
+                .map_err(ConnectorError::IngestorError)?;
 
             let empty_vec: Vec<String> = Vec::new();
             for msg in client_plain
@@ -99,10 +99,14 @@ impl PostgresSnapshotter {
                             ConnectorError::PostgresConnectorError(PostgresSchemaError(e))
                         })?;
 
-                        self.ingestor.write().unwrap().handle_message((
-                            self.connector_id,
-                            IngestionMessage::OperationEvent(evt),
-                        ));
+                        self.ingestor
+                            .write()
+                            .unwrap()
+                            .handle_message((
+                                self.connector_id,
+                                IngestionMessage::OperationEvent(evt),
+                            ))
+                            .map_err(ConnectorError::IngestorError)?;
                     }
                     Err(e) => {
                         return Err(ConnectorError::PostgresConnectorError(
@@ -113,10 +117,14 @@ impl PostgresSnapshotter {
                 idx += 1;
             }
 
-            self.ingestor.write().unwrap().handle_message((
-                self.connector_id,
-                IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }),
-            ));
+            self.ingestor
+                .write()
+                .unwrap()
+                .handle_message((
+                    self.connector_id,
+                    IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }),
+                ))
+                .map_err(ConnectorError::IngestorError)?;
         }
 
         let table_names = tables.iter().map(|t| t.name.clone()).collect();

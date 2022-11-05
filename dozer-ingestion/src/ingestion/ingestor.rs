@@ -1,5 +1,7 @@
 use crossbeam::channel::{unbounded, Receiver};
-use dozer_types::ingestion_types::{IngestionMessage, IngestionOperation, IngestorForwarder};
+use dozer_types::ingestion_types::{
+    IngestionMessage, IngestionOperation, IngestorError, IngestorForwarder,
+};
 use dozer_types::log::{debug, warn};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
@@ -14,13 +16,11 @@ pub struct ChannelForwarder {
 }
 
 impl IngestorForwarder for ChannelForwarder {
-    fn forward(&self, event: (u64, IngestionOperation)) {
+    fn forward(&self, event: (u64, IngestionOperation)) -> Result<(), IngestorError> {
         let send_res = self.sender.send(event);
         match send_res {
-            Ok(_) => {}
-            Err(e) => {
-                debug!("{:?}", e.to_string())
-            }
+            Ok(_) => Ok(()),
+            Err(e) => Err(IngestorError::ChannelError(Box::new(e))),
         }
     }
 }
@@ -71,7 +71,10 @@ impl Ingestor {
         }
     }
 
-    pub fn handle_message(&mut self, (connector_id, message): (u64, IngestionMessage)) {
+    pub fn handle_message(
+        &mut self,
+        (connector_id, message): (u64, IngestionMessage),
+    ) -> Result<(), IngestorError> {
         match message {
             IngestionMessage::OperationEvent(mut event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
@@ -80,12 +83,12 @@ impl Ingestor {
                 let (key, encoded) = self.storage_client.map_operation_event(&event);
                 self.writer.insert(key.as_ref(), encoded);
                 self.sender
-                    .forward((connector_id, IngestionOperation::OperationEvent(event)));
+                    .forward((connector_id, IngestionOperation::OperationEvent(event)))
             }
             IngestionMessage::Schema(schema) => {
                 let _seq_no: u64 = self.seq_no_resolver.lock().unwrap().get_next_seq_no() as u64;
                 self.sender
-                    .forward((connector_id, IngestionOperation::SchemaUpdate(schema)));
+                    .forward((connector_id, IngestionOperation::SchemaUpdate(schema)))
             }
             IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
@@ -96,10 +99,12 @@ impl Ingestor {
                 self.writer.commit(&self.storage_client);
 
                 debug!("Batch processing took: {:.2?}", self.timer.elapsed());
+                Ok(())
             }
             IngestionMessage::Begin() => {
                 self.writer.begin();
                 self.timer = Instant::now();
+                Ok(())
             }
         }
     }

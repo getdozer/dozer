@@ -1,4 +1,3 @@
-use dozer_types::errors::orchestrator::OrchestrationError;
 use log::debug;
 use std::fs;
 use std::sync::Arc;
@@ -19,6 +18,7 @@ use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
 
+use crate::errors::OrchestrationError;
 use crate::get_schema;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 
