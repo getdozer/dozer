@@ -1,6 +1,7 @@
 use crate::services::connection::ConnectionService;
 use dozer_ingestion::connectors::TableInfo;
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
+use dozer_ingestion::errors::ConnectorError;
+use dozer_ingestion::ingestion::{IngestionConfig, IngestorFactory};
 use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_types::core::node::PortHandle;
 use dozer_types::core::node::{Source, SourceFactory};
@@ -8,7 +9,7 @@ use dozer_types::core::state::{StateStore, StateStoreOptions};
 use dozer_types::errors::execution::ExecutionError;
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
-use dozer_types::types::Schema;
+use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use log::debug;
 use std::collections::HashMap;
 use std::thread;
@@ -90,13 +91,15 @@ impl Source for ConnectorSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        let factory = IngestorFactory::new();
+        let (ingestor, mut iterator) = factory.build(IngestionConfig::default());
+
         let mut threads = vec![];
         for connection in &self.connections {
             let table_names = self.table_names.clone();
             let connection = connection.clone();
             let ingestor = ingestor.clone();
-            let t = thread::spawn(move || {
+            let t = thread::spawn(move || -> Result<(), ConnectorError> {
                 let mut connector = ConnectionService::get_connector(connection);
 
                 let tables = connector.get_tables().unwrap();
@@ -109,21 +112,28 @@ impl Source for ConnectorSource {
                     .cloned()
                     .collect();
 
-                connector.initialize(ingestor, Some(tables)).unwrap();
+                connector.initialize(ingestor, Some(tables))?;
+                connector.start()?;
+                Ok(())
             });
             threads.push(t);
         }
         loop {
             let msg = iterator.next();
-
             if let Some(msg) = msg {
-                let port = 0;
                 match msg {
                     (_, IngestionOperation::OperationEvent(op)) => {
-                        fw.send(op.seq_no, op.operation, port)?
+                        let identifier = match &op.operation {
+                            Operation::Delete { old } => old.schema_id.to_owned(),
+                            Operation::Insert { new } => new.schema_id.to_owned(),
+                            Operation::Update { old: _, new } => new.schema_id.to_owned(),
+                        };
+                        let schema_id = get_schema_id(identifier.as_ref())?;
+                        fw.send(op.seq_no, op.operation.to_owned(), schema_id as u16)?
                     }
                     (_, IngestionOperation::SchemaUpdate(schema)) => {
-                        fw.update_schema(schema, port)?
+                        let schema_id = get_schema_id(schema.identifier.as_ref())?;
+                        fw.update_schema(schema, schema_id as u16)?
                     }
                 }
             } else {
@@ -132,7 +142,9 @@ impl Source for ConnectorSource {
         }
 
         for t in threads {
-            t.join().unwrap();
+            t.join()
+                .unwrap()
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
         Ok(())
     }
@@ -141,4 +153,10 @@ impl Source for ConnectorSource {
         let val = self.port_map.get(&port).unwrap();
         val.to_owned()
     }
+}
+
+fn get_schema_id(op_schema_id: Option<&SchemaIdentifier>) -> Result<u32, ExecutionError> {
+    Ok(op_schema_id
+        .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
+        .id)
 }

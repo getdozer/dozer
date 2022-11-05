@@ -14,6 +14,7 @@ pub use bytes;
 pub use chrono;
 pub use log;
 pub use log4rs;
+pub use parking_lot;
 pub use rust_decimal;
 pub use serde;
 pub use serde_json;

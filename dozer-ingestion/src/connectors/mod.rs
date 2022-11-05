@@ -6,10 +6,11 @@ use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication::PostgresAuthentication;
 use dozer_types::models::connection::Connection;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
@@ -22,6 +23,7 @@ pub trait Connector: Send + Sync {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
+    fn start(&self) -> Result<(), ConnectorError>;
     fn stop(&self);
 }
 

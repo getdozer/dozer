@@ -7,13 +7,13 @@ use crate::errors::ConnectorError;
 use crate::errors::PostgresConnectorError::PostgresSchemaError;
 use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::{Client, NoTls};
 use std::cell::RefCell;
 use std::sync::Arc;
-use std::sync::RwLock;
 
 // 0.4.10
 pub struct PostgresSnapshotter {
@@ -71,7 +71,6 @@ impl PostgresSnapshotter {
 
             self.ingestor
                 .write()
-                .unwrap()
                 .handle_message((self.connector_id, IngestionMessage::Schema(schema.clone())))
                 .map_err(ConnectorError::IngestorError)?;
 
@@ -101,7 +100,6 @@ impl PostgresSnapshotter {
 
                         self.ingestor
                             .write()
-                            .unwrap()
                             .handle_message((
                                 self.connector_id,
                                 IngestionMessage::OperationEvent(evt),
@@ -119,7 +117,6 @@ impl PostgresSnapshotter {
 
             self.ingestor
                 .write()
-                .unwrap()
                 .handle_message((
                     self.connector_id,
                     IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }),

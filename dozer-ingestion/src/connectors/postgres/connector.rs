@@ -4,9 +4,10 @@ use crate::connectors::{Connector, TableInfo};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Schema;
 use postgres::Client;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use super::helper;
 
@@ -23,6 +24,7 @@ pub struct PostgresConnector {
     conn_str: String,
     conn_str_plain: String,
     tables: Option<Vec<TableInfo>>,
+    ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 impl PostgresConnector {
     pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
@@ -35,6 +37,7 @@ impl PostgresConnector {
             conn_str,
             conn_str_plain: config.conn_str,
             tables: config.tables,
+            ingestor: None,
         }
     }
 }
@@ -74,6 +77,10 @@ impl Connector for PostgresConnector {
         let client = helper::connect(self.conn_str.clone())?;
         self.tables = tables;
         self.create_publication(client)?;
+        self.ingestor = Some(ingestor);
+        Ok(())
+    }
+    fn start(&self) -> Result<(), ConnectorError> {
         let iterator = PostgresIterator::new(
             self.id,
             self.get_publication_name(),
@@ -81,7 +88,10 @@ impl Connector for PostgresConnector {
             self.tables.to_owned(),
             self.conn_str.clone(),
             self.conn_str_plain.clone(),
-            ingestor,
+            self.ingestor
+                .as_ref()
+                .map_or(Err(ConnectorError::InitializationError), Ok)?
+                .clone(),
         );
 
         match iterator.start() {

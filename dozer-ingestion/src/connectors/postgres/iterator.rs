@@ -5,9 +5,10 @@ use crate::ingestion::Ingestor;
 use dozer_types::bincode;
 use dozer_types::log::debug;
 
+use dozer_types::parking_lot::RwLock;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
@@ -83,7 +84,7 @@ impl PostgresIterator {
     }
 
     pub fn get_last_lsn_for_connection(&self) -> Result<Option<String>, ConnectorError> {
-        let storage_client = self.ingestor.read().unwrap().storage_client.clone();
+        let storage_client = self.ingestor.read().storage_client.clone();
         let commit_key = storage_client.get_commit_message_key(&(self.details.id as usize));
         let commit_message = storage_client.get_db().get(commit_key);
         match commit_message {

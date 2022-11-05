@@ -9,13 +9,14 @@ use crate::ingestion::Ingestor;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{debug, error};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Commit;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::str::FromStr;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
@@ -57,7 +58,6 @@ impl CDCHandler {
         // Marking point of replication start
         self.ingestor
             .write()
-            .unwrap()
             .handle_message((
                 self.connector_id,
                 IngestionMessage::Commit(Commit {
@@ -119,7 +119,6 @@ impl CDCHandler {
 
                     self.ingestor
                         .write()
-                        .unwrap()
                         .handle_message((self.connector_id, ingestion_message))
                         .map_err(ConnectorError::IngestorError)?;
                 }

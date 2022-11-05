@@ -1,9 +1,10 @@
-use crossbeam::channel::{unbounded, Receiver};
+use crossbeam::channel::{unbounded, Receiver, Sender};
 use dozer_types::ingestion_types::{
     IngestionMessage, IngestionOperation, IngestorError, IngestorForwarder,
 };
 use dozer_types::log::{debug, warn};
-use std::sync::{Arc, Mutex, RwLock};
+use dozer_types::parking_lot::RwLock;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use super::seq_no_resolver::SeqNoResolver;
@@ -25,7 +26,7 @@ impl IngestorForwarder for ChannelForwarder {
     }
 }
 pub struct IngestionIterator {
-    rx: Receiver<(u64, IngestionOperation)>,
+    pub rx: Receiver<(u64, IngestionOperation)>,
 }
 
 impl Iterator for IngestionIterator {
@@ -41,6 +42,29 @@ impl Iterator for IngestionIterator {
         }
     }
 }
+pub struct IngestorFactory {
+    pub rx: Receiver<(u64, IngestionOperation)>,
+    pub tx: Sender<(u64, IngestionOperation)>,
+}
+
+impl IngestorFactory {
+    pub fn new() -> Self {
+        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
+        Self { rx, tx }
+    }
+
+    pub fn build(&self, config: IngestionConfig) -> (Arc<RwLock<Ingestor>>, IngestionIterator) {
+        let sender: Arc<Box<dyn IngestorForwarder>> = Arc::new(Box::new(ChannelForwarder {
+            sender: self.tx.to_owned(),
+        }));
+        let ingestor = Arc::new(RwLock::new(Ingestor::new(config, sender)));
+        let iterator = IngestionIterator {
+            rx: self.rx.to_owned(),
+        };
+        (ingestor, iterator)
+    }
+}
+
 pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
@@ -50,17 +74,6 @@ pub struct Ingestor {
 }
 
 impl Ingestor {
-    pub fn initialize_channel(
-        config: IngestionConfig,
-    ) -> (Arc<RwLock<Ingestor>>, IngestionIterator) {
-        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
-        let sender: Arc<Box<dyn IngestorForwarder>> =
-            Arc::new(Box::new(ChannelForwarder { sender: tx }));
-        let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
-
-        let iterator = IngestionIterator { rx };
-        (ingestor, iterator)
-    }
     pub fn new(config: IngestionConfig, sender: Arc<Box<dyn IngestorForwarder + 'static>>) -> Self {
         Self {
             storage_client: config.storage_client,
@@ -83,12 +96,12 @@ impl Ingestor {
                 let (key, encoded) = self.storage_client.map_operation_event(&event);
                 self.writer.insert(key.as_ref(), encoded);
                 self.sender
-                    .forward((connector_id, IngestionOperation::OperationEvent(event)))
+                    .forward((connector_id, IngestionOperation::OperationEvent(event)))?;
             }
             IngestionMessage::Schema(schema) => {
                 let _seq_no: u64 = self.seq_no_resolver.lock().unwrap().get_next_seq_no() as u64;
                 self.sender
-                    .forward((connector_id, IngestionOperation::SchemaUpdate(schema)))
+                    .forward((connector_id, IngestionOperation::SchemaUpdate(schema)))?;
             }
             IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
@@ -99,14 +112,13 @@ impl Ingestor {
                 self.writer.commit(&self.storage_client);
 
                 debug!("Batch processing took: {:.2?}", self.timer.elapsed());
-                Ok(())
             }
             IngestionMessage::Begin() => {
                 self.writer.begin();
                 self.timer = Instant::now();
-                Ok(())
             }
         }
+        Ok(())
     }
 }
 
@@ -162,11 +174,19 @@ mod tests {
             lsn: 412142432,
         };
 
-        ingestor.handle_message((1, Begin()));
-        ingestor.handle_message((1, Schema(schema_message)));
-        ingestor.handle_message((1, OperationEvent(operation_event_message.clone())));
-        ingestor.handle_message((1, OperationEvent(operation_event_message2.clone())));
-        ingestor.handle_message((1, Commit(commit_message)));
+        ingestor.handle_message((1, Begin())).unwrap();
+        ingestor
+            .handle_message((1, Schema(schema_message)))
+            .unwrap();
+        ingestor
+            .handle_message((1, OperationEvent(operation_event_message.clone())))
+            .unwrap();
+        ingestor
+            .handle_message((1, OperationEvent(operation_event_message2.clone())))
+            .unwrap();
+        ingestor
+            .handle_message((1, Commit(commit_message)))
+            .unwrap();
 
         let mut expected_event = operation_event_message;
         expected_event.seq_no = 2;
