@@ -1,3 +1,4 @@
+use crate::errors::OrchestrationError;
 use log::debug;
 use std::fs;
 use std::sync::Arc;
@@ -8,17 +9,15 @@ use tempdir::TempDir;
 
 use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
+use dozer_core::dag::errors::ExecutionError::InternalStringError;
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
-use dozer_core::state::lmdb::LmdbStateStoreManager;
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
-use dozer_types::errors::execution::ExecutionError::InternalStringError;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
 
-use crate::errors::OrchestrationError;
 use crate::get_schema;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 
@@ -104,12 +103,7 @@ impl Executor {
         }
         fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-        let sm = Arc::new(LmdbStateStoreManager::new(
-            tmp_dir.path().to_str().unwrap().to_string(),
-            1024 * 1024 * 1024 * 5,
-            20_000,
-        ));
-        exec.start(dag, sm)
+        exec.start(dag, tmp_dir.into_path())
             .map_err(OrchestrationError::ExecutionError)
     }
 }

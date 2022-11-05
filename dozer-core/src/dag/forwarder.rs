@@ -1,11 +1,9 @@
+use crate::dag::channels::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::dag::errors::ExecutionError;
+use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::mt_executor::ExecutorOperation;
+use crate::dag::node::PortHandle;
 use crossbeam::channel::Sender;
-use dozer_types::core::channels::{
-    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
-};
-use dozer_types::core::node::PortHandle;
-use dozer_types::errors::execution::ExecutionError;
-use dozer_types::errors::execution::ExecutionError::{InternalError, InvalidPortHandle};
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;

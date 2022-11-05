@@ -1,12 +1,11 @@
 use crate::services::connection::ConnectionService;
+use dozer_core::dag::channels::{ChannelManager, SourceChannelForwarder};
+use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::node::{PortHandle, Source, SourceFactory};
+use dozer_core::storage::lmdb_sys::Transaction;
 use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
-use dozer_types::core::node::PortHandle;
-use dozer_types::core::node::{Source, SourceFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
-use dozer_types::errors::execution::ExecutionError;
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
@@ -56,8 +55,8 @@ impl ConnectorSourceFactory {
 }
 
 impl SourceFactory for ConnectorSourceFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
+    fn is_stateful(&self) -> bool {
+        false
     }
 
     fn get_output_ports(&self) -> Vec<PortHandle> {
@@ -88,7 +87,7 @@ impl Source for ConnectorSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         _cm: &dyn ChannelManager,
-        _state: &mut dyn StateStore,
+        _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());

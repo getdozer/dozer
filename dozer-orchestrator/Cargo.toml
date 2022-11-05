@@ -25,6 +25,7 @@ log4rs = "1.1.1"
 clap = {version = "4.0.15", features = ["derive"]}
 serde_yaml = "0.9.13"
 indicatif = "0.17.1"
+thiserror = "1.0.37"
 
 [[bin]]
 edition = "2021"

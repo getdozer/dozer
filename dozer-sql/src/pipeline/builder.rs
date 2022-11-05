@@ -2,13 +2,13 @@ use super::processor::aggregation::AggregationProcessorFactory;
 use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
 use crate::common::utils::normalize_ident;
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::{InvalidQuery, InvalidRelation};
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_types::core::node::NodeHandle;
-use dozer_types::errors::pipeline::PipelineError;
-use dozer_types::errors::pipeline::PipelineError::{InvalidQuery, InvalidRelation};
+use dozer_core::dag::node::NodeHandle;
 use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
 use std::collections::HashMap;
 

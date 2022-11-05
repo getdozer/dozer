@@ -1,8 +1,8 @@
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::comparison::*;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
-use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::types::{Field, Record};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
