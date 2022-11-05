@@ -84,8 +84,10 @@ impl Connector for PostgresConnector {
             ingestor,
         );
 
-        let _join_handle = iterator.start().unwrap();
-        Ok(())
+        match iterator.start() {
+            Ok(_) => Ok(()),
+            Err(_e) => Err(ConnectorError::InitializationError),
+        }
     }
 
     fn stop(&self) {}

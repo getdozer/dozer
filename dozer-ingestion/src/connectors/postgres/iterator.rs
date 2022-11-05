@@ -5,12 +5,9 @@ use dozer_types::bincode;
 use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
 
-use postgres::Error;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
-use std::thread;
-use std::thread::JoinHandle;
 
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
@@ -68,22 +65,21 @@ impl PostgresIterator {
 }
 
 impl PostgresIterator {
-    pub fn start(&self) -> Result<JoinHandle<()>, Error> {
+    pub fn start(&self) -> Result<(), ConnectorError> {
         let lsn = RefCell::new(self.get_last_lsn_for_connection());
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
         let ingestor = self.ingestor.clone();
         let connector_id = self.connector_id;
-        Ok(thread::spawn(move || {
-            let mut stream_inner = PostgresIteratorHandler {
-                details,
-                ingestor,
-                state,
-                lsn,
-                connector_id,
-            };
-            stream_inner._start().unwrap();
-        }))
+
+        let mut stream_inner = PostgresIteratorHandler {
+            details,
+            ingestor,
+            state,
+            lsn,
+            connector_id,
+        };
+        stream_inner._start()
     }
 
     pub fn get_last_lsn_for_connection(&self) -> Option<String> {
