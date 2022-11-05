@@ -1,4 +1,3 @@
-use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
 };
@@ -12,8 +11,8 @@ pub async fn get_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Error>
     ))
 }
 
-pub fn map_log_to_event(log: Log, idx: usize) -> IngestionOperation {
-    IngestionOperation::OperationEvent(OperationEvent {
+pub fn map_log_to_event(log: Log, idx: usize) -> OperationEvent {
+    OperationEvent {
         seq_no: idx as u64,
         operation: Operation::Insert {
             new: Record {
@@ -46,7 +45,7 @@ pub fn map_log_to_event(log: Log, idx: usize) -> IngestionOperation {
                 ],
             },
         },
-    })
+    }
 }
 
 pub fn get_columns() -> Vec<String> {

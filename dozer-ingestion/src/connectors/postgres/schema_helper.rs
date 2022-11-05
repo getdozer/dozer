@@ -18,7 +18,7 @@ pub struct SchemaHelper {
 }
 
 impl SchemaHelper {
-    fn get_schema_by_name(&mut self, name: String) -> Result<Schema, ConnectorError> {
+    fn _get_schema_by_name(&mut self, name: String) -> Result<Schema, ConnectorError> {
         let result_vec = self.get_schemas()?;
         let result = result_vec
             .iter()

@@ -6,7 +6,7 @@ use crate::{
     connectors::{ethereum::helper, TableInfo},
     errors::ConnectorError,
 };
-use dozer_types::ingestion_types::{IngestionMessage, IngestionOperation};
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
 use futures::StreamExt;
 use tokio::runtime::Runtime;
@@ -101,7 +101,7 @@ impl<'a> Connector for EthConnector<'a> {
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
-        tables: Option<Vec<TableInfo>>,
+        _: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         self.ingestor = Some(ingestor);
         Ok(())
@@ -129,6 +129,7 @@ impl<'a> Connector for EthConnector<'a> {
     }
 }
 
+#[allow(unreachable_code)]
 async fn run(
     wss_url: String,
     filter: Filter,
@@ -156,9 +157,6 @@ async fn run(
         .map_err(ConnectorError::IngestorError)?;
 
     loop {
-        if idx < 0 {
-            break;
-        }
         let msg = stream.next().await;
 
         let msg = msg
