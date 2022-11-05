@@ -5,10 +5,7 @@ use dozer_core::dag::node::PortHandle;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 use std::collections::HashMap;
-use std::fs;
 use std::sync::Arc;
-
-use tempdir::TempDir;
 
 pub fn get_schema() -> Schema {
     Schema {

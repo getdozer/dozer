@@ -11,7 +11,6 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::fs;
-use std::sync::Arc;
 use tempdir::TempDir;
 
 use crate::pipeline::builder::PipelineBuilder;
@@ -67,8 +66,8 @@ impl Source for TestSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         cm: &dyn ChannelManager,
-        state: Option<&mut Transaction>,
-        from_seq: Option<u64>,
+        _state: Option<&mut Transaction>,
+        _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         for n in 0..100000 {
             fw.send(
@@ -125,17 +124,17 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
 
     fn process(
         &mut self,
-        from_port: PortHandle,
-        seq: u64,
-        op: Operation,
-        state: Option<&mut Transaction>,
+        _from_port: PortHandle,
+        _seq: u64,
+        _op: Operation,
+        _state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         //    debug!("SINK: Message {} received", _op.seq_no);
         Ok(())

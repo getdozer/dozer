@@ -414,8 +414,9 @@ impl MultiThreadedDagExecutor {
         env_opt.map_size = Some(DEFAULT_MAX_MAP_SZ);
         env_opt.max_readers = Some(DEFAULT_MAX_READERS);
         env_opt.writable_mem_map = true;
+        env_opt.no_subdir = true;
 
-        Environment::new(base_path.to_str().unwrap().to_string(), env_opt)
+        Environment::new(full_path.to_str().unwrap().to_string(), env_opt)
     }
 
     pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
