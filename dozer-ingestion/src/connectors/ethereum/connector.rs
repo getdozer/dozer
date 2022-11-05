@@ -6,34 +6,20 @@ use crate::{
     connectors::{ethereum::helper, TableInfo},
     errors::ConnectorError,
 };
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::ingestion_types::{EthConfig, EthFilter, IngestionMessage};
 use dozer_types::parking_lot::RwLock;
 use futures::StreamExt;
 use tokio::runtime::Runtime;
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct EthFilter {
-    // Starting block
-    from_block: Option<u64>,
-    addresses: Option<Vec<String>>,
-    topics: Option<Vec<String>>,
-}
-
-pub struct EthConfig<'a> {
-    pub name: &'a str,
-    pub filter: EthFilter,
-    pub wss_url: &'a str,
-}
-
-pub struct EthConnector<'a> {
+pub struct EthConnector {
     pub id: u64,
     filter: Filter,
-    config: EthConfig<'a>,
+    config: EthConfig,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
-impl<'a> EthConnector<'a> {
+impl EthConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
 
@@ -43,21 +29,23 @@ impl<'a> EthConnector<'a> {
             None => builder,
         };
         // Optionally Add Address filter
-        let builder = match filter.addresses.to_owned() {
-            Some(addresses) => {
-                let addresses = addresses
+        let builder = match filter.addresses.is_empty() {
+            false => {
+                let addresses = filter
+                    .addresses
                     .iter()
                     .map(|a| Address::from_str(a).unwrap())
                     .collect();
                 builder.address(addresses)
             }
-            None => builder,
+            true => builder,
         };
 
         // Optionally add topics
-        let builder = match filter.topics.to_owned() {
-            Some(topics) => {
-                let topics: Vec<Vec<H256>> = topics
+        let builder = match filter.topics.is_empty() {
+            false => {
+                let topics: Vec<Vec<H256>> = filter
+                    .topics
                     .iter()
                     .map(|t| vec![H256::from_str(t).unwrap()])
                     .collect();
@@ -68,13 +56,13 @@ impl<'a> EthConnector<'a> {
                     topics.get(3).cloned(),
                 )
             }
-            None => builder,
+            true => builder,
         };
 
         builder.build()
     }
 
-    pub fn new(id: u64, config: EthConfig<'a>) -> Self {
+    pub fn new(id: u64, config: EthConfig) -> Self {
         let filter = Self::build_filter(&config.filter);
         Self {
             id,
@@ -85,7 +73,7 @@ impl<'a> EthConnector<'a> {
     }
 }
 
-impl<'a> Connector for EthConnector<'a> {
+impl Connector for EthConnector {
     fn get_schemas(&self) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         Ok(vec![("log".to_string(), helper::get_eth_schema())])
     }

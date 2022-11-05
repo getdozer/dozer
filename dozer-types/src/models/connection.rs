@@ -3,6 +3,8 @@ use std::{
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
+
+use crate::ingestion_types::EthFilter;
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Connection {
     pub db_type: DBType,
@@ -13,8 +15,7 @@ pub struct Connection {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum DBType {
     Postgres,
-    Databricks,
-    Snowflake,
+    Ethereum,
 }
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum Authentication {
@@ -24,6 +25,10 @@ pub enum Authentication {
         host: String,
         port: u32,
         database: String,
+    },
+    EthereumAuthentication {
+        filter: EthFilter,
+        wss_url: String,
     },
 }
 impl Display for DBType {
@@ -37,8 +42,7 @@ impl FromStr for DBType {
     fn from_str(s: &str) -> Result<DBType, Self::Err> {
         match s {
             "Postgres" | "postgres" => Ok(DBType::Postgres),
-            "Databricks" | "databricks" => Ok(DBType::Databricks),
-            "Snowflake" | "snowflake" => Ok(DBType::Snowflake),
+            "Ethereum" | "ethereum" => Ok(DBType::Ethereum),
             _ => Err("Not match any value in Enum DBType"),
         }
     }

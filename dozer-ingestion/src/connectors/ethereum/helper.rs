@@ -16,8 +16,9 @@ pub fn map_log_to_event(log: Log, idx: usize) -> OperationEvent {
         seq_no: idx as u64,
         operation: Operation::Insert {
             new: Record {
-                schema_id: None,
+                schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                 values: vec![
+                    Field::Int(idx as i64),
                     Field::String(log.address.to_string()),
                     Field::String(
                         log.topics
@@ -50,6 +51,7 @@ pub fn map_log_to_event(log: Log, idx: usize) -> OperationEvent {
 
 pub fn get_columns() -> Vec<String> {
     vec![
+        "id".to_string(),
         "address".to_string(),
         "topics".to_string(),
         "data".to_string(),
@@ -67,6 +69,11 @@ pub fn get_eth_schema() -> Schema {
     Schema {
         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
         fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                typ: FieldType::Int,
+                nullable: false,
+            },
             FieldDefinition {
                 name: "address".to_string(),
                 typ: FieldType::String,

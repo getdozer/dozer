@@ -29,3 +29,28 @@ pub enum IngestorError {
 pub trait IngestorForwarder: Send + Sync {
     fn forward(&self, msg: (u64, IngestionOperation)) -> Result<(), IngestorError>;
 }
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct EthFilter {
+    // Starting block
+    pub from_block: Option<u64>,
+    pub addresses: Vec<String>,
+    pub topics: Vec<String>,
+}
+
+impl Default for EthFilter {
+    fn default() -> Self {
+        Self {
+            from_block: None,
+            addresses: vec![],
+            topics: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct EthConfig {
+    pub name: String,
+    pub filter: EthFilter,
+    pub wss_url: String,
+}
