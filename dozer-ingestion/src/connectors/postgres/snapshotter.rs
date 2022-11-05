@@ -1,6 +1,5 @@
-use crate::connectors::connector::TableInfo;
-use crate::connectors::ingestor::IngestionMessage;
-use crate::connectors::ingestor::Ingestor;
+use crate::connectors::TableInfo;
+use crate::ingestion::Ingestor;
 
 use super::helper;
 use super::schema_helper::SchemaHelper;
@@ -8,18 +7,21 @@ use dozer_types::errors::connector::ConnectorError;
 
 use dozer_types::errors::connector::PostgresConnectorError::PostgresSchemaError;
 use dozer_types::errors::connector::PostgresConnectorError::SyncWithSnapshotError;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::{Client, NoTls};
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::RwLock;
 
 // 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<TableInfo>>,
     pub conn_str: String,
-    pub ingestor: Arc<Mutex<Ingestor>>,
+    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub connector_id: u64,
 }
 
 impl PostgresSnapshotter {
@@ -69,9 +71,9 @@ impl PostgresSnapshotter {
             let schema = helper::map_schema(&table_info.id, columns)?;
 
             self.ingestor
-                .lock()
+                .write()
                 .unwrap()
-                .handle_message(IngestionMessage::Schema(schema.clone()));
+                .handle_message((self.connector_id, IngestionMessage::Schema(schema.clone())));
 
             let empty_vec: Vec<String> = Vec::new();
             for msg in client_plain
@@ -97,10 +99,10 @@ impl PostgresSnapshotter {
                             ConnectorError::PostgresConnectorError(PostgresSchemaError(e))
                         })?;
 
-                        self.ingestor
-                            .lock()
-                            .unwrap()
-                            .handle_message(IngestionMessage::OperationEvent(evt));
+                        self.ingestor.write().unwrap().handle_message((
+                            self.connector_id,
+                            IngestionMessage::OperationEvent(evt),
+                        ));
                     }
                     Err(e) => {
                         return Err(ConnectorError::PostgresConnectorError(
@@ -111,10 +113,10 @@ impl PostgresSnapshotter {
                 idx += 1;
             }
 
-            self.ingestor
-                .lock()
-                .unwrap()
-                .handle_message(IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }));
+            self.ingestor.write().unwrap().handle_message((
+                self.connector_id,
+                IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }),
+            ));
         }
 
         let table_names = tables.iter().map(|t| t.name.clone()).collect();

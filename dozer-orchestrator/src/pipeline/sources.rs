@@ -1,15 +1,16 @@
-use dozer_ingestion::connectors::ingestor::IngestionOperation;
+use crate::services::connection::ConnectionService;
+use dozer_ingestion::connectors::TableInfo;
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::core::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_types::core::node::PortHandle;
-use dozer_types::errors::execution::ExecutionError;
-use log::debug;
-use std::collections::HashMap;
-
-use crate::pipeline::ingestion_group::IngestionGroup;
 use dozer_types::core::node::{Source, SourceFactory};
 use dozer_types::core::state::{StateStore, StateStoreOptions};
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
+use log::debug;
+use std::collections::HashMap;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -88,15 +89,35 @@ impl Source for ConnectorSource {
         _state: &mut dyn StateStore,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        let ingestion_group = IngestionGroup {};
-        let receiver =
-            ingestion_group.run_ingestion(self.connections.to_owned(), self.table_names.to_owned());
+        let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        for connection in &self.connections {
+            let mut connector = ConnectionService::get_connector(connection.to_owned());
 
+            let tables = connector.get_tables().unwrap();
+            let tables: Vec<TableInfo> = tables
+                .iter()
+                .filter(|t| {
+                    let v = self
+                        .table_names
+                        .iter()
+                        .find(|n| (*n).clone() == t.name.clone());
+                    v.is_some()
+                })
+                .cloned()
+                .collect();
+
+            connector
+                .initialize(ingestor.clone(), Some(tables))
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        }
         loop {
-            let (op, port) = receiver.iter().next().unwrap();
-            match op {
-                IngestionOperation::OperationEvent(op) => fw.send(op.seq_no, op.operation, port)?,
-                IngestionOperation::SchemaUpdate(schema) => fw.update_schema(schema, port)?,
+            let msg = iterator.next().unwrap();
+            let port = 0;
+            match msg {
+                (_, IngestionOperation::OperationEvent(op)) => {
+                    fw.send(op.seq_no, op.operation, port)?
+                }
+                (_, IngestionOperation::SchemaUpdate(schema)) => fw.update_schema(schema, port)?,
             }
         }
     }

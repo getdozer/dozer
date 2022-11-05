@@ -22,9 +22,16 @@ pub trait Storage<T> {
 }
 
 pub struct RocksStorage {
-    _config: RocksConfig,
+    config: RocksConfig,
     db: Arc<DBWithThreadMode<SingleThreaded>>,
 }
+
+impl Default for RocksStorage {
+    fn default() -> Self {
+        Self::new(RocksConfig::default())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct RocksConfig {
     pub path: String,
@@ -50,10 +57,7 @@ impl Storage<RocksConfig> for RocksStorage {
     fn new(config: RocksConfig) -> RocksStorage {
         let db: Arc<DBWithThreadMode<SingleThreaded>> =
             Arc::new(DB::open_default(config.path.clone()).unwrap());
-        RocksStorage {
-            _config: config,
-            db,
-        }
+        RocksStorage { config, db }
     }
 }
 
@@ -82,7 +86,7 @@ impl RocksStorage {
     }
 
     pub fn _destroy(&self) {
-        let path = self._config.path.clone();
+        let path = self.config.path.clone();
         let _ = DB::destroy(&Options::default(), path);
     }
 
@@ -142,7 +146,7 @@ impl RocksStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
+    use crate::ingestion::writer::{BatchedRocksDbWriter, Writer};
 
     #[test]
     fn serialize_and_deserialize() {

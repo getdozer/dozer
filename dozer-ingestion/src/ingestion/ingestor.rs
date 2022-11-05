@@ -1,38 +1,20 @@
-use dozer_types::log::debug;
-use std::sync::{Arc, Mutex};
+use crossbeam::channel::{unbounded, Receiver};
+use dozer_types::ingestion_types::{IngestionMessage, IngestionOperation, IngestorForwarder};
+use dozer_types::log::{debug, warn};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
+use super::seq_no_resolver::SeqNoResolver;
 use super::storage::RocksStorage;
-use crate::connectors::seq_no_resolver::SeqNoResolver;
-use crate::connectors::writer::{BatchedRocksDbWriter, Writer};
-use dozer_types::serde;
-use dozer_types::types::{Commit, OperationEvent, Schema};
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Debug)]
-pub enum IngestionOperation {
-    OperationEvent(OperationEvent),
-    SchemaUpdate(Schema),
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(crate = "self::serde")]
-pub enum IngestionMessage {
-    Begin(),
-    OperationEvent(OperationEvent),
-    Schema(Schema),
-    Commit(Commit),
-}
-pub trait IngestorForwarder: Send + Sync {
-    fn forward(&self, msg: IngestionOperation);
-}
+use super::writer::{BatchedRocksDbWriter, Writer};
+use super::IngestionConfig;
 
 pub struct ChannelForwarder {
-    pub sender: crossbeam::channel::Sender<IngestionOperation>,
+    pub sender: crossbeam::channel::Sender<(u64, IngestionOperation)>,
 }
 
 impl IngestorForwarder for ChannelForwarder {
-    fn forward(&self, event: IngestionOperation) {
+    fn forward(&self, event: (u64, IngestionOperation)) {
         let send_res = self.sender.send(event);
         match send_res {
             Ok(_) => {}
@@ -42,7 +24,23 @@ impl IngestorForwarder for ChannelForwarder {
         }
     }
 }
+pub struct IngestionIterator {
+    rx: Receiver<(u64, IngestionOperation)>,
+}
 
+impl Iterator for IngestionIterator {
+    type Item = (u64, IngestionOperation);
+    fn next(&mut self) -> Option<Self::Item> {
+        let msg = self.rx.recv();
+        match msg {
+            Ok(msg) => Some(msg),
+            Err(e) => {
+                warn!("IngestionIterator: Error in receiving {:?}", e.to_string());
+                None
+            }
+        }
+    }
+}
 pub struct Ingestor {
     pub storage_client: Arc<RocksStorage>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
@@ -52,21 +50,28 @@ pub struct Ingestor {
 }
 
 impl Ingestor {
-    pub fn new(
-        storage_client: Arc<RocksStorage>,
-        sender: Arc<Box<dyn IngestorForwarder + 'static>>,
-        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
-    ) -> Self {
+    pub fn initialize_channel(
+        config: IngestionConfig,
+    ) -> (Arc<RwLock<Ingestor>>, IngestionIterator) {
+        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
+        let sender: Arc<Box<dyn IngestorForwarder>> =
+            Arc::new(Box::new(ChannelForwarder { sender: tx }));
+        let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
+
+        let iterator = IngestionIterator { rx };
+        (ingestor, iterator)
+    }
+    pub fn new(config: IngestionConfig, sender: Arc<Box<dyn IngestorForwarder + 'static>>) -> Self {
         Self {
-            storage_client,
+            storage_client: config.storage_client,
             sender,
             writer: BatchedRocksDbWriter::new(),
             timer: Instant::now(),
-            seq_no_resolver,
+            seq_no_resolver: config.seq_resolver,
         }
     }
 
-    pub fn handle_message(&mut self, message: IngestionMessage) {
+    pub fn handle_message(&mut self, (connector_id, message): (u64, IngestionMessage)) {
         match message {
             IngestionMessage::OperationEvent(mut event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
@@ -75,12 +80,12 @@ impl Ingestor {
                 let (key, encoded) = self.storage_client.map_operation_event(&event);
                 self.writer.insert(key.as_ref(), encoded);
                 self.sender
-                    .forward(IngestionOperation::OperationEvent(event));
+                    .forward((connector_id, IngestionOperation::OperationEvent(event)));
             }
             IngestionMessage::Schema(schema) => {
                 let _seq_no: u64 = self.seq_no_resolver.lock().unwrap().get_next_seq_no() as u64;
                 self.sender
-                    .forward(IngestionOperation::SchemaUpdate(schema));
+                    .forward((connector_id, IngestionOperation::SchemaUpdate(schema)));
             }
             IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
@@ -104,33 +109,22 @@ unsafe impl Sync for Ingestor {}
 
 #[cfg(test)]
 mod tests {
-    use crate::connectors::ingestor::IngestionMessage::{Begin, Commit, OperationEvent, Schema};
-    use crate::connectors::ingestor::{
-        ChannelForwarder, IngestionOperation, Ingestor, IngestorForwarder,
-    };
-    use crate::connectors::seq_no_resolver::SeqNoResolver;
-    use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
+    use crate::ingestion::IngestionConfig;
+
+    use super::IngestionMessage::{Begin, Commit, OperationEvent, Schema};
+    use super::{ChannelForwarder, IngestionOperation, Ingestor, IngestorForwarder};
     use crossbeam::channel::unbounded;
     use dozer_types::types::{Operation, Record};
-    use rocksdb::{Options, DB};
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_message_handle() {
-        let storage_config = RocksConfig::default();
-        DB::destroy(&Options::default(), &storage_config.path).unwrap();
-
-        let storage_client: Arc<RocksStorage> = Arc::new(Storage::new(storage_config));
-
-        let (tx, _rx) = unbounded::<IngestionOperation>();
+        let config = IngestionConfig::default();
+        let storage_client = config.storage_client.clone();
+        let (tx, _rx) = unbounded::<(u64, IngestionOperation)>();
         let forwarder: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
-
-        let mut seq_resolver = SeqNoResolver::new(Arc::clone(&storage_client));
-        seq_resolver.init();
-        let seq_no_resolver = Arc::new(Mutex::new(seq_resolver));
-
-        let mut ingestor = Ingestor::new(storage_client.clone(), forwarder, seq_no_resolver);
+        let mut ingestor = Ingestor::new(config, forwarder);
 
         // Expected seq no - 1
         let schema_message = dozer_types::types::Schema {
@@ -163,16 +157,17 @@ mod tests {
             lsn: 412142432,
         };
 
-        ingestor.handle_message(Begin());
-        ingestor.handle_message(Schema(schema_message));
-        ingestor.handle_message(OperationEvent(operation_event_message.clone()));
-        ingestor.handle_message(OperationEvent(operation_event_message2.clone()));
-        ingestor.handle_message(Commit(commit_message));
+        ingestor.handle_message((1, Begin()));
+        ingestor.handle_message((1, Schema(schema_message)));
+        ingestor.handle_message((1, OperationEvent(operation_event_message.clone())));
+        ingestor.handle_message((1, OperationEvent(operation_event_message2.clone())));
+        ingestor.handle_message((1, Commit(commit_message)));
 
         let mut expected_event = operation_event_message;
         expected_event.seq_no = 2;
         let mut expected_event2 = operation_event_message2;
         expected_event2.seq_no = 3;
+
         let mut expected_op_event_message = vec![
             storage_client.map_operation_event(&expected_event),
             storage_client.map_operation_event(&expected_event2),

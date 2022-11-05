@@ -1,12 +1,13 @@
-use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
+use crate::ingestion::Ingestor;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::errors::connector::ConnectorError;
 use dozer_types::errors::connector::ConnectorError::PostgresConnectorError;
 use dozer_types::errors::connector::PostgresConnectorError::{
     ReplicationStreamEndError, ReplicationStreamError, UnexpectedReplicationMessageError,
 };
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{debug, error};
 use dozer_types::types::Commit;
 use futures::StreamExt;
@@ -14,7 +15,7 @@ use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
@@ -25,7 +26,8 @@ pub struct CDCHandler {
     pub slot_name: String,
     pub lsn: String,
     pub last_commit_lsn: u64,
-    pub ingestor: Arc<Mutex<Ingestor>>,
+    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub connector_id: u64,
 }
 
 impl CDCHandler {
@@ -53,13 +55,13 @@ impl CDCHandler {
 
         debug!("last_commit_lsn: {:?}", self.last_commit_lsn);
         // Marking point of replication start
-        self.ingestor
-            .lock()
-            .unwrap()
-            .handle_message(IngestionMessage::Commit(Commit {
+        self.ingestor.write().unwrap().handle_message((
+            self.connector_id,
+            IngestionMessage::Commit(Commit {
                 seq_no: 0,
                 lsn: self.last_commit_lsn,
-            }));
+            }),
+        ));
 
         let copy_stream = client
             .copy_both_simple::<bytes::Bytes>(&query)
@@ -112,9 +114,9 @@ impl CDCHandler {
                     }
 
                     self.ingestor
-                        .lock()
+                        .write()
                         .unwrap()
-                        .handle_message(ingestion_message);
+                        .handle_message((self.connector_id, ingestion_message));
                 }
                 Ok(())
             }

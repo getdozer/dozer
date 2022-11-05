@@ -1,16 +1,12 @@
-use crate::connectors::connector::{self, TableInfo};
-use crate::connectors::postgres::schema_helper::SchemaHelper;
-use crate::connectors::storage::RocksStorage;
-use connector::Connector;
-
-use crate::connectors::ingestor::IngestionOperation;
 use crate::connectors::postgres::iterator::PostgresIterator;
-use crate::connectors::seq_no_resolver::SeqNoResolver;
+use crate::connectors::postgres::schema_helper::SchemaHelper;
+use crate::connectors::{Connector, TableInfo};
+use crate::ingestion::Ingestor;
 use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
 use dozer_types::types::Schema;
 use postgres::Client;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use super::helper;
 
@@ -27,7 +23,6 @@ pub struct PostgresConnector {
     conn_str: String,
     conn_str_plain: String,
     tables: Option<Vec<TableInfo>>,
-    storage_client: Option<Arc<RocksStorage>>,
 }
 impl PostgresConnector {
     pub fn new(id: u64, config: PostgresConfig) -> PostgresConnector {
@@ -40,7 +35,6 @@ impl PostgresConnector {
             conn_str,
             conn_str_plain: config.conn_str,
             tables: config.tables,
-            storage_client: None,
         }
     }
 }
@@ -74,22 +68,12 @@ impl Connector for PostgresConnector {
 
     fn initialize(
         &mut self,
-        storage_client: Arc<RocksStorage>,
+        ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         let client = helper::connect(self.conn_str.clone())?;
-        self.storage_client = Some(storage_client);
         self.tables = tables;
-
         self.create_publication(client)?;
-        Ok(())
-    }
-
-    fn iterator(
-        &mut self,
-        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
-    ) -> Box<dyn Iterator<Item = IngestionOperation> + 'static> {
-        let storage_client = self.storage_client.as_ref().unwrap().clone();
         let iterator = PostgresIterator::new(
             self.id,
             self.get_publication_name(),
@@ -97,11 +81,11 @@ impl Connector for PostgresConnector {
             self.tables.to_owned(),
             self.conn_str.clone(),
             self.conn_str_plain.clone(),
-            storage_client,
+            ingestor,
         );
 
-        let _join_handle = iterator.start(seq_no_resolver).unwrap();
-        Box::new(iterator)
+        let _join_handle = iterator.start().unwrap();
+        Ok(())
     }
 
     fn stop(&self) {}

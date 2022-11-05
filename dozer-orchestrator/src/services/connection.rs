@@ -1,6 +1,6 @@
 use dozer_ingestion::connectors::{
-    connector::Connector,
     postgres::connector::{PostgresConfig, PostgresConnector},
+    Connector,
 };
 use dozer_types::types::Schema;
 use dozer_types::{

@@ -1,4 +1,4 @@
-use crate::connectors::storage::RocksStorage;
+use super::storage::RocksStorage;
 use dozer_types::log::debug;
 use rocksdb::WriteBatch;
 use std::sync::Arc;
