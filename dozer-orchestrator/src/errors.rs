@@ -1,8 +1,12 @@
 #![allow(clippy::enum_variant_names)]
 
-use thiserror::Error;
-
-use super::{connector::ConnectorError, execution::ExecutionError, internal::BoxedError};
+use crossbeam::channel::RecvError;
+use dozer_api::errors::GRPCError;
+use dozer_ingestion::errors::ConnectorError;
+use dozer_types::errors::execution::ExecutionError;
+use dozer_types::errors::internal::BoxedError;
+use dozer_types::thiserror;
+use dozer_types::thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
@@ -13,9 +17,11 @@ pub enum OrchestrationError {
     #[error("Failed to initialize dozer config..")]
     InitializationFailed,
     #[error("Failed to initialize api server..")]
-    ApiServerFailed,
-    #[error("Failed to initialize schema registry..")]
-    SchemaServerFailed,
+    ApiServerFailed(#[source] std::io::Error),
+    #[error("Failed to initialize grpc server..")]
+    GrpcServerFailed(#[source] GRPCError),
+    #[error("Failed to receive schema update for GRPC..")]
+    SchemaUpdateFailed(#[source] RecvError),
     #[error("Ingestion message forwarding failed")]
     IngestionForwarderError,
     #[error(transparent)]

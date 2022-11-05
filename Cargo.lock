@@ -1281,6 +1281,7 @@ dependencies = [
  "crossbeam",
  "log",
  "log4rs",
+ "parking_lot",
  "rust_decimal",
  "serde",
  "serde_json",

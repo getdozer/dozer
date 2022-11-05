@@ -1,4 +1,4 @@
-use crate::connectors::storage::RocksStorage;
+use super::storage::RocksStorage;
 use atomic_counter::{AtomicCounter, ConsistentCounter};
 use dozer_types::bincode;
 use std::sync::Arc;
@@ -7,7 +7,6 @@ pub struct SeqNoResolver {
     storage_client: Arc<RocksStorage>,
     seq_no: Option<ConsistentCounter>,
 }
-
 impl SeqNoResolver {
     pub fn new(storage_client: Arc<RocksStorage>) -> Self {
         Self {
@@ -40,8 +39,8 @@ impl SeqNoResolver {
 
 #[cfg(test)]
 mod tests {
-    use crate::connectors::seq_no_resolver::SeqNoResolver;
-    use crate::connectors::storage::{RocksConfig, RocksStorage, Storage};
+    use crate::ingestion::seq_no_resolver::SeqNoResolver;
+    use crate::ingestion::storage::{RocksConfig, RocksStorage, Storage};
     use dozer_types::types::{Operation, Record};
     use rocksdb::{Options, DB};
     use std::sync::Arc;

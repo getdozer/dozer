@@ -2,6 +2,7 @@ pub mod core;
 pub mod errors;
 mod field_type;
 pub mod helper;
+pub mod ingestion_types;
 pub mod models;
 pub mod types;
 
@@ -13,6 +14,7 @@ pub use bytes;
 pub use chrono;
 pub use log;
 pub use log4rs;
+pub use parking_lot;
 pub use rust_decimal;
 pub use serde;
 pub use serde_json;

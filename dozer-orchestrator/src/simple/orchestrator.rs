@@ -4,13 +4,10 @@ use dozer_api::api_server::ApiServer;
 use dozer_cache::cache::LmdbCache;
 
 use super::executor::Executor;
-use crate::Orchestrator;
+use crate::{errors::OrchestrationError, Orchestrator};
 use crossbeam::channel::{self};
 use dozer_api::grpc_server::GRPCServer;
-use dozer_types::{
-    errors::orchestrator::OrchestrationError,
-    models::{api_endpoint::ApiEndpoint, source::Source},
-};
+use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 
 #[derive(Default)]
 pub struct SimpleOrchestrator {
@@ -42,29 +39,32 @@ impl Orchestrator for SimpleOrchestrator {
 
         let sources = self.sources.clone();
 
-        let thread = thread::spawn(move || {
+        let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             let api_server = ApiServer::default();
-            api_server.run(endpoints, cache_2).unwrap()
+            api_server
+                .run(endpoints, cache_2)
+                .map_err(OrchestrationError::ApiServerFailed)
         });
         let (sender, receiver) = channel::unbounded::<bool>();
-        let _thread2 = thread::spawn(move || {
+        let _thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
             // TODO: Refactor add endpoint method to support multiple endpoints
             Executor::run(sources, endpoints2, cache, sender).unwrap();
+            Ok(())
         });
 
-        let schema_inserted = receiver.recv();
-        if schema_inserted.is_ok() {
-            let _thread3 = thread::spawn(move || {
-                let grpc_server = GRPCServer::default();
-                grpc_server.run(endpoint3, cache_3).unwrap()
-            });
-        }
+        let _thread3 = thread::spawn(move || -> Result<(), OrchestrationError> {
+            receiver
+                .recv()
+                .map_err(OrchestrationError::SchemaUpdateFailed)?;
+            let grpc_server = GRPCServer::default();
+            grpc_server
+                .run(endpoint3, cache_3)
+                .map_err(OrchestrationError::GrpcServerFailed)
+                .unwrap();
+            Ok(())
+        });
 
-        match thread.join() {
-            Ok(_) => Ok(()),
-            Err(_) => Err(OrchestrationError::InitializationFailed),
-        }?;
-
+        thread.join().unwrap()?;
         Ok(())
     }
 }

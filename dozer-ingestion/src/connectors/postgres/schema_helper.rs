@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
+use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
-use crate::connectors::connector::TableInfo;
+use crate::connectors::TableInfo;
 
 use super::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
-use dozer_types::errors::connector::PostgresSchemaError::SchemaReplicationIdentityError;
+use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
