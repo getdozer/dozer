@@ -11,6 +11,8 @@ use dozer_types::models::connection::Connection;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use log::debug;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 
 pub struct ConnectorSourceFactory {
@@ -18,6 +20,7 @@ pub struct ConnectorSourceFactory {
     table_names: Vec<String>,
     port_map: HashMap<u16, Schema>,
     pub table_map: HashMap<String, u16>,
+    running: Arc<AtomicBool>,
 }
 
 impl ConnectorSourceFactory {
@@ -25,6 +28,7 @@ impl ConnectorSourceFactory {
         connections: Vec<Connection>,
         table_names: Vec<String>,
         source_schemas: Vec<Schema>,
+        running: Arc<AtomicBool>,
     ) -> Self {
         let (port_map, table_map) = Self::_get_maps(&source_schemas, &table_names);
         Self {
@@ -32,6 +36,7 @@ impl ConnectorSourceFactory {
             port_map,
             table_map,
             table_names,
+            running,
         }
     }
 
@@ -60,9 +65,7 @@ impl SourceFactory for ConnectorSourceFactory {
     }
 
     fn get_output_ports(&self) -> Vec<PortHandle> {
-        let keys = self.port_map.to_owned().into_keys().collect();
-        debug!("{:?}", keys);
-        keys
+        self.port_map.to_owned().into_keys().collect()
     }
 
     fn build(&self) -> Box<dyn Source> {
@@ -71,6 +74,7 @@ impl SourceFactory for ConnectorSourceFactory {
             table_names: self.table_names.to_owned(),
             port_map: self.port_map.to_owned(),
             _table_map: self.table_map.to_owned(),
+            running: self.running.to_owned(),
         })
     }
 }
@@ -80,13 +84,14 @@ pub struct ConnectorSource {
     _table_map: HashMap<String, u16>,
     connections: Vec<Connection>,
     table_names: Vec<String>,
+    running: Arc<AtomicBool>,
 }
 
 impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &dyn SourceChannelForwarder,
-        _cm: &dyn ChannelManager,
+        cm: &dyn ChannelManager,
         _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
@@ -117,6 +122,12 @@ impl Source for ConnectorSource {
             threads.push(t);
         }
         loop {
+            // shutdown signal
+            if !self.running.load(Ordering::SeqCst) {
+                debug!("Exiting Executor on Ctrl-C");
+                cm.terminate().unwrap();
+                return Ok(());
+            }
             let msg = iterator.next();
             if let Some(msg) = msg {
                 match msg {

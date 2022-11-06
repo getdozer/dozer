@@ -1,8 +1,9 @@
 use crate::errors::OrchestrationError;
 use dozer_api::CacheEndpoint;
 use dozer_types::crossbeam;
-
 use std::fs;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 use tempdir::TempDir;
@@ -27,6 +28,7 @@ impl Executor {
         sources: Vec<Source>,
         cache_endpoint: CacheEndpoint,
         schema_change_notifier: crossbeam::channel::Sender<bool>,
+        running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut source_schemas: Vec<Schema> = vec![];
         let mut connections: Vec<Connection> = vec![];
@@ -42,7 +44,8 @@ impl Executor {
             table_names.push(source.table_name.clone());
         }
 
-        let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
+        let source =
+            ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas, running);
         let source_table_map = source.table_map.clone();
 
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...

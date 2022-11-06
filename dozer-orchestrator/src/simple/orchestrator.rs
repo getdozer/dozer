@@ -3,6 +3,7 @@ use std::{sync::Arc, thread};
 use dozer_api::CacheEndpoint;
 use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
 use dozer_cache::cache::LmdbCache;
+use log::debug;
 
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
@@ -35,14 +36,13 @@ impl Orchestrator for SimpleOrchestrator {
         //Set AtomicBool and wait for CtrlC
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
+        let running2 = running.clone();
+        let running3 = running.clone();
 
         ctrlc::set_handler(move || {
             r.store(false, Ordering::SeqCst);
         })
         .expect("Error setting Ctrl-C handler");
-
-        // let cache_2 = cache.clone();
-        // let cache_3 = cache.clone();
 
         let cache_endpoints: Vec<CacheEndpoint> = self
             .api_endpoints
@@ -61,14 +61,14 @@ impl Orchestrator for SimpleOrchestrator {
 
         // Initialize Pipeline
         let (sender, receiver) = channel::unbounded::<bool>();
-        let _thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
+        let thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
             // TODO: Refactor add endpoint method to support multiple endpoints
-            Executor::run(sources, cache_endpoint, sender)?;
+            Executor::run(sources, cache_endpoint, sender, running2)?;
             Ok(())
         });
 
         // Initialize API Server
-        let _thread = thread::spawn(move || -> Result<(), OrchestrationError> {
+        let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             let api_server = ApiServer::default();
             api_server
                 .run(vec![ce2.endpoint], ce2.cache, tx)
@@ -83,14 +83,16 @@ impl Orchestrator for SimpleOrchestrator {
                 .map_err(OrchestrationError::SchemaUpdateFailed)?;
             let grpc_server = GRPCServer::default();
             grpc_server
-                .run(ce3.endpoint, ce3.cache)
+                .run(ce3.endpoint, ce3.cache, running3)
                 .map_err(OrchestrationError::GrpcServerFailed)
         });
 
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
-
         ApiServer::stop(server_handle);
+
+        thread2.join().unwrap()?;
+        thread.join().unwrap()?;
 
         Ok(())
     }

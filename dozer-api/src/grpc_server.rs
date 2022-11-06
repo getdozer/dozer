@@ -8,8 +8,11 @@ use crate::{
     },
 };
 use dozer_cache::cache::{Cache, LmdbCache};
-use dozer_types::models::api_endpoint::ApiEndpoint;
-use std::sync::Arc;
+use dozer_types::{log::debug, models::api_endpoint::ApiEndpoint};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use tempdir::TempDir;
 use tokio::runtime::Runtime;
 use tonic::transport::Server;
@@ -22,7 +25,12 @@ impl GRPCServer {
     pub fn default() -> Self {
         Self { port: 50051 }
     }
-    pub fn run(&self, endpoint: ApiEndpoint, cache: Arc<LmdbCache>) -> Result<(), GRPCError> {
+    pub fn run(
+        &self,
+        endpoint: ApiEndpoint,
+        cache: Arc<LmdbCache>,
+        running: Arc<AtomicBool>,
+    ) -> Result<(), GRPCError> {
         let schema_name = endpoint.name.to_owned();
         let schema = cache.get_schema_by_name(&schema_name)?;
         let tmp_dir = TempDir::new("proto_generated").unwrap();
@@ -48,7 +56,11 @@ impl GRPCServer {
             .accept_http1(true)
             .add_service(inflection_service)
             .add_service(tonic_web::enable(grpc_service))
-            .serve(addr);
+            .serve_with_shutdown(addr, async move {
+                while running.load(Ordering::SeqCst) {}
+                debug!("Exiting GRPC Server on Ctrl-C");
+            });
+        // .serve(addr);
         let rt = Runtime::new().unwrap();
         rt.block_on(server_future)
             .expect("failed to successfully run the future on RunTime");
