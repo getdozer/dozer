@@ -52,7 +52,7 @@ impl Orchestrator for SimpleOrchestrator {
                 endpoint: e.to_owned(),
             })
             .collect();
-        let cache_endpoint = cache_endpoints.clone().get(0).unwrap().clone();
+        let cache_endpoint = cache_endpoints.get(0).unwrap().clone();
         let ce2 = cache_endpoint.clone();
         let ce3 = cache_endpoint.clone();
 

@@ -8,23 +8,17 @@ use crate::{
     ingestion::Ingestor,
 };
 
-// Initialize with a set of schemas.
-pub struct EventsConfig<'a> {
-    pub name: &'a str,
-    pub schemas: Vec<(String, dozer_types::types::Schema)>,
-}
-
-pub struct EventsConnector<'a> {
+pub struct EventsConnector {
     pub id: u64,
-    config: EventsConfig<'a>,
+    pub name: String,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
-impl<'a> EventsConnector<'a> {
-    pub fn new(id: u64, config: EventsConfig<'a>) -> Self {
+impl EventsConnector {
+    pub fn new(id: u64, name: String) -> Self {
         Self {
             id,
-            config,
+            name,
             ingestor: None,
         }
     }
@@ -42,9 +36,11 @@ impl<'a> EventsConnector<'a> {
     }
 }
 
-impl<'a> Connector for EventsConnector<'a> {
+impl Connector for EventsConnector {
     fn get_schemas(&self) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        Ok(self.config.schemas.to_owned())
+        Err(ConnectorError::UnsupportedConnectorMethod(
+            "get_scehmas".to_string(),
+        ))
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {

@@ -7,7 +7,7 @@ use std::fs;
 use dozer_types::models::source::Source;
 use tempdir::TempDir;
 
-use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
+use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_sql::pipeline::builder::PipelineBuilder;
