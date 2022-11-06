@@ -27,6 +27,13 @@ serde_yaml = "0.9.13"
 indicatif = "0.17.1"
 opentelemetry = { version="0.16", features = ["serialize", "rt-tokio"] }
 opentelemetry-jaeger = { version="0.15", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.10.0", features = ["reqwest-client", "reqwest-rustls", "http-proto"] }
+opentelemetry-proto = "0.1.0"
+opentelemetry-semantic-conventions = "0.9.0"
+tracing = "0.1.36"
+tracing-bunyan-formatter = "0.3.3"
+tracing-opentelemetry = "0.18.0"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [[bin]]
 edition = "2021"
