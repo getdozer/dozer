@@ -2,7 +2,7 @@ use actix_cors::Cors;
 use actix_web::{
     body::MessageBody,
     dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
-    middleware::Condition,
+    middleware::{Condition, Logger},
     rt, web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -77,7 +77,7 @@ impl ApiServer {
             Error = actix_web::Error,
         >,
     > {
-        let app = App::new();
+        let app = App::new().wrap(Logger::default());
 
         // Injecting cache
         let app = app.app_data(web::Data::new(cache));
