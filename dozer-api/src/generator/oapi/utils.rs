@@ -1,4 +1,4 @@
-use indexmap::IndexMap;
+use dozer_types::indexmap::{self, IndexMap};
 use openapiv3::{
     Contact, MediaType, NumberFormat, NumberType, ObjectType, Parameter, ParameterData,
     ParameterSchemaOrContent, PathStyle, ReferenceOr, Response, Schema, SchemaData, SchemaKind,

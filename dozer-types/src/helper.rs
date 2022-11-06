@@ -4,14 +4,15 @@ use crate::{
     types::{Field, FieldType, Record, Schema},
 };
 use chrono::{DateTime, SecondsFormat, Utc};
+use indexmap::IndexMap;
 use rust_decimal::Decimal;
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 /// Used in REST APIs for converting to JSON
 pub fn record_to_json(
     rec: &Record,
     schema: &Schema,
-) -> Result<HashMap<String, String>, types::TypeError> {
-    let mut map: HashMap<String, String> = HashMap::new();
+) -> Result<IndexMap<String, String>, types::TypeError> {
+    let mut map: IndexMap<String, String> = IndexMap::new();
 
     for (idx, field_def) in schema.fields.iter().enumerate() {
         let field = rec.values[idx].clone();

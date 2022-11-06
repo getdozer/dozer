@@ -14,7 +14,6 @@ dozer-types = {version = "0.1.0", path = "../dozer-types"}
 handlebars = "4.3.5"
 tempdir = "0.3.7"
 openapiv3 = "1.0.1"
-indexmap = "1.9.1"
 tonic-build = "0.8.2"
 tokio = { version = "1", features = ["full"] }
 tonic = {version = "0.8.2"}
