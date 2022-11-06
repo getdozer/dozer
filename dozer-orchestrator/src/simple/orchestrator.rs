@@ -3,7 +3,7 @@ use std::{sync::Arc, thread};
 use dozer_api::CacheEndpoint;
 use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
 use dozer_cache::cache::LmdbCache;
-use log::debug;
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
@@ -39,6 +39,9 @@ impl Orchestrator for SimpleOrchestrator {
         let running2 = running.clone();
         let running3 = running.clone();
 
+        // Channel to communicate CtrlC with API Server
+        let (tx, rx) = unbounded::<ServerHandle>();
+
         ctrlc::set_handler(move || {
             r.store(false, Ordering::SeqCst);
         })
@@ -52,18 +55,21 @@ impl Orchestrator for SimpleOrchestrator {
                 endpoint: e.to_owned(),
             })
             .collect();
+
         let cache_endpoint = cache_endpoints.get(0).unwrap().clone();
         let ce2 = cache_endpoint.clone();
-        let ce3 = cache_endpoint.clone();
+        let ce3 = cache_endpoint;
 
         let sources = self.sources.clone();
-        let (tx, rx) = unbounded::<ServerHandle>();
+
+        // Initialize ingestor
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         // Initialize Pipeline
         let (sender, receiver) = channel::unbounded::<bool>();
-        let thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
-            // TODO: Refactor add endpoint method to support multiple endpoints
-            Executor::run(sources, cache_endpoint, sender, running2)?;
+        let _thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
+            let executor = Executor::new(sources, cache_endpoints, ingestor, iterator);
+            executor.run(Some(sender), running2).unwrap();
             Ok(())
         });
 
@@ -91,7 +97,6 @@ impl Orchestrator for SimpleOrchestrator {
         while running.load(Ordering::SeqCst) {}
         ApiServer::stop(server_handle);
 
-        thread2.join().unwrap()?;
         thread.join().unwrap()?;
 
         Ok(())

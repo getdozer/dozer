@@ -26,6 +26,8 @@ pub enum ExecutionError {
 
     #[error("Field not found at position {0}")]
     FieldNotFound(String),
+    #[error("Port not found in source {0}")]
+    PortNotFound(String),
 
     // Error forwarders
     #[error(transparent)]
@@ -34,8 +36,33 @@ pub enum ExecutionError {
     InternalDatabaseError(#[from] LmdbError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
+    #[error(transparent)]
+    SinkError(#[from] SinkError),
 
+    #[error("Failed to initialize source")]
+    ConnectorError(#[source] BoxedError),
     // to remove
     #[error("{0}")]
     InternalStringError(String),
+
+    #[error("Channel returned empty message in sink. Might be an issue with the sender: {0}")]
+    SinkReceiverError(usize, #[source] BoxedError),
+
+    #[error("Channel returned empty message in processor. Might be an issue with the sender: {0}")]
+    ProcessorReceiverError(usize, #[source] BoxedError),
+}
+
+#[derive(Error, Debug)]
+pub enum SinkError {
+    #[error("Failed to initialize schema in Sink")]
+    SchemaUpdateFailed(#[source] BoxedError),
+
+    #[error("Failed to notify schema in Sink")]
+    SchemaNotificationFailed(#[source] BoxedError),
+
+    #[error("Failed to insert record in Sink")]
+    CacheInsertFailed(#[source] BoxedError),
+
+    #[error("Failed to delete record in Sink")]
+    CacheDeleteFailed(#[source] BoxedError),
 }

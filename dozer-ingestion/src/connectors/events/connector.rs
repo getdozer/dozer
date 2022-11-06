@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{atomic::AtomicBool, Arc};
 
 use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
@@ -41,23 +41,17 @@ impl Connector for EventsConnector {
         &self,
         _table_names: Option<Vec<String>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        Err(ConnectorError::UnsupportedConnectorMethod(
-            "get_scehmas".to_string(),
-        ))
+        Ok(vec![])
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        Err(ConnectorError::UnsupportedConnectorMethod(
-            "get_tables".to_string(),
-        ))
+        Ok(vec![])
     }
 
     fn stop(&self) {}
 
     fn test_connection(&self) -> Result<(), ConnectorError> {
-        Err(ConnectorError::UnsupportedConnectorMethod(
-            "test_connection".to_string(),
-        ))
+        Ok(())
     }
 
     fn initialize(
@@ -69,7 +63,7 @@ impl Connector for EventsConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, _: Arc<AtomicBool>) -> Result<(), ConnectorError> {
         Ok(())
     }
 }

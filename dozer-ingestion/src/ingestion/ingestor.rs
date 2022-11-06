@@ -54,13 +54,13 @@ pub struct Ingestor {
 impl Ingestor {
     pub fn initialize_channel(
         config: IngestionConfig,
-    ) -> (Arc<RwLock<Ingestor>>, IngestionIterator) {
+    ) -> (Arc<RwLock<Ingestor>>, Arc<RwLock<IngestionIterator>>) {
         let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
         let sender: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
 
-        let iterator = IngestionIterator { rx };
+        let iterator = Arc::new(RwLock::new(IngestionIterator { rx }));
         (ingestor, iterator)
     }
     pub fn new(config: IngestionConfig, sender: Arc<Box<dyn IngestorForwarder + 'static>>) -> Self {
@@ -87,10 +87,10 @@ impl Ingestor {
                 self.sender
                     .forward((connector_id, IngestionOperation::OperationEvent(event)))?;
             }
-            IngestionMessage::Schema(schema) => {
+            IngestionMessage::Schema(name, schema) => {
                 let _seq_no: u64 = self.seq_no_resolver.lock().unwrap().get_next_seq_no() as u64;
                 self.sender
-                    .forward((connector_id, IngestionOperation::SchemaUpdate(schema)))?;
+                    .forward((connector_id, IngestionOperation::SchemaUpdate(name, schema)))?;
             }
             IngestionMessage::Commit(event) => {
                 let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
@@ -163,9 +163,10 @@ mod tests {
             lsn: 412142432,
         };
 
+        let table_name = "test".to_string();
         ingestor.handle_message((1, Begin())).unwrap();
         ingestor
-            .handle_message((1, Schema(schema_message)))
+            .handle_message((1, Schema(table_name, schema_message)))
             .unwrap();
         ingestor
             .handle_message((1, OperationEvent(operation_event_message.clone())))

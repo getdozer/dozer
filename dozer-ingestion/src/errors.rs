@@ -15,6 +15,9 @@ pub enum ConnectorError {
     #[error("Columns are expected in table_info")]
     ColumnsNotFound,
 
+    #[error("Relation not found in replication")]
+    RelationNotFound(#[source] std::io::Error),
+
     #[error("Failed to initialize connector")]
     InitializationError,
 

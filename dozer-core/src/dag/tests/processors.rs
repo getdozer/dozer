@@ -59,6 +59,10 @@ impl Source for TestSource {
         _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
+        fw.update_schema(
+            self.get_output_schema(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
+        )?;
         for n in 0..1_000_000 {
             fw.send(
                 n,

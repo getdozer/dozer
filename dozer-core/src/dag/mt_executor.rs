@@ -3,13 +3,12 @@ use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::{Dag, NodeType, PortDirection};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
-    InternalError, InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
+    InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
 use crate::dag::forwarder::LocalChannelForwarder;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::storage::lmdb_sys::{EnvOptions, Environment, LmdbError};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
-use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record, Schema};
 use libc::size_t;
 use log::{error, warn};
@@ -187,10 +186,6 @@ impl MultiThreadedDagExecutor {
 
         thread::spawn(move || -> Result<(), ExecutionError> {
             let src = src_factory.build();
-            for p in src_factory.get_output_ports() {
-                let schema = src.get_output_schema(p);
-                fw.update_schema(schema, p)?
-            }
 
             match src_factory.is_stateful() {
                 true => {
@@ -255,7 +250,9 @@ impl MultiThreadedDagExecutor {
             }
             loop {
                 let index = sel.ready();
-                let op = internal_err!(receivers_ls[index].recv())?;
+                let op = receivers_ls[index]
+                    .recv()
+                    .map_err(|e| ExecutionError::SinkReceiverError(index, Box::new(e)))?;
                 match op {
                     ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);
@@ -348,7 +345,9 @@ impl MultiThreadedDagExecutor {
 
             loop {
                 let index = sel.ready();
-                let op = internal_err!(receivers_ls[index].recv())?;
+                let op = receivers_ls[index]
+                    .recv()
+                    .map_err(|e| ExecutionError::ProcessorReceiverError(index, Box::new(e)))?;
                 match op {
                     ExecutorOperation::SchemaUpdate { new } => {
                         input_schemas.insert(handles_ls[index], new);
@@ -424,11 +423,12 @@ impl MultiThreadedDagExecutor {
 
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
-            if snk_receivers.is_none() {
-                return Err(MissingNodeInput(snk.0));
-            }
-
-            let snk_handle = self.start_sink(snk.0, snk.1, snk_receivers.unwrap(), path.clone());
+            let snk_handle = self.start_sink(
+                snk.0.clone(),
+                snk.1,
+                snk_receivers.map_or(Err(MissingNodeInput(snk.0.clone())), Ok)?,
+                path.clone(),
+            );
             handles.push(snk_handle);
         }
 
@@ -444,7 +444,7 @@ impl MultiThreadedDagExecutor {
             }
 
             let proc_handle = self.start_processor(
-                processor.0,
+                processor.0.clone(),
                 processor.1,
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
