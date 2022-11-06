@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use dozer_types::bincode;
-use dozer_types::errors::cache::{CacheError, QueryError};
 
 use lmdb::{
     Database, Environment, Error as LmdbError, RoTransaction, RwTransaction, Transaction,
@@ -19,6 +18,7 @@ use super::query::helper;
 use super::utils;
 use crate::cache::expression::QueryExpression;
 use crate::cache::index;
+use crate::errors::{CacheError, QueryError};
 
 pub struct IndexMetaData {
     //schema_id, secondary_key
@@ -95,7 +95,7 @@ impl LmdbCache {
             bincode::serialize(&rec).map_err(CacheError::map_serialization_error)?;
 
         txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())
-            .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
+            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         let indexer = Indexer {
             index_metadata: self.index_metadata.clone(),
@@ -117,7 +117,7 @@ impl LmdbCache {
         let schema_id = schema.to_owned().identifier.unwrap();
         let key = get_schema_key(&schema_id);
         txn.put::<Vec<u8>, Vec<u8>>(self.schema_db, &key, &encoded, WriteFlags::default())
-            .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
+            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         let schema_bytes =
             bincode::serialize(&schema_id).map_err(CacheError::map_serialization_error)?;
@@ -129,7 +129,7 @@ impl LmdbCache {
             &schema_bytes,
             WriteFlags::default(),
         )
-        .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
+        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         Ok(())
     }
@@ -152,7 +152,7 @@ impl LmdbCache {
         let schema_reverse_key = index::get_schema_reverse_key(name);
         let schema_identifier = txn
             .get(self.schema_db, &schema_reverse_key)
-            .map_err(|_e| CacheError::QueryError(QueryError::GetValue))?;
+            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
         let schema_id: SchemaIdentifier = bincode::deserialize(schema_identifier)
             .map_err(CacheError::map_deserialization_error)?;
 
@@ -169,7 +169,7 @@ impl LmdbCache {
         let key = get_schema_key(schema_identifier);
         let schema = txn
             .get(self.schema_db, &key)
-            .map_err(|_e| CacheError::QueryError(QueryError::GetValue))?;
+            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
         let schema: Schema =
             bincode::deserialize(schema).map_err(CacheError::map_deserialization_error)?;
         Ok(schema)

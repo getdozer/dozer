@@ -1,4 +1,4 @@
-use dozer_types::errors::cache::{validate_query, QueryValidationError, QueryValidationError::*};
+use crate::errors::{validate_query, QueryValidationError, QueryValidationError::*};
 use dozer_types::serde_json::{self};
 use dozer_types::serde_json::{json, Value};
 

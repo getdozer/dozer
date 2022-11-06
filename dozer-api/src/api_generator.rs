@@ -6,7 +6,7 @@ use crate::api_helper::ApiHelper;
 use crate::api_server::PipelineDetails;
 use crate::auth::Access;
 use crate::errors::ApiError;
-use dozer_types::errors::cache::CacheError;
+use dozer_cache::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use std::sync::Arc;

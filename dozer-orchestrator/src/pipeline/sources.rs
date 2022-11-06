@@ -118,7 +118,6 @@ impl Source for ConnectorSource {
         }
         loop {
             let msg = iterator.next();
-            println!("{:?}", msg);
             if let Some(msg) = msg {
                 match msg {
                     (_, IngestionOperation::OperationEvent(op)) => {

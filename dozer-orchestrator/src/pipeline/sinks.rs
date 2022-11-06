@@ -161,11 +161,11 @@ impl Sink for CacheSink {
                 .insert_schema(&self.api_endpoint.name, &schema)
                 .map_err(|e| InternalStringError(e.to_string()))?;
             e.insert(true);
-            // if let Some(notifier) = &self.schema_change_notifier {
-            //     notifier
-            //         .try_send(true)
-            //         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-            // }
+            if let Some(notifier) = &self.schema_change_notifier {
+                notifier
+                    .try_send(true)
+                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+            }
         }
 
         match op {

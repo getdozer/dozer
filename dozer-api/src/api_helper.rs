@@ -1,8 +1,8 @@
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use dozer_cache::cache::{expression::QueryExpression, index, LmdbCache};
+use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};
-use dozer_types::errors::cache::CacheError;
 use dozer_types::json_value_to_field;
 use dozer_types::record_to_json;
 use dozer_types::types::FieldType;

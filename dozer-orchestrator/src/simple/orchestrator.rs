@@ -53,17 +53,17 @@ impl Orchestrator for SimpleOrchestrator {
             Ok(())
         });
 
-        // let _thread3 = thread::spawn(move || -> Result<(), OrchestrationError> {
-        //     receiver
-        //         .recv()
-        //         .map_err(OrchestrationError::SchemaUpdateFailed)?;
-        //     let grpc_server = GRPCServer::default();
-        //     grpc_server
-        //         .run(endpoint3, cache_3)
-        //         .map_err(OrchestrationError::GrpcServerFailed)
-        //         .unwrap();
-        //     Ok(())
-        // });
+        let _thread3 = thread::spawn(move || -> Result<(), OrchestrationError> {
+            receiver
+                .recv()
+                .map_err(OrchestrationError::SchemaUpdateFailed)?;
+            let grpc_server = GRPCServer::default();
+            grpc_server
+                .run(endpoint3, cache_3)
+                .map_err(OrchestrationError::GrpcServerFailed)
+                .unwrap();
+            Ok(())
+        });
 
         thread.join().unwrap()?;
         Ok(())
