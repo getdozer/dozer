@@ -266,13 +266,11 @@ impl MultiThreadedDagExecutor {
                             .count();
                         if count == 0 {
                             let r = snk.update_schema(&input_schemas);
-                            if r.is_ok() {
-                                schema_initialized = true;
+                            if let Err(e) = r {
+                                warn!("Schema Update Failed...");
+                                return Err(e);
                             } else {
-                                warn!(
-                                    "New schema is not compatible with older version. Handling it."
-                                );
-                                todo!("Schema is not compatible with order version. Handle it!")
+                                schema_initialized = true;
                             }
                         }
                     }

@@ -1,6 +1,6 @@
-use dozer_types::{errors::cache::PlanError, types::SortDirection};
-
 use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
+use crate::errors::PlanError;
+use dozer_types::types::SortDirection;
 use dozer_types::{
     serde_json::Value,
     types::{FieldDefinition, Schema},

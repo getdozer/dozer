@@ -18,6 +18,9 @@ pub enum ConnectorError {
     #[error("Failed to initialize connector")]
     InitializationError,
 
+    #[error("This connector doesn't support this method: {0}")]
+    UnsupportedConnectorMethod(String),
+
     #[error("Query failed")]
     InvalidQueryError,
 
@@ -34,6 +37,12 @@ pub enum ConnectorError {
 
     #[error("Failed to send message on channel")]
     IngestorError(#[source] IngestorError),
+
+    #[error("Error in Eth Connection")]
+    EthError(#[source] web3::Error),
+
+    #[error("Received empty message in connector")]
+    EmptyMessage,
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {

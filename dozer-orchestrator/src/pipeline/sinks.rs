@@ -1,28 +1,29 @@
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::errors::ExecutionError::InternalStringError;
 use dozer_core::dag::node::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
+use dozer_types::crossbeam;
+use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::parking_lot::Mutex;
 use dozer_types::types::FieldType;
 use dozer_types::types::{
     IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
 };
 use indicatif::{ProgressBar, ProgressStyle};
-use log::info;
+use log::{debug, info, warn};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::Instant;
-
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    schema_change_notifier: crossbeam::channel::Sender<bool>,
+    schema_change_notifier: Sender<bool>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -72,8 +73,7 @@ impl SinkFactory for CacheSinkFactory {
         Box::new(CacheSink::new(
             self.cache.clone(),
             self.api_endpoint.clone(),
-            HashMap::new(),
-            HashMap::new(),
+            Mutex::new(HashMap::new()),
             Some(self.schema_change_notifier.clone()),
         ))
     }
@@ -83,8 +83,7 @@ pub struct CacheSink {
     cache: Arc<LmdbCache>,
     counter: i32,
     before: Instant,
-    input_schemas: HashMap<PortHandle, Schema>,
-    schema_map: HashMap<u64, bool>,
+    input_schemas: Mutex<HashMap<PortHandle, Schema>>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
     schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
@@ -111,14 +110,124 @@ impl Sink for CacheSink {
                 self.before.elapsed(),
             ));
         }
+        let schema = self
+            .input_schemas
+            .lock()
+            .get(&from_port)
+            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
+            .to_owned();
 
-        let mut schema = self.get_output_schema(&self.input_schemas[&from_port])?;
+        match op {
+            Operation::Delete { old } => {
+                let key = index::get_primary_key(&schema.primary_index, &old.values);
+                self.cache
+                    .delete(&key)
+                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+            }
+            Operation::Insert { new } => {
+                let mut new = new;
+                new.schema_id = schema.identifier;
+
+                self.cache
+                    .insert(&new)
+                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+            }
+            Operation::Update { old, new } => {
+                let key = index::get_primary_key(&schema.primary_index, &old.values);
+                let mut new = new;
+                new.schema_id = schema.identifier.clone();
+                if index::has_primary_key_changed(&schema.primary_index, &old.values, &new.values) {
+                    self.cache
+                        .update(&key, &new, &schema)
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                } else {
+                    self.cache
+                        .delete(&key)
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                    self.cache
+                        .insert(&new)
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                }
+            }
+        };
+        Ok(())
+    }
+
+    fn update_schema(
+        &mut self,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        // Insert schemas into cache
+
+        for (k, schema) in input_schemas {
+            let mut map = self.input_schemas.lock();
+
+            // Append primary and secondary keys
+            let schema = self.get_output_schema(schema)?;
+
+            debug!("Port :{}, Schema Inserted: {:?}", k, schema);
+            self.cache
+                .insert_schema(&self.api_endpoint.name, &schema)
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
+            map.insert(*k, schema);
+
+            if let Some(notifier) = &self.schema_change_notifier {
+                let res = notifier
+                    .try_send(true)
+                    .map_err(|e| ExecutionError::InternalError(Box::new(e)));
+
+                match res {
+                    Ok(_) => {
+                        debug!("Schema notification succeeded.")
+                    }
+                    Err(_) => {
+                        warn!("GRPC Schema notification failed")
+                    }
+                };
+            }
+        }
+        Ok(())
+    }
+}
+
+impl CacheSink {
+    pub fn new(
+        cache: Arc<LmdbCache>,
+        api_endpoint: ApiEndpoint,
+        input_schemas: Mutex<HashMap<PortHandle, Schema>>,
+        schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
+    ) -> Self {
+        Self {
+            cache,
+            counter: 0,
+            before: Instant::now(),
+            input_schemas,
+            api_endpoint,
+            pb: get_progress(),
+            schema_change_notifier,
+        }
+    }
+    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, ExecutionError> {
+        let mut schema = schema.clone();
 
         // Get hash of schema
-        let mut hasher = DefaultHasher::new();
-        let bytes = self.api_endpoint.sql.as_bytes();
-        hasher.write(bytes);
-        let hash = hasher.finish();
+        let hash = self.get_schema_hash();
+
+        let api_index = &self.api_endpoint.index;
+        let mut primary_index = Vec::new();
+        for name in api_index.primary_key.iter() {
+            let idx = schema
+                .fields
+                .iter()
+                .position(|fd| fd.name == name.clone())
+                .map_or(Err(ExecutionError::FieldNotFound(name.to_owned())), |p| {
+                    Ok(p)
+                })?;
+
+            primary_index.push(idx);
+        }
+        schema.primary_index = primary_index;
 
         schema.identifier = Some(SchemaIdentifier {
             id: hash as u32,
@@ -154,102 +263,16 @@ impl Sink for CacheSink {
                 | FieldType::Bson => None,
             })
             .collect();
-
-        // Insert if schema not already inserted
-        if let std::collections::hash_map::Entry::Vacant(e) = self.schema_map.entry(hash) {
-            self.cache
-                .insert_schema(&self.api_endpoint.name, &schema)
-                .map_err(|e| InternalStringError(e.to_string()))?;
-            e.insert(true);
-            if let Some(notifier) = &self.schema_change_notifier {
-                notifier
-                    .try_send(true)
-                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-            }
-        }
-
-        match op {
-            Operation::Delete { old } => {
-                let key = index::get_primary_key(&schema.primary_index, &old.values);
-                self.cache
-                    .delete(&key)
-                    .map_err(|e| InternalStringError(e.to_string()))?;
-            }
-            Operation::Insert { new } => {
-                let mut new = new;
-                new.schema_id = schema.identifier;
-
-                self.cache
-                    .insert(&new)
-                    .map_err(|e| InternalStringError(e.to_string()))?;
-            }
-            Operation::Update { old, new } => {
-                let key = index::get_primary_key(&schema.primary_index, &old.values);
-                let mut new = new;
-                new.schema_id = schema.identifier.clone();
-                if index::has_primary_key_changed(&schema.primary_index, &old.values, &new.values) {
-                    self.cache
-                        .update(&key, &new, &schema)
-                        .map_err(|e| InternalStringError(e.to_string()))?;
-                } else {
-                    self.cache
-                        .delete(&key)
-                        .map_err(|e| InternalStringError(e.to_string()))?;
-                    self.cache
-                        .insert(&new)
-                        .map_err(|e| InternalStringError(e.to_string()))?;
-                }
-            }
-        };
-        Ok(())
-    }
-
-    fn update_schema(
-        &mut self,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<(), ExecutionError> {
-        self.input_schemas = input_schemas.to_owned();
-        Ok(())
-    }
-}
-
-impl CacheSink {
-    pub fn new(
-        cache: Arc<LmdbCache>,
-        api_endpoint: ApiEndpoint,
-        input_schemas: HashMap<PortHandle, Schema>,
-        schema_map: HashMap<u64, bool>,
-        schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
-    ) -> Self {
-        Self {
-            cache,
-            counter: 0,
-            before: Instant::now(),
-            input_schemas,
-            schema_map,
-            api_endpoint,
-            pb: get_progress(),
-            schema_change_notifier,
-        }
-    }
-
-    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, ExecutionError> {
-        let mut schema = schema.clone();
-        let api_index = &self.api_endpoint.index;
-        let mut primary_index = Vec::new();
-        for name in api_index.primary_key.iter() {
-            let idx = schema
-                .fields
-                .iter()
-                .position(|fd| fd.name == name.clone())
-                .map_or(Err(ExecutionError::FieldNotFound(name.to_owned())), |p| {
-                    Ok(p)
-                })?;
-
-            primary_index.push(idx);
-        }
-        schema.primary_index = primary_index;
         Ok(schema)
+    }
+
+    fn get_schema_hash(&self) -> u64 {
+        // Get hash of SQL
+        let mut hasher = DefaultHasher::new();
+        let bytes = self.api_endpoint.sql.as_bytes();
+        hasher.write(bytes);
+
+        hasher.finish()
     }
 }
 
@@ -264,7 +287,7 @@ mod tests {
     use dozer_core::dag::node::Sink;
 
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
-    use std::panic;
+    use std::{collections::HashMap, panic};
 
     #[test]
     // This test cases covers updation of records when primary key changes because of value change in primary_key
@@ -297,6 +320,9 @@ mod tests {
                 values: updated_values.clone(),
             },
         };
+        let mut input_schemas = HashMap::new();
+        input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
+        sink.update_schema(&input_schemas).unwrap();
 
         sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation, None)
             .unwrap();

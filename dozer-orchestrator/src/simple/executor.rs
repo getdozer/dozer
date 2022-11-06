@@ -1,15 +1,14 @@
 use crate::errors::OrchestrationError;
+use dozer_api::CacheEndpoint;
+use dozer_types::crossbeam;
 use log::debug;
 use std::fs;
-use std::sync::Arc;
 
-use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::source::Source;
 use tempdir::TempDir;
 
-use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
-use dozer_core::dag::errors::ExecutionError::InternalStringError;
+use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
@@ -26,8 +25,7 @@ pub struct Executor {}
 impl Executor {
     pub fn run(
         sources: Vec<Source>,
-        api_endpoint: ApiEndpoint,
-        cache: Arc<LmdbCache>,
+        cache_endpoint: CacheEndpoint,
         schema_change_notifier: crossbeam::channel::Sender<bool>,
     ) -> Result<(), OrchestrationError> {
         let mut source_schemas: Vec<Schema> = vec![];
@@ -37,7 +35,7 @@ impl Executor {
         // Get Source schemas
         for source in sources.iter() {
             let schema_tuples = get_schema(source.connection.to_owned())
-                .map_err(|e| InternalStringError(e.to_string()))?;
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
             debug!("{:?}", source.table_name);
             let st = schema_tuples
@@ -51,20 +49,22 @@ impl Executor {
             table_names.push(source.table_name.clone());
         }
 
+        let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
+        let source_table_map = source.table_map.clone();
+
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
+        let api_endpoint = cache_endpoint.endpoint;
+        let cache = cache_endpoint.cache;
+
         let ast = Parser::parse_sql(&dialect, &api_endpoint.sql).unwrap();
-        debug!("AST: {:?}", ast);
-        debug!("Schemas: {:?}", source_schemas);
-        debug!("Query: {:?}", &api_endpoint.sql);
+
         let statement: &Statement = &ast[0];
 
         let builder = PipelineBuilder {};
 
         let (mut dag, in_handle, out_handle) =
             builder.statement_to_pipeline(statement.clone()).unwrap();
-
-        let source = ConnectorSourceFactory::new(connections, table_names.clone(), source_schemas);
 
         // let sink = CacheSinkFactory::new(vec![out_handle.port]);
         let sink = CacheSinkFactory::new(
@@ -74,17 +74,15 @@ impl Executor {
             schema_change_notifier,
         );
 
-        let source_table_map = source.table_map.clone();
-
         dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
-        dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
+        dag.add_node(NodeType::Sink(Box::new(sink)), (4).to_string());
 
         for (_table_name, endpoint) in in_handle.into_iter() {
             // TODO: Use real table_name
             let table_name = &table_names[0];
             let port = source_table_map.get(table_name).unwrap();
             dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)
-                .map_err(|e| InternalStringError(e.to_string()))?;
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
 
         dag.connect(
