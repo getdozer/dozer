@@ -4,6 +4,7 @@ pub mod api_server;
 mod auth;
 pub mod errors;
 pub mod generator;
+pub use actix_web;
 mod grpc;
 pub mod grpc_server;
 #[cfg(test)]

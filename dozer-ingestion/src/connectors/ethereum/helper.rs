@@ -20,12 +20,12 @@ pub fn map_log_to_event(log: Log, idx: usize) -> OperationEvent {
                 values: vec![
                     Field::Int(idx as i64),
                     Field::String(log.address.to_string()),
-                    Field::String(
+                    Field::Text(
                         log.topics
                             .iter()
                             .map(|t| t.to_string())
                             .collect::<Vec<String>>()
-                            .join("_"),
+                            .join(" "),
                     ),
                     // Field::Binary(log.data),
                     Field::Binary(vec![]),
@@ -132,7 +132,7 @@ pub fn get_eth_schema() -> Schema {
         ],
         values: vec![],
         // Log Index
-        primary_index: vec![7],
+        primary_index: vec![0],
         secondary_indexes: vec![],
     }
 }

@@ -1,0 +1,23 @@
+storage_path: null
+sources:
+  - name: all_events
+    table_name: log
+    connection:
+      db_type: Ethereum
+      authentication: !EthereumAuthentication
+        wss_url: wss://localhost:8545
+        filter:
+          addresses:
+          topics:
+      name: all_events
+    history_type: null
+    refresh_config: RealTime
+endpoints:
+  - name: events
+    path: /events
+    enable_rest: false
+    enable_grpc: true
+    sql: select block_number, sum(id) from events group by block_number;
+    index:
+      primary_key:
+        - block_number

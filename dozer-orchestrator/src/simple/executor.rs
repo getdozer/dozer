@@ -1,4 +1,5 @@
 use crate::errors::OrchestrationError;
+use dozer_types::crossbeam;
 use log::debug;
 use std::fs;
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use tempdir::TempDir;
 
 use dozer_cache::cache::LmdbCache;
 use dozer_core::dag::dag::{Endpoint, NodeType};
-use dozer_core::dag::errors::ExecutionError::InternalStringError;
+use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
@@ -37,7 +38,7 @@ impl Executor {
         // Get Source schemas
         for source in sources.iter() {
             let schema_tuples = get_schema(source.connection.to_owned())
-                .map_err(|e| InternalStringError(e.to_string()))?;
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
             debug!("{:?}", source.table_name);
             let st = schema_tuples
@@ -84,7 +85,7 @@ impl Executor {
             let table_name = &table_names[0];
             let port = source_table_map.get(table_name).unwrap();
             dag.connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)
-                .map_err(|e| InternalStringError(e.to_string()))?;
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
 
         dag.connect(

@@ -30,22 +30,12 @@ pub trait IngestorForwarder: Send + Sync {
     fn forward(&self, msg: (u64, IngestionOperation)) -> Result<(), IngestorError>;
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct EthFilter {
     // Starting block
     pub from_block: Option<u64>,
     pub addresses: Vec<String>,
     pub topics: Vec<String>,
-}
-
-impl Default for EthFilter {
-    fn default() -> Self {
-        Self {
-            from_block: None,
-            addresses: vec![],
-            topics: vec![],
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]

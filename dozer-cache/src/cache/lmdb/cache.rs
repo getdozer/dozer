@@ -116,17 +116,21 @@ impl LmdbCache {
             bincode::serialize(&schema).map_err(CacheError::map_serialization_error)?;
         let schema_id = schema.to_owned().identifier.unwrap();
         let key = get_schema_key(&schema_id);
+
+        // Insert Schema with {id, version}
         txn.put::<Vec<u8>, Vec<u8>>(self.schema_db, &key, &encoded, WriteFlags::default())
             .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
-        let schema_bytes =
+        let schema_id_bytes =
             bincode::serialize(&schema_id).map_err(CacheError::map_serialization_error)?;
+
+        // Insert Reverse key lookup for schema by name
         let schema_key = index::get_schema_reverse_key(name);
 
         txn.put::<Vec<u8>, Vec<u8>>(
             self.schema_db,
             &schema_key,
-            &schema_bytes,
+            &schema_id_bytes,
             WriteFlags::default(),
         )
         .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;

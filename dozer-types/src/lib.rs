@@ -12,6 +12,7 @@ pub use helper::{field_to_json_value, json_value_to_field, record_to_json};
 pub use bincode;
 pub use bytes;
 pub use chrono;
+pub use crossbeam;
 pub use log;
 pub use log4rs;
 pub use parking_lot;
