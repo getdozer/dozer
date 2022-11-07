@@ -1,4 +1,4 @@
-use crate::dag::channels::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use crate::dag::node::PortHandle;
@@ -21,10 +21,6 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -56,9 +52,7 @@ impl Source for TestSource {
 
     fn start(
         &self,
-        fw: &dyn SourceChannelForwarder,
-        cm: &dyn ChannelManager,
-        _state: Option<&mut Transaction>,
+        fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         for n in 0..1_000_000 {
@@ -70,7 +64,7 @@ impl Source for TestSource {
                 DEFAULT_PORT_HANDLE,
             )?;
         }
-        cm.terminate().unwrap();
+        fw.terminate().unwrap();
         Ok(())
     }
 }
@@ -88,7 +82,7 @@ impl TestSinkFactory {
 
 impl SinkFactory for TestSinkFactory {
     fn is_stateful(&self) -> bool {
-        false
+        true
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -170,6 +164,14 @@ pub struct TestProcessor {
 }
 
 impl Processor for TestProcessor {
+    // fn get_shared_databases<'a>(&'a self) -> Option<HashMap<String, &'a Database>> {
+    //     Some(
+    //         [("main".to_string(), self.db.as_ref().unwrap())]
+    //             .into_iter()
+    //             .collect(),
+    //     )
+    // }
+
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -205,7 +207,7 @@ impl Processor for TestProcessor {
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        fw: &dyn ProcessorChannelForwarder,
+        fw: &mut dyn ProcessorChannelForwarder,
         state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
