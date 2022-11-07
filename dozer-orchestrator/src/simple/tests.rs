@@ -23,7 +23,6 @@ use serde_json::{json, Value};
 
 use super::executor::Executor;
 
-#[ignore]
 #[test]
 fn single_source_sink() {
     let source = models::source::Source {
@@ -83,7 +82,7 @@ fn single_source_sink() {
         (7, "james".to_string(), 528),
     ];
 
-    let thread = thread::spawn(move || {
+    let _thread = thread::spawn(move || {
         let executor = Executor::new(vec![source], vec![cache_endpoint], ingestor, iterator);
         match executor.run(None, running) {
             Ok(_) => {}
@@ -109,11 +108,11 @@ fn single_source_sink() {
             .unwrap();
     }
 
-    thread::sleep(Duration::from_millis(1000));
+    // Allow for the thread to process the records
+    thread::sleep(Duration::from_millis(50));
     //Shutdown the thread
     r.store(false, Ordering::SeqCst);
 
-    thread.join().unwrap();
     test_query("events".to_string(), json!({}), 7, &cache);
 }
 
