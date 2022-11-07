@@ -1,9 +1,9 @@
 use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
 use crate::errors::GenerationError;
+use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
 use dozer_types::types::IndexDefinition;
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
-use indexmap::IndexMap;
 use openapiv3::*;
 use serde_json::{json, Value};
 use tempdir::TempDir;

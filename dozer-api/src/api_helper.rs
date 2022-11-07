@@ -3,11 +3,12 @@ use crate::errors::{ApiError, AuthError};
 use dozer_cache::cache::{expression::QueryExpression, index, LmdbCache};
 use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};
+use dozer_types::indexmap::IndexMap;
 use dozer_types::json_value_to_field;
 use dozer_types::record_to_json;
 use dozer_types::types::{FieldType, Record};
 use openapiv3::OpenAPI;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::api_server::PipelineDetails;
 use crate::generator::oapi::generator::OpenApiGenerator;
@@ -70,7 +71,7 @@ impl ApiHelper {
             .map_err(ApiError::ApiGenerationError)
     }
     /// Get a single record
-    pub fn get_record(&self, key: String) -> Result<HashMap<String, String>, CacheError> {
+    pub fn get_record(&self, key: String) -> Result<IndexMap<String, String>, CacheError> {
         let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
 
         let field_types: Vec<FieldType> = schema
@@ -90,7 +91,7 @@ impl ApiHelper {
     pub fn get_records(
         &self,
         mut exp: QueryExpression,
-    ) -> Result<Vec<HashMap<String, String>>, CacheError> {
+    ) -> Result<Vec<IndexMap<String, String>>, CacheError> {
         let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
         let records = self.reader.query(&self.details.schema_name, &mut exp)?;
 
@@ -105,7 +106,7 @@ impl ApiHelper {
     pub fn convert_record_to_json(
         &self,
         record: Record,
-    ) -> Result<HashMap<String, String>, CacheError> {
+    ) -> Result<IndexMap<String, String>, CacheError> {
         let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
         record_to_json(&record, &schema).map_err(CacheError::TypeError)
     }

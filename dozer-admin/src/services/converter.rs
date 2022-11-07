@@ -81,6 +81,7 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
             } => {
                 todo!()
             }
+            models::connection::Authentication::Events {} => todo!(),
         };
         Ok(dozer_admin_grpc::Authentication {
             authentication: Some(authentication_value),

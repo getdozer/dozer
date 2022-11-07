@@ -3,6 +3,7 @@ use std::{sync::Arc, thread};
 use dozer_api::CacheEndpoint;
 use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
 use dozer_cache::cache::LmdbCache;
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::events::Event;
 
 use super::executor::Executor;
@@ -36,14 +37,16 @@ impl Orchestrator for SimpleOrchestrator {
         //Set AtomicBool and wait for CtrlC
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
+        let running2 = running.clone();
+        let running3 = running.clone();
+
+        // Channel to communicate CtrlC with API Server
+        let (tx, rx) = unbounded::<ServerHandle>();
 
         ctrlc::set_handler(move || {
             r.store(false, Ordering::SeqCst);
         })
         .expect("Error setting Ctrl-C handler");
-
-        // let cache_2 = cache.clone();
-        // let cache_3 = cache.clone();
 
         let cache_endpoints: Vec<CacheEndpoint> = self
             .api_endpoints
@@ -53,24 +56,27 @@ impl Orchestrator for SimpleOrchestrator {
                 endpoint: e.to_owned(),
             })
             .collect();
+
         let cache_endpoint = cache_endpoints.get(0).unwrap().clone();
         let ce2 = cache_endpoint.clone();
-        let ce3 = cache_endpoint.clone();
+        let ce3 = cache_endpoint;
 
         let sources = self.sources.clone();
-        let (tx, rx) = unbounded::<ServerHandle>();
+
+        // Initialize ingestor
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         // Initialize Pipeline
         let (sender, receiver) = channel::unbounded::<Event>();
         let receiver1 = receiver;
         let _thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
-            // TODO: Refactor add endpoint method to support multiple endpoints
-            Executor::run(sources, cache_endpoint, sender)?;
+            let executor = Executor::new(sources, cache_endpoints, ingestor, iterator);
+            executor.run(Some(sender), running2).unwrap();
             Ok(())
         });
 
         // Initialize API Server
-        let _thread = thread::spawn(move || -> Result<(), OrchestrationError> {
+        let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             let api_server = ApiServer::default();
             api_server
                 .run(vec![ce2.endpoint], ce2.cache, tx)
@@ -83,12 +89,14 @@ impl Orchestrator for SimpleOrchestrator {
 
         let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             grpc_server
-                .run(ce3)
+                .run(ce3, running3.to_owned())
                 .map_err(OrchestrationError::GrpcServerFailed)
         });
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
         ApiServer::stop(server_handle);
+
+        thread.join().unwrap()?;
 
         Ok(())
     }

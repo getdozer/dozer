@@ -9,14 +9,16 @@ use crate::{
 #[derive(Clone, Debug)]
 pub enum IngestionOperation {
     OperationEvent(OperationEvent),
-    SchemaUpdate(Schema),
+    // Table Name, Schema
+    SchemaUpdate(String, Schema),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum IngestionMessage {
     Begin(),
     OperationEvent(OperationEvent),
-    Schema(Schema),
+    // Table Name, Schema
+    Schema(String, Schema),
     Commit(Commit),
 }
 

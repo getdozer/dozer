@@ -37,7 +37,7 @@ pub trait SourceFactory: Send + Sync {
 }
 
 pub trait Source {
-    fn get_output_schema(&self, port: PortHandle) -> Schema;
+    fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
     fn start(
         &self,
         fw: &dyn SourceChannelForwarder,

@@ -1,7 +1,7 @@
 storage_path: null
 sources:
   - name: all_events
-    table_name: log
+    table_name: eth_logs
     connection:
       db_type: Ethereum
       authentication: !EthereumAuthentication
@@ -17,7 +17,7 @@ endpoints:
     path: /events
     enable_rest: false
     enable_grpc: true
-    sql: select block_number, sum(id) from events group by block_number;
+    sql: select block_number, id from eth_logs group by id, block_number;
     index:
       primary_key:
         - block_number

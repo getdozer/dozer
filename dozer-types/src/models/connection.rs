@@ -16,6 +16,7 @@ pub struct Connection {
 pub enum DBType {
     Postgres,
     Ethereum,
+    Events,
 }
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum Authentication {
@@ -30,6 +31,7 @@ pub enum Authentication {
         filter: EthFilter,
         wss_url: String,
     },
+    Events {},
 }
 impl Display for DBType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

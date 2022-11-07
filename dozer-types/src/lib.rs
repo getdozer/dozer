@@ -14,6 +14,7 @@ pub use bincode;
 pub use bytes;
 pub use chrono;
 pub use crossbeam;
+pub use indexmap;
 pub use log;
 pub use log4rs;
 pub use parking_lot;

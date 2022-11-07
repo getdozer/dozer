@@ -7,6 +7,7 @@ use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Schema;
 use postgres::Client;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use super::helper;
@@ -72,7 +73,7 @@ impl Connector for PostgresConnector {
         self.ingestor = Some(ingestor);
         Ok(())
     }
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
         let iterator = PostgresIterator::new(
             self.id,
             self.get_publication_name(),
@@ -85,11 +86,7 @@ impl Connector for PostgresConnector {
                 .map_or(Err(ConnectorError::InitializationError), Ok)?
                 .clone(),
         );
-
-        match iterator.start() {
-            Ok(_) => Ok(()),
-            Err(_e) => Err(ConnectorError::InitializationError),
-        }
+        iterator.start(running)
     }
 
     fn stop(&self) {}

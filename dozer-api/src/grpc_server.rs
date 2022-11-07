@@ -8,9 +8,16 @@ use crate::{
     },
     CacheEndpoint,
 };
+
 use dozer_cache::cache::Cache;
-use dozer_types::events::Event;
-use std::thread;
+use dozer_types::{events::Event, log::debug};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
+};
 use tempdir::TempDir;
 use tokio::{runtime::Runtime, sync::broadcast};
 use tonic::transport::Server;
@@ -40,6 +47,7 @@ impl GRPCServer {
         &self,
         cache_endpoint: CacheEndpoint,
         event_notifier: crossbeam::channel::Receiver<Event>,
+        running: Arc<AtomicBool>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<Event>(16);
@@ -78,11 +86,14 @@ impl GRPCServer {
             .accept_http1(true)
             .concurrency_limit_per_connection(32)
             .add_service(inflection_service)
-            .add_service(tonic_web::enable(grpc_service));
-
-        let server_future = grpc_router.serve(addr);
+            .add_service(tonic_web::enable(grpc_service))
+            .serve_with_shutdown(addr, async move {
+                while running.load(Ordering::SeqCst) {}
+                debug!("Exiting GRPC Server on Ctrl-C");
+            });
+        // .serve(addr);
         let rt = Runtime::new().unwrap();
-        rt.block_on(server_future)
+        rt.block_on(grpc_router)
             .expect("failed to successfully run the future on RunTime");
         Ok(())
     }
@@ -95,11 +106,15 @@ impl GRPCServer {
             event_notifier,
         }
     }
-    pub fn run(&self, cache_endpoint: CacheEndpoint) -> Result<(), GRPCError> {
+    pub fn run(
+        &self,
+        cache_endpoint: CacheEndpoint,
+        running: Arc<AtomicBool>,
+    ) -> Result<(), GRPCError> {
         let event = self.event_notifier.clone().recv();
         if let Ok(Event::SchemaChange(_)) = event {
             // Only start when ensuring Schema is existed
-            self._start_grpc_server(cache_endpoint, self.event_notifier.to_owned())?;
+            self._start_grpc_server(cache_endpoint, self.event_notifier.to_owned(), running)?;
         }
         Ok(())
     }

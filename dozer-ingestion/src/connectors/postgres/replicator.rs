@@ -16,6 +16,7 @@ use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
@@ -32,7 +33,7 @@ pub struct CDCHandler {
 }
 
 impl CDCHandler {
-    pub async fn start(&mut self) -> Result<(), ConnectorError> {
+    pub async fn start(&mut self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
         let conn_str = self.conn_str.clone();
         let client: tokio_postgres::Client = helper::async_connect(conn_str).await?;
 
@@ -77,6 +78,10 @@ impl CDCHandler {
 
         tokio::pin!(stream);
         loop {
+            if !running.load(Ordering::SeqCst) {
+                debug!("Exiting Postgres Replicator on Ctrl-C");
+                return Ok(());
+            }
             let message = stream.next().await;
             if let Some(Ok(PrimaryKeepAlive(ref k))) = message {
                 if k.reply() == 1 {

@@ -38,18 +38,20 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    fn get_output_schema(&self, port: PortHandle) -> Schema {
-        Schema::empty()
-            .field(
-                FieldDefinition::new(
-                    format!("node_{}_port_{}", self.id, port),
-                    FieldType::String,
+    fn get_output_schema(&self, port: PortHandle) -> Option<Schema> {
+        Some(
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(
+                        format!("node_{}_port_{}", self.id, port),
+                        FieldType::String,
+                        false,
+                    ),
                     false,
-                ),
-                false,
-                false,
-            )
-            .clone()
+                    false,
+                )
+                .clone(),
+        )
     }
 
     fn start(

@@ -1,6 +1,9 @@
 use crate::{
     api_generator,
-    auth::api::{auth_route, validate, ApiSecurity},
+    auth::{
+        api::{auth_route, validate, ApiSecurity},
+        Access,
+    },
 };
 use actix_cors::Cors;
 use actix_web::{
@@ -14,8 +17,8 @@ use dozer_cache::cache::LmdbCache;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde::{self, Deserialize, Serialize};
+use futures_util::FutureExt;
 use std::sync::Arc;
-
 #[derive(Clone)]
 pub struct PipelineDetails {
     pub schema_name: String,
@@ -85,10 +88,10 @@ impl ApiServer {
         // Injecting API Security
         let app = app.app_data(security.to_owned());
 
-        let auth_middleware = Condition::new(
-            matches!(security, ApiSecurity::Jwt(_)),
-            HttpAuthentication::bearer(validate),
-        );
+        let is_auth_configured = matches!(security, ApiSecurity::Jwt(_));
+        let auth_middleware =
+            Condition::new(is_auth_configured, HttpAuthentication::bearer(validate));
+
         let cors_middleware = Self::get_cors(cors);
 
         endpoints
@@ -117,6 +120,13 @@ impl ApiServer {
             .route("/auth/token", web::post().to(auth_route))
             // Wrap Api Validator
             .wrap(auth_middleware)
+            // Insert None as Auth when no apisecurity configured
+            .wrap_fn(move |req, srv| {
+                if !is_auth_configured {
+                    req.extensions_mut().insert(Access::All);
+                }
+                srv.call(req).map(|res| res)
+            })
             // Wrap CORS around api validator. Neededto return the right headers.
             .wrap(cors_middleware)
     }

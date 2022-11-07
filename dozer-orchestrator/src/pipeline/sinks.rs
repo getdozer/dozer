@@ -1,6 +1,6 @@
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::PortHandle;
 use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
@@ -14,7 +14,7 @@ use dozer_types::types::{
     IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
 };
 use indicatif::{ProgressBar, ProgressStyle};
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
@@ -24,7 +24,7 @@ pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    notifier: Sender<Event>,
+    notifier: Option<Sender<Event>>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -51,7 +51,7 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        notifier: crossbeam::channel::Sender<Event>,
+        notifier: Option<crossbeam::channel::Sender<Event>>,
     ) -> Self {
         Self {
             input_ports,
@@ -75,7 +75,7 @@ impl SinkFactory for CacheSinkFactory {
             self.cache.clone(),
             self.api_endpoint.clone(),
             Mutex::new(HashMap::new()),
-            Some(self.notifier.clone()),
+            self.notifier.clone(),
         ))
     }
 }
@@ -121,9 +121,9 @@ impl Sink for CacheSink {
         match op {
             Operation::Delete { old } => {
                 let key = index::get_primary_key(&schema.primary_index, &old.values);
-                self.cache
-                    .delete(&key)
-                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                self.cache.delete(&key).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
+                })?;
                 if let Some(notifier) = &self.notifier {
                     notifier
                         .try_send(Event::RecordDelete(old))
@@ -134,9 +134,9 @@ impl Sink for CacheSink {
                 let mut new = new;
                 new.schema_id = schema.identifier;
 
-                self.cache
-                    .insert(&new)
-                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                self.cache.insert(&new).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
+                })?;
                 if let Some(notifier) = &self.notifier {
                     notifier
                         .try_send(Event::RecordInsert(new))
@@ -152,12 +152,12 @@ impl Sink for CacheSink {
                         .update(&key, &new, &schema)
                         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                 } else {
-                    self.cache
-                        .delete(&key)
-                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                    self.cache
-                        .insert(&new)
-                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                    self.cache.delete(&key).map_err(|e| {
+                        ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
+                    })?;
+                    self.cache.insert(&new).map_err(|e| {
+                        ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
+                    })?;
                 }
                 if let Some(notifier) = &self.notifier {
                     notifier
@@ -181,17 +181,28 @@ impl Sink for CacheSink {
             // Append primary and secondary keys
             let schema = self.get_output_schema(schema)?;
 
-            debug!("Port :{}, Schema Inserted: {:?}", k, schema);
+            info!("Port :{}, Schema Inserted: {:?}", k, schema);
             self.cache
                 .insert_schema(&self.api_endpoint.name, &schema)
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                .map_err(|e| {
+                    ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+                })?;
 
             map.insert(*k, schema.to_owned());
 
             if let Some(notifier) = &self.notifier {
-                notifier
-                    .try_send(Event::SchemaChange(schema.to_owned()))
-                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                let res = notifier.try_send(Event::SchemaChange(schema)).map_err(|e| {
+                    ExecutionError::SinkError(SinkError::SchemaNotificationFailed(Box::new(e)))
+                });
+
+                match res {
+                    Ok(_) => {
+                        debug!("Schema notification succeeded.")
+                    }
+                    Err(_) => {
+                        warn!("GRPC Schema notification failed")
+                    }
+                };
             }
         }
         Ok(())

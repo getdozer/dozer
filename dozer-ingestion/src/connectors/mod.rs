@@ -12,10 +12,10 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use self::ethereum::connector::EthConnector;
-
+use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
     fn get_schemas(
@@ -29,7 +29,7 @@ pub trait Connector: Send + Sync {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
-    fn start(&self) -> Result<(), ConnectorError>;
+    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError>;
     fn stop(&self);
 }
 
@@ -70,5 +70,6 @@ pub fn get_connector(connection: Connection) -> Box<dyn Connector> {
 
             Box::new(EthConnector::new(2, eth_config))
         }
+        Authentication::Events {} => Box::new(EventsConnector::new(3, connection.name)),
     }
 }
