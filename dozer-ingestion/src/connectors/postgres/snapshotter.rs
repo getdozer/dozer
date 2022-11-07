@@ -35,7 +35,7 @@ impl PostgresSnapshotter {
                 let mut helper = SchemaHelper {
                     conn_str: self.conn_str.clone(),
                 };
-                let arr = helper.get_tables()?;
+                let arr = helper.get_tables(None)?;
                 Ok(arr)
             }
             Some(arr) => Ok(arr.clone()),

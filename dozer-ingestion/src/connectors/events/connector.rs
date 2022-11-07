@@ -37,7 +37,10 @@ impl EventsConnector {
 }
 
 impl Connector for EventsConnector {
-    fn get_schemas(&self) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
+    fn get_schemas(
+        &self,
+        _table_names: Option<Vec<String>>,
+    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         Err(ConnectorError::UnsupportedConnectorMethod(
             "get_scehmas".to_string(),
         ))

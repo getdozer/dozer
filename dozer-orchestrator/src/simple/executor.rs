@@ -1,12 +1,7 @@
 use crate::errors::OrchestrationError;
-use dozer_api::CacheEndpoint;
-use dozer_types::crossbeam;
-use dozer_types::events::Event;
-use log::debug;
-use std::fs;
-
-use crate::get_schema;
+use crate::get_single_schema;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
+use dozer_api::CacheEndpoint;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
@@ -14,12 +9,14 @@ use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
+use dozer_types::crossbeam;
+use dozer_types::events::Event;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use dozer_types::types::Schema;
+use std::fs;
 use tempdir::TempDir;
 pub struct Executor {}
-
 impl Executor {
     pub fn run(
         sources: Vec<Source>,
@@ -32,16 +29,9 @@ impl Executor {
 
         // Get Source schemas
         for source in sources.iter() {
-            let schema_tuples = get_schema(source.connection.to_owned())
+            let schema = get_single_schema(source.connection.to_owned(), source.table_name.clone())
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-            debug!("{:?}", source.table_name);
-            let st = schema_tuples
-                .iter()
-                .find(|t| t.0.eq(&source.table_name))
-                .unwrap();
-
-            let schema = st.to_owned().1.clone();
             source_schemas.push(schema);
             connections.push(source.connection.to_owned());
             table_names.push(source.table_name.clone());
