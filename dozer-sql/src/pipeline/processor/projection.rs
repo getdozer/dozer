@@ -218,7 +218,7 @@ impl Processor for ProjectionProcessor {
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        fw: &dyn ProcessorChannelForwarder,
+        fw: &mut dyn ProcessorChannelForwarder,
         _state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         let _ = match op {

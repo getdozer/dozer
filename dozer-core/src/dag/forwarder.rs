@@ -1,8 +1,8 @@
-use crate::dag::channels::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::mt_executor::ExecutorOperation;
-use crate::dag::node::PortHandle;
+use crate::dag::node::{NodeHandle, PortHandle};
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Schema};
@@ -13,13 +13,23 @@ use std::time::Duration;
 pub struct LocalChannelForwarder {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     curr_seq_no: u64,
+    commit_size: u16,
+    commit_counter: u16,
+    source_handle: NodeHandle,
 }
 
 impl LocalChannelForwarder {
-    pub fn new(senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>) -> Self {
+    pub fn new(
+        source_handle: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        commit_size: u16,
+    ) -> Self {
         Self {
             senders,
             curr_seq_no: 0,
+            commit_size,
+            commit_counter: 0,
+            source_handle,
         }
     }
 
@@ -81,6 +91,19 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
+    pub fn send_commit(&self) -> Result<(), ExecutionError> {
+        for senders in &self.senders {
+            for sender in senders.1 {
+                internal_err!(sender.send(ExecutorOperation::Commit {
+                    source: self.source_handle.clone(),
+                    epoch: self.curr_seq_no
+                }))?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn send_update_schema(
         &self,
         schema: Schema,
@@ -102,23 +125,27 @@ impl LocalChannelForwarder {
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
-    fn send(&self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.send_op(Some(seq), op, port)
+    fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
+        if self.commit_counter >= self.commit_size {
+            self.send_commit()?;
+            self.commit_counter = 0;
+        }
+        self.send_op(Some(seq), op, port)?;
+        self.commit_counter += 1;
+        Ok(())
     }
 
-    fn update_schema(&self, schema: Schema, port: PortHandle) -> Result<(), ExecutionError> {
+    fn update_schema(&mut self, schema: Schema, port: PortHandle) -> Result<(), ExecutionError> {
         self.send_update_schema(schema, port)
+    }
+
+    fn terminate(&mut self) -> Result<(), ExecutionError> {
+        self.send_term()
     }
 }
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
-    fn send(&self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
+    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
         self.send_op(None, op, port)
-    }
-}
-
-impl ChannelManager for LocalChannelForwarder {
-    fn terminate(&self) -> Result<(), ExecutionError> {
-        self.send_term()
     }
 }

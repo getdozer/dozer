@@ -612,7 +612,7 @@ impl Processor for AggregationProcessor {
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        fw: &dyn ProcessorChannelForwarder,
+        fw: &mut dyn ProcessorChannelForwarder,
         txn: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         match (txn, &self.db) {

@@ -6,8 +6,8 @@ use tempdir::TempDir;
 
 #[test]
 fn test_run_dag() {
-    //  log4rs::init_file("../log4rs.yaml", Default::default())
-    //      .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    log4rs::init_file("../log4rs.sample.yaml", Default::default())
+        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let src = TestSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
     let proc = TestProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);

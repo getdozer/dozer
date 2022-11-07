@@ -1,6 +1,6 @@
-use crate::dag::channels::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
-use crate::storage::lmdb_sys::Transaction;
+use crate::storage::lmdb_sys::{Database, Transaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
@@ -15,6 +15,7 @@ pub trait ProcessorFactory: Send + Sync {
 }
 
 pub trait Processor {
+    //  fn get_shared_databases<'a>(&'a self) -> Option<HashMap<String, &'a Database>>;
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -25,13 +26,12 @@ pub trait Processor {
         &mut self,
         from_port: PortHandle,
         op: Operation,
-        fw: &dyn ProcessorChannelForwarder,
+        fw: &mut dyn ProcessorChannelForwarder,
         state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError>;
 }
 
 pub trait SourceFactory: Send + Sync {
-    fn is_stateful(&self) -> bool;
     fn get_output_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Source>;
 }
@@ -40,9 +40,7 @@ pub trait Source {
     fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
     fn start(
         &self,
-        fw: &dyn SourceChannelForwarder,
-        cm: &dyn ChannelManager,
-        state: Option<&mut Transaction>,
+        fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<u64>,
     ) -> Result<(), ExecutionError>;
 }

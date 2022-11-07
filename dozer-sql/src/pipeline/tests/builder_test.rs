@@ -1,4 +1,4 @@
-use dozer_core::dag::channels::{ChannelManager, SourceChannelForwarder};
+use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
@@ -67,8 +67,7 @@ impl Source for TestSource {
 
     fn start(
         &self,
-        fw: &dyn SourceChannelForwarder,
-        cm: &dyn ChannelManager,
+        fw: &mut dyn SourceChannelForwarder,
         _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
@@ -89,7 +88,7 @@ impl Source for TestSource {
             )
             .unwrap();
         }
-        cm.terminate().unwrap();
+        fw.terminate().unwrap();
         Ok(())
     }
 }
