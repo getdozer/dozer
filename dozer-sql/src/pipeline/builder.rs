@@ -2,7 +2,6 @@ use super::expression::builder::normalize_ident;
 use super::processor::aggregation::AggregationProcessorFactory;
 use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
-use crate::common::utils::normalize_ident;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{InvalidQuery, InvalidRelation};
 use dozer_core::dag::dag::Dag;
@@ -65,7 +64,7 @@ impl PipelineBuilder {
 
         if let Some(selection) = select.selection {
             // Where clause
-            let selection = SelectionProcessorFactory::new(Some(selection));
+            let selection = SelectionProcessorFactory::new(selection);
             first_node_name = String::from("selection");
 
             dag.add_node(

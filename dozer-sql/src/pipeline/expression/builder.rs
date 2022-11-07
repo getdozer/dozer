@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_types::{
-    errors::{pipeline::PipelineError, types::TypeError},
+    errors::types::TypeError,
     types::{Field, Schema},
 };
 
@@ -10,13 +10,13 @@ use sqlparser::ast::{
     Ident, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
+use crate::pipeline::expression::builder::PipelineError::InternalTypeError;
 use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
 use crate::pipeline::expression::builder::PipelineError::InvalidOperator;
 use crate::pipeline::expression::builder::PipelineError::InvalidValue;
-use crate::pipeline::expression::builder::TypeError::InvalidFieldName;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
-use dozer_types::errors::pipeline::PipelineError::InternalTypeError;
+use crate::pipeline::{errors::PipelineError, expression::builder::TypeError::InvalidFieldName};
 
 use super::{
     aggregate::AggregateFunctionType,

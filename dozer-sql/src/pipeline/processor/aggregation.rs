@@ -1,5 +1,6 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
+use crate::pipeline::processor::aggregation::PipelineError::InvalidExpression;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
@@ -8,7 +9,6 @@ use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{PortHandle, Processor, ProcessorFactory};
 use dozer_core::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
-use dozer_types::errors::pipeline::PipelineError::InvalidExpression;
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 
@@ -19,8 +19,6 @@ use crate::pipeline::aggregation::sum::IntegerSumAggregator;
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::builder::ExpressionType;
-use crate::pipeline::expression::execution::ExpressionExecutor;
-use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 
 pub enum FieldRule {
     /// Represents a dimension field, generally used in the GROUP BY clause

@@ -1,6 +1,8 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{column_index, ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::processor::projection::PipelineError::InvalidExpression;
+use crate::pipeline::processor::projection::PipelineError::InvalidOperator;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
@@ -8,8 +10,6 @@ use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
-use dozer_types::errors::pipeline::PipelineError::InvalidExpression;
-use dozer_types::errors::pipeline::PipelineError::InvalidOperator;
 use dozer_types::internal_err;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
