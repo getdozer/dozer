@@ -14,7 +14,6 @@ use crate::{
         util::{get_method_by_name, get_service_name},
     },
 };
-use dozer_cache::cache::LmdbCache;
 use dozer_types::events::Event;
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
@@ -25,7 +24,6 @@ pub struct TonicServer {
     descriptor_path: String,
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
-    cache: Arc<LmdbCache>,
     pipeline_details: PipelineDetails,
     event_notifier: tokio::sync::broadcast::Receiver<Event>,
 }
@@ -37,7 +35,6 @@ impl Clone for TonicServer {
             descriptor_path: self.descriptor_path.clone(),
             descriptor: self.descriptor.clone(),
             function_types: self.function_types.clone(),
-            cache: self.cache.clone(),
             pipeline_details: self.pipeline_details.clone(),
             event_notifier: self.event_notifier.resubscribe(),
         }
@@ -47,7 +44,6 @@ impl TonicServer {
     pub fn new(
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
-        cache: Arc<LmdbCache>,
         pipeline_details: PipelineDetails,
         event_notifier: tokio::sync::broadcast::Receiver<Event>,
     ) -> Self {
@@ -58,7 +54,6 @@ impl TonicServer {
             descriptor_path,
             descriptor,
             function_types,
-            cache,
             pipeline_details,
             event_notifier,
         }
@@ -115,7 +110,6 @@ where
                 self.descriptor_path.to_owned(),
             );
             let method_type = &self.function_types[method_name];
-            let cache = self.cache.to_owned();
             #[allow(non_camel_case_types)]
             let accept_compression_encodings = self.accept_compression_encodings;
             let send_compression_encodings = self.send_compression_encodings;
@@ -124,7 +118,6 @@ where
             return match method_type {
                 GrpcType::GetById => {
                     let method = GetByIdService {
-                        cache,
                         pipeline_details: self.pipeline_details.to_owned(),
                     };
                     let fut = async move {
@@ -135,7 +128,6 @@ where
                 }
                 GrpcType::Query => {
                     let method = QueryService {
-                        cache,
                         pipeline_details: self.pipeline_details.to_owned(),
                     };
                     let fut = async move {
@@ -146,7 +138,6 @@ where
                 }
                 GrpcType::List => {
                     let method = ListService {
-                        cache,
                         pipeline_details: self.pipeline_details.to_owned(),
                     };
                     let fut = async move {
@@ -157,7 +148,6 @@ where
                 }
                 GrpcType::OnInsert => {
                     let method = OnInsertService {
-                        cache,
                         pipeline_details: self.pipeline_details.to_owned(),
                         event_notifier: self.event_notifier.resubscribe(),
                     };
@@ -169,7 +159,6 @@ where
                 }
                 GrpcType::OnUpdate => {
                     let method = OnUpdateService {
-                        cache,
                         pipeline_details: self.pipeline_details.to_owned(),
                         event_notifier: self.event_notifier.resubscribe(),
                     };
@@ -181,7 +170,6 @@ where
                 }
                 GrpcType::OnDelete => {
                     let method = OnDeleteService {
-                        cache,
                         pipeline_details: self.pipeline_details.to_owned(),
                         event_notifier: self.event_notifier.resubscribe(),
                     };

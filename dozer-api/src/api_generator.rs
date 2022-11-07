@@ -1,6 +1,6 @@
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
-use dozer_cache::cache::{expression::QueryExpression, LmdbCache};
+use dozer_cache::cache::{expression::QueryExpression};
 use dozer_types::log::info;
 
 use crate::api_helper::ApiHelper;
@@ -10,18 +10,15 @@ use crate::errors::ApiError;
 use dozer_cache::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use std::sync::Arc;
+
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
-    cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
-    let cache = cache.as_ref().to_owned();
     let helper = ApiHelper::new(
         pipeline_details.into_inner(),
-        cache,
         access.map(|a| a.into_inner()),
     )?;
 
@@ -35,12 +32,9 @@ pub async fn get(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
     path: web::Path<String>,
-    cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
-    let cache = cache.as_ref().to_owned();
     let helper = ApiHelper::new(
         pipeline_details.into_inner(),
-        cache,
         access.map(|a| a.into_inner()),
     )?;
     let key = path.into_inner();
@@ -54,12 +48,9 @@ pub async fn get(
 pub async fn list(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
-    cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
-    let cache = cache.as_ref().to_owned();
     let helper = ApiHelper::new(
         pipeline_details.into_inner(),
-        cache,
         access.map(|a| a.into_inner()),
     )?;
     let exp = QueryExpression::new(None, vec![], 50, 0);
@@ -89,14 +80,11 @@ pub async fn query(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
     query_info: web::Json<Value>,
-    cache: web::Data<Arc<LmdbCache>>,
 ) -> Result<HttpResponse, ApiError> {
     let query_expression = serde_json::from_value::<QueryExpression>(query_info.0)
         .map_err(ApiError::map_deserialization_error)?;
-    let cache = cache.as_ref().to_owned();
     let helper = ApiHelper::new(
         pipeline_details.into_inner(),
-        cache,
         access.map(|a| a.into_inner()),
     )?;
     helper

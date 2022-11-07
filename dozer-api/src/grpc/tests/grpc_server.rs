@@ -19,7 +19,7 @@ use crate::{
         },
     },
     grpc_server::GRPCServer,
-    test_utils,
+    test_utils, CacheEndpoint,
 };
 use dozer_types::events::Event;
 use futures_util::FutureExt;
@@ -37,9 +37,11 @@ fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
         schema_name: schema_name.to_owned(),
-        endpoint,
+        cache_endpoint: CacheEndpoint {
+            cache: test_utils::initialize_cache(&schema_name),
+            endpoint,
+        },
     };
-    let cache = test_utils::initialize_cache(&schema_name);
     let schema = test_utils::get_schema();
     let proto_generated_result =
         generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned(), schema).unwrap();
@@ -49,13 +51,7 @@ fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
     let (tx, rx1) = broadcast::channel::<Event>(16);
     GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
 
-    TonicServer::new(
-        path_to_descriptor,
-        function_types,
-        cache,
-        pipeline_details,
-        rx1,
-    )
+    TonicServer::new(path_to_descriptor, function_types, pipeline_details, rx1)
 }
 
 #[tokio::test]

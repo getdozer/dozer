@@ -18,7 +18,7 @@ impl ProtoGenerator<'_> {
         let proto_service = ProtoService::new(
             schema,
             pipeline_details.schema_name.to_owned(),
-            pipeline_details.endpoint,
+            pipeline_details.cache_endpoint.endpoint,
         );
         let mut proto_generator = Self {
             handlebars: Handlebars::new(),

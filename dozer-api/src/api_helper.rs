@@ -1,6 +1,8 @@
+use crate::api_server::PipelineDetails;
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
-use dozer_cache::cache::{expression::QueryExpression, index, LmdbCache};
+use crate::generator::oapi::generator::OpenApiGenerator;
+use dozer_cache::cache::{expression::QueryExpression, index};
 use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::indexmap::IndexMap;
@@ -8,10 +10,6 @@ use dozer_types::json_value_to_field;
 use dozer_types::record_to_json;
 use dozer_types::types::{FieldType, Record};
 use openapiv3::OpenAPI;
-use std::sync::Arc;
-
-use crate::api_server::PipelineDetails;
-use crate::generator::oapi::generator::OpenApiGenerator;
 
 pub struct ApiHelper {
     details: PipelineDetails,
@@ -20,7 +18,6 @@ pub struct ApiHelper {
 impl ApiHelper {
     pub fn new(
         pipeline_details: PipelineDetails,
-        cache: Arc<LmdbCache>,
         access: Option<Access>,
     ) -> Result<Self, ApiError> {
         let access = access.map_or(Access::All, |a| a);
@@ -43,7 +40,7 @@ impl ApiHelper {
         };
 
         let reader = CacheReader {
-            cache,
+            cache: pipeline_details.cache_endpoint.cache.clone(),
             access: reader_access,
         };
         Ok(Self {
@@ -62,7 +59,7 @@ impl ApiHelper {
         let oapi_generator = OpenApiGenerator::new(
             schema,
             schema_name,
-            self.details.endpoint.clone(),
+            self.details.cache_endpoint.endpoint.clone(),
             vec![format!("http://localhost:{}", "8080")],
         );
 

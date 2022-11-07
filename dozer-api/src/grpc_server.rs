@@ -59,7 +59,7 @@ impl GRPCServer {
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
         let pipeline_details = PipelineDetails {
             schema_name: schema_name.to_owned(),
-            endpoint: cache_endpoint.to_owned().endpoint,
+            cache_endpoint,
         };
         let proto_generator = ProtoGenerator::new(schema, pipeline_details.to_owned())?;
         let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
@@ -74,14 +74,8 @@ impl GRPCServer {
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
             .build()?;
         let addr = format!("[::1]:{:}", self.port).parse().unwrap();
-        let cache = cache_endpoint.cache;
-        let grpc_service = TonicServer::new(
-            descriptor_path,
-            generated_proto.1,
-            cache,
-            pipeline_details,
-            rx1,
-        );
+        let grpc_service =
+            TonicServer::new(descriptor_path, generated_proto.1, pipeline_details, rx1);
         let grpc_router = Server::builder()
             .accept_http1(true)
             .concurrency_limit_per_connection(32)
@@ -108,12 +102,14 @@ impl GRPCServer {
     }
     pub fn run(
         &self,
-        cache_endpoint: CacheEndpoint,
+        cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
     ) -> Result<(), GRPCError> {
         let event = self.event_notifier.clone().recv();
         if let Ok(Event::SchemaChange(_)) = event {
             // Only start when ensuring Schema is existed
+
+            let cache_endpoint = cache_endpoints.get(0).unwrap().to_owned();
             self._start_grpc_server(cache_endpoint, self.event_notifier.to_owned(), running)?;
         }
         Ok(())

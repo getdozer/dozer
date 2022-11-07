@@ -1,7 +1,7 @@
 use super::super::api_server::ApiServer;
 use crate::{
     api_server::CorsOptions, auth::api::ApiSecurity, generator::oapi::generator::OpenApiGenerator,
-    test_utils,
+    test_utils, CacheEndpoint,
 };
 use dozer_types::serde_json::{json, Value};
 
@@ -30,8 +30,10 @@ async fn list_route() {
     let api_server = ApiServer::create_app_entry(
         ApiSecurity::None,
         CorsOptions::Permissive,
-        vec![endpoint.to_owned()],
-        cache,
+        vec![CacheEndpoint {
+            cache,
+            endpoint: endpoint.clone(),
+        }],
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -55,8 +57,10 @@ async fn query_route() {
     let api_server = ApiServer::create_app_entry(
         ApiSecurity::None,
         CorsOptions::Permissive,
-        vec![endpoint.to_owned()],
-        cache,
+        vec![CacheEndpoint {
+            cache,
+            endpoint: endpoint.clone(),
+        }],
     );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::post()
@@ -80,8 +84,10 @@ async fn get_route() {
     let api_server = ApiServer::create_app_entry(
         ApiSecurity::None,
         CorsOptions::Permissive,
-        vec![endpoint.to_owned()],
-        cache,
+        vec![CacheEndpoint {
+            cache,
+            endpoint: endpoint.clone(),
+        }],
     );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::get()

@@ -57,10 +57,8 @@ impl Orchestrator for SimpleOrchestrator {
             })
             .collect();
 
-        let cache_endpoint = cache_endpoints.get(0).unwrap().clone();
-        let ce2 = cache_endpoint.clone();
-        let ce3 = cache_endpoint;
-
+        let ce2 = cache_endpoints.clone();
+        let ce3 = cache_endpoints.clone();
         let sources = self.sources.clone();
 
         // Initialize ingestor
@@ -79,7 +77,7 @@ impl Orchestrator for SimpleOrchestrator {
         let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             let api_server = ApiServer::default();
             api_server
-                .run(vec![ce2.endpoint], ce2.cache, tx)
+                .run(ce3, tx)
                 .map_err(OrchestrationError::ApiServerFailed)
         });
         let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
@@ -89,7 +87,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             grpc_server
-                .run(ce3, running3.to_owned())
+                .run(ce2, running3.to_owned())
                 .map_err(OrchestrationError::GrpcServerFailed)
         });
         // Waiting for Ctrl+C

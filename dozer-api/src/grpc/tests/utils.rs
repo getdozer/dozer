@@ -11,7 +11,7 @@ use crate::{
     errors::GenerationError,
     generator::protoc::{generator::ProtoGenerator, proto_service::GrpcType},
     grpc::util::create_descriptor_set,
-    test_utils,
+    test_utils, CacheEndpoint,
 };
 use std::{collections::HashMap, io, thread};
 
@@ -22,8 +22,11 @@ pub fn generate_proto(
 ) -> Result<(std::string::String, HashMap<std::string::String, GrpcType>), GenerationError> {
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
-        schema_name,
-        endpoint,
+        schema_name: schema_name.clone(),
+        cache_endpoint: CacheEndpoint {
+            cache: test_utils::initialize_cache(&schema_name),
+            endpoint,
+        },
     };
     let proto_generator = ProtoGenerator::new(schema, pipeline_details)?;
     let generated_proto = proto_generator.generate_proto(dir_path)?;
