@@ -1,9 +1,10 @@
+#![allow(dead_code)]
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::node::PortHandle;
 use dozer_core::storage::errors::StorageError::SerializationError;
-use dozer_core::storage::indexed_db::{IndexedDatabase, SecondaryIndexKey};
-use dozer_types::types::{Field, FieldDefinition, Operation, Record};
+use dozer_core::storage::indexed_db::IndexedDatabase;
+use dozer_types::types::{Field, Operation, Record};
 
 pub struct RelationIndex {
     id: PortHandle,
@@ -47,7 +48,7 @@ impl RelationIndex {
 
         let mut out_fields = Vec::<&Field>::with_capacity(self.vals_indexes.len());
         for i in &self.vals_indexes {
-            out_fields.push(rec.get_value(i.clone())?);
+            out_fields.push(rec.get_value(*i)?);
         }
         let out_fields_val = bincode::serialize(&out_fields).map_err(|e| SerializationError {
             typ: "Vec<Field>".to_string(),
@@ -63,10 +64,10 @@ impl RelationIndex {
 
     pub fn handle(&self, op: Operation) -> Result<(), PipelineError> {
         match op {
-            Operation::Update { old, new } => {}
-            Operation::Delete { old } => {}
+            Operation::Update { old: _, new: _ } => {}
+            Operation::Delete { old: _ } => {}
             Operation::Insert { new } => {
-                let fdata = self.extract(&new)?;
+                let _fdata = self.extract(&new)?;
             }
         }
 

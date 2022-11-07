@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::pipeline::expression::execution::Expression;
 use dozer_core::dag::node::PortHandle;
 
