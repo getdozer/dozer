@@ -1,14 +1,15 @@
 #![allow(clippy::type_complexity)]
 use libc::{c_int, c_uint, c_void, size_t, EACCES, EAGAIN, EINVAL, EIO, ENOENT, ENOMEM, ENOSPC};
 use lmdb_sys::{
-    mdb_cursor_close, mdb_cursor_get, mdb_cursor_open, mdb_dbi_close, mdb_dbi_open, mdb_del,
-    mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs,
+    mdb_cursor_close, mdb_cursor_get, mdb_cursor_open, mdb_cursor_put, mdb_dbi_close, mdb_dbi_open,
+    mdb_del, mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs,
     mdb_env_set_maxreaders, mdb_get, mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit,
-    MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_CREATE, MDB_DBS_FULL,
-    MDB_DUPFIXED, MDB_DUPSORT, MDB_GET_CURRENT, MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL,
-    MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA, MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE,
-    MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_NOTLS, MDB_PANIC, MDB_PREV, MDB_RDONLY,
-    MDB_READERS_FULL, MDB_SET, MDB_SET_RANGE, MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
+    MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_APPEND, MDB_APPENDDUP,
+    MDB_CREATE, MDB_CURRENT, MDB_DBS_FULL, MDB_DUPFIXED, MDB_DUPSORT, MDB_GET_CURRENT,
+    MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA,
+    MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_NOTLS,
+    MDB_PANIC, MDB_PREV, MDB_RDONLY, MDB_READERS_FULL, MDB_RESERVE, MDB_SET, MDB_SET_RANGE,
+    MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -112,6 +113,30 @@ impl Drop for Cursor {
             mdb_cursor_close(self.cursor.cursor);
         }
     }
+}
+
+#[inline]
+fn mdb_val(v: &[u8]) -> MDB_val {
+    MDB_val {
+        mv_size: v.len(),
+        mv_data: v.as_ptr() as *mut c_void,
+    }
+}
+
+#[inline]
+fn mdb_null_val() -> MDB_val {
+    MDB_val {
+        mv_size: 0,
+        mv_data: ptr::null_mut(),
+    }
+}
+
+macro_rules! set_flags {
+    ($src: expr, $flag_var: expr, $flag: expr) => {
+        if $src {
+            $flag_var |= $flag;
+        }
+    };
 }
 
 /***********************************************************************************
@@ -652,6 +677,28 @@ impl Database {
     }
 }
 
+pub struct CursorPutOptions {
+    pub current: bool,
+    pub no_duplicate_data: bool,
+    pub no_overwrite: bool,
+    pub reserve: bool,
+    pub append: bool,
+    pub append_duplicate: bool,
+}
+
+impl CursorPutOptions {
+    pub fn default() -> Self {
+        Self {
+            current: false,
+            no_duplicate_data: false,
+            no_overwrite: false,
+            reserve: false,
+            append: false,
+            append_duplicate: false,
+        }
+    }
+}
+
 pub struct Cursor {
     db: Arc<DbPtr>,
     txn: Arc<TxnPtr>,
@@ -757,6 +804,53 @@ impl Cursor {
             Ok(Some(_v)) => Ok(true),
             Ok(None) => Ok(false),
             Err(e) => Err(e),
+        }
+    }
+
+    pub fn put(&self, key: &[u8], value: &[u8], opts: &CursorPutOptions) -> Result<(), LmdbError> {
+        unsafe {
+            let mut key_data = mdb_val(key);
+            let mut val_data = mdb_val(value);
+
+            let mut opt_flags: c_uint = 0;
+            set_flags!(opts.current, opt_flags, MDB_CURRENT);
+            set_flags!(opts.no_duplicate_data, opt_flags, MDB_NODUPDATA);
+            set_flags!(opts.no_overwrite, opt_flags, MDB_NOOVERWRITE);
+            set_flags!(opts.reserve, opt_flags, MDB_RESERVE);
+            set_flags!(opts.append, opt_flags, MDB_APPEND);
+            set_flags!(opts.append_duplicate, opt_flags, MDB_APPENDDUP);
+
+            let r = mdb_cursor_put(
+                self.cursor.cursor,
+                addr_of_mut!(key_data),
+                addr_of_mut!(val_data),
+                opt_flags,
+            );
+
+            match r {
+                MDB_MAP_FULL => {
+                    return Err(LmdbError::new(
+                        r,
+                        "The database is full, see mdb_env_set_mapsize()".to_string(),
+                    ))
+                }
+                MDB_TXN_FULL => {
+                    return Err(LmdbError::new(
+                        r,
+                        "the transaction has too many dirty pages".to_string(),
+                    ))
+                }
+                EACCES => {
+                    return Err(LmdbError::new(
+                        r,
+                        "An attempt was made to write in a read-only transaction".to_string(),
+                    ))
+                }
+                EINVAL => return Err(LmdbError::new(r, "Invalid parameter".to_string())),
+                x if x != 0 => return Err(LmdbError::new(r, "Unknown error".to_string())),
+                _ => {}
+            }
+            Ok(())
         }
     }
 }

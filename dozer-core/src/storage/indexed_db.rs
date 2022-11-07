@@ -20,14 +20,13 @@ pub struct IndexedDatabase {
 }
 
 const COUNTER_KEY: u16 = 0_u16;
-const PRIMARY_IDX_KEY: u16 = 1_u16;
-const SECONDARY_IDX_KEY_LIST_KEY: u16 = 2_u16;
+const PRIMARY_IDX_KEY: u16 = 0xffff_u16;
+const SECONDARY_IDX_KEY_LIST_KEY: u16 = 0xfffe_u16;
 
 impl IndexedDatabase {
     pub fn new(db: Database) -> Self {
         let mut counter_key: [u8; 2] = [0; 2];
         counter_key[..2].copy_from_slice(&COUNTER_KEY.to_be_bytes());
-
         Self { db, counter_key }
     }
 
