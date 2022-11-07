@@ -1,4 +1,4 @@
-use super::selection_builder::SelectionBuilder;
+use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
@@ -13,12 +13,12 @@ use sqlparser::ast::Expr as SqlExpr;
 use std::collections::HashMap;
 
 pub struct SelectionProcessorFactory {
-    statement: Option<SqlExpr>,
+    statement: SqlExpr,
 }
 
 impl SelectionProcessorFactory {
     /// Creates a new [`SelectionProcessorFactory`].
-    pub fn new(statement: Option<SqlExpr>) -> Self {
+    pub fn new(statement: SqlExpr) -> Self {
         Self { statement }
     }
 }
@@ -40,25 +40,25 @@ impl ProcessorFactory for SelectionProcessorFactory {
         Box::new(SelectionProcessor {
             statement: self.statement.clone(),
             expression: Box::new(Expression::Literal(Field::Boolean(true))),
-            builder: SelectionBuilder {},
+            builder: ExpressionBuilder {},
         })
     }
 }
 
 pub struct SelectionProcessor {
-    statement: Option<SqlExpr>,
+    statement: SqlExpr,
     expression: Box<Expression>,
-    builder: SelectionBuilder,
+    builder: ExpressionBuilder,
 }
 
 impl SelectionProcessor {
     fn build_expression(
         &self,
-        statement: Option<SqlExpr>,
+        sql_expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, ExecutionError> {
         self.builder
-            .build_expression(&statement, schema)
+            .build(&ExpressionType::FullExpression, sql_expression, schema)
             .map_err(|e| InternalError(Box::new(e)))
     }
 
@@ -82,7 +82,7 @@ impl Processor for SelectionProcessor {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        self.expression = self.build_expression(self.statement.clone(), schema)?;
+        self.expression = self.build_expression(&self.statement, schema)?;
         Ok(schema.clone())
     }
 

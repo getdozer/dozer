@@ -9,6 +9,7 @@ Cargo.lock
 dozer-core/.data
 
 .vscode
+*.code-workspace
 docker/data/
 dozer-sql/data
 *.mdb

@@ -1,5 +1,6 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
+use crate::pipeline::processor::aggregation::PipelineError::InvalidExpression;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
@@ -10,10 +11,14 @@ use dozer_core::dag::node::{PortHandle, Processor, ProcessorFactory};
 use dozer_core::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
+
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
-use super::aggregation_builder::AggregationBuilder;
+use crate::pipeline::aggregation::sum::IntegerSumAggregator;
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
+use crate::pipeline::expression::builder::ExpressionBuilder;
+use crate::pipeline::expression::builder::ExpressionType;
 
 pub enum FieldRule {
     /// Represents a dimension field, generally used in the GROUP BY clause
@@ -76,7 +81,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             output_field_rules: vec![],
             out_dimensions: vec![],
             out_measures: vec![],
-            builder: AggregationBuilder {},
+            builder: ExpressionBuilder {},
             db: None,
         })
     }
@@ -88,7 +93,7 @@ pub struct AggregationProcessor {
     output_field_rules: Vec<FieldRule>,
     out_dimensions: Vec<(usize, Box<Expression>, usize)>,
     out_measures: Vec<(usize, Box<dyn Aggregator>, usize)>,
-    builder: AggregationBuilder,
+    builder: ExpressionBuilder,
     db: Option<Database>,
 }
 
@@ -110,7 +115,90 @@ impl AggregationProcessor {
         groupby: &[SqlExpr],
         schema: &Schema,
     ) -> Result<Vec<FieldRule>, PipelineError> {
-        self.builder.build(select, groupby, schema)
+        let mut groupby_rules = groupby
+            .iter()
+            .map(|expr| self.parse_sql_groupby_item(expr, schema))
+            .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
+
+        let mut select_rules = select
+            .iter()
+            .map(|item| self.parse_sql_aggregate_item(item, schema))
+            .filter(|e| e.is_ok())
+            .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
+
+        groupby_rules.append(&mut select_rules);
+
+        Ok(groupby_rules)
+    }
+
+    pub fn parse_sql_groupby_item(
+        &self,
+        sql_expression: &SqlExpr,
+        schema: &Schema,
+    ) -> Result<FieldRule, PipelineError> {
+        let expression =
+            self.builder
+                .build(&ExpressionType::FullExpression, sql_expression, schema)?;
+
+        Ok(FieldRule::Dimension(
+            sql_expression.to_string(),
+            expression,
+            true,
+            None,
+        ))
+    }
+
+    pub fn parse_sql_aggregate_item(
+        &self,
+        item: &SelectItem,
+        schema: &Schema,
+    ) -> Result<FieldRule, PipelineError> {
+        match item {
+            SelectItem::UnnamedExpr(sql_expr) => {
+                match self.builder.parse_sql_expression(
+                    &ExpressionType::Aggregation,
+                    sql_expr,
+                    schema,
+                ) {
+                    Ok(expr) => Ok(FieldRule::Measure(
+                        sql_expr.to_string(),
+                        self.get_aggregator(expr.0)?,
+                        true,
+                        Some(item.to_string()),
+                    )),
+                    Err(error) => Err(error),
+                }
+            }
+            SelectItem::ExprWithAlias { expr, alias } => Err(InvalidExpression(format!(
+                "Unsupported Expression {}:{}",
+                expr, alias
+            ))),
+            SelectItem::Wildcard => Err(InvalidExpression(
+                "Wildcard Operator is not supported".to_string(),
+            )),
+            SelectItem::QualifiedWildcard(ref _object_name) => Err(InvalidExpression(
+                "Qualified Wildcard Operator is not supported".to_string(),
+            )),
+        }
+    }
+
+    fn get_aggregator(
+        &self,
+        expression: Box<Expression>,
+    ) -> Result<Box<dyn Aggregator>, PipelineError> {
+        match *expression {
+            Expression::AggregateFunction { fun, args: _ } => match fun {
+                AggregateFunctionType::Sum => Ok(Box::new(IntegerSumAggregator::new())),
+                _ => Err(InvalidExpression(format!(
+                    "Not implemented Aggreagation function: {:?}",
+                    fun
+                ))),
+            },
+            _ => Err(InvalidExpression(format!(
+                "Not an Aggreagation function: {:?}",
+                expression
+            ))),
+        }
     }
 
     fn populate_rules(&mut self, schema: &Schema) -> Result<(), PipelineError> {
