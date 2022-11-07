@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::cache::{expression::QueryExpression, Cache, LmdbCache};
 
 use super::cache::expression::FilterExpression;
+use crate::errors::CacheError;
 use dozer_types::{
-    errors::cache::CacheError,
     serde,
     types::{Record, Schema},
 };

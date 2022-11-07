@@ -1,7 +1,7 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
 use crate::cache::expression::{QueryExpression, SortOptions};
-use dozer_types::errors::cache::CacheError;
+use crate::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::json;
 use dozer_types::serde_json::Value;

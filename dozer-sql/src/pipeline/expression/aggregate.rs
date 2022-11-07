@@ -1,5 +1,5 @@
-use dozer_types::errors::pipeline::PipelineError;
-use dozer_types::errors::pipeline::PipelineError::InvalidFunction;
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::InvalidFunction;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum AggregateFunctionType {

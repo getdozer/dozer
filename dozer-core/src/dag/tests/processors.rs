@@ -1,13 +1,9 @@
+use crate::dag::channels::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::dag::errors::ExecutionError;
 use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_types::core::channels::{
-    ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder,
-};
-use dozer_types::core::node::PortHandle;
-use dozer_types::core::node::{
-    Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory,
-};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
-use dozer_types::errors::execution::ExecutionError;
+use crate::dag::node::PortHandle;
+use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
+use crate::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;
@@ -25,9 +21,10 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
+    fn is_stateful(&self) -> bool {
+        false
     }
+
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
@@ -59,10 +56,10 @@ impl Source for TestSource {
         &self,
         fw: &dyn SourceChannelForwarder,
         cm: &dyn ChannelManager,
-        _state: &mut dyn StateStore,
+        _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1_000 {
+        for n in 0..1_000_000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -88,9 +85,10 @@ impl TestSinkFactory {
 }
 
 impl SinkFactory for TestSinkFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
+    fn is_stateful(&self) -> bool {
+        false
     }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -111,7 +109,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
         debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -121,7 +119,7 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
-        _state: &mut dyn StateStore,
+        _state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -144,9 +142,10 @@ impl TestProcessorFactory {
 }
 
 impl ProcessorFactory for TestProcessorFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        Some(StateStoreOptions::default())
+    fn is_stateful(&self) -> bool {
+        true
     }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -155,17 +154,17 @@ impl ProcessorFactory for TestProcessorFactory {
     }
     fn build(&self) -> Box<dyn Processor> {
         Box::new(TestProcessor {
-            state: None,
             id: self.id,
             ctr: 0,
+            db: None,
         })
     }
 }
 
 pub struct TestProcessor {
-    state: Option<Box<dyn StateStore>>,
     id: i32,
     ctr: u64,
+    db: Option<Database>,
 }
 
 impl Processor for TestProcessor {
@@ -191,8 +190,12 @@ impl Processor for TestProcessor {
         Ok(out_schema)
     }
 
-    fn init<'a>(&'_ mut self, _state_store: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, tx: Option<&mut Transaction>) -> Result<(), ExecutionError> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
+        let mut opts = DatabaseOptions::default();
+        opts.create = true;
+
+        self.db = Some(tx.unwrap().open_database("test".to_string(), opts)?);
         Ok(())
     }
 
@@ -201,10 +204,15 @@ impl Processor for TestProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        state_store: &mut dyn StateStore,
+        state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
-        state_store.put(&self.ctr.to_ne_bytes(), &self.id.to_ne_bytes())?;
+        state.unwrap().put(
+            self.db.as_ref().unwrap(),
+            &self.ctr.to_ne_bytes(),
+            &self.id.to_ne_bytes(),
+            PutOptions::default(),
+        )?;
         fw.send(op, DEFAULT_PORT_HANDLE)?;
         Ok(())
     }

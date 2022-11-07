@@ -1,6 +1,6 @@
 use crate::pipeline::aggregation::aggregator::Aggregator;
-use dozer_types::errors::pipeline::PipelineError;
-use dozer_types::errors::pipeline::PipelineError::InvalidOperandType;
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_types::types::Field::Int;
 use dozer_types::types::{Field, FieldType};
 

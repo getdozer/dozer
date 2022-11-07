@@ -6,10 +6,11 @@ use crate::{
         server::TonicServer,
         util::{create_descriptor_set, read_file_as_byte},
     },
+    CacheEndpoint,
 };
-use dozer_cache::cache::{Cache, LmdbCache};
-use dozer_types::{events::Event, models::api_endpoint::ApiEndpoint};
-use std::{sync::Arc, thread};
+use dozer_cache::cache::Cache;
+use dozer_types::events::Event;
+use std::thread;
 use tempdir::TempDir;
 use tokio::{runtime::Runtime, sync::broadcast};
 use tonic::transport::Server;
@@ -37,21 +38,20 @@ impl GRPCServer {
     }
     fn _start_grpc_server(
         &self,
-        endpoint: ApiEndpoint,
-        cache: Arc<LmdbCache>,
+        cache_endpoint: CacheEndpoint,
         event_notifier: crossbeam::channel::Receiver<Event>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<Event>(16);
         GRPCServer::setup_broad_cast_channel(tx, event_notifier)?;
 
-        let schema_name = endpoint.name.to_owned();
-        let schema = cache.get_schema_by_name(&schema_name)?;
+        let schema_name = cache_endpoint.endpoint.name.to_owned();
+        let schema = cache_endpoint.cache.get_schema_by_name(&schema_name)?;
         let tmp_dir = TempDir::new("proto_generated").unwrap();
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
         let pipeline_details = PipelineDetails {
             schema_name: schema_name.to_owned(),
-            endpoint,
+            endpoint: cache_endpoint.to_owned().endpoint,
         };
         let proto_generator = ProtoGenerator::new(schema, pipeline_details.to_owned())?;
         let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
@@ -65,7 +65,8 @@ impl GRPCServer {
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
             .build()?;
-        let addr = format!("[::1]:{:}", self.port).parse().unwrap(); // "[::1]:50051".parse().unwrap();
+        let addr = format!("[::1]:{:}", self.port).parse().unwrap();
+        let cache = cache_endpoint.cache;
         let grpc_service = TonicServer::new(
             descriptor_path,
             generated_proto.1,
@@ -94,11 +95,11 @@ impl GRPCServer {
             event_notifier,
         }
     }
-    pub fn run(&self, endpoint: ApiEndpoint, cache: Arc<LmdbCache>) -> Result<(), GRPCError> {
+    pub fn run(&self, cache_endpoint: CacheEndpoint) -> Result<(), GRPCError> {
         let event = self.event_notifier.clone().recv();
         if let Ok(Event::SchemaChange(_)) = event {
             // Only start when ensuring Schema is existed
-            self._start_grpc_server(endpoint, cache, self.event_notifier.to_owned())?;
+            self._start_grpc_server(cache_endpoint, self.event_notifier.to_owned())?;
         }
         Ok(())
     }

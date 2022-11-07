@@ -1,11 +1,11 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
-use bytes::Bytes;
-use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use dozer_types::errors::connector::PostgresSchemaError::{
+use crate::errors::PostgresSchemaError::{
     ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, InvalidColumnType,
     ValueConversionError,
 };
-use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
+use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
+use bytes::Bytes;
+use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::log::error;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};

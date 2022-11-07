@@ -7,20 +7,15 @@ use crate::cache::{
     lmdb::{cache::IndexMetaData, query::helper::lmdb_cmp},
     plan::{IndexFilter, IndexScan, Plan, QueryPlanner},
 };
+use crate::errors::{
+    CacheError::{self},
+    IndexError, QueryError,
+};
 use dozer_types::{
     bincode, json_value_to_field,
     types::{Field, Record, Schema, SortDirection},
 };
-use dozer_types::{
-    errors::{
-        cache::{
-            CacheError::{self},
-            IndexError, QueryError,
-        },
-        types::TypeError,
-    },
-    types::IndexDefinition,
-};
+use dozer_types::{errors::types::TypeError, types::IndexDefinition};
 use lmdb::{Database, RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
@@ -272,12 +267,15 @@ impl<'a> LmdbQueryHandler<'a> {
                         .schema
                         .fields
                         .get(idx)
-                        .map_or(Err(CacheError::QueryError(QueryError::GetValue)), Ok)?
+                        .map_or(Err(CacheError::QueryError(QueryError::FieldNotFound)), Ok)?
                         .typ
                         .to_owned();
                     Some(
-                        json_value_to_field(&idf.val.to_string(), &field_type)
-                            .map_err(CacheError::TypeError)?,
+                        json_value_to_field(
+                            idf.val.as_str().unwrap_or(&idf.val.to_string()),
+                            &field_type,
+                        )
+                        .map_err(CacheError::TypeError)?,
                     )
                 }
                 None => None,

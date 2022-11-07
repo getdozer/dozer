@@ -1,17 +1,17 @@
 use std::{sync::Arc, thread};
 
-use dozer_api::api_server::ApiServer;
+use dozer_api::CacheEndpoint;
+use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
 use dozer_cache::cache::LmdbCache;
+use dozer_types::events::Event;
 
 use super::executor::Executor;
+use crate::errors::OrchestrationError;
 use crate::Orchestrator;
-use crossbeam::channel::{self};
 use dozer_api::grpc_server::GRPCServer;
-use dozer_types::{
-    errors::orchestrator::OrchestrationError,
-    events::Event,
-    models::{api_endpoint::ApiEndpoint, source::Source},
-};
+use dozer_types::crossbeam::channel::{self, unbounded};
+use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Default)]
 pub struct SimpleOrchestrator {
@@ -33,36 +33,63 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn run(&mut self) -> Result<(), OrchestrationError> {
-        let cache = Arc::new(LmdbCache::new(true));
-        let cache_2 = cache.clone();
-        let cache_3 = cache.clone();
+        //Set AtomicBool and wait for CtrlC
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
 
-        let endpoints = self.api_endpoints.clone();
-        let endpoints2 = self.api_endpoints.get(0).unwrap().clone();
-        let endpoints3 = self.api_endpoints.get(0).unwrap().clone();
+        ctrlc::set_handler(move || {
+            r.store(false, Ordering::SeqCst);
+        })
+        .expect("Error setting Ctrl-C handler");
+
+        // let cache_2 = cache.clone();
+        // let cache_3 = cache.clone();
+
+        let cache_endpoints: Vec<CacheEndpoint> = self
+            .api_endpoints
+            .iter()
+            .map(|e| CacheEndpoint {
+                cache: Arc::new(LmdbCache::new(true)),
+                endpoint: e.to_owned(),
+            })
+            .collect();
+        let cache_endpoint = cache_endpoints.get(0).unwrap().clone();
+        let ce2 = cache_endpoint.clone();
+        let ce3 = cache_endpoint.clone();
 
         let sources = self.sources.clone();
+        let (tx, rx) = unbounded::<ServerHandle>();
 
-        let api_thread = thread::spawn(move || {
-            let api_server = ApiServer::default();
-            api_server.run(endpoints, cache_2)
-        });
+        // Initialize Pipeline
         let (sender, receiver) = channel::unbounded::<Event>();
         let receiver1 = receiver;
-        let _executor_thread = thread::spawn(move || {
+        let _thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
             // TODO: Refactor add endpoint method to support multiple endpoints
-            _ = Executor::run(sources, endpoints2, cache, sender);
+            Executor::run(sources, cache_endpoint, sender)?;
+            Ok(())
         });
 
+        // Initialize API Server
+        let _thread = thread::spawn(move || -> Result<(), OrchestrationError> {
+            let api_server = ApiServer::default();
+            api_server
+                .run(vec![ce2.endpoint], ce2.cache, tx)
+                .map_err(OrchestrationError::ApiServerFailed)
+        });
+        let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
+
+        // Initialize GRPC Server
         let grpc_server = GRPCServer::new(receiver1, 50051);
-        let _grpc_thread = thread::spawn(move || {
-            _ = grpc_server.run(endpoints3, cache_3);
-        });
 
-        match api_thread.join() {
-            Ok(_) => Ok(()),
-            Err(_) => Err(OrchestrationError::InitializationFailed),
-        }?;
+        let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
+            grpc_server
+                .run(ce3)
+                .map_err(OrchestrationError::GrpcServerFailed)
+        });
+        // Waiting for Ctrl+C
+        while running.load(Ordering::SeqCst) {}
+        ApiServer::stop(server_handle);
+
         Ok(())
     }
 }

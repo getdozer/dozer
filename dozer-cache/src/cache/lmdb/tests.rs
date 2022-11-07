@@ -1,13 +1,12 @@
 use super::super::test_utils;
-use dozer_types::{
-    errors::cache::CacheError,
-    serde_json::Value,
-    types::{Field, Record, Schema},
-};
-
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
     index, Cache,
+};
+use crate::errors::CacheError;
+use dozer_types::{
+    serde_json::Value,
+    types::{Field, Record, Schema},
 };
 
 use super::cache::LmdbCache;

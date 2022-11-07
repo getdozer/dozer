@@ -29,7 +29,8 @@ impl OpenApiGenerator {
                 let field_def = &self.schema.fields[fields[0].0];
                 let name = field_def.name.clone();
                 let val = match field_def.typ {
-                    FieldType::Int => Value::from(1),
+                    FieldType::Int => Value::from(-1),
+                    FieldType::UInt => Value::from(-1),
                     FieldType::Float => Value::from(1.1),
                     FieldType::Boolean => Value::from(true),
                     FieldType::String => Value::from("foo".to_string()),
@@ -37,8 +38,14 @@ impl OpenApiGenerator {
                     | FieldType::Decimal
                     | FieldType::Timestamp
                     | FieldType::Bson
-                    | FieldType::Null
-                    | FieldType::RecordArray(_) => Value::Null,
+                    | FieldType::Null => Value::Null,
+
+                    FieldType::Text => Value::from("lorem ipsum".to_string()),
+                    FieldType::UIntArray => Value::from(vec![1, 2, 3]),
+                    FieldType::IntArray => Value::from(vec![1, -2, 3]),
+                    FieldType::FloatArray => Value::from(vec![1.0_f64, 2.0_f64, 3.2_f64]),
+                    FieldType::BooleanArray => Value::from(vec![true, true, false]),
+                    FieldType::StringArray => Value::from(vec!["a".to_string(), "b".to_string()]),
                 };
                 json!({ name: val })
             } else {

@@ -1,20 +1,22 @@
-use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
-use dozer_types::chrono::{TimeZone, Utc};
-use dozer_types::errors::connector::ConnectorError;
-use dozer_types::errors::connector::ConnectorError::PostgresConnectorError;
-use dozer_types::errors::connector::PostgresConnectorError::{
+use crate::errors::ConnectorError;
+use crate::errors::ConnectorError::PostgresConnectorError;
+use crate::errors::PostgresConnectorError::{
     ReplicationStreamEndError, ReplicationStreamError, UnexpectedReplicationMessageError,
 };
+use crate::ingestion::Ingestor;
+use dozer_types::chrono::{TimeZone, Utc};
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{debug, error};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Commit;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
@@ -25,7 +27,8 @@ pub struct CDCHandler {
     pub slot_name: String,
     pub lsn: String,
     pub last_commit_lsn: u64,
-    pub ingestor: Arc<Mutex<Ingestor>>,
+    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub connector_id: u64,
 }
 
 impl CDCHandler {
@@ -54,12 +57,15 @@ impl CDCHandler {
         debug!("last_commit_lsn: {:?}", self.last_commit_lsn);
         // Marking point of replication start
         self.ingestor
-            .lock()
-            .unwrap()
-            .handle_message(IngestionMessage::Commit(Commit {
-                seq_no: 0,
-                lsn: self.last_commit_lsn,
-            }));
+            .write()
+            .handle_message((
+                self.connector_id,
+                IngestionMessage::Commit(Commit {
+                    seq_no: 0,
+                    lsn: self.last_commit_lsn,
+                }),
+            ))
+            .map_err(ConnectorError::IngestorError)?;
 
         let copy_stream = client
             .copy_both_simple::<bytes::Bytes>(&query)
@@ -112,9 +118,9 @@ impl CDCHandler {
                     }
 
                     self.ingestor
-                        .lock()
-                        .unwrap()
-                        .handle_message(ingestion_message);
+                        .write()
+                        .handle_message((self.connector_id, ingestion_message))
+                        .map_err(ConnectorError::IngestorError)?;
                 }
                 Ok(())
             }

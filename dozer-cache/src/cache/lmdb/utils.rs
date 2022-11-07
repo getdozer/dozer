@@ -1,18 +1,19 @@
 use std::fs;
 use std::path::Path;
 
-use dozer_types::errors::cache::CacheError;
+use crate::errors::CacheError;
 use lmdb::{Cursor, Database, DatabaseFlags, Environment, RoCursor};
 use tempdir::TempDir;
 
 pub fn init_env(temp: bool) -> Result<Environment, CacheError> {
     let map_size = 1024 * 1024 * 1024 * 5;
+    let db_size = 10000;
     let mut env = Environment::new();
 
     let env = env
         .set_max_readers(10)
         .set_map_size(map_size)
-        .set_max_dbs(10)
+        .set_max_dbs(db_size)
         .set_map_size(map_size);
 
     let env = match temp {

@@ -135,7 +135,7 @@ fn test_query_err(query: Value, cache: &LmdbCache) {
     assert!(result.is_err());
     if let Err(err) = result {
         assert!(
-            matches!(err, dozer_types::errors::cache::CacheError::PlanError(_)),
+            matches!(err, crate::errors::CacheError::PlanError(_)),
             "Must be a PlanError"
         );
     }

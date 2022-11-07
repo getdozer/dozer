@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
+use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
-use crate::connectors::connector::TableInfo;
+use crate::connectors::TableInfo;
 
 use super::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
-use dozer_types::errors::connector::PostgresSchemaError::SchemaReplicationIdentityError;
+use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -18,8 +18,19 @@ pub struct SchemaHelper {
 }
 
 impl SchemaHelper {
+    fn _get_schema_by_name(&mut self, name: String) -> Result<Schema, ConnectorError> {
+        let result_vec = self.get_schemas()?;
+        let result = result_vec
+            .iter()
+            .find(|&el| el.0 == name)
+            .map(|v| v.to_owned().1);
+        match result {
+            Some(schema) => Ok(schema),
+            None => Err(ConnectorError::TableNotFound(name)),
+        }
+    }
     pub fn get_tables(&mut self) -> Result<Vec<TableInfo>, ConnectorError> {
-        let result_vec = self.get_schema()?;
+        let result_vec = self.get_schemas()?;
 
         let mut arr = vec![];
         for (name, schema) in result_vec.iter() {
@@ -34,7 +45,7 @@ impl SchemaHelper {
         Ok(arr)
     }
 
-    pub fn get_schema(&mut self) -> Result<Vec<(String, Schema)>, ConnectorError> {
+    pub fn get_schemas(&mut self) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_str.clone())?;
 
         let mut schemas: Vec<(String, Schema)> = Vec::new();

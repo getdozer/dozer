@@ -29,8 +29,7 @@ impl TryFrom<ConnectionInfo> for models::connection::Connection {
     fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {
         let db_type_value = match item.r#type {
             0 => models::connection::DBType::Postgres,
-            1 => models::connection::DBType::Snowflake,
-            _ => models::connection::DBType::Databricks,
+            _ => models::connection::DBType::Ethereum,
         };
         if item.authentication.is_none() {
             Err("Missing authentication props when converting ".to_owned())?
@@ -76,6 +75,12 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 port: port.to_string(),
                 password,
             }),
+            models::connection::Authentication::EthereumAuthentication {
+                filter: _,
+                wss_url: _,
+            } => {
+                todo!()
+            }
         };
         Ok(dozer_admin_grpc::Authentication {
             authentication: Some(authentication_value),

@@ -1,6 +1,6 @@
 use crate::grpc::util::from_dynamic_message_to_json;
-use dozer_cache::cache::expression::QueryExpression;
-use dozer_types::{errors::cache::CacheError, serde_json};
+use dozer_cache::{cache::expression::QueryExpression, errors::CacheError};
+use dozer_types::serde_json;
 use prost_reflect::DynamicMessage;
 use tonic::{Code, Status};
 
