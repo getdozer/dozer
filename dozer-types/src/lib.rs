@@ -1,5 +1,6 @@
 pub mod core;
 pub mod errors;
+pub mod events;
 mod field_type;
 pub mod helper;
 pub mod ingestion_types;
@@ -13,6 +14,7 @@ pub use bincode;
 pub use bytes;
 pub use chrono;
 pub use crossbeam;
+pub use indexmap;
 pub use log;
 pub use log4rs;
 pub use parking_lot;

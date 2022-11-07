@@ -29,23 +29,33 @@ impl PostgresSnapshotter {
         Ok(client)
     }
 
-    pub fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
+    pub fn get_tables(
+        &self,
+        table_names: Option<Vec<String>>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        let mut helper = SchemaHelper {
+            conn_str: self.conn_str.clone(),
+        };
+        let arr = helper.get_tables(table_names)?;
         match self.tables.as_ref() {
-            None => {
-                let mut helper = SchemaHelper {
-                    conn_str: self.conn_str.clone(),
-                };
-                let arr = helper.get_tables(None)?;
+            None => Ok(arr),
+            Some(filtered_tables) => {
+                let table_names: Vec<String> =
+                    filtered_tables.iter().map(|t| t.name.to_owned()).collect();
+                let arr = arr
+                    .iter()
+                    .filter(|t| table_names.contains(&t.name))
+                    .cloned()
+                    .collect();
                 Ok(arr)
             }
-            Some(arr) => Ok(arr.clone()),
         }
     }
 
     pub fn sync_tables(&self) -> Result<Vec<String>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(helper::connect(self.conn_str.clone())?));
 
-        let tables = self.get_tables()?;
+        let tables = self.get_tables(None)?;
 
         let mut idx: u32 = 0;
         for table_info in tables.iter() {
@@ -68,10 +78,12 @@ impl PostgresSnapshotter {
 
             // Ingest schema for every table
             let schema = helper::map_schema(&table_info.id, columns)?;
-
             self.ingestor
                 .write()
-                .handle_message((self.connector_id, IngestionMessage::Schema(schema.clone())))
+                .handle_message((
+                    self.connector_id,
+                    IngestionMessage::Schema(table_info.name.clone(), schema.clone()),
+                ))
                 .map_err(ConnectorError::IngestorError)?;
 
             let empty_vec: Vec<String> = Vec::new();

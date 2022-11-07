@@ -74,11 +74,7 @@ pub async fn validate(
     };
 
     match api_security {
-        ApiSecurity::None => {
-            // Provide access to all
-            req.extensions_mut().insert(Access::All);
-            Ok(req)
-        }
+        ApiSecurity::None => Ok(req),
         ApiSecurity::Jwt(secret) => {
             let api_auth = Authorizer::new(secret, None, None);
             let res = api_auth

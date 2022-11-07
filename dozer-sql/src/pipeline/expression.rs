@@ -1,4 +1,5 @@
 pub mod aggregate;
+pub mod builder;
 pub mod comparison;
 pub mod execution;
 pub mod logical;

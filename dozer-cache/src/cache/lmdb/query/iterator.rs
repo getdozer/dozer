@@ -1,4 +1,3 @@
-use dozer_types::log::debug;
 use lmdb::{Cursor, RoCursor};
 use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
 
@@ -73,10 +72,7 @@ impl<'a> Iterator for CacheIterator<'a> {
 
         match res {
             Ok((key, val)) => key.map(|key| (key, val)),
-            Err(e) => {
-                debug!("Error in cursor: {:?}", e);
-                None
-            }
+            Err(_e) => None,
         }
     }
 }

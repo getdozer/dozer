@@ -3,6 +3,7 @@
 use dozer_api::errors::GRPCError;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
+use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::RecvError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
@@ -28,6 +29,12 @@ pub enum OrchestrationError {
     ExecutionError(#[from] ExecutionError),
     #[error(transparent)]
     ConnectorError(#[from] ConnectorError),
+
+    #[error("Port not found with the table name")]
+    PortNotFound(String),
+
+    #[error("Failed to initialize SQL Statement as pipeline..")]
+    SqlStatementFailed(#[source] PipelineError),
 
     #[error(transparent)]
     RecvError(#[from] RecvError),

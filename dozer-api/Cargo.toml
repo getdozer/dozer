@@ -14,7 +14,6 @@ dozer-types = {version = "0.1.0", path = "../dozer-types"}
 handlebars = "4.3.5"
 tempdir = "0.3.7"
 openapiv3 = "1.0.1"
-indexmap = "1.9.1"
 tonic-build = "0.8.2"
 tokio = { version = "1", features = ["full"] }
 tonic = {version = "0.8.2"}
@@ -26,3 +25,7 @@ futures-util = "0.3.25"
 prost-build = "0.11.1"
 tonic-web = "0.4.0"
 jsonwebtoken = "8.1.1"
+tokio-stream = "0.1.11"
+crossbeam = "0.8.2"
+prost-wkt = "0.3.3"
+prost-wkt-types = "0.3.3"

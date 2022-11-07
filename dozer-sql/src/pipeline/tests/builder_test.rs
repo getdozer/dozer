@@ -42,24 +42,26 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn get_output_schema(&self, _port: PortHandle) -> Schema {
-        Schema::empty()
-            .field(
-                FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
-                false,
-                false,
-            )
-            .field(
-                FieldDefinition::new(String::from("Country"), FieldType::String, false),
-                false,
-                false,
-            )
-            .field(
-                FieldDefinition::new(String::from("Spending"), FieldType::Int, false),
-                false,
-                false,
-            )
-            .clone()
+    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
+        Some(
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
+                    false,
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(String::from("Country"), FieldType::String, false),
+                    false,
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(String::from("Spending"), FieldType::Int, false),
+                    false,
+                    false,
+                )
+                .clone(),
+        )
     }
 
     fn start(
@@ -69,7 +71,7 @@ impl Source for TestSource {
         _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..100000 {
+        for n in 0..10000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -143,7 +145,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, ROUND(Spending) \
+    let sql = "SELECT Country, SUM(Spending) \
                             FROM Customers \
                             WHERE Spending >= 1 GROUP BY Country";
 

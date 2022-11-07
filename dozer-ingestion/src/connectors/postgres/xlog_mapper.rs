@@ -210,6 +210,11 @@ impl XlogMapper {
             })
             .collect();
 
+        let table_name = relation
+            .name()
+            .map_err(ConnectorError::RelationNotFound)?
+            .to_string();
+
         let table = Table {
             columns,
             hash,
@@ -242,7 +247,7 @@ impl XlogMapper {
 
         self.relations_map.insert(rel_id, table);
 
-        Ok(Some(IngestionMessage::Schema(schema)))
+        Ok(Some(IngestionMessage::Schema(table_name, schema)))
     }
 
     fn convert_values_to_fields(

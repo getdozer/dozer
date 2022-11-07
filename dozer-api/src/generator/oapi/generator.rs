@@ -1,9 +1,9 @@
 use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
 use crate::errors::GenerationError;
+use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
 use dozer_types::types::IndexDefinition;
 use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
-use indexmap::IndexMap;
 use openapiv3::*;
 use serde_json::{json, Value};
 use tempdir::TempDir;
@@ -230,14 +230,14 @@ impl OpenApiGenerator {
             components: Some(component_schemas),
             ..Default::default()
         };
-        let tmp_dir = TempDir::new("generated").map_err(GenerationError::TmpFile)?;
+        let tmp_dir =
+            TempDir::new("generated").map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(tmp_dir.path().join("openapi.json"))
             .expect("Couldn't open file");
-        serde_json::to_writer(f, &api).map_err(GenerationError::SerializationError)?;
-
+        serde_json::to_writer(f, &api).map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         Ok(api)
     }
 
