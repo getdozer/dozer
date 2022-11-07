@@ -1,3 +1,4 @@
+use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::errors::PipelineError::{
     self, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
 };
@@ -113,6 +114,7 @@ impl AggregationBuilder {
         match *expression {
             Expression::AggregateFunction { fun, args: _ } => match fun {
                 AggregateFunctionType::Sum => Ok(Box::new(IntegerSumAggregator::new())),
+                AggregateFunctionType::Count => Ok(Box::new(CountAggregator::new())),
                 _ => Err(InvalidExpression(format!(
                     "Not implemented Aggreagation function: {:?}",
                     fun
