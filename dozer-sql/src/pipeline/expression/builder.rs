@@ -55,43 +55,35 @@ impl ExpressionBuilder {
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         match expression {
-            SqlExpr::Identifier(ident) => Ok(self.parse_sql_column(ident, schema)?),
-            SqlExpr::Value(SqlValue::Number(n, _)) => Ok(self.parse_sql_number(n)?),
+            SqlExpr::Identifier(ident) => self.parse_sql_column(ident, schema),
+            SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
-                Ok((
-                    Box::new(Expression::Literal(Field::String(s.clone()))),
-                    false,
-                ))
+                parse_sql_string(s)
             }
             SqlExpr::UnaryOp { expr, op } => {
-                Ok(self.parse_sql_unary_op(expression_type, op, expr, schema)?)
+                self.parse_sql_unary_op(expression_type, op, expr, schema)
             }
             SqlExpr::BinaryOp { left, op, right } => {
-                Ok(self.parse_sql_binary_op(expression_type, left, op, right, schema)?)
+                self.parse_sql_binary_op(expression_type, left, op, right, schema)
             }
-            SqlExpr::Nested(expr) => {
-                Ok(self.parse_sql_expression(expression_type, expr, schema)?)
-            }
+            SqlExpr::Nested(expr) => self.parse_sql_expression(expression_type, expr, schema),
             SqlExpr::Function(sql_function) => match expression_type {
-                ExpressionType::PreAggregation => Ok(self.parse_sql_function_pre_aggregation(
+                ExpressionType::PreAggregation => self.parse_sql_function_pre_aggregation(
                     expression_type,
                     sql_function,
                     schema,
                     expression,
-                )?),
-                ExpressionType::Aggregation => Ok(self.parse_sql_function_aggregation(
+                ),
+                ExpressionType::Aggregation => self.parse_sql_function_aggregation(
                     expression_type,
                     sql_function,
                     schema,
                     expression,
-                )?),
+                ),
                 // ExpressionType::PostAggregation => todo!(),
-                ExpressionType::FullExpression => Ok(self.parse_sql_function(
-                    expression_type,
-                    sql_function,
-                    schema,
-                    expression,
-                )?),
+                ExpressionType::FullExpression => {
+                    self.parse_sql_function(expression_type, sql_function, schema, expression)
+                }
             },
             _ => Err(InvalidExpression(format!("{:?}", expression))),
         }
@@ -370,6 +362,13 @@ impl ExpressionBuilder {
             },
         }
     }
+}
+
+fn parse_sql_string(s: &str) -> Result<(Box<Expression>, bool), PipelineError> {
+    Ok((
+        Box::new(Expression::Literal(Field::String(s.to_owned()))),
+        false,
+    ))
 }
 
 pub fn column_index(name: &String, schema: &Schema) -> Result<usize, PipelineError> {

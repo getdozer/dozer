@@ -20,7 +20,6 @@ use std::{collections::HashMap, mem::size_of_val};
 
 use crate::pipeline::aggregation::sum::IntegerSumAggregator;
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::builder::column_index;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::builder::ExpressionType;
 use crate::pipeline::expression::execution::ExpressionExecutor;
@@ -123,12 +122,12 @@ impl AggregationProcessor {
     ) -> Result<Vec<FieldRule>, PipelineError> {
         let mut groupby_rules = groupby
             .iter()
-            .map(|expr| self.get_groupby_field(expr, schema))
+            .map(|expr| self.parse_sql_groupby_item(expr, schema))
             .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
         let mut select_rules = select
             .iter()
-            .map(|item| self.get_aggregation_field(item, schema))
+            .map(|item| self.parse_sql_aggregate_item(item, schema))
             .filter(|e| e.is_ok())
             .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
@@ -137,28 +136,24 @@ impl AggregationProcessor {
         Ok(groupby_rules)
     }
 
-    pub fn get_groupby_field(
+    pub fn parse_sql_groupby_item(
         &self,
-        expression: &SqlExpr,
+        sql_expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<FieldRule, PipelineError> {
-        match expression {
-            SqlExpr::Identifier(ident) => Ok(FieldRule::Dimension(
-                ident.value.clone(),
-                Box::new(Expression::Column {
-                    index: column_index(&ident.value, schema)?,
-                }),
-                true,
-                None,
-            )),
-            _ => Err(InvalidExpression(format!(
-                "Unsupported Group By Expression {:?}",
-                expression
-            ))),
-        }
+        let expression =
+            self.builder
+                .build(&ExpressionType::FullExpression, sql_expression, schema)?;
+
+        Ok(FieldRule::Dimension(
+            sql_expression.to_string(),
+            expression,
+            true,
+            None,
+        ))
     }
 
-    pub fn get_aggregation_field(
+    pub fn parse_sql_aggregate_item(
         &self,
         item: &SelectItem,
         schema: &Schema,
