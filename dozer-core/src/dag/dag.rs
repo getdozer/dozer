@@ -122,13 +122,13 @@ impl Dag {
     pub fn merge(&mut self, namespace: String, other: Dag) {
         for node in other.nodes {
             self.nodes
-                .insert(format!("{}/{}", namespace, node.0), node.1);
+                .insert(format!("{}_{}", namespace, node.0), node.1);
         }
 
         for edge in other.edges {
             self.edges.push(Edge::new(
-                Endpoint::new(format!("{}/{}", namespace, edge.from.node), edge.from.port),
-                Endpoint::new(format!("{}/{}", namespace, edge.to.node), edge.to.port),
+                Endpoint::new(format!("{}_{}", namespace, edge.from.node), edge.from.port),
+                Endpoint::new(format!("{}_{}", namespace, edge.to.node), edge.to.port),
             ));
         }
     }

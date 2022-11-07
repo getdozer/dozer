@@ -18,7 +18,7 @@ impl ProtoGenerator<'_> {
         let proto_service = ProtoService::new(
             schema,
             pipeline_details.schema_name.to_owned(),
-            pipeline_details.endpoint,
+            pipeline_details.cache_endpoint.endpoint,
         );
         let mut proto_generator = Self {
             handlebars: Handlebars::new(),
@@ -33,7 +33,7 @@ impl ProtoGenerator<'_> {
         let main_template = include_str!("template/proto.tmpl");
         self.handlebars
             .register_template_string("main", main_template)
-            .map_err(GenerationError::TemplateError)?;
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         Ok(())
     }
 
@@ -53,14 +53,14 @@ impl ProtoGenerator<'_> {
                 folder_path,
                 self.schema_name.to_owned()
             ))
-            .map_err(GenerationError::FileCannotOpen)?;
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         let result = self
             .handlebars
             .render("main", &meta_data)
-            .map_err(GenerationError::RenderError)?;
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         self.handlebars
             .render_to_write("main", &meta_data, &mut output_file)
-            .map_err(GenerationError::RenderError)?;
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         Ok((result, meta_data.functions_with_type))
     }
 }

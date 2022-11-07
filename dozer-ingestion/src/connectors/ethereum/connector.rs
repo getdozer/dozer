@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::Connector;
@@ -7,6 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter, IngestionMessage};
+use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use futures::StreamExt;
 use tokio::runtime::Runtime;
@@ -19,6 +21,7 @@ pub struct EthConnector {
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
+const TABLE_NAME: &str = "eth_logs";
 impl EthConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
@@ -76,14 +79,14 @@ impl EthConnector {
 impl Connector for EthConnector {
     fn get_schemas(
         &self,
-        _table_names: Option<Vec<String>>,
+        _: Option<Vec<String>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        Ok(vec![("log".to_string(), helper::get_eth_schema())])
+        Ok(vec![(TABLE_NAME.to_string(), helper::get_eth_schema())])
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         Ok(vec![TableInfo {
-            name: "log".to_string(),
+            name: TABLE_NAME.to_string(),
             id: 1,
             columns: Some(helper::get_columns()),
         }])
@@ -98,7 +101,7 @@ impl Connector for EthConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.filter.to_owned();
@@ -110,7 +113,7 @@ impl Connector for EthConnector {
             .clone();
         Runtime::new()
             .unwrap()
-            .block_on(async { run(wss_url, filter, ingestor, connector_id).await })
+            .block_on(async { run(wss_url, filter, ingestor, connector_id, running.clone()).await })
     }
 
     fn stop(&self) {}
@@ -126,6 +129,7 @@ async fn run(
     filter: Filter,
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
+    running: Arc<AtomicBool>,
 ) -> Result<(), ConnectorError> {
     let client = helper::get_client(&wss_url).await.unwrap();
 
@@ -143,11 +147,15 @@ async fn run(
         .write()
         .handle_message((
             connector_id,
-            IngestionMessage::Schema(helper::get_eth_schema()),
+            IngestionMessage::Schema(TABLE_NAME.to_string(), helper::get_eth_schema()),
         ))
         .map_err(ConnectorError::IngestorError)?;
 
     loop {
+        if !running.load(Ordering::SeqCst) {
+            debug!("Exiting Ethereum Connector on Ctrl-C");
+            break;
+        }
         let msg = stream.next().await;
 
         let msg = msg

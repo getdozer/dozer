@@ -4,14 +4,15 @@ use crate::{
     types::{Field, FieldType, Record, Schema},
 };
 use chrono::{DateTime, SecondsFormat, Utc};
+use indexmap::IndexMap;
 use rust_decimal::Decimal;
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 /// Used in REST APIs for converting to JSON
 pub fn record_to_json(
     rec: &Record,
     schema: &Schema,
-) -> Result<HashMap<String, String>, types::TypeError> {
-    let mut map: HashMap<String, String> = HashMap::new();
+) -> Result<IndexMap<String, String>, types::TypeError> {
+    let mut map: IndexMap<String, String> = IndexMap::new();
 
     for (idx, field_def) in schema.fields.iter().enumerate() {
         let field = rec.values[idx].clone();
@@ -28,9 +29,9 @@ pub fn field_to_json_value(field: &Field) -> Result<String, TypeError> {
         Field::Int(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Float(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Boolean(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::String(s) => Ok(serde_json::to_string(s).map_err(SerializationError::Json))?,
+        Field::String(s) => Ok(s.to_owned()),
         Field::Binary(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::Null => Ok("null".to_string()),
+        Field::Null => Ok("null".to_owned()),
         Field::Decimal(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Timestamp(ts) => Ok(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Bson(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
@@ -57,9 +58,7 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
         FieldType::Boolean => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Boolean),
-        FieldType::String => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::String),
+        FieldType::String => Ok(Field::String(val.to_string())),
         FieldType::Binary => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Binary),

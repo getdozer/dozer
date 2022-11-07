@@ -5,52 +5,43 @@ use dozer_core::dag::node::{PortHandle, Source, SourceFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
 use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::errors::ConnectorError;
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
+use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use log::debug;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
-    table_names: Vec<String>,
-    port_map: HashMap<u16, Schema>,
-    pub table_map: HashMap<String, u16>,
+    connection_map: HashMap<String, Vec<String>>,
+    table_map: HashMap<String, u16>,
+    running: Arc<AtomicBool>,
+    ingestor: Arc<RwLock<Ingestor>>,
+    iterator: Arc<RwLock<IngestionIterator>>,
 }
 
 impl ConnectorSourceFactory {
     pub fn new(
         connections: Vec<Connection>,
-        table_names: Vec<String>,
-        source_schemas: Vec<Schema>,
+        connection_map: HashMap<String, Vec<String>>,
+        table_map: HashMap<String, u16>,
+        running: Arc<AtomicBool>,
+        ingestor: Arc<RwLock<Ingestor>>,
+        iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Self {
-        let (port_map, table_map) = Self::_get_maps(&source_schemas, &table_names);
         Self {
             connections,
-            port_map,
+            connection_map,
             table_map,
-            table_names,
+            running,
+            ingestor,
+            iterator,
         }
-    }
-
-    fn _get_maps(
-        source_schemas: &[Schema],
-        table_names: &[String],
-    ) -> (HashMap<u16, Schema>, HashMap<String, u16>) {
-        let mut port_map: HashMap<u16, Schema> = HashMap::new();
-        let mut table_map: HashMap<String, u16> = HashMap::new();
-        let mut idx = 0;
-        source_schemas.iter().for_each(|schema| {
-            let id = schema.identifier.clone().unwrap().id;
-            let table_name = &table_names[idx];
-            port_map.insert(id as u16, schema.clone());
-            table_map.insert(table_name.to_owned(), id as u16);
-            idx += 1;
-        });
-
-        (port_map, table_map)
     }
 }
 
@@ -60,64 +51,88 @@ impl SourceFactory for ConnectorSourceFactory {
     }
 
     fn get_output_ports(&self) -> Vec<PortHandle> {
-        let keys = self.port_map.to_owned().into_keys().collect();
-        debug!("{:?}", keys);
-        keys
+        self.table_map
+            .values()
+            .cloned()
+            .collect::<Vec<PortHandle>>()
     }
 
     fn build(&self) -> Box<dyn Source> {
         Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
-            table_names: self.table_names.to_owned(),
-            port_map: self.port_map.to_owned(),
-            _table_map: self.table_map.to_owned(),
+            connection_map: self.connection_map.to_owned(),
+            running: self.running.to_owned(),
+            ingestor: self.ingestor.to_owned(),
+            iterator: self.iterator.clone(),
+            table_map: self.table_map.clone(),
         })
     }
 }
 
 pub struct ConnectorSource {
-    port_map: HashMap<u16, Schema>,
-    _table_map: HashMap<String, u16>,
+    // Multiple tables per connection
     connections: Vec<Connection>,
-    table_names: Vec<String>,
+    // Connection Index in the array to List of Tables
+    connection_map: HashMap<String, Vec<String>>,
+    table_map: HashMap<String, u16>,
+    running: Arc<AtomicBool>,
+    ingestor: Arc<RwLock<Ingestor>>,
+    iterator: Arc<RwLock<IngestionIterator>>,
 }
 
 impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &dyn SourceChannelForwarder,
-        _cm: &dyn ChannelManager,
+        cm: &dyn ChannelManager,
         _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
         let mut threads = vec![];
-        for connection in &self.connections {
-            let table_names = self.table_names.clone();
+        for (idx, connection) in self.connections.iter().cloned().enumerate() {
             let connection = connection.clone();
-            let ingestor = ingestor.clone();
+            let ingestor = self.ingestor.clone();
+            let connection_map = self.connection_map.clone();
+            let ra = self.running.clone();
             let t = thread::spawn(move || -> Result<(), ConnectorError> {
-                let mut connector = ConnectionService::get_connector(connection);
+                let mut connector = ConnectionService::get_connector(connection.to_owned());
 
-                let tables = connector.get_tables().unwrap();
-                let tables: Vec<TableInfo> = tables
+                let id = match connection.id {
+                    Some(idy) => idy,
+                    None => idx.to_string(),
+                };
+                let tables = connection_map
+                    .get(&id)
+                    .map_or(Err(ConnectorError::TableNotFound(idx.to_string())), Ok)?;
+
+                // TODO: Let users choose columns
+                let tables = tables
                     .iter()
-                    .filter(|t| {
-                        let v = table_names.iter().find(|n| (*n).clone() == t.name.clone());
-                        v.is_some()
+                    .enumerate()
+                    .map(|(y, t)| TableInfo {
+                        name: t.to_owned(),
+                        id: (idx + y) as u32,
+                        columns: None,
                     })
-                    .cloned()
                     .collect();
 
                 connector.initialize(ingestor, Some(tables))?;
-                connector.start()?;
+                connector.start(ra)?;
                 Ok(())
             });
             threads.push(t);
         }
+
+        let mut schema_map: HashMap<u32, u16> = HashMap::new();
         loop {
-            let msg = iterator.next();
+            // shutdown signal
+            if !self.running.load(Ordering::SeqCst) {
+                debug!("Exiting Executor on Ctrl-C");
+                cm.terminate().unwrap();
+                return Ok(());
+            }
+            // Keep a reference of schema to table mapping
+            let msg = self.iterator.write().next();
             if let Some(msg) = msg {
                 match msg {
                     (_, IngestionOperation::OperationEvent(op)) => {
@@ -127,11 +142,22 @@ impl Source for ConnectorSource {
                             Operation::Update { old: _, new } => new.schema_id.to_owned(),
                         };
                         let schema_id = get_schema_id(identifier.as_ref())?;
-                        fw.send(op.seq_no, op.operation.to_owned(), schema_id as u16)?
+                        let port = schema_map
+                            .get(&schema_id)
+                            .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
+                            .unwrap();
+                        fw.send(op.seq_no, op.operation.to_owned(), port.to_owned())?
                     }
-                    (_, IngestionOperation::SchemaUpdate(schema)) => {
+                    (_, IngestionOperation::SchemaUpdate(table_name, schema)) => {
                         let schema_id = get_schema_id(schema.identifier.as_ref())?;
-                        fw.update_schema(schema, schema_id as u16)?
+
+                        let port = self
+                            .table_map
+                            .get(&table_name)
+                            .map_or(Err(ExecutionError::PortNotFound(table_name)), Ok)
+                            .unwrap();
+                        schema_map.insert(schema_id, port.to_owned());
+                        fw.update_schema(schema, port.to_owned())?
                     }
                 }
             } else {
@@ -142,14 +168,13 @@ impl Source for ConnectorSource {
         for t in threads {
             t.join()
                 .unwrap()
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
         }
         Ok(())
     }
 
-    fn get_output_schema(&self, port: PortHandle) -> Schema {
-        let val = self.port_map.get(&port).unwrap();
-        val.to_owned()
+    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
+        None
     }
 }
 

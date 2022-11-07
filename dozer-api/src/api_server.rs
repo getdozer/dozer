@@ -1,6 +1,10 @@
 use crate::{
     api_generator,
-    auth::api::{auth_route, validate, ApiSecurity},
+    auth::{
+        api::{auth_route, validate, ApiSecurity},
+        Access,
+    },
+    CacheEndpoint,
 };
 use actix_cors::Cors;
 use actix_web::{
@@ -10,16 +14,13 @@ use actix_web::{
     rt, web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use dozer_cache::cache::LmdbCache;
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde::{self, Deserialize, Serialize};
-use std::sync::Arc;
-
+use futures_util::FutureExt;
 #[derive(Clone)]
 pub struct PipelineDetails {
     pub schema_name: String,
-    pub endpoint: ApiEndpoint,
+    pub cache_endpoint: CacheEndpoint,
 }
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
@@ -66,8 +67,7 @@ impl ApiServer {
     pub fn create_app_entry(
         security: ApiSecurity,
         cors: CorsOptions,
-        endpoints: Vec<ApiEndpoint>,
-        cache: Arc<LmdbCache>,
+        cache_endpoints: Vec<CacheEndpoint>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -79,31 +79,29 @@ impl ApiServer {
     > {
         let app = App::new().wrap(Logger::default());
 
-        // Injecting cache
-        let app = app.app_data(web::Data::new(cache));
-
         // Injecting API Security
         let app = app.app_data(security.to_owned());
 
-        let auth_middleware = Condition::new(
-            matches!(security, ApiSecurity::Jwt(_)),
-            HttpAuthentication::bearer(validate),
-        );
+        let is_auth_configured = matches!(security, ApiSecurity::Jwt(_));
+        let auth_middleware =
+            Condition::new(is_auth_configured, HttpAuthentication::bearer(validate));
+
         let cors_middleware = Self::get_cors(cors);
 
-        endpoints
+        cache_endpoints
             .iter()
-            .fold(app, |app, endpoint| {
-                let endpoint = endpoint.clone();
+            .cloned()
+            .fold(app, |app, cache_endpoint| {
+                let endpoint = cache_endpoint.endpoint.clone();
                 let scope = endpoint.path.clone();
-                let schema_name = endpoint.name.clone();
+                let schema_name = endpoint.name;
                 app.service(
                     web::scope(&scope)
                         // Inject pipeline_details for generated functions
                         .wrap_fn(move |req, srv| {
                             req.extensions_mut().insert(PipelineDetails {
                                 schema_name: schema_name.to_owned(),
-                                endpoint: endpoint.clone(),
+                                cache_endpoint: cache_endpoint.clone(),
                             });
                             srv.call(req)
                         })
@@ -117,25 +115,29 @@ impl ApiServer {
             .route("/auth/token", web::post().to(auth_route))
             // Wrap Api Validator
             .wrap(auth_middleware)
+            // Insert None as Auth when no apisecurity configured
+            .wrap_fn(move |req, srv| {
+                if !is_auth_configured {
+                    req.extensions_mut().insert(Access::All);
+                }
+                srv.call(req).map(|res| res)
+            })
             // Wrap CORS around api validator. Neededto return the right headers.
             .wrap(cors_middleware)
     }
 
     pub fn run(
         &self,
-        endpoints: Vec<ApiEndpoint>,
-        cache: Arc<LmdbCache>,
+        cache_endpoints: Vec<CacheEndpoint>,
         tx: Sender<ServerHandle>,
     ) -> std::io::Result<()> {
-        let endpoints = endpoints;
         let cors = self.cors.clone();
         let security = self.security.clone();
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.to_owned(),
                 cors.to_owned(),
-                endpoints.clone(),
-                cache.clone(),
+                cache_endpoints.clone(),
             )
         })
         .bind(("0.0.0.0", self.port.to_owned()))?

@@ -80,8 +80,8 @@ fn test_dag_merge() {
     assert!(res.is_err());
 
     let res = new_dag.connect(
-        Endpoint::new("test/1".to_string(), DEFAULT_PORT_HANDLE),
-        Endpoint::new("test/2".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("test_1".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("test_2".to_string(), DEFAULT_PORT_HANDLE),
     );
     assert!(res.is_ok())
 }
