@@ -71,7 +71,7 @@ impl Source for TestSource {
         _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1000000 {
+        for n in 0..10000 {
             fw.send(
                 n,
                 Operation::Insert {
