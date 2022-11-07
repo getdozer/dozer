@@ -1,6 +1,6 @@
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
-use dozer_cache::cache::{expression::QueryExpression};
+use dozer_cache::cache::expression::QueryExpression;
 use dozer_types::log::info;
 
 use crate::api_helper::ApiHelper;
@@ -10,7 +10,6 @@ use crate::errors::ApiError;
 use dozer_cache::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(
