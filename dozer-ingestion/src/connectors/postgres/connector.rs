@@ -43,37 +43,22 @@ impl PostgresConnector {
 }
 
 impl Connector for PostgresConnector {
-    fn get_tables(
-        &self,
-        table_names: Option<&Vec<String>>,
-    ) -> Result<Vec<TableInfo>, ConnectorError> {
+    fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
-        let result_vec = helper.get_tables(table_names)?;
+        let result_vec = helper.get_tables(None)?;
         Ok(result_vec)
     }
-    fn get_schema(&self, name: String) -> Result<Schema, ConnectorError> {
+
+    fn get_schemas(
+        &self,
+        table_names: Option<Vec<String>>,
+    ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
-
-        let result_vec = helper.get_schema(Some(&vec![name.clone()]))?;
-        let result = result_vec
-            .iter()
-            .find(|&el| el.0 == name)
-            .map(|v| v.to_owned().1);
-        match result {
-            Some(schema) => Ok(schema),
-            None => Err(ConnectorError::TableNotFound(name)),
-        }
-    }
-
-    fn get_schemas(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
-        let mut helper = SchemaHelper {
-            conn_str: self.conn_str_plain.clone(),
-        };
-        helper.get_schemas(None)
+        helper.get_schemas(table_names)
     }
 
     fn initialize(

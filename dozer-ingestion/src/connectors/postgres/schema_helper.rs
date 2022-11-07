@@ -19,20 +19,9 @@ pub struct SchemaHelper {
 }
 
 impl SchemaHelper {
-    fn _get_schema_by_name(&mut self, name: String) -> Result<Schema, ConnectorError> {
-        let result_vec = self.get_schemas()?;
-        let result = result_vec
-            .iter()
-            .find(|&el| el.0 == name)
-            .map(|v| v.to_owned().1);
-        match result {
-            Some(schema) => Ok(schema),
-            None => Err(ConnectorError::TableNotFound(name)),
-        }
-    }
     pub fn get_tables(
         &mut self,
-        table_names: Option<&Vec<String>>,
+        table_names: Option<Vec<String>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
         let result_vec = self.get_schemas(table_names)?;
 
@@ -51,7 +40,7 @@ impl SchemaHelper {
 
     pub fn get_schemas(
         &mut self,
-        table_name: Option<&Vec<String>>,
+        table_name: Option<Vec<String>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_str.clone())?;
 
@@ -59,7 +48,7 @@ impl SchemaHelper {
 
         let query = if let Some(table) = table_name {
             let sql = str::replace(SQL, ":tables_condition", "= ANY($1)");
-            client.query(&sql, &[table])
+            client.query(&sql, &[&table])
         } else {
             let sql = str::replace(SQL, ":tables_condition", TABLES_CONDITION);
             client.query(&sql, &[])

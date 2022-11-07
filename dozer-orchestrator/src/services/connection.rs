@@ -1,3 +1,4 @@
+use dozer_ingestion::errors::ConnectorError::TableNotFound;
 use dozer_ingestion::{
     connectors::{get_connector, Connector},
     errors::ConnectorError,
@@ -14,10 +15,14 @@ impl ConnectionService {
         get_connector(connection)
     }
     pub fn get_all_schema(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
-        self.connector.get_schemas()
+        self.connector.get_schemas(None)
     }
     pub fn get_schema(&self, table_name: String) -> Result<Schema, ConnectorError> {
-        self.connector.get_schema(table_name)
+        let schemas = self.connector.get_schemas(Some(vec![table_name.clone()]))?;
+        match schemas.get(0) {
+            Some((_, schema)) => Ok(schema.clone()),
+            None => Err(TableNotFound(table_name)),
+        }
     }
 
     pub fn new(connection: Connection) -> Self {
