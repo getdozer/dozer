@@ -186,6 +186,11 @@ impl MultiThreadedDagExecutor {
 
         thread::spawn(move || -> Result<(), ExecutionError> {
             let src = src_factory.build();
+            for p in src_factory.get_output_ports() {
+                if let Some(schema) = src.get_output_schema(p) {
+                    fw.update_schema(schema, p)?
+                }
+            }
 
             match src_factory.is_stateful() {
                 true => {

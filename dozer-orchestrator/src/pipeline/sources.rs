@@ -173,8 +173,8 @@ impl Source for ConnectorSource {
         Ok(())
     }
 
-    fn get_output_schema(&self, _port: PortHandle) -> Schema {
-        Schema::empty()
+    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
+        None
     }
 }
 
