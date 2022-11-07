@@ -47,15 +47,18 @@ impl Connector for PostgresConnector {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
-        let result_vec = helper.get_tables()?;
+        let result_vec = helper.get_tables(None)?;
         Ok(result_vec)
     }
 
-    fn get_schemas(&self) -> Result<Vec<(String, Schema)>, ConnectorError> {
+    fn get_schemas(
+        &self,
+        table_names: Option<Vec<String>>,
+    ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut helper = SchemaHelper {
             conn_str: self.conn_str_plain.clone(),
         };
-        helper.get_schemas()
+        helper.get_schemas(table_names)
     }
 
     fn initialize(
