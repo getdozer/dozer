@@ -10,12 +10,9 @@ use crate::{
 };
 
 use dozer_cache::cache::Cache;
-use dozer_types::{events::Event, log::debug};
+use dozer_types::events::Event;
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicBool, Arc},
     thread,
 };
 use tempdir::TempDir;
@@ -47,7 +44,7 @@ impl GRPCServer {
         &self,
         cache_endpoint: CacheEndpoint,
         event_notifier: crossbeam::channel::Receiver<Event>,
-        running: Arc<AtomicBool>,
+        _running: Arc<AtomicBool>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<Event>(16);
