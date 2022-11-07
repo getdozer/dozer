@@ -109,7 +109,7 @@ fn single_source_sink() {
     }
 
     // Allow for the thread to process the records
-    thread::sleep(Duration::from_millis(50));
+    thread::sleep(Duration::from_millis(100));
     //Shutdown the thread
     r.store(false, Ordering::SeqCst);
 
