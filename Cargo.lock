@@ -1273,7 +1273,6 @@ dependencies = [
  "crossbeam",
  "dozer-types",
  "dyn-clone",
- "fast-async-mutex",
  "libc",
  "lmdb-sys",
  "log",
@@ -1522,12 +1521,6 @@ dependencies = [
  "bit-set",
  "regex",
 ]
-
-[[package]]
-name = "fast-async-mutex"
-version = "0.6.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b877ceff2e3d2922823bab7960826ce198181f9c25f75d67b913fde9237e2da6"
 
 [[package]]
 name = "fastrand"
