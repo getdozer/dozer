@@ -28,3 +28,8 @@ pub fn get_schema(input: Connection) -> Result<Vec<(String, Schema)>, ConnectorE
     let connection_service = ConnectionService::new(input);
     connection_service.get_all_schema()
 }
+
+pub fn get_single_schema(input: Connection, table_name: String) -> Result<Schema, ConnectorError> {
+    let connection_service = ConnectionService::new(input);
+    connection_service.get_schema(table_name)
+}

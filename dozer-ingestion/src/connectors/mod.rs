@@ -18,7 +18,10 @@ use self::ethereum::connector::EthConnector;
 
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
-    fn get_schemas(&self) -> Result<Vec<(String, Schema)>, ConnectorError>;
+    fn get_schemas(
+        &self,
+        table_names: Option<Vec<String>>,
+    ) -> Result<Vec<(String, Schema)>, ConnectorError>;
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
     fn test_connection(&self) -> Result<(), ConnectorError>;
     fn initialize(

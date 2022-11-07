@@ -1,7 +1,7 @@
 use crate::errors::OrchestrationError;
 use dozer_api::CacheEndpoint;
 use dozer_types::crossbeam;
-use log::debug;
+
 use std::fs;
 
 use dozer_types::models::source::Source;
@@ -17,7 +17,7 @@ use dozer_sql::sqlparser::parser::Parser;
 use dozer_types::models::connection::Connection;
 use dozer_types::types::Schema;
 
-use crate::get_schema;
+use crate::get_single_schema;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 
 pub struct Executor {}
@@ -34,16 +34,9 @@ impl Executor {
 
         // Get Source schemas
         for source in sources.iter() {
-            let schema_tuples = get_schema(source.connection.to_owned())
+            let schema = get_single_schema(source.connection.to_owned(), source.table_name.clone())
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
-            debug!("{:?}", source.table_name);
-            let st = schema_tuples
-                .iter()
-                .find(|t| t.0.eq(&source.table_name))
-                .unwrap();
-
-            let schema = st.to_owned().1.clone();
             source_schemas.push(schema);
             connections.push(source.connection.to_owned());
             table_names.push(source.table_name.clone());
