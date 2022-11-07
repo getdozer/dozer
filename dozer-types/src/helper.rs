@@ -29,9 +29,9 @@ pub fn field_to_json_value(field: &Field) -> Result<String, TypeError> {
         Field::Int(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Float(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Boolean(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::String(s) => Ok(serde_json::to_string(s).map_err(SerializationError::Json))?,
+        Field::String(s) => Ok(s.to_owned()),
         Field::Binary(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::Null => Ok("null".to_string()),
+        Field::Null => Ok("null".to_owned()),
         Field::Decimal(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Timestamp(ts) => Ok(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Bson(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
@@ -58,9 +58,7 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
         FieldType::Boolean => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Boolean),
-        FieldType::String => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::String),
+        FieldType::String => Ok(Field::String(val.to_string())),
         FieldType::Binary => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Binary),

@@ -7,7 +7,7 @@ mod query_serde;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
 pub struct QueryExpression {
     #[serde(rename = "$filter", default)]
@@ -21,6 +21,16 @@ pub struct QueryExpression {
 }
 fn default_limit() -> usize {
     50
+}
+impl Default for QueryExpression {
+    fn default() -> Self {
+        Self {
+            filter: None,
+            order_by: vec![],
+            limit: 50,
+            skip: 0,
+        }
+    }
 }
 
 impl QueryExpression {

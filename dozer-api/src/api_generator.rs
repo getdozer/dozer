@@ -46,10 +46,7 @@ pub async fn get(
     let key = path.into_inner();
     helper
         .get_record(key)
-        .map(|map| {
-            let str = serde_json::to_string(&map).unwrap();
-            HttpResponse::Ok().body(str)
-        })
+        .map(|map| HttpResponse::Ok().json(map))
         .map_err(ApiError::NotFound)
 }
 

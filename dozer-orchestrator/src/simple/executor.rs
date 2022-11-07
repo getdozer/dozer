@@ -2,6 +2,7 @@ use crate::errors::OrchestrationError;
 use dozer_api::CacheEndpoint;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::crossbeam;
+use dozer_types::events::Event;
 use dozer_types::parking_lot::RwLock;
 use log::info;
 use std::collections::HashMap;
@@ -46,7 +47,7 @@ impl Executor {
 
     pub fn run(
         &self,
-        schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
+        notifier: Option<crossbeam::channel::Sender<Event>>,
         running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connections: Vec<Connection> = vec![];
@@ -110,7 +111,7 @@ impl Executor {
                 vec![DEFAULT_PORT_HANDLE],
                 cache,
                 api_endpoint,
-                schema_change_notifier.clone(),
+                notifier.clone(),
             );
             dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 

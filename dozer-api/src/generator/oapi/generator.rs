@@ -230,14 +230,14 @@ impl OpenApiGenerator {
             components: Some(component_schemas),
             ..Default::default()
         };
-        let tmp_dir = TempDir::new("generated").map_err(GenerationError::TmpFile)?;
+        let tmp_dir =
+            TempDir::new("generated").map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(tmp_dir.path().join("openapi.json"))
             .expect("Couldn't open file");
-        serde_json::to_writer(f, &api).map_err(GenerationError::SerializationError)?;
-
+        serde_json::to_writer(f, &api).map_err(|e| GenerationError::InternalError(Box::new(e)))?;
         Ok(api)
     }
 

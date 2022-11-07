@@ -1,19 +1,24 @@
-#![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-use super::util::get_proto_descriptor;
+use super::{
+    services::{
+        by_id::GetByIdService, list::ListService, on_delete::OnDeleteService,
+        on_insert::OnInsertService, on_schema_change::OnSchemaChangeService,
+        on_update::OnUpdateService, query::QueryService,
+    },
+    util::get_proto_descriptor,
+};
 use crate::{
     api_server::PipelineDetails,
     generator::protoc::proto_service::GrpcType,
     grpc::{
         dynamic_codec::DynamicCodec,
-        services::{GetByIdService, ListService, QueryService},
         util::{get_method_by_name, get_service_name},
     },
 };
 use dozer_cache::cache::LmdbCache;
+use dozer_types::events::Event;
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use tonic::codegen::{self, *};
-#[derive(Clone)]
 pub struct TonicServer {
     accept_compression_encodings: EnabledCompressionEncodings,
     send_compression_encodings: EnabledCompressionEncodings,
@@ -22,6 +27,21 @@ pub struct TonicServer {
     function_types: HashMap<String, GrpcType>,
     cache: Arc<LmdbCache>,
     pipeline_details: PipelineDetails,
+    event_notifier: tokio::sync::broadcast::Receiver<Event>,
+}
+impl Clone for TonicServer {
+    fn clone(&self) -> Self {
+        Self {
+            accept_compression_encodings: self.accept_compression_encodings,
+            send_compression_encodings: self.send_compression_encodings,
+            descriptor_path: self.descriptor_path.clone(),
+            descriptor: self.descriptor.clone(),
+            function_types: self.function_types.clone(),
+            cache: self.cache.clone(),
+            pipeline_details: self.pipeline_details.clone(),
+            event_notifier: self.event_notifier.resubscribe(),
+        }
+    }
 }
 impl TonicServer {
     pub fn new(
@@ -29,6 +49,7 @@ impl TonicServer {
         function_types: HashMap<String, GrpcType>,
         cache: Arc<LmdbCache>,
         pipeline_details: PipelineDetails,
+        event_notifier: tokio::sync::broadcast::Receiver<Event>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
         TonicServer {
@@ -39,20 +60,21 @@ impl TonicServer {
             function_types,
             cache,
             pipeline_details,
+            event_notifier,
         }
     }
 
-    #[must_use]
-    pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
-        self.accept_compression_encodings.enable(encoding);
-        self
-    }
-    ///Compress responses with the given encoding, if the client supports it.
-    #[must_use]
-    pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
-        self.send_compression_encodings.enable(encoding);
-        self
-    }
+    // #[must_use]
+    // pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+    //     self.accept_compression_encodings.enable(encoding);
+    //     self
+    // }
+    // ///Compress responses with the given encoding, if the client supports it.
+    // #[must_use]
+    // pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+    //     self.send_compression_encodings.enable(encoding);
+    //     self
+    // }
 }
 impl<B> codegen::Service<http::Request<B>> for TonicServer
 where
@@ -94,11 +116,9 @@ where
             );
             let method_type = &self.function_types[method_name];
             let cache = self.cache.to_owned();
-            let schema_name = self.pipeline_details.schema_name.to_owned();
             #[allow(non_camel_case_types)]
             let accept_compression_encodings = self.accept_compression_encodings;
             let send_compression_encodings = self.send_compression_encodings;
-            let descriptor_path = self.descriptor_path.to_owned();
             let mut grpc = tonic::server::Grpc::new(codec)
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings);
             return match method_type {
@@ -131,6 +151,52 @@ where
                     };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                GrpcType::OnInsert => {
+                    let method = OnInsertService {
+                        cache,
+                        pipeline_details: self.pipeline_details.to_owned(),
+                        event_notifier: self.event_notifier.resubscribe(),
+                    };
+                    let fut = async move {
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                GrpcType::OnUpdate => {
+                    let method = OnUpdateService {
+                        cache,
+                        pipeline_details: self.pipeline_details.to_owned(),
+                        event_notifier: self.event_notifier.resubscribe(),
+                    };
+                    let fut = async move {
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                GrpcType::OnDelete => {
+                    let method = OnDeleteService {
+                        cache,
+                        pipeline_details: self.pipeline_details.to_owned(),
+                        event_notifier: self.event_notifier.resubscribe(),
+                    };
+                    let fut = async move {
+                        let res = grpc.server_streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                GrpcType::OnSchemaChange => {
+                    let method = OnSchemaChangeService {
+                        event_notifier: self.event_notifier.resubscribe(),
+                    };
+                    let fut = async move {
+                        let res = grpc.server_streaming(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

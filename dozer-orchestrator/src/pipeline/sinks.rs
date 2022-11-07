@@ -6,6 +6,7 @@ use dozer_core::dag::node::{Sink, SinkFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
+use dozer_types::events::Event;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::types::FieldType;
@@ -23,7 +24,7 @@ pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    schema_change_notifier: Option<Sender<bool>>,
+    notifier: Option<Sender<Event>>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -50,13 +51,13 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
+        notifier: Option<crossbeam::channel::Sender<Event>>,
     ) -> Self {
         Self {
             input_ports,
             cache,
             api_endpoint,
-            schema_change_notifier,
+            notifier,
         }
     }
 }
@@ -74,7 +75,7 @@ impl SinkFactory for CacheSinkFactory {
             self.cache.clone(),
             self.api_endpoint.clone(),
             Mutex::new(HashMap::new()),
-            self.schema_change_notifier.clone(),
+            self.notifier.clone(),
         ))
     }
 }
@@ -86,7 +87,7 @@ pub struct CacheSink {
     input_schemas: Mutex<HashMap<PortHandle, Schema>>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
-    schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
+    notifier: Option<crossbeam::channel::Sender<Event>>,
 }
 
 impl Sink for CacheSink {
@@ -123,6 +124,11 @@ impl Sink for CacheSink {
                 self.cache.delete(&key).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
                 })?;
+                if let Some(notifier) = &self.notifier {
+                    notifier
+                        .try_send(Event::RecordDelete(old))
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                }
             }
             Operation::Insert { new } => {
                 let mut new = new;
@@ -131,6 +137,11 @@ impl Sink for CacheSink {
                 self.cache.insert(&new).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
                 })?;
+                if let Some(notifier) = &self.notifier {
+                    notifier
+                        .try_send(Event::RecordInsert(new))
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+                }
             }
             Operation::Update { old, new } => {
                 let key = index::get_primary_key(&schema.primary_index, &old.values);
@@ -147,6 +158,11 @@ impl Sink for CacheSink {
                     self.cache.insert(&new).map_err(|e| {
                         ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
                     })?;
+                }
+                if let Some(notifier) = &self.notifier {
+                    notifier
+                        .try_send(Event::RecordUpdate(new))
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                 }
             }
         };
@@ -172,10 +188,10 @@ impl Sink for CacheSink {
                     ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
                 })?;
 
-            map.insert(*k, schema);
+            map.insert(*k, schema.to_owned());
 
-            if let Some(notifier) = &self.schema_change_notifier {
-                let res = notifier.try_send(true).map_err(|e| {
+            if let Some(notifier) = &self.notifier {
+                let res = notifier.try_send(Event::SchemaChange(schema)).map_err(|e| {
                     ExecutionError::SinkError(SinkError::SchemaNotificationFailed(Box::new(e)))
                 });
 
@@ -198,7 +214,7 @@ impl CacheSink {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         input_schemas: Mutex<HashMap<PortHandle, Schema>>,
-        schema_change_notifier: Option<crossbeam::channel::Sender<bool>>,
+        notifier: Option<crossbeam::channel::Sender<Event>>,
     ) -> Self {
         Self {
             cache,
@@ -207,7 +223,7 @@ impl CacheSink {
             input_schemas,
             api_endpoint,
             pb: get_progress(),
-            schema_change_notifier,
+            notifier,
         }
     }
     fn get_output_schema(&self, schema: &Schema) -> Result<Schema, ExecutionError> {
