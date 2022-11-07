@@ -6,7 +6,7 @@ use actix_web::HttpResponse;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
 
-use dozer_types::errors::cache::{CacheError, QueryValidationError};
+use dozer_cache::errors::{CacheError, QueryValidationError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
 use handlebars::{RenderError, TemplateError};

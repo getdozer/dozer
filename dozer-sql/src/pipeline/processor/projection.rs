@@ -1,15 +1,16 @@
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{column_index, ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use dozer_core::dag::channels::ProcessorChannelForwarder;
+use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_types::core::channels::ProcessorChannelForwarder;
-use dozer_types::core::node::PortHandle;
-use dozer_types::core::node::{Processor, ProcessorFactory};
-use dozer_types::core::state::{StateStore, StateStoreOptions};
-use dozer_types::errors::execution::ExecutionError;
-use dozer_types::errors::execution::ExecutionError::InternalError;
-use dozer_types::errors::pipeline::PipelineError;
+use dozer_core::dag::node::PortHandle;
+use dozer_core::dag::node::{Processor, ProcessorFactory};
+use dozer_core::storage::lmdb_sys::Transaction;
 use dozer_types::errors::pipeline::PipelineError::InvalidExpression;
 use dozer_types::errors::pipeline::PipelineError::InvalidOperator;
+use dozer_types::internal_err;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
 use sqlparser::ast::SelectItem;
@@ -27,8 +28,8 @@ impl ProjectionProcessorFactory {
 }
 
 impl ProcessorFactory for ProjectionProcessorFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        None
+    fn is_stateful(&self) -> bool {
+        false
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -148,7 +149,8 @@ impl ProjectionProcessor {
 
         for expr in self.expressions.clone() {
             if let Ok(idx) = column_index(&expr.0, &self.input_schema) {
-                let _ = std::mem::replace(&mut results[idx], expr.1.evaluate(record)?);
+                let _ =
+                    std::mem::replace(&mut results[idx], internal_err!(expr.1.evaluate(record))?);
             } else {
                 results.push(
                     expr.1
@@ -201,12 +203,13 @@ impl Processor for ProjectionProcessor {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        let expressions = self.build_projection(self.statement.clone(), input_schema)?;
+        let expressions =
+            internal_err!(self.build_projection(self.statement.clone(), input_schema))?;
         self.expressions = expressions.clone();
         self.build_output_schema(input_schema, expressions)
     }
 
-    fn init<'a>(&'_ mut self, _: &mut dyn StateStore) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
@@ -216,7 +219,7 @@ impl Processor for ProjectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        _state_store: &mut dyn StateStore,
+        _state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),

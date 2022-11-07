@@ -1,7 +1,8 @@
 use super::util::convert_grpc_message_to_query_exp;
 use crate::{api_helper, api_server::PipelineDetails, errors::GRPCError};
 use dozer_cache::cache::{expression::QueryExpression, Cache, LmdbCache};
-use dozer_types::{errors::cache::CacheError, serde_json};
+use dozer_cache::errors::CacheError;
+use dozer_types::serde_json;
 use prost_reflect::DynamicMessage;
 use serde_json::{Map, Value};
 use std::sync::Arc;

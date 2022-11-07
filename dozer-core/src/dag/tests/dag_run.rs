@@ -1,9 +1,7 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{TestProcessorFactory, TestSinkFactory, TestSourceFactory};
-use crate::state::lmdb::LmdbStateStoreManager;
 use std::fs;
-use std::sync::Arc;
 use tempdir::TempDir;
 
 #[test]
@@ -40,11 +38,6 @@ fn test_run_dag() {
     fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
     let exec = MultiThreadedDagExecutor::new(100000);
-    let sm = Arc::new(LmdbStateStoreManager::new(
-        tmp_dir.path().to_str().unwrap().to_string(),
-        1024 * 1024 * 1024 * 5,
-        20_000,
-    ));
 
-    assert!(exec.start(dag, sm).is_ok());
+    assert!(exec.start(dag, tmp_dir.into_path()).is_ok());
 }

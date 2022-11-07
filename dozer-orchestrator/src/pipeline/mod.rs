@@ -1,4 +1,3 @@
-mod ingestion_group;
 mod sinks;
 mod sources;
 

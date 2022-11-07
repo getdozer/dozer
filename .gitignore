@@ -14,8 +14,6 @@ docker/data/
 dozer-sql/data
 *.mdb
 
-configs/
-
 # Local configuration for development
 dozer-config.yaml
 log4rs.yaml

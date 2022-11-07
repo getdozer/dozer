@@ -1,23 +1,26 @@
-use crate::connectors::connector::TableInfo;
-use crate::connectors::ingestor::IngestionMessage;
-use crate::connectors::ingestor::Ingestor;
+use crate::connectors::TableInfo;
+use crate::ingestion::Ingestor;
 
 use super::helper;
 use super::schema_helper::SchemaHelper;
-use dozer_types::errors::connector::ConnectorError;
-use dozer_types::log::debug;
+use crate::errors::ConnectorError;
+use crate::errors::PostgresConnectorError::PostgresSchemaError;
+use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
+use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Commit;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres::Error;
 use postgres::{Client, NoTls};
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 // 0.4.10
 pub struct PostgresSnapshotter {
     pub tables: Option<Vec<TableInfo>>,
     pub conn_str: String,
-    pub ingestor: Arc<Mutex<Ingestor>>,
+    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub connector_id: u64,
 }
 
 impl PostgresSnapshotter {
@@ -25,13 +28,14 @@ impl PostgresSnapshotter {
         let client = Client::connect(&self.conn_str, NoTls)?;
         Ok(client)
     }
+
     pub fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
         match self.tables.as_ref() {
             None => {
                 let mut helper = SchemaHelper {
                     conn_str: self.conn_str.clone(),
                 };
-                let arr = helper.get_tables()?;
+                let arr = helper.get_tables(None)?;
                 Ok(arr)
             }
             Some(arr) => Ok(arr.clone()),
@@ -63,11 +67,12 @@ impl PostgresSnapshotter {
             let columns = stmt.columns();
 
             // Ingest schema for every table
-            let schema = helper::map_schema(&table_info.id, columns);
+            let schema = helper::map_schema(&table_info.id, columns)?;
+
             self.ingestor
-                .lock()
-                .unwrap()
-                .handle_message(IngestionMessage::Schema(schema.clone()));
+                .write()
+                .handle_message((self.connector_id, IngestionMessage::Schema(schema.clone())))
+                .map_err(ConnectorError::IngestorError)?;
 
             let empty_vec: Vec<String> = Vec::new();
             for msg in client_plain
@@ -88,24 +93,35 @@ impl PostgresSnapshotter {
                             &msg,
                             columns,
                             idx,
-                        );
+                        )
+                        .map_err(|e| {
+                            ConnectorError::PostgresConnectorError(PostgresSchemaError(e))
+                        })?;
+
                         self.ingestor
-                            .lock()
-                            .unwrap()
-                            .handle_message(IngestionMessage::OperationEvent(evt));
+                            .write()
+                            .handle_message((
+                                self.connector_id,
+                                IngestionMessage::OperationEvent(evt),
+                            ))
+                            .map_err(ConnectorError::IngestorError)?;
                     }
                     Err(e) => {
-                        debug!("{:?}", e);
-                        panic!("Something happened");
+                        return Err(ConnectorError::PostgresConnectorError(
+                            SyncWithSnapshotError(e.to_string()),
+                        ))
                     }
                 }
                 idx += 1;
             }
 
             self.ingestor
-                .lock()
-                .unwrap()
-                .handle_message(IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }));
+                .write()
+                .handle_message((
+                    self.connector_id,
+                    IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }),
+                ))
+                .map_err(ConnectorError::IngestorError)?;
         }
 
         let table_names = tables.iter().map(|t| t.name.clone()).collect();

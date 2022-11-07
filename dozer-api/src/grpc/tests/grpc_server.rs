@@ -13,8 +13,9 @@ use tonic::{
 };
 
 fn setup(tmp_dir_path: String, schema_name: String) -> (String, HashMap<String, GrpcType>) {
+    let schema = test_utils::get_schema();
     let proto_generated_result =
-        generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned()).unwrap();
+        generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned(), schema).unwrap();
     let path_to_descriptor = generate_descriptor(tmp_dir_path, schema_name).unwrap();
     (path_to_descriptor, proto_generated_result.1)
 }

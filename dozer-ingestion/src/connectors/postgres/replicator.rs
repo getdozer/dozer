@@ -1,16 +1,22 @@
-use crate::connectors::ingestor::{IngestionMessage, Ingestor};
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
+use crate::errors::ConnectorError;
+use crate::errors::ConnectorError::PostgresConnectorError;
+use crate::errors::PostgresConnectorError::{
+    ReplicationStreamEndError, ReplicationStreamError, UnexpectedReplicationMessageError,
+};
+use crate::ingestion::Ingestor;
 use dozer_types::chrono::{TimeZone, Utc};
-use dozer_types::errors::connector::ConnectorError;
-use dozer_types::log::{debug, warn};
+use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::log::{debug, error};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Commit;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
@@ -21,7 +27,8 @@ pub struct CDCHandler {
     pub slot_name: String,
     pub lsn: String,
     pub last_commit_lsn: u64,
-    pub ingestor: Arc<Mutex<Ingestor>>,
+    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub connector_id: u64,
 }
 
 impl CDCHandler {
@@ -50,12 +57,15 @@ impl CDCHandler {
         debug!("last_commit_lsn: {:?}", self.last_commit_lsn);
         // Marking point of replication start
         self.ingestor
-            .lock()
-            .unwrap()
-            .handle_message(IngestionMessage::Commit(Commit {
-                seq_no: 0,
-                lsn: self.last_commit_lsn,
-            }));
+            .write()
+            .handle_message((
+                self.connector_id,
+                IngestionMessage::Commit(Commit {
+                    seq_no: 0,
+                    lsn: self.last_commit_lsn,
+                }),
+            ))
+            .map_err(ConnectorError::IngestorError)?;
 
         let copy_stream = client
             .copy_both_simple::<bytes::Bytes>(&query)
@@ -88,7 +98,8 @@ impl CDCHandler {
                         .unwrap();
                 }
             } else {
-                self.handle_replication_message(message, &mut mapper).await;
+                self.handle_replication_message(message, &mut mapper)
+                    .await?;
             }
         }
     }
@@ -97,30 +108,30 @@ impl CDCHandler {
         &mut self,
         message: Option<Result<ReplicationMessage<LogicalReplicationMessage>, Error>>,
         mapper: &mut XlogMapper,
-    ) {
+    ) -> Result<(), ConnectorError> {
         match message {
             Some(Ok(XLogData(body))) => {
-                let message = mapper.handle_message(body);
+                let message = mapper.handle_message(body)?;
                 if let Some(ingestion_message) = message {
                     if let IngestionMessage::Commit(commit) = ingestion_message {
                         self.last_commit_lsn = commit.lsn;
                     }
 
                     self.ingestor
-                        .lock()
-                        .unwrap()
-                        .handle_message(ingestion_message);
+                        .write()
+                        .handle_message((self.connector_id, ingestion_message))
+                        .map_err(ConnectorError::IngestorError)?;
                 }
+                Ok(())
             }
             Some(Ok(msg)) => {
-                debug!("{:?}", msg);
-                debug!("why i am here ?");
+                error!("Unexpected message: {:?}", msg);
+                Err(PostgresConnectorError(UnexpectedReplicationMessageError))
             }
-            Some(Err(e)) => {
-                warn!("{:?}", e);
-                panic!("unexpected replication stream error")
-            }
-            None => panic!("unexpected replication stream end"),
+            Some(Err(e)) => Err(PostgresConnectorError(ReplicationStreamError(
+                e.to_string(),
+            ))),
+            None => Err(PostgresConnectorError(ReplicationStreamEndError)),
         }
     }
 }

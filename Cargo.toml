@@ -10,3 +10,9 @@ members = [
   "dozer-cache",
 ]
 exclude = ["tests/**/**"]
+
+[patch.crates-io]
+postgres = { git = "https://github.com/getdozer/rust-postgres" }
+postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
+postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
+tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }

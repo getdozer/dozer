@@ -1,4 +1,4 @@
-use dozer_types::errors::pipeline::PipelineError;
+use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use dyn_clone::DynClone;
 

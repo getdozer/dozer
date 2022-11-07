@@ -1,11 +1,7 @@
 use crate::dag::dag::PortDirection::{Input, Output};
-use dozer_types::core::node::{
-    NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
-};
-use dozer_types::errors::execution::ExecutionError;
-use dozer_types::errors::execution::ExecutionError::{
-    InvalidNodeHandle, InvalidNodeType, InvalidPortHandle,
-};
+use crate::dag::errors::ExecutionError;
+use crate::dag::errors::ExecutionError::{InvalidNodeHandle, InvalidNodeType, InvalidPortHandle};
+use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

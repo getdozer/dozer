@@ -37,10 +37,9 @@ jobs:
             ~/.cargo/registry/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-nightly
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-nightly
 
       - run: rustup toolchain update nightly && rustup default nightly
       - name: Run Bench
@@ -96,5 +95,3 @@ jobs:
            ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-
-

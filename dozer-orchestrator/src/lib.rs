@@ -1,10 +1,11 @@
+pub mod errors;
 pub mod pipeline;
 mod services;
 pub mod simple;
-use dozer_types::{
-    errors::{connector::ConnectorError, orchestrator::OrchestrationError},
-    types::Schema,
-};
+
+use dozer_ingestion::errors::ConnectorError;
+use dozer_types::types::Schema;
+use errors::OrchestrationError;
 use services::connection::ConnectionService;
 
 use dozer_types::models::{api_endpoint::ApiEndpoint, connection::Connection, source::Source};
@@ -26,4 +27,9 @@ pub fn test_connection(input: Connection) -> Result<(), ConnectorError> {
 pub fn get_schema(input: Connection) -> Result<Vec<(String, Schema)>, ConnectorError> {
     let connection_service = ConnectionService::new(input);
     connection_service.get_all_schema()
+}
+
+pub fn get_single_schema(input: Connection, table_name: String) -> Result<Schema, ConnectorError> {
+    let connection_service = ConnectionService::new(input);
+    connection_service.get_schema(table_name)
 }

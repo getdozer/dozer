@@ -1,6 +1,6 @@
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
-use dozer_types::errors::pipeline::PipelineError;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
@@ -93,8 +93,14 @@ fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
         Field::Decimal(_) => FieldType::Decimal,
         Field::Timestamp(_) => FieldType::Timestamp,
         Field::Bson(_) => FieldType::Bson,
-        Field::RecordArray(_f) => FieldType::Null, //Error ("Record Array not supported: {:?}", f),
         Field::Null => FieldType::Null,
+        Field::UInt(_) => FieldType::UInt,
+        Field::Text(_) => FieldType::Text,
+        Field::UIntArray(_) => FieldType::UIntArray,
+        Field::IntArray(_) => FieldType::IntArray,
+        Field::FloatArray(_) => FieldType::FloatArray,
+        Field::BooleanArray(_) => FieldType::BooleanArray,
+        Field::StringArray(_) => FieldType::StringArray,
     }
 }
 

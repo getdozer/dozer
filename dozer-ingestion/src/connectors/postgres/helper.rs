@@ -1,7 +1,11 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
+use crate::errors::PostgresSchemaError::{
+    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, InvalidColumnType,
+    ValueConversionError,
+};
+use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use dozer_types::errors::connector::ConnectorError;
 use dozer_types::log::error;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};
@@ -11,41 +15,26 @@ use rust_decimal::Decimal;
 use std::error::Error;
 use std::vec;
 
-pub fn convert_str_to_dozer_field_type(value: &str) -> FieldType {
-    let postgres_type: Type = match value {
-        "text" => Type::TEXT,
-        "int2" => Type::INT2,
-        "int4" => Type::INT4,
-        "int8" => Type::INT8,
-        "float4" => Type::FLOAT4,
-        "float8" => Type::FLOAT8,
-        "numeric" => Type::NUMERIC,
-        "timestamp" => Type::TIMESTAMP,
-        "timestampz" => Type::TIMESTAMPTZ,
-        "jsonb" => Type::JSONB,
-        "bool" => Type::BOOL,
-        _ => Type::ANY,
-    };
-    postgres_type_to_dozer_type(Some(postgres_type))
-}
-
-pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
+pub fn postgres_type_to_field(
+    value: &Bytes,
+    column: &TableColumn,
+) -> Result<Field, ConnectorError> {
     if let Some(column_type) = &column.r#type {
         match column_type {
-            &Type::INT2 | &Type::INT4 | &Type::INT8 => {
-                Field::Int(String::from_utf8(value.to_vec()).unwrap().parse().unwrap())
-            }
-            &Type::FLOAT4 | &Type::FLOAT8 => Field::Float(
+            &Type::INT2 | &Type::INT4 | &Type::INT8 => Ok(Field::Int(
+                String::from_utf8(value.to_vec()).unwrap().parse().unwrap(),
+            )),
+            &Type::FLOAT4 | &Type::FLOAT8 => Ok(Field::Float(
                 String::from_utf8(value.to_vec())
                     .unwrap()
                     .parse::<f64>()
                     .unwrap(),
-            ),
+            )),
             &Type::TEXT | &Type::VARCHAR => {
-                Field::String(String::from_utf8(value.to_vec()).unwrap())
+                Ok(Field::String(String::from_utf8(value.to_vec()).unwrap()))
             }
-            &Type::BYTEA => Field::Binary(value.to_vec()),
-            &Type::NUMERIC => Field::Decimal(
+            &Type::BYTEA => Ok(Field::Binary(value.to_vec())),
+            &Type::NUMERIC => Ok(Field::Decimal(
                 Decimal::from_f64(
                     String::from_utf8(value.to_vec())
                         .unwrap()
@@ -53,14 +42,14 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
                         .unwrap(),
                 )
                 .unwrap(),
-            ),
+            )),
             &Type::TIMESTAMP => {
                 let date = NaiveDateTime::parse_from_str(
                     String::from_utf8(value.to_vec()).unwrap().as_str(),
                     "%Y-%m-%d %H:%M:%S",
                 )
                 .unwrap();
-                Field::Timestamp(DateTime::<Utc>::from_utc(date, Utc))
+                Ok(Field::Timestamp(DateTime::<Utc>::from_utc(date, Utc)))
             }
             &Type::TIMESTAMPTZ => {
                 let date: DateTime<FixedOffset> = DateTime::parse_from_str(
@@ -68,166 +57,132 @@ pub fn postgres_type_to_field(value: &Bytes, column: &TableColumn) -> Field {
                     "%Y-%m-%d %H:%M:%S%.f%#z",
                 )
                 .unwrap();
-                Field::Timestamp(DateTime::<Utc>::from_utc(date.naive_utc(), Utc))
+                Ok(Field::Timestamp(DateTime::<Utc>::from_utc(
+                    date.naive_utc(),
+                    Utc,
+                )))
             }
-            &Type::JSONB | &Type::JSON => Field::Bson(value.to_vec()),
-            &Type::BOOL => Field::Boolean(value.slice(0..1) == "t"),
-            _ => Field::Null,
+            &Type::JSONB | &Type::JSON => Ok(Field::Bson(value.to_vec())),
+            &Type::BOOL => Ok(Field::Boolean(value.slice(0..1) == "t")),
+            _ => Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
+                    column_type.name().to_string(),
+                )),
+            )),
         }
     } else {
-        Field::Null
+        Err(ConnectorError::PostgresConnectorError(
+            PostgresConnectorError::PostgresSchemaError(ColumnTypeNotFound),
+        ))
     }
 }
 
-pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> FieldType {
+pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> Result<FieldType, ConnectorError> {
     if let Some(column_type) = col_type {
         match column_type {
-            Type::BOOL => FieldType::Boolean,
-            Type::INT2 | Type::INT4 | Type::INT8 => FieldType::Int,
-            Type::CHAR | Type::TEXT => FieldType::String,
-            Type::FLOAT4 | Type::FLOAT8 => FieldType::Float,
-            Type::BIT => FieldType::Binary,
-            Type::TIMESTAMP | Type::TIMESTAMPTZ => FieldType::Timestamp,
-            _ => FieldType::Null,
+            Type::BOOL => Ok(FieldType::Boolean),
+            Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
+            Type::CHAR | Type::TEXT | Type::VARCHAR => Ok(FieldType::String),
+            Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
+            Type::BIT => Ok(FieldType::Binary),
+            Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
+            Type::NUMERIC => Ok(FieldType::Decimal),
+            Type::JSONB => Ok(FieldType::Bson),
+            _ => Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
+                    column_type.name().to_string(),
+                )),
+            )),
         }
     } else {
-        FieldType::Null
+        Err(ConnectorError::PostgresConnectorError(
+            PostgresConnectorError::PostgresSchemaError(InvalidColumnType),
+        ))
     }
 }
 
-fn handle_error(e: postgres::error::Error) -> Field {
+fn handle_error(e: postgres::error::Error) -> Result<Field, PostgresSchemaError> {
     if let Some(e) = e.source() {
         if let Some(_e) = e.downcast_ref::<WasNull>() {
-            Field::Null
+            Ok(Field::Null)
         } else {
-            panic!("Conversion error: {:?}", e);
+            Err(ValueConversionError(e.to_string()))
         }
     } else {
-        panic!("Conversion error: {:?}", e);
+        Err(ValueConversionError(e.to_string()))
     }
 }
 
-pub fn value_to_field(row: &tokio_postgres::Row, idx: usize, col_type: &Type) -> Field {
+macro_rules! convert_row_value_to_field {
+    ($a:ident, $b:ident, $c:ty) => {{
+        let value: Result<$c, _> = $a.try_get($b);
+        value.map_or_else(handle_error, |val| Ok(Field::from(val)))
+    }};
+}
+
+pub fn value_to_field(
+    row: &Row,
+    idx: usize,
+    col_type: &Type,
+) -> Result<Field, PostgresSchemaError> {
     match col_type {
-        &Type::BOOL => {
-            let value: Result<bool, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::Boolean(val),
-                Err(error) => handle_error(error),
-            }
-        }
+        &Type::BOOL => convert_row_value_to_field!(row, idx, bool),
+        &Type::INT2 => convert_row_value_to_field!(row, idx, i16),
+        &Type::INT4 => convert_row_value_to_field!(row, idx, i32),
+        &Type::INT8 => convert_row_value_to_field!(row, idx, i64),
         &Type::CHAR | &Type::TEXT | &Type::VARCHAR | &Type::BPCHAR => {
-            let value: Result<String, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::String(val),
-                Err(error) => handle_error(error),
-            }
+            convert_row_value_to_field!(row, idx, String)
         }
-        &Type::INT2 => {
-            let value: Result<i16, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::Int(val.into()),
-                Err(error) => handle_error(error),
-            }
+        &Type::FLOAT4 => convert_row_value_to_field!(row, idx, f32),
+        &Type::FLOAT8 => convert_row_value_to_field!(row, idx, f64),
+        &Type::TIMESTAMP => convert_row_value_to_field!(row, idx, NaiveDateTime),
+        &Type::TIMESTAMPTZ => convert_row_value_to_field!(row, idx, DateTime<FixedOffset>),
+        &Type::NUMERIC => convert_row_value_to_field!(row, idx, Decimal),
+        &Type::BYTEA => {
+            let value: Result<Vec<u8>, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
         }
-        &Type::INT4 => {
-            let value: Result<i32, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::Int(val.into()),
-                Err(error) => handle_error(error),
-            }
+        &Type::JSONB => {
+            let value: Result<Vec<u8>, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |v| Ok(Field::Bson(v)))
         }
-        &Type::INT8 => {
-            let value: Result<i64, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::Int(val),
-                Err(error) => handle_error(error),
-            }
-        }
-        &Type::FLOAT4 => {
-            let value: Result<f32, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::Float(val.into()),
-                Err(error) => handle_error(error),
-            }
-        }
-
-        &Type::FLOAT8 => {
-            let value: Result<f64, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::Float(val),
-                Err(error) => handle_error(error),
-            }
-        }
-        &Type::NUMERIC => {
-            // let ra: Result<Decimal, _> = row.try_get(idx);
-            // rust_decimal::Decimal::from_sql(&Type::NUMERIC, raw);
-            // rust_decimal::Decimal::from_(&postgres_types::Type::NUMERIC, raw);
-            // let value: Result<Decimal, _> = FromSql::from_sql(&Type::from(Type::NUMERIC), raw);
-            // Field::Decimal(value.unwrap())
-            Field::Null
-        }
-
-        &Type::TIMESTAMP => {
-            let value: Result<NaiveDateTime, _> = row.try_get(idx);
-            match value {
-                Ok(val) => Field::Timestamp(DateTime::<Utc>::from_utc(val, Utc)),
-                Err(error) => handle_error(error),
-            }
-        }
-        &Type::TIMESTAMPTZ => {
-            let value: Result<DateTime<FixedOffset>, _> = row.try_get(idx);
-
-            match value {
-                Ok(val) => Field::Timestamp(DateTime::<Utc>::from_utc(val.naive_utc(), Utc)),
-                Err(error) => handle_error(error),
-            }
-        }
-        &Type::TS_VECTOR => {
-            // Not supported type
-            Field::Null
-        }
-        // "date" | "tsvector" => Field::Null,
-
-        // TODO: ignore custom types
-        // "mpaa_rating" | "_text" => Field::Null,
-        // "bytea" | "_bytea" => {
-        //     let val: Result<Vec<u8>, ConnectorError> = row.try_get(idx);
-        //     match val {
-        //         Ok(val) => Field::Binary(val),
-        //         Err(error) => handle_error(error),
-        //     }
-        // }
         _ => {
             if col_type.schema() == "pg_catalog" {
-                // debug!("UNSUPPORTED TYPE: {:?}", col_type);
+                Err(ColumnTypeNotSupported(col_type.name().to_string()))
+            } else {
+                Err(CustomTypeNotSupported)
             }
-            Field::Null
         }
     }
 }
 
-pub fn get_values(row: &Row, columns: &[Column]) -> Vec<Field> {
+pub fn get_values(row: &Row, columns: &[Column]) -> Result<Vec<Field>, PostgresSchemaError> {
     let mut values: Vec<Field> = vec![];
     for (idx, col) in columns.iter().enumerate() {
-        let val: Field = value_to_field(row, idx, col.type_());
-        values.push(val);
+        let val = value_to_field(row, idx, col.type_());
+        match val {
+            Ok(val) => values.push(val),
+            Err(e) => return Err(e),
+        };
     }
-    values
+    Ok(values)
 }
 
 pub fn map_row_to_operation_event(
     _table_name: String,
-    identifer: SchemaIdentifier,
+    identifier: SchemaIdentifier,
     row: &Row,
     columns: &[Column],
     idx: u32,
-) -> OperationEvent {
-    OperationEvent {
-        operation: Operation::Insert {
-            new: Record::new(Some(identifer), get_values(row, columns)),
-        },
-        seq_no: idx as u64,
+) -> Result<OperationEvent, PostgresSchemaError> {
+    match get_values(row, columns) {
+        Ok(values) => Ok(OperationEvent {
+            operation: Operation::Insert {
+                new: Record::new(Some(identifier), values),
+            },
+            seq_no: idx as u64,
+        }),
+        Err(e) => Err(e),
     }
 }
 
@@ -249,25 +204,30 @@ pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, C
     }
 }
 
-pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Schema {
-    let field_defs = columns
-        .iter()
-        .map(|col| FieldDefinition {
-            name: col.name().to_string(),
-            typ: postgres_type_to_dozer_type(Some(col.type_().clone())),
-            nullable: true,
-        })
-        .collect();
+pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Result<Schema, ConnectorError> {
+    let field_defs: Result<Vec<FieldDefinition>, _> =
+        columns.iter().map(convert_column_to_field).collect();
 
-    Schema {
+    Ok(Schema {
         identifier: Some(SchemaIdentifier {
             id: *rel_id,
             version: 1,
         }),
-        fields: field_defs,
+        fields: field_defs.unwrap(),
         values: vec![],
         primary_index: vec![0],
         secondary_indexes: vec![],
+    })
+}
+
+pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, ConnectorError> {
+    match postgres_type_to_dozer_type(Some(column.type_().clone())) {
+        Ok(typ) => Ok(FieldDefinition {
+            name: column.name().to_string(),
+            typ,
+            nullable: true,
+        }),
+        Err(e) => Err(e),
     }
 }
 
@@ -288,7 +248,7 @@ mod tests {
                     r#type: Some($b),
                 },
             );
-            assert_eq!(value, $c);
+            assert_eq!(value.unwrap(), $c);
         };
     }
 

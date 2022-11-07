@@ -87,11 +87,21 @@ fn query_secondary_vars() {
     for val in items {
         insert_rec_1(&cache, &schema, val);
     }
+
     test_query(json!({}), 7, &cache);
 
     test_query(json!({"$filter":{ "a": {"$eq": 1}}}), 1, &cache);
 
     test_query(json!({"$filter":{ "c": {"$eq": 521}}}), 2, &cache);
+
+    test_query(
+        json!({"$filter":{ "a": 1, "b": "yuri".to_string()}}),
+        1,
+        &cache,
+    );
+
+    // No compound index for a,c
+    test_query_err(json!({"$filter":{ "a": 1, "c": 521}}), &cache);
 
     test_query(
         json!({
@@ -102,14 +112,20 @@ fn query_secondary_vars() {
         &cache,
     );
 
-    test_query(
-        json!({"$filter":{ "a": 1, "b": "yuri".to_string()}}),
-        1,
-        &cache,
-    );
+    // Range tests
+    test_query(json!({"$filter":{ "c": {"$lte": 521}}}), 2, &cache);
 
-    // No compound index for a,c
-    test_query_err(json!({"$filter":{ "a": 1, "c": 521}}), &cache);
+    test_query(json!({"$filter":{ "c": {"$gte": 521}}}), 7, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$gt": 521}}}), 5, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$lte": 524}}}), 4, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$lt": 524}}}), 3, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$lt": 600}}}), 7, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$gt": 200}}}), 7, &cache);
 }
 
 fn test_query_err(query: Value, cache: &LmdbCache) {
@@ -119,7 +135,7 @@ fn test_query_err(query: Value, cache: &LmdbCache) {
     assert!(result.is_err());
     if let Err(err) = result {
         assert!(
-            matches!(err, dozer_types::errors::cache::CacheError::PlanError(_)),
+            matches!(err, crate::errors::CacheError::PlanError(_)),
             "Must be a PlanError"
         );
     }
@@ -127,5 +143,6 @@ fn test_query_err(query: Value, cache: &LmdbCache) {
 fn test_query(query: Value, count: usize, cache: &LmdbCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let records = cache.query("sample", &query).unwrap();
+
     assert_eq!(records.len(), count, "Count must be equal : {:?}", query);
 }

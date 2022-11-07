@@ -1,20 +1,20 @@
-use actix_cors::Cors;
-use actix_web::{
-    body::MessageBody,
-    dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
-    middleware::Condition,
-    rt, web, App, HttpMessage, HttpServer,
-};
-use actix_web_httpauth::middleware::HttpAuthentication;
-use dozer_cache::cache::LmdbCache;
-use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::serde::{self, Deserialize, Serialize};
-use std::sync::Arc;
-
 use crate::{
     api_generator,
     auth::api::{auth_route, validate, ApiSecurity},
 };
+use actix_cors::Cors;
+use actix_web::{
+    body::MessageBody,
+    dev::{ServerHandle, Service, ServiceFactory, ServiceRequest, ServiceResponse},
+    middleware::{Condition, Logger},
+    rt, web, App, HttpMessage, HttpServer,
+};
+use actix_web_httpauth::middleware::HttpAuthentication;
+use dozer_cache::cache::LmdbCache;
+use dozer_types::crossbeam::channel::Sender;
+use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::serde::{self, Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct PipelineDetails {
@@ -77,7 +77,7 @@ impl ApiServer {
             Error = actix_web::Error,
         >,
     > {
-        let app = App::new();
+        let app = App::new().wrap(Logger::default());
 
         // Injecting cache
         let app = app.app_data(web::Data::new(cache));
@@ -121,23 +121,32 @@ impl ApiServer {
             .wrap(cors_middleware)
     }
 
-    pub fn run(&self, endpoints: Vec<ApiEndpoint>, cache: Arc<LmdbCache>) -> std::io::Result<()> {
+    pub fn run(
+        &self,
+        endpoints: Vec<ApiEndpoint>,
+        cache: Arc<LmdbCache>,
+        tx: Sender<ServerHandle>,
+    ) -> std::io::Result<()> {
         let endpoints = endpoints;
         let cors = self.cors.clone();
         let security = self.security.clone();
-        rt::System::new().block_on(async move {
-            HttpServer::new(move || {
-                ApiServer::create_app_entry(
-                    security.to_owned(),
-                    cors.to_owned(),
-                    endpoints.clone(),
-                    cache.clone(),
-                )
-            })
-            .bind(("0.0.0.0", self.port.to_owned()))?
-            .shutdown_timeout(self.shutdown_timeout.to_owned())
-            .run()
-            .await
+        let server = HttpServer::new(move || {
+            ApiServer::create_app_entry(
+                security.to_owned(),
+                cors.to_owned(),
+                endpoints.clone(),
+                cache.clone(),
+            )
         })
+        .bind(("0.0.0.0", self.port.to_owned()))?
+        .shutdown_timeout(self.shutdown_timeout.to_owned())
+        .run();
+
+        let _ = tx.send(server.handle());
+        rt::System::new().block_on(async move { server.await })
+    }
+
+    pub fn stop(server_handle: ServerHandle) {
+        rt::System::new().block_on(server_handle.stop(true));
     }
 }

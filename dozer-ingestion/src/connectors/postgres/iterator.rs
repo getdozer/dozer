@@ -1,20 +1,14 @@
-use crate::connectors::connector::TableInfo;
-use crate::connectors::ingestor::{
-    ChannelForwarder, IngestionOperation, Ingestor, IngestorForwarder,
-};
-use crate::connectors::seq_no_resolver::SeqNoResolver;
-use crate::connectors::storage::RocksStorage;
-use crossbeam::channel::unbounded;
-use dozer_types::bincode;
-use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
-use dozer_types::log::{debug, warn};
+use crate::connectors::TableInfo;
 
-use postgres::Error;
+use crate::errors::{ConnectorError, PostgresConnectorError};
+use crate::ingestion::Ingestor;
+use dozer_types::bincode;
+use dozer_types::log::debug;
+
+use dozer_types::parking_lot::RwLock;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
+use std::sync::Arc;
 
 use crate::connectors::postgres::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
@@ -40,9 +34,9 @@ pub enum ReplicationState {
 }
 
 pub struct PostgresIterator {
-    receiver: RefCell<Option<crossbeam::channel::Receiver<IngestionOperation>>>,
     details: Arc<Details>,
-    storage_client: Arc<RocksStorage>,
+    ingestor: Arc<RwLock<Ingestor>>,
+    connector_id: u64,
 }
 
 impl PostgresIterator {
@@ -53,7 +47,7 @@ impl PostgresIterator {
         tables: Option<Vec<TableInfo>>,
         conn_str: String,
         conn_str_plain: String,
-        storage_client: Arc<RocksStorage>,
+        ingestor: Arc<RwLock<Ingestor>>,
     ) -> Self {
         let details = Arc::new(Details {
             id,
@@ -64,76 +58,47 @@ impl PostgresIterator {
             conn_str_plain,
         });
         PostgresIterator {
-            receiver: RefCell::new(None),
             details,
-            storage_client,
+            ingestor,
+            connector_id: id,
         }
     }
 }
 
 impl PostgresIterator {
-    pub fn start(
-        &self,
-        seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
-    ) -> Result<JoinHandle<()>, Error> {
-        let lsn = RefCell::new(self.get_last_lsn_for_connection());
+    pub fn start(&self) -> Result<(), ConnectorError> {
+        let lsn = RefCell::new(self.get_last_lsn_for_connection()?);
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
+        let ingestor = self.ingestor.clone();
+        let connector_id = self.connector_id;
 
-        let (tx, rx) = unbounded::<IngestionOperation>();
-
-        self.receiver.replace(Some(rx));
-
-        let forwarder: Arc<Box<dyn IngestorForwarder>> =
-            Arc::new(Box::new(ChannelForwarder { sender: tx }));
-        let storage_client = self.storage_client.clone();
-        let ingestor = Arc::new(Mutex::new(Ingestor::new(
-            storage_client,
-            forwarder,
-            seq_no_resolver,
-        )));
-
-        Ok(thread::spawn(move || {
-            let mut stream_inner = PostgresIteratorHandler {
-                details,
-                ingestor,
-                state,
-                lsn,
-            };
-            stream_inner._start().unwrap();
-        }))
+        let mut stream_inner = PostgresIteratorHandler {
+            details,
+            ingestor,
+            state,
+            lsn,
+            connector_id,
+        };
+        stream_inner._start()
     }
 
-    pub fn get_last_lsn_for_connection(&self) -> Option<String> {
-        let commit_key = self
-            .storage_client
-            .get_commit_message_key(&(self.details.id as usize));
-        let commit_message = self.storage_client.get_db().get(commit_key);
+    pub fn get_last_lsn_for_connection(&self) -> Result<Option<String>, ConnectorError> {
+        let storage_client = self.ingestor.read().storage_client.clone();
+        let commit_key = storage_client.get_commit_message_key(&(self.details.id as usize));
+        let commit_message = storage_client.get_db().get(commit_key);
         match commit_message {
             Ok(Some(value)) => {
-                let (_, message): (usize, u64) = bincode::deserialize(value.as_slice()).unwrap();
+                let (_, message): (usize, u64) = bincode::deserialize(value.as_slice())
+                    .map_err(ConnectorError::map_bincode_serialization_error)?;
                 if message == 0 {
-                    None
+                    Ok(None)
                 } else {
                     debug!("lsn: {:?}", PgLsn::from(message).to_string());
-                    Some(PgLsn::from(message).to_string())
+                    Ok(Some(PgLsn::from(message).to_string()))
                 }
             }
-            _ => None,
-        }
-    }
-}
-
-impl Iterator for PostgresIterator {
-    type Item = IngestionOperation;
-    fn next(&mut self) -> Option<Self::Item> {
-        let msg = self.receiver.borrow().as_ref().unwrap().recv();
-        match msg {
-            Ok(msg) => Some(msg),
-            Err(e) => {
-                warn!("RecvError: {:?}", e.to_string());
-                None
-            }
+            _ => Ok(None),
         }
     }
 }
@@ -142,7 +107,8 @@ pub struct PostgresIteratorHandler {
     pub details: Arc<Details>,
     pub lsn: RefCell<Option<String>>,
     pub state: RefCell<ReplicationState>,
-    pub ingestor: Arc<Mutex<Ingestor>>,
+    pub ingestor: Arc<RwLock<Ingestor>>,
+    pub connector_id: u64,
 }
 
 impl PostgresIteratorHandler {
@@ -180,7 +146,7 @@ impl PostgresIteratorHandler {
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
                 .map_err(|_e| {
                     debug!("failed to begin txn for replication");
-                    ConnectorError::PostgresConnectorError(PostgresConnectorError::BeginReplication)
+                    PostgresConnectorError::BeginReplication
                 })?;
 
             let replication_slot_lsn = self.create_replication_slot(client.clone())?;
@@ -197,6 +163,7 @@ impl PostgresIteratorHandler {
                 tables: details.tables.to_owned(),
                 conn_str: details.conn_str_plain.to_owned(),
                 ingestor: Arc::clone(&self.ingestor),
+                connector_id: self.connector_id,
             };
             let tables = snapshotter.sync_tables()?;
 
@@ -299,6 +266,7 @@ impl PostgresIteratorHandler {
                 publication_name,
                 slot_name,
                 last_commit_lsn: 0,
+                connector_id: self.connector_id,
             };
             replicator.start().await
         })
