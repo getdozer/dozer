@@ -122,7 +122,7 @@ impl Executor {
             )
             .map_err(OrchestrationError::ExecutionError)?;
 
-            let namespace = format!("{}/{}", api_endpoint_name, idx);
+            let namespace = format!("{}_{}", api_endpoint_name, idx);
             // Merge dag with parent with namespace
             parent_dag.merge(namespace.to_owned(), dag);
 
@@ -137,7 +137,7 @@ impl Executor {
 
                 // Change namespace after merge
                 let mut endpoint = endpoint.clone();
-                endpoint.node = format!("{}/{}", namespace, endpoint.node);
+                endpoint.node = format!("{}_{}", namespace, endpoint.node);
 
                 // Connect source from Parent Dag to Processor
                 parent_dag
