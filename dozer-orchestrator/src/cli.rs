@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
-use dozer_types::models::api_endpoint::APIConfig;
+use dozer_orchestrator::errors::OrchestrationError;
+use dozer_types::models::api_endpoint::{ApiEndpoint, APIConfig};
 use dozer_types::models::source::Source;
-use dozer_types::{errors::orchestrator::OrchestrationError, models::api_endpoint::ApiEndpoint};
 use serde::{Deserialize, Serialize};
 use std::fs;
 

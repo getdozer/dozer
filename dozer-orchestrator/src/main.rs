@@ -1,7 +1,7 @@
 mod cli;
 
 use clap::Parser;
-use dozer_types::errors::orchestrator::OrchestrationError;
+use dozer_orchestrator::errors::OrchestrationError;
 use log::warn;
 
 use crate::cli::{load_config, Args, SubCommand};

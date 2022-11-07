@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
-use dozer_types::{
-    errors::cache::{CacheError, IndexError, QueryError},
-    types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier},
-};
+use crate::errors::{CacheError, IndexError, QueryError};
+use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier};
 use lmdb::{RwTransaction, Transaction, WriteFlags};
+use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
@@ -48,14 +45,14 @@ impl Indexer {
                     let secondary_key =
                         self._build_index_sorted_inverted(identifier, &fields, &rec.values);
                     txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
-                        .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
+                        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         self._build_indices_full_text(identifier, *field_index, &rec.values)?
                     {
                         txn.put(db, &secondary_key, &pkey, WriteFlags::default())
-                            .map_err(|_e| CacheError::QueryError(QueryError::InsertValue))?;
+                            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                     }
                 }
             }

@@ -1,8 +1,5 @@
-use dozer_types::{
-    bincode,
-    errors::cache::{CacheError, QueryError},
-    serde,
-};
+use crate::errors::{CacheError, QueryError};
+use dozer_types::{bincode, serde};
 use lmdb::{Database, RoTransaction, Transaction};
 use lmdb_sys as ffi;
 use std::ffi::c_void;
@@ -12,7 +9,7 @@ where
 {
     let rec = txn
         .get(db, &key)
-        .map_err(|_e| CacheError::QueryError(QueryError::GetValue))?;
+        .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
     bincode::deserialize(rec).map_err(CacheError::map_deserialization_error)
 }
 

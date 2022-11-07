@@ -34,9 +34,13 @@ pub fn field_to_json_value(field: &Field) -> Result<String, TypeError> {
         Field::Decimal(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Timestamp(ts) => Ok(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
         Field::Bson(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::RecordArray(arr) => {
-            Ok(serde_json::to_string(arr).map_err(SerializationError::Json))?
-        }
+        Field::UInt(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::Text(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::UIntArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::IntArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::FloatArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::BooleanArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::StringArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
     }
     .map_err(TypeError::SerializationError)
 }
@@ -73,9 +77,27 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
             .map_err(DeserializationError::Json)
             .map(Field::Bson),
         FieldType::Null => Ok(Field::Null),
-        FieldType::RecordArray(_) => serde_json::from_str(val)
+        FieldType::UInt => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
-            .map(Field::RecordArray),
+            .map(Field::UInt),
+        FieldType::Text => serde_json::from_str(val)
+            .map_err(DeserializationError::Json)
+            .map(Field::Text),
+        FieldType::UIntArray => serde_json::from_str(val)
+            .map_err(DeserializationError::Json)
+            .map(Field::UIntArray),
+        FieldType::IntArray => serde_json::from_str(val)
+            .map_err(DeserializationError::Json)
+            .map(Field::IntArray),
+        FieldType::FloatArray => serde_json::from_str(val)
+            .map_err(DeserializationError::Json)
+            .map(Field::FloatArray),
+        FieldType::BooleanArray => serde_json::from_str(val)
+            .map_err(DeserializationError::Json)
+            .map(Field::BooleanArray),
+        FieldType::StringArray => serde_json::from_str(val)
+            .map_err(DeserializationError::Json)
+            .map(Field::StringArray),
     }
     .map_err(TypeError::DeserializationError)
 }
@@ -84,7 +106,7 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
 mod tests {
     use crate::{
         helper::{field_to_json_value, json_value_to_field},
-        types::{Field, FieldDefinition, FieldType, Schema},
+        types::{Field, FieldType},
     };
     use chrono::{TimeZone, Utc};
     use rust_decimal::Decimal;
@@ -103,7 +125,8 @@ mod tests {
     #[test]
     fn test_field_types_str_conversion() -> anyhow::Result<()> {
         let fields = vec![
-            (FieldType::Int, Field::Int(1)),
+            (FieldType::Int, Field::Int(-1)),
+            (FieldType::UInt, Field::UInt(1)),
             (FieldType::Float, Field::Float(1.1)),
             (FieldType::Boolean, Field::Boolean(true)),
             (FieldType::String, Field::String("a".to_string())),
@@ -117,21 +140,21 @@ mod tests {
                 FieldType::Bson,
                 Field::Bson(bincode::serialize(&json!({"a": 1}))?),
             ),
+            (FieldType::Text, Field::Text("lorem ipsum".to_string())),
+            (FieldType::UIntArray, Field::UIntArray(vec![1, 2, 3])),
+            (FieldType::IntArray, Field::IntArray(vec![1, -2, 3])),
             (
-                FieldType::RecordArray(Schema {
-                    identifier: None,
-                    fields: vec![FieldDefinition {
-                        name: "foo".to_string(),
-                        typ: FieldType::String,
-                        nullable: true,
-                    }],
-                    values: vec![],
-                    primary_index: vec![],
-                    secondary_indexes: vec![],
-                }),
-                Field::RecordArray(vec![]),
+                FieldType::FloatArray,
+                Field::FloatArray(vec![1.0_f64, 2.0_f64, 3.2_f64]),
             ),
-            (FieldType::Null, Field::Null),
+            (
+                FieldType::BooleanArray,
+                Field::BooleanArray(vec![true, true, false]),
+            ),
+            (
+                FieldType::StringArray,
+                Field::StringArray(vec!["a".to_string(), "b".to_string()]),
+            ),
         ];
         for (field_type, field) in fields {
             test_field_conversion(field_type, field)?;

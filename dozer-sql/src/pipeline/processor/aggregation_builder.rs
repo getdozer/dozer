@@ -1,4 +1,4 @@
-use dozer_types::errors::pipeline::PipelineError::{
+use crate::pipeline::errors::PipelineError::{
     self, InvalidArgument, InvalidExpression, InvalidOperator, InvalidValue,
 };
 use dozer_types::types::{Field, Schema};

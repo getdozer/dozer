@@ -1,10 +1,11 @@
+pub mod errors;
 pub mod pipeline;
 mod services;
 pub mod simple;
-use dozer_types::{
-    errors::{connector::ConnectorError, orchestrator::OrchestrationError},
-    types::Schema,
-};
+
+use dozer_ingestion::errors::ConnectorError;
+use dozer_types::types::Schema;
+use errors::OrchestrationError;
 use services::connection::ConnectionService;
 
 use dozer_types::models::{api_endpoint::ApiEndpoint, connection::Connection, source::Source};

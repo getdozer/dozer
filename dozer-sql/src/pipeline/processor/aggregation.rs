@@ -1,23 +1,17 @@
-use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use dozer_types::core::channels::ProcessorChannelForwarder;
-use dozer_types::errors::execution::ExecutionError::InternalError;
-use dozer_types::errors::execution::ExecutionError::InternalPipelineError;
-use dozer_types::errors::execution::ExecutionError::InvalidPortHandle;
-use dozer_types::errors::pipeline::PipelineError::InternalDatabaseError;
-use dozer_types::{
-    core::{
-        node::{PortHandle, Processor, ProcessorFactory},
-        state::{StateStore, StateStoreOptions},
-    },
-    errors::{execution::ExecutionError, pipeline::PipelineError},
-    types::{Field, FieldDefinition, Operation, Record, Schema},
-};
-use sqlparser::ast::{Expr as SqlExpr, SelectItem};
-
-use std::{collections::HashMap, mem::size_of_val};
-
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
+use dozer_core::dag::channels::ProcessorChannelForwarder;
+use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::errors::ExecutionError::InternalError;
+use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
+use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::node::{PortHandle, Processor, ProcessorFactory};
+use dozer_core::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
+use dozer_types::internal_err;
+use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
+use sqlparser::ast::{Expr as SqlExpr, SelectItem};
+use std::{collections::HashMap, mem::size_of_val};
 
 use super::aggregation_builder::AggregationBuilder;
 
@@ -63,10 +57,8 @@ impl AggregationProcessorFactory {
 }
 
 impl ProcessorFactory for AggregationProcessorFactory {
-    fn get_state_store_opts(&self) -> Option<StateStoreOptions> {
-        Some(StateStoreOptions {
-            allow_duplicate_keys: false,
-        })
+    fn is_stateful(&self) -> bool {
+        true
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -85,6 +77,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             out_dimensions: vec![],
             out_measures: vec![],
             builder: AggregationBuilder {},
+            db: None,
         })
     }
 }
@@ -96,6 +89,7 @@ pub struct AggregationProcessor {
     out_dimensions: Vec<(usize, Box<Expression>, usize)>,
     out_measures: Vec<(usize, Box<dyn Aggregator>, usize)>,
     builder: AggregationBuilder,
+    db: Option<Database>,
 }
 
 enum AggregatorOperation {
@@ -188,10 +182,18 @@ impl AggregationProcessor {
         Ok(output_schema)
     }
 
-    fn init_store(&self, store: &mut dyn StateStore) -> Result<(), PipelineError> {
-        store
-            .put(&AGG_VALUES_DATASET_ID.to_ne_bytes(), &0_u16.to_ne_bytes())
-            .map_err(InternalDatabaseError)
+    fn init_store(&mut self, txn: Option<&mut Transaction>) -> Result<(), PipelineError> {
+        match txn {
+            Some(t) => {
+                let mut opts = DatabaseOptions::default();
+                opts.create = true;
+                self.db = Some(t.open_database("aggr".to_string(), opts)?);
+                Ok(())
+            }
+            None => Err(PipelineError::InternalExecutionError(
+                ExecutionError::InvalidDatabase,
+            )),
+        }
     }
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> Result<(), PipelineError> {
@@ -271,19 +273,21 @@ impl AggregationProcessor {
 
     fn update_segment_count(
         &self,
-        store: &mut dyn StateStore,
+        txn: &mut Transaction,
+        db: &Database,
         key: Vec<u8>,
         delta: u64,
         decr: bool,
     ) -> Result<u64, PipelineError> {
-        let bytes = store.get(key.as_slice())?;
+        let bytes = txn.get(db, key.as_slice())?;
 
         let curr_count = match bytes {
             Some(b) => u64::from_ne_bytes(b.try_into().unwrap()),
             None => 0_u64,
         };
 
-        store.put(
+        txn.put(
+            db,
             key.as_slice(),
             (if decr {
                 curr_count - delta
@@ -292,13 +296,15 @@ impl AggregationProcessor {
             })
             .to_ne_bytes()
             .as_slice(),
+            PutOptions::default(),
         )?;
         Ok(curr_count)
     }
 
     fn agg_delete(
         &self,
-        store: &mut dyn StateStore,
+        txn: &mut Transaction,
+        db: &Database,
         old: &Record,
     ) -> Result<Operation, PipelineError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
@@ -313,9 +319,9 @@ impl AggregationProcessor {
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        let prev_count = self.update_segment_count(store, record_count_key, 1, true)?;
+        let prev_count = self.update_segment_count(txn, db, record_count_key, 1, true)?;
 
-        let curr_state = store.get(record_key.as_slice())?;
+        let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             curr_state,
             Some(old),
@@ -340,16 +346,22 @@ impl AggregationProcessor {
         };
 
         if prev_count > 0 {
-            store.put(record_key.as_slice(), new_state.as_slice())?;
+            txn.put(
+                db,
+                record_key.as_slice(),
+                new_state.as_slice(),
+                PutOptions::default(),
+            )?;
         } else {
-            store.del(record_key.as_slice(), None)?
+            let _ = txn.del(db, record_key.as_slice(), None)?;
         }
         Ok(res)
     }
 
     fn agg_insert(
         &self,
-        store: &mut dyn StateStore,
+        txn: &mut Transaction,
+        db: &Database,
         new: &Record,
     ) -> Result<Operation, PipelineError> {
         let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
@@ -364,9 +376,9 @@ impl AggregationProcessor {
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        self.update_segment_count(store, record_count_key, 1, false)?;
+        self.update_segment_count(txn, db, record_count_key, 1, false)?;
 
-        let curr_state = store.get(record_key.as_slice())?;
+        let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             curr_state,
             None,
@@ -390,14 +402,20 @@ impl AggregationProcessor {
             }
         };
 
-        store.put(record_key.as_slice(), new_state.as_slice())?;
+        txn.put(
+            db,
+            record_key.as_slice(),
+            new_state.as_slice(),
+            PutOptions::default(),
+        )?;
 
         Ok(res)
     }
 
     fn agg_update(
         &self,
-        store: &mut dyn StateStore,
+        txn: &mut Transaction,
+        db: &Database,
         old: &Record,
         new: &Record,
         record_hash: Vec<u8>,
@@ -406,7 +424,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
-        let curr_state = store.get(record_key.as_slice())?;
+        let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             curr_state,
             Some(old),
@@ -424,19 +442,25 @@ impl AggregationProcessor {
             old: out_rec_delete,
         };
 
-        store.put(record_key.as_slice(), new_state.as_slice())?;
+        txn.put(
+            db,
+            record_key.as_slice(),
+            new_state.as_slice(),
+            PutOptions::default(),
+        )?;
 
         Ok(res)
     }
 
     pub fn aggregate(
         &self,
-        store: &mut dyn StateStore,
+        txn: &mut Transaction,
+        db: &Database,
         op: Operation,
     ) -> Result<Vec<Operation>, PipelineError> {
         match op {
-            Operation::Insert { ref new } => Ok(vec![self.agg_insert(store, new)?]),
-            Operation::Delete { ref old } => Ok(vec![self.agg_delete(store, old)?]),
+            Operation::Insert { ref new } => Ok(vec![self.agg_insert(txn, db, new)?]),
+            Operation::Delete { ref old } => Ok(vec![self.agg_delete(txn, db, old)?]),
             Operation::Update { ref old, ref new } => {
                 let (old_record_hash, new_record_hash) = if self.out_dimensions.is_empty() {
                     (
@@ -449,11 +473,11 @@ impl AggregationProcessor {
                 };
 
                 if old_record_hash == new_record_hash {
-                    Ok(vec![self.agg_update(store, old, new, old_record_hash)?])
+                    Ok(vec![self.agg_update(txn, db, old, new, old_record_hash)?])
                 } else {
                     Ok(vec![
-                        self.agg_delete(store, old)?,
-                        self.agg_insert(store, new)?,
+                        self.agg_delete(txn, db, old)?,
+                        self.agg_insert(txn, db, new)?,
                     ])
                 }
             }
@@ -471,7 +495,7 @@ impl Processor for AggregationProcessor {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(InvalidPortHandle(output_port))?;
 
-        let field_rules = self.build(&self.select, &self.groupby, input_schema)?;
+        let field_rules = internal_err!(self.build(&self.select, &self.groupby, input_schema))?;
 
         self.output_field_rules = field_rules;
 
@@ -481,8 +505,8 @@ impl Processor for AggregationProcessor {
         self.build_output_schema(input_schema)
     }
 
-    fn init(&mut self, state: &mut dyn StateStore) -> Result<(), ExecutionError> {
-        self.init_store(state).map_err(InternalPipelineError)
+    fn init(&mut self, state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+        internal_err!(self.init_store(state))
     }
 
     fn process(
@@ -490,13 +514,17 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &dyn ProcessorChannelForwarder,
-        state: &mut dyn StateStore,
+        txn: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
-        let ops = self.aggregate(state, op)?;
-        state.commit()?;
-        for op in ops {
-            fw.send(op, DEFAULT_PORT_HANDLE)?;
+        match (txn, &self.db) {
+            (Some(t), Some(d)) => {
+                let ops = internal_err!(self.aggregate(t, d, op))?;
+                for op in ops {
+                    fw.send(op, DEFAULT_PORT_HANDLE)?;
+                }
+                Ok(())
+            }
+            _ => Err(ExecutionError::InvalidDatabase),
         }
-        Ok(())
     }
 }

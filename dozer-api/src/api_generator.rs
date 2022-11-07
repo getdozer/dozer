@@ -1,12 +1,13 @@
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
 use dozer_cache::cache::{expression::QueryExpression, LmdbCache};
+use dozer_types::log::info;
 
 use crate::api_helper::ApiHelper;
 use crate::api_server::PipelineDetails;
 use crate::auth::Access;
 use crate::errors::ApiError;
-use dozer_types::errors::cache::CacheError;
+use dozer_cache::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use std::sync::Arc;
@@ -65,10 +66,25 @@ pub async fn list(
         access.map(|a| a.into_inner()),
     )?;
     let exp = QueryExpression::new(None, vec![], 50, 0);
-    helper
+    match helper
         .get_records(exp)
         .map(|maps| HttpResponse::Ok().json(maps))
-        .map_err(|e| ApiError::InternalError(Box::new(e)))
+    {
+        Ok(res) => Ok(res),
+        Err(e) => match e {
+            CacheError::QueryError(_) => {
+                let res: Vec<String> = vec![];
+                info!("No records found.");
+                Ok(HttpResponse::Ok().json(res))
+            }
+            CacheError::QueryValidationError(_)
+            | CacheError::InternalError(_)
+            | CacheError::IndexError(_)
+            | CacheError::PlanError(_)
+            | CacheError::TypeError(_)
+            | CacheError::SchemaIdentifierNotFound => Err(ApiError::InternalError(Box::new(e))),
+        },
+    }
 }
 
 // Generated query function for multiple records
