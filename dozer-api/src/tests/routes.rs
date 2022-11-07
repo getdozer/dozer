@@ -102,7 +102,7 @@ async fn get_route() {
     let val = body.as_object().unwrap();
     assert_eq!(
         val.get("film_id").unwrap().to_string(),
-        "268".to_string(),
+        "\"268\"".to_string(),
         "Must be equal"
     );
 }

@@ -30,7 +30,7 @@ pub async fn generate_oapi(
 pub async fn get(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
-    path: web::Path<Value>,
+    path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
     let helper = ApiHelper::new(
         pipeline_details.into_inner(),

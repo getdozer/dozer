@@ -271,8 +271,11 @@ impl<'a> LmdbQueryHandler<'a> {
                         .typ
                         .to_owned();
                     Some(
-                        json_value_to_field(&idf.val, &field_type)
-                            .map_err(CacheError::TypeError)?,
+                        json_value_to_field(
+                            idf.val.as_str().unwrap_or(&idf.val.to_string()),
+                            &field_type,
+                        )
+                        .map_err(CacheError::TypeError)?,
                     )
                 }
                 None => None,
