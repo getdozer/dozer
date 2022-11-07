@@ -6,13 +6,14 @@ use crate::{
 use chrono::{DateTime, SecondsFormat, Utc};
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
+use serde_json::Value;
 use std::str::FromStr;
 /// Used in REST APIs for converting to JSON
 pub fn record_to_json(
     rec: &Record,
     schema: &Schema,
-) -> Result<IndexMap<String, String>, types::TypeError> {
-    let mut map: IndexMap<String, String> = IndexMap::new();
+) -> Result<IndexMap<String, Value>, types::TypeError> {
+    let mut map: IndexMap<String, Value> = IndexMap::new();
 
     for (idx, field_def) in schema.fields.iter().enumerate() {
         let field = rec.values[idx].clone();
@@ -24,77 +25,80 @@ pub fn record_to_json(
 }
 
 /// Used in REST APIs for converting raw value back and forth
-pub fn field_to_json_value(field: &Field) -> Result<String, TypeError> {
+pub fn field_to_json_value(field: &Field) -> Result<Value, TypeError> {
     match field {
-        Field::Int(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::Float(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::Boolean(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::String(s) => Ok(s.to_owned()),
-        Field::Binary(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::Null => Ok("null".to_owned()),
-        Field::Decimal(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::Timestamp(ts) => Ok(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
-        Field::Bson(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
-        Field::UInt(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::Text(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::UIntArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::IntArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::FloatArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::BooleanArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::StringArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::Int(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::Float(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::Boolean(b) => Ok(serde_json::to_value(b).map_err(SerializationError::Json))?,
+        Field::String(s) => Ok(serde_json::to_value(s).map_err(SerializationError::Json))?,
+        Field::Binary(b) => Ok(serde_json::to_value(b).map_err(SerializationError::Json))?,
+        Field::Null => Ok(serde_json::Value::Null),
+        Field::Decimal(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::Timestamp(ts) => Ok(serde_json::to_value(
+            ts.to_rfc3339_opts(SecondsFormat::Millis, true),
+        )
+        .map_err(SerializationError::Json))?,
+        Field::Bson(b) => Ok(serde_json::to_value(b).map_err(SerializationError::Json))?,
+        Field::UInt(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::Text(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::UIntArray(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::IntArray(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::FloatArray(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::BooleanArray(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
+        Field::StringArray(n) => Ok(serde_json::to_value(n).map_err(SerializationError::Json))?,
     }
     .map_err(TypeError::SerializationError)
 }
 
 /// Used in REST APIs for converting raw value back and forth
-pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeError> {
+pub fn json_value_to_field(val: &Value, typ: &FieldType) -> Result<Field, TypeError> {
     match typ {
-        FieldType::Int => serde_json::from_str(val)
+        FieldType::Int => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::Int),
-        FieldType::Float => serde_json::from_str(val)
+        FieldType::Float => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::Float),
-        FieldType::Boolean => serde_json::from_str(val)
+        FieldType::Boolean => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::Boolean),
         FieldType::String => Ok(Field::String(val.to_string())),
-        FieldType::Binary => serde_json::from_str(val)
+        FieldType::Binary => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::Binary),
 
-        FieldType::Decimal => Decimal::from_str(val)
+        FieldType::Decimal => Decimal::from_str(&val.to_string())
             .map_err(|e| DeserializationError::Custom(Box::new(e)))
             .map(Field::Decimal),
-        FieldType::Timestamp => DateTime::parse_from_rfc3339(val)
+        FieldType::Timestamp => DateTime::parse_from_rfc3339(&val.to_string())
             .map_err(|e| DeserializationError::Custom(Box::new(e)))
             .map(|date| {
                 let val: DateTime<Utc> = date.with_timezone(&Utc);
                 Field::Timestamp(val)
             }),
-        FieldType::Bson => serde_json::from_str(val)
+        FieldType::Bson => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::Bson),
         FieldType::Null => Ok(Field::Null),
-        FieldType::UInt => serde_json::from_str(val)
+        FieldType::UInt => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::UInt),
-        FieldType::Text => serde_json::from_str(val)
+        FieldType::Text => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::Text),
-        FieldType::UIntArray => serde_json::from_str(val)
+        FieldType::UIntArray => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::UIntArray),
-        FieldType::IntArray => serde_json::from_str(val)
+        FieldType::IntArray => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::IntArray),
-        FieldType::FloatArray => serde_json::from_str(val)
+        FieldType::FloatArray => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::FloatArray),
-        FieldType::BooleanArray => serde_json::from_str(val)
+        FieldType::BooleanArray => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::BooleanArray),
-        FieldType::StringArray => serde_json::from_str(val)
+        FieldType::StringArray => serde_json::from_value(val.to_owned())
             .map_err(DeserializationError::Json)
             .map(Field::StringArray),
     }
