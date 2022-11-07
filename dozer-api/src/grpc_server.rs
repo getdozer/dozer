@@ -81,11 +81,11 @@ impl GRPCServer {
             .concurrency_limit_per_connection(32)
             .add_service(inflection_service)
             .add_service(tonic_web::enable(grpc_service))
-            .serve_with_shutdown(addr, async move {
-                while running.load(Ordering::SeqCst) {}
-                debug!("Exiting GRPC Server on Ctrl-C");
-            });
-        // .serve(addr);
+            .serve(addr);
+        // .serve_with_shutdown(addr, async move {
+        //     while running.load(Ordering::SeqCst) {}
+        //     debug!("Exiting GRPC Server on Ctrl-C");
+        // });
         let rt = Runtime::new().unwrap();
         rt.block_on(grpc_router)
             .expect("failed to successfully run the future on RunTime");
