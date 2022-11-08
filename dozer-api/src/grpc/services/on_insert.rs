@@ -2,6 +2,7 @@ use crate::api_helper;
 use crate::api_server::PipelineDetails;
 use crate::errors::GRPCError;
 
+use dozer_types::log::warn;
 use dozer_types::serde_json::{self, Map};
 use dozer_types::{events::Event, serde_json::Value};
 use prost_reflect::DynamicMessage;
@@ -39,18 +40,28 @@ async fn on_insert_grpc_server_stream(
     // create subscribe
     let mut broadcast_receiver = event_notifier.resubscribe();
     tokio::spawn(async move {
-        while let Ok(event) = broadcast_receiver.recv().await {
-            if let Event::RecordInsert(record) = event {
-                let converted_record = api_helper.convert_record_to_json(record).unwrap();
-                let value_json = serde_json::to_value(converted_record)
-                    .map_err(GRPCError::SerizalizeError)
-                    .unwrap();
-                // wrap to object
-                let mut on_change_response: Map<String, Value> = Map::new();
-                on_change_response.insert("detail".to_owned(), value_json);
-                let result_respone = serde_json::to_value(on_change_response).unwrap();
-                if (tx.send(Ok(result_respone)).await).is_err() {
-                    // receiver drop
+        loop {
+            let receiver_event = broadcast_receiver.recv().await;
+            match receiver_event {
+                Ok(event) => {
+                    if let Event::RecordInsert(record) = event {
+                        let converted_record = api_helper.convert_record_to_json(record).unwrap();
+                        let value_json = serde_json::to_value(converted_record)
+                            .map_err(GRPCError::SerizalizeError)
+                            .unwrap();
+                        // wrap to object
+                        let mut on_change_response: Map<String, Value> = Map::new();
+                        on_change_response.insert("detail".to_owned(), value_json);
+                        let result_respone = serde_json::to_value(on_change_response).unwrap();
+                        if (tx.send(Ok(result_respone)).await).is_err() {
+                            warn!("on_insert_grpc_server_stream receiver drop");
+                            // receiver drop
+                            break;
+                        }
+                    }
+                }
+                Err(error) => {
+                    warn!("on_insert_grpc_server_stream receiv Error: {:?}", error);
                     break;
                 }
             }
