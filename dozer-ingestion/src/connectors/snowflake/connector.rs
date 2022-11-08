@@ -83,6 +83,8 @@ impl Connector for SnowflakeConnector {
     }
 
     fn stop(&self) {}
+
+    fn validate(&self) -> Result<(), ConnectorError> { Ok(()) }
 }
 
 async fn run(

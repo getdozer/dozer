@@ -2,7 +2,7 @@ use crate::server::dozer_admin_grpc::{
     self, authentication, ConnectionInfo, PostgresAuthentication,
 };
 use dozer_types::models;
-
+use dozer_types::models::connection::Authentication;
 use dozer_types::types::Schema;
 use std::{convert::From, error::Error};
 
