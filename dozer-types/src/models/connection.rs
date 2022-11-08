@@ -17,6 +17,7 @@ pub enum DBType {
     Postgres,
     Ethereum,
     Events,
+    Snowflake,
 }
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum Authentication {
@@ -32,6 +33,15 @@ pub enum Authentication {
         wss_url: String,
     },
     Events {},
+    SnowflakeAuthentication {
+        server: String,
+        port: String,
+        user: String,
+        password: String,
+        database: String,
+        schema: String,
+        warehouse: String,
+    },
 }
 impl Display for DBType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -45,6 +55,7 @@ impl FromStr for DBType {
         match s {
             "Postgres" | "postgres" => Ok(DBType::Postgres),
             "Ethereum" | "ethereum" => Ok(DBType::Ethereum),
+            "Snowflake" | "snowflake" => Ok(DBType::Snowflake),
             _ => Err("Not match any value in Enum DBType"),
         }
     }
