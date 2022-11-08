@@ -28,15 +28,6 @@ const DEFAULT_MAX_MAP_SZ: size_t = 1024 * 1024 * 1024 * 64;
 const DEFAULT_COMMIT_SZ: u16 = 10_000;
 const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
-pub struct SharedTransaction {
-    tx: RwLock<Transaction>,
-}
-
-pub struct SharedDatabase<'a> {
-    tx: &'a SharedTransaction,
-    db: &'a Database,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExecutorOperation {
     Delete { seq: u64, old: Record },
@@ -469,8 +460,6 @@ impl MultiThreadedDagExecutor {
         let (mut senders, mut receivers) = self.index_edges(&dag);
         let (sources, processors, sinks) = self.get_node_types(dag);
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
-
-        let mut shared_dbs: HashMap<String, RwLock<SharedDatabase>> = HashMap::new();
 
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
