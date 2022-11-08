@@ -7,22 +7,6 @@ use std::collections::HashMap;
 pub type NodeHandle = String;
 pub type PortHandle = u16;
 
-pub enum PortState {
-    Stateless,
-    RecordState,
-}
-
-pub struct OutputPortDetails {
-    handle: PortHandle,
-    state: PortState,
-}
-
-impl OutputPortDetails {
-    pub fn new(handle: PortHandle, state: PortState) -> Self {
-        Self { handle, state }
-    }
-}
-
 pub trait SourceFactory: Send + Sync {
     fn get_output_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Source>;

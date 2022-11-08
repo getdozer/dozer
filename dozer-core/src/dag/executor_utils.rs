@@ -1,4 +1,4 @@
-use crate::dag::dag::{Dag, NodeType};
+use crate::dag::dag::{Dag, Edge, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
@@ -19,17 +19,12 @@ const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
 pub(crate) struct StorageMetadata {
     pub env: Box<dyn EnvironmentManager>,
-    pub tx: Box<dyn RenewableRwTransaction>,
     pub meta_db: Database,
 }
 
 impl StorageMetadata {
-    pub fn new(
-        env: Box<dyn EnvironmentManager>,
-        tx: Box<dyn RenewableRwTransaction>,
-        meta_db: Database,
-    ) -> Self {
-        Self { env, tx, meta_db }
+    pub fn new(env: Box<dyn EnvironmentManager>, meta_db: Database) -> Self {
+        Self { env, meta_db }
     }
 }
 
@@ -37,7 +32,6 @@ pub(crate) fn init_component<F>(
     node_handle: &NodeHandle,
     base_path: PathBuf,
     stateful: bool,
-    shared: bool,
     mut init_f: F,
 ) -> Result<Option<StorageMetadata>, ExecutionError>
 where
@@ -52,8 +46,7 @@ where
             let mut env = LmdbEnvironmentManager::create(base_path, node_handle.as_str())?;
             let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
             init_f(Some(env.as_environment()))?;
-            let tx = env.create_txn(shared)?;
-            Ok(Some(StorageMetadata::new(env, tx, db)))
+            Ok(Some(StorageMetadata::new(env, db)))
         }
     }
 }
@@ -159,6 +152,7 @@ pub(crate) fn get_node_types(
     Vec<(NodeHandle, Box<dyn SourceFactory>)>,
     Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
     Vec<(NodeHandle, Box<dyn SinkFactory>)>,
+    Vec<Edge>,
 ) {
     let mut sources = Vec::new();
     let mut processors = Vec::new();
@@ -175,5 +169,17 @@ pub(crate) fn get_node_types(
             }
         }
     }
-    (sources, processors, sinks)
+    (sources, processors, sinks, dag.edges)
+}
+
+pub(crate) fn get_inputs_for_output(
+    edges: &Vec<Edge>,
+    node: &NodeHandle,
+    port: &PortHandle,
+) -> Vec<Endpoint> {
+    edges
+        .iter()
+        .filter(|e| e.from.node == *node && e.from.port == *port)
+        .map(|e| e.to.clone())
+        .collect()
 }

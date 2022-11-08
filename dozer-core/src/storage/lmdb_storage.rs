@@ -114,7 +114,7 @@ impl RenewableRwTransaction for SharedTransaction {
         self
     }
 
-    fn as_ro_transaction(&mut self) -> &mut dyn RoTransaction {
+    fn as_ro_transaction(&self) -> &dyn RoTransaction {
         self
     }
 }
@@ -180,7 +180,7 @@ impl RenewableRwTransaction for ExclusiveTransaction {
         self
     }
 
-    fn as_ro_transaction(&mut self) -> &mut dyn RoTransaction {
+    fn as_ro_transaction(&self) -> &dyn RoTransaction {
         self
     }
 }
