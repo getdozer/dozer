@@ -56,7 +56,7 @@ impl Source for TestSource {
                     false,
                 )
                 .field(
-                    FieldDefinition::new(String::from("Spending"), FieldType::Int, false),
+                    FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
                     false,
                     false,
                 )
@@ -80,7 +80,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
-                            Field::Int(5),
+                            Field::Float(5.5),
                         ],
                     ),
                 },
