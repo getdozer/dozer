@@ -1,12 +1,16 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::NodeHandle;
+use crate::dag::executor_local::ExecutorOperation;
+use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::common::{
     Database, Environment, EnvironmentManager, RenewableRwTransaction, RwTransaction,
 };
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::InternalDbError;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
+use crossbeam::channel::{Receiver, Select};
+use dozer_types::types::Schema;
 use libc::size_t;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
@@ -28,7 +32,7 @@ impl StorageMetadata {
 }
 
 pub(crate) fn init_component<F>(
-    node_handle: NodeHandle,
+    node_handle: &NodeHandle,
     base_path: PathBuf,
     stateful: bool,
     shared: bool,
@@ -50,4 +54,26 @@ where
             Ok(Some(StorageMetadata::new(env, tx, db)))
         }
     }
+}
+#[inline]
+pub(crate) fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Select {
+    let mut sel = Select::new();
+    for r in receivers {
+        sel.recv(r);
+    }
+    sel
+}
+
+pub(crate) fn requires_schema_update(
+    new: Schema,
+    port_handle: &PortHandle,
+    input_schemas: &mut HashMap<PortHandle, Schema>,
+    input_ports: Vec<PortHandle>,
+) -> bool {
+    input_schemas.insert(*port_handle, new);
+    let count = input_ports
+        .iter()
+        .filter(|e| !input_schemas.contains_key(*e))
+        .count();
+    count == 0
 }

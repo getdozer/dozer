@@ -5,7 +5,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
-use crate::dag::executor_utils::init_component;
+use crate::dag::executor_utils::{init_component, init_select, requires_schema_update};
 use crate::dag::forwarder::LocalChannelForwarder;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
@@ -222,35 +222,32 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build();
 
-            let (handles_ls, receivers_ls) =
-                MultiThreadedDagExecutor::build_receivers_lists(receivers);
-
-            let mut state_meta =
-                init_component(handle, base_path, snk_factory.is_stateful(), false, |e| {
-                    snk.init(e)
-                })?;
-
             let mut input_schemas = HashMap::<PortHandle, Schema>::new();
             let mut schema_initialized = false;
 
-            let mut sel = Select::new();
-            for r in &receivers_ls {
-                sel.recv(r);
-            }
+            let mut state_meta =
+                init_component(&handle, base_path, snk_factory.is_stateful(), false, |e| {
+                    snk.init(e)
+                })?;
+
+            let (handles_ls, receivers_ls) =
+                MultiThreadedDagExecutor::build_receivers_lists(receivers);
+
+            let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index]
                     .recv()
                     .map_err(|e| ExecutionError::SinkReceiverError(index, Box::new(e)))?;
+
                 match op {
                     ExecutorOperation::SchemaUpdate { new } => {
-                        input_schemas.insert(handles_ls[index], new);
-                        let input_ports = snk_factory.get_input_ports();
-                        let count = input_ports
-                            .iter()
-                            .filter(|e| !input_schemas.contains_key(*e))
-                            .count();
-                        if count == 0 {
+                        if requires_schema_update(
+                            new,
+                            &handles_ls[index],
+                            &mut input_schemas,
+                            snk_factory.get_input_ports(),
+                        ) {
                             let r = snk.update_schema(&input_schemas);
                             if let Err(e) = r {
                                 warn!("Schema Update Failed...");
@@ -301,38 +298,35 @@ impl MultiThreadedDagExecutor {
         thread::spawn(move || -> Result<(), ExecutionError> {
             let mut proc = proc_factory.build();
 
-            let (handles_ls, receivers_ls) =
-                MultiThreadedDagExecutor::build_receivers_lists(receivers);
-
-            let mut fw = LocalChannelForwarder::new(handle.clone(), senders, 0);
-            let mut sel = Select::new();
-            for r in &receivers_ls {
-                sel.recv(r);
-            }
-
             let mut input_schemas = HashMap::<PortHandle, Schema>::new();
             let mut output_schemas = HashMap::<PortHandle, Schema>::new();
             let mut schema_initialized = false;
 
             let mut state_meta =
-                init_component(handle, base_path, proc_factory.is_stateful(), false, |e| {
+                init_component(&handle, base_path, proc_factory.is_stateful(), false, |e| {
                     proc.init(e)
                 })?;
 
+            let (handles_ls, receivers_ls) =
+                MultiThreadedDagExecutor::build_receivers_lists(receivers);
+
+            let mut fw = LocalChannelForwarder::new(handle.clone(), senders, 0);
+
+            let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index]
                     .recv()
                     .map_err(|e| ExecutionError::ProcessorReceiverError(index, Box::new(e)))?;
+
                 match op {
                     ExecutorOperation::SchemaUpdate { new } => {
-                        input_schemas.insert(handles_ls[index], new);
-                        let input_ports = proc_factory.get_input_ports();
-                        let count = input_ports
-                            .iter()
-                            .filter(|e| !input_schemas.contains_key(*e))
-                            .count();
-                        if count == 0 {
+                        if requires_schema_update(
+                            new,
+                            &handles_ls[index],
+                            &mut input_schemas,
+                            proc_factory.get_input_ports(),
+                        ) {
                             for out_port in proc_factory.get_output_ports() {
                                 let r = proc.update_schema(out_port, &input_schemas);
                                 match r {
