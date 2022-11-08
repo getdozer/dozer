@@ -5,7 +5,9 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
-use crate::dag::executor_utils::{init_component, init_select, requires_schema_update};
+use crate::dag::executor_utils::{
+    get_node_types, index_edges, init_component, init_select, map_to_op, requires_schema_update,
+};
 use crate::dag::forwarder::LocalChannelForwarder;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
@@ -72,109 +74,6 @@ pub struct MultiThreadedDagExecutor {
 impl MultiThreadedDagExecutor {
     pub fn new(channel_buf_sz: usize) -> Self {
         Self { channel_buf_sz }
-    }
-
-    fn map_to_op(op: ExecutorOperation) -> Result<(u64, Operation), ExecutionError> {
-        match op {
-            ExecutorOperation::Delete { seq, old } => Ok((seq, Operation::Delete { old })),
-            ExecutorOperation::Insert { seq, new } => Ok((seq, Operation::Insert { new })),
-            ExecutorOperation::Update { seq, old, new } => {
-                Ok((seq, Operation::Update { old, new }))
-            }
-            _ => Err(InvalidOperation(op.to_string())),
-        }
-    }
-
-    fn index_edges(
-        &self,
-        dag: &Dag,
-    ) -> (
-        HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
-        HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
-    ) {
-        let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>> =
-            HashMap::new();
-        let mut receivers: HashMap<
-            NodeHandle,
-            HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        > = HashMap::new();
-
-        for edge in dag.edges.iter() {
-            if !senders.contains_key(&edge.from.node) {
-                senders.insert(edge.from.node.clone(), HashMap::new());
-            }
-            if !receivers.contains_key(&edge.to.node) {
-                receivers.insert(edge.to.node.clone(), HashMap::new());
-            }
-
-            let (tx, rx) = bounded(self.channel_buf_sz);
-
-            let rcv_port: PortHandle = edge.to.port;
-            if receivers
-                .get(&edge.to.node)
-                .unwrap()
-                .contains_key(&rcv_port)
-            {
-                receivers
-                    .get_mut(&edge.to.node)
-                    .unwrap()
-                    .get_mut(&rcv_port)
-                    .unwrap()
-                    .push(rx);
-            } else {
-                receivers
-                    .get_mut(&edge.to.node)
-                    .unwrap()
-                    .insert(rcv_port, vec![rx]);
-            }
-
-            let snd_port: PortHandle = edge.from.port;
-            if senders
-                .get(&edge.from.node)
-                .unwrap()
-                .contains_key(&snd_port)
-            {
-                senders
-                    .get_mut(&edge.from.node)
-                    .unwrap()
-                    .get_mut(&snd_port)
-                    .unwrap()
-                    .push(tx);
-            } else {
-                senders
-                    .get_mut(&edge.from.node)
-                    .unwrap()
-                    .insert(snd_port, vec![tx]);
-            }
-        }
-
-        (senders, receivers)
-    }
-
-    fn get_node_types(
-        &self,
-        dag: Dag,
-    ) -> (
-        Vec<(NodeHandle, Box<dyn SourceFactory>)>,
-        Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
-        Vec<(NodeHandle, Box<dyn SinkFactory>)>,
-    ) {
-        let mut sources = Vec::new();
-        let mut processors = Vec::new();
-        let mut sinks = Vec::new();
-
-        for node in dag.nodes.into_iter() {
-            match node.1 {
-                NodeType::Source(s) => sources.push((node.0, s)),
-                NodeType::Processor(p) => {
-                    processors.push((node.0, p));
-                }
-                NodeType::Sink(s) => {
-                    sinks.push((node.0, s));
-                }
-            }
-        }
-        (sources, processors, sinks)
     }
 
     fn start_source(
@@ -274,7 +173,7 @@ impl MultiThreadedDagExecutor {
                             return Err(SchemaNotInitialized);
                         }
 
-                        let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
+                        let data_op = map_to_op(op)?;
                         snk.process(
                             handles_ls[index],
                             data_op.0,
@@ -362,7 +261,7 @@ impl MultiThreadedDagExecutor {
                             return Err(SchemaNotInitialized);
                         }
 
-                        let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
+                        let data_op = map_to_op(op)?;
                         fw.update_seq_no(data_op.0);
                         proc.process(
                             handles_ls[index],
@@ -377,8 +276,8 @@ impl MultiThreadedDagExecutor {
     }
 
     pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
-        let (mut senders, mut receivers) = self.index_edges(&dag);
-        let (sources, processors, sinks) = self.get_node_types(dag);
+        let (mut senders, mut receivers) = index_edges(&dag, self.channel_buf_sz);
+        let (sources, processors, sinks) = get_node_types(dag);
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
 
         for snk in sinks {

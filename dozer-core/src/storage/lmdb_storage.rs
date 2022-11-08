@@ -120,10 +120,12 @@ impl RenewableRwTransaction for SharedTransaction {
 }
 
 impl RwTransaction for SharedTransaction {
+    #[inline]
     fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
         self.locked.write().put(db, key, value)
     }
 
+    #[inline]
     fn del(
         &mut self,
         db: &Database,
@@ -139,6 +141,7 @@ impl RwTransaction for SharedTransaction {
 }
 
 impl RoTransaction for SharedTransaction {
+    #[inline]
     fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         self.locked.read().get(db, key)
     }
