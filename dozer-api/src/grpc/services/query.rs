@@ -23,7 +23,7 @@ pub async fn grpc_query(
     let dynamic_message = request.into_inner();
     let exp = convert_grpc_message_to_query_exp(dynamic_message)?;
     let result = api_helper
-        .get_records(exp)
+        .get_records_map(exp)
         .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
 
     let value_json = serde_json::to_value(result).map_err(GRPCError::SerizalizeError)?;

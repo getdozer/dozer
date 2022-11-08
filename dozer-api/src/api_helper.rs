@@ -8,7 +8,7 @@ use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::indexmap::IndexMap;
 use dozer_types::json_value_to_field;
 use dozer_types::record_to_json;
-use dozer_types::types::{FieldType, Record};
+use dozer_types::types::{FieldType, Record, Schema};
 use openapiv3::OpenAPI;
 
 pub struct ApiHelper {
@@ -85,19 +85,27 @@ impl ApiHelper {
     }
 
     /// Get multiple records
-    pub fn get_records(
+    pub fn get_records_map(
         &self,
-        mut exp: QueryExpression,
+        exp: QueryExpression,
     ) -> Result<Vec<IndexMap<String, String>>, CacheError> {
-        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
-        let records = self.reader.query(&self.details.schema_name, &mut exp)?;
-
         let mut maps = vec![];
+        let (schema, records) = self.get_records(exp)?;
         for rec in records.iter() {
             let map = record_to_json(rec, &schema)?;
             maps.push(map);
         }
         Ok(maps)
+    }
+    /// Get multiple records
+    pub fn get_records(
+        &self,
+        mut exp: QueryExpression,
+    ) -> Result<(Schema, Vec<Record>), CacheError> {
+        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        let records = self.reader.query(&self.details.schema_name, &mut exp)?;
+
+        Ok((schema, records))
     }
 
     pub fn convert_record_to_json(

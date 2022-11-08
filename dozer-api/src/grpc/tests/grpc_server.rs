@@ -23,7 +23,7 @@ use crate::{
 };
 use dozer_types::events::Event;
 use futures_util::FutureExt;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 use tempdir::TempDir;
 use tokio::sync::{broadcast, oneshot};
 use tokio_stream::StreamExt;
@@ -50,8 +50,9 @@ fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
     let event_notifier = mock_event_notifier();
     let (tx, rx1) = broadcast::channel::<Event>(16);
     GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
-
-    TonicServer::new(path_to_descriptor, function_types, pipeline_details, rx1)
+    let mut pipeline_map = HashMap::new();
+    pipeline_map.insert("film".to_string(), pipeline_details);
+    TonicServer::new(path_to_descriptor, function_types, pipeline_map, rx1)
 }
 
 #[tokio::test]

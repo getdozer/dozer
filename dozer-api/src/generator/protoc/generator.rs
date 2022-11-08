@@ -28,8 +28,8 @@ pub struct ProtoGenerator<'a> {
 }
 
 impl ProtoGenerator<'_> {
-    pub fn new(pipeline_details: Vec<PipelineDetails>) -> Result<Self, GenerationError> {
-        let vec_proto_svc = pipeline_details
+    pub fn new(pipeline_details_list: Vec<PipelineDetails>) -> Result<Self, GenerationError> {
+        let vec_proto_svc = pipeline_details_list
             .iter()
             .map(|x| {
                 let cache = x.to_owned().cache_endpoint.cache;

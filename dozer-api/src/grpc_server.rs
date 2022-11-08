@@ -4,6 +4,9 @@ use crate::{
     generator::protoc::generator::ProtoGenerator,
     grpc::{
         server::TonicServer,
+        services::common::{
+            common_grpc::common_grpc_service_server::CommonGrpcServiceServer, ApiService,
+        },
         util::{create_descriptor_set, read_file_as_byte},
     },
     CacheEndpoint,
@@ -53,21 +56,14 @@ impl GRPCServer {
         let tmp_dir = TempDir::new("proto_generated").unwrap();
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
 
-        // let schema_name = cache_endpoint.endpoint.name.to_owned();
-        // let schema = cache_endpoint.cache.get_schema_by_name(&schema_name)?;
-
-        // let pipeline_details = PipelineDetails {
-        //     schema_name: schema_name.to_owned(),
-        //     cache_endpoint,
-        // };
-        let pipeline_details: Vec<PipelineDetails> = cache_endpoints
+        let pipeline_details_list: Vec<PipelineDetails> = cache_endpoints
             .iter()
             .map(|ce| PipelineDetails {
                 schema_name: ce.endpoint.name.to_owned(),
                 cache_endpoint: ce.to_owned(),
             })
             .collect();
-        let proto_generator = ProtoGenerator::new(pipeline_details.to_owned())?;
+        let proto_generator = ProtoGenerator::new(pipeline_details_list.to_owned())?;
         let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
 
         let descriptor_path = create_descriptor_set(&tempdir_path, "generated.proto")
@@ -80,32 +76,44 @@ impl GRPCServer {
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
             .build()?;
         let mut pipeline_hashmap: HashMap<String, PipelineDetails> = HashMap::new();
-        for pipline_detail in pipeline_details {
+        for pipeline_details in pipeline_details_list.to_owned() {
             pipeline_hashmap.insert(
                 format!(
                     "Dozer.{}Service",
-                    pipline_detail.schema_name.to_upper_camel_case()
+                    pipeline_details.schema_name.to_upper_camel_case()
                 ),
-                pipline_detail,
+                pipeline_details,
             );
         }
+
+        // Service handling dynamic gRPC requests.
         let grpc_service = TonicServer::new(
             descriptor_path.to_owned(),
             generated_proto.1.to_owned(),
             pipeline_hashmap,
             rx1.resubscribe(),
         );
+
+        let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
+        for pipeline_details in pipeline_details_list.to_owned() {
+            pipeline_map.insert(
+                pipeline_details.cache_endpoint.endpoint.name.to_owned(),
+                pipeline_details,
+            );
+        }
+
         let grpc_router = Server::builder()
             .accept_http1(true)
             .concurrency_limit_per_connection(32)
+            // GRPC service to handle dynamic requests
+            .add_service(CommonGrpcServiceServer::new(ApiService { pipeline_map }))
+            // GRPC service to handle reflection requests
             .add_service(inflection_service)
+            // GRPC service to handle typed requests
             .add_service(grpc_service);
+
         let addr = format!("[::1]:{:}", self.port).parse().unwrap();
         let grpc_router = grpc_router.serve(addr);
-        // .serve_with_shutdown(addr, async move {
-        //     while running.load(Ordering::SeqCst) {}
-        //     debug!("Exiting GRPC Server on Ctrl-C");
-        // });
         let rt = Runtime::new().unwrap();
         rt.block_on(grpc_router)
             .expect("failed to successfully run the future on RunTime");

@@ -29,3 +29,7 @@ tokio-stream = "0.1.11"
 crossbeam = "0.8.2"
 prost-wkt = "0.3.3"
 prost-wkt-types = "0.3.3"
+async-trait = "0.1.58"
+
+[build-dependencies]
+tonic-build = "0.8"

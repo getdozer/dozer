@@ -24,7 +24,7 @@ pub struct TonicServer {
     descriptor_path: String,
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
-    pipeline_details: HashMap<String, PipelineDetails>,
+    pipeline_map: HashMap<String, PipelineDetails>,
     event_notifier: tokio::sync::broadcast::Receiver<Event>,
 }
 impl Clone for TonicServer {
@@ -35,7 +35,7 @@ impl Clone for TonicServer {
             descriptor_path: self.descriptor_path.clone(),
             descriptor: self.descriptor.clone(),
             function_types: self.function_types.clone(),
-            pipeline_details: self.pipeline_details.clone(),
+            pipeline_map: self.pipeline_map.clone(),
             event_notifier: self.event_notifier.resubscribe(),
         }
     }
@@ -44,7 +44,7 @@ impl TonicServer {
     pub fn new(
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
-        pipeline_details: HashMap<String, PipelineDetails>,
+        pipeline_map: HashMap<String, PipelineDetails>,
         event_notifier: tokio::sync::broadcast::Receiver<Event>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
@@ -54,7 +54,7 @@ impl TonicServer {
             descriptor_path,
             descriptor,
             function_types,
-            pipeline_details,
+            pipeline_map,
             event_notifier,
         }
     }
@@ -135,8 +135,9 @@ where
                 "======= current_path serviceName {:?}",
                 current_path[current_path.len() - 2]
             );
-            println!("===== pipeline_details  {:?}", self.pipeline_details.keys());
-            let pipeline_detail = self.pipeline_details[current_path[current_path.len() - 2]].to_owned();
+            println!("===== pipeline_details  {:?}", self.pipeline_map.keys());
+            let pipeline_detail =
+                self.pipeline_map[current_path[current_path.len() - 2]].to_owned();
             return match method_type {
                 GrpcType::GetById => {
                     let method = GetByIdService {
