@@ -62,7 +62,12 @@ async fn on_insert_grpc_server_stream(
                 }
                 Err(error) => {
                     warn!("on_insert_grpc_server_stream receiv Error: {:?}", error);
-                    break;
+                    match error {
+                        tokio::sync::broadcast::error::RecvError::Closed => {
+                            break;
+                        }
+                        tokio::sync::broadcast::error::RecvError::Lagged(_) => {}
+                    }
                 }
             }
         }
