@@ -5,11 +5,9 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
+use crate::dag::executor_utils::init_component;
 use crate::dag::forwarder::LocalChannelForwarder;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
-use crate::storage::lmdb_sys::{
-    Database, DatabaseOptions, EnvOptions, Environment, LmdbError, PutOptions, Transaction,
-};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
@@ -22,11 +20,7 @@ use std::string::ToString;
 use std::thread;
 use std::thread::JoinHandle;
 
-const DEFAULT_MAX_DBS: u32 = 256;
-const DEFAULT_MAX_READERS: u32 = 256;
-const DEFAULT_MAX_MAP_SZ: size_t = 1024 * 1024 * 1024 * 64;
 const DEFAULT_COMMIT_SZ: u16 = 10_000;
-const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExecutorOperation {
@@ -231,32 +225,10 @@ impl MultiThreadedDagExecutor {
             let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
 
-            let mut env = match snk_factory.is_stateful() {
-                true => {
-                    let mut env =
-                        MultiThreadedDagExecutor::start_env(base_path, handle.to_string())?;
-                    let mut txn = env.tx_begin(false)?;
-                    snk.init(Some(&mut txn))?;
-                    let _ = &txn.commit()?;
-                    Some(env)
-                }
-                false => {
-                    snk.init(None)?;
-                    None
-                }
-            };
-
-            let mut txn = match env.as_mut() {
-                Some(mut e) => Some(e.tx_begin(false)?),
-                None => None,
-            };
-
-            let checkpoint_db = match txn.as_mut() {
-                Some(mut t) => Some(
-                    t.open_database(CHECKPOINT_DB_NAME.to_string(), DatabaseOptions::default())?,
-                ),
-                None => None,
-            };
+            let mut state_meta =
+                init_component(handle, base_path, snk_factory.is_stateful(), false, |e| {
+                    snk.init(e)
+                })?;
 
             let mut input_schemas = HashMap::<PortHandle, Schema>::new();
             let mut schema_initialized = false;
@@ -294,18 +266,9 @@ impl MultiThreadedDagExecutor {
                     }
 
                     ExecutorOperation::Commit { epoch, source } => {
-                        txn = match (&mut env, txn, &checkpoint_db) {
-                            (Some(e), Some(mut t), Some(db)) => {
-                                t.put(
-                                    db,
-                                    source.as_bytes(),
-                                    &epoch.to_be_bytes(),
-                                    PutOptions::default(),
-                                )?;
-                                t.commit()?;
-                                Some(e.tx_begin(false)?)
-                            }
-                            _ => None,
+                        if let Some(s) = state_meta.as_mut() {
+                            s.tx.put(&s.meta_db, source.as_bytes(), &epoch.to_be_bytes())?;
+                            s.tx.commit_and_renew()?;
                         }
                     }
 
@@ -315,7 +278,12 @@ impl MultiThreadedDagExecutor {
                         }
 
                         let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
-                        snk.process(handles_ls[index], data_op.0, data_op.1, txn.as_mut())?;
+                        snk.process(
+                            handles_ls[index],
+                            data_op.0,
+                            data_op.1,
+                            state_meta.as_mut().map(|e| e.tx.as_rw_transaction()),
+                        )?;
                     }
                 }
             }
@@ -346,32 +314,10 @@ impl MultiThreadedDagExecutor {
             let mut output_schemas = HashMap::<PortHandle, Schema>::new();
             let mut schema_initialized = false;
 
-            let mut env = match proc_factory.is_stateful() {
-                true => {
-                    let mut env =
-                        MultiThreadedDagExecutor::start_env(base_path, handle.to_string())?;
-                    let mut txn = env.tx_begin(false)?;
-                    proc.init(Some(&mut txn))?;
-                    txn.commit()?;
-                    Some(env)
-                }
-                false => {
-                    proc.init(None)?;
-                    None
-                }
-            };
-
-            let mut txn = match env.as_mut() {
-                Some(mut e) => Some(e.tx_begin(false)?),
-                None => None,
-            };
-
-            let checkpoint_db = match txn.as_mut() {
-                Some(mut t) => Some(
-                    t.open_database(CHECKPOINT_DB_NAME.to_string(), DatabaseOptions::default())?,
-                ),
-                None => None,
-            };
+            let mut state_meta =
+                init_component(handle, base_path, proc_factory.is_stateful(), false, |e| {
+                    proc.init(e)
+                })?;
 
             loop {
                 let index = sel.ready();
@@ -410,18 +356,9 @@ impl MultiThreadedDagExecutor {
                     }
 
                     ExecutorOperation::Commit { epoch, source } => {
-                        txn = match (&mut env, txn, &checkpoint_db) {
-                            (Some(e), Some(mut t), Some(db)) => {
-                                t.put(
-                                    db,
-                                    source.as_bytes(),
-                                    &epoch.to_be_bytes(),
-                                    PutOptions::default(),
-                                )?;
-                                t.commit()?;
-                                Some(e.tx_begin(false)?)
-                            }
-                            _ => None,
+                        if let Some(s) = state_meta.as_mut() {
+                            s.tx.put(&s.meta_db, source.as_bytes(), &epoch.to_be_bytes())?;
+                            s.tx.commit_and_renew()?;
                         }
                     }
 
@@ -433,27 +370,16 @@ impl MultiThreadedDagExecutor {
 
                         let data_op = MultiThreadedDagExecutor::map_to_op(op)?;
                         fw.update_seq_no(data_op.0);
-                        proc.process(handles_ls[index], data_op.1, &mut fw, txn.as_mut())?;
+                        proc.process(
+                            handles_ls[index],
+                            data_op.1,
+                            &mut fw,
+                            state_meta.as_mut().map(|e| e.tx.as_rw_transaction()),
+                        )?;
                     }
                 }
             }
         })
-    }
-
-    fn start_env(base_path: PathBuf, name: String) -> Result<Environment, LmdbError> {
-        let full_path = base_path.join(Path::new(name.as_str()));
-
-        let mut env_opt = EnvOptions::default();
-        // env_opt.no_sync = false;
-        env_opt.max_dbs = Some(DEFAULT_MAX_DBS);
-        env_opt.map_size = Some(DEFAULT_MAX_MAP_SZ);
-        env_opt.max_readers = Some(DEFAULT_MAX_READERS);
-        env_opt.writable_mem_map = true;
-        env_opt.no_subdir = true;
-        env_opt.no_thread_local_storage = true;
-        env_opt.no_locking = true;
-
-        Environment::new(full_path.to_str().unwrap().to_string(), env_opt)
     }
 
     pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {

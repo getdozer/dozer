@@ -1,7 +1,7 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
-use crate::dag::mt_executor::ExecutorOperation;
+use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{NodeHandle, PortHandle};
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;

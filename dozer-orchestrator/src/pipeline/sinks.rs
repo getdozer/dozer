@@ -301,7 +301,7 @@ mod tests {
 
     use dozer_cache::cache::{index, Cache};
 
-    use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+    use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::Sink;
 
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};

@@ -11,19 +11,22 @@ impl Database {
 }
 
 pub trait EnvironmentManager: Environment {
+    fn as_environment(&mut self) -> &mut dyn Environment;
     fn create_txn(
         &mut self,
         shareable: bool,
-    ) -> Result<Box<dyn CommittableRwTransaction>, StorageError>;
+    ) -> Result<Box<dyn RenewableRwTransaction>, StorageError>;
 }
 
 pub trait Environment {
-    fn open_database(&mut self, name: String, dup_keys: bool) -> Result<Database, StorageError>;
+    fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError>;
 }
 
-pub trait CommittableRwTransaction: RwTransaction {
-    fn commit(&mut self) -> Result<(), StorageError>;
-    fn abort(&mut self) -> Result<(), StorageError>;
+pub trait RenewableRwTransaction: RwTransaction {
+    fn commit_and_renew(&mut self) -> Result<(), StorageError>;
+    fn abort_and_renew(&mut self) -> Result<(), StorageError>;
+    fn as_rw_transaction(&mut self) -> &mut dyn RwTransaction;
+    fn as_ro_transaction(&mut self) -> &mut dyn RoTransaction;
 }
 
 pub trait RwTransaction: RoTransaction {

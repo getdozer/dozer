@@ -1,5 +1,5 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
-use crate::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use crate::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{TestProcessorFactory, TestSinkFactory, TestSourceFactory};
 use std::fs;
 use tempdir::TempDir;

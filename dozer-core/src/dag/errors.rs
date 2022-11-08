@@ -1,7 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::errors::StorageError;
-use crate::storage::lmdb_sys::LmdbError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
 use thiserror::Error;
@@ -35,8 +34,6 @@ pub enum ExecutionError {
     InternalTypeError(#[from] TypeError),
     #[error(transparent)]
     InternalDatabaseError(#[from] StorageError),
-    #[error(transparent)]
-    InternalLmdbError(#[from] LmdbError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error(transparent)]
