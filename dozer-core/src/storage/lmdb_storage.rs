@@ -60,7 +60,7 @@ impl EnvironmentManager for LmdbEnvironmentManager {
     ) -> Result<Box<dyn RenewableRwTransaction>, StorageError> {
         let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
         match shareable {
-            true => Ok(Box::new(ExclusiveTransaction::new(
+            true => Ok(Box::new(SharedTransaction::new(
                 self.inner.clone(),
                 tx,
                 self.dbs.clone(),
@@ -90,14 +90,63 @@ impl Environment for LmdbEnvironmentManager {
 }
 
 struct SharedTransaction {
-    locked: RwLock<LmdbTransaction>,
+    locked: RwLock<ExclusiveTransaction>,
 }
 
-struct SharedWriter<'a> {
-    inner: &'a SharedTransaction,
+impl SharedTransaction {
+    pub fn new(env: LmdbEnvironment, inner: LmdbTransaction, dbs: Vec<LmdbDatabase>) -> Self {
+        Self {
+            locked: RwLock::new(ExclusiveTransaction::new(env, inner, dbs)),
+        }
+    }
 }
 
-struct SharedReader {}
+impl RenewableRwTransaction for SharedTransaction {
+    fn commit_and_renew(&mut self) -> Result<(), StorageError> {
+        self.locked.write().commit_and_renew()
+    }
+
+    fn abort_and_renew(&mut self) -> Result<(), StorageError> {
+        self.locked.write().abort_and_renew()
+    }
+
+    fn as_rw_transaction(&mut self) -> &mut dyn RwTransaction {
+        self
+    }
+
+    fn as_ro_transaction(&mut self) -> &mut dyn RoTransaction {
+        self
+    }
+}
+
+impl RwTransaction for SharedTransaction {
+    fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
+        self.locked.write().put(db, key, value)
+    }
+
+    fn del(
+        &mut self,
+        db: &Database,
+        key: &[u8],
+        value: Option<&[u8]>,
+    ) -> Result<bool, StorageError> {
+        self.locked.write().del(db, key, value)
+    }
+
+    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError> {
+        self.locked.write().open_cursor(db)
+    }
+}
+
+impl RoTransaction for SharedTransaction {
+    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        self.locked.read().get(db, key)
+    }
+
+    fn open_ro_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError> {
+        self.locked.read().open_ro_cursor(db)
+    }
+}
 
 struct ExclusiveTransaction {
     env: LmdbEnvironment,
@@ -162,10 +211,12 @@ impl RwTransaction for ExclusiveTransaction {
 
 impl RoTransaction for ExclusiveTransaction {
     #[inline]
-    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<&[u8]>, StorageError> {
-        self.inner
+    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        Ok(self
+            .inner
             .get(&self.dbs[db.id], key)
-            .map_err(InternalDbError)
+            .map_err(InternalDbError)?
+            .map(|e| Vec::from(e)))
     }
 
     #[inline]

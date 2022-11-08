@@ -41,7 +41,7 @@ pub trait RwTransaction: RoTransaction {
 }
 
 pub trait RoTransaction {
-    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<&[u8]>, StorageError>;
+    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
     fn open_ro_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError>;
 }
 
