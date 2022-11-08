@@ -1,3 +1,4 @@
+use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::processor::aggregation::PipelineError::InvalidExpression;
@@ -10,12 +11,12 @@ use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{PortHandle, Processor, ProcessorFactory};
 use dozer_core::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
 use dozer_types::internal_err;
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
-use crate::pipeline::aggregation::sum::IntegerSumAggregator;
+use crate::pipeline::aggregation::sum::{FloatSumAggregator, IntegerSumAggregator};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::builder::ExpressionType;
@@ -162,7 +163,7 @@ impl AggregationProcessor {
                 ) {
                     Ok(expr) => Ok(FieldRule::Measure(
                         sql_expr.to_string(),
-                        self.get_aggregator(expr.0)?,
+                        self.get_aggregator(expr.0, schema)?,
                         true,
                         Some(item.to_string()),
                     )),
@@ -185,15 +186,25 @@ impl AggregationProcessor {
     fn get_aggregator(
         &self,
         expression: Box<Expression>,
+        schema: &Schema,
     ) -> Result<Box<dyn Aggregator>, PipelineError> {
         match *expression {
-            Expression::AggregateFunction { fun, args: _ } => match fun {
-                AggregateFunctionType::Sum => Ok(Box::new(IntegerSumAggregator::new())),
-                _ => Err(InvalidExpression(format!(
-                    "Not implemented Aggreagation function: {:?}",
-                    fun
-                ))),
-            },
+            Expression::AggregateFunction { fun, args } => {
+                let arg_type = args[0].get_type(schema);
+                match (&fun, arg_type) {
+                    (AggregateFunctionType::Sum, FieldType::Int) => {
+                        Ok(Box::new(IntegerSumAggregator::new()))
+                    }
+                    (AggregateFunctionType::Sum, FieldType::Float) => {
+                        Ok(Box::new(FloatSumAggregator::new()))
+                    }
+                    (AggregateFunctionType::Count, _) => Ok(Box::new(CountAggregator::new())),
+                    _ => Err(InvalidExpression(format!(
+                        "Not implemented Aggreagation function: {:?}",
+                        fun
+                    ))),
+                }
+            }
             _ => Err(InvalidExpression(format!(
                 "Not an Aggreagation function: {:?}",
                 expression
