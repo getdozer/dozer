@@ -82,9 +82,8 @@ impl ProtoService {
         let get_response = RPCMessage {
             name: get_response_str,
             props: vec![format!(
-                "repeated {} {} = 1;\n",
-                self.schema_name.to_owned().to_pascal_case(),
-                self.schema_name.to_owned().to_lowercase()
+                "repeated {} data = 1;\n",
+                self.schema_name.to_owned().to_pascal_case()
             )],
         };
         (get_fnc, vec![get_request, get_response])
