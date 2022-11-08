@@ -16,7 +16,7 @@ use tempdir::TempDir;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError::{self};
-use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;

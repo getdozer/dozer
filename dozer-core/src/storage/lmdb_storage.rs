@@ -1,6 +1,6 @@
 use crate::dag::errors::ExecutionError;
 use crate::storage::common::{
-    CommittableRwTransaction, Database, Environment, EnvironmentManager, RoCursor, RoTransaction,
+    Database, Environment, EnvironmentManager, RenewableRwTransaction, RoCursor, RoTransaction,
     RwCursor, RwTransaction,
 };
 use crate::storage::errors::StorageError;
@@ -26,9 +26,9 @@ pub struct LmdbEnvironmentManager {
 impl LmdbEnvironmentManager {
     pub fn create(
         base_path: PathBuf,
-        name: String,
+        name: &str,
     ) -> Result<Box<dyn EnvironmentManager>, StorageError> {
-        let full_path = base_path.join(Path::new(name.as_str()));
+        let full_path = base_path.join(Path::new(name));
 
         let mut env_opt = EnvOptions::default();
 
@@ -50,25 +50,39 @@ impl LmdbEnvironmentManager {
 }
 
 impl EnvironmentManager for LmdbEnvironmentManager {
+    fn as_environment(&mut self) -> &mut dyn Environment {
+        self
+    }
+
     fn create_txn(
         &mut self,
         shareable: bool,
-    ) -> Result<Box<dyn CommittableRwTransaction>, StorageError> {
+    ) -> Result<Box<dyn RenewableRwTransaction>, StorageError> {
         let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
         match shareable {
-            true => Ok(Box::new(ExclusiveTransaction::new(tx, self.dbs.clone()))),
-            false => Ok(Box::new(ExclusiveTransaction::new(tx, self.dbs.clone()))),
+            true => Ok(Box::new(ExclusiveTransaction::new(
+                self.inner.clone(),
+                tx,
+                self.dbs.clone(),
+            ))),
+            false => Ok(Box::new(ExclusiveTransaction::new(
+                self.inner.clone(),
+                tx,
+                self.dbs.clone(),
+            ))),
         }
     }
 }
 
 impl Environment for LmdbEnvironmentManager {
-    fn open_database(&mut self, name: String, dup_keys: bool) -> Result<Database, StorageError> {
+    fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError> {
         let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
         let mut db_opts = LmdbDatabaseOptions::default();
         db_opts.create = true;
         db_opts.allow_duplicate_keys = dup_keys;
-        let db = tx.open_database(name, db_opts).map_err(InternalDbError)?;
+        let db = tx
+            .open_database(name.to_string(), db_opts)
+            .map_err(InternalDbError)?;
         tx.commit().map_err(InternalDbError)?;
         self.dbs.push(db);
         Ok(Database::new(self.dbs.len() - 1))
@@ -86,23 +100,36 @@ struct SharedWriter<'a> {
 struct SharedReader {}
 
 struct ExclusiveTransaction {
+    env: LmdbEnvironment,
     inner: LmdbTransaction,
     dbs: Vec<LmdbDatabase>,
 }
 
 impl ExclusiveTransaction {
-    pub fn new(inner: LmdbTransaction, dbs: Vec<LmdbDatabase>) -> Self {
-        Self { inner, dbs }
+    pub fn new(env: LmdbEnvironment, inner: LmdbTransaction, dbs: Vec<LmdbDatabase>) -> Self {
+        Self { env, inner, dbs }
     }
 }
 
-impl CommittableRwTransaction for ExclusiveTransaction {
-    fn commit(&mut self) -> Result<(), StorageError> {
-        self.inner.commit().map_err(InternalDbError)
+impl RenewableRwTransaction for ExclusiveTransaction {
+    fn commit_and_renew(&mut self) -> Result<(), StorageError> {
+        self.inner.commit().map_err(InternalDbError)?;
+        self.inner = self.env.tx_begin(false)?;
+        Ok(())
     }
 
-    fn abort(&mut self) -> Result<(), StorageError> {
-        self.inner.abort().map_err(InternalDbError)
+    fn abort_and_renew(&mut self) -> Result<(), StorageError> {
+        self.inner.abort().map_err(InternalDbError)?;
+        self.inner = self.env.tx_begin(false)?;
+        Ok(())
+    }
+
+    fn as_rw_transaction(&mut self) -> &mut dyn RwTransaction {
+        self
+    }
+
+    fn as_ro_transaction(&mut self) -> &mut dyn RoTransaction {
+        self
     }
 }
 

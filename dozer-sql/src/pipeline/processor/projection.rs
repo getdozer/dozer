@@ -6,7 +6,7 @@ use crate::pipeline::processor::projection::PipelineError::InvalidOperator;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
 use dozer_core::dag::node::{Processor, ProcessorFactory};
 use dozer_core::storage::lmdb_sys::Transaction;

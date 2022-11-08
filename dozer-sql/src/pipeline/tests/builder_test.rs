@@ -1,7 +1,7 @@
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
 use dozer_types::ordered_float::OrderedFloat;

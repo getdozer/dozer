@@ -1,6 +1,6 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
-use crate::storage::lmdb_sys::{Database, Transaction};
+use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
@@ -12,23 +12,6 @@ pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Processor>;
-}
-
-pub trait Processor {
-    //  fn get_shared_databases<'a>(&'a self) -> Option<HashMap<String, &'a Database>>;
-    fn update_schema(
-        &mut self,
-        output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError>;
-    fn init(&mut self, state: Option<&mut Transaction>) -> Result<(), ExecutionError>;
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        op: Operation,
-        fw: &mut dyn ProcessorChannelForwarder,
-        state: Option<&mut Transaction>,
-    ) -> Result<(), ExecutionError>;
 }
 
 pub trait SourceFactory: Send + Sync {
@@ -45,6 +28,22 @@ pub trait Source {
     ) -> Result<(), ExecutionError>;
 }
 
+pub trait Processor {
+    fn update_schema(
+        &mut self,
+        output_port: PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, ExecutionError>;
+    fn init(&mut self, state: Option<&mut dyn Environment>) -> Result<(), ExecutionError>;
+    fn process(
+        &mut self,
+        from_port: PortHandle,
+        op: Operation,
+        fw: &mut dyn ProcessorChannelForwarder,
+        state: Option<&mut dyn RwTransaction>,
+    ) -> Result<(), ExecutionError>;
+}
+
 pub trait SinkFactory: Send + Sync {
     fn is_stateful(&self) -> bool;
     fn get_input_ports(&self) -> Vec<PortHandle>;
@@ -56,12 +55,12 @@ pub trait Sink {
         &mut self,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
-    fn init(&mut self, state: Option<&mut Transaction>) -> Result<(), ExecutionError>;
+    fn init(&mut self, state: Option<&mut dyn Environment>) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         seq: u64,
         op: Operation,
-        state: Option<&mut Transaction>,
+        state: Option<&mut dyn RwTransaction>,
     ) -> Result<(), ExecutionError>;
 }

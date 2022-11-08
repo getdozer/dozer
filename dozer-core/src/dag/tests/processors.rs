@@ -1,9 +1,9 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
-use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::PortHandle;
 use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
-use crate::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
+use crate::storage::common::{Database, Environment, RwTransaction};
 use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;
@@ -105,7 +105,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: Option<&mut dyn Environment>) -> Result<(), ExecutionError> {
         debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -115,7 +115,7 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
-        _state: Option<&mut Transaction>,
+        _state: Option<&mut dyn RwTransaction>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -164,14 +164,6 @@ pub struct TestProcessor {
 }
 
 impl Processor for TestProcessor {
-    // fn get_shared_databases<'a>(&'a self) -> Option<HashMap<String, &'a Database>> {
-    //     Some(
-    //         [("main".to_string(), self.db.as_ref().unwrap())]
-    //             .into_iter()
-    //             .collect(),
-    //     )
-    // }
-
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -194,12 +186,9 @@ impl Processor for TestProcessor {
         Ok(out_schema)
     }
 
-    fn init<'a>(&'_ mut self, tx: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, tx: Option<&mut dyn Environment>) -> Result<(), ExecutionError> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
-        let mut opts = DatabaseOptions::default();
-        opts.create = true;
-
-        self.db = Some(tx.unwrap().open_database("test".to_string(), opts)?);
+        self.db = Some(tx.unwrap().open_database("test", false)?);
         Ok(())
     }
 
@@ -208,15 +197,19 @@ impl Processor for TestProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        state: Option<&mut Transaction>,
+        state: Option<&mut dyn RwTransaction>,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
-        state.unwrap().put(
+
+        let tx = state.unwrap();
+
+        tx.put(
             self.db.as_ref().unwrap(),
             &self.ctr.to_ne_bytes(),
             &self.id.to_ne_bytes(),
-            PutOptions::default(),
         )?;
+        let v = tx.get(self.db.as_ref().unwrap(), &self.ctr.to_ne_bytes())?;
+        assert!(v.is_some());
         fw.send(op, DEFAULT_PORT_HANDLE)?;
         Ok(())
     }
