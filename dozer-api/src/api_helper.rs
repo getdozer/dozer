@@ -100,6 +100,15 @@ impl ApiHelper {
         Ok(maps)
     }
 
+    pub fn get_records_raw(
+        &self,
+        mut exp: QueryExpression,
+    ) -> Result<Vec<Record>, CacheError> {
+        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        let records = self.reader.query(&self.details.schema_name, &mut exp)?;
+        Ok(records)
+    }
+
     pub fn convert_record_to_json(
         &self,
         record: Record,

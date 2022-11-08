@@ -1,7 +1,240 @@
-syntax = "proto3"; 
- import "google/protobuf/struct.proto"; 
- package Dozer;  
- service EthLogsService {    rpc eth_logs(GetEthLogsRequest) returns (GetEthLogsResponse);   rpc by_id(GetEthLogsByIdRequest) returns (GetEthLogsByIdResponse);   rpc query(QueryEthLogsRequest) returns (QueryEthLogsResponse);   rpc on_insert(OnInsertRequest) returns (stream OnInsertResponse);   rpc on_update(OnUpdateRequest) returns (stream OnUpdateResponse);   rpc on_delete(OnDeleteRequest) returns (stream OnDeleteResponse);   rpc on_schema_change(OnSchemaChangeRequest) returns (stream OnSchemaChangeResponse); } service EthStatsService {    rpc eth_stats(GetEthStatsRequest) returns (GetEthStatsResponse);   rpc by_id(GetEthStatsByIdRequest) returns (GetEthStatsByIdResponse);   rpc query(QueryEthStatsRequest) returns (QueryEthStatsResponse);   rpc on_insert(OnInsertRequest) returns (stream OnInsertResponse);   rpc on_update(OnUpdateRequest) returns (stream OnUpdateResponse);   rpc on_delete(OnDeleteRequest) returns (stream OnDeleteResponse);   rpc on_schema_change(OnSchemaChangeRequest) returns (stream OnSchemaChangeResponse); } service UsersService {    rpc users(GetUsersRequest) returns (GetUsersResponse);   rpc by_id(GetUsersByIdRequest) returns (GetUsersByIdResponse);   rpc query(QueryUsersRequest) returns (QueryUsersResponse);   rpc on_insert(OnInsertRequest) returns (stream OnInsertResponse);   rpc on_update(OnUpdateRequest) returns (stream OnUpdateResponse);   rpc on_delete(OnDeleteRequest) returns (stream OnDeleteResponse);   rpc on_schema_change(OnSchemaChangeRequest) returns (stream OnSchemaChangeResponse); }   message EthLogs {  int32 block_number = 1;   int32 id = 2;  }  message EthStats {  int32 block_number = 1;  }  
- message FilterExpression {  oneof expression {    Int32Expression block_number = 1;     Int32Expression id = 2;   }  repeated FilterExpression and = 5; }  
- message FilterExpression {  oneof expression {    Int32Expression block_number = 1;   }  repeated FilterExpression and = 5; }  
- message FilterExpression {  oneof expression {    StringExpression email = 1;     StringExpression phone = 2;     Int32Expression id = 3;   }  repeated FilterExpression and = 5; }  message GetEthLogsByIdRequest {  int32 block_number = 1; }  message GetEthLogsByIdResponse {  optional EthLogs eth_logs = 1; }  message GetEthLogsRequest { }  message GetEthLogsResponse {  repeated EthLogs data = 1; }  message GetEthStatsByIdRequest {  int32 block_number = 1; }  message GetEthStatsByIdResponse {  optional EthStats eth_stats = 1; }  message GetEthStatsRequest { }  message GetEthStatsResponse {  repeated EthStats data = 1; }  message GetUsersByIdRequest {  int32 id = 1; }  message GetUsersByIdResponse {  optional Users users = 1; }  message GetUsersRequest { }  message GetUsersResponse {  repeated Users data = 1; }  message Int32Expression {  oneof exp {    int32 eq = 1;    int32 lt = 2;    int32 lte = 3;    int32 gt = 4;    int32 gte = 5;  } }  message OnDeleteRequest { }  message OnDeleteResponse {  google.protobuf.Value detail = 1; }  message OnInsertRequest { }  message OnInsertResponse {  google.protobuf.Value detail = 1; }  message OnSchemaChangeRequest { }  message OnSchemaChangeResponse {  google.protobuf.Value detail = 1; }  message OnUpdateRequest { }  message OnUpdateResponse {  google.protobuf.Value detail = 1; }  message QueryEthLogsRequest {  optional FilterExpression filter = 1;   repeated SortOptions order_by = 2;   optional uint32 limit = 3;   optional uint32 skip = 4;  }  message QueryEthLogsResponse {  repeated EthLogs eth_logs = 1; }  message QueryEthStatsRequest {  optional FilterExpression filter = 1;   repeated SortOptions order_by = 2;   optional uint32 limit = 3;   optional uint32 skip = 4;  }  message QueryEthStatsResponse {  repeated EthStats eth_stats = 1; }  message QueryUsersRequest {  optional FilterExpression filter = 1;   repeated SortOptions order_by = 2;   optional uint32 limit = 3;   optional uint32 skip = 4;  }  message QueryUsersResponse {  repeated Users users = 1; }  message SortOptions {  enum SortDirection {     asc = 0;     desc = 1;   }   string field_name = 1;   SortDirection direction = 2;  }  message StringExpression {  oneof exp {    string eq = 1;    string lt = 2;    string lte = 3;    string gt = 4;    string gte = 5;  } }  message Users {  optional string email = 1;   optional string phone = 2;   optional int32 id = 3;  }
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+package Dozer;
+
+service EthLogsService {
+
+  rpc eth_logs(GetEthLogsRequest) returns (GetEthLogsResponse);
+  rpc by_id(GetEthLogsByIdRequest) returns (GetEthLogsByIdResponse);
+  rpc query(QueryEthLogsRequest) returns (QueryEthLogsResponse);
+  rpc on_insert(OnInsertRequest) returns (stream OnInsertResponse);
+  rpc on_update(OnUpdateRequest) returns (stream OnUpdateResponse);
+  rpc on_delete(OnDeleteRequest) returns (stream OnDeleteResponse);
+  rpc on_schema_change(OnSchemaChangeRequest) returns (stream OnSchemaChangeResponse);
+}
+service EthStatsService {
+
+  rpc eth_stats(GetEthStatsRequest) returns (GetEthStatsResponse);
+  rpc by_id(GetEthStatsByIdRequest) returns (GetEthStatsByIdResponse);
+  rpc query(QueryEthStatsRequest) returns (QueryEthStatsResponse);
+  rpc on_insert(OnInsertRequest) returns (stream OnInsertResponse);
+  rpc on_update(OnUpdateRequest) returns (stream OnUpdateResponse);
+  rpc on_delete(OnDeleteRequest) returns (stream OnDeleteResponse);
+  rpc on_schema_change(OnSchemaChangeRequest) returns (stream OnSchemaChangeResponse);
+}
+service UsersService {
+
+  rpc users(GetUsersRequest) returns (GetUsersResponse);
+  rpc by_id(GetUsersByIdRequest) returns (GetUsersByIdResponse);
+  rpc query(QueryUsersRequest) returns (QueryUsersResponse);
+  rpc on_insert(OnInsertRequest) returns (stream OnInsertResponse);
+  rpc on_update(OnUpdateRequest) returns (stream OnUpdateResponse);
+  rpc on_delete(OnDeleteRequest) returns (stream OnDeleteResponse);
+  rpc on_schema_change(OnSchemaChangeRequest) returns (stream OnSchemaChangeResponse);
+}
+service ApiService {
+  rpc query(QueryRequest) returns (QueryResponse);
+  rpc on_insert(OnInsertRequest) returns (stream OnInsertResponse);
+  rpc on_update(OnUpdateRequest) returns (stream OnUpdateResponse);
+  rpc on_delete(OnDeleteRequest) returns (stream OnDeleteResponse);
+  rpc on_schema_change(OnSchemaChangeRequest)
+      returns (stream OnSchemaChangeResponse);
+}
+message QueryRequest {
+  string endpoint = 1;
+  optional FilterExpression filter = 2;
+  repeated SortOptions order_by = 3;
+  optional uint32 limit = 4;
+  optional uint32 skip = 5;
+}
+message FilterExpression {
+  oneof expression {
+   Int32Expression block_number = 1; 
+   Int32Expression id = 2;
+   StringExpression email = 3; 
+   StringExpression phone = 4; 
+ }
+ repeated FilterExpression and = 5;
+}
+
+message QueryResponse {   
+  repeated string fields = 1;
+  repeated Record data = 2;
+}
+message Record {
+  repeated google.protobuf.Value values = 2;
+}
+message EthLogs {
+ int32 block_number = 1; 
+ int32 id = 2; 
+}
+
+message EthLogsFilterExpression {
+ oneof expression {
+   Int32Expression block_number = 1; 
+   Int32Expression id = 2; 
+ }
+ repeated EthLogsFilterExpression and = 5;
+}
+
+message EthStats {
+ int32 block_number = 1; 
+}
+
+message EthStatsFilterExpression {
+ oneof expression {
+   Int32Expression block_number = 1; 
+ }
+ repeated EthStatsFilterExpression and = 5;
+}
+
+message GetEthLogsByIdRequest {
+ int32 block_number = 1;
+}
+
+message GetEthLogsByIdResponse {
+ optional EthLogs data = 1;
+}
+
+message GetEthLogsRequest {
+}
+
+message GetEthLogsResponse {
+ repeated EthLogs data = 1;
+}
+
+message GetEthStatsByIdRequest {
+ int32 block_number = 1;
+}
+
+message GetEthStatsByIdResponse {
+ optional EthStats data = 1;
+}
+
+message GetEthStatsRequest {
+}
+
+message GetEthStatsResponse {
+ repeated EthStats data = 1;
+}
+
+message GetUsersByIdRequest {
+ int32 id = 1;
+}
+
+message GetUsersByIdResponse {
+ optional Users data = 1;
+}
+
+message GetUsersRequest {
+}
+
+message GetUsersResponse {
+ repeated Users data = 1;
+}
+
+message Int32Expression {
+ oneof exp {
+   int32 eq = 1;
+   int32 lt = 2;
+   int32 lte = 3;
+   int32 gt = 4;
+   int32 gte = 5;
+ }
+}
+
+message OnDeleteRequest {
+}
+
+message OnDeleteResponse {
+ google.protobuf.Value detail = 1;
+}
+
+message OnInsertRequest {
+}
+
+message OnInsertResponse {
+ google.protobuf.Value detail = 1;
+}
+
+message OnSchemaChangeRequest {
+}
+
+message OnSchemaChangeResponse {
+ google.protobuf.Value detail = 1;
+}
+
+message OnUpdateRequest {
+}
+
+message OnUpdateResponse {
+ google.protobuf.Value detail = 1;
+}
+
+message QueryEthLogsRequest {
+ optional EthLogsFilterExpression filter = 1; 
+ repeated SortOptions order_by = 2; 
+ optional uint32 limit = 3; 
+ optional uint32 skip = 4; 
+}
+
+message QueryEthLogsResponse {
+ repeated EthLogs eth_logs = 1;
+}
+
+message QueryEthStatsRequest {
+ optional EthStatsFilterExpression filter = 1; 
+ repeated SortOptions order_by = 2; 
+ optional uint32 limit = 3; 
+ optional uint32 skip = 4; 
+}
+
+message QueryEthStatsResponse {
+ repeated EthStats eth_stats = 1;
+}
+
+message QueryUsersRequest {
+ optional UsersFilterExpression filter = 1; 
+ repeated SortOptions order_by = 2; 
+ optional uint32 limit = 3; 
+ optional uint32 skip = 4; 
+}
+
+message QueryUsersResponse {
+ repeated Users users = 1;
+}
+
+message SortOptions {
+ enum SortDirection { 
+   asc = 0; 
+   desc = 1; 
+ } 
+ string field_name = 1; 
+ SortDirection direction = 2; 
+}
+
+message StringExpression {
+ oneof exp {
+   string eq = 1;
+   string lt = 2;
+   string lte = 3;
+   string gt = 4;
+   string gte = 5;
+ }
+}
+
+message Users {
+ optional string email = 1; 
+ optional string phone = 2; 
+ optional int32 id = 3; 
+}
+
+message UsersFilterExpression {
+ oneof expression {
+   StringExpression email = 1; 
+   StringExpression phone = 2; 
+   Int32Expression id = 3; 
+ }
+ repeated UsersFilterExpression and = 5;
+}

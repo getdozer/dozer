@@ -5,4 +5,5 @@ pub mod on_insert;
 pub mod on_schema_change;
 pub mod on_update;
 pub mod query;
+pub mod  query_dynamic;
 mod util;

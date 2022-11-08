@@ -11,7 +11,7 @@ use crate::{
     generator::protoc::proto_service::GrpcType,
     grpc::{
         dynamic_codec::DynamicCodec,
-        util::{get_method_by_name, get_service_name},
+        util::{get_method_by_name, get_service_name}, services::query_dynamic::QueryDynamicService,
     },
 };
 use dozer_types::events::Event;
@@ -93,7 +93,6 @@ where
 
         let route_match = current_path.len() > 2
             && service_names.contains(&current_path[current_path.len() - 2].to_string());
-        println!("=====route_match {:?} ", route_match);
 
         if !route_match {
             return Box::pin(async move {
@@ -123,7 +122,7 @@ where
                 full_name_output.to_owned(),
                 self.descriptor_path.to_owned(),
             );
-            let method_type = &self.function_types[method_name];
+            let mut method_type = &self.function_types[method_name];
             println!("==== method_type {:?}", method_type);
 
             #[allow(non_camel_case_types)]
@@ -131,14 +130,20 @@ where
             let send_compression_encodings = self.send_compression_encodings;
             let mut grpc = tonic::server::Grpc::new(codec)
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings);
+            let current_path_service_name = current_path[current_path.len() - 2];
+            if current_path_service_name == "Dozer.ApiService" {
+                method_type = &GrpcType::QueryDynamic;
+            }
             println!(
                 "======= current_path serviceName {:?}",
-                current_path[current_path.len() - 2]
+                current_path_service_name
             );
             println!("===== pipeline_details  {:?}", self.pipeline_details.keys());
-            let pipeline_detail = self.pipeline_details[current_path[current_path.len() - 2]].to_owned();
+            
             return match method_type {
                 GrpcType::GetById => {
+                    let pipeline_detail =
+                self.pipeline_details[current_path_service_name].to_owned();
                     let method = GetByIdService {
                         pipeline_details: pipeline_detail.to_owned(),
                     };
@@ -149,6 +154,8 @@ where
                     Box::pin(fut)
                 }
                 GrpcType::Query => {
+                    let pipeline_detail =
+                self.pipeline_details[current_path_service_name].to_owned();
                     let method = QueryService {
                         pipeline_details: pipeline_detail.to_owned(),
                     };
@@ -159,6 +166,8 @@ where
                     Box::pin(fut)
                 }
                 GrpcType::List => {
+                    let pipeline_detail =
+                self.pipeline_details[current_path_service_name].to_owned();
                     let method = ListService {
                         pipeline_details: pipeline_detail.to_owned(),
                     };
@@ -169,6 +178,8 @@ where
                     Box::pin(fut)
                 }
                 GrpcType::OnInsert => {
+                    let pipeline_detail =
+                self.pipeline_details[current_path_service_name].to_owned();
                     let method = OnInsertService {
                         pipeline_details: pipeline_detail.to_owned(),
                         event_notifier: self.event_notifier.resubscribe(),
@@ -180,6 +191,8 @@ where
                     Box::pin(fut)
                 }
                 GrpcType::OnUpdate => {
+                    let pipeline_detail =
+                self.pipeline_details[current_path_service_name].to_owned();
                     let method = OnUpdateService {
                         pipeline_details: pipeline_detail.to_owned(),
                         event_notifier: self.event_notifier.resubscribe(),
@@ -191,6 +204,8 @@ where
                     Box::pin(fut)
                 }
                 GrpcType::OnDelete => {
+                    let pipeline_detail =
+                self.pipeline_details[current_path_service_name].to_owned();
                     let method = OnDeleteService {
                         pipeline_details: pipeline_detail.to_owned(),
                         event_notifier: self.event_notifier.resubscribe(),
@@ -211,6 +226,16 @@ where
                     };
                     Box::pin(fut)
                 }
+                GrpcType::QueryDynamic => {
+                    let method = QueryDynamicService {
+                        pipeline_details: self.pipeline_details.to_owned(),
+                    };
+                    let fut = async move {
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                },
             };
         }
         Box::pin(async move {

@@ -46,6 +46,7 @@ pub enum GrpcType {
     OnUpdate,
     OnDelete,
     OnSchemaChange,
+    QueryDynamic,
 }
 
 impl ProtoService {

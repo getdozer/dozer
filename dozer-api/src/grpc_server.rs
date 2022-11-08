@@ -52,14 +52,6 @@ impl GRPCServer {
         GRPCServer::setup_broad_cast_channel(tx, event_notifier)?;
         let tmp_dir = TempDir::new("proto_generated").unwrap();
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
-
-        // let schema_name = cache_endpoint.endpoint.name.to_owned();
-        // let schema = cache_endpoint.cache.get_schema_by_name(&schema_name)?;
-
-        // let pipeline_details = PipelineDetails {
-        //     schema_name: schema_name.to_owned(),
-        //     cache_endpoint,
-        // };
         let pipeline_details: Vec<PipelineDetails> = cache_endpoints
             .iter()
             .map(|ce| PipelineDetails {
@@ -71,7 +63,10 @@ impl GRPCServer {
         let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
 
         let descriptor_path = create_descriptor_set(&tempdir_path, "generated.proto")
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
+            .map_err(|e| {
+                println!("===== e {:?}", e);
+                GRPCError::InternalError(Box::new(e))
+            })?;
 
         let vec_byte = read_file_as_byte(descriptor_path.to_owned())
             .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
