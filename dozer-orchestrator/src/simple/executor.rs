@@ -1,5 +1,5 @@
 use dozer_api::grpc::internal_grpc::PipelineRequest;
-use log::info;
+use log::{info};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};

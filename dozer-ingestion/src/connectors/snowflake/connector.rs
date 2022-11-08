@@ -64,6 +64,7 @@ impl Connector for SnowflakeConnector {
     }
 
     fn start(&self, _running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+        debug!("SNOWFLAKE start called");
         let connector_id = self.id;
         let ingestor = self
             .ingestor
