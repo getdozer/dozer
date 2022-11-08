@@ -15,9 +15,11 @@ pub fn record_to_json(
     let mut map: IndexMap<String, String> = IndexMap::new();
 
     for (idx, field_def) in schema.fields.iter().enumerate() {
-        let field = rec.values[idx].clone();
-        let val = field_to_json_value(&field)?;
-        map.insert(field_def.name.clone(), val);
+        if rec.values.len() > idx {
+            let field = rec.values[idx].clone();
+            let val = field_to_json_value(&field)?;
+            map.insert(field_def.name.clone(), val);
+        }
     }
 
     Ok(map)
