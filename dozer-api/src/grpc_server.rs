@@ -10,8 +10,9 @@ use crate::{
 };
 
 use dozer_cache::cache::Cache;
-use dozer_types::events::Event;
+use dozer_types::{events::Event, types::Schema};
 use std::{
+    collections::HashMap,
     sync::{atomic::AtomicBool, Arc},
     thread,
 };
@@ -102,13 +103,17 @@ impl GRPCServer {
         cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
     ) -> Result<(), GRPCError> {
-        let event = self.event_notifier.clone().recv();
-        if let Ok(Event::SchemaChange(_)) = event {
-            // Only start when ensuring Schema is existed
-
-            let cache_endpoint = cache_endpoints.get(0).unwrap().to_owned();
-            self._start_grpc_server(cache_endpoint, self.event_notifier.to_owned(), running)?;
+        let mut schemas: HashMap<u32, Schema> = HashMap::new();
+        // wait until all schema is initalize
+        while schemas.len() < cache_endpoints.len() {
+            let event = self.event_notifier.clone().recv();
+            if let Ok(Event::SchemaChange(schema_change)) = event {
+                let id = schema_change.get_id();
+                schemas.insert(id, schema_change);
+            }
         }
+        let cache_endpoint = cache_endpoints.get(0).unwrap().to_owned();
+        self._start_grpc_server(cache_endpoint, self.event_notifier.to_owned(), running)?;
         Ok(())
     }
 }
