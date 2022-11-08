@@ -1,15 +1,18 @@
 #![allow(clippy::type_complexity)]
 use crate::dag::channels::SourceChannelForwarder;
-use crate::dag::dag::{Dag, NodeType, PortDirection};
+use crate::dag::dag::{Dag, Edge, Endpoint, NodeType, PortDirection};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
 use crate::dag::executor_utils::{
-    get_node_types, index_edges, init_component, init_select, map_to_op, requires_schema_update,
+    get_inputs_for_output, get_node_types, index_edges, init_component, init_select, map_to_op,
+    requires_schema_update,
 };
 use crate::dag::forwarder::LocalChannelForwarder;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::dag::record_store::RecordReader;
+use crate::storage::common::{Database, RenewableRwTransaction, RoTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
@@ -23,6 +26,7 @@ use std::thread;
 use std::thread::JoinHandle;
 
 const DEFAULT_COMMIT_SZ: u16 = 10_000;
+const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExecutorOperation {
@@ -125,9 +129,13 @@ impl MultiThreadedDagExecutor {
             let mut schema_initialized = false;
 
             let mut state_meta =
-                init_component(&handle, base_path, snk_factory.is_stateful(), false, |e| {
+                init_component(&handle, base_path, snk_factory.is_stateful(), |e| {
                     snk.init(e)
                 })?;
+            let mut master_tx = match state_meta.as_mut() {
+                Some(s) => Some(s.env.create_txn(false)?),
+                _ => None,
+            };
 
             let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -162,9 +170,13 @@ impl MultiThreadedDagExecutor {
                     }
 
                     ExecutorOperation::Commit { epoch, source } => {
-                        if let Some(s) = state_meta.as_mut() {
-                            s.tx.put(&s.meta_db, source.as_bytes(), &epoch.to_be_bytes())?;
-                            s.tx.commit_and_renew()?;
+                        if let Some(tx) = master_tx.as_mut() {
+                            tx.put(
+                                &state_meta.as_ref().unwrap().meta_db,
+                                source.as_bytes(),
+                                &epoch.to_be_bytes(),
+                            )?;
+                            tx.commit_and_renew()?;
                         }
                     }
 
@@ -178,7 +190,7 @@ impl MultiThreadedDagExecutor {
                             handles_ls[index],
                             data_op.0,
                             data_op.1,
-                            state_meta.as_mut().map(|e| e.tx.as_rw_transaction()),
+                            master_tx.as_mut().map(|e| e.as_rw_transaction()),
                         )?;
                     }
                 }
@@ -188,11 +200,13 @@ impl MultiThreadedDagExecutor {
 
     fn start_processor(
         &self,
+        edges: Vec<Edge>,
         handle: NodeHandle,
         proc_factory: Box<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         base_path: PathBuf,
+        record_stores: &mut HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>,
     ) -> JoinHandle<Result<(), ExecutionError>> {
         thread::spawn(move || -> Result<(), ExecutionError> {
             let mut proc = proc_factory.build();
@@ -202,9 +216,32 @@ impl MultiThreadedDagExecutor {
             let mut schema_initialized = false;
 
             let mut state_meta =
-                init_component(&handle, base_path, proc_factory.is_stateful(), false, |e| {
+                init_component(&handle, base_path, proc_factory.is_stateful(), |e| {
                     proc.init(e)
                 })?;
+            let mut master_tx: Option<Box<dyn RenewableRwTransaction>> = None;
+
+            let mut out_port_databases = HashMap::<PortHandle, Database>::new();
+            if let Some(m) = state_meta.as_mut() {
+                for out_port in proc_factory.get_output_ports() {
+                    let db = m.env.open_database(
+                        format!("{}_{}", PORT_STATE_KEY, out_port).as_str(),
+                        false,
+                    )?;
+                    let tx = m.env.create_txn(false)?;
+                    out_port_databases.insert(out_port, db);
+                    for r in get_inputs_for_output(&edges, &handle, &out_port) {
+                        // record_stores.get_mut(&r.node).unwrap().insert(
+                        //     r.port,
+                        //     RecordReader::new(
+                        //         tx.as_ro_transaction(),
+                        //         out_port_databases.get(&out_port).unwrap(),
+                        //     ),
+                        // );
+                    }
+                    master_tx = Some(tx);
+                }
+            }
 
             let (handles_ls, receivers_ls) =
                 MultiThreadedDagExecutor::build_receivers_lists(receivers);
@@ -249,9 +286,13 @@ impl MultiThreadedDagExecutor {
                     }
 
                     ExecutorOperation::Commit { epoch, source } => {
-                        if let Some(s) = state_meta.as_mut() {
-                            s.tx.put(&s.meta_db, source.as_bytes(), &epoch.to_be_bytes())?;
-                            s.tx.commit_and_renew()?;
+                        if let Some(tx) = master_tx.as_mut() {
+                            tx.put(
+                                &state_meta.as_ref().unwrap().meta_db,
+                                source.as_bytes(),
+                                &epoch.to_be_bytes(),
+                            )?;
+                            tx.commit_and_renew()?;
                         }
                     }
 
@@ -267,7 +308,7 @@ impl MultiThreadedDagExecutor {
                             handles_ls[index],
                             data_op.1,
                             &mut fw,
-                            state_meta.as_mut().map(|e| e.tx.as_rw_transaction()),
+                            master_tx.as_mut().map(|e| e.as_rw_transaction()),
                         )?;
                     }
                 }
@@ -277,8 +318,15 @@ impl MultiThreadedDagExecutor {
 
     pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(&dag, self.channel_buf_sz);
-        let (sources, processors, sinks) = get_node_types(dag);
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
+
+        let mut record_stores: HashMap<NodeHandle, HashMap<PortHandle, RecordReader>> = dag
+            .nodes
+            .iter()
+            .map(|e| (e.0.clone(), HashMap::new()))
+            .collect();
+
+        let (sources, processors, sinks, edges) = get_node_types(dag);
 
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
@@ -303,11 +351,13 @@ impl MultiThreadedDagExecutor {
             }
 
             let proc_handle = self.start_processor(
+                edges.clone(),
                 processor.0.clone(),
                 processor.1,
                 proc_senders.unwrap(),
                 proc_receivers.unwrap(),
                 path.clone(),
+                &mut record_stores,
             );
             handles.push(proc_handle);
         }

@@ -26,7 +26,7 @@ pub trait RenewableRwTransaction: RwTransaction {
     fn commit_and_renew(&mut self) -> Result<(), StorageError>;
     fn abort_and_renew(&mut self) -> Result<(), StorageError>;
     fn as_rw_transaction(&mut self) -> &mut dyn RwTransaction;
-    fn as_ro_transaction(&mut self) -> &mut dyn RoTransaction;
+    fn as_ro_transaction(&self) -> &dyn RoTransaction;
 }
 
 pub trait RwTransaction: RoTransaction {
