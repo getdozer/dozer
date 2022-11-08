@@ -1,10 +1,12 @@
 pub mod ethereum;
 pub mod events;
 pub mod postgres;
+pub mod snowflake;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+use crate::connectors::snowflake::connector::SnowflakeConnector;
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::EthConfig;
+use dozer_types::ingestion_types::{EthConfig, SnowflakeConfig};
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
@@ -71,5 +73,26 @@ pub fn get_connector(connection: Connection) -> Box<dyn Connector> {
             Box::new(EthConnector::new(2, eth_config))
         }
         Authentication::Events {} => Box::new(EventsConnector::new(3, connection.name)),
+        Authentication::SnowflakeAuthentication {
+            server,
+            port,
+            user,
+            password,
+            database,
+            schema,
+            warehouse,
+        } => {
+            let snowflake_config = SnowflakeConfig {
+                server,
+                port,
+                user,
+                password,
+                database,
+                schema,
+                warehouse,
+            };
+
+            Box::new(SnowflakeConnector::new(4, snowflake_config))
+        }
     }
 }
