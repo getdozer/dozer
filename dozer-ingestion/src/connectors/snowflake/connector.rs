@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crate::connectors::snowflake::connection::client::Client;
@@ -7,12 +8,15 @@ use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::parking_lot::RwLock;
 
+use crate::connectors::snowflake::snapshotter::Snapshotter;
+use dozer_types::log::debug;
 use tokio::runtime::Runtime;
 
 pub struct SnowflakeConnector {
     pub id: u64,
     config: SnowflakeConfig,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
+    tables: Option<Vec<TableInfo>>,
 }
 
 impl SnowflakeConnector {
@@ -21,14 +25,16 @@ impl SnowflakeConnector {
             id,
             config,
             ingestor: None,
+            tables: None,
         }
     }
 }
 
 impl Connector for SnowflakeConnector {
-    fn get_schemas(&self) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        let client = Client::new(&self.config);
-        client.execute("SELECT * FROM accounts;".to_string());
+    fn get_schemas(
+        &self,
+        _table_names: Option<Vec<String>>,
+    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         Ok(vec![])
     }
 
@@ -43,31 +49,53 @@ impl Connector for SnowflakeConnector {
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
-        _: Option<Vec<TableInfo>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         self.ingestor = Some(ingestor);
+        self.tables = tables;
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, _running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+        debug!("SNOWFLAKE start called");
         let connector_id = self.id;
         let ingestor = self
             .ingestor
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(self.config.clone(), ingestor, connector_id).await })
+
+        Runtime::new().unwrap().block_on(async {
+            run(
+                self.config.clone(),
+                self.tables.clone(),
+                ingestor,
+                connector_id,
+            )
+            .await
+        })
     }
 
     fn stop(&self) {}
 }
 
 async fn run(
-    _config: SnowflakeConfig,
-    _ingestor: Arc<RwLock<Ingestor>>,
-    _connector_id: u64,
+    config: SnowflakeConfig,
+    tables: Option<Vec<TableInfo>>,
+    ingestor: Arc<RwLock<Ingestor>>,
+    connector_id: u64,
 ) -> Result<(), ConnectorError> {
+    let client = Client::new(&config);
+
+    match tables {
+        None => {}
+        Some(t) => match t.get(0) {
+            None => {}
+            Some(table) => {
+                Snapshotter::run(&client, &ingestor, connector_id, table.name.clone())?;
+            }
+        },
+    }
+
     Ok(())
 }

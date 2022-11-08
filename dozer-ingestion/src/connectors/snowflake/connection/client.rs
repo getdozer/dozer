@@ -1,11 +1,36 @@
 use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::log::debug;
 
-use odbc::{create_environment_v3, Data, Environment, NoData, Statement, Version3};
+use crate::errors::ConnectorError;
+
+use odbc::odbc_safe::AutocommitOn;
+use odbc::{ColumnDescriptor, Connection, Data, Executed, HasResult, NoData, Statement};
 use std::collections::HashMap;
 
+pub struct ResultIterator<'a, 'b> {
+    stmt: Statement<'a, 'b, Executed, HasResult, AutocommitOn>,
+    cols: i16,
+}
+
+impl Iterator for ResultIterator<'_, '_> {
+    type Item = Vec<Option<String>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.stmt.fetch().unwrap() {
+            None => None,
+            Some(mut cursor) => {
+                let mut values = vec![];
+                for i in 1..(self.cols + 1) {
+                    values.push(cursor.get_data::<String>(i as u16).unwrap());
+                }
+
+                Some(values)
+            }
+        }
+    }
+}
+
 pub struct Client {
-    env: Environment<Version3>,
     conn_string: String,
 }
 
@@ -34,33 +59,44 @@ impl Client {
 
         debug!("Snowflake conn string: {:?}", conn_string);
 
-        Self {
-            env: create_environment_v3().map_err(|e| e.unwrap()).unwrap(),
-            conn_string,
+        Self { conn_string }
+    }
+
+    pub fn get_conn_string(&self) -> String {
+        self.conn_string.clone()
+    }
+
+    pub fn exec(
+        &self,
+        conn: &Connection<AutocommitOn>,
+        query: String,
+    ) -> Result<Option<bool>, ConnectorError> {
+        let stmt = Statement::with_parent(conn).unwrap();
+
+        match stmt.exec_direct(&query).unwrap() {
+            Data(_) => Ok(Some(true)),
+            NoData(_) => Ok(None),
         }
     }
 
-    pub fn execute(&self, query: String) {
-        let conn = self
-            .env
-            .connect_with_connection_string(&self.conn_string)
-            .unwrap();
-        let stmt = Statement::with_parent(&conn).unwrap();
+    pub fn fetch<'a, 'b>(
+        &self,
+        conn: &'a Connection<AutocommitOn>,
+        query: String,
+    ) -> Result<Option<(Vec<ColumnDescriptor>, ResultIterator<'a, 'b>)>, ConnectorError> {
+        let stmt = Statement::with_parent(conn).unwrap();
+        // TODO: use stmt.close_cursor to improve efficiency
 
         match stmt.exec_direct(&query).unwrap() {
-            Data(mut stmt) => {
+            Data(stmt) => {
                 let cols = stmt.num_result_cols().unwrap();
-                while let Some(mut cursor) = stmt.fetch().unwrap() {
-                    for i in 1..(cols + 1) {
-                        match cursor.get_data::<&str>(i as u16).unwrap() {
-                            Some(val) => debug!(" {}", val),
-                            None => debug!(" NULL"),
-                        }
-                    }
-                    debug!("");
+                let mut schema = vec![];
+                for i in 1..(cols + 1) {
+                    schema.push(stmt.describe_col(i.try_into().unwrap()).unwrap());
                 }
+                Ok(Some((schema, ResultIterator { cols, stmt })))
             }
-            NoData(_) => debug!("Query executed, no data returned"),
-        };
+            NoData(_) => Ok(None),
+        }
     }
 }

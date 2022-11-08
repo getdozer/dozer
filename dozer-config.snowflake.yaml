@@ -1,7 +1,7 @@
 storage_path: null
 sources:
   - name: accounts
-    table_name: ACCOUNTS
+    table_name: accounts
     connection:
       db_type: Snowflake
       authentication: !SnowflakeAuthentication
@@ -20,7 +20,7 @@ endpoints:
     path: /accounts
     enable_rest: false
     enable_grpc: true
-    sql: select id, value from accounts;
+    sql: select id from accounts;
     index:
       primary_key:
         - id
