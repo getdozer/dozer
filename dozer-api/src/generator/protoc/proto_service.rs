@@ -16,25 +16,25 @@ pub struct ProtoService {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
 pub struct ProtoMetadata {
-    package_name: String,
-    service_name: String,
-    rpc_functions: Vec<RPCFunction>,
-    messages: Vec<RPCMessage>,
-    import_libs: Vec<String>,
-    pub functions_with_type: HashMap<String, GrpcType>,
+    pub(crate) package_name: String,
+    pub(crate) service_name: String,
+    pub(crate) rpc_functions: Vec<RPCFunction>,
+    pub(crate) messages: Vec<RPCMessage>,
+    pub(crate) import_libs: Vec<String>,
+    pub(crate) functions_with_type: HashMap<String, GrpcType>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
 pub struct RPCFunction {
-    name: String,
-    argument: String,
-    response: String,
+    pub(crate) name: String,
+    pub(crate) argument: String,
+    pub(crate) response: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
 pub struct RPCMessage {
-    name: String,
-    props: Vec<String>,
+    pub(crate) name: String,
+    pub(crate) props: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
@@ -118,9 +118,8 @@ impl ProtoService {
         let get_by_id_response_model = RPCMessage {
             name: get_by_id_res_str,
             props: vec![format!(
-                "optional {} {} = 1;\n",
+                "optional {} data = 1;\n",
                 self.schema_name.to_owned().to_pascal_case(),
-                self.schema_name.to_owned().to_lowercase()
             )],
         };
         Ok((
@@ -151,10 +150,13 @@ impl ProtoService {
         let mut props_array: Vec<String> = vec!["oneof expression {\n".to_owned()];
         props_array.extend(props_message);
         props_array.push("}\n".to_owned());
-        props_array.push("repeated FilterExpression and = 5;\n".to_owned());
+        props_array.push(format!(
+            "repeated {}FilterExpression and = 5;\n",
+            self.schema_name.to_upper_camel_case()
+        ));
 
         RPCMessage {
-            name: "FilterExpression".to_owned(),
+            name: format!("{}FilterExpression", self.schema_name.to_upper_camel_case()),
             props: props_array,
         }
     }
@@ -208,7 +210,10 @@ impl ProtoService {
         let query_request = RPCMessage {
             name: query_request_str,
             props: vec![
-                "optional FilterExpression filter = 1; \n".to_owned(),
+                format!(
+                    "optional {}FilterExpression filter = 1; \n",
+                    self.schema_name.to_upper_camel_case()
+                ),
                 "repeated SortOptions order_by = 2; \n".to_owned(),
                 "optional uint32 limit = 3; \n".to_owned(),
                 "optional uint32 skip = 4; \n".to_owned(),

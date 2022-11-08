@@ -29,7 +29,7 @@ pub async fn grpc_query(
     let value_json = serde_json::to_value(result).map_err(GRPCError::SerizalizeError)?;
     // wrap to object
     let mut result_json: Map<String, Value> = Map::new();
-    result_json.insert(pipeline_details.schema_name.to_lowercase(), value_json);
+    result_json.insert("data".to_owned(), value_json);
     let result = Value::Object(result_json);
     Ok(Response::new(result))
 }
