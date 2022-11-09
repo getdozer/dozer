@@ -10,12 +10,18 @@ impl Database {
     }
 }
 
+impl Clone for Database {
+    fn clone(&self) -> Self {
+        Database { id: self.id }
+    }
+}
+
+unsafe impl Send for Database {}
+unsafe impl Sync for Database {}
+
 pub trait EnvironmentManager: Environment {
     fn as_environment(&mut self) -> &mut dyn Environment;
-    fn create_txn(
-        &mut self,
-        shareable: bool,
-    ) -> Result<Box<dyn RenewableRwTransaction>, StorageError>;
+    fn create_txn(&mut self) -> Result<Box<dyn RenewableRwTransaction>, StorageError>;
 }
 
 pub trait Environment {
@@ -40,7 +46,7 @@ pub trait RwTransaction: RoTransaction {
     fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError>;
 }
 
-pub trait RoTransaction {
+pub trait RoTransaction: Send + Sync {
     fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
     fn open_ro_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError>;
 }
