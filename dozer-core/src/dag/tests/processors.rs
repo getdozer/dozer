@@ -3,6 +3,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::PortHandle;
 use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
+use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, RwTransaction};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
@@ -196,6 +197,7 @@ impl Processor for TestProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         tx: Option<&mut dyn RwTransaction>,
+        readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
 
