@@ -69,13 +69,13 @@ impl CommonGrpcService for ApiService {
 
         Ok(Response::new(reply))
     }
-
+    #[allow(non_camel_case_types)]
     type onEventStream = ResponseStream;
     async fn on_event(&self, request: Request<OnEventRequest>) -> EchoResult<Self::onEventStream> {
         let request = request.into_inner();
 
         for endpoint in request.endpoints {
-            let pipeline_details = self
+            let _pipeline_details = self
                 .pipeline_map
                 .get(&endpoint)
                 .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;

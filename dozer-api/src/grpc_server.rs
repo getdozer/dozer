@@ -76,7 +76,7 @@ impl GRPCServer {
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
             .build()?;
         let mut pipeline_hashmap: HashMap<String, PipelineDetails> = HashMap::new();
-        for pipeline_details in pipeline_details_list.to_owned() {
+        for pipeline_details in pipeline_details_list.iter().cloned() {
             pipeline_hashmap.insert(
                 format!(
                     "Dozer.{}Service",
@@ -88,14 +88,14 @@ impl GRPCServer {
 
         // Service handling dynamic gRPC requests.
         let grpc_service = TonicServer::new(
-            descriptor_path.to_owned(),
-            generated_proto.1.to_owned(),
+            descriptor_path,
+            generated_proto.1,
             pipeline_hashmap,
             rx1.resubscribe(),
         );
 
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
-        for pipeline_details in pipeline_details_list.to_owned() {
+        for pipeline_details in pipeline_details_list {
             pipeline_map.insert(
                 pipeline_details.cache_endpoint.endpoint.name.to_owned(),
                 pipeline_details,

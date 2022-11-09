@@ -128,9 +128,12 @@ pub fn get_films() -> Vec<Value> {
     ]
 }
 
-pub fn initialize_cache(schema_name: &str) -> Arc<LmdbCache> {
+pub fn initialize_cache(
+    schema_name: &str,
+    schema: Option<dozer_types::types::Schema>,
+) -> Arc<LmdbCache> {
     let cache = Arc::new(LmdbCache::new(true));
-    let schema: dozer_types::types::Schema = get_schema();
+    let schema: dozer_types::types::Schema = schema.unwrap_or_else(get_schema);
     let records_value: Vec<Value> = get_films();
     for record_str in records_value {
         let film_id = record_str["film_id"].as_i64();

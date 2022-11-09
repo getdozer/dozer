@@ -25,7 +25,7 @@ async fn grpc_list(
 ) -> Result<Response<Value>, Status> {
     let _dynamic_message = request.into_inner();
     let exp = QueryExpression::new(None, vec![], 50, 0);
-    let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), None)?;
+    let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
     let result = api_helper.get_records(exp).map_err(from_cache_error)?;
     let value_json = serde_json::to_value(result).map_err(GRPCError::SerizalizeError)?;
     // wrap to object

@@ -26,26 +26,25 @@ pub fn get_method_by_name(
     method_name: String,
 ) -> Option<MethodDescriptor> {
     for service in descriptor.services() {
-        let full_name =  service.full_name();
+        let full_name = service.full_name();
         if full_name == service_name {
-           for method in service.methods() {
-             if method.name() == method_name {
-                return Some(method);
-             }
-           }
-
+            for method in service.methods() {
+                if method.name() == method_name {
+                    return Some(method);
+                }
+            }
         }
     }
-    return None
+    None
 }
 
 pub fn get_service_name(descriptor: DescriptorPool) -> Vec<String> {
     let mut result: Vec<String> = vec![];
     for service in descriptor.services() {
-       let full_name =  service.full_name();
-       result.push(full_name.to_owned());
+        let full_name = service.full_name();
+        result.push(full_name.to_owned());
     }
-    return result;
+    result
 }
 
 //https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/DescriptorProtos.FieldDescriptorProto.Type
