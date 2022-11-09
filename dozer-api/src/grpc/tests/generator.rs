@@ -9,12 +9,11 @@ use tempdir::TempDir;
 fn test_generate_proto() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
-    let schema_name = String::from("film");
+    let schema_name = String::from("films");
     let schema = test_utils::get_schema();
-    let proto_result = generate_proto(tmp_dir_path, schema_name.to_owned(), schema).unwrap();
+    let proto_result = generate_proto(tmp_dir_path, schema_name, Some(schema)).unwrap();
     let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
-    let path_proto_generated =
-        Path::new(&format!("{}/{}.proto", tempdir_path, schema_name)).exists();
+    let path_proto_generated = Path::new(&format!("{}/generated.proto", tempdir_path)).exists();
     assert_eq!(
         proto_result.1.len(),
         7,
@@ -26,12 +25,11 @@ fn test_generate_proto() {
 fn test_generate_proto_with_time_stamp() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
-    let schema_name = String::from("film");
+    let schema_name = String::from("films");
     let schema = test_utils::get_schema_with_timestamp();
-    let proto_result = generate_proto(tmp_dir_path, schema_name.to_owned(), schema).unwrap();
+    let proto_result = generate_proto(tmp_dir_path, schema_name, Some(schema)).unwrap();
     let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
-    let path_proto_generated =
-        Path::new(&format!("{}/{}.proto", tempdir_path, schema_name)).exists();
+    let path_proto_generated = Path::new(&format!("{}/generated.proto", tempdir_path)).exists();
     assert_eq!(
         proto_result.1.len(),
         7,
@@ -43,11 +41,10 @@ fn test_generate_proto_with_time_stamp() {
 fn test_generate_descriptor() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
-    //let tmp_dir_path = "proto_generated".to_string();
-    let schema_name = String::from("film");
+    let schema_name = String::from("films");
     let schema = test_utils::get_schema();
-    generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned(), schema).unwrap();
-    let path_to_descriptor = generate_descriptor(tmp_dir_path, schema_name).unwrap();
+    generate_proto(tmp_dir_path.to_owned(), schema_name, Some(schema)).unwrap();
+    let path_to_descriptor = generate_descriptor(tmp_dir_path).unwrap();
     let check_exist = Path::new(&path_to_descriptor).exists();
     assert!(check_exist, "proto file must be present!");
 }

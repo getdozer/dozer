@@ -68,7 +68,7 @@ pub struct QueryFilmsRequest {
 #[derive(Clone, PartialEq, Eq, ::prost::Message)]
 pub struct QueryFilmsResponse {
     #[prost(message, repeated, tag = "1")]
-    pub film: ::prost::alloc::vec::Vec<Film>,
+    pub data: ::prost::alloc::vec::Vec<Film>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilterExpression {

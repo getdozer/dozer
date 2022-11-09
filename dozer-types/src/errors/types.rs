@@ -8,6 +8,8 @@ pub enum TypeError {
     InvalidFieldIndex(usize),
     #[error("Invalid field name: {0}")]
     InvalidFieldName(String),
+    #[error("Convert Field To Json Err: {0}")]
+    FieldValueToJsonValue(String),
     #[error("Invalid field type")]
     InvalidFieldType,
     #[error("Failed to serialise the field")]

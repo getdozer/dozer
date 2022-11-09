@@ -22,18 +22,29 @@ pub fn from_dynamic_message_to_json(input: DynamicMessage) -> Result<serde_json:
 
 pub fn get_method_by_name(
     descriptor: DescriptorPool,
+    service_name: String,
     method_name: String,
 ) -> Option<MethodDescriptor> {
-    let service_lst = descriptor.services().next().unwrap();
-    let mut methods = service_lst.methods();
-    methods.find(|m| *m.name() == method_name)
+    for service in descriptor.services() {
+        let full_name = service.full_name();
+        if full_name == service_name {
+            for method in service.methods() {
+                if method.name() == method_name {
+                    return Some(method);
+                }
+            }
+        }
+    }
+    None
 }
 
-pub fn get_service_name(descriptor: DescriptorPool) -> Option<String> {
-    descriptor
-        .services()
-        .next()
-        .map(|s| s.full_name().to_owned())
+pub fn get_service_name(descriptor: DescriptorPool) -> Vec<String> {
+    let mut result: Vec<String> = vec![];
+    for service in descriptor.services() {
+        let full_name = service.full_name();
+        result.push(full_name.to_owned());
+    }
+    result
 }
 
 //https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/DescriptorProtos.FieldDescriptorProto.Type

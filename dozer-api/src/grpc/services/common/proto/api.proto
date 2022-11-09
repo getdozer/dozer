@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package dozer.common;
+service CommonGrpcService {
+  rpc query(QueryRequest) returns (QueryResponse);
+  rpc onEvent(OnEventRequest) returns (stream Record);
+  rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse);
+}
+
+message QueryRequest {
+  string endpoint = 1;
+  optional string query = 2;
+}
+
+enum EventType {
+  ALL = 0;
+  INSERT_ONLY = 1;
+  UPDATE_ONLY = 2;
+  DELETE_ONLY = 3;
+}
+message OnEventRequest {
+  EventType type = 1;
+  repeated string endpoints = 2;
+}
+
+message QueryResponse {
+  repeated FieldDefinition fields = 1;
+  repeated Record records = 2;
+}
+
+message GetEndpointsRequest {}
+
+message GetEndpointsResponse { repeated string endpoints = 1; }
+
+message Record { repeated Value values = 1; }
+
+enum Type {
+  UInt = 0;
+  Int = 1;
+  Float = 2;
+  Boolean = 3;
+  String = 4;
+  Text = 5;   // convert as string
+  Binary = 6; // convert as bytes
+  UIntArray = 7;
+  IntArray = 8;
+  FloatArray = 9;
+  BooleanArray = 10;
+  StringArray = 11;
+  Decimal = 12;
+  Timestamp = 13;
+  Bson = 14;
+  Null = 15;
+}
+message FieldDefinition {
+  Type typ = 1;
+  string name = 2;
+  bool nullable = 3;
+}
+message Value {
+  oneof value {
+    uint64 uint_value = 2;
+    int64 int_value = 3;
+    float float_value = 4;
+    bool bool_value = 5;
+    string string_value = 6;
+    bytes bytes_value = 7;
+    ArrayValue array_value = 8;
+    double double_value = 9;
+  };
+}
+
+message ArrayValue { repeated Value array_value = 2; }
