@@ -6,7 +6,7 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 use std::thread;
 use std::time::Duration;
 
-pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
+pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
 pub(crate) struct GeneratorSourceFactory {
     count: u64,

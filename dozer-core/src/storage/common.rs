@@ -28,7 +28,7 @@ pub trait Environment {
     fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError>;
 }
 
-pub trait RenewableRwTransaction {
+pub trait RenewableRwTransaction: Send + Sync {
     fn commit_and_renew(&mut self) -> Result<(), StorageError>;
     fn abort_and_renew(&mut self) -> Result<(), StorageError>;
     fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError>;

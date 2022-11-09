@@ -16,8 +16,8 @@ use std::fs;
 use std::sync::Arc;
 use tempdir::TempDir;
 
-pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
-pub(crate) const PASSTHROUGH_PROCESSOR_OUTPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
+pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = 50;
+pub(crate) const PASSTHROUGH_PROCESSOR_OUTPUT_PORT: PortHandle = 60;
 
 pub(crate) struct PassthroughProcessorFactory {}
 
@@ -68,7 +68,7 @@ impl Processor for PassthroughProcessor {
         tx: Option<&mut dyn RwTransaction>,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
-        fw.send(tx, op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
+        fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
     }
 }
 
@@ -80,8 +80,8 @@ impl RecordReaderProcessorFactory {
     }
 }
 
-pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
-pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
+pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
+pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
 impl ProcessorFactory for RecordReaderProcessorFactory {
     fn is_stateful(&self) -> bool {
@@ -94,11 +94,13 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
         vec![RECORD_READER_PROCESSOR_OUTPUT_PORT]
     }
     fn build(&self) -> Box<dyn Processor> {
-        Box::new(RecordReaderProcessor {})
+        Box::new(RecordReaderProcessor { ctr: 0 })
     }
 }
 
-pub(crate) struct RecordReaderProcessor {}
+pub(crate) struct RecordReaderProcessor {
+    ctr: u64,
+}
 
 impl Processor for RecordReaderProcessor {
     fn update_schema(
@@ -127,10 +129,15 @@ impl Processor for RecordReaderProcessor {
         let v = readers
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
             .unwrap()
-            .get(Field::String("key_0".to_string()).to_bytes()?.as_slice())?;
+            .get(
+                Field::String(format!("key_{}", self.ctr))
+                    .to_bytes()?
+                    .as_slice(),
+            )?;
         assert!(v.is_some());
+        self.ctr += 1;
 
-        fw.send(tx, op, RECORD_READER_PROCESSOR_OUTPUT_PORT)
+        fw.send(op, RECORD_READER_PROCESSOR_OUTPUT_PORT)
     }
 }
 
@@ -139,7 +146,7 @@ fn test_run_dag_reacord_reader() {
     log4rs::init_file("../log4rs.sample.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(1_000_000);
+    let src = GeneratorSourceFactory::new(2_000_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(500_000);
