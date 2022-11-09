@@ -96,6 +96,7 @@ async fn run(
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
+    // SNAPSHOT part - run it when stream table doesnt exist
     match tables {
         None => {}
         Some(tables) => {
