@@ -9,7 +9,10 @@ use dozer_types::log::warn;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
-use super::common_grpc::{FieldDefinition, OnEventRequest, QueryRequest, QueryResponse};
+use super::common_grpc::{
+    FieldDefinition, GetEndpointsRequest, GetEndpointsResponse, OnEventRequest, QueryRequest,
+    QueryResponse,
+};
 use super::helper;
 
 type EchoResult<T> = Result<Response<T>, Status>;
@@ -68,6 +71,14 @@ impl CommonGrpcService for ApiService {
         let reply = QueryResponse { fields, records };
 
         Ok(Response::new(reply))
+    }
+
+    async fn get_endpoints(
+        &self,
+        _: Request<GetEndpointsRequest>,
+    ) -> Result<Response<GetEndpointsResponse>, Status> {
+        let endpoints = self.pipeline_map.iter().map(|(k, _)| k).cloned().collect();
+        Ok(Response::new(GetEndpointsResponse { endpoints }))
     }
 
     type onEventStream = ResponseStream;

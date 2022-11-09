@@ -3,8 +3,8 @@ syntax = "proto3";
 package dozer.common;
 service CommonGrpcService {
   rpc query(QueryRequest) returns (QueryResponse);
-
   rpc onEvent(OnEventRequest) returns (stream Record) {}
+  rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse) {}
 }
 
 message QueryRequest {
@@ -27,6 +27,10 @@ message QueryResponse {
   repeated FieldDefinition fields = 1;
   repeated Record records = 2;
 }
+
+message GetEndpointsRequest {}
+
+message GetEndpointsResponse { repeated string endpoints = 1; }
 
 message Record { repeated Value values = 1; }
 
