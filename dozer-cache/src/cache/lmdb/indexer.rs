@@ -1,5 +1,8 @@
 use crate::errors::{CacheError, IndexError, QueryError};
-use dozer_types::types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier};
+use dozer_types::{
+    errors::types::TypeError,
+    types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier},
+};
 use lmdb::{RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
@@ -39,7 +42,7 @@ impl Indexer {
                     // TODO: use `SortDirection`.
                     let fields: Vec<_> = fields.iter().map(|(index, _)| *index).collect();
                     let secondary_key =
-                        self._build_index_sorted_inverted(identifier, &fields, &rec.values);
+                        self._build_index_sorted_inverted(identifier, &fields, &rec.values)?;
                     txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
                         .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                 }
@@ -63,15 +66,19 @@ impl Indexer {
         identifier: &SchemaIdentifier,
         index_fields: &[usize],
         values: &[Field],
-    ) -> Vec<u8> {
-        let values: Vec<Option<Vec<u8>>> = values
+    ) -> Result<Vec<u8>, CacheError> {
+        let values = values
             .iter()
             .enumerate()
             .filter(|(idx, _)| index_fields.contains(idx))
-            .map(|(_, field)| Some(field.to_bytes().unwrap()))
-            .collect();
+            .map(|(_, field)| field.to_bytes().map(Some))
+            .collect::<Result<Vec<_>, TypeError>>()?;
 
-        index::get_secondary_index(identifier.id, index_fields, &values)
+        Ok(index::get_secondary_index(
+            identifier.id,
+            index_fields,
+            &values,
+        ))
     }
 
     fn _build_indices_full_text<'a>(
