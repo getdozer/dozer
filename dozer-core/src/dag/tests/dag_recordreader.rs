@@ -6,13 +6,13 @@ use crate::dag::node::{
     NodeHandle, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
-use crate::dag::tests::processors::{TestProcessorFactory, TestSinkFactory, TestSourceFactory};
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use crate::storage::common::{Environment, RwTransaction};
+use crate::storage::common::{Environment, RenewableRwTransaction, RwTransaction};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
+use std::sync::{Arc, RwLock};
 use tempdir::TempDir;
 
 pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
@@ -64,7 +64,7 @@ impl Processor for PassthroughProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<&mut dyn RwTransaction>,
+        tx: Option<Arc<RwLock<Box<dyn RenewableRwTransaction>>>>,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(tx, op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
@@ -120,13 +120,14 @@ impl Processor for RecordReaderProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<&mut dyn RwTransaction>,
+        tx: Option<Arc<RwLock<Box<dyn RenewableRwTransaction>>>>,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let v = readers
             .get(&RECORD_READER_PROCESSOR_INPUT_PORT)
             .unwrap()
-            .get(Field::String("key_0".to_string()).to_bytes()?.as_slice());
+            .get(Field::String("key_0".to_string()).to_bytes()?.as_slice())?;
+        assert!(v.is_some());
 
         fw.send(tx, op, RECORD_READER_PROCESSOR_OUTPUT_PORT)
     }
@@ -137,7 +138,7 @@ fn test_run_dag_reacord_reader() {
     log4rs::init_file("../log4rs.sample.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(300_000);
+    let src = GeneratorSourceFactory::new(1_000_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(500_000);
