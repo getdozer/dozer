@@ -54,7 +54,7 @@ pub async fn list(
     )?;
     let exp = QueryExpression::new(None, vec![], 50, 0);
     match helper
-        .get_records(exp)
+        .get_records_map(exp)
         .map(|maps| HttpResponse::Ok().json(maps))
     {
         Ok(res) => Ok(res),
@@ -87,7 +87,7 @@ pub async fn query(
         access.map(|a| a.into_inner()),
     )?;
     helper
-        .get_records(query_expression)
+        .get_records_map(query_expression)
         .map(|maps| HttpResponse::Ok().json(maps))
         .map_err(|e| match e {
             CacheError::QueryValidationError(e) => ApiError::InvalidQuery(e),

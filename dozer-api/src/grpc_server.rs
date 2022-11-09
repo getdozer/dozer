@@ -106,11 +106,16 @@ impl GRPCServer {
             .accept_http1(true)
             .concurrency_limit_per_connection(32)
             // GRPC service to handle dynamic requests
-            .add_service(CommonGrpcServiceServer::new(ApiService { pipeline_map }))
+            .add_service(tonic_web::enable(CommonGrpcServiceServer::new(
+                ApiService {
+                    pipeline_map,
+                    event_notifier: rx1.resubscribe(),
+                },
+            )))
             // GRPC service to handle reflection requests
             .add_service(inflection_service)
             // GRPC service to handle typed requests
-            .add_service(grpc_service);
+            .add_service(tonic_web::enable(grpc_service));
 
         let addr = format!("[::1]:{:}", self.port).parse().unwrap();
         let grpc_router = grpc_router.serve(addr);

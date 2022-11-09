@@ -1,11 +1,26 @@
 syntax = "proto3";
 
 package dozer.common;
-service CommonGrpcService { rpc query(QueryRequest) returns (QueryResponse); }
+service CommonGrpcService {
+  rpc query(QueryRequest) returns (QueryResponse);
+
+  rpc onEvent(OnEventRequest) returns (stream Record) {}
+}
 
 message QueryRequest {
   string endpoint = 1;
   optional string query = 2;
+}
+
+enum EventType {
+  ALL = 0;
+  INSERT_ONLY = 1;
+  UPDATE_ONLY = 2;
+  DELETE_ONLY = 3;
+}
+message OnEventRequest {
+  EventType type = 1;
+  repeated string endpoints = 2;
 }
 
 message QueryResponse {
