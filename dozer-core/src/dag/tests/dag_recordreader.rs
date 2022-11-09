@@ -9,10 +9,11 @@ use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::common::{Environment, RenewableRwTransaction, RwTransaction};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tempdir::TempDir;
 
 pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
@@ -64,7 +65,7 @@ impl Processor for PassthroughProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<Arc<RwLock<Box<dyn RenewableRwTransaction>>>>,
+        tx: Option<&mut dyn RwTransaction>,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(tx, op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
@@ -120,7 +121,7 @@ impl Processor for RecordReaderProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<Arc<RwLock<Box<dyn RenewableRwTransaction>>>>,
+        tx: Option<&mut dyn RwTransaction>,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let v = readers

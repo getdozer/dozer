@@ -1,7 +1,6 @@
 use crate::dag::errors::ExecutionError;
 use crate::storage::common::{
-    Database, Environment, EnvironmentManager, RenewableRwTransaction, RoCursor, RoTransaction,
-    RwCursor, RwTransaction,
+    Database, Environment, EnvironmentManager, RenewableRwTransaction, RoCursor, RwCursor,
 };
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::InternalDbError;
@@ -56,7 +55,7 @@ impl EnvironmentManager for LmdbEnvironmentManager {
 
     fn create_txn(&mut self) -> Result<Box<dyn RenewableRwTransaction>, StorageError> {
         let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
-        Ok(Box::new(ExclusiveTransaction::new(
+        Ok(Box::new(LmdbExclusiveTransaction::new(
             self.inner.clone(),
             tx,
             self.dbs.clone(),
@@ -79,19 +78,19 @@ impl Environment for LmdbEnvironmentManager {
     }
 }
 
-struct ExclusiveTransaction {
+struct LmdbExclusiveTransaction {
     env: LmdbEnvironment,
     inner: LmdbTransaction,
     dbs: Vec<LmdbDatabase>,
 }
 
-impl ExclusiveTransaction {
+impl LmdbExclusiveTransaction {
     pub fn new(env: LmdbEnvironment, inner: LmdbTransaction, dbs: Vec<LmdbDatabase>) -> Self {
         Self { env, inner, dbs }
     }
 }
 
-impl RenewableRwTransaction for ExclusiveTransaction {
+impl RenewableRwTransaction for LmdbExclusiveTransaction {
     fn commit_and_renew(&mut self) -> Result<(), StorageError> {
         self.inner.commit().map_err(InternalDbError)?;
         self.inner = self.env.tx_begin(false)?;
@@ -104,16 +103,6 @@ impl RenewableRwTransaction for ExclusiveTransaction {
         Ok(())
     }
 
-    fn as_rw_transaction(&mut self) -> &mut dyn RwTransaction {
-        self
-    }
-
-    fn as_ro_transaction(&self) -> &dyn RoTransaction {
-        self
-    }
-}
-
-impl RwTransaction for ExclusiveTransaction {
     #[inline]
     fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
         self.inner
@@ -138,9 +127,7 @@ impl RwTransaction for ExclusiveTransaction {
         let cursor = self.inner.open_cursor(&self.dbs[db.id])?;
         Ok(Box::new(ReaderWriterCursor::new(cursor)))
     }
-}
 
-impl RoTransaction for ExclusiveTransaction {
     #[inline]
     fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         Ok(self
