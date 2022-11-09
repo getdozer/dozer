@@ -3,6 +3,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::dag::record_store::RecordReader;
 use crate::storage::common::{
     Database, Environment, EnvironmentManager, RenewableRwTransaction, RwTransaction,
 };
@@ -10,10 +11,12 @@ use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::InternalDbError;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use libc::size_t;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
@@ -31,24 +34,15 @@ impl StorageMetadata {
 pub(crate) fn init_component<F>(
     node_handle: &NodeHandle,
     base_path: PathBuf,
-    stateful: bool,
     mut init_f: F,
-) -> Result<Option<StorageMetadata>, ExecutionError>
+) -> Result<StorageMetadata, ExecutionError>
 where
     F: FnMut(Option<&mut dyn Environment>) -> Result<(), ExecutionError>,
 {
-    match stateful {
-        false => {
-            let _ = init_f(None)?;
-            Ok(None)
-        }
-        true => {
-            let mut env = LmdbEnvironmentManager::create(base_path, node_handle.as_str())?;
-            let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
-            init_f(Some(env.as_environment()))?;
-            Ok(Some(StorageMetadata::new(env, db)))
-        }
-    }
+    let mut env = LmdbEnvironmentManager::create(base_path, node_handle.as_str())?;
+    let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+    init_f(Some(env.as_environment()))?;
+    Ok(StorageMetadata::new(env, db))
 }
 #[inline]
 pub(crate) fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Select {
@@ -172,6 +166,20 @@ pub(crate) fn get_node_types(
     (sources, processors, sinks, dag.edges)
 }
 
+pub(crate) fn build_receivers_lists(
+    receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+) -> (Vec<PortHandle>, Vec<Receiver<ExecutorOperation>>) {
+    let mut handles_ls: Vec<PortHandle> = Vec::new();
+    let mut receivers_ls: Vec<Receiver<ExecutorOperation>> = Vec::new();
+    for e in receivers {
+        for r in e.1 {
+            receivers_ls.push(r);
+            handles_ls.push(e.0);
+        }
+    }
+    (handles_ls, receivers_ls)
+}
+
 pub(crate) fn get_inputs_for_output(
     edges: &Vec<Edge>,
     node: &NodeHandle,
@@ -182,4 +190,40 @@ pub(crate) fn get_inputs_for_output(
         .filter(|e| e.from.node == *node && e.from.port == *port)
         .map(|e| e.to.clone())
         .collect()
+}
+
+const PORT_STATE_KEY: &str = "__PORT_STATE_";
+
+pub(crate) fn create_ports_databases(
+    env: &mut dyn Environment,
+    ports: Vec<PortHandle>,
+) -> Result<HashMap<PortHandle, Database>, StorageError> {
+    let mut port_databases = HashMap::<PortHandle, Database>::new();
+    for out_port in ports {
+        let db = env.open_database(format!("{}_{}", PORT_STATE_KEY, out_port).as_str(), false)?;
+        port_databases.insert(out_port, db);
+    }
+    Ok(port_databases)
+}
+
+pub(crate) fn fill_ports_record_readers(
+    handle: &NodeHandle,
+    edges: &Vec<Edge>,
+    port_databases: &HashMap<PortHandle, Database>,
+    master_tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+    record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    output_ports: Vec<PortHandle>,
+) {
+    for out_port in output_ports {
+        for r in get_inputs_for_output(edges, handle, &out_port) {
+            let mut writer = record_stores.write();
+            writer.get_mut(&r.node).unwrap().insert(
+                r.port,
+                RecordReader::new(
+                    master_tx.clone(),
+                    port_databases.get(&out_port).unwrap().clone(),
+                ),
+            );
+        }
+    }
 }

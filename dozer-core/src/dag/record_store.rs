@@ -1,15 +1,18 @@
 use crate::storage::common::{Database, RenewableRwTransaction, RoTransaction, RwTransaction};
+use ahash::HashMap;
+use dozer_types::parking_lot::RwLock;
+use std::sync::Arc;
 
-pub struct RecordReader<'a> {
-    tx: &'a dyn RoTransaction,
-    db: &'a Database,
+pub struct RecordReader {
+    tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+    db: Database,
 }
 
-impl<'a> RecordReader<'a> {
-    pub fn new(tx: &'a dyn RoTransaction, db: &'a Database) -> Self {
+impl RecordReader {
+    pub fn new(tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>, db: Database) -> Self {
         Self { tx, db }
     }
 }
 
-unsafe impl<'a> Send for RecordReader<'a> {}
-unsafe impl<'a> Sync for RecordReader<'a> {}
+unsafe impl Send for RecordReader {}
+unsafe impl Sync for RecordReader {}
