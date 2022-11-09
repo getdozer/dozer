@@ -1,5 +1,6 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::PortHandle;
+use crate::storage::common::RwTransaction;
 use core::marker::{Send, Sync};
 use core::result::Result;
 use dozer_types::types::{Operation, Schema};
@@ -11,5 +12,10 @@ pub trait SourceChannelForwarder: Send + Sync {
 }
 
 pub trait ProcessorChannelForwarder {
-    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError>;
+    fn send(
+        &mut self,
+        tx: Option<&mut dyn RwTransaction>,
+        op: Operation,
+        port: PortHandle,
+    ) -> Result<(), ExecutionError>;
 }

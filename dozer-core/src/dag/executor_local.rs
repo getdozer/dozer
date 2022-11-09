@@ -10,7 +10,7 @@ use crate::dag::executor_utils::{
     get_inputs_for_output, get_node_types, index_edges, init_component, init_select, map_to_op,
     requires_schema_update,
 };
-use crate::dag::forwarder::LocalChannelForwarder;
+use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, RenewableRwTransaction, RoTransaction};
@@ -27,6 +27,7 @@ use std::string::ToString;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 const DEFAULT_COMMIT_SZ: u16 = 10_000;
 
@@ -89,7 +90,12 @@ impl MultiThreadedDagExecutor {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         base_path: PathBuf,
     ) -> JoinHandle<Result<(), ExecutionError>> {
-        let mut fw = LocalChannelForwarder::new(handle.clone(), senders, DEFAULT_COMMIT_SZ);
+        let mut fw = LocalChannelForwarder::new_source_forwarder(
+            handle.clone(),
+            senders,
+            DEFAULT_COMMIT_SZ,
+            None,
+        );
 
         thread::spawn(move || -> Result<(), ExecutionError> {
             let src = src_factory.build();
@@ -212,7 +218,14 @@ impl MultiThreadedDagExecutor {
             );
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
-            let mut fw = LocalChannelForwarder::new(handle.clone(), senders, 0);
+            let mut fw = LocalChannelForwarder::new_processor_forwarder(
+                handle.clone(),
+                senders,
+                Some(PortRecordStoreWriter::new(
+                    port_databases.clone(),
+                    output_schemas.clone(),
+                )),
+            );
 
             let mut sel = init_select(&receivers_ls);
             loop {

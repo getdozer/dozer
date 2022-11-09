@@ -3,12 +3,57 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{NodeHandle, PortHandle};
+use crate::storage::common::{Database, RenewableRwTransaction, RwTransaction};
+use crate::storage::errors::StorageError::SerializationError;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
+
+pub struct PortRecordStoreWriter {
+    dbs: HashMap<PortHandle, Database>,
+    schemas: HashMap<PortHandle, Schema>,
+}
+
+impl PortRecordStoreWriter {
+    pub fn new(dbs: HashMap<PortHandle, Database>, schemas: HashMap<PortHandle, Schema>) -> Self {
+        Self { dbs, schemas }
+    }
+
+    fn store_op(
+        &self,
+        tx: &mut dyn RwTransaction,
+        seq_no: u64,
+        op: &Operation,
+        port: &PortHandle,
+    ) -> Result<(), ExecutionError> {
+        match op {
+            Operation::Insert { new } => {
+                let schema = self
+                    .schemas
+                    .get(port)
+                    .ok_or(ExecutionError::InvalidPortHandle(port.clone()))?;
+                let db = self
+                    .dbs
+                    .get(port)
+                    .ok_or(ExecutionError::InvalidPortHandle(port.clone()))?;
+                let key = new.get_key(&schema.primary_index)?;
+                let value = bincode::serialize(&new).map_err(|e| SerializationError {
+                    typ: "Record".to_string(),
+                    reason: Box::new(e),
+                })?;
+                tx.put(db, key.as_slice(), value.as_slice())?;
+                Ok(())
+            }
+            Operation::Delete { old } => Ok(()),
+            Operation::Update { old, new } => Ok(()),
+        }
+    }
+}
 
 pub struct LocalChannelForwarder {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -16,13 +61,15 @@ pub struct LocalChannelForwarder {
     commit_size: u16,
     commit_counter: u16,
     source_handle: NodeHandle,
+    rec_store_writer: Option<PortRecordStoreWriter>,
 }
 
 impl LocalChannelForwarder {
-    pub fn new(
+    pub fn new_source_forwarder(
         source_handle: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         commit_size: u16,
+        rec_store_writer: Option<PortRecordStoreWriter>,
     ) -> Self {
         Self {
             senders,
@@ -30,6 +77,28 @@ impl LocalChannelForwarder {
             commit_size,
             commit_counter: 0,
             source_handle,
+            rec_store_writer,
+        }
+    }
+
+    pub fn new_processor_forwarder(
+        source_handle: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        rec_store_writer: Option<PortRecordStoreWriter>,
+    ) -> Self {
+        Self {
+            senders,
+            curr_seq_no: 0,
+            commit_size: 0,
+            commit_counter: 0,
+            source_handle,
+            rec_store_writer,
+        }
+    }
+
+    fn update_output_schema(&mut self, port: PortHandle, schema: Schema) {
+        if let Some(w) = &mut self.rec_store_writer {
+            w.schemas.insert(port, schema);
         }
     }
 
@@ -38,17 +107,22 @@ impl LocalChannelForwarder {
     }
 
     fn send_op(
-        &self,
+        &mut self,
+        tx: Option<&mut dyn RwTransaction>,
         seq_opt: Option<u64>,
         op: Operation,
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
+        let seq = seq_opt.unwrap_or(self.curr_seq_no);
+        if let (Some(rs), Some(tx)) = (self.rec_store_writer.as_mut(), tx) {
+            rs.store_op(tx, seq, &op, &port_id)?;
+        }
+
         let senders = self
             .senders
             .get(&port_id)
             .ok_or(InvalidPortHandle(port_id))?;
 
-        let seq = seq_opt.unwrap_or(self.curr_seq_no);
         let exec_op = match op {
             Operation::Insert { new } => ExecutorOperation::Insert { seq, new },
             Operation::Update { old, new } => ExecutorOperation::Update { seq, old, new },
@@ -105,10 +179,11 @@ impl LocalChannelForwarder {
     }
 
     pub fn send_update_schema(
-        &self,
+        &mut self,
         schema: Schema,
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
+        self.update_output_schema(port_id, schema.clone());
         let senders = self
             .senders
             .get(&port_id)
@@ -130,7 +205,7 @@ impl SourceChannelForwarder for LocalChannelForwarder {
             self.send_commit()?;
             self.commit_counter = 0;
         }
-        self.send_op(Some(seq), op, port)?;
+        self.send_op(None, Some(seq), op, port)?;
         self.commit_counter += 1;
         Ok(())
     }
@@ -145,7 +220,12 @@ impl SourceChannelForwarder for LocalChannelForwarder {
 }
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
-    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.send_op(None, op, port)
+    fn send(
+        &mut self,
+        tx: Option<&mut dyn RwTransaction>,
+        op: Operation,
+        port: PortHandle,
+    ) -> Result<(), ExecutionError> {
+        self.send_op(tx, None, op, port)
     }
 }

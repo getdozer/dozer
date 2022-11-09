@@ -4,7 +4,7 @@ use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::PortHandle;
 use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
 use crate::storage::common::{Database, Environment, RwTransaction};
-use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;
 
@@ -38,12 +38,18 @@ impl Source for TestSource {
         Some(
             Schema::empty()
                 .field(
-                    FieldDefinition::new(
-                        format!("node_{}_port_{}", self.id, port),
-                        FieldType::String,
-                        false,
-                    ),
+                    FieldDefinition::new("user_id".to_string(), FieldType::UInt, false),
+                    true,
+                    true,
+                )
+                .field(
+                    FieldDefinition::new("first_name".to_string(), FieldType::String, false),
+                    true,
                     false,
+                )
+                .field(
+                    FieldDefinition::new("last_name".to_string(), FieldType::String, false),
+                    true,
                     false,
                 )
                 .clone(),
@@ -59,7 +65,14 @@ impl Source for TestSource {
             fw.send(
                 n,
                 Operation::Insert {
-                    new: Record::new(None, vec![]),
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::UInt(n),
+                            Field::String(format!("first name {}", n)),
+                            Field::String(format!("last name {}", n)),
+                        ],
+                    ),
                 },
                 DEFAULT_PORT_HANDLE,
             )?;
@@ -141,7 +154,6 @@ impl ProcessorFactory for TestProcessorFactory {
     fn is_stateful(&self) -> bool {
         true
     }
-
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -169,21 +181,7 @@ impl Processor for TestProcessor {
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
-        let mut sorted: Vec<PortHandle> = input_schemas.iter().map(|e| *e.0).collect();
-        sorted.sort();
-        let mut out_schema = Schema::empty();
-        for i in sorted {
-            let src_schema = input_schemas.get(&i).unwrap().clone();
-            for f in src_schema.fields {
-                out_schema.fields.push(f.clone());
-            }
-        }
-        out_schema.fields.push(FieldDefinition::new(
-            format!("node_{}_port_{}", self.id, output_port),
-            FieldType::String,
-            false,
-        ));
-        Ok(out_schema)
+        Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
     }
 
     fn init<'a>(&'_ mut self, tx: Option<&mut dyn Environment>) -> Result<(), ExecutionError> {
@@ -197,11 +195,11 @@ impl Processor for TestProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        state: Option<&mut dyn RwTransaction>,
+        tx: Option<&mut dyn RwTransaction>,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
 
-        let tx = state.unwrap();
+        let tx = tx.unwrap();
 
         tx.put(
             self.db.as_ref().unwrap(),
@@ -210,7 +208,7 @@ impl Processor for TestProcessor {
         )?;
         let v = tx.get(self.db.as_ref().unwrap(), &self.ctr.to_ne_bytes())?;
         assert!(v.is_some());
-        fw.send(op, DEFAULT_PORT_HANDLE)?;
+        fw.send(Some(tx), op, DEFAULT_PORT_HANDLE)?;
         Ok(())
     }
 }
