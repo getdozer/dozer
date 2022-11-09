@@ -1,5 +1,6 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
+use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
@@ -40,7 +41,8 @@ pub trait Processor {
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        state: Option<&mut dyn RwTransaction>,
+        tx: Option<&mut dyn RwTransaction>,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
 }
 

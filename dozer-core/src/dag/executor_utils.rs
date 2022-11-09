@@ -11,12 +11,11 @@ use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::InternalDbError;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use libc::size_t;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
@@ -216,7 +215,7 @@ pub(crate) fn fill_ports_record_readers(
 ) {
     for out_port in output_ports {
         for r in get_inputs_for_output(edges, handle, &out_port) {
-            let mut writer = record_stores.write();
+            let mut writer = record_stores.write().unwrap();
             writer.get_mut(&r.node).unwrap().insert(
                 r.port,
                 RecordReader::new(
