@@ -18,6 +18,7 @@ use crate::storage::errors::StorageError;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
+use fp_rust::sync::CountDownLatch;
 use libc::size_t;
 use log::{error, warn};
 use std::collections::HashMap;
@@ -115,6 +116,7 @@ impl MultiThreadedDagExecutor {
         snk_factory: Box<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         base_path: PathBuf,
+        latch: Arc<CountDownLatch>,
     ) -> JoinHandle<Result<(), ExecutionError>> {
         thread::spawn(move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build();
@@ -126,6 +128,8 @@ impl MultiThreadedDagExecutor {
             let mut master_tx = state_meta.env.create_txn()?;
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
+
+            latch.countdown();
 
             let mut sel = init_select(&receivers_ls);
             loop {
@@ -192,6 +196,7 @@ impl MultiThreadedDagExecutor {
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         base_path: PathBuf,
         record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        latch: Arc<CountDownLatch>,
     ) -> JoinHandle<Result<(), ExecutionError>> {
         thread::spawn(move || -> Result<(), ExecutionError> {
             let mut proc = proc_factory.build();
@@ -226,6 +231,15 @@ impl MultiThreadedDagExecutor {
                     output_schemas.clone(),
                 )),
             );
+
+            latch.countdown();
+
+            // let reader = record_stores
+            //     .read()
+            //     .get(&handle)
+            //     .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
+            //
+            // let v = reader.get(&DEFAULT_PORT_HANDLE);
 
             let mut sel = init_select(&receivers_ls);
             loop {
@@ -306,6 +320,8 @@ impl MultiThreadedDagExecutor {
 
         let (sources, processors, sinks, edges) = get_node_types(dag);
 
+        let latch = Arc::new(CountDownLatch::new((processors.len() + sinks.len()) as u64));
+
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
             let snk_handle = self.start_sink(
@@ -313,6 +329,7 @@ impl MultiThreadedDagExecutor {
                 snk.1,
                 snk_receivers.map_or(Err(MissingNodeInput(snk.0.clone())), Ok)?,
                 path.clone(),
+                latch.clone(),
             );
             handles.push(snk_handle);
         }
@@ -336,9 +353,12 @@ impl MultiThreadedDagExecutor {
                 proc_receivers.unwrap(),
                 path.clone(),
                 record_stores.clone(),
+                latch.clone(),
             );
             handles.push(proc_handle);
         }
+
+        latch.wait();
 
         for source in sources {
             handles.push(self.start_source(

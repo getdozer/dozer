@@ -10,14 +10,16 @@ fn test_run_dag() {
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let src = TestSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
-    let proc = TestProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
+    let proc1 = TestProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
+    let proc2 = TestProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
     let sink = TestSinkFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
 
     let mut dag = Dag::new();
 
     dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
-    dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
-    dag.add_node(NodeType::Sink(Box::new(sink)), 3.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc1)), 2.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc2)), 3.to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
     let src_to_proc1 = dag.connect(
         Endpoint::new(1.to_string(), DEFAULT_PORT_HANDLE),
@@ -28,6 +30,12 @@ fn test_run_dag() {
     let proc1_to_sink = dag.connect(
         Endpoint::new(2.to_string(), DEFAULT_PORT_HANDLE),
         Endpoint::new(3.to_string(), DEFAULT_PORT_HANDLE),
+    );
+    assert!(proc1_to_sink.is_ok());
+
+    let proc1_to_sink = dag.connect(
+        Endpoint::new(3.to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
     );
     assert!(proc1_to_sink.is_ok());
 
