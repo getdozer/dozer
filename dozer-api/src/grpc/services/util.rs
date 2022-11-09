@@ -1,5 +1,6 @@
 use crate::grpc::util::from_dynamic_message_to_json;
 use dozer_cache::{cache::expression::QueryExpression, errors::CacheError};
+use dozer_types::errors::types::SerializationError;
 use dozer_types::{
     errors::types::TypeError,
     serde_json::{self, Value},
@@ -10,78 +11,93 @@ use tonic::{Code, Status};
 pub fn dozer_field_to_json_value(field: &Field) -> Result<Value, TypeError> {
     match field {
         Field::Int(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Float(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Boolean(b) => {
-            let result = serde_json::to_value(b)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(b).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::String(s) => {
-            let result = serde_json::to_value(s)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(s).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::UInt(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Text(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Binary(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::UIntArray(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::IntArray(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::FloatArray(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::BooleanArray(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::StringArray(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Decimal(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Timestamp(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Bson(n) => {
-            let result = serde_json::to_value(n)
-                .map_err(|e| TypeError::FieldValueToJsonValue(e.to_string()))?;
+            let result = serde_json::to_value(n).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
             Ok(result)
         }
         Field::Null => Ok(Value::Null),

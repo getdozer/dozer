@@ -43,6 +43,12 @@ impl Orchestrator for SimpleOrchestrator {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
 
+        // gRPC notifier channel
+        let (sender, receiver) = channel::unbounded::<Event>();
+
+        // Ingestion Channe;
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
         ctrlc::set_handler(move || {
             r.store(false, Ordering::SeqCst);
         })
@@ -61,12 +67,6 @@ impl Orchestrator for SimpleOrchestrator {
         let ce3 = cache_endpoints.clone();
         let sources = self.sources.clone();
 
-        // Initialize ingestor
-        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-        // Initialize Pipeline
-        let (sender, receiver) = channel::unbounded::<Event>();
-        let receiver1 = receiver;
         let _thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
             let executor = Executor::new(sources, cache_endpoints, ingestor, iterator);
             executor.run(Some(sender), running2).unwrap();
@@ -83,13 +83,16 @@ impl Orchestrator for SimpleOrchestrator {
         let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
 
         // Initialize GRPC Server
-        let grpc_server = GRPCServer::new(receiver1, 50051);
+        let grpc_server = GRPCServer::new(receiver, 50051);
 
         let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             grpc_server
                 .run(ce2, running3.to_owned())
                 .map_err(OrchestrationError::GrpcServerFailed)
+                .unwrap();
+            Ok(())
         });
+
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
         ApiServer::stop(server_handle);

@@ -33,14 +33,10 @@ impl GRPCServer {
         sender: broadcast::Sender<Event>,
         event_notifier: crossbeam::channel::Receiver<Event>,
     ) -> Result<(), GRPCError> {
-        let _thread = thread::spawn(|| {
-            Runtime::new().unwrap().block_on(async {
-                tokio::spawn(async move {
-                    while let Some(event) = event_notifier.iter().next() {
-                        _ = sender.send(event);
-                    }
-                });
-            });
+        let _thread = thread::spawn(move || {
+            while let Some(event) = event_notifier.iter().next() {
+                _ = sender.send(event);
+            }
         });
         Ok(())
     }
