@@ -33,11 +33,7 @@ pub fn has_primary_key_changed(
         .any(|idx| old_values[*idx] != new_values[*idx])
 }
 
-pub fn get_secondary_index(
-    schema_id: u32,
-    field_idx: &[usize],
-    field_val: &[Option<Vec<u8>>],
-) -> Vec<u8> {
+pub fn get_secondary_index(field_val: &[Option<Vec<u8>>]) -> Vec<u8> {
     let field_val: Vec<Vec<u8>> = field_val
         .iter()
         .map(|f| match f {
@@ -45,21 +41,7 @@ pub fn get_secondary_index(
             None => vec![],
         })
         .collect();
-    let field_val = field_val.join("#".as_bytes());
-
-    let field_idx: Vec<Vec<u8>> = field_idx
-        .iter()
-        .map(|idx| idx.to_be_bytes().to_vec())
-        .collect();
-    let field_idx = field_idx.join("#".as_bytes());
-
-    [
-        "index_".as_bytes().to_vec(),
-        schema_id.to_be_bytes().to_vec(),
-        field_idx,
-        field_val,
-    ]
-    .join("#".as_bytes())
+    field_val.join("#".as_bytes())
 }
 
 pub fn get_full_text_secondary_index(schema_id: u32, field_idx: u64, token: &str) -> Vec<u8> {

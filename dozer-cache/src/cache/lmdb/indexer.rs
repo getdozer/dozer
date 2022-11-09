@@ -41,8 +41,7 @@ impl Indexer {
                 IndexDefinition::SortedInverted(fields) => {
                     // TODO: use `SortDirection`.
                     let fields: Vec<_> = fields.iter().map(|(index, _)| *index).collect();
-                    let secondary_key =
-                        self._build_index_sorted_inverted(identifier, &fields, &rec.values)?;
+                    let secondary_key = self._build_index_sorted_inverted(&fields, &rec.values)?;
                     txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
                         .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                 }
@@ -63,7 +62,6 @@ impl Indexer {
 
     fn _build_index_sorted_inverted(
         &self,
-        identifier: &SchemaIdentifier,
         index_fields: &[usize],
         values: &[Field],
     ) -> Result<Vec<u8>, CacheError> {
@@ -74,11 +72,7 @@ impl Indexer {
             .map(|(_, field)| field.to_bytes().map(Some))
             .collect::<Result<Vec<_>, TypeError>>()?;
 
-        Ok(index::get_secondary_index(
-            identifier.id,
-            index_fields,
-            &values,
-        ))
+        Ok(index::get_secondary_index(&values))
     }
 
     fn _build_indices_full_text<'a>(
