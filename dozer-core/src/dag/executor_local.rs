@@ -305,7 +305,7 @@ impl MultiThreadedDagExecutor {
                             handles_ls[index],
                             data_op.1,
                             &mut fw,
-                            Some(master_tx.write().unwrap().as_rw_transaction()),
+                            Some(master_tx.clone()),
                             reader,
                         )?;
                     }
