@@ -12,10 +12,6 @@ pub struct Indexer {
     pub index_metadata: Arc<IndexMetaData>,
 }
 impl Indexer {
-    pub fn get_key(schema: &Schema, idx: usize) -> usize {
-        schema.identifier.as_ref().unwrap().id as usize * 100000 + idx
-    }
-
     pub fn build_indexes(
         &self,
         parent_txn: &mut RwTransaction,
