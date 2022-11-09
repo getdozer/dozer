@@ -44,14 +44,8 @@ pub fn get_secondary_index(field_val: &[Option<Vec<u8>>]) -> Vec<u8> {
     field_val.join("#".as_bytes())
 }
 
-pub fn get_full_text_secondary_index(schema_id: u32, field_idx: u64, token: &str) -> Vec<u8> {
-    [
-        "index".as_bytes(),
-        &schema_id.to_be_bytes(),
-        &field_idx.to_be_bytes(),
-        token.as_bytes(),
-    ]
-    .join("#".as_bytes())
+pub fn get_full_text_secondary_index(token: &str) -> Vec<u8> {
+    token.as_bytes().to_vec()
 }
 
 pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
@@ -64,9 +58,6 @@ mod tests {
 
     #[test]
     fn test_get_full_text_secondary_index() {
-        assert_eq!(
-            get_full_text_secondary_index(1, 1, "foo"),
-            b"index#\0\0\0\x01#\0\0\0\0\0\0\0\x01#foo",
-        );
+        assert_eq!(get_full_text_secondary_index("foo"), b"foo",);
     }
 }

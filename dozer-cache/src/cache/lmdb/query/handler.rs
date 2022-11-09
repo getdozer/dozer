@@ -251,12 +251,6 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     fn build_comparision_key(&self, index_scan: &'a IndexScan) -> Result<Vec<u8>, CacheError> {
-        let schema_identifier = self
-            .schema
-            .identifier
-            .clone()
-            .map_or(Err(CacheError::SchemaIdentifierNotFound), Ok)?;
-
         let mut fields = vec![];
 
         for (idx, idf) in index_scan.filters.iter().enumerate() {
@@ -284,13 +278,9 @@ impl<'a> LmdbQueryHandler<'a> {
 
         match &index_scan.index_def {
             IndexDefinition::SortedInverted(_) => Ok(self.build_composite_range_key(fields)?),
-            IndexDefinition::FullText(field_index) => {
+            IndexDefinition::FullText(_) => {
                 if let Some(Field::String(token)) = &fields[0] {
-                    Ok(index::get_full_text_secondary_index(
-                        schema_identifier.id,
-                        *field_index as _,
-                        token,
-                    ))
+                    Ok(index::get_full_text_secondary_index(token))
                 } else {
                     Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
                 }
