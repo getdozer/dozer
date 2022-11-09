@@ -10,8 +10,8 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 use super::common_grpc::{
-    FieldDefinition, GetEndpointsRequest, GetEndpointsResponse, OnEventRequest, QueryRequest,
-    QueryResponse,
+    FieldDefinition, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest,
+    GetFieldsResponse, OnEventRequest, QueryRequest, QueryResponse,
 };
 use super::helper;
 
@@ -81,17 +81,39 @@ impl CommonGrpcService for ApiService {
         Ok(Response::new(GetEndpointsResponse { endpoints }))
     }
 
+    async fn get_fields(
+        &self,
+        request: Request<GetFieldsRequest>,
+    ) -> Result<Response<GetFieldsResponse>, Status> {
+        let request = request.into_inner();
+        let endpoint = request.endpoint;
+        let pipeline_details = self
+            .pipeline_map
+            .get(&endpoint)
+            .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
+
+        let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), None)?;
+        let schema = api_helper
+            .get_schema()
+            .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
+
+        let fields: Vec<FieldDefinition> = schema
+            .fields
+            .iter()
+            .map(|f| FieldDefinition {
+                typ: helper::map_field_type_to_pb(&f.typ) as i32,
+                name: f.name.to_owned(),
+                nullable: f.nullable,
+            })
+            .collect();
+        Ok(Response::new(GetFieldsResponse { fields }))
+    }
+
     #[allow(non_camel_case_types)]
     type onEventStream = ResponseStream;
     async fn on_event(&self, request: Request<OnEventRequest>) -> EchoResult<Self::onEventStream> {
-        let request = request.into_inner();
+        let _request = request.into_inner();
 
-        for endpoint in request.endpoints {
-            let _pipeline_details = self
-                .pipeline_map
-                .get(&endpoint)
-                .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
-        }
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         // create subscribe
         let mut broadcast_receiver = self.event_notifier.resubscribe();

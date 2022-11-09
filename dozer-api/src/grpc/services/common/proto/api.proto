@@ -5,6 +5,7 @@ service CommonGrpcService {
   rpc query(QueryRequest) returns (QueryResponse);
   rpc onEvent(OnEventRequest) returns (stream Record);
   rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse);
+  rpc getFields(GetFieldsRequest) returns (GetFieldsResponse);
 }
 
 message QueryRequest {
@@ -20,8 +21,11 @@ enum EventType {
 }
 message OnEventRequest {
   EventType type = 1;
-  repeated string endpoints = 2;
+  string endpoint = 2;
 }
+
+message GetFieldsRequest { string endpoint = 1; }
+message GetFieldsResponse { repeated FieldDefinition fields = 1; }
 
 message QueryResponse {
   repeated FieldDefinition fields = 1;
