@@ -265,7 +265,7 @@ impl Cache for LmdbCache {
     fn insert_schema(&self, name: &str, schema: &Schema) -> Result<(), CacheError> {
         // Create a db for each index
         for (idx, _) in schema.secondary_indexes.iter().enumerate() {
-            let key = Indexer::get_key(schema, idx);
+            let key = IndexMetaData::get_key(schema, idx);
             let name = format!("index_#{}", key);
             let db = utils::init_db(&self.env, Some(&name))?;
 
