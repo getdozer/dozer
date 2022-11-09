@@ -64,7 +64,7 @@ async fn check_status(
 ) -> ServiceResponse<impl MessageBody> {
     let endpoint = test_utils::get_endpoint();
     let schema_name = endpoint.name.to_owned();
-    let cache = test_utils::initialize_cache(&schema_name);
+    let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
         security,
         CorsOptions::Permissive,
@@ -93,7 +93,7 @@ async fn _call_auth_token_api(
 ) -> ServiceResponse<impl MessageBody> {
     let endpoint = test_utils::get_endpoint();
     let schema_name = endpoint.name.to_owned();
-    let cache = test_utils::initialize_cache(&schema_name);
+    let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
         ApiSecurity::Jwt(secret.to_owned()),
         CorsOptions::Permissive,

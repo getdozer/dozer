@@ -26,7 +26,7 @@ async fn list_route() {
     let endpoint = test_utils::get_endpoint();
     let mut schema_name = endpoint.to_owned().path;
     schema_name.remove(0);
-    let cache = test_utils::initialize_cache(&schema_name);
+    let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
         ApiSecurity::None,
         CorsOptions::Permissive,
@@ -53,7 +53,7 @@ async fn query_route() {
     let endpoint = test_utils::get_endpoint();
     let mut schema_name = endpoint.to_owned().path;
     schema_name.remove(0);
-    let cache = test_utils::initialize_cache(&schema_name);
+    let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
         ApiSecurity::None,
         CorsOptions::Permissive,
@@ -80,7 +80,7 @@ async fn get_route() {
     let endpoint = test_utils::get_endpoint();
     let mut schema_name = endpoint.to_owned().path;
     schema_name.remove(0);
-    let cache = test_utils::initialize_cache(&schema_name);
+    let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
         ApiSecurity::None,
         CorsOptions::Permissive,

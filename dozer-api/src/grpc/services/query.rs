@@ -19,7 +19,7 @@ pub async fn grpc_query(
     pipeline_details: PipelineDetails,
     request: Request<DynamicMessage>,
 ) -> Result<Response<Value>, Status> {
-    let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), None)?;
+    let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
     let dynamic_message = request.into_inner();
     let exp = convert_grpc_message_to_query_exp(dynamic_message)?;
     let result = api_helper

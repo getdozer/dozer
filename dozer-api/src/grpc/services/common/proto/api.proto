@@ -3,8 +3,8 @@ syntax = "proto3";
 package dozer.common;
 service CommonGrpcService {
   rpc query(QueryRequest) returns (QueryResponse);
-  rpc onEvent(OnEventRequest) returns (stream Record) {}
-  rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse) {}
+  rpc onEvent(OnEventRequest) returns (stream Record);
+  rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse);
 }
 
 message QueryRequest {
