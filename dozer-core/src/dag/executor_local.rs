@@ -226,6 +226,7 @@ impl MultiThreadedDagExecutor {
                 Some(PortRecordStoreWriter::new(
                     port_databases.clone(),
                     output_schemas.clone(),
+                    master_tx.clone(),
                 )),
             );
 

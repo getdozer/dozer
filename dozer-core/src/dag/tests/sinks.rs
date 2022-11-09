@@ -5,7 +5,7 @@ use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
-pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
+pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = 90;
 
 pub(crate) struct CountingSinkFactory {
     expected: u64,

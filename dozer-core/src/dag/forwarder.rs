@@ -17,16 +17,20 @@ use std::time::Duration;
 pub struct PortRecordStoreWriter {
     dbs: HashMap<PortHandle, Database>,
     schemas: HashMap<PortHandle, Schema>,
+    tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
 }
 
 impl PortRecordStoreWriter {
-    pub fn new(dbs: HashMap<PortHandle, Database>, schemas: HashMap<PortHandle, Schema>) -> Self {
-        Self { dbs, schemas }
+    pub fn new(
+        dbs: HashMap<PortHandle, Database>,
+        schemas: HashMap<PortHandle, Schema>,
+        tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+    ) -> Self {
+        Self { dbs, schemas, tx }
     }
 
     fn store_op(
-        &self,
-        tx: &mut dyn RwTransaction,
+        &mut self,
         seq_no: u64,
         op: &Operation,
         port: &PortHandle,
@@ -46,7 +50,7 @@ impl PortRecordStoreWriter {
                     typ: "Record".to_string(),
                     reason: Box::new(e),
                 })?;
-                tx.put(db, key.as_slice(), value.as_slice())?;
+                self.tx.write().put(db, key.as_slice(), value.as_slice())?;
                 Ok(())
             }
             Operation::Delete { old } => Ok(()),
@@ -108,14 +112,13 @@ impl LocalChannelForwarder {
 
     fn send_op(
         &mut self,
-        tx: Option<&mut dyn RwTransaction>,
         seq_opt: Option<u64>,
         op: Operation,
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
         let seq = seq_opt.unwrap_or(self.curr_seq_no);
-        if let (Some(rs), Some(tx)) = (self.rec_store_writer.as_mut(), tx) {
-            rs.store_op(tx, seq, &op, &port_id)?;
+        if let Some(rs) = self.rec_store_writer.as_mut() {
+            rs.store_op(seq, &op, &port_id)?;
         }
 
         let senders = self
@@ -205,7 +208,7 @@ impl SourceChannelForwarder for LocalChannelForwarder {
             self.send_commit()?;
             self.commit_counter = 0;
         }
-        self.send_op(None, Some(seq), op, port)?;
+        self.send_op(Some(seq), op, port)?;
         self.commit_counter += 1;
         Ok(())
     }
@@ -220,12 +223,7 @@ impl SourceChannelForwarder for LocalChannelForwarder {
 }
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
-    fn send(
-        &mut self,
-        tx: Option<&mut dyn RwTransaction>,
-        op: Operation,
-        port: PortHandle,
-    ) -> Result<(), ExecutionError> {
-        self.send_op(tx, None, op, port)
+    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
+        self.send_op(None, op, port)
     }
 }
