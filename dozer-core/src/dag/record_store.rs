@@ -1,7 +1,8 @@
-use crate::storage::common::{Database, RenewableRwTransaction, RoTransaction, RwTransaction};
+use crate::storage::common::{Database, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
 use ahash::HashMap;
-use std::sync::{Arc, RwLock};
+use dozer_types::parking_lot::RwLock;
+use std::sync::Arc;
 
 pub struct RecordReader {
     tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
@@ -14,8 +15,7 @@ impl RecordReader {
     }
 
     pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        self.tx.read().unwrap().get(&self.db, key)
-        //Ok(None)
+        self.tx.read().get(&self.db, key)
     }
 }
 

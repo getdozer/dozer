@@ -7,9 +7,10 @@ use crate::storage::common::{Database, RenewableRwTransaction, RwTransaction};
 use crate::storage::errors::StorageError::SerializationError;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -25,7 +26,7 @@ impl PortRecordStoreWriter {
 
     fn store_op(
         &self,
-        tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+        tx: &mut dyn RwTransaction,
         seq_no: u64,
         op: &Operation,
         port: &PortHandle,
@@ -45,9 +46,7 @@ impl PortRecordStoreWriter {
                     typ: "Record".to_string(),
                     reason: Box::new(e),
                 })?;
-                tx.write()
-                    .unwrap()
-                    .put(db, key.as_slice(), value.as_slice())?;
+                tx.put(db, key.as_slice(), value.as_slice())?;
                 Ok(())
             }
             Operation::Delete { old } => Ok(()),
@@ -109,7 +108,7 @@ impl LocalChannelForwarder {
 
     fn send_op(
         &mut self,
-        tx: Option<Arc<RwLock<Box<dyn RenewableRwTransaction>>>>,
+        tx: Option<&mut dyn RwTransaction>,
         seq_opt: Option<u64>,
         op: Operation,
         port_id: PortHandle,
@@ -223,7 +222,7 @@ impl SourceChannelForwarder for LocalChannelForwarder {
 impl ProcessorChannelForwarder for LocalChannelForwarder {
     fn send(
         &mut self,
-        tx: Option<Arc<RwLock<Box<dyn RenewableRwTransaction>>>>,
+        tx: Option<&mut dyn RwTransaction>,
         op: Operation,
         port: PortHandle,
     ) -> Result<(), ExecutionError> {

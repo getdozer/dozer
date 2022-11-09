@@ -4,18 +4,17 @@ use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{
-    Database, Environment, EnvironmentManager, RenewableRwTransaction, RwTransaction,
-};
+use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::InternalDbError;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use libc::size_t;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
@@ -215,7 +214,7 @@ pub(crate) fn fill_ports_record_readers(
 ) {
     for out_port in output_ports {
         for r in get_inputs_for_output(edges, handle, &out_port) {
-            let mut writer = record_stores.write().unwrap();
+            let mut writer = record_stores.write();
             writer.get_mut(&r.node).unwrap().insert(
                 r.port,
                 RecordReader::new(

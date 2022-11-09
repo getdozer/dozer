@@ -2,9 +2,10 @@ use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RenewableRwTransaction, RwTransaction};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 pub type NodeHandle = String;
 pub type PortHandle = u16;
@@ -42,7 +43,7 @@ pub trait Processor {
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<Arc<RwLock<Box<dyn RenewableRwTransaction>>>>,
+        tx: Option<&mut dyn RwTransaction>,
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
 }

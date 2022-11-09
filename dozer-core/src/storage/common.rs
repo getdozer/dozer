@@ -28,14 +28,9 @@ pub trait Environment {
     fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError>;
 }
 
-pub trait RenewableRwTransaction: RwTransaction {
+pub trait RenewableRwTransaction {
     fn commit_and_renew(&mut self) -> Result<(), StorageError>;
     fn abort_and_renew(&mut self) -> Result<(), StorageError>;
-    fn as_rw_transaction(&mut self) -> &mut dyn RwTransaction;
-    fn as_ro_transaction(&self) -> &dyn RoTransaction;
-}
-
-pub trait RwTransaction: RoTransaction {
     fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
     fn del(
         &mut self,
@@ -44,11 +39,25 @@ pub trait RwTransaction: RoTransaction {
         value: Option<&[u8]>,
     ) -> Result<bool, StorageError>;
     fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError>;
-}
-
-pub trait RoTransaction: Send + Sync {
     fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
     fn open_ro_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError>;
+}
+
+pub trait RoTransaction {
+    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
+    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError>;
+}
+
+pub trait RwTransaction {
+    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
+    fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
+    fn del(
+        &mut self,
+        db: &Database,
+        key: &[u8],
+        value: Option<&[u8]>,
+    ) -> Result<bool, StorageError>;
+    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError>;
 }
 
 pub trait RoCursor {

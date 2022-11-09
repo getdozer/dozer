@@ -13,9 +13,11 @@ use crate::dag::executor_utils::{
 use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Database, RenewableRwTransaction, RoTransaction};
+use crate::storage::common::{Database, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
+use crate::storage::transactions::{ExclusiveTransaction, SharedTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
 use libc::size_t;
@@ -24,7 +26,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::string::ToString;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -174,12 +176,8 @@ impl MultiThreadedDagExecutor {
                         }
 
                         let data_op = map_to_op(op)?;
-                        snk.process(
-                            handles_ls[index],
-                            data_op.0,
-                            data_op.1,
-                            Some(master_tx.as_rw_transaction()),
-                        )?;
+                        let mut rw_txn = ExclusiveTransaction::new(&mut master_tx);
+                        snk.process(handles_ls[index], data_op.0, data_op.1, Some(&mut rw_txn))?;
                     }
                 }
             }
@@ -237,11 +235,6 @@ impl MultiThreadedDagExecutor {
             );
             latch.countdown();
 
-            // let guard = record_stores.read();
-            // let reader = guard
-            //     .get(&handle)
-            //     .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
-
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
@@ -280,12 +273,12 @@ impl MultiThreadedDagExecutor {
                     }
 
                     ExecutorOperation::Commit { epoch, source } => {
-                        master_tx.write().unwrap().put(
+                        master_tx.write().put(
                             &state_meta.meta_db,
                             source.as_bytes(),
                             &epoch.to_be_bytes(),
                         )?;
-                        master_tx.write().unwrap().commit_and_renew()?;
+                        master_tx.write().commit_and_renew()?;
                     }
 
                     _ => {
@@ -294,18 +287,19 @@ impl MultiThreadedDagExecutor {
                             return Err(SchemaNotInitialized);
                         }
 
-                        let guard = record_stores.read().unwrap();
+                        let guard = record_stores.read();
                         let reader = guard
                             .get(&handle)
                             .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                         let data_op = map_to_op(op)?;
+                        let mut rw_txn = SharedTransaction::new(&master_tx);
                         fw.update_seq_no(data_op.0);
                         proc.process(
                             handles_ls[index],
                             data_op.1,
                             &mut fw,
-                            Some(master_tx.clone()),
+                            Some(&mut rw_txn),
                             reader,
                         )?;
                     }
