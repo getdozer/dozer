@@ -4,7 +4,7 @@ use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::crossbeam;
 use dozer_types::events::Event;
 use dozer_types::parking_lot::RwLock;
-use log::{info};
+use log::info;
 use std::collections::HashMap;
 use std::fs;
 use std::sync::atomic::AtomicBool;
