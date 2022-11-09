@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::Connector;
@@ -9,8 +10,10 @@ use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::parking_lot::RwLock;
 
 use crate::connectors::snowflake::snapshotter::Snapshotter;
+use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 use dozer_types::log::debug;
 use tokio::runtime::Runtime;
+use tokio::{task, time};
 
 pub struct SnowflakeConnector {
     pub id: u64,
@@ -87,15 +90,47 @@ async fn run(
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
+    // SNAPSHOT part - run it when stream table doesnt exist
     match tables {
         None => {}
-        Some(t) => match t.get(0) {
-            None => {}
-            Some(table) => {
-                Snapshotter::run(&client, &ingestor, connector_id, table.name.clone())?;
+        Some(tables) => {
+            for table in tables.iter() {
+                let client_1 = Client::new(&config);
+                let is_stream_created =
+                    StreamConsumer::is_stream_created(&client, table.name.clone())?;
+                if !is_stream_created {
+                    let ingestor_snapshot = Arc::clone(&ingestor);
+                    Snapshotter::run(
+                        &client_1,
+                        &ingestor_snapshot,
+                        connector_id,
+                        table.name.clone(),
+                    )?;
+                    StreamConsumer::create_stream(&client_1, &table.name)?;
+                } else {
+                    let stream_client = Client::new(&config);
+                    let table_name = table.clone();
+                    let ingestor_stream = Arc::clone(&ingestor);
+                    let forever = task::spawn(async move {
+                        let mut interval = time::interval(Duration::from_secs(10));
+
+                        loop {
+                            interval.tick().await;
+
+                            let _ = StreamConsumer::consume_stream(
+                                &stream_client,
+                                connector_id,
+                                &table_name.name,
+                                &ingestor_stream,
+                            );
+                        }
+                    });
+
+                    forever.await.unwrap();
+                }
             }
-        },
-    }
+        }
+    };
 
     Ok(())
 }

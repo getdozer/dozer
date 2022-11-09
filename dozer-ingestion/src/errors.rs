@@ -6,6 +6,7 @@ use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
+use odbc::DiagnosticRecord;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
@@ -35,6 +36,9 @@ pub enum ConnectorError {
 
     #[error(transparent)]
     PostgresConnectorError(#[from] PostgresConnectorError),
+
+    #[error(transparent)]
+    SnowflakeError(#[from] SnowflakeError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -142,4 +146,10 @@ pub enum PostgresSchemaError {
 
     #[error("Value conversion error: {0}")]
     ValueConversionError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SnowflakeError {
+    #[error("Snowflake query error")]
+    QueryError(#[source] DiagnosticRecord),
 }

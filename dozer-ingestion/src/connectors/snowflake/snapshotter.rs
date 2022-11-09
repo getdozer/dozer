@@ -8,6 +8,7 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
 };
+
 use odbc::create_environment_v3;
 use std::sync::Arc;
 
