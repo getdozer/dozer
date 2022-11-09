@@ -44,12 +44,8 @@ fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
         },
     };
     let schema = test_utils::get_schema();
-    let proto_generated_result = generate_proto(
-        tmp_dir_path.to_owned(),
-        schema_name,
-        Some(schema),
-    )
-    .unwrap();
+    let proto_generated_result =
+        generate_proto(tmp_dir_path.to_owned(), schema_name, Some(schema)).unwrap();
     let path_to_descriptor = generate_descriptor(tmp_dir_path).unwrap();
     let function_types = proto_generated_result.1;
     let event_notifier = mock_event_notifier();
@@ -150,7 +146,7 @@ async fn test_grpc_query() {
     };
     let res = client.query(Request::new(request)).await.unwrap();
     let request_response: QueryFilmsResponse = res.into_inner();
-    assert!(!request_response.film.len() > 0);
+    assert!(!request_response.data.len() > 0);
 }
 
 #[tokio::test]

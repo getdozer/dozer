@@ -1,8 +1,7 @@
-use super::util::from_cache_error;
-use crate::errors::GRPCError;
+use super::util::{dozer_field_to_json_value, from_cache_error};
 use crate::{api_helper, api_server::PipelineDetails};
 use dozer_cache::cache::expression::QueryExpression;
-use dozer_types::serde_json::{self, Map, Value};
+use dozer_types::serde_json::{json, Map, Value};
 use prost_reflect::DynamicMessage;
 use tonic::{codegen::BoxFuture, Request, Response, Status};
 pub struct ListService {
@@ -26,11 +25,21 @@ async fn grpc_list(
     let _dynamic_message = request.into_inner();
     let exp = QueryExpression::new(None, vec![], 50, 0);
     let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
-    let result = api_helper.get_records(exp).map_err(from_cache_error)?;
-    let value_json = serde_json::to_value(result).map_err(GRPCError::SerizalizeError)?;
+    let (schema, records) = api_helper.get_records(exp).map_err(from_cache_error)?;
+    let fields = schema.fields;
+    let mut vec_json: Vec<Value> = vec![];
+    for rec in records {
+        let mut json_respone = json!({});
+        let rect_value = rec.values.to_owned();
+        for (idx, field) in fields.iter().enumerate() {
+            json_respone[field.name.to_owned()] =
+                dozer_field_to_json_value(&rect_value[idx]).unwrap();
+        }
+        vec_json.push(json_respone);
+    }
     // wrap to object
     let mut result_json: Map<String, Value> = Map::new();
-    result_json.insert("data".to_owned(), value_json);
+    result_json.insert("data".to_owned(), Value::Array(vec_json));
     let result = Value::Object(result_json);
     Ok(Response::new(result))
 }

@@ -43,12 +43,7 @@ fn test_generate_descriptor() {
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let schema_name = String::from("films");
     let schema = test_utils::get_schema();
-    generate_proto(
-        tmp_dir_path.to_owned(),
-        schema_name,
-        Some(schema),
-    )
-    .unwrap();
+    generate_proto(tmp_dir_path.to_owned(), schema_name, Some(schema)).unwrap();
     let path_to_descriptor = generate_descriptor(tmp_dir_path).unwrap();
     let check_exist = Path::new(&path_to_descriptor).exists();
     assert!(check_exist, "proto file must be present!");

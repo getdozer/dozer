@@ -223,9 +223,8 @@ impl ProtoService {
         let query_response = RPCMessage {
             name: query_response_str,
             props: vec![format!(
-                "repeated {} {} = 1;\n",
+                "repeated {} data = 1;\n",
                 self.schema_name.to_owned().to_pascal_case(),
-                self.schema_name.to_owned().to_lowercase()
             )],
         };
         (query_fnc, vec![query_request, query_response])
