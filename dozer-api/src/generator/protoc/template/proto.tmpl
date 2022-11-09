@@ -6,6 +6,8 @@ import "{{this}}";
 {{~/each}}
 
 package {{package_name}};
+{{#each service_definition}}
+
 service {{service_name}} {
   {{#each rpc_functions}}
 
@@ -13,6 +15,8 @@ service {{service_name}} {
   {{~/each}}
 
 }
+{{~/each}}
+
 {{#each messages}}
 
 

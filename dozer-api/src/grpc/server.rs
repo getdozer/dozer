@@ -24,7 +24,7 @@ pub struct TonicServer {
     descriptor_path: String,
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
-    pipeline_details: PipelineDetails,
+    pipeline_map: HashMap<String, PipelineDetails>,
     event_notifier: tokio::sync::broadcast::Receiver<Event>,
 }
 impl Clone for TonicServer {
@@ -35,7 +35,7 @@ impl Clone for TonicServer {
             descriptor_path: self.descriptor_path.clone(),
             descriptor: self.descriptor.clone(),
             function_types: self.function_types.clone(),
-            pipeline_details: self.pipeline_details.clone(),
+            pipeline_map: self.pipeline_map.clone(),
             event_notifier: self.event_notifier.resubscribe(),
         }
     }
@@ -44,7 +44,7 @@ impl TonicServer {
     pub fn new(
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
-        pipeline_details: PipelineDetails,
+        pipeline_map: HashMap<String, PipelineDetails>,
         event_notifier: tokio::sync::broadcast::Receiver<Event>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
@@ -54,7 +54,7 @@ impl TonicServer {
             descriptor_path,
             descriptor,
             function_types,
-            pipeline_details,
+            pipeline_map,
             event_notifier,
         }
     }
@@ -84,11 +84,12 @@ where
     }
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
         let current_path: Vec<&str> = req.uri().path().split('/').collect();
-        let service_name = get_service_name(self.descriptor.to_owned());
+        let service_names = get_service_name(self.descriptor.to_owned());
+
         let method_name = current_path[current_path.len() - 1];
-        let method = get_method_by_name(self.descriptor.to_owned(), method_name.to_string());
         let route_match = current_path.len() > 2
-            && Some(current_path[current_path.len() - 2].to_string()) == service_name;
+            && service_names.contains(&current_path[current_path.len() - 2].to_string());
+
         if !route_match {
             return Box::pin(async move {
                 Ok(http::Response::builder()
@@ -99,6 +100,11 @@ where
                     .unwrap())
             });
         }
+        let method = get_method_by_name(
+            self.descriptor.to_owned(),
+            current_path[current_path.len() - 2].to_string(),
+            method_name.to_string(),
+        );
         if let Some(method_descriptor) = method {
             let input = method_descriptor.input();
             let output = method_descriptor.output();
@@ -110,15 +116,16 @@ where
                 self.descriptor_path.to_owned(),
             );
             let method_type = &self.function_types[method_name];
-            #[allow(non_camel_case_types)]
             let accept_compression_encodings = self.accept_compression_encodings;
             let send_compression_encodings = self.send_compression_encodings;
             let mut grpc = tonic::server::Grpc::new(codec)
                 .apply_compression_config(accept_compression_encodings, send_compression_encodings);
+            let pipeline_detail =
+                self.pipeline_map[current_path[current_path.len() - 2]].to_owned();
             return match method_type {
                 GrpcType::GetById => {
                     let method = GetByIdService {
-                        pipeline_details: self.pipeline_details.to_owned(),
+                        pipeline_details: pipeline_detail,
                     };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
@@ -128,7 +135,7 @@ where
                 }
                 GrpcType::Query => {
                     let method = QueryService {
-                        pipeline_details: self.pipeline_details.to_owned(),
+                        pipeline_details: pipeline_detail,
                     };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
@@ -138,7 +145,7 @@ where
                 }
                 GrpcType::List => {
                     let method = ListService {
-                        pipeline_details: self.pipeline_details.to_owned(),
+                        pipeline_details: pipeline_detail,
                     };
                     let fut = async move {
                         let res = grpc.unary(method, req).await;
@@ -148,7 +155,7 @@ where
                 }
                 GrpcType::OnInsert => {
                     let method = OnInsertService {
-                        pipeline_details: self.pipeline_details.to_owned(),
+                        pipeline_details: pipeline_detail,
                         event_notifier: self.event_notifier.resubscribe(),
                     };
                     let fut = async move {
@@ -159,7 +166,7 @@ where
                 }
                 GrpcType::OnUpdate => {
                     let method = OnUpdateService {
-                        pipeline_details: self.pipeline_details.to_owned(),
+                        pipeline_details: pipeline_detail,
                         event_notifier: self.event_notifier.resubscribe(),
                     };
                     let fut = async move {
@@ -170,7 +177,7 @@ where
                 }
                 GrpcType::OnDelete => {
                     let method = OnDeleteService {
-                        pipeline_details: self.pipeline_details.to_owned(),
+                        pipeline_details: pipeline_detail,
                         event_notifier: self.event_notifier.resubscribe(),
                     };
                     let fut = async move {

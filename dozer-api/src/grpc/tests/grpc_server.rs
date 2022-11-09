@@ -23,7 +23,8 @@ use crate::{
 };
 use dozer_types::events::Event;
 use futures_util::FutureExt;
-use std::time::Duration;
+use heck::ToUpperCamelCase;
+use std::{collections::HashMap, time::Duration};
 use tempdir::TempDir;
 use tokio::sync::{broadcast, oneshot};
 use tokio_stream::StreamExt;
@@ -33,25 +34,29 @@ use tonic::{
 };
 
 fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
-    let schema_name = String::from("film");
+    let schema_name = String::from("films");
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
         schema_name: schema_name.to_owned(),
         cache_endpoint: CacheEndpoint {
-            cache: test_utils::initialize_cache(&schema_name),
+            cache: test_utils::initialize_cache(&schema_name, None),
             endpoint,
         },
     };
     let schema = test_utils::get_schema();
     let proto_generated_result =
-        generate_proto(tmp_dir_path.to_owned(), schema_name.to_owned(), schema).unwrap();
-    let path_to_descriptor = generate_descriptor(tmp_dir_path, schema_name).unwrap();
+        generate_proto(tmp_dir_path.to_owned(), schema_name, Some(schema)).unwrap();
+    let path_to_descriptor = generate_descriptor(tmp_dir_path).unwrap();
     let function_types = proto_generated_result.1;
     let event_notifier = mock_event_notifier();
     let (tx, rx1) = broadcast::channel::<Event>(16);
     GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
-
-    TonicServer::new(path_to_descriptor, function_types, pipeline_details, rx1)
+    let mut pipeline_map = HashMap::new();
+    pipeline_map.insert(
+        format!("Dozer.{}Service", "films".to_upper_camel_case()),
+        pipeline_details,
+    );
+    TonicServer::new(path_to_descriptor, function_types, pipeline_map, rx1)
 }
 
 #[tokio::test]
@@ -141,7 +146,7 @@ async fn test_grpc_query() {
     };
     let res = client.query(Request::new(request)).await.unwrap();
     let request_response: QueryFilmsResponse = res.into_inner();
-    assert!(!request_response.film.len() > 0);
+    assert!(!request_response.data.len() > 0);
 }
 
 #[tokio::test]

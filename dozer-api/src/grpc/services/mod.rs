@@ -1,4 +1,5 @@
 pub mod by_id;
+pub mod common;
 pub mod list;
 pub mod on_delete;
 pub mod on_insert;
