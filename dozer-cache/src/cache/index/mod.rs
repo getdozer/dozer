@@ -34,12 +34,12 @@ pub fn has_primary_key_changed(
 }
 
 pub fn get_secondary_index(field_val: &[Option<Vec<u8>>]) -> Vec<u8> {
-    let field_val: Vec<Vec<u8>> = field_val
-        .iter()
-        .map(|f| match f {
+    // Put a '#' at first so the result is never empty.
+    let field_val: Vec<Vec<u8>> = std::iter::once(vec![b'#'])
+        .chain(field_val.iter().map(|f| match f {
             Some(f) => f.clone(),
             None => vec![],
-        })
+        }))
         .collect();
     field_val.join("#".as_bytes())
 }
@@ -55,6 +55,13 @@ pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::get_full_text_secondary_index;
+
+    #[test]
+    fn secondary_index_is_never_empty() {
+        assert!(!super::get_secondary_index(&[]).is_empty());
+        assert!(!super::get_secondary_index(&[None]).is_empty());
+        assert!(!super::get_secondary_index(&[Some(vec![])]).is_empty());
+    }
 
     #[test]
     fn test_get_full_text_secondary_index() {
