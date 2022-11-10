@@ -268,15 +268,12 @@ impl<'a> LmdbQueryHandler<'a> {
             } => {
                 let mut fields = vec![];
                 eq_filters.iter().for_each(|filter| {
-                    fields.push(Some(filter.val.clone()));
+                    fields.push(filter.val.clone());
                 });
                 if let Some(range_query) = range_query {
-                    fields.push(
-                        range_query
-                            .operator_and_value
-                            .as_ref()
-                            .map(|(_, val)| val.clone()),
-                    );
+                    if let Some((_, val)) = &range_query.operator_and_value {
+                        fields.push(val.clone());
+                    }
                 }
                 self.build_composite_range_key(fields)
             }
@@ -290,15 +287,12 @@ impl<'a> LmdbQueryHandler<'a> {
         }
     }
 
-    fn build_composite_range_key(&self, fields: Vec<Option<Field>>) -> Result<Vec<u8>, CacheError> {
-        let mut field_bytes = vec![];
-        for field in fields {
-            // convert value to `Vec<u8>`
-            field_bytes.push(match field {
-                Some(field) => Some(field.to_bytes().map_err(CacheError::TypeError)?),
-                None => None,
-            })
-        }
+    fn build_composite_range_key(&self, fields: Vec<Field>) -> Result<Vec<u8>, CacheError> {
+        // convert value to `Vec<u8>`
+        let field_bytes = fields
+            .iter()
+            .map(|field| field.to_bytes())
+            .collect::<Result<Vec<_>, TypeError>>()?;
 
         Ok(index::get_secondary_index(&field_bytes))
     }

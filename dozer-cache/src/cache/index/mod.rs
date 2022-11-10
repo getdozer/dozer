@@ -33,13 +33,10 @@ pub fn has_primary_key_changed(
         .any(|idx| old_values[*idx] != new_values[*idx])
 }
 
-pub fn get_secondary_index(field_val: &[Option<Vec<u8>>]) -> Vec<u8> {
+pub fn get_secondary_index(field_val: &[Vec<u8>]) -> Vec<u8> {
     // Put a '#' at first so the result is never empty.
     let field_val: Vec<Vec<u8>> = std::iter::once(vec![b'#'])
-        .chain(field_val.iter().map(|f| match f {
-            Some(f) => f.clone(),
-            None => vec![],
-        }))
+        .chain(field_val.iter().cloned())
         .collect();
     field_val.join("#".as_bytes())
 }
@@ -59,8 +56,7 @@ mod tests {
     #[test]
     fn secondary_index_is_never_empty() {
         assert!(!super::get_secondary_index(&[]).is_empty());
-        assert!(!super::get_secondary_index(&[None]).is_empty());
-        assert!(!super::get_secondary_index(&[Some(vec![])]).is_empty());
+        assert!(!super::get_secondary_index(&[vec![]]).is_empty());
     }
 
     #[test]

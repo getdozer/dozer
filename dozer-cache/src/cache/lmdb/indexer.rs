@@ -62,7 +62,7 @@ impl Indexer {
             .iter()
             .enumerate()
             .filter(|(idx, _)| index_fields.contains(idx))
-            .map(|(_, field)| field.to_bytes().map(Some))
+            .map(|(_, field)| field.to_bytes())
             .collect::<Result<Vec<_>, TypeError>>()?;
 
         Ok(index::get_secondary_index(&values))
