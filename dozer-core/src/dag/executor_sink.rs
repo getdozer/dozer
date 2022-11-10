@@ -8,7 +8,7 @@ use crate::dag::executor_utils::{
     init_select, map_to_op, requires_schema_update,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
-use crate::dag::node::{NodeHandle, PortHandle, Processor, ProcessorFactory, SinkFactory};
+use crate::dag::node::{NodeHandle, PortHandle, StatefulSinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crate::storage::transactions::{ExclusiveTransaction, SharedTransaction};
@@ -23,9 +23,9 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
-pub(crate) fn start_sink(
+pub(crate) fn start_stateful_sink(
     handle: NodeHandle,
-    snk_factory: Box<dyn SinkFactory>,
+    snk_factory: Box<dyn StatefulSinkFactory>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
     base_path: PathBuf,
     latch: Arc<CountDownLatch>,
@@ -56,7 +56,7 @@ pub(crate) fn start_sink(
                         new,
                         &handles_ls[index],
                         &mut input_schemas,
-                        snk_factory.get_input_ports(),
+                        &snk_factory.get_input_ports(),
                     ) {
                         let r = snk.update_schema(&input_schemas);
                         if let Err(e) = r {
@@ -84,7 +84,7 @@ pub(crate) fn start_sink(
 
                     let data_op = map_to_op(op)?;
                     let mut rw_txn = ExclusiveTransaction::new(&mut master_tx);
-                    snk.process(handles_ls[index], data_op.0, data_op.1, Some(&mut rw_txn))?;
+                    snk.process(handles_ls[index], data_op.0, data_op.1, &mut rw_txn)?;
                 }
             }
         }

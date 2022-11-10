@@ -8,7 +8,7 @@ use crate::dag::executor_utils::{
     init_select, map_to_op, requires_schema_update,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
-use crate::dag::node::{NodeHandle, PortHandle, Processor, ProcessorFactory};
+use crate::dag::node::{NodeHandle, PortHandle, StatefulProcessor, StatefulProcessorFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crate::storage::transactions::SharedTransaction;
@@ -28,22 +28,18 @@ fn update_processor_schema(
     out_handle: &PortHandle,
     input_schemas: &mut HashMap<PortHandle, Schema>,
     output_schemas: &mut HashMap<PortHandle, Schema>,
-    proc_factory: &Box<dyn ProcessorFactory>,
-    proc: &mut Box<dyn Processor>,
+    input_ports: &Vec<PortHandle>,
+    output_ports: &Vec<PortHandle>,
+    proc: &mut Box<dyn StatefulProcessor>,
     fw: &mut LocalChannelForwarder,
 ) -> Result<bool, ExecutionError> {
-    if requires_schema_update(
-        new,
-        out_handle,
-        input_schemas,
-        proc_factory.get_input_ports(),
-    ) {
-        for out_port in proc_factory.get_output_ports() {
-            let r = proc.update_schema(out_port, &input_schemas);
+    if requires_schema_update(new, out_handle, input_schemas, input_ports) {
+        for out_port in output_ports {
+            let r = proc.update_schema(out_port.clone(), &input_schemas);
             match r {
                 Ok(out_schema) => {
-                    output_schemas.insert(out_port, out_schema.clone());
-                    fw.update_schema(out_schema, out_port)?;
+                    output_schemas.insert(out_port.clone(), out_schema.clone());
+                    fw.update_schema(out_schema, out_port.clone())?;
                 }
                 Err(e) => {
                     warn!(
@@ -60,10 +56,10 @@ fn update_processor_schema(
     }
 }
 
-pub(crate) fn start_processor(
+pub(crate) fn start_stateful_processor(
     edges: Vec<Edge>,
     handle: NodeHandle,
-    proc_factory: Box<dyn ProcessorFactory>,
+    proc_factory: Box<dyn StatefulProcessorFactory>,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
     base_path: PathBuf,
@@ -72,16 +68,21 @@ pub(crate) fn start_processor(
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut proc = proc_factory.build();
+        let input_port_handles = proc_factory.get_input_ports();
+        let output_port_handles = proc_factory
+            .get_output_ports()
+            //   .into_vec()
+            .iter()
+            .map(|e| e.handle)
+            .collect();
 
         let mut input_schemas = HashMap::<PortHandle, Schema>::new();
         let mut output_schemas = HashMap::<PortHandle, Schema>::new();
         let mut schema_initialized = false;
 
         let mut state_meta = init_component(&handle, base_path, |e| proc.init(e))?;
-        let mut port_databases = create_ports_databases(
-            state_meta.env.as_environment(),
-            proc_factory.get_output_ports(),
-        )?;
+        let mut port_databases =
+            create_ports_databases(state_meta.env.as_environment(), &output_port_handles)?;
         let mut master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
             Arc::new(RwLock::new(state_meta.env.create_txn()?));
 
@@ -91,7 +92,7 @@ pub(crate) fn start_processor(
             &port_databases,
             &master_tx,
             &record_stores,
-            proc_factory.get_output_ports(),
+            &output_port_handles,
         );
 
         let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
@@ -122,7 +123,8 @@ pub(crate) fn start_processor(
                         &handles_ls[index],
                         &mut input_schemas,
                         &mut output_schemas,
-                        &proc_factory,
+                        &input_port_handles,
+                        &output_port_handles,
                         &mut proc,
                         &mut fw,
                     )?;
@@ -157,13 +159,7 @@ pub(crate) fn start_processor(
                     let data_op = map_to_op(op)?;
                     let mut rw_txn = SharedTransaction::new(&master_tx);
                     fw.update_seq_no(data_op.0);
-                    proc.process(
-                        handles_ls[index],
-                        data_op.1,
-                        &mut fw,
-                        Some(&mut rw_txn),
-                        reader,
-                    )?;
+                    proc.process(handles_ls[index], data_op.1, &mut fw, &mut rw_txn, reader)?;
                 }
             }
         }

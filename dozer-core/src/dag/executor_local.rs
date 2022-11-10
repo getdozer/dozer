@@ -5,18 +5,16 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
-use crate::dag::executor_processor::start_processor;
-use crate::dag::executor_sink::start_sink;
-use crate::dag::executor_source::start_source;
+use crate::dag::executor_processor::start_stateful_processor;
+use crate::dag::executor_sink::start_stateful_sink;
+use crate::dag::executor_source::start_stateless_source;
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers,
-    get_inputs_for_output, get_node_types, index_edges, init_component, init_select, map_to_op,
-    requires_schema_update,
+    get_inputs_for_output, get_node_types_and_edges, index_edges, init_component, init_select,
+    map_to_op, requires_schema_update, ProcessorHolder, SinkHolder, SourceHolder,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
-use crate::dag::node::{
-    NodeHandle, PortHandle, Processor, ProcessorFactory, SinkFactory, SourceFactory,
-};
+use crate::dag::node::{NodeHandle, PortHandle};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
@@ -92,9 +90,107 @@ impl MultiThreadedDagExecutor {
         }
     }
 
+    fn start_sinks(
+        sinks: Vec<(NodeHandle, SinkHolder)>,
+        receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
+        path: &PathBuf,
+        latch: &Arc<CountDownLatch>,
+    ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
+        let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
+
+        for holder in sinks {
+            let snk_receivers = receivers.remove(&holder.0.clone());
+            match holder.1 {
+                SinkHolder::Stateful(s) => {
+                    handles.push(start_stateful_sink(
+                        holder.0.clone(),
+                        s,
+                        snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
+                        path.clone(),
+                        latch.clone(),
+                    ));
+                }
+                SinkHolder::Stateless(s) => {
+                    todo!();
+                }
+            }
+        }
+
+        Ok(handles)
+    }
+
+    fn start_sources(
+        sources: Vec<(NodeHandle, SourceHolder)>,
+        senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
+        path: &PathBuf,
+        commit_size: u16,
+    ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
+        let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
+
+        for holder in sources {
+            match holder.1 {
+                SourceHolder::Stateful(s) => {
+                    todo!()
+                }
+                SourceHolder::Stateless(s) => {
+                    handles.push(start_stateless_source(
+                        holder.0.clone(),
+                        s,
+                        senders.remove(&holder.0).unwrap(),
+                        commit_size,
+                        path.clone(),
+                    ));
+                }
+            }
+        }
+        Ok(handles)
+    }
+
+    fn start_processors(
+        processors: Vec<(NodeHandle, ProcessorHolder)>,
+        senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
+        receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
+        path: &PathBuf,
+        edges: &Vec<Edge>,
+        latch: &Arc<CountDownLatch>,
+        record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
+        let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
+
+        for holder in processors {
+            let proc_receivers = receivers.remove(&holder.0.clone());
+            if proc_receivers.is_none() {
+                return Err(MissingNodeInput(holder.0));
+            }
+            let proc_senders = senders.remove(&holder.0.clone());
+            if proc_senders.is_none() {
+                return Err(MissingNodeOutput(holder.0));
+            }
+
+            match holder.1 {
+                ProcessorHolder::Stateful(s) => {
+                    handles.push(start_stateful_processor(
+                        edges.clone(),
+                        holder.0,
+                        s,
+                        proc_senders.unwrap(),
+                        proc_receivers.unwrap(),
+                        path.clone(),
+                        record_stores.clone(),
+                        latch.clone(),
+                    ));
+                }
+                ProcessorHolder::Stateless(s) => {
+                    todo!()
+                }
+            }
+        }
+
+        Ok(handles)
+    }
+
     pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(&dag, self.channel_buf_sz);
-        let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
 
         let mut record_stores = Arc::new(RwLock::new(
             dag.nodes
@@ -103,59 +199,32 @@ impl MultiThreadedDagExecutor {
                 .collect(),
         ));
 
-        let (sources, processors, sinks, edges) = get_node_types(dag);
-
+        let (sources, processors, sinks, edges) = get_node_types_and_edges(dag);
         let latch = Arc::new(CountDownLatch::new((processors.len() + sinks.len()) as u64));
 
-        for snk in sinks {
-            let snk_receivers = receivers.remove(&snk.0.clone());
-            let snk_handle = start_sink(
-                snk.0.clone(),
-                snk.1,
-                snk_receivers.map_or(Err(MissingNodeInput(snk.0.clone())), Ok)?,
-                path.clone(),
-                latch.clone(),
-            );
-            handles.push(snk_handle);
-        }
+        let mut all_handles = Vec::<JoinHandle<Result<(), ExecutionError>>>::new();
 
-        for processor in processors {
-            let proc_receivers = receivers.remove(&processor.0.clone());
-            if proc_receivers.is_none() {
-                return Err(MissingNodeInput(processor.0));
-            }
-
-            let proc_senders = senders.remove(&processor.0.clone());
-            if proc_senders.is_none() {
-                return Err(MissingNodeOutput(processor.0));
-            }
-
-            let proc_handle = start_processor(
-                edges.clone(),
-                processor.0.clone(),
-                processor.1,
-                proc_senders.unwrap(),
-                proc_receivers.unwrap(),
-                path.clone(),
-                record_stores.clone(),
-                latch.clone(),
-            );
-            handles.push(proc_handle);
-        }
+        all_handles.extend(Self::start_sinks(sinks, &mut receivers, &path, &latch)?);
+        all_handles.extend(Self::start_processors(
+            processors,
+            &mut senders,
+            &mut receivers,
+            &path,
+            &edges,
+            &latch,
+            &record_stores,
+        )?);
 
         latch.wait();
 
-        for source in sources {
-            handles.push(start_source(
-                source.0.clone(),
-                source.1,
-                senders.remove(&source.0.clone()).unwrap(),
-                self.commit_size,
-                path.clone(),
-            ));
-        }
+        all_handles.extend(Self::start_sources(
+            sources,
+            &mut senders,
+            &path,
+            self.commit_size,
+        )?);
 
-        for sh in handles {
+        for sh in all_handles {
             let r = sh.join().unwrap()?;
         }
 
