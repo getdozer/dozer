@@ -5,7 +5,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
-use crate::dag::executor_processor::start_stateful_processor;
+use crate::dag::executor_processor::{start_stateful_processor, start_stateless_processor};
 use crate::dag::executor_sink::start_stateful_sink;
 use crate::dag::executor_source::start_stateless_source;
 use crate::dag::executor_utils::{
@@ -181,7 +181,16 @@ impl MultiThreadedDagExecutor {
                     ));
                 }
                 ProcessorHolder::Stateless(s) => {
-                    todo!()
+                    handles.push(start_stateless_processor(
+                        edges.clone(),
+                        holder.0,
+                        s,
+                        proc_senders.unwrap(),
+                        proc_receivers.unwrap(),
+                        path.clone(),
+                        record_stores.clone(),
+                        latch.clone(),
+                    ));
                 }
             }
         }
