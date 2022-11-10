@@ -9,10 +9,10 @@ use crate::cache::{
 };
 use crate::errors::{
     CacheError::{self},
-    IndexError, QueryError,
+    IndexError,
 };
 use dozer_types::{
-    bincode, json_value_to_field,
+    bincode,
     types::{Field, Record, Schema},
 };
 use dozer_types::{errors::types::TypeError, types::IndexDefinition};
@@ -251,30 +251,11 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     fn build_comparision_key(&self, index_scan: &'a IndexScan) -> Result<Vec<u8>, CacheError> {
-        let mut fields = vec![];
-
-        for (idx, idf) in index_scan.filters.iter().enumerate() {
-            // Convert dynamic json_values to field_values based on field_types
-            fields.push(match idf {
-                Some(idf) => {
-                    let field_type = self
-                        .schema
-                        .fields
-                        .get(idx)
-                        .map_or(Err(CacheError::QueryError(QueryError::FieldNotFound)), Ok)?
-                        .typ
-                        .to_owned();
-                    Some(
-                        json_value_to_field(
-                            idf.val.as_str().unwrap_or(&idf.val.to_string()),
-                            &field_type,
-                        )
-                        .map_err(CacheError::TypeError)?,
-                    )
-                }
-                None => None,
-            });
-        }
+        let fields = index_scan
+            .filters
+            .iter()
+            .map(|filter| filter.as_ref().map(|filter| filter.val.clone()))
+            .collect();
 
         match &index_scan.index_def {
             IndexDefinition::SortedInverted(_) => Ok(self.build_composite_range_key(fields)?),

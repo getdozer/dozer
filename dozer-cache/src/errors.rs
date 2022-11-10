@@ -104,6 +104,8 @@ pub enum QueryValidationError {
 pub enum PlanError {
     #[error("Field not found")]
     FieldNotFound,
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
     #[error("Cannot have more than one range query")]
     RangeQueryLimit,
     #[error("Matching index not found")]

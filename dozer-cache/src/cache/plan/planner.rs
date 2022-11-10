@@ -1,10 +1,8 @@
 use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::errors::PlanError;
-use dozer_types::types::SortDirection;
-use dozer_types::{
-    serde_json::Value,
-    types::{FieldDefinition, Schema},
-};
+use dozer_types::json_value_to_field;
+use dozer_types::types::{Field, FieldType, SortDirection};
+use dozer_types::types::{FieldDefinition, Schema};
 
 use super::{
     helper::{self, RangeQuery},
@@ -36,7 +34,7 @@ impl<'a> QueryPlanner<'a> {
                 todo!("Support descending sort option");
             }
             // Find the field index.
-            let field_index = get_field_index(&order.field_name, &self.schema.fields)
+            let (field_index, _) = get_field_index_and_type(&order.field_name, &self.schema.fields)
                 .ok_or(PlanError::FieldNotFound)?;
             // If the field is already in a filter supported by `SortedInverted`, we can skip sorting it.
             if seen_in_sorted_inverted_filter(field_index, &filters) {
@@ -70,20 +68,31 @@ impl<'a> QueryPlanner<'a> {
     }
 }
 
-fn get_field_index(field_name: &str, fields: &[FieldDefinition]) -> Option<usize> {
-    fields.iter().position(|f| f.name == field_name)
+fn get_field_index_and_type(
+    field_name: &str,
+    fields: &[FieldDefinition],
+) -> Option<(usize, FieldType)> {
+    fields
+        .iter()
+        .enumerate()
+        .find(|(_, f)| f.name == field_name)
+        .map(|(i, f)| (i, f.typ))
 }
 
 fn collect_filters(
     schema: &Schema,
     expression: &FilterExpression,
-    filters: &mut Vec<(usize, Operator, Value)>,
+    filters: &mut Vec<(usize, Operator, Field)>,
 ) -> Result<(), PlanError> {
     match expression {
         FilterExpression::Simple(field_name, operator, value) => {
-            let field_index =
-                get_field_index(field_name, &schema.fields).ok_or(PlanError::FieldNotFound)?;
-            filters.push((field_index, *operator, value.clone()));
+            let (field_index, field_type) = get_field_index_and_type(field_name, &schema.fields)
+                .ok_or(PlanError::FieldNotFound)?;
+            filters.push((
+                field_index,
+                *operator,
+                json_value_to_field(value.as_str().unwrap_or(&value.to_string()), &field_type)?,
+            ));
         }
         FilterExpression::And(expressions) => {
             for expression in expressions {
@@ -96,7 +105,7 @@ fn collect_filters(
 
 fn seen_in_sorted_inverted_filter(
     field_index: usize,
-    filters: &[(usize, Operator, Value)],
+    filters: &[(usize, Operator, Field)],
 ) -> bool {
     filters
         .iter()
@@ -104,7 +113,7 @@ fn seen_in_sorted_inverted_filter(
 }
 
 fn find_range_query(
-    filters: &mut Vec<(usize, Operator, Value)>,
+    filters: &mut Vec<(usize, Operator, Field)>,
     order_by: &[(usize, SortDirection)],
 ) -> Result<Option<RangeQuery>, PlanError> {
     let mut num_range_ops = 0;

@@ -5,7 +5,7 @@ use crate::cache::{
     test_utils,
 };
 
-use dozer_types::serde_json::Value;
+use dozer_types::{serde_json::Value, types::Field};
 
 #[test]
 fn test_generate_plan_simple() {
@@ -27,7 +27,7 @@ fn test_generate_plan_simple() {
         assert_eq!(index_scans[0].index_def, schema.secondary_indexes[0]);
         assert_eq!(
             index_scans[0].filters,
-            vec![Some(IndexFilter::equals(Value::from("bar".to_string())))]
+            vec![Some(IndexFilter::equals(Field::String("bar".to_string())))]
         );
     } else {
         panic!("IndexScan expected")
@@ -55,8 +55,8 @@ fn test_generate_plan_and() {
         assert_eq!(
             index_scans[0].filters,
             vec![
-                Some(IndexFilter::new(expression::Operator::EQ, Value::from(1))),
-                Some(IndexFilter::equals(Value::from("test".to_string())))
+                Some(IndexFilter::new(expression::Operator::EQ, Field::Int(1))),
+                Some(IndexFilter::equals(Field::String("test".to_string())))
             ]
         );
     } else {

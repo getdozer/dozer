@@ -1,22 +1,19 @@
 use itertools::Itertools;
 
-use dozer_types::{
-    serde_json::Value,
-    types::{IndexDefinition, SortDirection},
-};
+use dozer_types::types::{Field, IndexDefinition, SortDirection};
 
 use crate::cache::expression::Operator;
 
 use super::{IndexFilter, IndexScan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RangeQuery {
     pub field_index: usize,
-    pub operator_and_value: Option<(Operator, Value)>,
+    pub operator_and_value: Option<(Operator, Field)>,
 }
 
 pub fn get_all_indexes(
-    filters: Vec<(usize, Operator, Value)>,
+    filters: Vec<(usize, Operator, Field)>,
     range_query: Option<RangeQuery>,
 ) -> impl Iterator<Item = Vec<IndexScan>> {
     // Create a full text index for every full text filter, and collect `Eq` filters.
