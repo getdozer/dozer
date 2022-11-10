@@ -1,10 +1,8 @@
-use crate::types::{Record, Schema};
+use crate::types::{Operation, Schema};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub enum Event {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum ApiEvent {
     SchemaChange(Schema),
-    RecordUpdate(Record),
-    RecordInsert(Record),
-    RecordDelete(Record),
+    Operation(Operation),
 }

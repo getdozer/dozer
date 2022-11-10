@@ -21,7 +21,7 @@ use crate::{
     grpc_server::GRPCServer,
     test_utils, CacheEndpoint,
 };
-use dozer_types::events::Event;
+use dozer_types::events::ApiEvent;
 use futures_util::FutureExt;
 use heck::ToUpperCamelCase;
 use std::{collections::HashMap, time::Duration};
@@ -49,7 +49,7 @@ fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
     let path_to_descriptor = generate_descriptor(tmp_dir_path).unwrap();
     let function_types = proto_generated_result.1;
     let event_notifier = mock_event_notifier();
-    let (tx, rx1) = broadcast::channel::<Event>(16);
+    let (tx, rx1) = broadcast::channel::<ApiEvent>(16);
     GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
     let mut pipeline_map = HashMap::new();
     pipeline_map.insert(

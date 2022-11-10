@@ -108,6 +108,12 @@ impl ApiHelper {
         Ok((schema, records))
     }
 
+    /// Get schema
+    pub fn get_schema(&self) -> Result<Schema, CacheError> {
+        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        Ok(schema)
+    }
+
     pub fn convert_record_to_json(
         &self,
         record: Record,

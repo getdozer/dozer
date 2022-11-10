@@ -2,14 +2,15 @@ use crate::api_helper;
 use crate::api_server::PipelineDetails;
 use crate::errors::GRPCError;
 use dozer_types::serde_json::{self, Map};
-use dozer_types::{events::Event, serde_json::Value};
+use dozer_types::types::Operation;
+use dozer_types::{events::ApiEvent, serde_json::Value};
 use prost_reflect::DynamicMessage;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::BoxFuture, Request, Response, Status};
 
 pub struct OnUpdateService {
     pub(crate) pipeline_details: PipelineDetails,
-    pub(crate) event_notifier: tokio::sync::broadcast::Receiver<Event>,
+    pub(crate) event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
 }
 impl tonic::server::ServerStreamingService<DynamicMessage> for OnUpdateService {
     type Response = Value;
@@ -30,7 +31,7 @@ impl tonic::server::ServerStreamingService<DynamicMessage> for OnUpdateService {
 async fn on_update_grpc_server_stream(
     pipeline_details: PipelineDetails,
     _: Request<DynamicMessage>,
-    event_notifier: tokio::sync::broadcast::Receiver<Event>,
+    event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
 ) -> Result<Response<ReceiverStream<Result<Value, tonic::Status>>>, Status> {
     let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -38,7 +39,7 @@ async fn on_update_grpc_server_stream(
     let mut broadcast_receiver = event_notifier.resubscribe();
     tokio::spawn(async move {
         while let Ok(event) = broadcast_receiver.recv().await {
-            if let Event::RecordUpdate(record) = event {
+            if let ApiEvent::Operation(Operation::Delete { old: record }) = event {
                 let converted_record = api_helper.convert_record_to_json(record).unwrap();
                 let value_json = serde_json::to_value(converted_record)
                     .map_err(GRPCError::SerizalizeError)
