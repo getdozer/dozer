@@ -1,6 +1,6 @@
 mod helper;
 mod planner;
-use dozer_types::types::{Field, IndexDefinition, SortDirection};
+use dozer_types::types::{Field, SortDirection};
 pub use planner::QueryPlanner;
 
 use super::expression::Operator;
@@ -15,10 +15,21 @@ pub enum Plan {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct IndexScan {
-    pub index_def: IndexDefinition,
-    pub index_id: Option<usize>,
-    pub filters: Vec<Option<IndexFilter>>,
+    pub index_id: usize,
+    pub kind: IndexScanKind,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum IndexScanKind {
+    SortedInverted {
+        eq_filters: Vec<IndexFilter>,
+        range_query: Option<RangeQuery>,
+    },
+    FullText {
+        filter: IndexFilter,
+    },
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeqScan {
     pub direction: SortDirection,
@@ -26,18 +37,23 @@ pub struct SeqScan {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IndexFilter {
+    pub field_index: usize,
     pub op: Operator,
     pub val: Field,
 }
 
 impl IndexFilter {
-    pub fn new(op: Operator, val: Field) -> Self {
-        Self { op, val }
-    }
-    pub fn equals(val: Field) -> Self {
+    pub fn new(field_index: usize, op: Operator, val: Field) -> Self {
         Self {
-            op: Operator::EQ,
+            field_index,
+            op,
             val,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RangeQuery {
+    pub field_index: usize,
+    pub operator_and_value: Option<(Operator, Field)>,
 }

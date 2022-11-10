@@ -5,17 +5,17 @@ use crate::cache::{
     expression::{Operator, QueryExpression},
     index::{self},
     lmdb::{cache::IndexMetaData, query::helper::lmdb_cmp},
-    plan::{IndexFilter, IndexScan, Plan, QueryPlanner},
+    plan::{IndexFilter, IndexScan, IndexScanKind, Plan, QueryPlanner},
 };
 use crate::errors::{
     CacheError::{self},
     IndexError,
 };
+use dozer_types::errors::types::TypeError;
 use dozer_types::{
     bincode,
     types::{Field, Record, Schema},
 };
-use dozer_types::{errors::types::TypeError, types::IndexDefinition};
 use lmdb::{Database, RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
@@ -102,12 +102,22 @@ impl<'a> LmdbQueryHandler<'a> {
         // TODO: Use the opposite sort on reversed queries.
         let sort_order = true;
         let index_scan = index_scans[0].to_owned();
-        let db = self
-            .index_metadata
-            .get_db(self.schema, index_scan.index_id.unwrap());
+        let db = self.index_metadata.get_db(self.schema, index_scan.index_id);
 
         let comparision_key = self.build_comparision_key(&index_scan)?;
-        let last_filter = index_scan.filters.last().unwrap().to_owned();
+        let last_filter = match index_scan.kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query: None,
+            } => Some(eq_filters.last().unwrap().clone()),
+            IndexScanKind::SortedInverted {
+                range_query: Some(range_query),
+                ..
+            } => range_query
+                .operator_and_value
+                .map(|(op, val)| IndexFilter::new(range_query.field_index, op, val)),
+            IndexScanKind::FullText { filter } => Some(filter),
+        };
 
         let (start_key, end_key) =
             get_start_end_keys(last_filter.as_ref(), sort_order, comparision_key);
@@ -251,16 +261,27 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     fn build_comparision_key(&self, index_scan: &'a IndexScan) -> Result<Vec<u8>, CacheError> {
-        let fields = index_scan
-            .filters
-            .iter()
-            .map(|filter| filter.as_ref().map(|filter| filter.val.clone()))
-            .collect();
-
-        match &index_scan.index_def {
-            IndexDefinition::SortedInverted(_) => Ok(self.build_composite_range_key(fields)?),
-            IndexDefinition::FullText(_) => {
-                if let Some(Field::String(token)) = &fields[0] {
+        match &index_scan.kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                let mut fields = vec![];
+                eq_filters.iter().for_each(|filter| {
+                    fields.push(Some(filter.val.clone()));
+                });
+                if let Some(range_query) = range_query {
+                    fields.push(
+                        range_query
+                            .operator_and_value
+                            .as_ref()
+                            .map(|(_, val)| val.clone()),
+                    );
+                }
+                self.build_composite_range_key(fields)
+            }
+            IndexScanKind::FullText { filter } => {
+                if let Field::String(token) = &filter.val {
                     Ok(index::get_full_text_secondary_index(token))
                 } else {
                     Err(CacheError::IndexError(IndexError::ExpectedStringFullText))

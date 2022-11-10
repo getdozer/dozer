@@ -1,11 +1,21 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression},
-    plan::IndexFilter,
+    expression::{self, FilterExpression, Operator, QueryExpression},
+    plan::{IndexFilter, IndexScanKind},
     test_utils,
 };
 
 use dozer_types::{serde_json::Value, types::Field};
+
+impl IndexFilter {
+    pub fn equals(field_index: usize, val: Field) -> Self {
+        Self {
+            field_index,
+            op: Operator::EQ,
+            val,
+        }
+    }
+}
 
 #[test]
 fn test_generate_plan_simple() {
@@ -24,11 +34,21 @@ fn test_generate_plan_simple() {
     let planner = QueryPlanner::new(&schema, &query);
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
-        assert_eq!(index_scans[0].index_def, schema.secondary_indexes[0]);
-        assert_eq!(
-            index_scans[0].filters,
-            vec![Some(IndexFilter::equals(Field::String("bar".to_string())))]
-        );
+        assert_eq!(index_scans[0].index_id, 0);
+        match &index_scans[0].kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                assert_eq!(eq_filters.len(), 1);
+                assert_eq!(
+                    eq_filters[0],
+                    IndexFilter::equals(0, Field::String("bar".to_string()))
+                );
+                assert_eq!(range_query, &None);
+            }
+            _ => panic!("Must be sorted inverted"),
+        }
     } else {
         panic!("IndexScan expected")
     }
@@ -51,14 +71,22 @@ fn test_generate_plan_and() {
     // Pick the 3rd index
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
-        assert_eq!(index_scans[0].index_def, schema.secondary_indexes[3]);
-        assert_eq!(
-            index_scans[0].filters,
-            vec![
-                Some(IndexFilter::new(expression::Operator::EQ, Field::Int(1))),
-                Some(IndexFilter::equals(Field::String("test".to_string())))
-            ]
-        );
+        assert_eq!(index_scans[0].index_id, 3);
+        match &index_scans[0].kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                assert_eq!(eq_filters.len(), 2);
+                assert_eq!(eq_filters[0], IndexFilter::equals(0, Field::Int(1)));
+                assert_eq!(
+                    eq_filters[1],
+                    IndexFilter::equals(1, Field::String("test".to_string()))
+                );
+                assert_eq!(range_query, &None);
+            }
+            _ => panic!("Must be sorted inverted"),
+        }
     } else {
         panic!("IndexScan expected")
     }
