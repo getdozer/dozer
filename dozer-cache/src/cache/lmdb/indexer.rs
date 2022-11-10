@@ -1,7 +1,7 @@
 use crate::errors::{CacheError, IndexError, QueryError};
 use dozer_types::{
     errors::types::TypeError,
-    types::{Field, IndexDefinition, Record, Schema, SchemaIdentifier},
+    types::{Field, IndexDefinition, Record, Schema},
 };
 use lmdb::{RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
@@ -26,11 +26,6 @@ impl Indexer {
             .begin_nested_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
-        let identifier = &schema
-            .identifier
-            .to_owned()
-            .map_or(Err(CacheError::SchemaIdentifierNotFound), Ok)?;
-
         if schema.secondary_indexes.is_empty() {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }
@@ -41,15 +36,12 @@ impl Indexer {
                 IndexDefinition::SortedInverted(fields) => {
                     // TODO: use `SortDirection`.
                     let fields: Vec<_> = fields.iter().map(|(index, _)| *index).collect();
-                    let secondary_key =
-                        self._build_index_sorted_inverted(identifier, &fields, &rec.values)?;
+                    let secondary_key = self._build_index_sorted_inverted(&fields, &rec.values)?;
                     txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
                         .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                 }
                 IndexDefinition::FullText(field_index) => {
-                    for secondary_key in
-                        self._build_indices_full_text(identifier, *field_index, &rec.values)?
-                    {
+                    for secondary_key in self._build_indices_full_text(*field_index, &rec.values)? {
                         txn.put(db, &secondary_key, &pkey, WriteFlags::default())
                             .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                     }
@@ -63,7 +55,6 @@ impl Indexer {
 
     fn _build_index_sorted_inverted(
         &self,
-        identifier: &SchemaIdentifier,
         index_fields: &[usize],
         values: &[Field],
     ) -> Result<Vec<u8>, CacheError> {
@@ -74,18 +65,13 @@ impl Indexer {
             .map(|(_, field)| field.to_bytes().map(Some))
             .collect::<Result<Vec<_>, TypeError>>()?;
 
-        Ok(index::get_secondary_index(
-            identifier.id,
-            index_fields,
-            &values,
-        ))
+        Ok(index::get_secondary_index(&values))
     }
 
-    fn _build_indices_full_text<'a>(
+    fn _build_indices_full_text(
         &self,
-        identifier: &SchemaIdentifier,
         field_index: usize,
-        values: &'a [Field],
+        values: &[Field],
     ) -> Result<Vec<Vec<u8>>, CacheError> {
         let string = if let Some(field) = values.get(field_index) {
             if let Field::String(string) = field {
@@ -101,18 +87,14 @@ impl Indexer {
 
         Ok(string
             .unicode_words()
-            .map(|token| get_full_text_secondary_index(identifier.id, field_index as _, token))
+            .map(get_full_text_secondary_index)
             .collect())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{
-        lmdb::test_utils as lmdb_utils,
-        test_utils::{self, schema_0},
-        Cache, LmdbCache,
-    };
+    use crate::cache::{lmdb::test_utils as lmdb_utils, test_utils, Cache, LmdbCache};
 
     use super::*;
 
@@ -147,24 +129,21 @@ mod tests {
         let indexer = Indexer {
             index_metadata: Arc::new(IndexMetaData::new()),
         };
-        let schema = schema_0();
 
-        let identifier = schema.identifier.as_ref().unwrap();
         let field_index = 0;
         assert_eq!(
             indexer
                 ._build_indices_full_text(
-                    identifier,
                     field_index,
                     &[Field::String("today is a good day".into())]
                 )
                 .unwrap(),
             vec![
-                get_full_text_secondary_index(identifier.id, field_index as _, "today"),
-                get_full_text_secondary_index(identifier.id, field_index as _, "is"),
-                get_full_text_secondary_index(identifier.id, field_index as _, "a"),
-                get_full_text_secondary_index(identifier.id, field_index as _, "good"),
-                get_full_text_secondary_index(identifier.id, field_index as _, "day"),
+                get_full_text_secondary_index("today"),
+                get_full_text_secondary_index("is"),
+                get_full_text_secondary_index("a"),
+                get_full_text_secondary_index("good"),
+                get_full_text_secondary_index("day"),
             ]
         );
     }

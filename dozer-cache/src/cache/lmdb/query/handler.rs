@@ -13,7 +13,7 @@ use crate::errors::{
 };
 use dozer_types::{
     bincode, json_value_to_field,
-    types::{Field, Record, Schema, SortDirection},
+    types::{Field, Record, Schema},
 };
 use dozer_types::{errors::types::TypeError, types::IndexDefinition};
 use lmdb::{Database, RoTransaction, Transaction};
@@ -251,12 +251,6 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     fn build_comparision_key(&self, index_scan: &'a IndexScan) -> Result<Vec<u8>, CacheError> {
-        let schema_identifier = self
-            .schema
-            .identifier
-            .clone()
-            .map_or(Err(CacheError::SchemaIdentifierNotFound), Ok)?;
-
         let mut fields = vec![];
 
         for (idx, idf) in index_scan.filters.iter().enumerate() {
@@ -283,16 +277,10 @@ impl<'a> LmdbQueryHandler<'a> {
         }
 
         match &index_scan.index_def {
-            IndexDefinition::SortedInverted(field_indices) => {
-                Ok(self.build_composite_range_key(field_indices, fields)?)
-            }
-            IndexDefinition::FullText(field_index) => {
+            IndexDefinition::SortedInverted(_) => Ok(self.build_composite_range_key(fields)?),
+            IndexDefinition::FullText(_) => {
                 if let Some(Field::String(token)) = &fields[0] {
-                    Ok(index::get_full_text_secondary_index(
-                        schema_identifier.id,
-                        *field_index as _,
-                        token,
-                    ))
+                    Ok(index::get_full_text_secondary_index(token))
                 } else {
                     Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
                 }
@@ -300,18 +288,7 @@ impl<'a> LmdbQueryHandler<'a> {
         }
     }
 
-    fn build_composite_range_key(
-        &self,
-        field_indices: &[(usize, SortDirection)],
-        fields: Vec<Option<Field>>,
-    ) -> Result<Vec<u8>, CacheError> {
-        let schema_identifier = self
-            .schema
-            .identifier
-            .clone()
-            .map_or(Err(CacheError::SchemaIdentifierNotFound), Ok)?;
-
-        let field_indices: Vec<_> = field_indices.iter().map(|(index, _)| *index).collect();
+    fn build_composite_range_key(&self, fields: Vec<Option<Field>>) -> Result<Vec<u8>, CacheError> {
         let mut field_bytes = vec![];
         for field in fields {
             // convert value to `Vec<u8>`
@@ -321,11 +298,7 @@ impl<'a> LmdbQueryHandler<'a> {
             })
         }
 
-        Ok(index::get_secondary_index(
-            schema_identifier.id,
-            &field_indices,
-            &field_bytes,
-        ))
+        Ok(index::get_secondary_index(&field_bytes))
     }
 }
 
