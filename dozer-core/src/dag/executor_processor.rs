@@ -71,7 +71,6 @@ pub(crate) fn start_stateful_processor(
         let input_port_handles = proc_factory.get_input_ports();
         let output_port_handles = proc_factory
             .get_output_ports()
-            //   .into_vec()
             .iter()
             .map(|e| e.handle)
             .collect();
@@ -81,8 +80,12 @@ pub(crate) fn start_stateful_processor(
         let mut schema_initialized = false;
 
         let mut state_meta = init_component(&handle, base_path, |e| proc.init(e))?;
-        let mut port_databases =
-            create_ports_databases(state_meta.env.as_environment(), &output_port_handles)?;
+
+        let mut port_databases = create_ports_databases(
+            state_meta.env.as_environment(),
+            &proc_factory.get_output_ports(),
+        )?;
+
         let mut master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
             Arc::new(RwLock::new(state_meta.env.create_txn()?));
 
@@ -92,7 +95,7 @@ pub(crate) fn start_stateful_processor(
             &port_databases,
             &master_tx,
             &record_stores,
-            &output_port_handles,
+            &proc_factory.get_output_ports(),
         );
 
         let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
@@ -143,6 +146,7 @@ pub(crate) fn start_stateful_processor(
                     )?;
                     master_tx.write().commit_and_renew()?;
                     info!("[{}] Committed seq_no {}", handle, epoch);
+                    fw.send_commit(epoch)?;
                 }
 
                 _ => {
