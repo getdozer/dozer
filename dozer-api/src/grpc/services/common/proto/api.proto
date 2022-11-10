@@ -25,7 +25,10 @@ message OnEventRequest {
 }
 
 message GetFieldsRequest { string endpoint = 1; }
-message GetFieldsResponse { repeated FieldDefinition fields = 1; }
+message GetFieldsResponse {
+  repeated int32 primary_index = 1;
+  repeated FieldDefinition fields = 2;
+}
 
 message QueryResponse {
   repeated FieldDefinition fields = 1;

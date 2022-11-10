@@ -106,7 +106,12 @@ impl CommonGrpcService for ApiService {
                 nullable: f.nullable,
             })
             .collect();
-        Ok(Response::new(GetFieldsResponse { fields }))
+
+        let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
+        Ok(Response::new(GetFieldsResponse {
+            primary_index,
+            fields,
+        }))
     }
 
     #[allow(non_camel_case_types)]
