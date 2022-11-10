@@ -168,12 +168,12 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
-    pub fn send_commit(&self) -> Result<(), ExecutionError> {
+    pub fn send_commit(&self, seq: u64) -> Result<(), ExecutionError> {
         for senders in &self.senders {
             for sender in senders.1 {
                 internal_err!(sender.send(ExecutorOperation::Commit {
                     source: self.source_handle.clone(),
-                    epoch: self.curr_seq_no
+                    epoch: seq
                 }))?;
             }
         }
@@ -205,7 +205,7 @@ impl LocalChannelForwarder {
 impl SourceChannelForwarder for LocalChannelForwarder {
     fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
         if self.commit_counter >= self.commit_size {
-            self.send_commit()?;
+            self.send_commit(seq)?;
             self.commit_counter = 0;
         }
         self.send_op(Some(seq), op, port)?;
