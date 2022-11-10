@@ -5,13 +5,18 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
+use crate::dag::executor_processor::start_processor;
+use crate::dag::executor_sink::start_sink;
+use crate::dag::executor_source::start_source;
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers,
     get_inputs_for_output, get_node_types, index_edges, init_component, init_select, map_to_op,
     requires_schema_update,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
-use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::dag::node::{
+    NodeHandle, PortHandle, Processor, ProcessorFactory, SinkFactory, SourceFactory,
+};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
@@ -30,8 +35,6 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-
-const DEFAULT_COMMIT_SZ: u16 = 20_000;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExecutorOperation {
@@ -78,233 +81,15 @@ impl SchemaKey {
 
 pub struct MultiThreadedDagExecutor {
     channel_buf_sz: usize,
+    commit_size: u16,
 }
 
 impl MultiThreadedDagExecutor {
-    pub fn new(channel_buf_sz: usize) -> Self {
-        Self { channel_buf_sz }
-    }
-
-    fn start_source(
-        &self,
-        handle: NodeHandle,
-        src_factory: Box<dyn SourceFactory>,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        base_path: PathBuf,
-    ) -> JoinHandle<Result<(), ExecutionError>> {
-        let mut fw = LocalChannelForwarder::new_source_forwarder(
-            handle.clone(),
-            senders,
-            DEFAULT_COMMIT_SZ,
-            None,
-        );
-
-        thread::spawn(move || -> Result<(), ExecutionError> {
-            let src = src_factory.build();
-            for p in src_factory.get_output_ports() {
-                if let Some(schema) = src.get_output_schema(p) {
-                    fw.update_schema(schema, p)?
-                }
-            }
-
-            src.start(&mut fw, None)
-        })
-    }
-
-    fn start_sink(
-        &self,
-        handle: NodeHandle,
-        snk_factory: Box<dyn SinkFactory>,
-        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        base_path: PathBuf,
-        latch: Arc<CountDownLatch>,
-    ) -> JoinHandle<Result<(), ExecutionError>> {
-        thread::spawn(move || -> Result<(), ExecutionError> {
-            let mut snk = snk_factory.build();
-
-            let mut input_schemas = HashMap::<PortHandle, Schema>::new();
-            let mut schema_initialized = false;
-
-            let mut state_meta = init_component(&handle, base_path, |e| snk.init(e))?;
-            let mut master_tx = state_meta.env.create_txn()?;
-
-            let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
-
-            latch.countdown();
-
-            let mut sel = init_select(&receivers_ls);
-            loop {
-                let index = sel.ready();
-                let op = receivers_ls[index]
-                    .recv()
-                    .map_err(|e| ExecutionError::SinkReceiverError(index, Box::new(e)))?;
-
-                match op {
-                    ExecutorOperation::SchemaUpdate { new } => {
-                        if requires_schema_update(
-                            new,
-                            &handles_ls[index],
-                            &mut input_schemas,
-                            snk_factory.get_input_ports(),
-                        ) {
-                            let r = snk.update_schema(&input_schemas);
-                            if let Err(e) = r {
-                                warn!("Schema Update Failed...");
-                                return Err(e);
-                            } else {
-                                schema_initialized = true;
-                            }
-                        }
-                    }
-
-                    ExecutorOperation::Terminate => {
-                        return Ok(());
-                    }
-
-                    ExecutorOperation::Commit { epoch, source } => {
-                        master_tx.put(
-                            &state_meta.meta_db,
-                            source.as_bytes(),
-                            &epoch.to_be_bytes(),
-                        )?;
-                        master_tx.commit_and_renew()?;
-                    }
-
-                    _ => {
-                        if !schema_initialized {
-                            return Err(SchemaNotInitialized);
-                        }
-
-                        let data_op = map_to_op(op)?;
-                        let mut rw_txn = ExclusiveTransaction::new(&mut master_tx);
-                        snk.process(handles_ls[index], data_op.0, data_op.1, Some(&mut rw_txn))?;
-                    }
-                }
-            }
-        })
-    }
-
-    fn start_processor(
-        &self,
-        edges: Vec<Edge>,
-        handle: NodeHandle,
-        proc_factory: Box<dyn ProcessorFactory>,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-        base_path: PathBuf,
-        record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-        latch: Arc<CountDownLatch>,
-    ) -> JoinHandle<Result<(), ExecutionError>> {
-        thread::spawn(move || -> Result<(), ExecutionError> {
-            let mut proc = proc_factory.build();
-
-            let mut input_schemas = HashMap::<PortHandle, Schema>::new();
-            let mut output_schemas = HashMap::<PortHandle, Schema>::new();
-            let mut schema_initialized = false;
-
-            let mut state_meta = init_component(&handle, base_path, |e| proc.init(e))?;
-            let mut port_databases = create_ports_databases(
-                state_meta.env.as_environment(),
-                proc_factory.get_output_ports(),
-            )?;
-            let mut master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-                Arc::new(RwLock::new(state_meta.env.create_txn()?));
-
-            fill_ports_record_readers(
-                &handle,
-                &edges,
-                &port_databases,
-                &master_tx,
-                &record_stores,
-                proc_factory.get_output_ports(),
-            );
-
-            let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
-            let mut fw = LocalChannelForwarder::new_processor_forwarder(
-                handle.clone(),
-                senders,
-                Some(PortRecordStoreWriter::new(
-                    port_databases.clone(),
-                    output_schemas.clone(),
-                    master_tx.clone(),
-                )),
-            );
-
-            info!("[{}] Initialization complete. Ready to start...", handle);
-            latch.countdown();
-
-            let mut sel = init_select(&receivers_ls);
-            loop {
-                let index = sel.ready();
-                let op = receivers_ls[index]
-                    .recv()
-                    .map_err(|e| ExecutionError::ProcessorReceiverError(index, Box::new(e)))?;
-
-                match op {
-                    ExecutorOperation::SchemaUpdate { new } => {
-                        if requires_schema_update(
-                            new,
-                            &handles_ls[index],
-                            &mut input_schemas,
-                            proc_factory.get_input_ports(),
-                        ) {
-                            for out_port in proc_factory.get_output_ports() {
-                                let r = proc.update_schema(out_port, &input_schemas);
-                                match r {
-                                    Ok(out_schema) => {
-                                        output_schemas.insert(out_port, out_schema.clone());
-                                        fw.update_schema(out_schema, out_port)?;
-                                        schema_initialized = true;
-                                    }
-                                    Err(e) => {
-                                        warn!("New schema is not compatible with older version. Handling it. {:?}", e);
-                                        todo!("Schema is not compatible with order version. Handle it!")
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    ExecutorOperation::Terminate => {
-                        fw.send_term()?;
-                        return Ok(());
-                    }
-
-                    ExecutorOperation::Commit { epoch, source } => {
-                        master_tx.write().put(
-                            &state_meta.meta_db,
-                            source.as_bytes(),
-                            &epoch.to_be_bytes(),
-                        )?;
-                        master_tx.write().commit_and_renew()?;
-                        info!("[{}] Committed seq_no {}", handle, epoch);
-                    }
-
-                    _ => {
-                        if !schema_initialized {
-                            error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
-                            return Err(SchemaNotInitialized);
-                        }
-
-                        let guard = record_stores.read();
-                        let reader = guard
-                            .get(&handle)
-                            .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
-
-                        let data_op = map_to_op(op)?;
-                        let mut rw_txn = SharedTransaction::new(&master_tx);
-                        fw.update_seq_no(data_op.0);
-                        proc.process(
-                            handles_ls[index],
-                            data_op.1,
-                            &mut fw,
-                            Some(&mut rw_txn),
-                            reader,
-                        )?;
-                    }
-                }
-            }
-        })
+    pub fn new(channel_buf_sz: usize, commit_size: u16) -> Self {
+        Self {
+            channel_buf_sz,
+            commit_size,
+        }
     }
 
     pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
@@ -324,7 +109,7 @@ impl MultiThreadedDagExecutor {
 
         for snk in sinks {
             let snk_receivers = receivers.remove(&snk.0.clone());
-            let snk_handle = self.start_sink(
+            let snk_handle = start_sink(
                 snk.0.clone(),
                 snk.1,
                 snk_receivers.map_or(Err(MissingNodeInput(snk.0.clone())), Ok)?,
@@ -345,7 +130,7 @@ impl MultiThreadedDagExecutor {
                 return Err(MissingNodeOutput(processor.0));
             }
 
-            let proc_handle = self.start_processor(
+            let proc_handle = start_processor(
                 edges.clone(),
                 processor.0.clone(),
                 processor.1,
@@ -361,10 +146,11 @@ impl MultiThreadedDagExecutor {
         latch.wait();
 
         for source in sources {
-            handles.push(self.start_source(
+            handles.push(start_source(
                 source.0.clone(),
                 source.1,
                 senders.remove(&source.0.clone()).unwrap(),
+                self.commit_size,
                 path.clone(),
             ));
         }

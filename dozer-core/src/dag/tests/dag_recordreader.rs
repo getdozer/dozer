@@ -146,7 +146,7 @@ fn test_run_dag_reacord_reader() {
     log4rs::init_file("../log4rs.sample.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(3_000_000);
+    let src = GeneratorSourceFactory::new(500_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(500_000);
@@ -199,7 +199,7 @@ fn test_run_dag_reacord_reader() {
     }
     fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-    let exec = MultiThreadedDagExecutor::new(100000);
+    let exec = MultiThreadedDagExecutor::new(300000, 20_000);
 
     assert!(exec.start(dag, tmp_dir.into_path()).is_ok());
 }
