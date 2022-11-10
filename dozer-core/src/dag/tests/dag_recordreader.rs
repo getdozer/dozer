@@ -4,6 +4,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::node::{
     NodeHandle, PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory,
+    StatelessProcessor, StatelessProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -83,17 +84,14 @@ impl RecordReaderProcessorFactory {
 pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
 pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
-impl StatefulProcessorFactory for RecordReaderProcessorFactory {
+impl StatelessProcessorFactory for RecordReaderProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![RECORD_READER_PROCESSOR_INPUT_PORT]
     }
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(
-            RECORD_READER_PROCESSOR_OUTPUT_PORT,
-            false,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![RECORD_READER_PROCESSOR_OUTPUT_PORT]
     }
-    fn build(&self) -> Box<dyn StatefulProcessor> {
+    fn build(&self) -> Box<dyn StatelessProcessor> {
         Box::new(RecordReaderProcessor { ctr: 0 })
     }
 }
@@ -102,7 +100,7 @@ pub(crate) struct RecordReaderProcessor {
     ctr: u64,
 }
 
-impl StatefulProcessor for RecordReaderProcessor {
+impl StatelessProcessor for RecordReaderProcessor {
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -114,7 +112,7 @@ impl StatefulProcessor for RecordReaderProcessor {
             .clone())
     }
 
-    fn init<'a>(&'_ mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -123,7 +121,6 @@ impl StatefulProcessor for RecordReaderProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: &mut dyn RwTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let v = readers
@@ -164,7 +161,7 @@ fn test_run_dag_reacord_reader() {
         PASSTHROUGH_ID.clone(),
     );
     dag.add_node(
-        NodeType::StatefulProcessor(Box::new(record_reader)),
+        NodeType::StatelessProcessor(Box::new(record_reader)),
         RECORD_READER_ID.clone(),
     );
     dag.add_node(NodeType::StatefulSink(Box::new(sink)), SINK_ID.clone());
