@@ -90,7 +90,7 @@ impl StatefulProcessorFactory for RecordReaderProcessorFactory {
     fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
         vec![StatefulPortHandle::new(
             RECORD_READER_PROCESSOR_OUTPUT_PORT,
-            true,
+            false,
         )]
     }
     fn build(&self) -> Box<dyn StatefulProcessor> {
@@ -199,7 +199,7 @@ fn test_run_dag_reacord_reader() {
     }
     fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-    let exec = MultiThreadedDagExecutor::new(300000, 20_000);
+    let exec = MultiThreadedDagExecutor::new(300000, 50_000);
 
     assert!(exec.start(dag, tmp_dir.into_path()).is_ok());
 }

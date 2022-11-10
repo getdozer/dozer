@@ -35,27 +35,26 @@ impl PortRecordStoreWriter {
         op: &Operation,
         port: &PortHandle,
     ) -> Result<(), ExecutionError> {
-        match op {
-            Operation::Insert { new } => {
-                let schema = self
-                    .schemas
-                    .get(port)
-                    .ok_or(ExecutionError::InvalidPortHandle(port.clone()))?;
-                let db = self
-                    .dbs
-                    .get(port)
-                    .ok_or(ExecutionError::InvalidPortHandle(port.clone()))?;
-                let key = new.get_key(&schema.primary_index)?;
-                let value = bincode::serialize(&new).map_err(|e| SerializationError {
-                    typ: "Record".to_string(),
-                    reason: Box::new(e),
-                })?;
-                self.tx.write().put(db, key.as_slice(), value.as_slice())?;
-                Ok(())
+        if let Some(db) = self.dbs.get(port) {
+            let schema = self
+                .schemas
+                .get(port)
+                .ok_or(ExecutionError::InvalidPortHandle(port.clone()))?;
+
+            match op {
+                Operation::Insert { new } => {
+                    let key = new.get_key(&schema.primary_index)?;
+                    let value = bincode::serialize(&new).map_err(|e| SerializationError {
+                        typ: "Record".to_string(),
+                        reason: Box::new(e),
+                    })?;
+                    self.tx.write().put(db, key.as_slice(), value.as_slice())?;
+                }
+                Operation::Delete { old } => {}
+                Operation::Update { old, new } => {}
             }
-            Operation::Delete { old } => Ok(()),
-            Operation::Update { old, new } => Ok(()),
         }
+        Ok(())
     }
 }
 

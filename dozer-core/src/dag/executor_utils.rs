@@ -3,8 +3,8 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulProcessorFactory, StatefulSinkFactory, StatefulSourceFactory,
-    StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
+    NodeHandle, PortHandle, StatefulPortHandle, StatefulProcessorFactory, StatefulSinkFactory,
+    StatefulSourceFactory, StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
@@ -217,12 +217,17 @@ const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
 pub(crate) fn create_ports_databases(
     env: &mut dyn Environment,
-    ports: &Vec<PortHandle>,
+    ports: &Vec<StatefulPortHandle>,
 ) -> Result<HashMap<PortHandle, Database>, StorageError> {
     let mut port_databases = HashMap::<PortHandle, Database>::new();
     for out_port in ports {
-        let db = env.open_database(format!("{}_{}", PORT_STATE_KEY, out_port).as_str(), false)?;
-        port_databases.insert(out_port.clone(), db);
+        if out_port.stateful {
+            let db = env.open_database(
+                format!("{}_{}", PORT_STATE_KEY, out_port.handle).as_str(),
+                false,
+            )?;
+            port_databases.insert(out_port.handle.clone(), db);
+        }
     }
     Ok(port_databases)
 }
@@ -233,18 +238,20 @@ pub(crate) fn fill_ports_record_readers(
     port_databases: &HashMap<PortHandle, Database>,
     master_tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
     record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    output_ports: &Vec<PortHandle>,
+    output_ports: &Vec<StatefulPortHandle>,
 ) {
     for out_port in output_ports {
-        for r in get_inputs_for_output(edges, handle, &out_port) {
-            let mut writer = record_stores.write();
-            writer.get_mut(&r.node).unwrap().insert(
-                r.port,
-                RecordReader::new(
-                    master_tx.clone(),
-                    port_databases.get(&out_port).unwrap().clone(),
-                ),
-            );
+        if out_port.stateful {
+            for r in get_inputs_for_output(edges, handle, &out_port.handle) {
+                let mut writer = record_stores.write();
+                writer.get_mut(&r.node).unwrap().insert(
+                    r.port,
+                    RecordReader::new(
+                        master_tx.clone(),
+                        port_databases.get(&out_port.handle).unwrap().clone(),
+                    ),
+                );
+            }
         }
     }
 }
