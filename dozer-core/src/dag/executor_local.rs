@@ -31,7 +31,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-const DEFAULT_COMMIT_SZ: u16 = 10_000;
+const DEFAULT_COMMIT_SZ: u16 = 20_000;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExecutorOperation {
@@ -230,10 +230,7 @@ impl MultiThreadedDagExecutor {
                 )),
             );
 
-            info!(
-                "Processor {} initialization complete. Ready to start...",
-                handle
-            );
+            info!("[{}] Initialization complete. Ready to start...", handle);
             latch.countdown();
 
             let mut sel = init_select(&receivers_ls);
@@ -280,6 +277,7 @@ impl MultiThreadedDagExecutor {
                             &epoch.to_be_bytes(),
                         )?;
                         master_tx.write().commit_and_renew()?;
+                        info!("[{}] Committed seq_no {}", handle, epoch);
                     }
 
                     _ => {
