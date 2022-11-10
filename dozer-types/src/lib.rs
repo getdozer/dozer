@@ -17,6 +17,7 @@ pub use crossbeam;
 pub use indexmap;
 pub use log;
 pub use log4rs;
+pub use ordered_float;
 pub use parking_lot;
 pub use rust_decimal;
 pub use serde;

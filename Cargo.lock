@@ -1361,6 +1361,7 @@ dependencies = [
  "indexmap",
  "log",
  "log4rs",
+ "ordered-float 3.4.0",
  "parking_lot 0.12.1",
  "rust_decimal",
  "serde",
@@ -2698,6 +2699,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordered-float"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d84eb1409416d254e4a9c8fa56cc24701755025b458f0fcd8e59e1f5f40c23bf"
+dependencies = [
+ "num-traits",
+ "serde",
+]
+
+[[package]]
 name = "os_str_bytes"
 version = "6.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3609,7 +3620,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
 dependencies = [
- "ordered-float",
+ "ordered-float 2.10.0",
  "serde",
 ]
 

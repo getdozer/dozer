@@ -1,5 +1,6 @@
 use crate::types::Field;
 use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
+use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 
 impl From<bool> for Field {
@@ -34,13 +35,13 @@ impl From<i64> for Field {
 
 impl From<f32> for Field {
     fn from(value: f32) -> Self {
-        Field::Float(value.into())
+        Field::Float(OrderedFloat(value.into()))
     }
 }
 
 impl From<f64> for Field {
     fn from(value: f64) -> Self {
-        Field::Float(value)
+        Field::Float(OrderedFloat(value))
     }
 }
 

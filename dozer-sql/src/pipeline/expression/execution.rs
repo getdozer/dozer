@@ -199,12 +199,14 @@ fn get_scalar_function_type(
 
 #[test]
 fn test_column_execution() {
+    use dozer_types::ordered_float::OrderedFloat;
+
     let record = Record::new(
         None,
         vec![
             Field::Int(1337),
             Field::String("test".to_string()),
-            Field::Float(10.10),
+            Field::Float(OrderedFloat(10.10)),
         ],
     );
 
@@ -227,7 +229,7 @@ fn test_column_execution() {
     assert_eq!(
         e.evaluate(&record)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(10.10)
+        Field::Float(OrderedFloat(10.10))
     );
 
     // Literal

@@ -2,21 +2,22 @@ use crate::errors::types::TypeError;
 use crate::errors::types::TypeError::InvalidFieldType;
 use chrono::{DateTime, Utc};
 
+use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum Field {
     UInt(u64),
     Int(i64),
-    Float(f64),
+    Float(OrderedFloat<f64>),
     Boolean(bool),
     String(String),
     Text(String),
     Binary(Vec<u8>),
     UIntArray(Vec<u64>),
     IntArray(Vec<i64>),
-    FloatArray(Vec<f64>),
+    FloatArray(Vec<OrderedFloat<f64>>),
     BooleanArray(Vec<bool>),
     StringArray(Vec<String>),
     #[serde(with = "rust_decimal::serde::float")]
@@ -174,7 +175,7 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
@@ -249,7 +250,7 @@ impl Commit {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },

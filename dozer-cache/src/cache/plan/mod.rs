@@ -8,18 +8,18 @@ use super::expression::Operator;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Plan {
     IndexScans(Vec<IndexScan>),
     SeqScan(SeqScan),
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexScan {
     pub index_id: usize,
     pub kind: IndexScanKind,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IndexScanKind {
     SortedInverted {
         eq_filters: Vec<IndexFilter>,
@@ -35,7 +35,7 @@ pub struct SeqScan {
     pub direction: SortDirection,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexFilter {
     pub field_index: usize,
     pub op: Operator,
@@ -52,7 +52,7 @@ impl IndexFilter {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeQuery {
     pub field_index: usize,
     pub operator_and_value: Option<(Operator, Field)>,

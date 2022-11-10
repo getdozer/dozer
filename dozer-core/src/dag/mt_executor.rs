@@ -22,7 +22,7 @@ const DEFAULT_MAX_DBS: u32 = 256;
 const DEFAULT_MAX_READERS: u32 = 256;
 const DEFAULT_MAX_MAP_SZ: size_t = 1024 * 1024 * 1024 * 64;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
     Delete { seq: u64, old: Record },
     Insert { seq: u64, new: Record },
