@@ -8,7 +8,7 @@ use crate::dag::executor_utils::{
     init_select, map_to_op, requires_schema_update,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
-use crate::dag::node::{NodeHandle, PortHandle, Processor, ProcessorFactory, SourceFactory};
+use crate::dag::node::{NodeHandle, PortHandle, StatelessSourceFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crate::storage::transactions::SharedTransaction;
@@ -23,9 +23,9 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
-pub(crate) fn start_source(
+pub(crate) fn start_stateless_source(
     handle: NodeHandle,
-    src_factory: Box<dyn SourceFactory>,
+    src_factory: Box<dyn StatelessSourceFactory>,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     commit_size: u16,
     base_path: PathBuf,

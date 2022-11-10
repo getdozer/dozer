@@ -10,12 +10,17 @@ use std::sync::Arc;
 pub type NodeHandle = String;
 pub type PortHandle = u16;
 
-pub trait SourceFactory: Send + Sync {
-    fn get_output_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn Source>;
+pub struct StatefulPortHandle {
+    pub handle: PortHandle,
+    pub stateful: bool,
 }
 
-pub trait Source {
+pub trait StatelessSourceFactory: Send + Sync {
+    fn get_output_ports(&self) -> Vec<PortHandle>;
+    fn build(&self) -> Box<dyn StatelessSource>;
+}
+
+pub trait StatelessSource {
     fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
     fn start(
         &self,
@@ -24,47 +29,107 @@ pub trait Source {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait ProcessorFactory: Send + Sync {
-    fn is_stateful(&self) -> bool;
-    fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn get_output_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn Processor>;
+pub trait StatefulSourceFactory: Send + Sync {
+    fn get_output_ports(&self) -> Vec<StatefulPortHandle>;
+    fn build(&self) -> Box<dyn StatefulSource>;
 }
 
-pub trait Processor {
+pub trait StatefulSource {
+    fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
+    fn start(
+        &self,
+        tx: &mut dyn RwTransaction,
+        fw: &mut dyn SourceChannelForwarder,
+        from_seq: Option<u64>,
+    ) -> Result<(), ExecutionError>;
+}
+
+pub trait StatelessProcessorFactory: Send + Sync {
+    fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn get_output_ports(&self) -> Vec<PortHandle>;
+    fn build(&self) -> Box<dyn StatelessProcessor>;
+}
+
+pub trait StatelessProcessor {
+    fn init(&mut self) -> Result<(), ExecutionError>;
     fn update_schema(
         &mut self,
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError>;
-    fn init(&mut self, state: Option<&mut dyn Environment>) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<&mut dyn RwTransaction>,
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait SinkFactory: Send + Sync {
-    fn is_stateful(&self) -> bool;
-    fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn Sink>;
+impl StatefulPortHandle {
+    pub fn new(handle: PortHandle, stateful: bool) -> Self {
+        Self { handle, stateful }
+    }
 }
 
-pub trait Sink {
+pub trait StatefulProcessorFactory: Send + Sync {
+    fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn get_output_ports(&self) -> Vec<StatefulPortHandle>;
+    fn build(&self) -> Box<dyn StatefulProcessor>;
+}
+
+pub trait StatefulProcessor {
+    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
+    fn update_schema(
+        &mut self,
+        output_port: PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, ExecutionError>;
+    fn process(
+        &mut self,
+        from_port: PortHandle,
+        op: Operation,
+        fw: &mut dyn ProcessorChannelForwarder,
+        tx: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<(), ExecutionError>;
+}
+
+pub trait StatelessSinkFactory: Send + Sync {
+    fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn build(&self) -> Box<dyn StatelessSink>;
+}
+
+pub trait StatelessSink {
     fn update_schema(
         &mut self,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
-    fn init(&mut self, state: Option<&mut dyn Environment>) -> Result<(), ExecutionError>;
+    fn init(&mut self) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         seq: u64,
         op: Operation,
-        state: Option<&mut dyn RwTransaction>,
+    ) -> Result<(), ExecutionError>;
+}
+
+pub trait StatefulSinkFactory: Send + Sync {
+    fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn build(&self) -> Box<dyn StatefulSink>;
+}
+
+pub trait StatefulSink {
+    fn update_schema(
+        &mut self,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError>;
+    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
+    fn process(
+        &mut self,
+        from_port: PortHandle,
+        seq: u64,
+        op: Operation,
+        state: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError>;
 }

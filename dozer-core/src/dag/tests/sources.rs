@@ -1,7 +1,7 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
-use crate::dag::node::{PortHandle, Source, SourceFactory};
+use crate::dag::node::{PortHandle, StatelessSource, StatelessSourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::thread;
 use std::time::Duration;
@@ -18,11 +18,11 @@ impl GeneratorSourceFactory {
     }
 }
 
-impl SourceFactory for GeneratorSourceFactory {
+impl StatelessSourceFactory for GeneratorSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         vec![GENERATOR_SOURCE_OUTPUT_PORT]
     }
-    fn build(&self) -> Box<dyn Source> {
+    fn build(&self) -> Box<dyn StatelessSource> {
         Box::new(GeneratorSource { count: self.count })
     }
 }
@@ -31,7 +31,7 @@ pub(crate) struct GeneratorSource {
     count: u64,
 }
 
-impl Source for GeneratorSource {
+impl StatelessSource for GeneratorSource {
     fn get_output_schema(&self, port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()

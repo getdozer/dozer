@@ -3,7 +3,7 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::node::{
-    NodeHandle, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
+    NodeHandle, PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -27,24 +27,24 @@ impl PassthroughProcessorFactory {
     }
 }
 
-impl ProcessorFactory for PassthroughProcessorFactory {
-    fn is_stateful(&self) -> bool {
-        true
-    }
+impl StatefulProcessorFactory for PassthroughProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![PASSTHROUGH_PROCESSOR_INPUT_PORT]
     }
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![PASSTHROUGH_PROCESSOR_OUTPUT_PORT]
+    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
+        vec![StatefulPortHandle::new(
+            PASSTHROUGH_PROCESSOR_OUTPUT_PORT,
+            true,
+        )]
     }
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(&self) -> Box<dyn StatefulProcessor> {
         Box::new(PassthroughProcessor {})
     }
 }
 
 pub(crate) struct PassthroughProcessor {}
 
-impl Processor for PassthroughProcessor {
+impl StatefulProcessor for PassthroughProcessor {
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -56,7 +56,7 @@ impl Processor for PassthroughProcessor {
             .clone())
     }
 
-    fn init<'a>(&'_ mut self, tx: Option<&mut dyn Environment>) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -65,7 +65,7 @@ impl Processor for PassthroughProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<&mut dyn RwTransaction>,
+        tx: &mut dyn RwTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
@@ -83,17 +83,17 @@ impl RecordReaderProcessorFactory {
 pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
 pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
-impl ProcessorFactory for RecordReaderProcessorFactory {
-    fn is_stateful(&self) -> bool {
-        true
-    }
+impl StatefulProcessorFactory for RecordReaderProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![RECORD_READER_PROCESSOR_INPUT_PORT]
     }
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![RECORD_READER_PROCESSOR_OUTPUT_PORT]
+    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
+        vec![StatefulPortHandle::new(
+            RECORD_READER_PROCESSOR_OUTPUT_PORT,
+            true,
+        )]
     }
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(&self) -> Box<dyn StatefulProcessor> {
         Box::new(RecordReaderProcessor { ctr: 0 })
     }
 }
@@ -102,7 +102,7 @@ pub(crate) struct RecordReaderProcessor {
     ctr: u64,
 }
 
-impl Processor for RecordReaderProcessor {
+impl StatefulProcessor for RecordReaderProcessor {
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -114,7 +114,7 @@ impl Processor for RecordReaderProcessor {
             .clone())
     }
 
-    fn init<'a>(&'_ mut self, tx: Option<&mut dyn Environment>) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -123,7 +123,7 @@ impl Processor for RecordReaderProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: Option<&mut dyn RwTransaction>,
+        tx: &mut dyn RwTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let v = readers
@@ -146,7 +146,7 @@ fn test_run_dag_reacord_reader() {
     log4rs::init_file("../log4rs.sample.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(500_000);
+    let src = GeneratorSourceFactory::new(2_000_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(500_000);
@@ -158,16 +158,16 @@ fn test_run_dag_reacord_reader() {
     let RECORD_READER_ID: NodeHandle = "record_reader".to_string();
     let SINK_ID: NodeHandle = "sink".to_string();
 
-    dag.add_node(NodeType::Source(Box::new(src)), SOURCE_ID.clone());
+    dag.add_node(NodeType::StatelessSource(Box::new(src)), SOURCE_ID.clone());
     dag.add_node(
-        NodeType::Processor(Box::new(passthrough)),
+        NodeType::StatefulProcessor(Box::new(passthrough)),
         PASSTHROUGH_ID.clone(),
     );
     dag.add_node(
-        NodeType::Processor(Box::new(record_reader)),
+        NodeType::StatefulProcessor(Box::new(record_reader)),
         RECORD_READER_ID.clone(),
     );
-    dag.add_node(NodeType::Sink(Box::new(sink)), SINK_ID.clone());
+    dag.add_node(NodeType::StatefulSink(Box::new(sink)), SINK_ID.clone());
 
     assert!(dag
         .connect(

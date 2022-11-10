@@ -2,7 +2,10 @@ use crate::dag::dag::{Dag, Edge, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
-use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::dag::node::{
+    NodeHandle, PortHandle, StatefulProcessorFactory, StatefulSinkFactory, StatefulSourceFactory,
+    StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
+};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
@@ -35,11 +38,11 @@ pub(crate) fn init_component<F>(
     mut init_f: F,
 ) -> Result<StorageMetadata, ExecutionError>
 where
-    F: FnMut(Option<&mut dyn Environment>) -> Result<(), ExecutionError>,
+    F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
 {
     let mut env = LmdbEnvironmentManager::create(base_path, node_handle.as_str())?;
     let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
-    init_f(Some(env.as_environment()))?;
+    init_f(env.as_environment())?;
     Ok(StorageMetadata::new(env, db))
 }
 #[inline]
@@ -55,7 +58,7 @@ pub(crate) fn requires_schema_update(
     new: Schema,
     port_handle: &PortHandle,
     input_schemas: &mut HashMap<PortHandle, Schema>,
-    input_ports: Vec<PortHandle>,
+    input_ports: &Vec<PortHandle>,
 ) -> bool {
     input_schemas.insert(*port_handle, new);
     let count = input_ports
@@ -138,12 +141,27 @@ pub(crate) fn index_edges(
     (senders, receivers)
 }
 
-pub(crate) fn get_node_types(
+pub(crate) enum SourceHolder {
+    Stateful(Box<dyn StatefulSourceFactory>),
+    Stateless(Box<dyn StatelessSourceFactory>),
+}
+
+pub(crate) enum ProcessorHolder {
+    Stateful(Box<dyn StatefulProcessorFactory>),
+    Stateless(Box<dyn StatelessProcessorFactory>),
+}
+
+pub(crate) enum SinkHolder {
+    Stateful(Box<dyn StatefulSinkFactory>),
+    Stateless(Box<dyn StatelessSinkFactory>),
+}
+
+pub(crate) fn get_node_types_and_edges(
     dag: Dag,
 ) -> (
-    Vec<(NodeHandle, Box<dyn SourceFactory>)>,
-    Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
-    Vec<(NodeHandle, Box<dyn SinkFactory>)>,
+    Vec<(NodeHandle, SourceHolder)>,
+    Vec<(NodeHandle, ProcessorHolder)>,
+    Vec<(NodeHandle, SinkHolder)>,
     Vec<Edge>,
 ) {
     let mut sources = Vec::new();
@@ -152,13 +170,18 @@ pub(crate) fn get_node_types(
 
     for node in dag.nodes.into_iter() {
         match node.1 {
-            NodeType::Source(s) => sources.push((node.0, s)),
-            NodeType::Processor(p) => {
-                processors.push((node.0, p));
+            NodeType::StatefulSource(s) => sources.push((node.0, SourceHolder::Stateful(s))),
+            NodeType::StatelessSource(s) => sources.push((node.0, SourceHolder::Stateless(s))),
+
+            NodeType::StatefulProcessor(s) => {
+                processors.push((node.0, ProcessorHolder::Stateful(s)))
             }
-            NodeType::Sink(s) => {
-                sinks.push((node.0, s));
+            NodeType::StatelessProcessor(s) => {
+                processors.push((node.0, ProcessorHolder::Stateless(s)))
             }
+
+            NodeType::StatefulSink(s) => sinks.push((node.0, SinkHolder::Stateful(s))),
+            NodeType::StatelessSink(s) => sinks.push((node.0, SinkHolder::Stateless(s))),
         }
     }
     (sources, processors, sinks, dag.edges)
@@ -194,12 +217,12 @@ const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
 pub(crate) fn create_ports_databases(
     env: &mut dyn Environment,
-    ports: Vec<PortHandle>,
+    ports: &Vec<PortHandle>,
 ) -> Result<HashMap<PortHandle, Database>, StorageError> {
     let mut port_databases = HashMap::<PortHandle, Database>::new();
     for out_port in ports {
         let db = env.open_database(format!("{}_{}", PORT_STATE_KEY, out_port).as_str(), false)?;
-        port_databases.insert(out_port, db);
+        port_databases.insert(out_port.clone(), db);
     }
     Ok(port_databases)
 }
@@ -210,7 +233,7 @@ pub(crate) fn fill_ports_record_readers(
     port_databases: &HashMap<PortHandle, Database>,
     master_tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
     record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    output_ports: Vec<PortHandle>,
+    output_ports: &Vec<PortHandle>,
 ) {
     for out_port in output_ports {
         for r in get_inputs_for_output(edges, handle, &out_port) {
