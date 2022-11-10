@@ -105,7 +105,7 @@ fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
 }
 
 fn get_column_type(index: &usize, schema: &Schema) -> FieldType {
-    schema.fields.get(*index).unwrap().typ.clone()
+    schema.fields.get(*index).unwrap().typ
 }
 
 fn get_unary_operator_type(

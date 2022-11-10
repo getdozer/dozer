@@ -74,7 +74,7 @@ impl ApiHelper {
         let field_types: Vec<FieldType> = schema
             .primary_index
             .iter()
-            .map(|idx| schema.fields[*idx].typ.clone())
+            .map(|idx| schema.fields[*idx].typ)
             .collect();
         let key = json_value_to_field(&key, &field_types[0]).map_err(CacheError::TypeError)?;
 

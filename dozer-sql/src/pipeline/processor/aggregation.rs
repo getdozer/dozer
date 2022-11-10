@@ -269,7 +269,7 @@ impl AggregationProcessor {
                             Some(n) => n.clone(),
                             _ => src_fld.1.name.clone(),
                         },
-                        aggr.get_return_type(src_fld.1.typ.clone()),
+                        aggr.get_return_type(src_fld.1.typ),
                         false,
                     ));
                     if *is_value {
