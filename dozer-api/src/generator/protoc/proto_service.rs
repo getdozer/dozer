@@ -141,7 +141,7 @@ impl ProtoService {
                     result,
                     "  {}Expression {} = {}; ",
                     proto_type.to_upper_camel_case(),
-                    field.name,
+                    Self::safe_name(&field.name),
                     idx + 1
                 );
                 result
@@ -338,7 +338,13 @@ impl ProtoService {
                     result.push_str("optional ");
                 }
                 let proto_type = convert_dozer_type_to_proto_type(field.typ.to_owned()).unwrap();
-                let _ = writeln!(result, "{} {} = {}; ", proto_type, field.name, idx + 1);
+                let _ = writeln!(
+                    result,
+                    "{} {} = {}; ",
+                    proto_type,
+                    Self::safe_name(&field.name),
+                    idx + 1
+                );
                 result
             })
             .collect();
@@ -347,6 +353,9 @@ impl ProtoService {
             name: self.schema_name.to_pascal_case(),
             props: props_message,
         }
+    }
+    pub fn safe_name(name: &str) -> String {
+        name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
     }
     pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
         let type_need_import_libs = [
