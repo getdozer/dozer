@@ -2,7 +2,7 @@ use crate::errors::OrchestrationError;
 use dozer_api::CacheEndpoint;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::crossbeam;
-use dozer_types::events::Event;
+use dozer_types::events::ApiEvent;
 use dozer_types::parking_lot::RwLock;
 use log::info;
 use std::collections::HashMap;
@@ -47,7 +47,7 @@ impl Executor {
 
     pub fn run(
         &self,
-        notifier: Option<crossbeam::channel::Sender<Event>>,
+        notifier: Option<crossbeam::channel::Sender<ApiEvent>>,
         running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connections: Vec<Connection> = vec![];

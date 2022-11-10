@@ -1,8 +1,7 @@
 use crossbeam::channel;
 use dozer_types::{
-    events::Event,
+    events::ApiEvent,
     serde_json::{self, json},
-    types::Record,
 };
 use tokio::time;
 
@@ -38,13 +37,16 @@ pub fn generate_descriptor(tmp_dir: String) -> Result<String, io::Error> {
     Ok(descriptor_path)
 }
 
-pub fn mock_event_notifier() -> channel::Receiver<Event> {
-    let (sender, receiver) = channel::unbounded::<Event>();
+pub fn mock_event_notifier() -> channel::Receiver<ApiEvent> {
+    let (sender, receiver) = channel::unbounded::<ApiEvent>();
     let _executor_thread = thread::spawn(move || loop {
         thread::sleep(time::Duration::from_millis(1000));
         let record_json = json!({"schema_id":{"id":1811503150,"version":1},"values":[{"Int":1048},{"String":"Test33"},"Null",{"Int":2006}]});
-        let fake_record: Record = serde_json::from_value(record_json).unwrap();
-        sender.try_send(Event::RecordInsert(fake_record)).unwrap();
+
+        let fake_event = ApiEvent::Operation(dozer_types::types::Operation::Insert {
+            new: serde_json::from_value(record_json).unwrap(),
+        });
+        sender.try_send(fake_event).unwrap();
     });
     receiver
 }

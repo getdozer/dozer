@@ -3,7 +3,7 @@ syntax = "proto3";
 package dozer.common;
 service CommonGrpcService {
   rpc query(QueryRequest) returns (QueryResponse);
-  rpc onEvent(OnEventRequest) returns (stream Record);
+  rpc onEvent(OnEventRequest) returns (stream Operation);
   rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse);
   rpc getFields(GetFieldsRequest) returns (GetFieldsResponse);
 }
@@ -36,6 +36,17 @@ message GetEndpointsRequest {}
 
 message GetEndpointsResponse { repeated string endpoints = 1; }
 
+enum OperationType {
+  INSERT = 0;
+  DELETE = 1;
+  UPDATE = 2;
+}
+
+message Operation {
+  OperationType typ = 1;
+  optional Record old = 2;
+  Record new = 3;
+}
 message Record { repeated Value values = 1; }
 
 enum Type {

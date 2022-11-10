@@ -4,24 +4,24 @@ use crate::grpc::services::common::common_grpc::common_grpc_service_server::Comm
 use crate::grpc::services::common::common_grpc::{Record, Value};
 use crate::{api_helper, api_server::PipelineDetails};
 use dozer_cache::cache::expression::QueryExpression;
-use dozer_types::events::Event;
+use dozer_types::events::ApiEvent;
 use dozer_types::log::warn;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 use super::common_grpc::{
     FieldDefinition, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest,
-    GetFieldsResponse, OnEventRequest, QueryRequest, QueryResponse,
+    GetFieldsResponse, OnEventRequest, Operation, QueryRequest, QueryResponse,
 };
 use super::helper;
 
-type EchoResult<T> = Result<Response<T>, Status>;
-type ResponseStream = ReceiverStream<Result<Record, tonic::Status>>;
+type EventResult<T> = Result<Response<T>, Status>;
+type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 
 // #[derive(Clone)]
 pub struct ApiService {
     pub pipeline_map: HashMap<String, PipelineDetails>,
-    pub event_notifier: tokio::sync::broadcast::Receiver<Event>,
+    pub event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
 }
 #[tonic::async_trait]
 impl CommonGrpcService for ApiService {
@@ -111,7 +111,7 @@ impl CommonGrpcService for ApiService {
 
     #[allow(non_camel_case_types)]
     type onEventStream = ResponseStream;
-    async fn on_event(&self, request: Request<OnEventRequest>) -> EchoResult<Self::onEventStream> {
+    async fn on_event(&self, request: Request<OnEventRequest>) -> EventResult<Self::onEventStream> {
         let _request = request.into_inner();
 
         let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -123,17 +123,9 @@ impl CommonGrpcService for ApiService {
                 let receiver_event = broadcast_receiver.recv().await;
                 match receiver_event {
                     Ok(event) => {
-                        if let Event::RecordInsert(record) = event {
-                            let values: Vec<Value> = record
-                                .to_owned()
-                                .values
-                                .iter()
-                                .map(helper::field_to_prost_value)
-                                .collect();
-
-                            let record = Record { values };
-
-                            if (tx.send(Ok(record)).await).is_err() {
+                        if let ApiEvent::Operation(operation) = event {
+                            let op = helper::map_operation(&operation);
+                            if (tx.send(Ok(op)).await).is_err() {
                                 warn!("on_insert_grpc_server_stream receiver drop");
                                 // receiver drop
                                 break;

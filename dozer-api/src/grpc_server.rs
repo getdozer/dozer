@@ -12,7 +12,7 @@ use crate::{
     CacheEndpoint,
 };
 
-use dozer_types::{events::Event, types::Schema};
+use dozer_types::{events::ApiEvent, types::Schema};
 use heck::ToUpperCamelCase;
 use std::{
     collections::HashMap,
@@ -25,13 +25,13 @@ use tonic::transport::Server;
 
 pub struct GRPCServer {
     port: u16,
-    event_notifier: crossbeam::channel::Receiver<Event>,
+    event_notifier: crossbeam::channel::Receiver<ApiEvent>,
 }
 
 impl GRPCServer {
     pub fn setup_broad_cast_channel(
-        sender: broadcast::Sender<Event>,
-        event_notifier: crossbeam::channel::Receiver<Event>,
+        sender: broadcast::Sender<ApiEvent>,
+        event_notifier: crossbeam::channel::Receiver<ApiEvent>,
     ) -> Result<(), GRPCError> {
         let _thread = thread::spawn(move || {
             while let Some(event) = event_notifier.iter().next() {
@@ -43,11 +43,11 @@ impl GRPCServer {
     fn _start_grpc_server(
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
-        event_notifier: crossbeam::channel::Receiver<Event>,
+        event_notifier: crossbeam::channel::Receiver<ApiEvent>,
         _running: Arc<AtomicBool>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
-        let (tx, rx1) = broadcast::channel::<Event>(16);
+        let (tx, rx1) = broadcast::channel::<ApiEvent>(16);
         GRPCServer::setup_broad_cast_channel(tx, event_notifier)?;
         let tmp_dir = TempDir::new("proto_generated").unwrap();
         let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
@@ -123,7 +123,7 @@ impl GRPCServer {
 }
 
 impl GRPCServer {
-    pub fn new(event_notifier: crossbeam::channel::Receiver<Event>, port: u16) -> Self {
+    pub fn new(event_notifier: crossbeam::channel::Receiver<ApiEvent>, port: u16) -> Self {
         Self {
             port,
             event_notifier,
@@ -138,7 +138,7 @@ impl GRPCServer {
         // wait until all schema is initalize
         while schemas.len() < cache_endpoints.len() {
             let event = self.event_notifier.clone().recv();
-            if let Ok(Event::SchemaChange(schema_change)) = event {
+            if let Ok(ApiEvent::SchemaChange(schema_change)) = event {
                 let id = schema_change.get_id();
                 schemas.insert(id, schema_change);
             }

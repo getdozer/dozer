@@ -1,7 +1,39 @@
 use crate::grpc::services::common::common_grpc::{value, ArrayValue, Type, Value};
 use dozer_types::chrono::SecondsFormat;
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::{Field, FieldType, Operation as DozerOperation, Record as DozerRecord};
 
+use super::common_grpc::{Operation, OperationType, Record};
+
+pub fn map_operation(operation: &DozerOperation) -> Operation {
+    match operation.to_owned() {
+        DozerOperation::Delete { old } => Operation {
+            typ: OperationType::Delete as i32,
+            old: Some(map_record(old)),
+            new: None,
+        },
+        DozerOperation::Insert { new } => Operation {
+            typ: OperationType::Insert as i32,
+            old: None,
+            new: Some(map_record(new)),
+        },
+        DozerOperation::Update { old, new } => Operation {
+            typ: OperationType::Insert as i32,
+            old: Some(map_record(old)),
+            new: Some(map_record(new)),
+        },
+    }
+}
+
+pub fn map_record(record: DozerRecord) -> Record {
+    let values: Vec<Value> = record
+        .to_owned()
+        .values
+        .iter()
+        .map(field_to_prost_value)
+        .collect();
+
+    Record { values }
+}
 pub fn field_to_prost_value(f: &Field) -> Value {
     match f {
         Field::UInt(n) => Value {

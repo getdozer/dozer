@@ -14,7 +14,7 @@ use crate::{
         util::{get_method_by_name, get_service_name},
     },
 };
-use dozer_types::events::Event;
+use dozer_types::events::ApiEvent;
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use tonic::codegen::{self, *};
@@ -25,7 +25,7 @@ pub struct TonicServer {
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
     pipeline_map: HashMap<String, PipelineDetails>,
-    event_notifier: tokio::sync::broadcast::Receiver<Event>,
+    event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
 }
 impl Clone for TonicServer {
     fn clone(&self) -> Self {
@@ -45,7 +45,7 @@ impl TonicServer {
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
         pipeline_map: HashMap<String, PipelineDetails>,
-        event_notifier: tokio::sync::broadcast::Receiver<Event>,
+        event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
         TonicServer {

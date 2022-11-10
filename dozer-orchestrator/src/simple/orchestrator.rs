@@ -4,7 +4,7 @@ use dozer_api::CacheEndpoint;
 use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
 use dozer_cache::cache::LmdbCache;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-use dozer_types::events::Event;
+use dozer_types::events::ApiEvent;
 
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
@@ -44,7 +44,7 @@ impl Orchestrator for SimpleOrchestrator {
         let (tx, rx) = unbounded::<ServerHandle>();
 
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<Event>();
+        let (sender, receiver) = channel::unbounded::<ApiEvent>();
 
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
