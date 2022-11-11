@@ -46,7 +46,9 @@ jobs:
           path: |
             ${{ steps.coverage.outputs.report }}
           retention-days: 10
-      - name: Coveralls upload
+
+      - id: coveralls
+        name: Coveralls upload
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +65,7 @@ jobs:
 
             Last Commit: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
 
-            Response: ${{ coveralls-api-result }}
+            Response: ${{ steps.coveralls.coveralls-api-result }}
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
