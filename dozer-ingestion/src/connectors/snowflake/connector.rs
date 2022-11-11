@@ -11,7 +11,7 @@ use dozer_types::parking_lot::RwLock;
 
 use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
-use dozer_types::log::debug;
+
 use tokio::runtime::Runtime;
 use tokio::{task, time};
 
@@ -38,11 +38,11 @@ impl Connector for SnowflakeConnector {
         &self,
         _table_names: Option<Vec<String>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        Ok(vec![])
+        todo!()
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        Ok(vec![])
+        todo!()
     }
 
     fn test_connection(&self) -> Result<(), ConnectorError> {
@@ -60,7 +60,6 @@ impl Connector for SnowflakeConnector {
     }
 
     fn start(&self, _running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
-        debug!("SNOWFLAKE start called");
         let connector_id = self.id;
         let ingestor = self
             .ingestor
@@ -90,39 +89,38 @@ async fn run(
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
-    // SNAPSHOT part - run it when stream table doesnt exist
     match tables {
         None => {}
         Some(tables) => {
             for table in tables.iter() {
-                let client_1 = Client::new(&config);
                 let is_stream_created =
                     StreamConsumer::is_stream_created(&client, table.name.clone())?;
                 if !is_stream_created {
                     let ingestor_snapshot = Arc::clone(&ingestor);
                     Snapshotter::run(
-                        &client_1,
+                        &client,
                         &ingestor_snapshot,
                         connector_id,
                         table.name.clone(),
                     )?;
-                    StreamConsumer::create_stream(&client_1, &table.name)?;
+                    StreamConsumer::create_stream(&client, &table.name)?;
                 } else {
                     let stream_client = Client::new(&config);
                     let table_name = table.clone();
                     let ingestor_stream = Arc::clone(&ingestor);
                     let forever = task::spawn(async move {
-                        let mut interval = time::interval(Duration::from_secs(10));
+                        let mut interval = time::interval(Duration::from_secs(5));
 
                         loop {
                             interval.tick().await;
 
-                            let _ = StreamConsumer::consume_stream(
+                            StreamConsumer::consume_stream(
                                 &stream_client,
                                 connector_id,
                                 &table_name.name,
                                 &ingestor_stream,
-                            );
+                            )
+                            .unwrap();
                         }
                     });
 

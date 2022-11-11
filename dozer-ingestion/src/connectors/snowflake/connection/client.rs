@@ -1,22 +1,76 @@
 use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::log::debug;
 
-use crate::errors::{ConnectorError, SnowflakeError};
+use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
+use dozer_types::types::Field;
+use odbc::ffi::SqlDataType;
 use odbc::odbc_safe::AutocommitOn;
 use odbc::{
-    ColumnDescriptor, Connection, Data, DiagnosticRecord, Executed, HasResult, NoData,
+    ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
     ResultSetState, Statement,
 };
 use std::collections::HashMap;
 
+pub fn convert_data(
+    cursor: &mut Cursor<Executed, AutocommitOn>,
+    i: u16,
+    column_descriptor: &ColumnDescriptor,
+) -> Result<Field, SnowflakeSchemaError> {
+    match column_descriptor.data_type {
+        SqlDataType::SQL_CHAR | SqlDataType::SQL_VARCHAR => {
+            match cursor
+                .get_data::<String>(i)
+                .map_err(SnowflakeSchemaError::ValueConversionError)?
+            {
+                None => Ok(Field::Null),
+                Some(value) => Ok(Field::from(value)),
+            }
+        }
+        SqlDataType::SQL_NUMERIC
+        | SqlDataType::SQL_DECIMAL
+        | SqlDataType::SQL_INTEGER
+        | SqlDataType::SQL_SMALLINT => {
+            match cursor
+                .get_data::<i64>(i)
+                .map_err(SnowflakeSchemaError::ValueConversionError)?
+            {
+                None => Ok(Field::Null),
+                Some(value) => Ok(Field::from(value)),
+            }
+        }
+        SqlDataType::SQL_FLOAT | SqlDataType::SQL_REAL | SqlDataType::SQL_DOUBLE => {
+            match cursor
+                .get_data::<f64>(i)
+                .map_err(SnowflakeSchemaError::ValueConversionError)?
+            {
+                None => Ok(Field::Null),
+                Some(value) => Ok(Field::from(value)),
+            }
+        }
+        // // SqlDataType::SQL_DATETIME => Ok(FieldType::Timestamp),
+        // SqlDataType::SQL_VARCHAR => {
+        //     match cursor.get_data::<String>(i).map_err(SnowflakeSchemaError::ValueConversionError)? {
+        //         None => Ok(Field::Null),
+        //         Some(value) => Ok(Field::from(value))
+        //     }
+        // },
+        // SqlDataType::SQL_TIMESTAMP => Ok(FieldType::Timestamp),
+        _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
+            "{:?}",
+            &column_descriptor.data_type
+        ))),
+    }
+}
+
 pub struct ResultIterator<'a, 'b> {
     stmt: Statement<'a, 'b, Executed, HasResult, AutocommitOn>,
     cols: i16,
+    schema: Vec<ColumnDescriptor>,
 }
 
 impl Iterator for ResultIterator<'_, '_> {
-    type Item = Vec<Option<String>>;
+    type Item = Vec<Option<Field>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.stmt.fetch().unwrap() {
@@ -24,7 +78,9 @@ impl Iterator for ResultIterator<'_, '_> {
             Some(mut cursor) => {
                 let mut values = vec![];
                 for i in 1..(self.cols + 1) {
-                    values.push(cursor.get_data::<String>(i as u16).unwrap());
+                    let descriptor = self.schema.get((i - 1) as usize)?;
+                    let value = convert_data(&mut cursor, i as u16, descriptor).unwrap();
+                    values.push(Some(value));
                 }
 
                 Some(values)
@@ -143,7 +199,10 @@ impl Client {
                 for i in 1..(cols + 1) {
                     schema.push(stmt.describe_col(i.try_into().unwrap()).unwrap());
                 }
-                Ok(Some((schema, ResultIterator { cols, stmt })))
+                Ok(Some((
+                    schema.clone(),
+                    ResultIterator { cols, stmt, schema },
+                )))
             }
             NoData(_) => Ok(None),
         }
