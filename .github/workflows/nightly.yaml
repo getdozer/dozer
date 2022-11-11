@@ -39,6 +39,8 @@ jobs:
 
       - id: coverage
         uses: actions-rs/grcov@v0.1
+        with:
+          config: .github/grcov.yml
 
       - uses: actions/upload-artifact@v3
         with:
@@ -53,6 +55,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ${{ steps.coverage.outputs.report }}
+
       - name: Post to a Slack channel
         id: slack
         continue-on-error: true
