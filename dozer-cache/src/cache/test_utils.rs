@@ -4,7 +4,7 @@ use dozer_types::types::{
 
 pub fn schema_0() -> Schema {
     Schema {
-        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+        identifier: Some(SchemaIdentifier { id: 0, version: 1 }),
         fields: vec![FieldDefinition {
             name: "foo".to_string(),
             typ: dozer_types::types::FieldType::String,
@@ -50,7 +50,7 @@ pub fn schema_1() -> Schema {
 
 pub fn schema_full_text_single() -> Schema {
     Schema {
-        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+        identifier: Some(SchemaIdentifier { id: 2, version: 1 }),
         fields: vec![FieldDefinition {
             name: "foo".to_string(),
             typ: dozer_types::types::FieldType::String,
