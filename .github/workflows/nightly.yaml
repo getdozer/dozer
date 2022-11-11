@@ -68,7 +68,7 @@ jobs:
 
             Last Commit: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
 
-            Response: ${{ steps.coveralls.coveralls-api-result }}
+            Response: ${{ steps.coveralls.output.coveralls-api-result }}
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
