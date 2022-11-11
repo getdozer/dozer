@@ -46,6 +46,11 @@ jobs:
           path: |
             ${{ steps.coverage.outputs.report }}
           retention-days: 10
+      - name: Coveralls upload
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ${{ steps.coverage.outputs.report }}
   # Run benches on stable
   bench:
     runs-on: ubuntu-latest
