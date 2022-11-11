@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "0 0 * * *"
   push:
-    branches: [chore/release-workflow]
+    branches: [chore/run-benches]
 
 concurrency:
   group: nightly
@@ -71,8 +71,7 @@ jobs:
         continue-on-error: true
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          channel-id: "test-binary"
-          # channel-id: "release-notifications"
+          channel-id: "release-notifications"
           slack-message: |
             ```
             Nighthly: ${{ job.status }}
