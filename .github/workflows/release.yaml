@@ -2,7 +2,7 @@ name: Release Development builds
 
 on:
   push:
-    branches: [chore/release-workflow-2, main]
+    branches: [release, release-*]
 
 env:
   CARGO_TERM_COLOR: always
@@ -60,7 +60,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: ${{matrix.asset_name}}
-          path: target/release/{{matrix.file_name}}
+          path: target/release/${{matrix.file_name}}
 
   release:
     needs: build
@@ -70,15 +70,18 @@ jobs:
 
       # ubuntu
       - uses: actions/download-artifact@v3
+        continue-on-error: true
         with:
           name: dozer-linux-amd64
 
       # mac
       - uses: actions/download-artifact@v3
+        continue-on-error: true
         with:
           name: dozer-macos-amd64
 
       - uses: "marvinpinto/action-automatic-releases@latest"
+        continue-on-error: true
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "latest"
