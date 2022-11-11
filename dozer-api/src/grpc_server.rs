@@ -11,7 +11,6 @@ use crate::{
     },
     CacheEndpoint,
 };
-
 use dozer_types::{events::ApiEvent, types::Schema};
 use heck::ToUpperCamelCase;
 use std::{
@@ -25,6 +24,7 @@ use tonic::transport::Server;
 
 pub struct GRPCServer {
     port: u16,
+    enable_ipv6: bool,
     event_notifier: crossbeam::channel::Receiver<ApiEvent>,
 }
 
@@ -112,8 +112,10 @@ impl GRPCServer {
             .add_service(inflection_service)
             // GRPC service to handle typed requests
             .add_service(tonic_web::enable(grpc_service));
-
-        let addr = format!("[::1]:{:}", self.port).parse().unwrap();
+        let mut addr = format!("0.0.0.0:{:}", self.port).parse().unwrap();
+        if self.enable_ipv6 {
+            addr = format!("[::1]:{:}", self.port).parse().unwrap();
+        }
         let grpc_router = grpc_router.serve(addr);
         let rt = Runtime::new().unwrap();
         rt.block_on(grpc_router)
@@ -127,6 +129,7 @@ impl GRPCServer {
         Self {
             port,
             event_notifier,
+            enable_ipv6: false,
         }
     }
     pub fn run(
