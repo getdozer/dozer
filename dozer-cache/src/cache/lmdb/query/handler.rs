@@ -5,7 +5,7 @@ use crate::cache::{
     expression::{Operator, QueryExpression},
     index::{self},
     lmdb::{cache::IndexMetaData, query::helper::lmdb_cmp},
-    plan::{IndexFilter, IndexScan, IndexScanKind, Plan, QueryPlanner},
+    plan::{IndexFilter, IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
 use crate::errors::{
     CacheError::{self},
@@ -107,15 +107,18 @@ impl<'a> LmdbQueryHandler<'a> {
         let comparision_key = self.build_comparision_key(&index_scan)?;
         let last_filter = match index_scan.kind {
             IndexScanKind::SortedInverted {
-                eq_filters,
-                range_query: None,
-            } => Some(eq_filters.last().unwrap().clone()),
-            IndexScanKind::SortedInverted {
-                range_query: Some(range_query),
+                range_query:
+                    Some(SortedInvertedRangeQuery {
+                        field_index,
+                        operator_and_value: Some((operator, value)),
+                        ..
+                    }),
                 ..
-            } => range_query
-                .operator_and_value
-                .map(|(op, val)| IndexFilter::new(range_query.field_index, op, val)),
+            } => Some(IndexFilter::new(field_index, operator, value)),
+            IndexScanKind::SortedInverted { eq_filters, .. } => {
+                let filter = eq_filters.last().unwrap();
+                Some(IndexFilter::equals(filter.0, filter.2.clone()))
+            }
             IndexScanKind::FullText { filter } => Some(filter),
         };
 
@@ -268,7 +271,7 @@ impl<'a> LmdbQueryHandler<'a> {
             } => {
                 let mut fields = vec![];
                 eq_filters.iter().for_each(|filter| {
-                    fields.push(filter.val.clone());
+                    fields.push(filter.2.clone());
                 });
                 if let Some(range_query) = range_query {
                     if let Some((_, val)) = &range_query.operator_and_value {

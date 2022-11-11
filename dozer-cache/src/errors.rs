@@ -106,6 +106,10 @@ pub enum PlanError {
     FieldNotFound,
     #[error(transparent)]
     TypeError(#[from] TypeError),
+    #[error("Cannot sort full text filter")]
+    CannotSortFullTextFilter,
+    #[error("Conflicting sort options")]
+    ConflictingSortOptions,
     #[error("Cannot have more than one range query")]
     RangeQueryLimit,
     #[error("Matching index not found")]

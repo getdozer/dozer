@@ -1,21 +1,14 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, Operator, QueryExpression},
-    plan::{IndexFilter, IndexScanKind},
+    expression::{self, FilterExpression, QueryExpression},
+    plan::IndexScanKind,
     test_utils,
 };
 
-use dozer_types::{serde_json::Value, types::Field};
-
-impl IndexFilter {
-    pub fn equals(field_index: usize, val: Field) -> Self {
-        Self {
-            field_index,
-            op: Operator::EQ,
-            val,
-        }
-    }
-}
+use dozer_types::{
+    serde_json::Value,
+    types::{Field, SortDirection},
+};
 
 #[test]
 fn test_generate_plan_simple() {
@@ -43,7 +36,11 @@ fn test_generate_plan_simple() {
                 assert_eq!(eq_filters.len(), 1);
                 assert_eq!(
                     eq_filters[0],
-                    IndexFilter::equals(0, Field::String("bar".to_string()))
+                    (
+                        0,
+                        SortDirection::Ascending,
+                        Field::String("bar".to_string())
+                    )
                 );
                 assert_eq!(range_query, &None);
             }
@@ -78,10 +75,14 @@ fn test_generate_plan_and() {
                 range_query,
             } => {
                 assert_eq!(eq_filters.len(), 2);
-                assert_eq!(eq_filters[0], IndexFilter::equals(0, Field::Int(1)));
+                assert_eq!(eq_filters[0], (0, SortDirection::Ascending, Field::Int(1)));
                 assert_eq!(
                     eq_filters[1],
-                    IndexFilter::equals(1, Field::String("test".to_string()))
+                    (
+                        1,
+                        SortDirection::Ascending,
+                        Field::String("test".to_string())
+                    )
                 );
                 assert_eq!(range_query, &None);
             }

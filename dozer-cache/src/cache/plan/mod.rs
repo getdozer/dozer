@@ -22,12 +22,19 @@ pub struct IndexScan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IndexScanKind {
     SortedInverted {
-        eq_filters: Vec<IndexFilter>,
-        range_query: Option<RangeQuery>,
+        eq_filters: Vec<(usize, SortDirection, Field)>,
+        range_query: Option<SortedInvertedRangeQuery>,
     },
     FullText {
         filter: IndexFilter,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SortedInvertedRangeQuery {
+    pub field_index: usize,
+    pub sort_direction: SortDirection,
+    pub operator_and_value: Option<(Operator, Field)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,10 +57,12 @@ impl IndexFilter {
             val,
         }
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RangeQuery {
-    pub field_index: usize,
-    pub operator_and_value: Option<(Operator, Field)>,
+    pub fn equals(field_index: usize, val: Field) -> Self {
+        Self {
+            field_index,
+            op: Operator::EQ,
+            val,
+        }
+    }
 }

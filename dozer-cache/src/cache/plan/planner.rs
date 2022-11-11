@@ -4,7 +4,8 @@ use dozer_types::json_value_to_field;
 use dozer_types::types::{FieldDefinition, Schema};
 use dozer_types::types::{FieldType, IndexDefinition, SortDirection};
 
-use super::{helper, IndexScan, Plan, RangeQuery, SeqScan};
+use super::helper::{RangeQuery, RangeQueryKind};
+use super::{helper, IndexScan, Plan, SeqScan};
 use super::{IndexFilter, IndexScanKind};
 
 pub struct QueryPlanner<'a> {
@@ -28,14 +29,11 @@ impl<'a> QueryPlanner<'a> {
         // TODO: Handle duplicate fields.
         let mut order_by = vec![];
         for order in &self.query.order_by {
-            if order.direction != SortDirection::Ascending {
-                todo!("Support descending sort option");
-            }
             // Find the field index.
             let (field_index, _) = get_field_index_and_type(&order.field_name, &self.schema.fields)
                 .ok_or(PlanError::FieldNotFound)?;
-            // If the field is already in a filter supported by `SortedInverted`, we can skip sorting it.
-            if seen_in_sorted_inverted_filter(field_index, &filters) {
+            // If the field is already in a filter supported by `SortedInverted`, mark the corresponding filter.
+            if seen_in_sorted_inverted_filter(field_index, order.direction, &mut filters)? {
                 continue;
             }
             // This sort option needs to be in the plan.
@@ -80,7 +78,7 @@ fn get_field_index_and_type(
 fn collect_filters(
     schema: &Schema,
     expression: &FilterExpression,
-    filters: &mut Vec<IndexFilter>,
+    filters: &mut Vec<(IndexFilter, Option<SortDirection>)>,
 ) -> Result<(), PlanError> {
     match expression {
         FilterExpression::Simple(field_name, operator, value) => {
@@ -88,7 +86,7 @@ fn collect_filters(
                 .ok_or(PlanError::FieldNotFound)?;
             let field =
                 json_value_to_field(value.as_str().unwrap_or(&value.to_string()), &field_type)?;
-            filters.push(IndexFilter::new(field_index, *operator, field));
+            filters.push((IndexFilter::new(field_index, *operator, field), None));
         }
         FilterExpression::And(expressions) => {
             for expression in expressions {
@@ -99,20 +97,39 @@ fn collect_filters(
     Ok(())
 }
 
-fn seen_in_sorted_inverted_filter(field_index: usize, filters: &[IndexFilter]) -> bool {
-    filters
-        .iter()
-        .any(|filter| filter.field_index == field_index && filter.op.supported_by_sorted_inverted())
+fn seen_in_sorted_inverted_filter(
+    field_index: usize,
+    sort_direction: SortDirection,
+    filters: &mut [(IndexFilter, Option<SortDirection>)],
+) -> Result<bool, PlanError> {
+    for filter in filters {
+        if filter.0.field_index == field_index {
+            return if !filter.0.op.supported_by_sorted_inverted() {
+                Err(PlanError::CannotSortFullTextFilter)
+            } else if let Some(direction) = filter.1 {
+                if direction == sort_direction {
+                    Ok(true)
+                } else {
+                    Err(PlanError::ConflictingSortOptions)
+                }
+            } else {
+                filter.1 = Some(sort_direction);
+                Ok(true)
+            };
+        }
+    }
+
+    Ok(false)
 }
 
 fn find_range_query(
-    filters: &mut Vec<IndexFilter>,
+    filters: &mut Vec<(IndexFilter, Option<SortDirection>)>,
     order_by: &[(usize, SortDirection)],
 ) -> Result<Option<RangeQuery>, PlanError> {
     let mut num_range_ops = 0;
     let mut range_filter_index = None;
     for (i, filter) in filters.iter().enumerate() {
-        if filter.op.is_range_operator() {
+        if filter.0.op.is_range_operator() {
             num_range_ops += 1;
             range_filter_index = Some(i);
         }
@@ -123,15 +140,21 @@ fn find_range_query(
     }
     Ok(if let Some(range_filter_index) = range_filter_index {
         let filter = filters.remove(range_filter_index);
-        Some(RangeQuery {
-            field_index: filter.field_index,
-            operator_and_value: Some((filter.op, filter.val)),
-        })
-    } else if let Some((field_index, _)) = order_by.first() {
-        Some(RangeQuery {
-            field_index: *field_index,
-            operator_and_value: None,
-        })
+        Some(RangeQuery::new(
+            filter.0.field_index,
+            RangeQueryKind::Filter {
+                operator: filter.0.op,
+                value: filter.0.val,
+                sort_direction: filter.1,
+            },
+        ))
+    } else if let Some((field_index, sort_direction)) = order_by.first() {
+        Some(RangeQuery::new(
+            *field_index,
+            RangeQueryKind::OrderBy {
+                sort_direction: *sort_direction,
+            },
+        ))
     } else {
         None
     })
@@ -153,7 +176,7 @@ impl IndexScanKind {
                 if !eq_filters
                     .iter()
                     .zip(fields)
-                    .all(|(filter, field)| filter.field_index == field.0)
+                    .all(|(filter, field)| filter.0 == field.0 && filter.1 == field.1)
                 {
                     return false;
                 }
@@ -161,7 +184,9 @@ impl IndexScanKind {
                     if fields.len() != eq_filters.len() + 1 {
                         return false;
                     }
-                    range_query.field_index == fields.last().unwrap().0
+                    let last_field = fields.last().unwrap();
+                    range_query.field_index == last_field.0
+                        && range_query.sort_direction == last_field.1
                 } else {
                     true
                 }
