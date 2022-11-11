@@ -17,13 +17,9 @@ unicode-segmentation = "1.10.0"
 itertools = "0.10.5"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 rand = "0.8.5"
 
 [[bench]]
 name = "cache"
-harness = false
-
-[[bench]]
-name = "query_deserialize"
 harness = false
