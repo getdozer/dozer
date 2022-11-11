@@ -1,24 +1,88 @@
-name: Nightly Schedule
+name: Nightly
 # Long running tests, Performance benchmarks, Code vulnerability, Code coverage etc
 on:
   # schedule:
   #   - cron: "0 0 * * *"
-  branches: [chore/release-workflow]  
+  push:
+    branches: [chore/release-workflow]
 
 concurrency:
   group: nightly
   cancel-in-progress: true
 
 jobs:
-  build:
+  # Run coverage on nightly
+  coverage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: nightly
+          override: true
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features --no-fail-fast
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - id: coverage
+        uses: actions-rs/grcov@v0.1
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: index.html
+          path: |
+            ${{ steps.coverage.outputs.report }}
+          retention-days: 10
+  # - uses: keithweaver/aws-s3-github-action@v1.0.0
+  #   with:
+  #     command: sync
+  #     source: ${{ steps.coverage.outputs.report }}
+  #     destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/coverage
+  #     aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+  #     aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+  #     aws_region: ap-southeast-1
+
+  # - name: Post to a Slack channel
+  #   id: slack
+  #   uses: slackapi/slack-github-action@v1.23.0
+  #   with:
+  #     channel-id: "test-binary"
+  #     # channel-id: "release-notifications"
+  #     slack-message: |
+  #       ```Nighthly Coverage:
+
+  #       Result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}
+
+  #       Benches:
+  #       https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/criterion/report/index.html
+  #       ```
+  #   env:
+  #     SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  # Run benches on stable
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
           components: rustfmt, clippy
 
       - name: Install Protoc
@@ -35,64 +99,48 @@ jobs:
             ~/.cargo/registry/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-nightly
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}-nightly
+            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-
 
-  bench:
-    needs: build
-    - name: Run Bench
-      continue-on-error: true
-      run: cargo +nightly bench
+      - id: bench
+        name: Run Bench
+        continue-on-error: true
+        run: cargo bench
 
-    - name: Get current date
-      id: date
-      run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
-    # - uses: actions-rs/cargo@v1
-    #     with:
-    #       command: test
-    #       args: --all-features --no-fail-fast
-    #     env:
-    #       CARGO_INCREMENTAL: '0'
-    #       RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-    #       RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-    #   - uses: actions-rs/grcov@v0.1
-    
-    - uses: keithweaver/aws-s3-github-action@v1.0.0
-      with:
-        command: sync
-        source: ./target/criterion
-        destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/criterion
-        aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
-        aws_region: ap-southeast-1
-    env:
-        SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: index.html
+          path: |
+            target/criterion/report/index.html
+          retention-days: 10
 
-  # coverage:
-  #   - uses: keithweaver/aws-s3-github-action@v1.0.0
-  #     with:
-  #       command: cp
-  #       source: ./test_result.txt
-  #       destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/test_result.txt
-  #       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
-  #       aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
-  #       aws_region: ap-southeast-1
+      - uses: keithweaver/aws-s3-github-action@v1.0.0
+        with:
+          command: cp
+          source: ./criterion/report/index.html
+          destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/index.html
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+          aws_region: ap-southeast-1
 
-  #   - name: Post to a Slack channel
-  #     id: slack
-  #     uses: slackapi/slack-github-action@v1.23.0
-  #     with:
-  #       # channel-id: "test-binary"
-  #       channel-id: "release-notifications"
-  #       slack-message: |
-  #         ```Nighthly Build: 
+      - name: Post to a Slack channel
+        id: slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: "test-binary"
+          # channel-id: "release-notifications"
+          slack-message: |
+            ```Nighthly Bench Results: 
 
-  #         Result: ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}
+            ${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}
 
-  #         Benches: 
-  #         https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/criterion/report/index.html
-  #         ```
-  #     env:
-  #       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+            https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/index.html
+            ```
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
