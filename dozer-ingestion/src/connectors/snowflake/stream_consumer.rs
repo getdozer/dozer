@@ -2,15 +2,17 @@ use crate::connectors::snowflake::connection::client::Client;
 
 use crate::connectors::snowflake::snapshotter::Snapshotter;
 
-use crate::errors::ConnectorError;
+use crate::errors::{ConnectorError, SnowflakeError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::log::{debug, error};
+
 use dozer_types::parking_lot::RwLock;
 
+use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::errors;
+use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
+    Field, Operation, OperationEvent, Record, SchemaIdentifier,
 };
 use odbc::create_environment_v3;
 use std::sync::Arc;
@@ -49,10 +51,72 @@ impl StreamConsumer {
             table_name,
             Snapshotter::get_snapshot_table_name(table_name)
         );
+
         client
             .exec(&conn, query)
             .map(|_| ())
             .map_err(ConnectorError::SnowflakeError)
+    }
+
+    fn map_record(row: Vec<Option<Field>>) -> Record {
+        Record {
+            schema_id: Some(SchemaIdentifier {
+                id: 10101,
+                version: 1,
+            }),
+            values: row
+                .iter()
+                .map(|v| match v.clone() {
+                    None => Field::Null,
+                    Some(s) => s,
+                })
+                .collect(),
+        }
+    }
+
+    fn get_ingestion_message(
+        row: Vec<Option<Field>>,
+        action_idx: usize,
+        used_columns_for_schema: usize,
+    ) -> Result<IngestionMessage, ConnectorError> {
+        if let Some(action) = row.get(action_idx).unwrap() {
+            let mut row_mut = row.clone();
+
+            let insert_action = "INSERT".to_string();
+            let delete_action = "DELETE".to_string();
+
+            let action_value = match action {
+                Field::String(value) => value.clone(),
+                _ => "".to_string(),
+            };
+
+            if insert_action == action_value {
+                row_mut.truncate(used_columns_for_schema);
+                Ok(IngestionMessage::OperationEvent(OperationEvent {
+                    seq_no: 0,
+                    operation: Operation::Insert {
+                        new: Self::map_record(row_mut),
+                    },
+                }))
+            } else if delete_action == action_value {
+                row_mut.truncate(used_columns_for_schema);
+
+                Ok(IngestionMessage::OperationEvent(OperationEvent {
+                    seq_no: 0,
+                    operation: Operation::Delete {
+                        old: Self::map_record(row_mut),
+                    },
+                }))
+            } else {
+                Err(ConnectorError::SnowflakeError(
+                    SnowflakeError::SnowflakeStreamError(UnsupportedActionInStream(action_value)),
+                ))
+            }
+        } else {
+            Err(ConnectorError::SnowflakeError(
+                SnowflakeError::SnowflakeStreamError(CannotDetermineAction),
+            ))
+        }
     }
 
     pub fn consume_stream(
@@ -77,12 +141,12 @@ impl StreamConsumer {
                 temp_table_name, stream_name
             );
 
-            let _r = client.exec(&conn, query);
+            client.exec(&conn, query)?;
         }
 
-        let result = client.fetch(&conn, format!("SELECT * FROM {};", temp_table_name));
+        let result = client.fetch(&conn, format!("SELECT * FROM {};", temp_table_name))?;
         match result {
-            Ok(Some((schema, iterator))) => {
+            Some((schema, iterator)) => {
                 let mut truncated_schema = schema.clone();
                 truncated_schema.truncate(3);
                 ingestor
@@ -91,23 +155,7 @@ impl StreamConsumer {
                         connector_id,
                         IngestionMessage::Schema(
                             table_name.clone(),
-                            Schema {
-                                identifier: Some(SchemaIdentifier {
-                                    id: 10101,
-                                    version: 1,
-                                }),
-                                fields: truncated_schema
-                                    .iter()
-                                    .map(|c| FieldDefinition {
-                                        name: c.name.clone().to_lowercase(),
-                                        typ: FieldType::Int,
-                                        nullable: None != c.nullable,
-                                    })
-                                    .collect(),
-                                values: vec![],
-                                primary_index: vec![0],
-                                secondary_indexes: vec![],
-                            },
+                            SchemaHelper::map_schema(truncated_schema)?,
                         ),
                     ))
                     .map_err(errors::ConnectorError::IngestorError)?;
@@ -116,88 +164,18 @@ impl StreamConsumer {
                 let used_columns_for_schema = columns_length - 3;
                 let action_idx = used_columns_for_schema;
 
-                iterator.for_each(|row| {
-                    if let Some(action) = row.get(action_idx).unwrap() {
-                        let mut row_mut = row.clone();
+                for row in iterator {
+                    let ingestion_message =
+                        Self::get_ingestion_message(row, action_idx, used_columns_for_schema)?;
+                    ingestor
+                        .write()
+                        .handle_message((connector_id, ingestion_message))
+                        .map_err(ConnectorError::IngestorError)?;
+                }
 
-                        let insert_action = "INSERT".to_string();
-                        let _delete_action = "DELETE".to_string();
-
-                        let action_a = action.clone();
-                        if insert_action == action_a {
-                            row_mut.truncate(used_columns_for_schema);
-                            ingestor
-                                .write()
-                                .handle_message((
-                                    connector_id,
-                                    IngestionMessage::OperationEvent(OperationEvent {
-                                        seq_no: 0,
-                                        operation: Operation::Insert {
-                                            new: Record {
-                                                schema_id: Some(SchemaIdentifier {
-                                                    id: 10101,
-                                                    version: 1,
-                                                }),
-                                                values: row_mut
-                                                    .iter()
-                                                    .map(|v| match v {
-                                                        None => Field::Null,
-                                                        Some(s) => {
-                                                            let value: i64 = s.parse().unwrap();
-                                                            Field::from(value)
-                                                        }
-                                                    })
-                                                    .collect(),
-                                            },
-                                        },
-                                    }),
-                                ))
-                                .unwrap();
-                        // } else if update_action == action_a {
-                        //     c.truncate(used_columns_for_schema);
-                        //     ingestor
-                        //         .write()
-                        //         .handle_message((
-                        //             connector_id,
-                        //             IngestionMessage::OperationEvent(OperationEvent {
-                        //                 seq_no: 0,
-                        //                 operation: Operation::Delete {
-                        //                     old: Record {
-                        //                         schema_id: Some(SchemaIdentifier {
-                        //                             id: 10101,
-                        //                             version: 1,
-                        //                         }),
-                        //                         values: c
-                        //                             .iter()
-                        //                             .map(|v| match v {
-                        //                                 None => Field::Null,
-                        //                                 Some(s) => {
-                        //                                     let value: i64 = s.parse().unwrap();
-                        //                                     Field::from(value)
-                        //                                 }
-                        //                             })
-                        //                             .collect(),
-                        //                     },
-                        //                 },
-                        //             }),
-                        //         ))
-                        //         .unwrap();
-                        } else {
-                            error!("Not supposed to be here");
-                        }
-                    }
-                })
+                Ok(())
             }
-            Err(_) => {
-                debug!("error");
-            }
-            _ => {
-                debug!("other");
-            }
-        };
-
-        debug!("consumed");
-
-        Ok(())
+            None => Ok(()),
+        }
     }
 }

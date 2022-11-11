@@ -6,6 +6,7 @@ use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
+
 use odbc::DiagnosticRecord;
 
 #[derive(Error, Debug)]
@@ -125,4 +126,28 @@ pub enum PostgresSchemaError {
 pub enum SnowflakeError {
     #[error("Snowflake query error")]
     QueryError(#[source] DiagnosticRecord),
+
+    #[error(transparent)]
+    SnowflakeSchemaError(#[from] SnowflakeSchemaError),
+
+    #[error(transparent)]
+    SnowflakeStreamError(#[from] SnowflakeStreamError),
+}
+
+#[derive(Error, Debug)]
+pub enum SnowflakeSchemaError {
+    #[error("Column type {0} not supported")]
+    ColumnTypeNotSupported(String),
+
+    #[error("Value conversion Error")]
+    ValueConversionError(#[source] DiagnosticRecord),
+}
+
+#[derive(Error, Debug)]
+pub enum SnowflakeStreamError {
+    #[error("Unsupported \"{0}\" action in stream")]
+    UnsupportedActionInStream(String),
+
+    #[error("Cannot determine action")]
+    CannotDetermineAction,
 }

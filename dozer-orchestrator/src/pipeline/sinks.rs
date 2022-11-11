@@ -181,7 +181,6 @@ impl Sink for CacheSink {
             // Append primary and secondary keys
             let schema = self.get_output_schema(schema)?;
 
-            info!("Port :{}, Schema Inserted: {:?}", k, schema);
             self.cache
                 .insert_schema(&self.api_endpoint.name, &schema)
                 .map_err(|e| {

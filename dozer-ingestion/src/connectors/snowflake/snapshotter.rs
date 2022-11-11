@@ -6,9 +6,10 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
+    Field, Operation, OperationEvent, Record, SchemaIdentifier,
 };
 
+use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use odbc::create_environment_v3;
 use std::sync::Arc;
 
@@ -44,26 +45,7 @@ impl Snapshotter {
                     .write()
                     .handle_message((
                         connector_id,
-                        IngestionMessage::Schema(
-                            table_name,
-                            Schema {
-                                identifier: Some(SchemaIdentifier {
-                                    id: 10101,
-                                    version: 1,
-                                }),
-                                fields: schema
-                                    .iter()
-                                    .map(|c| FieldDefinition {
-                                        name: c.name.clone().to_lowercase(),
-                                        typ: FieldType::Int,
-                                        nullable: None != c.nullable,
-                                    })
-                                    .collect(),
-                                values: vec![],
-                                primary_index: vec![0],
-                                secondary_indexes: vec![],
-                            },
-                        ),
+                        IngestionMessage::Schema(table_name, SchemaHelper::map_schema(schema)?),
                     ))
                     .map_err(errors::ConnectorError::IngestorError)?;
                 iterator.for_each(|values| {
@@ -83,10 +65,7 @@ impl Snapshotter {
                                             .iter()
                                             .map(|v| match v {
                                                 None => Field::Null,
-                                                Some(s) => {
-                                                    let value: i64 = s.parse().unwrap();
-                                                    Field::from(value)
-                                                }
+                                                Some(s) => s.clone(),
                                             })
                                             .collect(),
                                     },
