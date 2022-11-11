@@ -1,0 +1,90 @@
+name: Release Development builds
+
+on:
+  push:
+    branches: [chore/release-workflow-2, main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            file_name: dozer
+            asset_name: dozer-linux-amd64
+          - os: macos-latest
+            file_name: dozer
+            asset_name: dozer-macos-amd64
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-release-
+
+      - name: Release
+        run: |
+          cargo build --release
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{matrix.asset_name}}
+          path: target/release/{{matrix.file_name}}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      # ubuntu
+      - uses: actions/download-artifact@v3
+        with:
+          name: dozer-linux-amd64
+
+      # mac
+      - uses: actions/download-artifact@v3
+        with:
+          name: dozer-macos-amd64
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            LICENSE.txt
+            dozer-linux-amd64
+            dozer-macos-amd64
