@@ -297,7 +297,7 @@ mod tests {
     use dozer_core::dag::node::Sink;
 
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
-    use std::{collections::HashMap, panic};
+    use std::collections::HashMap;
 
     #[test]
     // This test cases covers updation of records when primary key changes because of value change in primary_key
@@ -347,9 +347,8 @@ mod tests {
 
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
-        let record = panic::catch_unwind(|| {
-            cache.get(&key).unwrap();
-        });
+
+        let record = cache.get(&key);
 
         assert!(record.is_err());
 

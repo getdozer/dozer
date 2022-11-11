@@ -1,4 +1,4 @@
-### Dozer Workspace [![CI](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg)](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml)
+### Dozer [![CI](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg)](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml) [![Coverage Status](https://coveralls.io/repos/github/getdozer/dozer/badge.svg?t=kZMYaV)](https://coveralls.io/github/getdozer/dozer)
 
 This repository follows a `cargo workspace` structure with several packages. 
 ```
