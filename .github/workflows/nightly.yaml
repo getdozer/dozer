@@ -38,9 +38,9 @@ jobs:
             ~/.cargo/registry/
             ~/.cargo/git/db/
             target/release
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-release-bench-
           restore-keys: |
-            ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-release-bench-
             ${{ runner.os }}-cargo-release-
 
       - name: Install Criterion
