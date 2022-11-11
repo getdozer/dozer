@@ -8,8 +8,9 @@ use lmdb::{
     WriteFlags,
 };
 
-use dozer_types::types::Record;
+use dozer_types::types::{IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
+use lmdb_sys::{mdb_set_compare, MDB_val, MDB_SUCCESS};
 
 use super::super::Cache;
 use super::indexer::Indexer;
@@ -17,7 +18,7 @@ use super::query::handler::LmdbQueryHandler;
 use super::query::helper;
 use super::utils;
 use crate::cache::expression::QueryExpression;
-use crate::cache::index;
+use crate::cache::index::{self, compare_secondary_index};
 use crate::errors::{CacheError, QueryError};
 
 pub struct IndexMetaData {
@@ -264,10 +265,25 @@ impl Cache for LmdbCache {
     }
     fn insert_schema(&self, name: &str, schema: &Schema) -> Result<(), CacheError> {
         // Create a db for each index
-        for (idx, _) in schema.secondary_indexes.iter().enumerate() {
+        for (idx, index) in schema.secondary_indexes.iter().enumerate() {
             let key = IndexMetaData::get_key(schema, idx);
             let name = format!("index_#{}", key);
             let db = utils::init_db(&self.env, Some(&name))?;
+
+            if let IndexDefinition::SortedInverted(_) = index {
+                let txn = self
+                    .env
+                    .begin_rw_txn()
+                    .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+                unsafe {
+                    assert_eq!(
+                        mdb_set_compare(txn.txn(), db.dbi(), Some(compare_sorted_inverted_key)),
+                        MDB_SUCCESS
+                    );
+                }
+                txn.commit()
+                    .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+            }
 
             self.index_metadata.insert_index(key, db);
         }
@@ -280,5 +296,22 @@ impl Cache for LmdbCache {
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
+    }
+}
+
+unsafe fn mdb_val_to_slice(val: &MDB_val) -> &[u8] {
+    std::slice::from_raw_parts(val.mv_data as *const u8, val.mv_size)
+}
+
+unsafe extern "C" fn compare_sorted_inverted_key(
+    a: *const MDB_val,
+    b: *const MDB_val,
+) -> std::ffi::c_int {
+    match compare_secondary_index(mdb_val_to_slice(&*a), mdb_val_to_slice(&*b)) {
+        Ok(ordering) => ordering as std::ffi::c_int,
+        Err(e) => {
+            dozer_types::log::error!("Error deserializing secondary index key: {}", e);
+            0
+        }
     }
 }

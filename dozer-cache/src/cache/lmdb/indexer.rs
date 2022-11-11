@@ -1,8 +1,5 @@
 use crate::errors::{CacheError, IndexError, QueryError};
-use dozer_types::{
-    errors::types::TypeError,
-    types::{Field, IndexDefinition, Record, Schema},
-};
+use dozer_types::types::{Field, IndexDefinition, Record, Schema, SortDirection};
 use lmdb::{RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
@@ -34,9 +31,7 @@ impl Indexer {
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
-                    // TODO: use `SortDirection`.
-                    let fields: Vec<_> = fields.iter().map(|(index, _)| *index).collect();
-                    let secondary_key = self._build_index_sorted_inverted(&fields, &rec.values)?;
+                    let secondary_key = self._build_index_sorted_inverted(fields, &rec.values)?;
                     txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
                         .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                 }
@@ -55,17 +50,15 @@ impl Indexer {
 
     fn _build_index_sorted_inverted(
         &self,
-        index_fields: &[usize],
+        fields: &[(usize, SortDirection)],
         values: &[Field],
     ) -> Result<Vec<u8>, CacheError> {
-        let values = values
+        let values = fields
             .iter()
-            .enumerate()
-            .filter(|(idx, _)| index_fields.contains(idx))
-            .map(|(_, field)| field.to_bytes())
-            .collect::<Result<Vec<_>, TypeError>>()?;
-
-        Ok(index::get_secondary_index(&values))
+            .copied()
+            .filter_map(|(index, direction)| (values.get(index).map(|value| (value, direction))))
+            .collect::<Vec<_>>();
+        index::get_secondary_index(&values).map_err(CacheError::map_serialization_error)
     }
 
     fn _build_indices_full_text(
@@ -118,10 +111,19 @@ mod tests {
         let indexes = lmdb_utils::get_indexes(&cache);
 
         let index_count = indexes.iter().flatten().count();
-        // 3 columns, 1 compound
-        assert_eq!(indexes.len(), 4, "Must create db for each index");
+        let expected_count = schema.secondary_indexes.len();
+        // 3 columns, 1 compound, 1 descending
+        assert_eq!(
+            indexes.len(),
+            expected_count,
+            "Must create db for each index"
+        );
 
-        assert_eq!(index_count, items.len() * 4, "Must index each field");
+        assert_eq!(
+            index_count,
+            items.len() * expected_count,
+            "Must index each field"
+        );
     }
 
     #[test]

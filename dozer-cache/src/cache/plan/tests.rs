@@ -1,7 +1,7 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression},
-    plan::IndexScanKind,
+    expression::{self, FilterExpression, QueryExpression, SortOptions},
+    plan::{IndexScanKind, SortedInvertedRangeQuery},
     test_utils,
 };
 
@@ -85,6 +85,45 @@ fn test_generate_plan_and() {
                     )
                 );
                 assert_eq!(range_query, &None);
+            }
+            _ => panic!("Must be sorted inverted"),
+        }
+    } else {
+        panic!("IndexScan expected")
+    }
+}
+
+#[test]
+fn test_generate_plan_range_query_and_order_by() {
+    let schema = test_utils::schema_1();
+    let filter = FilterExpression::Simple("c".into(), expression::Operator::GT, 1.into());
+    let query = QueryExpression::new(
+        Some(filter),
+        vec![SortOptions {
+            field_name: "c".into(),
+            direction: SortDirection::Descending,
+        }],
+        10,
+        0,
+    );
+    let planner = QueryPlanner::new(&schema, &query);
+    if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
+        assert_eq!(index_scans.len(), 1);
+        assert_eq!(index_scans[0].index_id, 4);
+        match &index_scans[0].kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                assert_eq!(eq_filters.len(), 0);
+                assert_eq!(
+                    range_query,
+                    &Some(SortedInvertedRangeQuery {
+                        field_index: 2,
+                        sort_direction: SortDirection::Descending,
+                        operator_and_value: Some((expression::Operator::GT, 1.into())),
+                    })
+                );
             }
             _ => panic!("Must be sorted inverted"),
         }

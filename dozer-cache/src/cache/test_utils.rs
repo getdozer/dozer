@@ -1,5 +1,6 @@
 use dozer_types::types::{
-    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier, SortDirection::Ascending,
+    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier,
+    SortDirection::{Ascending, Descending},
 };
 
 pub fn schema_0() -> Schema {
@@ -44,6 +45,8 @@ pub fn schema_1() -> Schema {
             IndexDefinition::SortedInverted(vec![(2, Ascending)]),
             // composite index
             IndexDefinition::SortedInverted(vec![(0, Ascending), (1, Ascending)]),
+            // descending index
+            IndexDefinition::SortedInverted(vec![(2, Descending)]),
         ],
     }
 }

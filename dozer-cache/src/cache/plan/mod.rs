@@ -57,12 +57,4 @@ impl IndexFilter {
             val,
         }
     }
-
-    pub fn equals(field_index: usize, val: Field) -> Self {
-        Self {
-            field_index,
-            op: Operator::EQ,
-            val,
-        }
-    }
 }

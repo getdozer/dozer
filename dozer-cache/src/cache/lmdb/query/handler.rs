@@ -5,17 +5,17 @@ use crate::cache::{
     expression::{Operator, QueryExpression},
     index::{self},
     lmdb::{cache::IndexMetaData, query::helper::lmdb_cmp},
-    plan::{IndexFilter, IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
+    plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
 use crate::errors::{
     CacheError::{self},
     IndexError,
 };
-use dozer_types::errors::types::TypeError;
 use dozer_types::{
     bincode,
     types::{Field, Record, Schema},
 };
+use dozer_types::{errors::types::TypeError, types::SortDirection};
 use lmdb::{Database, RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
@@ -99,8 +99,6 @@ impl<'a> LmdbQueryHandler<'a> {
         &self,
         index_scans: &[IndexScan],
     ) -> Result<Vec<Record>, CacheError> {
-        // TODO: Use the opposite sort on reversed queries.
-        let sort_order = true;
         let index_scan = index_scans[0].to_owned();
         let db = self.index_metadata.get_db(self.schema, index_scan.index_id);
 
@@ -109,21 +107,20 @@ impl<'a> LmdbQueryHandler<'a> {
             IndexScanKind::SortedInverted {
                 range_query:
                     Some(SortedInvertedRangeQuery {
-                        field_index,
-                        operator_and_value: Some((operator, value)),
+                        sort_direction,
+                        operator_and_value: Some((operator, _)),
                         ..
                     }),
                 ..
-            } => Some(IndexFilter::new(field_index, operator, value)),
+            } => Some((operator, sort_direction)),
             IndexScanKind::SortedInverted { eq_filters, .. } => {
                 let filter = eq_filters.last().unwrap();
-                Some(IndexFilter::equals(filter.0, filter.2.clone()))
+                Some((Operator::EQ, filter.1))
             }
-            IndexScanKind::FullText { filter } => Some(filter),
+            IndexScanKind::FullText { filter } => Some((filter.op, SortDirection::Ascending)),
         };
 
-        let (start_key, end_key) =
-            get_start_end_keys(last_filter.as_ref(), sort_order, comparision_key);
+        let (start_key, end_key) = get_start_end_keys(last_filter, comparision_key);
 
         let mut pkeys = vec![];
         let mut idx = 0;
@@ -134,7 +131,7 @@ impl<'a> LmdbQueryHandler<'a> {
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
         let mut cache_iterator =
-            CacheIterator::new(&cursor, start_key.as_ref().map(|a| a as &[u8]), sort_order);
+            CacheIterator::new(&cursor, start_key.as_ref().map(|a| a as &[u8]), true);
         // For GT, LT operators dont include the first record returned.
 
         loop {
@@ -147,11 +144,10 @@ impl<'a> LmdbQueryHandler<'a> {
                     // Skip Eq Values
                     if self.skip_eq_values(
                         &db,
-                        last_filter.as_ref(),
+                        last_filter,
                         start_key.as_ref(),
                         end_key.as_ref(),
                         key,
-                        sort_order,
                     ) {
                     }
                     // Compare partial key
@@ -160,8 +156,7 @@ impl<'a> LmdbQueryHandler<'a> {
                         key,
                         start_key.as_ref(),
                         end_key.as_ref(),
-                        sort_order,
-                        last_filter.as_ref(),
+                        last_filter,
                     ) {
                         let rec = helper::get(self.txn, *self.db, val)?;
                         pkeys.push(rec);
@@ -183,29 +178,32 @@ impl<'a> LmdbQueryHandler<'a> {
     fn skip_eq_values(
         &self,
         db: &Database,
-        last_filter: Option<&IndexFilter>,
+        last_filter: Option<(Operator, SortDirection)>,
         start_key: Option<&Vec<u8>>,
         end_key: Option<&Vec<u8>>,
         current_key: &[u8],
-        sort_order: bool,
     ) -> bool {
-        last_filter.map_or(false, |f| match f.op {
-            Operator::LT => {
-                if sort_order {
-                    false
-                } else {
+        last_filter.map_or(false, |(operator, sort_direction)| match operator {
+            Operator::LT => match sort_direction {
+                SortDirection::Ascending => {
+                    let cmp = lmdb_cmp(self.txn, db, current_key, end_key);
+                    cmp == 0
+                }
+                SortDirection::Descending => {
                     let end_cmp = lmdb_cmp(self.txn, db, current_key, end_key);
                     end_cmp == 0
                 }
-            }
-            Operator::GT => {
-                if sort_order {
+            },
+            Operator::GT => match sort_direction {
+                SortDirection::Ascending => {
                     let cmp = lmdb_cmp(self.txn, db, current_key, start_key);
                     cmp == 0
-                } else {
-                    false
                 }
-            }
+                SortDirection::Descending => {
+                    let end_cmp = lmdb_cmp(self.txn, db, current_key, end_key);
+                    end_cmp == 0
+                }
+            },
             Operator::GTE
             | Operator::LTE
             | Operator::EQ
@@ -221,42 +219,29 @@ impl<'a> LmdbQueryHandler<'a> {
         key: &[u8],
         start_key: Option<&Vec<u8>>,
         end_key: Option<&Vec<u8>>,
-        sort_order: bool,
-        last_filter: Option<&IndexFilter>,
+        last_filter: Option<(Operator, SortDirection)>,
     ) -> bool {
         let cmp = lmdb_cmp(self.txn, db, key, start_key);
         let end_cmp = lmdb_cmp(self.txn, db, key, end_key);
 
-        last_filter.map_or(cmp == 0, |f| match f.op {
-            Operator::LT => {
-                if sort_order {
-                    end_cmp < 0
-                } else {
-                    cmp >= 0
-                }
-            }
-            Operator::LTE => {
-                if sort_order {
-                    end_cmp <= 0
-                } else {
-                    cmp > 0
-                }
-            }
+        last_filter.map_or(cmp == 0, |(operator, sort_direction)| match operator {
+            Operator::LT => match sort_direction {
+                SortDirection::Ascending => end_cmp < 0,
+                SortDirection::Descending => cmp >= 0,
+            },
+            Operator::LTE => match sort_direction {
+                SortDirection::Ascending => end_cmp <= 0,
+                SortDirection::Descending => cmp > 0,
+            },
 
-            Operator::GT => {
-                if sort_order {
-                    cmp > 0
-                } else {
-                    end_cmp <= 0
-                }
-            }
-            Operator::GTE => {
-                if sort_order {
-                    cmp >= 0
-                } else {
-                    end_cmp < 0
-                }
-            }
+            Operator::GT => match sort_direction {
+                SortDirection::Ascending => cmp > 0,
+                SortDirection::Descending => end_cmp <= 0,
+            },
+            Operator::GTE => match sort_direction {
+                SortDirection::Ascending => cmp >= 0,
+                SortDirection::Descending => end_cmp < 0,
+            },
             Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
                 cmp == 0
             }
@@ -271,14 +256,14 @@ impl<'a> LmdbQueryHandler<'a> {
             } => {
                 let mut fields = vec![];
                 eq_filters.iter().for_each(|filter| {
-                    fields.push(filter.2.clone());
+                    fields.push((&filter.2, filter.1));
                 });
                 if let Some(range_query) = range_query {
                     if let Some((_, val)) = &range_query.operator_and_value {
-                        fields.push(val.clone());
+                        fields.push((val, range_query.sort_direction));
                     }
                 }
-                self.build_composite_range_key(fields)
+                index::get_secondary_index(&fields).map_err(CacheError::map_serialization_error)
             }
             IndexScanKind::FullText { filter } => {
                 if let Field::String(token) = &filter.val {
@@ -289,41 +274,27 @@ impl<'a> LmdbQueryHandler<'a> {
             }
         }
     }
-
-    fn build_composite_range_key(&self, fields: Vec<Field>) -> Result<Vec<u8>, CacheError> {
-        // convert value to `Vec<u8>`
-        let field_bytes = fields
-            .iter()
-            .map(|field| field.to_bytes())
-            .collect::<Result<Vec<_>, TypeError>>()?;
-
-        Ok(index::get_secondary_index(&field_bytes))
-    }
 }
 
 fn get_start_end_keys(
-    last_filter: Option<&IndexFilter>,
-    sort_order: bool,
+    last_filter: Option<(Operator, SortDirection)>,
     comp_key: Vec<u8>,
 ) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
-    last_filter.map_or((Some(comp_key.to_owned()), None), |f| match f.op {
-        Operator::LT | Operator::LTE => {
-            if sort_order {
-                (None, Some(comp_key))
-            } else {
-                (Some(comp_key), None)
-            }
-        }
+    last_filter.map_or(
+        (Some(comp_key.to_owned()), None),
+        |(operator, sort_direction)| match operator {
+            Operator::LT | Operator::LTE => match sort_direction {
+                SortDirection::Ascending => (None, Some(comp_key)),
+                SortDirection::Descending => (Some(comp_key), None),
+            },
 
-        Operator::GT | Operator::GTE => {
-            if sort_order {
+            Operator::GT | Operator::GTE => match sort_direction {
+                SortDirection::Ascending => (Some(comp_key), None),
+                SortDirection::Descending => (None, Some(comp_key)),
+            },
+            Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
                 (Some(comp_key), None)
-            } else {
-                (None, Some(comp_key))
             }
-        }
-        Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
-            (Some(comp_key), None)
-        }
-    })
+        },
+    )
 }

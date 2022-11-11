@@ -191,7 +191,7 @@ fn test_get_all_indexes() {
     );
 
     // Only `Eq`.
-    let filter = IndexFilter::equals(0, Field::String("a".into()));
+    let filter = IndexFilter::new(0, Operator::EQ, Field::String("a".into()));
     check(
         vec![(filter.clone(), None)],
         None,
