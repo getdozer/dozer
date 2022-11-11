@@ -4,6 +4,7 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory, Source, SourceFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use sqlparser::ast::Statement;
@@ -80,7 +81,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
-                            Field::Float(5.5),
+                            Field::Float(OrderedFloat(5.5)),
                         ],
                     ),
                 },

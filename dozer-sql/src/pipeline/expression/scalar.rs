@@ -1,6 +1,8 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, Record};
+use num_traits::Float;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
@@ -48,11 +50,11 @@ fn evaluate_round(
     if let Some(expression) = decimals {
         match expression.evaluate(record)? {
             Field::Int(i) => places = i as i32,
-            Field::Float(f) => places = f.round() as i32,
+            Field::Float(f) => places = f.round().0 as i32,
             _ => {} // Truncate value to 0 decimals
         }
     }
-    let order = 10.0_f64.powi(places);
+    let order = OrderedFloat(10.0_f64.powi(places));
 
     match value {
         Field::Int(i) => Ok(Field::Int(i)),
@@ -76,46 +78,46 @@ fn test_round() {
         Field::Int(1)
     );
 
-    let v = Box::new(Literal(Field::Float(2.1)));
+    let v = Box::new(Literal(Field::Float(OrderedFloat(2.1))));
     let d = &Box::new(Literal(Field::Int(0)));
     assert_eq!(
         evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(2.0)
+        Field::Float(OrderedFloat(2.0))
     );
 
-    let v = Box::new(Literal(Field::Float(2.6)));
+    let v = Box::new(Literal(Field::Float(OrderedFloat(2.6))));
     let d = &Box::new(Literal(Field::Int(0)));
     assert_eq!(
         evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(3.0)
+        Field::Float(OrderedFloat(3.0))
     );
 
-    let v = Box::new(Literal(Field::Float(2.633)));
+    let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
     let d = &Box::new(Literal(Field::Int(2)));
     assert_eq!(
         evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(2.63)
+        Field::Float(OrderedFloat(2.63))
     );
 
-    let v = Box::new(Literal(Field::Float(212.633)));
+    let v = Box::new(Literal(Field::Float(OrderedFloat(212.633))));
     let d = &Box::new(Literal(Field::Int(-2)));
     assert_eq!(
         evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(200.0)
+        Field::Float(OrderedFloat(200.0))
     );
 
-    let v = Box::new(Literal(Field::Float(2.633)));
-    let d = &Box::new(Literal(Field::Float(2.1)));
+    let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
+    let d = &Box::new(Literal(Field::Float(OrderedFloat(2.1))));
     assert_eq!(
         evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(2.63)
+        Field::Float(OrderedFloat(2.63))
     );
 
-    let v = Box::new(Literal(Field::Float(2.633)));
+    let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
     let d = &Box::new(Literal(Field::String("2.3".to_string())));
     assert_eq!(
         evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(3.0)
+        Field::Float(OrderedFloat(3.0))
     );
 
     // let v = Box::new(Literal(Field::Boolean(true)));

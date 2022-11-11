@@ -1,5 +1,7 @@
+use std::cmp::Ordering;
+
 use dozer_types::bincode;
-use dozer_types::types::{IndexDefinition, Record};
+use dozer_types::types::{IndexDefinition, Record, SortDirection};
 
 pub trait CacheIndex {
     // Builds one index based on index definition and record
@@ -33,15 +35,30 @@ pub fn has_primary_key_changed(
         .any(|idx| old_values[*idx] != new_values[*idx])
 }
 
-pub fn get_secondary_index(field_val: &[Option<Vec<u8>>]) -> Vec<u8> {
-    // Put a '#' at first so the result is never empty.
-    let field_val: Vec<Vec<u8>> = std::iter::once(vec![b'#'])
-        .chain(field_val.iter().map(|f| match f {
-            Some(f) => f.clone(),
-            None => vec![],
-        }))
-        .collect();
-    field_val.join("#".as_bytes())
+pub fn get_secondary_index(fields: &[(&Field, SortDirection)]) -> Result<Vec<u8>, bincode::Error> {
+    bincode::serialize(fields)
+}
+
+pub fn compare_secondary_index(a: &[u8], b: &[u8]) -> bincode::Result<Ordering> {
+    let mut a_fields = bincode::deserialize::<Vec<(Field, SortDirection)>>(a)?.into_iter();
+    let mut b_fields = bincode::deserialize::<Vec<(Field, SortDirection)>>(b)?.into_iter();
+    Ok(loop {
+        match (a_fields.next(), b_fields.next()) {
+            (Some((a, a_direction)), Some((b, b_direction))) => {
+                debug_assert!(a_direction == b_direction);
+                match a.cmp(&b) {
+                    Ordering::Equal => continue,
+                    ordering => match a_direction {
+                        SortDirection::Ascending => break ordering,
+                        SortDirection::Descending => break ordering.reverse(),
+                    },
+                }
+            }
+            (Some(_), None) => break Ordering::Greater,
+            (None, Some(_)) => break Ordering::Less,
+            (None, None) => break Ordering::Equal,
+        }
+    })
 }
 
 pub fn get_full_text_secondary_index(token: &str) -> Vec<u8> {
@@ -58,9 +75,7 @@ mod tests {
 
     #[test]
     fn secondary_index_is_never_empty() {
-        assert!(!super::get_secondary_index(&[]).is_empty());
-        assert!(!super::get_secondary_index(&[None]).is_empty());
-        assert!(!super::get_secondary_index(&[Some(vec![])]).is_empty());
+        assert!(!super::get_secondary_index(&[]).unwrap().is_empty());
     }
 
     #[test]

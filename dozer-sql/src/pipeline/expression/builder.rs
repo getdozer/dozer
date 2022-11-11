@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use dozer_types::{
     errors::types::TypeError,
+    ordered_float::OrderedFloat,
     types::{Field, Schema},
 };
 
@@ -357,7 +358,10 @@ impl ExpressionBuilder {
         match n.parse::<i64>() {
             Ok(n) => Ok((Box::new(Expression::Literal(Field::Int(n))), false)),
             Err(_) => match n.parse::<f64>() {
-                Ok(f) => Ok((Box::new(Expression::Literal(Field::Float(f))), false)),
+                Ok(f) => Ok((
+                    Box::new(Expression::Literal(Field::Float(OrderedFloat(f)))),
+                    false,
+                )),
                 Err(_) => Err(InvalidValue(n.to_string())),
             },
         }

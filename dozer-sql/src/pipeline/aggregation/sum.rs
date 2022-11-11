@@ -1,6 +1,7 @@
 use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
 
@@ -121,10 +122,10 @@ impl Aggregator for FloatSumAggregator {
     }
 
     fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
-        let prev = match curr_state {
+        let prev = OrderedFloat(match curr_state {
             Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_f64,
-        };
+        });
 
         let curr = match &new {
             Float(i) => i,
@@ -142,10 +143,10 @@ impl Aggregator for FloatSumAggregator {
         old: &Field,
         new: &Field,
     ) -> Result<Vec<u8>, PipelineError> {
-        let prev = match curr_state {
+        let prev = OrderedFloat(match curr_state {
             Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_f64,
-        };
+        });
 
         let curr_del = match &old {
             Float(i) => i,
@@ -164,10 +165,10 @@ impl Aggregator for FloatSumAggregator {
     }
 
     fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
-        let prev = match curr_state {
+        let prev = OrderedFloat(match curr_state {
             Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_f64,
-        };
+        });
 
         let curr = match &old {
             Float(i) => i,
@@ -180,6 +181,6 @@ impl Aggregator for FloatSumAggregator {
     }
 
     fn get_value(&self, f: &[u8]) -> Field {
-        Float(f64::from_ne_bytes(f.try_into().unwrap()))
+        Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap())))
     }
 }

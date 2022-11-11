@@ -7,6 +7,7 @@ use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError}
 use bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
 use dozer_types::log::error;
+use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Client, Column, NoTls, Row};
 use postgres_types::{Type, WasNull};
@@ -24,12 +25,12 @@ pub fn postgres_type_to_field(
             &Type::INT2 | &Type::INT4 | &Type::INT8 => Ok(Field::Int(
                 String::from_utf8(value.to_vec()).unwrap().parse().unwrap(),
             )),
-            &Type::FLOAT4 | &Type::FLOAT8 => Ok(Field::Float(
+            &Type::FLOAT4 | &Type::FLOAT8 => Ok(Field::Float(OrderedFloat(
                 String::from_utf8(value.to_vec())
                     .unwrap()
                     .parse::<f64>()
                     .unwrap(),
-            )),
+            ))),
             &Type::TEXT | &Type::VARCHAR => {
                 Ok(Field::String(String::from_utf8(value.to_vec()).unwrap()))
             }
@@ -255,7 +256,7 @@ mod tests {
     #[test]
     fn it_converts_postgres_type_to_field() {
         test_conversion!("12", Type::INT8, Field::Int(12));
-        test_conversion!("4.7809", Type::FLOAT8, Field::Float(4.7809));
+        test_conversion!("4.7809", Type::FLOAT8, Field::Float(OrderedFloat(4.7809)));
         let value = String::from("Test text");
         test_conversion!("Test text", Type::TEXT, Field::String(value));
 

@@ -110,6 +110,7 @@ mod tests {
         types::{Field, FieldType},
     };
     use chrono::{TimeZone, Utc};
+    use ordered_float::OrderedFloat;
     use rust_decimal::Decimal;
     use serde_json::json;
     fn test_field_conversion(field_type: FieldType, field: Field) -> anyhow::Result<()> {
@@ -128,7 +129,7 @@ mod tests {
         let fields = vec![
             (FieldType::Int, Field::Int(-1)),
             (FieldType::UInt, Field::UInt(1)),
-            (FieldType::Float, Field::Float(1.1)),
+            (FieldType::Float, Field::Float(OrderedFloat(1.1))),
             (FieldType::Boolean, Field::Boolean(true)),
             (FieldType::String, Field::String("a".to_string())),
             (FieldType::Binary, Field::Binary(b"asdf".to_vec())),
@@ -146,7 +147,11 @@ mod tests {
             (FieldType::IntArray, Field::IntArray(vec![1, -2, 3])),
             (
                 FieldType::FloatArray,
-                Field::FloatArray(vec![1.0_f64, 2.0_f64, 3.2_f64]),
+                Field::FloatArray(vec![
+                    OrderedFloat(1.0_f64),
+                    OrderedFloat(2.0_f64),
+                    OrderedFloat(3.2_f64),
+                ]),
             ),
             (
                 FieldType::BooleanArray,

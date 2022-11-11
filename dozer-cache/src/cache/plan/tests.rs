@@ -1,11 +1,14 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression},
-    plan::IndexFilter,
+    expression::{self, FilterExpression, QueryExpression, SortOptions},
+    plan::{IndexScanKind, SortedInvertedRangeQuery},
     test_utils,
 };
 
-use dozer_types::serde_json::Value;
+use dozer_types::{
+    serde_json::Value,
+    types::{Field, SortDirection},
+};
 
 #[test]
 fn test_generate_plan_simple() {
@@ -24,11 +27,25 @@ fn test_generate_plan_simple() {
     let planner = QueryPlanner::new(&schema, &query);
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
-        assert_eq!(index_scans[0].index_def, schema.secondary_indexes[0]);
-        assert_eq!(
-            index_scans[0].filters,
-            vec![Some(IndexFilter::equals(Value::from("bar".to_string())))]
-        );
+        assert_eq!(index_scans[0].index_id, 0);
+        match &index_scans[0].kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                assert_eq!(eq_filters.len(), 1);
+                assert_eq!(
+                    eq_filters[0],
+                    (
+                        0,
+                        SortDirection::Ascending,
+                        Field::String("bar".to_string())
+                    )
+                );
+                assert_eq!(range_query, &None);
+            }
+            _ => panic!("Must be sorted inverted"),
+        }
     } else {
         panic!("IndexScan expected")
     }
@@ -51,14 +68,65 @@ fn test_generate_plan_and() {
     // Pick the 3rd index
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
-        assert_eq!(index_scans[0].index_def, schema.secondary_indexes[3]);
-        assert_eq!(
-            index_scans[0].filters,
-            vec![
-                Some(IndexFilter::new(expression::Operator::EQ, Value::from(1))),
-                Some(IndexFilter::equals(Value::from("test".to_string())))
-            ]
-        );
+        assert_eq!(index_scans[0].index_id, 3);
+        match &index_scans[0].kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                assert_eq!(eq_filters.len(), 2);
+                assert_eq!(eq_filters[0], (0, SortDirection::Ascending, Field::Int(1)));
+                assert_eq!(
+                    eq_filters[1],
+                    (
+                        1,
+                        SortDirection::Ascending,
+                        Field::String("test".to_string())
+                    )
+                );
+                assert_eq!(range_query, &None);
+            }
+            _ => panic!("Must be sorted inverted"),
+        }
+    } else {
+        panic!("IndexScan expected")
+    }
+}
+
+#[test]
+fn test_generate_plan_range_query_and_order_by() {
+    let schema = test_utils::schema_1();
+    let filter = FilterExpression::Simple("c".into(), expression::Operator::GT, 1.into());
+    let query = QueryExpression::new(
+        Some(filter),
+        vec![SortOptions {
+            field_name: "c".into(),
+            direction: SortDirection::Descending,
+        }],
+        10,
+        0,
+    );
+    let planner = QueryPlanner::new(&schema, &query);
+    if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
+        assert_eq!(index_scans.len(), 1);
+        assert_eq!(index_scans[0].index_id, 4);
+        match &index_scans[0].kind {
+            IndexScanKind::SortedInverted {
+                eq_filters,
+                range_query,
+            } => {
+                assert_eq!(eq_filters.len(), 0);
+                assert_eq!(
+                    range_query,
+                    &Some(SortedInvertedRangeQuery {
+                        field_index: 2,
+                        sort_direction: SortDirection::Descending,
+                        operator_and_value: Some((expression::Operator::GT, 1.into())),
+                    })
+                );
+            }
+            _ => panic!("Must be sorted inverted"),
+        }
     } else {
         panic!("IndexScan expected")
     }

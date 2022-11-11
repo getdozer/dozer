@@ -5,7 +5,7 @@ use crate::cache::{
 };
 use dozer_types::{
     serde_json::{self, json, Value},
-    types::{Field, Record},
+    types::{Field, Record, Schema},
 };
 
 #[test]
@@ -126,6 +126,26 @@ fn query_secondary_vars() {
     test_query(json!({"$filter":{ "c": {"$lt": 600}}}), 7, &cache);
 
     test_query(json!({"$filter":{ "c": {"$gt": 200}}}), 7, &cache);
+
+    test_query_record(
+        json!({
+            "$filter":{ "c": {"$gt": 526}},
+            "$order_by": [{"field_name": "c", "direction": "asc"}]
+        }),
+        vec![(6, "mega".to_string(), 527), (7, "james".to_string(), 528)],
+        &schema,
+        &cache,
+    );
+
+    test_query_record(
+        json!({
+            "$filter":{ "c": {"$gt": 526}},
+            "$order_by": [{"field_name": "c", "direction": "desc"}]
+        }),
+        vec![(7, "james".to_string(), 528), (6, "mega".to_string(), 527)],
+        &schema,
+        &cache,
+    );
 }
 
 fn test_query_err(query: Value, cache: &LmdbCache) {
@@ -145,4 +165,24 @@ fn test_query(query: Value, count: usize, cache: &LmdbCache) {
     let records = cache.query("sample", &query).unwrap();
 
     assert_eq!(records.len(), count, "Count must be equal : {:?}", query);
+}
+
+fn test_query_record(
+    query: Value,
+    expected: Vec<(i64, String, i64)>,
+    schema: &Schema,
+    cache: &LmdbCache,
+) {
+    let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    let records = cache.query("sample", &query).unwrap();
+    let expected = expected
+        .into_iter()
+        .map(|(a, b, c)| {
+            Record::new(
+                schema.identifier.clone(),
+                vec![Field::Int(a), Field::String(b), Field::Int(c)],
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(records, expected);
 }

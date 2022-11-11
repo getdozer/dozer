@@ -43,7 +43,7 @@ pub fn field_to_prost_value(f: &Field) -> Value {
             value: Some(value::Value::IntValue(*n)),
         },
         Field::Float(n) => Value {
-            value: Some(value::Value::FloatValue(*n as f32)),
+            value: Some(value::Value::FloatValue(n.0 as f32)),
         },
 
         Field::Boolean(n) => Value {
@@ -84,7 +84,7 @@ pub fn field_to_prost_value(f: &Field) -> Value {
                 array_value: arr
                     .iter()
                     .map(|v| Value {
-                        value: Some(value::Value::FloatValue(*v as f32)),
+                        value: Some(value::Value::FloatValue(v.0 as f32)),
                     })
                     .collect(),
             })),
