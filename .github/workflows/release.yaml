@@ -1,0 +1,131 @@
+name: Release
+on:
+  push:
+    branches: [release, release-*]
+    tags:
+      - "v*.*.*"
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # https://github.com/orhun/git-cliff/blob/main/.github/workflows/cd.yml
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-20.04
+    outputs:
+      release_body: ${{ steps.release.outputs.release_body }}
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@v1
+        id: git-cliff
+        with:
+          config: .github/config/cliff.toml
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+
+      - name: Set the release body
+        id: release
+        shell: bash
+        run: |
+          r=$(cat ${{ steps.git-cliff.outputs.changelog }})
+          r="$(printf "$r" | tail -n +3)"
+          r="${r//'%'/'%25'}"
+          r="${r//$'\n'/'%0A'}"
+          r="${r//$'\r'/'%0D'}"
+          echo "::set-output name=release_body::$r"
+
+      - name: Set release version
+        id: version
+        run: |
+          tag=$(echo "${{ github.ref }}")
+          if [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::set-output name=version::$tag"
+            echo "::set-output name=prerelease::false"
+          else
+            echo "::set-output name=version::latest"
+            echo "::set-output name=prerelease::true"
+          fi
+  release:
+    name: Release
+    runs-on: ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-12]
+        include:
+          - os: ubuntu-20.04
+            file_name: dozer
+            asset_name: dozer-linux-amd64
+          - os: macos-12
+            file_name: dozer
+            asset_name: dozer-macos-amd64
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-release-
+
+      - name: Release
+        run: |
+          cargo build --release
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release
+          cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
+
+          cp target/release/${{matrix.file_name}} release/
+
+          mv release/ ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
+
+          tar -czvf ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz \
+              ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
+
+      - name: Upload the release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}*
+          file_glob: true
+          overwrite: true
+          tag: ${{ needs.prepare.outputs.version }}
+          release_name: "Development Release - ${{ needs.prepare.outputs.version }}"
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          body: "${{ needs.prepare.outputs.release_body }}"

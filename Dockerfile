@@ -2,9 +2,6 @@ FROM rust:latest as builder
 WORKDIR "/usr/dozer"
 RUN apt-get update && apt-get install -y \
       build-essential \
-      autoconf \
-      automake \
-      libtool \
       make \
       g++ \
       libclang-dev \
@@ -12,12 +9,8 @@ RUN apt-get update && apt-get install -y \
       devscripts \
       debhelper \
       build-essential \
-      fakeroot \
-      zlib1g-dev \
-      libbz2-dev \
-      libsnappy-dev \
-      libgflags-dev \
-      libzstd-dev
+      libssl-dev \
+      pkg-config
 
 COPY . .
 RUN cargo build --release --bin dozer
