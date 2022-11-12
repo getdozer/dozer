@@ -83,7 +83,7 @@ impl Orchestrator for SimpleOrchestrator {
         let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
 
         // Initialize GRPC Server
-        let grpc_server = GRPCServer::new(receiver, 50051);
+        let grpc_server = GRPCServer::new(receiver, 50051, false);
 
         let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             grpc_server
