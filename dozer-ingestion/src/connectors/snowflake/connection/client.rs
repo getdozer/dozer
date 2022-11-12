@@ -96,11 +96,7 @@ pub struct Client {
 impl Client {
     pub fn new(config: &SnowflakeConfig) -> Self {
         let mut conn_hashmap: HashMap<String, String> = HashMap::new();
-        conn_hashmap.insert(
-            "Driver".to_string(),
-            // TODO: fix usage of snowflake odbc lib
-            "snowflake".to_string(),
-        );
+        conn_hashmap.insert("Driver".to_string(), config.clone().driver);
         conn_hashmap.insert("Server".to_string(), config.clone().server);
         conn_hashmap.insert("Port".to_string(), config.clone().port);
         conn_hashmap.insert("Uid".to_string(), config.clone().user);
