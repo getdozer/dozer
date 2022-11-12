@@ -1,8 +1,9 @@
-name: Nightly
+name: Dozer Scheduled
 # Long running tests, Performance benchmarks, Code vulnerability, Code coverage etc
 on:
   schedule:
-    - cron: "0 0 * * *"
+    # 9pm SGT
+    - cron: "0 13 * * *"
   push:
     branches: [chore/run-benches]
 
@@ -24,6 +25,8 @@ jobs:
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions-rs/cargo@v1
         with:
@@ -68,7 +71,7 @@ jobs:
 
             Last Commit: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
 
-            Response: ${{ steps.coveralls.output.coveralls-api-result }}
+            Response: ${{ steps.coveralls.outputs.coveralls-api-result }}
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -137,9 +140,7 @@ jobs:
             ```
             Criterion: ${{ job.status }}
 
-            Last Commit: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
-
-            Criterion Report: https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/criterion/report/index.html
+            Criterion Report: https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/criterion/reports/index.html
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
