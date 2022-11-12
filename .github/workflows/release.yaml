@@ -1,7 +1,7 @@
 name: Release
 on:
   push:
-    branches: [release, release-*]
+    # branches: [release, release-*]
     tags:
       - "v*.*.*"
 env:
@@ -48,7 +48,8 @@ jobs:
       - name: Set release version
         id: version
         run: |
-          tag=$(echo "${{ github.ref }}")
+          tag=$(printf "%q" ${{ github.ref_name }})
+
           if [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::set-output name=version::$tag"
             echo "::set-output name=prerelease::false"
