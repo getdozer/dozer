@@ -205,11 +205,7 @@ fn test_get_all_indexes() {
                 range_query: None,
             }],
             vec![IndexScanKind::SortedInverted {
-                eq_filters: vec![(
-                    filter.field_index,
-                    SortDirection::Descending,
-                    filter.val.clone(),
-                )],
+                eq_filters: vec![(filter.field_index, SortDirection::Descending, filter.val)],
                 range_query: None,
             }],
         ],

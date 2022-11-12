@@ -20,14 +20,18 @@ pub fn generate_proto(
     schema: Option<dozer_types::types::Schema>,
 ) -> Result<(std::string::String, HashMap<std::string::String, GrpcType>), GenerationError> {
     let endpoint = test_utils::get_endpoint();
-    let pipeline_details = vec![PipelineDetails {
-        schema_name: schema_name.clone(),
-        cache_endpoint: CacheEndpoint {
-            cache: test_utils::initialize_cache(&schema_name, schema),
-            endpoint,
+    let mut map = HashMap::new();
+    map.insert(
+        schema_name.clone(),
+        PipelineDetails {
+            schema_name: schema_name.clone(),
+            cache_endpoint: CacheEndpoint {
+                cache: test_utils::initialize_cache(&schema_name, schema),
+                endpoint,
+            },
         },
-    }];
-    let proto_generator = ProtoGenerator::new(pipeline_details)?;
+    );
+    let proto_generator = ProtoGenerator::new(map)?;
     let generated_proto = proto_generator.generate_proto(dir_path)?;
     Ok(generated_proto)
 }

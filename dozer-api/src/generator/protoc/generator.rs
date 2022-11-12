@@ -28,10 +28,10 @@ pub struct ProtoGenerator<'a> {
 }
 
 impl ProtoGenerator<'_> {
-    pub fn new(pipeline_details_list: Vec<PipelineDetails>) -> Result<Self, GenerationError> {
-        let vec_proto_svc = pipeline_details_list
+    pub fn new(pipeline_map: HashMap<String, PipelineDetails>) -> Result<Self, GenerationError> {
+        let vec_proto_svc = pipeline_map
             .iter()
-            .map(|x| {
+            .map(|(_, x)| {
                 let cache = x.to_owned().cache_endpoint.cache;
                 let endpoint = x.to_owned().cache_endpoint.endpoint;
                 let schema_name = endpoint.name.to_owned();
