@@ -41,6 +41,7 @@ pub enum Authentication {
         database: String,
         schema: String,
         warehouse: String,
+        driver: String,
     },
 }
 impl Display for DBType {

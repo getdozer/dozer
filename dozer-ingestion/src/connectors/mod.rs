@@ -77,6 +77,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             database,
             schema,
             warehouse,
+            driver
         } => {
             let snowflake_config = SnowflakeConfig {
                 server,
@@ -86,6 +87,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 database,
                 schema,
                 warehouse,
+                driver
             };
 
             Box::new(SnowflakeConnector::new(4, snowflake_config))
