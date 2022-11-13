@@ -45,7 +45,9 @@ async fn on_insert_grpc_server_stream(
             let receiver_event = broadcast_receiver.recv().await;
             match receiver_event {
                 Ok(event) => {
-                    if let ApiEvent::Operation(Operation::Insert { new: record }) = event {
+                    if let ApiEvent::Operation(_endpoint_name, Operation::Insert { new: record }) =
+                        event
+                    {
                         let converted_record = api_helper.convert_record_to_json(record).unwrap();
                         let value_json = serde_json::to_value(converted_record)
                             .map_err(GRPCError::SerizalizeError)

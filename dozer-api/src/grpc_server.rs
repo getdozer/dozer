@@ -62,7 +62,7 @@ impl GRPCServer {
         // wait until all schemas are initalized
         while schemas.len() < pipeline_map.len() {
             let event = self.event_notifier.clone().recv();
-            if let Ok(ApiEvent::SchemaChange(schema_change)) = event {
+            if let Ok(ApiEvent::SchemaChange(_endpoint_name, schema_change)) = event {
                 let id = schema_change.get_id();
                 schemas.insert(id, schema_change);
             }

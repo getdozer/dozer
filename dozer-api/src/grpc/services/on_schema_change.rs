@@ -30,7 +30,7 @@ async fn on_schema_change_grpc_server_stream(
     let mut broadcast_receiver = event_notifier.resubscribe();
     tokio::spawn(async move {
         while let Ok(event) = broadcast_receiver.recv().await {
-            if let ApiEvent::SchemaChange(schema) = event {
+            if let ApiEvent::SchemaChange(_endpoint_name, schema) = event {
                 let value_json = serde_json::to_value(schema)
                     .map_err(GRPCError::SerizalizeError)
                     .unwrap();

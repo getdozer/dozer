@@ -39,7 +39,7 @@ async fn on_update_grpc_server_stream(
     let mut broadcast_receiver = event_notifier.resubscribe();
     tokio::spawn(async move {
         while let Ok(event) = broadcast_receiver.recv().await {
-            if let ApiEvent::Operation(Operation::Delete { old: record }) = event {
+            if let ApiEvent::Operation(_endpoint_name, Operation::Delete { old: record }) = event {
                 let converted_record = api_helper.convert_record_to_json(record).unwrap();
                 let value_json = serde_json::to_value(converted_record)
                     .map_err(GRPCError::SerizalizeError)

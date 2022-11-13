@@ -117,7 +117,7 @@ impl CommonGrpcService for ApiService {
     #[allow(non_camel_case_types)]
     type onEventStream = ResponseStream;
     async fn on_event(&self, request: Request<OnEventRequest>) -> EventResult<Self::onEventStream> {
-        let _request = request.into_inner();
+        let request = request.into_inner();
 
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         // create subscribe
@@ -128,12 +128,14 @@ impl CommonGrpcService for ApiService {
                 let receiver_event = broadcast_receiver.recv().await;
                 match receiver_event {
                     Ok(event) => {
-                        if let ApiEvent::Operation(operation) = event {
-                            let op = helper::map_operation(&operation);
-                            if (tx.send(Ok(op)).await).is_err() {
-                                warn!("on_insert_grpc_server_stream receiver drop");
-                                // receiver drop
-                                break;
+                        if let ApiEvent::Operation(endpoint_name, operation) = event {
+                            if endpoint_name == request.endpoint {
+                                let op = helper::map_operation(endpoint_name, &operation);
+                                if (tx.send(Ok(op)).await).is_err() {
+                                    warn!("on_insert_grpc_server_stream receiver drop");
+                                    // receiver drop
+                                    break;
+                                }
                             }
                         }
                     }

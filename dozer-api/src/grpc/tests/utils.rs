@@ -47,9 +47,12 @@ pub fn mock_event_notifier() -> channel::Receiver<ApiEvent> {
         thread::sleep(time::Duration::from_millis(1000));
         let record_json = json!({"schema_id":{"id":1811503150,"version":1},"values":[{"Int":1048},{"String":"Test33"},"Null",{"Int":2006}]});
 
-        let fake_event = ApiEvent::Operation(dozer_types::types::Operation::Insert {
-            new: serde_json::from_value(record_json).unwrap(),
-        });
+        let fake_event = ApiEvent::Operation(
+            "users".to_string(),
+            dozer_types::types::Operation::Insert {
+                new: serde_json::from_value(record_json).unwrap(),
+            },
+        );
         sender.try_send(fake_event).unwrap();
     });
     receiver
