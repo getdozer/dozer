@@ -19,7 +19,11 @@ tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4"] }
 # Eth connector
 web3 = "0.17.0"
 # odbc connector
-odbc = "0.17.0"
+odbc = { version = "0.17.0", optional = true }
+
+[features]
+# Defines a feature named `odbc` that does not enable any other features.
+snowflake = ["dep:odbc"]
 
 [dev-dependencies]
 serial_test = "0.4.0"

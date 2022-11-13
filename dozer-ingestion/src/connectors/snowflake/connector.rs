@@ -2,14 +2,18 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::Connector;
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
+#[cfg(feature = "snowflake")]
 use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::parking_lot::RwLock;
 
+#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::snapshotter::Snapshotter;
+#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
 use tokio::runtime::Runtime;

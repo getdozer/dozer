@@ -1,13 +1,12 @@
 pub mod ethereum;
 pub mod events;
 pub mod postgres;
+
 use crate::connectors::postgres::connection::helper::map_connection_config;
 
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
-use crate::connectors::snowflake::connector::SnowflakeConnector;
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::{EthConfig, SnowflakeConfig};
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
@@ -16,6 +15,16 @@ use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::sync::Arc;
+use dozer_types::ingestion_types::EthConfig;
+
+#[cfg(feature = "snowflake")]
+pub mod snowflake;
+
+#[cfg(feature = "snowflake")]
+use crate::connectors::snowflake::connector::SnowflakeConnector;
+
+#[cfg(feature = "snowflake")]
+use dozer_types::ingestion_types::SnowflakeConfig;
 
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
@@ -69,6 +78,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             Ok(Box::new(EthConnector::new(2, eth_config)))
         }
         Authentication::Events {} => Ok(Box::new(EventsConnector::new(3, connection.name))),
+        #[cfg(feature = "snowflake")]
         Authentication::SnowflakeAuthentication {
             server,
             port,

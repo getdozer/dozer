@@ -7,6 +7,7 @@ use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
 
+#[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
 
 #[derive(Error, Debug)]
@@ -38,6 +39,7 @@ pub enum ConnectorError {
     #[error(transparent)]
     PostgresConnectorError(#[from] PostgresConnectorError),
 
+    #[cfg(feature = "snowflake")]
     #[error(transparent)]
     SnowflakeError(#[from] SnowflakeError),
 
@@ -149,6 +151,7 @@ pub enum PostgresSchemaError {
     ValueConversionError(String),
 }
 
+#[cfg(feature = "snowflake")]
 #[derive(Error, Debug)]
 pub enum SnowflakeError {
     #[error("Snowflake query error")]
@@ -161,6 +164,7 @@ pub enum SnowflakeError {
     SnowflakeStreamError(#[from] SnowflakeStreamError),
 }
 
+#[cfg(feature = "snowflake")]
 #[derive(Error, Debug)]
 pub enum SnowflakeSchemaError {
     #[error("Column type {0} not supported")]
@@ -170,6 +174,7 @@ pub enum SnowflakeSchemaError {
     ValueConversionError(#[source] DiagnosticRecord),
 }
 
+#[cfg(feature = "snowflake")]
 #[derive(Error, Debug)]
 pub enum SnowflakeStreamError {
     #[error("Unsupported \"{0}\" action in stream")]

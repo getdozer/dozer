@@ -33,6 +33,7 @@ pub enum Authentication {
         wss_url: String,
     },
     Events {},
+    #[cfg(feature = "snowflake")]
     SnowflakeAuthentication {
         server: String,
         port: String,
