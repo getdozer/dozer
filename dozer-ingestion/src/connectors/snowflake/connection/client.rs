@@ -11,6 +11,7 @@ use odbc::{
     ResultSetState, Statement,
 };
 use std::collections::HashMap;
+use crate::errors::SnowflakeError::QueryError;
 
 pub fn convert_data(
     cursor: &mut Cursor<Executed, AutocommitOn>,
@@ -126,7 +127,7 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         query: String,
     ) -> Result<Option<bool>, SnowflakeError> {
-        let stmt = Statement::with_parent(conn).unwrap();
+        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
 
         let result = stmt
             .exec_direct(&query)
@@ -159,7 +160,7 @@ impl Client {
     ) -> Result<bool, SnowflakeError> {
         let query = format!("DESCRIBE STREAM {};", stream_name);
 
-        let stmt = Statement::with_parent(conn).unwrap();
+        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
         stmt.exec_direct(&query)
             .map_or_else(Self::parse_not_exist_error, |result| {
                 Ok(Self::parse_exist(result))
@@ -173,7 +174,7 @@ impl Client {
     ) -> Result<bool, SnowflakeError> {
         let query = format!("DESCRIBE TABLE {};", table_name);
 
-        let stmt = Statement::with_parent(conn).unwrap();
+        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
         stmt.exec_direct(&query)
             .map_or_else(Self::parse_not_exist_error, |result| {
                 Ok(Self::parse_exist(result))
@@ -185,15 +186,15 @@ impl Client {
         conn: &'a Connection<AutocommitOn>,
         query: String,
     ) -> Result<Option<(Vec<ColumnDescriptor>, ResultIterator<'a, 'b>)>, ConnectorError> {
-        let stmt = Statement::with_parent(conn).unwrap();
+        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
         // TODO: use stmt.close_cursor to improve efficiency
 
-        match stmt.exec_direct(&query).unwrap() {
+        match stmt.exec_direct(&query).map_err(QueryError)? {
             Data(stmt) => {
-                let cols = stmt.num_result_cols().unwrap();
+                let cols = stmt.num_result_cols().map_err(QueryError)?;
                 let mut schema = vec![];
                 for i in 1..(cols + 1) {
-                    schema.push(stmt.describe_col(i.try_into().unwrap()).unwrap());
+                    schema.push(stmt.describe_col(i.try_into().map_err(QueryError)?).map_err(QueryError)?);
                 }
                 Ok(Some((
                     schema.clone(),
