@@ -1,12 +1,14 @@
 #![allow(clippy::enum_variant_names)]
 
-use std::num::TryFromIntError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
+
+#[cfg(feature = "snowflake")]
+use std::num::TryFromIntError;
 
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;

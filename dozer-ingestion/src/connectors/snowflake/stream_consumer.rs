@@ -174,6 +174,10 @@ impl StreamConsumer {
                 Ok(())
             }
             None => Ok(()),
-        }
+        }?;
+
+        let query = format!("DELETE TEMP TABLE {};", temp_table_name);
+
+        client.exec(&conn, query).map_err(ConnectorError::SnowflakeError).map(|_| ())
     }
 }
