@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use std::num::TryFromIntError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
@@ -175,6 +176,9 @@ pub enum SnowflakeSchemaError {
 
     #[error("Value conversion Error")]
     ValueConversionError(#[source] DiagnosticRecord),
+
+    #[error("Schema conversion Error")]
+    SchemaConversionError(#[source] TryFromIntError),
 }
 
 #[cfg(feature = "snowflake")]
