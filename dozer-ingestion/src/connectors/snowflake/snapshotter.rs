@@ -1,15 +1,14 @@
-use crate::connectors::snowflake::connection::client::{Client, ResultIterator};
+use crate::connectors::snowflake::connection::client::Client;
 use crate::errors;
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::errors::SnowflakeError::ConnectionError;
-use odbc::{create_environment_v3, ColumnDescriptor};
+use odbc::create_environment_v3;
 use std::sync::Arc;
 
 pub struct Snapshotter {}
