@@ -4,6 +4,7 @@ pub mod postgres;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
+use dozer_types::ingestion_types::EthConfig;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
@@ -13,7 +14,6 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use dozer_types::ingestion_types::EthConfig;
 
 #[cfg(feature = "snowflake")]
 pub mod snowflake;
@@ -89,7 +89,7 @@ pub fn get_connector(connection: Connection) -> Box<dyn Connector> {
             database,
             schema,
             warehouse,
-            driver
+            driver,
         } => {
             let snowflake_config = SnowflakeConfig {
                 server,
@@ -99,7 +99,7 @@ pub fn get_connector(connection: Connection) -> Box<dyn Connector> {
                 database,
                 schema,
                 warehouse,
-                driver
+                driver,
             };
 
             Box::new(SnowflakeConnector::new(4, snowflake_config))

@@ -11,9 +11,7 @@ use dozer_types::parking_lot::RwLock;
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::errors;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
-use dozer_types::types::{
-    Field, Operation, OperationEvent, Record, SchemaIdentifier,
-};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 use odbc::create_environment_v3;
 use std::sync::Arc;
 

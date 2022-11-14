@@ -3,6 +3,8 @@ use dozer_types::log::debug;
 
 use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
+use crate::errors::SnowflakeError::QueryError;
+use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use dozer_types::types::Field;
 use odbc::ffi::SqlDataType;
 use odbc::odbc_safe::AutocommitOn;
@@ -11,7 +13,6 @@ use odbc::{
     ResultSetState, Statement,
 };
 use std::collections::HashMap;
-use crate::errors::SnowflakeError::QueryError;
 
 pub fn convert_data(
     cursor: &mut Cursor<Executed, AutocommitOn>,
@@ -192,10 +193,19 @@ impl Client {
         match stmt.exec_direct(&query).map_err(QueryError)? {
             Data(stmt) => {
                 let cols = stmt.num_result_cols().map_err(QueryError)?;
-                let mut schema = vec![];
-                for i in 1..(cols + 1) {
-                    schema.push(stmt.describe_col(i.try_into().map_err(QueryError)?).map_err(QueryError)?);
-                }
+                let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
+                    .map(|i| {
+                        let value = i.try_into();
+                        match value {
+                            Ok(v) => Ok(stmt.describe_col(v).map_err(QueryError)?),
+                            Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
+                                SchemaConversionError(e),
+                            )),
+                        }
+                    })
+                    .collect();
+
+                let schema = schema_result?;
                 Ok(Some((
                     schema.clone(),
                     ResultIterator { cols, stmt, schema },

@@ -5,14 +5,12 @@ use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{
-    Field, Operation, OperationEvent, Record, SchemaIdentifier,
-};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
-use odbc::{ColumnDescriptor, create_environment_v3};
-use std::sync::Arc;
 use crate::errors::SnowflakeError::ConnectionError;
+use odbc::{create_environment_v3, ColumnDescriptor};
+use std::sync::Arc;
 
 pub struct Snapshotter {}
 
@@ -72,13 +70,14 @@ impl Snapshotter {
                                     },
                                 },
                             }),
-                        ))?;
+                        ))
+                        .unwrap()
                 });
-            }
-            Err(e) => { Err(e) }
-            Ok(None) => Ok(())
-        }
 
-        Ok(())
+                Ok(())
+            }
+            Err(e) => Err(e),
+            Ok(None) => Ok(()),
+        }
     }
 }

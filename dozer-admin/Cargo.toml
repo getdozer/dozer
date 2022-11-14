@@ -31,3 +31,6 @@ cargo-expand = "1.0.31"
 [build-dependencies]
 tonic-build = "0.8"
 prost-wkt-build = "0.3.3"
+
+[features]
+snowflake=[]
