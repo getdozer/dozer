@@ -1,4 +1,4 @@
-use crate::connectors::snowflake::connection::client::Client;
+use crate::connectors::snowflake::connection::client::{Client, ResultIterator};
 use crate::errors;
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -10,8 +10,9 @@ use dozer_types::types::{
 };
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
-use odbc::create_environment_v3;
+use odbc::{ColumnDescriptor, create_environment_v3};
 use std::sync::Arc;
+use crate::errors::SnowflakeError::ConnectionError;
 
 pub struct Snapshotter {}
 
@@ -29,7 +30,7 @@ impl Snapshotter {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
             .connect_with_connection_string(&client.get_conn_string())
-            .unwrap();
+            .map_err(ConnectionError)?;
 
         let query = format!(
             "CREATE STREAM IF NOT EXISTS {} ON TABLE {} SHOW_INITIAL_ROWS = TRUE;",
@@ -71,16 +72,11 @@ impl Snapshotter {
                                     },
                                 },
                             }),
-                        ))
-                        .unwrap();
+                        ))?;
                 });
             }
-            Err(_) => {
-                debug!("error");
-            }
-            _ => {
-                debug!("other");
-            }
+            Err(e) => { Err(e) }
+            Ok(None) => Ok(())
         }
 
         Ok(())

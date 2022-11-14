@@ -157,6 +157,9 @@ pub enum SnowflakeError {
     #[error("Snowflake query error")]
     QueryError(#[source] DiagnosticRecord),
 
+    #[error("Snowflake connection error")]
+    ConnectionError(#[from] DiagnosticRecord),
+
     #[error(transparent)]
     SnowflakeSchemaError(#[from] SnowflakeSchemaError),
 
