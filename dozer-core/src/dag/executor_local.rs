@@ -6,7 +6,7 @@ use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
 };
 use crate::dag::executor_processor::{start_stateful_processor, start_stateless_processor};
-use crate::dag::executor_sink::start_stateful_sink;
+use crate::dag::executor_sink::{start_stateful_sink, start_stateless_sink};
 use crate::dag::executor_source::start_stateless_source;
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers,
@@ -111,7 +111,13 @@ impl MultiThreadedDagExecutor {
                     ));
                 }
                 SinkHolder::Stateless(s) => {
-                    todo!();
+                    handles.push(start_stateless_sink(
+                        holder.0.clone(),
+                        s,
+                        snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
+                        path.clone(),
+                        latch.clone(),
+                    ));
                 }
             }
         }
