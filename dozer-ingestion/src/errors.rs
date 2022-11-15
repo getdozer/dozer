@@ -21,6 +21,9 @@ pub enum ConnectorError {
     #[error("Failed to initialize connector")]
     InitializationError,
 
+    #[error("Failed to map configuration")]
+    WrongConnectionConfiguration,
+
     #[error("This connector doesn't support this method: {0}")]
     UnsupportedConnectorMethod(String),
 
@@ -32,6 +35,7 @@ pub enum ConnectorError {
 
     #[error(transparent)]
     PostgresConnectorError(#[from] PostgresConnectorError),
+
     #[error(transparent)]
     TypeError(#[from] TypeError),
 
@@ -59,8 +63,20 @@ impl ConnectorError {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum PostgresConnectorError {
+    #[error("Failed to connect to database: {0}")]
+    ConnectToDatabaseError(String),
+
+    #[error("Replication is not available for user")]
+    ReplicationIsNotAvailableForUserError,
+
+    #[error("WAL level should be 'logical'")]
+    WALLevelIsNotCorrect(),
+
+    #[error("Cannot find table: {:?}", .0.join(", "))]
+    TableError(Vec<String>),
+
     #[error("Failed to create a replication slot : {0}")]
     CreateSlotError(String),
 
@@ -79,6 +95,18 @@ pub enum PostgresConnectorError {
     #[error("fetch of replication slot info failed")]
     FetchReplicationSlot,
 
+    #[error("No slots available or all available slots are used")]
+    NoAvailableSlotsError,
+
+    #[error("Slot {0} not found")]
+    SlotNotExistError(String),
+
+    #[error("Slot {0} is already used by another process")]
+    SlotIsInUseError(String),
+
+    #[error("Start lsn is before first available lsn - {0} < {1}")]
+    StartLsnIsBeforeLastFlushedLsnError(String, String),
+
     #[error("fetch of replication slot info failed. Error: {0}")]
     SyncWithSnapshotError(String),
 
@@ -95,7 +123,7 @@ pub enum PostgresConnectorError {
     PostgresSchemaError(#[from] PostgresSchemaError),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Eq, PartialEq)]
 pub enum PostgresSchemaError {
     #[error("Schema's '{0}' replication identity settings is not correct. It is either not set or NOTHING")]
     SchemaReplicationIdentityError(String),

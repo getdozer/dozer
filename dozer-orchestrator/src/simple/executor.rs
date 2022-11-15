@@ -1,15 +1,10 @@
-use crate::errors::OrchestrationError;
-use dozer_api::CacheEndpoint;
-use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
-use dozer_types::crossbeam;
-use dozer_types::events::ApiEvent;
-use dozer_types::parking_lot::RwLock;
 use log::info;
 use std::collections::HashMap;
 use std::fs;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 use tempdir::TempDir;
 
@@ -17,11 +12,19 @@ use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
+use dozer_types::crossbeam;
+use dozer_types::events::ApiEvent;
 use dozer_types::models::connection::Connection;
+use dozer_types::parking_lot::RwLock;
+
+use crate::errors::OrchestrationError;
+use crate::validate;
 
 pub struct Executor {
     sources: Vec<Source>,
@@ -58,6 +61,8 @@ impl Executor {
         // For every pipeline, there will be one Source implementation
         // that can take multiple Connectors on different ports.
         for (idx, source) in self.sources.iter().cloned().enumerate() {
+            validate(source.connection.clone())?;
+
             let table_name = source.table_name.clone();
             let connection = source.connection.to_owned();
             let id = match &connection.id {

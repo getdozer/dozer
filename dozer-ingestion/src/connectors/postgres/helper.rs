@@ -6,10 +6,9 @@ use crate::errors::PostgresSchemaError::{
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use dozer_types::log::error;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, types::*};
-use postgres::{Client, Column, NoTls, Row};
+use postgres::{Column, Row};
 use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
@@ -184,24 +183,6 @@ pub fn map_row_to_operation_event(
             seq_no: idx as u64,
         }),
         Err(e) => Err(e),
-    }
-}
-
-pub fn connect(conn_str: String) -> Result<Client, ConnectorError> {
-    Client::connect(&conn_str, NoTls).map_err(|e| ConnectorError::InternalError(Box::new(e)))
-}
-
-pub async fn async_connect(conn_str: String) -> Result<tokio_postgres::Client, ConnectorError> {
-    match tokio_postgres::connect(&conn_str.clone(), NoTls).await {
-        Ok((client, connection)) => {
-            tokio::spawn(async move {
-                if let Err(e) = connection.await {
-                    error!("connection error: {}", e);
-                }
-            });
-            Ok(client)
-        }
-        Err(e) => Err(ConnectorError::InternalError(Box::new(e))),
     }
 }
 

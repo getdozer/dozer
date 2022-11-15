@@ -18,7 +18,7 @@ fn main() -> Result<(), ConnectorError> {
             id: 0,
             columns: None,
         }]),
-        conn_str: "host=127.0.0.1 port=5432 user=postgres dbname=users".to_string(),
+        config: tokio_postgres::Config::default().host("127.0.0.1").port(5432).user("postgres").dbname("pagila")
     };
 
     let t = thread::spawn(move || {

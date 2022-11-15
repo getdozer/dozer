@@ -121,6 +121,10 @@ impl Connector for EthConnector {
     fn test_connection(&self) -> Result<(), ConnectorError> {
         todo!()
     }
+
+    fn validate(&self) -> Result<(), ConnectorError> {
+        Ok(())
+    }
 }
 
 #[allow(unreachable_code)]

@@ -87,7 +87,7 @@ impl StatelessSource for ConnectorSource {
             let connection_map = self.connection_map.clone();
             let ra = self.running.clone();
             let t = thread::spawn(move || -> Result<(), ConnectorError> {
-                let mut connector = get_connector(connection.to_owned());
+                let mut connector = get_connector(connection.to_owned())?;
 
                 let id = match connection.id {
                     Some(idy) => idy,
@@ -146,10 +146,10 @@ impl StatelessSource for ConnectorSource {
                         let port = self
                             .table_map
                             .get(&table_name)
-                            .map_or(Err(ExecutionError::PortNotFound(table_name)), Ok)
+                            .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
                             .unwrap();
                         schema_map.insert(schema_id, port.to_owned());
-                        fw.update_schema(schema, port.to_owned())?
+                        fw.update_schema(schema.clone(), port.to_owned())?
                     }
                 }
             } else {

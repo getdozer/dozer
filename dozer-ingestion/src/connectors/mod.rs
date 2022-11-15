@@ -1,6 +1,8 @@
 pub mod ethereum;
 pub mod events;
 pub mod postgres;
+use crate::connectors::postgres::connection::helper::map_connection_config;
+
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -31,6 +33,7 @@ pub trait Connector: Send + Sync {
     ) -> Result<(), ConnectorError>;
     fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError>;
     fn stop(&self);
+    fn validate(&self) -> Result<(), ConnectorError>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -41,25 +44,20 @@ pub struct TableInfo {
     pub columns: Option<Vec<String>>,
 }
 
-pub fn get_connector(connection: Connection) -> Box<dyn Connector> {
+pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
     match connection.authentication {
-        Authentication::PostgresAuthentication {
-            user,
-            password: _,
-            host,
-            port,
-            database,
-        } => {
+        Authentication::PostgresAuthentication { .. } => {
+            let config = map_connection_config(&connection.authentication)?;
             let postgres_config = PostgresConfig {
-                name: connection.name,
+                name: connection.name.clone(),
                 tables: None,
-                conn_str: format!(
-                    "host={} port={} user={} dbname={}",
-                    host, port, user, database
-                ),
+                config,
             };
-            debug!("Connecting to postgres database - {}", database);
-            Box::new(PostgresConnector::new(1, postgres_config))
+
+            if let Some(dbname) = postgres_config.config.get_dbname() {
+                debug!("Connecting to postgres database - {}", dbname.to_string());
+            }
+            Ok(Box::new(PostgresConnector::new(1, postgres_config)))
         }
         Authentication::EthereumAuthentication { filter, wss_url } => {
             let eth_config = EthConfig {
@@ -68,8 +66,8 @@ pub fn get_connector(connection: Connection) -> Box<dyn Connector> {
                 wss_url,
             };
 
-            Box::new(EthConnector::new(2, eth_config))
+            Ok(Box::new(EthConnector::new(2, eth_config)))
         }
-        Authentication::Events {} => Box::new(EventsConnector::new(3, connection.name)),
+        Authentication::Events {} => Ok(Box::new(EventsConnector::new(3, connection.name))),
     }
 }

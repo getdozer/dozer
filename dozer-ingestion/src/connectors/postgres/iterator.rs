@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::connectors::postgres::helper;
+use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
 use postgres::Client;
@@ -23,8 +23,8 @@ pub struct Details {
     publication_name: String,
     slot_name: String,
     tables: Option<Vec<TableInfo>>,
-    conn_str: String,
-    conn_str_plain: String,
+    replication_conn_config: tokio_postgres::Config,
+    conn_config: tokio_postgres::Config,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -46,17 +46,17 @@ impl PostgresIterator {
         publication_name: String,
         slot_name: String,
         tables: Option<Vec<TableInfo>>,
-        conn_str: String,
-        conn_str_plain: String,
+        replication_conn_config: tokio_postgres::Config,
         ingestor: Arc<RwLock<Ingestor>>,
+        conn_config: tokio_postgres::Config,
     ) -> Self {
         let details = Arc::new(Details {
             id,
             publication_name,
             slot_name,
             tables,
-            conn_str,
-            conn_str_plain,
+            replication_conn_config,
+            conn_config,
         });
         PostgresIterator {
             details,
@@ -128,8 +128,8 @@ impl PostgresIteratorHandler {
     */
     pub fn _start(&mut self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
-        let conn_str = details.conn_str.to_owned();
-        let client = Arc::new(RefCell::new(helper::connect(conn_str)?));
+        let replication_conn_config = details.replication_conn_config.to_owned();
+        let client = Arc::new(RefCell::new(helper::connect(replication_conn_config)?));
 
         // TODO: Handle cases:
         // - When snapshot replication is not completed
@@ -162,7 +162,7 @@ impl PostgresIteratorHandler {
 
             let snapshotter = PostgresSnapshotter {
                 tables: details.tables.clone(),
-                conn_str: details.conn_str_plain.to_owned(),
+                conn_config: details.conn_config.to_owned(),
                 ingestor: Arc::clone(&self.ingestor),
                 connector_id: self.connector_id,
             };
@@ -261,7 +261,7 @@ impl PostgresIteratorHandler {
         let slot_name = self.details.slot_name.clone();
         rt.block_on(async {
             let mut replicator = CDCHandler {
-                conn_str: self.details.conn_str.clone(),
+                replication_conn_config: self.details.replication_conn_config.clone(),
                 ingestor,
                 lsn,
                 publication_name,
