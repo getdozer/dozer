@@ -1,24 +1,30 @@
-use dozer_types::errors::connector::ConnectorError;
+use crate::errors::ConnectorError;
 use dozer_types::log::error;
 use dozer_types::models::connection::Authentication;
 use postgres::{Client, Config};
 use tokio_postgres::NoTls;
 
-pub fn map_connection_config(auth_details: Authentication) -> tokio_postgres::Config {
-    let Authentication::PostgresAuthentication {
+pub fn map_connection_config(
+    auth_details: &Authentication,
+) -> Result<tokio_postgres::Config, ConnectorError> {
+    if let Authentication::PostgresAuthentication {
         host,
         port,
         user,
         database,
         password,
-    } = auth_details;
-    tokio_postgres::Config::new()
-        .host(&host)
-        .port(port)
-        .user(&user)
-        .dbname(&database)
-        .password(password)
-        .to_owned()
+    } = auth_details
+    {
+        Ok(tokio_postgres::Config::new()
+            .host(host)
+            .port(*port)
+            .user(user)
+            .dbname(database)
+            .password(password)
+            .to_owned())
+    } else {
+        Err(ConnectorError::WrongConnectionConfiguration)
+    }
 }
 
 pub fn connect(config: tokio_postgres::Config) -> Result<Client, ConnectorError> {

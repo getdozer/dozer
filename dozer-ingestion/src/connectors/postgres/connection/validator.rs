@@ -1,10 +1,9 @@
-use crate::connectors::connector::TableInfo;
 use crate::connectors::postgres::connector::ReplicationSlotInfo;
 
-use dozer_types::errors::connector::ConnectorError;
-use dozer_types::errors::connector::ConnectorError::InvalidQueryError;
-use dozer_types::errors::connector::PostgresConnectorError;
-
+use crate::connectors::TableInfo;
+use crate::errors::ConnectorError;
+use crate::errors::ConnectorError::InvalidQueryError;
+use crate::errors::PostgresConnectorError;
 use postgres::Client;
 use postgres_types::PgLsn;
 use std::borrow::BorrowMut;
@@ -165,12 +164,8 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), ConnectorEr
 
 #[cfg(test)]
 mod tests {
-    use crate::connectors::connector::TableInfo;
-
     use crate::connectors::postgres::connection::validator::validate_connection;
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
-
-    use dozer_types::errors::connector::{ConnectorError, PostgresConnectorError};
 
     use postgres_types::PgLsn;
 
@@ -179,6 +174,8 @@ mod tests {
 
     use tokio_postgres::NoTls;
 
+    use crate::connectors::TableInfo;
+    use crate::errors::{ConnectorError, PostgresConnectorError};
     use serial_test::serial;
 
     fn get_config() -> tokio_postgres::Config {

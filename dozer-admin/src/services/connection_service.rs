@@ -32,7 +32,7 @@ impl ConnectionService {
         connection: Connection,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ErrorResponse> {
         let get_schema_res = thread::spawn(|| {
-            let connector = get_connector(connection);
+            let connector = get_connector(connection).map_err(|err| err.to_string())?;
             connector.get_schemas(None).map_err(|err| err.to_string())
         });
         get_schema_res
@@ -152,7 +152,7 @@ impl ConnectionService {
         })?;
 
         let connection_test = thread::spawn(|| {
-            let connector = get_connector(connection);
+            let connector = get_connector(connection).map_err(|err| err.to_string())?;
             connector.test_connection().map_err(|err| err.to_string())
         });
         connection_test

@@ -56,7 +56,7 @@ impl Connector for EventsConnector {
 
     fn initialize(
         &mut self,
-        ingestor: std::sync::Arc<dozer_types::parking_lot::RwLock<crate::ingestion::Ingestor>>,
+        ingestor: Arc<RwLock<Ingestor>>,
         _: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         self.ingestor = Some(ingestor);
@@ -64,6 +64,10 @@ impl Connector for EventsConnector {
     }
 
     fn start(&self, _: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+        Ok(())
+    }
+
+    fn validate(&self) -> Result<(), ConnectorError> {
         Ok(())
     }
 }

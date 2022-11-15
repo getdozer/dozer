@@ -5,10 +5,14 @@ use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
 use crate::connectors::TableInfo;
 
-use super::helper::convert_str_to_dozer_field_type;
 use crate::connectors::postgres::connection::helper;
+use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
+use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
+use dozer_types::log::error;
+use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use tokio_postgres::Row;
 
 pub struct SchemaHelper {
     pub conn_config: tokio_postgres::Config,

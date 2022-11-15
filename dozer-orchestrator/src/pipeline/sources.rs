@@ -7,13 +7,14 @@ use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
-use dozer_types::parking_lot::RwLock;
+use dozer_types::parking_lot::{RawRwLock, RwLock};
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use log::debug;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use dozer_types::parking_lot::lock_api::RwLockWriteGuard;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -94,7 +95,7 @@ impl Source for ConnectorSource {
             let connection_map = self.connection_map.clone();
             let ra = self.running.clone();
             let t = thread::spawn(move || -> Result<(), ConnectorError> {
-                let mut connector = get_connector(connection.to_owned());
+                let mut connector = get_connector(connection.to_owned())?;
 
                 let id = match connection.id {
                     Some(idy) => idy,
@@ -153,11 +154,12 @@ impl Source for ConnectorSource {
                         let port = self
                             .table_map
                             .get(&table_name)
-                            .map_or(Err(ExecutionError::PortNotFound(table_name)), Ok)
+                            .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
                             .unwrap();
                         schema_map.insert(schema_id, port.to_owned());
-                        fw.update_schema(schema, port.to_owned())?
+                        fw.update_schema(schema.clone(), port.to_owned())?
                     }
+                    _ => {}
                 }
             } else {
                 break;

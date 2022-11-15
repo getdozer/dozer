@@ -1,9 +1,10 @@
-use dozer_types::errors::orchestrator::OrchestrationError;
-use log::debug;
+use log::info;
+use std::collections::HashMap;
 use std::fs;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 use tempdir::TempDir;
 
@@ -11,14 +12,18 @@ use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
+use dozer_types::crossbeam;
+use dozer_types::events::ApiEvent;
 use dozer_types::models::connection::Connection;
+use dozer_types::parking_lot::RwLock;
 
-use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
-use crate::{get_schema, validate};
+use crate::errors::OrchestrationError;
+use crate::validate;
 
 pub struct Executor {
     sources: Vec<Source>,

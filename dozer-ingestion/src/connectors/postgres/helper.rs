@@ -6,7 +6,6 @@ use crate::errors::PostgresSchemaError::{
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
-use dozer_types::log::error;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Column, Row};

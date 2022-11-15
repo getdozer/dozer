@@ -49,7 +49,6 @@ impl PostgresIterator {
         replication_conn_config: tokio_postgres::Config,
         ingestor: Arc<RwLock<Ingestor>>,
         conn_config: tokio_postgres::Config,
-        storage_client: Arc<RocksStorage>,
     ) -> Self {
         let details = Arc::new(Details {
             id,

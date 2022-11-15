@@ -23,7 +23,8 @@ pub struct PostgresSnapshotter {
 }
 
 impl PostgresSnapshotter {
-    pub fn get_tables(&self,
+    pub fn get_tables(
+        &self,
         table_names: Option<Vec<String>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
         let mut helper = SchemaHelper {
