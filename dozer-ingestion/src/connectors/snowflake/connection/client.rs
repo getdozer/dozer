@@ -23,7 +23,7 @@ pub fn convert_data(
         SqlDataType::SQL_CHAR | SqlDataType::SQL_VARCHAR => {
             match cursor
                 .get_data::<String>(i)
-                .map_err(SnowflakeSchemaError::ValueConversionError)?
+                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
             {
                 None => Ok(Field::Null),
                 Some(value) => Ok(Field::from(value)),
@@ -35,7 +35,7 @@ pub fn convert_data(
         | SqlDataType::SQL_SMALLINT => {
             match cursor
                 .get_data::<i64>(i)
-                .map_err(SnowflakeSchemaError::ValueConversionError)?
+                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
             {
                 None => Ok(Field::Null),
                 Some(value) => Ok(Field::from(value)),
@@ -44,7 +44,7 @@ pub fn convert_data(
         SqlDataType::SQL_FLOAT | SqlDataType::SQL_REAL | SqlDataType::SQL_DOUBLE => {
             match cursor
                 .get_data::<f64>(i)
-                .map_err(SnowflakeSchemaError::ValueConversionError)?
+                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
             {
                 None => Ok(Field::Null),
                 Some(value) => Ok(Field::from(value)),
@@ -134,9 +134,11 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         query: String,
     ) -> Result<Option<bool>, SnowflakeError> {
-        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
 
-        let result = stmt.exec_direct(&query).map_err(QueryError)?;
+        let result = stmt
+            .exec_direct(&query)
+            .map_err(|e| QueryError(Box::new(e)))?;
         match result {
             Data(_) => Ok(Some(true)),
             NoData(_) => Ok(None),
@@ -147,7 +149,7 @@ impl Client {
         if e.get_native_error() == 2003 {
             Ok(false)
         } else {
-            Err(QueryError(e))
+            Err(QueryError(Box::new(e)))
         }
     }
 
@@ -165,7 +167,7 @@ impl Client {
     ) -> Result<bool, SnowflakeError> {
         let query = format!("DESCRIBE STREAM {};", stream_name);
 
-        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)
             .map_or_else(Self::parse_not_exist_error, |result| {
                 Ok(Self::parse_exist(result))
@@ -182,7 +184,7 @@ impl Client {
             table_name
         );
 
-        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)
             .map_or_else(Self::parse_not_exist_error, |result| {
                 Ok(Self::parse_exist(result))
@@ -194,17 +196,24 @@ impl Client {
         conn: &'a Connection<AutocommitOn>,
         query: String,
     ) -> Result<Option<(Vec<ColumnDescriptor>, ResultIterator<'a, 'b>)>, ConnectorError> {
-        let stmt = Statement::with_parent(conn).map_err(QueryError)?;
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         // TODO: use stmt.close_cursor to improve efficiency
 
-        match stmt.exec_direct(&query).map_err(QueryError)? {
+        match stmt
+            .exec_direct(&query)
+            .map_err(|e| QueryError(Box::new(e)))?
+        {
             Data(stmt) => {
-                let cols = stmt.num_result_cols().map_err(QueryError)?;
+                let cols = stmt
+                    .num_result_cols()
+                    .map_err(|e| QueryError(Box::new(e)))?;
                 let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
                     .map(|i| {
                         let value = i.try_into();
                         match value {
-                            Ok(v) => Ok(stmt.describe_col(v).map_err(QueryError)?),
+                            Ok(v) => {
+                                Ok(stmt.describe_col(v).map_err(|e| QueryError(Box::new(e)))?)
+                            }
                             Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
                                 SchemaConversionError(e),
                             )),

@@ -158,10 +158,10 @@ pub enum PostgresSchemaError {
 #[derive(Error, Debug)]
 pub enum SnowflakeError {
     #[error("Snowflake query error")]
-    QueryError(#[source] DiagnosticRecord),
+    QueryError(#[source] Box<DiagnosticRecord>),
 
     #[error("Snowflake connection error")]
-    ConnectionError(#[from] DiagnosticRecord),
+    ConnectionError(#[from] Box<DiagnosticRecord>),
 
     #[error(transparent)]
     SnowflakeSchemaError(#[from] SnowflakeSchemaError),
@@ -177,7 +177,7 @@ pub enum SnowflakeSchemaError {
     ColumnTypeNotSupported(String),
 
     #[error("Value conversion Error")]
-    ValueConversionError(#[source] DiagnosticRecord),
+    ValueConversionError(#[source] Box<DiagnosticRecord>),
 
     #[error("Schema conversion Error")]
     SchemaConversionError(#[source] TryFromIntError),

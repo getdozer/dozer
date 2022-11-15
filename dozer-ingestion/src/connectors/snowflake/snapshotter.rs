@@ -27,7 +27,7 @@ impl Snapshotter {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let conn = env
             .connect_with_connection_string(&client.get_conn_string())
-            .map_err(ConnectionError)?;
+            .map_err(|e| ConnectionError(Box::new(e)))?;
 
         let query = format!(
             "CREATE STREAM IF NOT EXISTS {} ON TABLE {} SHOW_INITIAL_ROWS = TRUE;",
@@ -45,7 +45,7 @@ impl Snapshotter {
                         connector_id,
                         IngestionMessage::Schema(table_name, SchemaHelper::map_schema(schema)?),
                     ))
-                    .map_err(errors::ConnectorError::IngestorError)?;
+                    .map_err(ConnectorError::IngestorError)?;
                 iterator.for_each(|values| {
                     ingestor
                         .write()

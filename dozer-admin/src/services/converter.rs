@@ -83,7 +83,7 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 todo!()
             }
             #[cfg(feature = "snowflake")]
-            Authentication::SnowflakeAuthentication { .. } => {
+            models::connection::Authentication::SnowflakeAuthentication { .. } => {
                 todo!()
             }
             models::connection::Authentication::Events {} => todo!(),
