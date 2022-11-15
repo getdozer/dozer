@@ -1,9 +1,8 @@
-use crate::services::connection::ConnectionService;
 use dozer_core::dag::channels::{ChannelManager, SourceChannelForwarder};
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{PortHandle, Source, SourceFactory};
 use dozer_core::storage::lmdb_sys::Transaction;
-use dozer_ingestion::connectors::TableInfo;
+use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
@@ -95,7 +94,7 @@ impl Source for ConnectorSource {
             let connection_map = self.connection_map.clone();
             let ra = self.running.clone();
             let t = thread::spawn(move || -> Result<(), ConnectorError> {
-                let mut connector = ConnectionService::get_connector(connection.to_owned());
+                let mut connector = get_connector(connection.to_owned());
 
                 let id = match connection.id {
                     Some(idy) => idy,
