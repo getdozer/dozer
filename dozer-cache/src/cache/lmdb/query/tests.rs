@@ -1,6 +1,6 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
-    lmdb::{cache::LmdbCache, test_utils::insert_rec_1},
+    lmdb::{cache::LmdbCache, tests::utils},
     test_utils, Cache,
 };
 use dozer_types::{
@@ -85,7 +85,7 @@ fn query_secondary_vars() {
     ];
     // 26 alphabets
     for val in items {
-        insert_rec_1(&cache, &schema, val);
+        utils::insert_rec_1(&cache, &schema, val);
     }
 
     test_query(json!({}), 7, &cache);

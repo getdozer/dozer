@@ -87,7 +87,7 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{lmdb::test_utils as lmdb_utils, test_utils, Cache, LmdbCache};
+    use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, Cache, LmdbCache};
 
     use super::*;
 
