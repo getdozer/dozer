@@ -37,7 +37,7 @@ impl<'a> RwTransaction for SharedTransaction<'a> {
     }
 
     fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError> {
-        self.tx.read().open_cursor(&db)
+        self.tx.read().open_cursor(db)
     }
 }
 
@@ -49,7 +49,7 @@ impl<'a> RoTransaction for SharedTransaction<'a> {
 
     #[inline]
     fn open_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError> {
-        self.tx.read().open_ro_cursor(&db)
+        self.tx.read().open_ro_cursor(db)
     }
 }
 
@@ -85,7 +85,7 @@ impl<'a> RwTransaction for ExclusiveTransaction<'a> {
     }
 
     fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError> {
-        self.tx.open_cursor(&db)
+        self.tx.open_cursor(db)
     }
 }
 
@@ -96,6 +96,6 @@ impl<'a> RoTransaction for ExclusiveTransaction<'a> {
     }
 
     fn open_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError> {
-        self.tx.open_ro_cursor(&db)
+        self.tx.open_ro_cursor(db)
     }
 }

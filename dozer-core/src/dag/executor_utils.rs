@@ -9,14 +9,12 @@ use crate::dag::node::{
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
-use crate::storage::errors::StorageError::InternalDbError;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
-use libc::size_t;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
@@ -234,7 +232,7 @@ pub(crate) fn create_ports_databases(
                 format!("{}_{}", PORT_STATE_KEY, out_port.handle).as_str(),
                 false,
             )?;
-            port_databases.insert(out_port.handle.clone(), db);
+            port_databases.insert(out_port.handle, db);
         }
     }
     Ok(port_databases)

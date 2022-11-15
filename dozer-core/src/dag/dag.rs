@@ -3,7 +3,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InvalidNodeHandle, InvalidNodeType, InvalidPortHandle};
 use crate::dag::node::{
     NodeHandle, PortHandle, StatefulProcessorFactory, StatefulSinkFactory, StatefulSourceFactory,
-    StatelessProcessor, StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
+    StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
 };
 use std::collections::HashMap;
 

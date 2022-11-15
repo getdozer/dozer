@@ -39,7 +39,7 @@ impl PortRecordStoreWriter {
             let schema = self
                 .schemas
                 .get(port)
-                .ok_or(ExecutionError::InvalidPortHandle(port.clone()))?;
+                .ok_or(ExecutionError::InvalidPortHandle(*port))?;
 
             match op {
                 Operation::Insert { new } => {

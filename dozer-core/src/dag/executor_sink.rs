@@ -1,5 +1,3 @@
-use crate::dag::channels::SourceChannelForwarder;
-use crate::dag::dag::Edge;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::SchemaNotInitialized;
 use crate::dag::executor_local::ExecutorOperation;
@@ -7,13 +5,9 @@ use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, init_component,
     init_select, map_to_op, requires_schema_update,
 };
-use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
 use crate::dag::node::{NodeHandle, PortHandle, StatefulSinkFactory, StatelessSinkFactory};
-use crate::dag::record_store::RecordReader;
-use crate::storage::common::RenewableRwTransaction;
-use crate::storage::transactions::{ExclusiveTransaction, SharedTransaction};
-use crossbeam::channel::{Receiver, Sender};
-use dozer_types::parking_lot::RwLock;
+use crate::storage::transactions::ExclusiveTransaction;
+use crossbeam::channel::Receiver;
 use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use log::{error, info, warn};

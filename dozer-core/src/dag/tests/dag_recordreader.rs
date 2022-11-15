@@ -9,9 +9,8 @@ use crate::dag::node::{
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use crate::storage::common::{Environment, RenewableRwTransaction, RwTransaction};
-use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Schema};
+use crate::storage::common::{Environment, RwTransaction};
+use dozer_types::types::{Field, FieldType, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;

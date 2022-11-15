@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use crate::storage::errors::StorageError;
 
 pub struct Database {

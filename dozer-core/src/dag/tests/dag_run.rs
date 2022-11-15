@@ -1,7 +1,7 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{
-    DynPortsProcessorFactory, DynPortsSink, DynPortsSinkFactory, DynPortsSourceFactory,
+    DynPortsProcessorFactory, DynPortsSinkFactory, DynPortsSourceFactory,
 };
 use std::fs;
 use tempdir::TempDir;

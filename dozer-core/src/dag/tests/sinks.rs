@@ -1,5 +1,4 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{PortHandle, StatefulSink, StatefulSinkFactory};
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};

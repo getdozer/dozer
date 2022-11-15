@@ -1,10 +1,7 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
-use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{PortHandle, StatelessSource, StatelessSourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use std::thread;
-use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 

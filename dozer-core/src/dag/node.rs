@@ -1,11 +1,9 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Environment, RenewableRwTransaction, RwTransaction};
-use dozer_types::parking_lot::RwLock;
+use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub type NodeHandle = String;
 pub type PortHandle = u16;

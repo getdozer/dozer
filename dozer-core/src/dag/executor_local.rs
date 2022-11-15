@@ -1,6 +1,5 @@
 #![allow(clippy::type_complexity)]
-use crate::dag::channels::SourceChannelForwarder;
-use crate::dag::dag::{Dag, Edge, Endpoint, NodeType, PortDirection};
+use crate::dag::dag::{Dag, Edge, NodeType, PortDirection};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,

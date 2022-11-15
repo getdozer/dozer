@@ -1,4 +1,3 @@
-use crate::dag::errors::ExecutionError;
 use crate::storage::common::{
     Database, Environment, EnvironmentManager, RenewableRwTransaction, RoCursor, RwCursor,
 };
@@ -9,7 +8,6 @@ use crate::storage::lmdb_sys::{
     DatabaseOptions as LmdbDatabaseOptions, EnvOptions, Environment as LmdbEnvironment,
     PutOptions as LmdbPutOptions, Transaction as LmdbTransaction,
 };
-use dozer_types::parking_lot::RwLock;
 use libc::size_t;
 use std::path::{Path, PathBuf};
 
