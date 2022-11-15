@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use crate::dag::dag::{Dag, Edge, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
@@ -56,7 +57,7 @@ pub(crate) fn requires_schema_update(
     new: Schema,
     port_handle: &PortHandle,
     input_schemas: &mut HashMap<PortHandle, Schema>,
-    input_ports: &Vec<PortHandle>,
+    input_ports: &[PortHandle],
 ) -> bool {
     input_schemas.insert(*port_handle, new);
     let count = input_ports
@@ -208,7 +209,7 @@ pub(crate) fn build_receivers_lists(
 }
 
 pub(crate) fn get_inputs_for_output(
-    edges: &Vec<Edge>,
+    edges: &[Edge],
     node: &NodeHandle,
     port: &PortHandle,
 ) -> Vec<Endpoint> {
@@ -240,7 +241,7 @@ pub(crate) fn create_ports_databases(
 
 pub(crate) fn fill_ports_record_readers(
     handle: &NodeHandle,
-    edges: &Vec<Edge>,
+    edges: &[Edge],
     port_databases: &HashMap<PortHandle, Database>,
     master_tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
     record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,

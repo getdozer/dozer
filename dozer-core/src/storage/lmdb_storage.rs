@@ -52,7 +52,7 @@ impl EnvironmentManager for LmdbEnvironmentManager {
     }
 
     fn create_txn(&mut self) -> Result<Box<dyn RenewableRwTransaction>, StorageError> {
-        let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
+        let tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
         Ok(Box::new(LmdbExclusiveTransaction::new(
             self.inner.clone(),
             tx,
@@ -132,7 +132,7 @@ impl RenewableRwTransaction for LmdbExclusiveTransaction {
             .inner
             .get(&self.dbs[db.id], key)
             .map_err(InternalDbError)?
-            .map(|e| Vec::from(e)))
+            .map(Vec::from))
     }
 
     #[inline]

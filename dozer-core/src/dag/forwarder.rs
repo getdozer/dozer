@@ -3,7 +3,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{NodeHandle, PortHandle};
-use crate::storage::common::{Database, RenewableRwTransaction, RwTransaction};
+use crate::storage::common::{Database, RenewableRwTransaction};
 use crate::storage::errors::StorageError::SerializationError;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
@@ -31,7 +31,7 @@ impl PortRecordStoreWriter {
 
     fn store_op(
         &mut self,
-        seq_no: u64,
+        _seq_no: u64,
         op: &Operation,
         port: &PortHandle,
     ) -> Result<(), ExecutionError> {
@@ -50,8 +50,8 @@ impl PortRecordStoreWriter {
                     })?;
                     self.tx.write().put(db, key.as_slice(), value.as_slice())?;
                 }
-                Operation::Delete { old } => {}
-                Operation::Update { old, new } => {}
+                Operation::Delete { old: _ } => {}
+                Operation::Update { old: _, new: _ } => {}
             }
         }
         Ok(())

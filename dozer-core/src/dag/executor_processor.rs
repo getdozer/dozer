@@ -31,18 +31,18 @@ fn update_stateless_processor_schema(
     out_handle: &PortHandle,
     input_schemas: &mut HashMap<PortHandle, Schema>,
     output_schemas: &mut HashMap<PortHandle, Schema>,
-    input_ports: &Vec<PortHandle>,
-    output_ports: &Vec<PortHandle>,
+    input_ports: &[PortHandle],
+    output_ports: &[PortHandle],
     proc: &mut Box<dyn StatelessProcessor>,
     fw: &mut LocalChannelForwarder,
 ) -> Result<bool, ExecutionError> {
     if requires_schema_update(new, out_handle, input_schemas, input_ports) {
         for out_port in output_ports {
-            let r = proc.update_schema(out_port.clone(), &input_schemas);
+            let r = proc.update_schema(*out_port, input_schemas);
             match r {
                 Ok(out_schema) => {
-                    output_schemas.insert(out_port.clone(), out_schema.clone());
-                    fw.update_schema(out_schema, out_port.clone())?;
+                    output_schemas.insert(*out_port, out_schema.clone());
+                    fw.update_schema(out_schema, *out_port)?;
                 }
                 Err(e) => {
                     warn!(
@@ -60,12 +60,10 @@ fn update_stateless_processor_schema(
 }
 
 pub(crate) fn start_stateless_processor(
-    edges: Vec<Edge>,
     handle: NodeHandle,
     proc_factory: Box<dyn StatelessProcessorFactory>,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-    base_path: PathBuf,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     latch: Arc<CountDownLatch>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
@@ -110,7 +108,7 @@ pub(crate) fn start_stateless_processor(
                     return Ok(());
                 }
 
-                ExecutorOperation::Commit { epoch, source } => {
+                ExecutorOperation::Commit { epoch, source: _ } => {
                     fw.send_commit(epoch)?;
                 }
 
@@ -123,7 +121,7 @@ pub(crate) fn start_stateless_processor(
                     let guard = record_stores.read();
                     let reader = guard
                         .get(&handle)
-                        .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                     let data_op = map_to_op(op)?;
                     fw.update_seq_no(data_op.0);
@@ -139,18 +137,18 @@ fn update_stateful_processor_schema(
     out_handle: &PortHandle,
     input_schemas: &mut HashMap<PortHandle, Schema>,
     output_schemas: &mut HashMap<PortHandle, Schema>,
-    input_ports: &Vec<PortHandle>,
-    output_ports: &Vec<PortHandle>,
+    input_ports: &[PortHandle],
+    output_ports: &[PortHandle],
     proc: &mut Box<dyn StatefulProcessor>,
     fw: &mut LocalChannelForwarder,
 ) -> Result<bool, ExecutionError> {
-    if requires_schema_update(new, out_handle, input_schemas, input_ports) {
+    if requires_schema_update(new, out_handle, input_schemas, &input_ports) {
         for out_port in output_ports {
-            let r = proc.update_schema(out_port.clone(), &input_schemas);
+            let r = proc.update_schema(*out_port, input_schemas);
             match r {
                 Ok(out_schema) => {
-                    output_schemas.insert(out_port.clone(), out_schema.clone());
-                    fw.update_schema(out_schema, out_port.clone())?;
+                    output_schemas.insert(*out_port, out_schema.clone());
+                    fw.update_schema(out_schema, *out_port)?;
                 }
                 Err(e) => {
                     warn!(
@@ -180,7 +178,7 @@ pub(crate) fn start_stateful_processor(
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut proc = proc_factory.build();
         let input_port_handles = proc_factory.get_input_ports();
-        let output_port_handles = proc_factory
+        let output_port_handles: Vec<PortHandle> = proc_factory
             .get_output_ports()
             .iter()
             .map(|e| e.handle)
@@ -192,12 +190,12 @@ pub(crate) fn start_stateful_processor(
 
         let mut state_meta = init_component(&handle, base_path, |e| proc.init(e))?;
 
-        let mut port_databases = create_ports_databases(
+        let port_databases = create_ports_databases(
             state_meta.env.as_environment(),
             &proc_factory.get_output_ports(),
         )?;
 
-        let mut master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+        let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
             Arc::new(RwLock::new(state_meta.env.create_txn()?));
 
         fill_ports_record_readers(
@@ -214,7 +212,7 @@ pub(crate) fn start_stateful_processor(
             handle.clone(),
             senders,
             Some(PortRecordStoreWriter::new(
-                port_databases.clone(),
+                port_databases,
                 output_schemas.clone(),
                 master_tx.clone(),
             )),
@@ -269,7 +267,7 @@ pub(crate) fn start_stateful_processor(
                     let guard = record_stores.read();
                     let reader = guard
                         .get(&handle)
-                        .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                     let data_op = map_to_op(op)?;
                     let mut rw_txn = SharedTransaction::new(&master_tx);

@@ -1,37 +1,24 @@
 #![allow(clippy::type_complexity)]
-use crate::dag::dag::{Dag, Edge, NodeType, PortDirection};
+use crate::dag::dag::{Dag, Edge, PortDirection};
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{
-    InvalidOperation, MissingNodeInput, MissingNodeOutput, SchemaNotInitialized,
-};
+use crate::dag::errors::ExecutionError::{MissingNodeInput, MissingNodeOutput};
 use crate::dag::executor_processor::{start_stateful_processor, start_stateless_processor};
 use crate::dag::executor_sink::{start_stateful_sink, start_stateless_sink};
 use crate::dag::executor_source::start_stateless_source;
 use crate::dag::executor_utils::{
-    build_receivers_lists, create_ports_databases, fill_ports_record_readers,
-    get_inputs_for_output, get_node_types_and_edges, index_edges, init_component, init_select,
-    map_to_op, requires_schema_update, ProcessorHolder, SinkHolder, SourceHolder,
+    get_node_types_and_edges, index_edges, ProcessorHolder, SinkHolder, SourceHolder,
 };
-use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Database, RenewableRwTransaction};
-use crate::storage::errors::StorageError;
-use crate::storage::transactions::{ExclusiveTransaction, SharedTransaction};
-use crossbeam::channel::{bounded, Receiver, Select, Sender};
+use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
-use libc::size_t;
-use log::{error, info, warn};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
-use std::string::ToString;
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::thread;
 use std::thread::JoinHandle;
-use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
@@ -135,7 +122,7 @@ impl MultiThreadedDagExecutor {
 
         for holder in sources {
             match holder.1 {
-                SourceHolder::Stateful(s) => {
+                SourceHolder::Stateful(_s) => {
                     todo!()
                 }
                 SourceHolder::Stateless(s) => {
@@ -189,12 +176,10 @@ impl MultiThreadedDagExecutor {
                 }
                 ProcessorHolder::Stateless(s) => {
                     handles.push(start_stateless_processor(
-                        edges.clone(),
                         holder.0,
                         s,
                         proc_senders.unwrap(),
                         proc_receivers.unwrap(),
-                        path.clone(),
                         record_stores.clone(),
                         latch.clone(),
                     ));
@@ -208,7 +193,7 @@ impl MultiThreadedDagExecutor {
     pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(&dag, self.channel_buf_sz);
 
-        let mut record_stores = Arc::new(RwLock::new(
+        let record_stores = Arc::new(RwLock::new(
             dag.nodes
                 .iter()
                 .map(|e| (e.0.clone(), HashMap::<PortHandle, RecordReader>::new()))
@@ -242,7 +227,7 @@ impl MultiThreadedDagExecutor {
         )?);
 
         for sh in all_handles {
-            let r = sh.join().unwrap()?;
+            sh.join().unwrap()?;
         }
 
         Ok(())

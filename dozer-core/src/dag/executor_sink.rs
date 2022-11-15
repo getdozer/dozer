@@ -2,15 +2,14 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::SchemaNotInitialized;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::executor_utils::{
-    build_receivers_lists, create_ports_databases, fill_ports_record_readers, init_component,
-    init_select, map_to_op, requires_schema_update,
+    build_receivers_lists, init_component, init_select, map_to_op, requires_schema_update,
 };
 use crate::dag::node::{NodeHandle, PortHandle, StatefulSinkFactory, StatelessSinkFactory};
 use crate::storage::transactions::ExclusiveTransaction;
 use crossbeam::channel::Receiver;
 use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
-use log::{error, info, warn};
+use log::warn;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -86,10 +85,10 @@ pub(crate) fn start_stateful_sink(
 }
 
 pub(crate) fn start_stateless_sink(
-    handle: NodeHandle,
+    _handle: NodeHandle,
     snk_factory: Box<dyn StatelessSinkFactory>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-    base_path: PathBuf,
+    _base_path: PathBuf,
     latch: Arc<CountDownLatch>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
@@ -129,7 +128,10 @@ pub(crate) fn start_stateless_sink(
                     return Ok(());
                 }
 
-                ExecutorOperation::Commit { epoch, source } => {}
+                ExecutorOperation::Commit {
+                    epoch: _,
+                    source: _,
+                } => {}
 
                 _ => {
                     if !schema_initialized {
