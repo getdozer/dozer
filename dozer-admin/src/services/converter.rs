@@ -40,21 +40,9 @@ impl TryFrom<ConnectionInfo> for models::connection::Connection {
                 db_type: db_type_value,
                 authentication: auth_value,
                 name: item.name,
-                id: item.id,
+                id: None,
             })
         }
-    }
-}
-impl TryFrom<models::connection::Connection> for ConnectionInfo {
-    type Error = Box<dyn Error>;
-    fn try_from(item: models::connection::Connection) -> Result<Self, Self::Error> {
-        let authentication_value = dozer_admin_grpc::Authentication::try_from(item.to_owned())?;
-        Ok(ConnectionInfo {
-            id: item.id,
-            r#type: 0,
-            authentication: Some(authentication_value),
-            name: item.name,
-        })
     }
 }
 impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authentication {
@@ -72,7 +60,7 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 database,
                 user,
                 host,
-                port: port.to_string(),
+                port: port as u32,
                 password,
             }),
             models::connection::Authentication::EthereumAuthentication {
@@ -97,7 +85,7 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
             let authentication = item.authentication.unwrap();
             let result = match authentication {
                 authentication::Authentication::Postgres(postgres_authentication) => {
-                    let port_int = postgres_authentication.port.parse::<u16>()?;
+                    let port_int = postgres_authentication.port as u16;
                     models::connection::Authentication::PostgresAuthentication {
                         user: postgres_authentication.user,
                         password: postgres_authentication.password,

@@ -4,4 +4,5 @@ enum ConnectionType {
   postgres = 0;
   snowflake = 1;
   databricks = 2;
+  eth = 3;
 }

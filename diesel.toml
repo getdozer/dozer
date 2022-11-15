@@ -1,0 +1,8 @@
+# For documentation on how to configure this file,
+# see https://diesel.rs/guides/configuring-diesel-cli
+
+[print_schema]
+file = "dozer-admin/src/db/schema.rs"
+
+[migrations_directory]
+dir = "dozer-admin/migrations"

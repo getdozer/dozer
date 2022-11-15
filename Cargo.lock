@@ -1251,6 +1251,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "tonic-reflection",
  "tonic-web",
  "uuid",
 ]

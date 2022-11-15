@@ -2,28 +2,77 @@ syntax = "proto3";
 package dozer_admin_grpc;
 import "protos/connection/connection_info.proto";
 import "protos/connection/details.proto";
+import "protos/connection/connection_type.proto";
 import "protos/source/source_info.proto";
 import "protos/endpoint/endpoint_info.proto";
+import "protos/application/application_info.proto";
+import "protos/connection/authentication.proto";
 
 service DozerAdmin {
+  rpc create_application(CreateAppRequest) returns (CreateAppResponse);
+  rpc list_applications(ListAppRequest) returns (ListAppResponse);
+  rpc update_application(UpdateAppRequest) returns (UpdateAppResponse);
+
   rpc test_connection(TestConnectionRequest) returns (TestConnectionResponse);
+  rpc validate_connection(ValidateConnectionRequest) returns (ValidateConnectionResponse);
+
   rpc create_connection(CreateConnectionRequest) returns (CreateConnectionResponse);
   rpc get_connection_details(GetConnectionDetailsRequest) returns (GetConnectionDetailsResponse);
-  rpc get_all_connections(GetAllConnectionRequest) returns (GetAllConnectionResponse);
+  rpc list_connections(GetAllConnectionRequest) returns (GetAllConnectionResponse);
   rpc get_schema(GetSchemaRequest) returns (GetSchemaResponse);
   rpc update_connection(UpdateConnectionRequest) returns (UpdateConnectionResponse);
   
   rpc create_source(CreateSourceRequest) returns (CreateSourceResponse);
   rpc get_source(GetSourceRequest) returns (GetSourceResponse);
+  rpc list_sources(GetAllSourceRequest) returns (GetAllSourceResponse);
   rpc update_source(UpdateSourceRequest) returns (UpdateSourceResponse);
 
   rpc create_endpoint(CreateEndpointRequest) returns (CreateEndpointResponse);
   rpc get_endpoint(GetEndpointRequest) returns (GetEndpointResponse);
+  rpc list_endpoints(GetAllEndpointRequest) returns (GetAllEndpointResponse);
   rpc update_endpoint(UpdateEndpointRequest) returns (UpdateEndpointResponse);
+
+  rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
+}
+
+message StartPipelineRequest {
+  string app_id = 1;
+}
+message StartPipelineResponse {
+  bool success = 1;
+}
+message CreateAppRequest {
+  string app_name = 1;
+}
+message CreateAppResponse {
+  ApplicationInfo data = 1;
+}
+
+message ListAppRequest {
+  optional uint32 limit = 1;
+  optional uint32 offset = 2;
+}
+message ListAppResponse {
+  repeated ApplicationInfo data = 1;
+  Pagination pagination = 2;
+}
+
+message UpdateAppRequest {
+  string app_id = 1;
+  string name = 2;
+}
+message UpdateAppResponse {
+  ApplicationInfo data = 1;
 }
 
 message CreateEndpointRequest {
-  EndpointInfo info = 1;
+  string app_id = 1;
+  string name = 2;
+  string path = 3;
+  bool enable_rest = 4;
+  bool enable_grpc = 5;
+  string sql = 6;
+  repeated string source_ids = 7;
 }
 
 message CreateEndpointResponse {
@@ -31,14 +80,22 @@ message CreateEndpointResponse {
 }
 
 message GetEndpointRequest {
-  string endpoint_id = 1;
+  string app_id = 1;
+  string endpoint_id = 2;
 }
 message GetEndpointResponse {
   EndpointInfo info = 1;
 }
 
 message UpdateEndpointRequest {
-  EndpointInfo info = 1;
+  string id = 1;
+  string app_id = 2;
+  optional string name = 3;
+  optional string path = 4;
+  optional bool enable_rest = 5;
+  optional bool enable_grpc = 6;
+  optional string sql = 7;
+  repeated string source_ids = 8;
 }
 
 message UpdateEndpointResponse {
@@ -46,26 +103,37 @@ message UpdateEndpointResponse {
 }
 
 message TestConnectionRequest {
-  ConnectionInfo info = 1;
+  string name = 1;
+  ConnectionType type = 2;
+  Authentication authentication = 3;
 }
 
 message TestConnectionResponse {
   bool success = 1;
 }
-
-message ErrorResponse {
-  string message = 1;
+message ValidateConnectionRequest {
+  string name = 1;
+  ConnectionType type = 2;
+  Authentication authentication = 3;
 }
-
+message ValidateConnectionResponse {
+  bool success = 1;
+}
 message CreateConnectionRequest {
-  ConnectionInfo info = 1;
+  string app_id = 1;
+  string name = 2;
+  ConnectionType type = 3;
+  Authentication authentication = 4;
 }
+
+
 message CreateConnectionResponse {
-  ConnectionInfo info = 1;
+  ConnectionInfo data = 1;
 }
 
 message GetSchemaRequest {
-  string connection_id = 1;
+  string app_id = 1;
+  string connection_id = 2;
 }
 
 message GetSchemaResponse {
@@ -74,7 +142,8 @@ message GetSchemaResponse {
 }
 
 message GetConnectionDetailsRequest {
-  string connection_id = 1;
+  string app_id = 1;
+  string connection_id = 2;
 }
 message GetConnectionDetailsResponse {
   ConnectionInfo info = 1;
@@ -82,29 +151,56 @@ message GetConnectionDetailsResponse {
 }
 
 message GetAllConnectionRequest {
-  optional uint32 limit = 1;
-  optional uint32 offset = 2;
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
 }
-
+message GetAllConnectionResponse {
+  repeated ConnectionInfo data = 1;
+  Pagination pagination = 2;
+}
 message UpdateConnectionRequest {
-  ConnectionInfo info = 1;
+  string app_id = 1;
+  string connection_id = 2;
+  string name = 3;
+  ConnectionType type = 4;
+  Authentication authentication = 5;
 }
 message UpdateConnectionResponse {
   ConnectionInfo info = 1;
 }
 
 message UpdateSourceRequest {
-  SourceInfo info = 1;
+  string id = 1;
+  optional string name = 2;
+  string app_id = 3;
+  optional string table_name = 4;
+  oneof connection {
+    string connection_id = 5;
+    CreateConnectionRequest connection_info = 6;
+  }
 }
 message UpdateSourceResponse {
   SourceInfo info = 1;
-  string id = 2;
 }
-message GetAllConnectionResponse {
-  repeated ConnectionInfo data = 1;
+message GetAllEndpointRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+message GetAllEndpointResponse {
+  repeated EndpointInfo data = 1;
   Pagination pagination = 2;
 }
-
+message GetAllSourceRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+message GetAllSourceResponse {
+  repeated SourceInfo data = 1;
+  Pagination pagination = 2;
+}
 message Pagination {
   uint32 limit = 1;
   uint32 offset = 2;
@@ -112,7 +208,13 @@ message Pagination {
 }
 
 message CreateSourceRequest {
-  SourceInfo info = 1;
+  string name = 1;
+  string app_id = 2;
+  string table_name = 3;
+  oneof connection {
+    string connection_id = 5;
+    CreateConnectionRequest connection_info = 6;
+  }
 }
 message CreateSourceResponse {
   SourceInfo info = 1;
@@ -120,9 +222,13 @@ message CreateSourceResponse {
 
 message GetSourceRequest {
   string id = 1;
+  string app_id = 2;
 }
 
 message GetSourceResponse {
   SourceInfo info = 1;
-  string id = 2;
+}
+
+message ErrorResponse {
+  string message = 1;
 }

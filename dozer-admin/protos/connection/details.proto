@@ -3,7 +3,6 @@ package dozer_admin_grpc;
 message ConnectionDetails {
   repeated TableInfo table_info = 1;
 }
-
 message TableInfo {
   string table_name = 1;
   repeated ColumnInfo columns = 2;

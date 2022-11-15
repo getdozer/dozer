@@ -3,12 +3,12 @@ syntax = "proto3";
 package dozer_admin_grpc;
 
 message EndpointInfo {
-  optional string id = 1;
-  string name = 2;
-  string path = 3;
-  bool enable_rest = 4;
-  bool enable_grpc = 5;
-  string sql = 6;
-  string data_maper = 7;
+  string id = 1;
+  string app_id = 2;
+  string name = 3;
+  string path = 4;
+  bool enable_rest = 5;
+  bool enable_grpc = 6;
+  string sql = 7;
   repeated string source_ids = 8;
 }
