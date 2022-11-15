@@ -8,7 +8,7 @@ use std::{
 };
 
 use dozer_api::CacheEndpoint;
-use dozer_cache::cache::{expression::QueryExpression, test_utils, Cache, LmdbCache};
+use dozer_cache::cache::{expression::QueryExpression, test_utils, Cache, CacheOptions, LmdbCache};
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::{
     ingestion_types::IngestionMessage,
@@ -40,7 +40,7 @@ fn single_source_sink() {
     };
 
     let table_name = "events";
-    let cache = Arc::new(LmdbCache::new(true));
+    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
     let cache_endpoint = CacheEndpoint {
         cache: cache.clone(),
         endpoint: ApiEndpoint {

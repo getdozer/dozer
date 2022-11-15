@@ -1,9 +1,7 @@
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
-use dozer_core::dag::node::PortHandle;
-use dozer_core::dag::node::{Sink, SinkFactory};
-use dozer_core::storage::lmdb_sys::Transaction;
+use dozer_core::dag::node::{PortHandle, StatelessSink, StatelessSinkFactory};
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::events::ApiEvent;
@@ -20,6 +18,7 @@ use std::collections::HashMap;
 use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::Instant;
+
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
@@ -62,15 +61,11 @@ impl CacheSinkFactory {
     }
 }
 
-impl SinkFactory for CacheSinkFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
+impl StatelessSinkFactory for CacheSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn Sink> {
+    fn build(&self) -> Box<dyn StatelessSink> {
         Box::new(CacheSink::new(
             self.cache.clone(),
             self.api_endpoint.clone(),
@@ -90,8 +85,8 @@ pub struct CacheSink {
     notifier: Option<crossbeam::channel::Sender<ApiEvent>>,
 }
 
-impl Sink for CacheSink {
-    fn init(&mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+impl StatelessSink for CacheSink {
+    fn init(&mut self) -> Result<(), ExecutionError> {
         info!("SINK: Initialising CacheSink");
         Ok(())
     }
@@ -101,7 +96,6 @@ impl Sink for CacheSink {
         from_port: PortHandle,
         _seq: u64,
         op: Operation,
-        _state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
         if self.counter % 100 == 0 {
@@ -299,8 +293,8 @@ mod tests {
 
     use dozer_cache::cache::{index, Cache};
 
-    use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
-    use dozer_core::dag::node::Sink;
+    use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
+    use dozer_core::dag::node::StatelessSink;
 
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
@@ -340,7 +334,7 @@ mod tests {
         input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
         sink.update_schema(&input_schemas).unwrap();
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation, None)
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation)
             .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
@@ -348,7 +342,7 @@ mod tests {
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation, None)
+        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation)
             .unwrap();
 
         // Primary key with old values

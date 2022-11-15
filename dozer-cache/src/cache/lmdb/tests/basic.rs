@@ -1,7 +1,8 @@
-use super::super::test_utils;
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
-    index, Cache,
+    index,
+    lmdb::CacheOptions,
+    test_utils, Cache,
 };
 use crate::errors::CacheError;
 use dozer_types::{
@@ -9,11 +10,11 @@ use dozer_types::{
     types::{Field, Record, Schema},
 };
 
-use super::cache::LmdbCache;
+use super::super::cache::LmdbCache;
 
 fn _setup() -> (LmdbCache, Schema) {
     let schema = test_utils::schema_0();
-    let cache = LmdbCache::new(true);
+    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
     (cache, schema)
 }
 

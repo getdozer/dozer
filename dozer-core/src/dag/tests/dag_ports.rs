@@ -1,18 +1,18 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
-use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use crate::dag::tests::processors::{TestProcessorFactory, TestSourceFactory};
+use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
+use crate::dag::tests::processors::{DynPortsProcessorFactory, DynPortsSourceFactory};
 
 macro_rules! test_ports {
     ($id:ident, $out_ports:expr, $in_ports:expr, $from_port:expr, $to_port:expr, $expect:expr) => {
         #[test]
         fn $id() {
-            let src = TestSourceFactory::new(1, $out_ports);
-            let proc = TestProcessorFactory::new(2, $in_ports, vec![DEFAULT_PORT_HANDLE]);
+            let src = DynPortsSourceFactory::new(1, $out_ports);
+            let proc = DynPortsProcessorFactory::new(2, $in_ports, vec![DEFAULT_PORT_HANDLE]);
 
             let mut dag = Dag::new();
 
-            dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
-            dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
+            dag.add_node(NodeType::StatelessSource(Box::new(src)), 1.to_string());
+            dag.add_node(NodeType::StatefulProcessor(Box::new(proc)), 2.to_string());
 
             let res = dag.connect(
                 Endpoint::new(1.to_string(), $from_port),
@@ -43,6 +43,7 @@ test_ports!(
     2,
     false
 );
+
 test_ports!(
     test_not_default_port2,
     vec![DEFAULT_PORT_HANDLE],
@@ -62,13 +63,14 @@ test_ports!(
 
 #[test]
 fn test_dag_merge() {
-    let src = TestSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
-    let proc = TestProcessorFactory::new(2, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
+    let src = DynPortsSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
+    let proc =
+        DynPortsProcessorFactory::new(2, vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
 
     let mut dag = Dag::new();
 
-    dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
-    dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
+    dag.add_node(NodeType::StatelessSource(Box::new(src)), 1.to_string());
+    dag.add_node(NodeType::StatefulProcessor(Box::new(proc)), 2.to_string());
 
     let mut new_dag: Dag = Dag::new();
     new_dag.merge("test".to_string(), dag);

@@ -11,8 +11,9 @@ use tempdir::TempDir;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError::{self};
-use dozer_core::dag::mt_executor::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
@@ -91,7 +92,7 @@ impl Executor {
             self.iterator.to_owned(),
         );
         let mut parent_dag = Dag::new();
-        parent_dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
+        parent_dag.add_node(NodeType::StatelessSource(Box::new(source)), 1.to_string());
 
         for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
             let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
@@ -117,7 +118,7 @@ impl Executor {
                 api_endpoint,
                 notifier.clone(),
             );
-            dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
+            dag.add_node(NodeType::StatelessSink(Box::new(sink)), 4.to_string());
 
             // Connect Pipeline to Sink
             dag.connect(
@@ -150,7 +151,7 @@ impl Executor {
             }
         }
 
-        let exec = MultiThreadedDagExecutor::new(100000);
+        let exec = MultiThreadedDagExecutor::new(100000, 20000);
 
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));

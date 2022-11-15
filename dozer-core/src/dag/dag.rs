@@ -1,7 +1,10 @@
 use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InvalidNodeHandle, InvalidNodeType, InvalidPortHandle};
-use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::dag::node::{
+    NodeHandle, PortHandle, StatefulProcessorFactory, StatefulSinkFactory, StatefulSourceFactory,
+    StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
+};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -29,9 +32,12 @@ impl Edge {
 }
 
 pub enum NodeType {
-    Source(Box<dyn SourceFactory>),
-    Sink(Box<dyn SinkFactory>),
-    Processor(Box<dyn ProcessorFactory>),
+    StatelessSource(Box<dyn StatelessSourceFactory>),
+    StatefulSource(Box<dyn StatefulSourceFactory>),
+    StatelessProcessor(Box<dyn StatelessProcessorFactory>),
+    StatefulProcessor(Box<dyn StatefulProcessorFactory>),
+    StatelessSink(Box<dyn StatelessSinkFactory>),
+    StatefulSink(Box<dyn StatefulSinkFactory>),
 }
 
 pub struct Node {
@@ -70,23 +76,44 @@ impl Dag {
 
     fn get_ports(&self, n: &NodeType, d: PortDirection) -> Result<Vec<PortHandle>, ExecutionError> {
         match n {
-            NodeType::Processor(p) => {
+            NodeType::StatelessProcessor(p) => {
                 if matches!(d, Output) {
                     Ok(p.get_output_ports())
                 } else {
                     Ok(p.get_input_ports())
                 }
             }
-            NodeType::Sink(s) => {
+            NodeType::StatefulProcessor(p) => {
+                if matches!(d, Output) {
+                    Ok(p.get_output_ports().iter().map(|e| e.handle).collect())
+                } else {
+                    Ok(p.get_input_ports())
+                }
+            }
+            NodeType::StatelessSink(s) => {
                 if matches!(d, Output) {
                     Err(InvalidNodeType)
                 } else {
                     Ok(s.get_input_ports())
                 }
             }
-            NodeType::Source(s) => {
+            NodeType::StatefulSink(s) => {
+                if matches!(d, Output) {
+                    Err(InvalidNodeType)
+                } else {
+                    Ok(s.get_input_ports())
+                }
+            }
+            NodeType::StatelessSource(s) => {
                 if matches!(d, Output) {
                     Ok(s.get_output_ports())
+                } else {
+                    Err(InvalidNodeType)
+                }
+            }
+            NodeType::StatefulSource(s) => {
+                if matches!(d, Output) {
+                    Ok(s.get_output_ports().iter().map(|e| e.handle).collect())
                 } else {
                     Err(InvalidNodeType)
                 }

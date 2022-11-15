@@ -1,53 +1,58 @@
-use crate::dag::channels::{ChannelManager, ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
-use crate::dag::mt_executor::DEFAULT_PORT_HANDLE;
-use crate::dag::node::PortHandle;
-use crate::dag::node::{Processor, ProcessorFactory, Sink, SinkFactory, Source, SourceFactory};
-use crate::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
-use dozer_types::types::{FieldDefinition, FieldType, Operation, Record, Schema};
+use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
+use crate::dag::node::{
+    PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory, StatelessSink,
+    StatelessSinkFactory, StatelessSource, StatelessSourceFactory,
+};
+use crate::dag::record_store::RecordReader;
+use crate::storage::common::{Database, Environment, RwTransaction};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;
 
 /// Test Source
-pub struct TestSourceFactory {
+pub struct DynPortsSourceFactory {
     id: i32,
     output_ports: Vec<PortHandle>,
 }
 
-impl TestSourceFactory {
+impl DynPortsSourceFactory {
     pub fn new(id: i32, output_ports: Vec<PortHandle>) -> Self {
         Self { id, output_ports }
     }
 }
 
-impl SourceFactory for TestSourceFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
+impl StatelessSourceFactory for DynPortsSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource { id: self.id })
+    fn build(&self) -> Box<dyn StatelessSource> {
+        Box::new(DynPortsSource { id: self.id })
     }
 }
 
-pub struct TestSource {
+pub struct DynPortsSource {
     id: i32,
 }
 
-impl Source for TestSource {
-    fn get_output_schema(&self, port: PortHandle) -> Option<Schema> {
+impl StatelessSource for DynPortsSource {
+    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
                 .field(
-                    FieldDefinition::new(
-                        format!("node_{}_port_{}", self.id, port),
-                        FieldType::String,
-                        false,
-                    ),
+                    FieldDefinition::new("user_id".to_string(), FieldType::UInt, false),
+                    true,
+                    true,
+                )
+                .field(
+                    FieldDefinition::new("first_name".to_string(), FieldType::String, false),
+                    true,
                     false,
+                )
+                .field(
+                    FieldDefinition::new("last_name".to_string(), FieldType::String, false),
+                    true,
                     false,
                 )
                 .clone(),
@@ -56,54 +61,55 @@ impl Source for TestSource {
 
     fn start(
         &self,
-        fw: &dyn SourceChannelForwarder,
-        cm: &dyn ChannelManager,
-        _state: Option<&mut Transaction>,
+        fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1_000_000 {
+        for n in 0..1_000 {
             fw.send(
                 n,
                 Operation::Insert {
-                    new: Record::new(None, vec![]),
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::UInt(n),
+                            Field::String(format!("first name {}", n)),
+                            Field::String(format!("last name {}", n)),
+                        ],
+                    ),
                 },
                 DEFAULT_PORT_HANDLE,
             )?;
         }
-        cm.terminate().unwrap();
+        fw.terminate().unwrap();
         Ok(())
     }
 }
 
-pub struct TestSinkFactory {
+pub struct DynPortsSinkFactory {
     id: i32,
     input_ports: Vec<PortHandle>,
 }
 
-impl TestSinkFactory {
+impl DynPortsSinkFactory {
     pub fn new(id: i32, input_ports: Vec<PortHandle>) -> Self {
         Self { id, input_ports }
     }
 }
 
-impl SinkFactory for TestSinkFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
+impl StatelessSinkFactory for DynPortsSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn Sink> {
-        Box::new(TestSink { id: self.id })
+    fn build(&self) -> Box<dyn StatelessSink> {
+        Box::new(DynPortsSink { id: self.id })
     }
 }
 
-pub struct TestSink {
+pub struct DynPortsSink {
     id: i32,
 }
 
-impl Sink for TestSink {
+impl StatelessSink for DynPortsSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -111,7 +117,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init(&mut self) -> Result<(), ExecutionError> {
         debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -121,19 +127,18 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
-        _state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
 
-pub struct TestProcessorFactory {
+pub struct DynPortsProcessorFactory {
     id: i32,
     input_ports: Vec<PortHandle>,
     output_ports: Vec<PortHandle>,
 }
 
-impl TestProcessorFactory {
+impl DynPortsProcessorFactory {
     pub fn new(id: i32, input_ports: Vec<PortHandle>, output_ports: Vec<PortHandle>) -> Self {
         Self {
             id,
@@ -143,19 +148,19 @@ impl TestProcessorFactory {
     }
 }
 
-impl ProcessorFactory for TestProcessorFactory {
-    fn is_stateful(&self) -> bool {
-        true
-    }
-
+impl StatefulProcessorFactory for DynPortsProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
+    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
+        self.output_ports
+            .clone()
+            .iter()
+            .map(|e| StatefulPortHandle::new(*e, false))
+            .collect()
     }
-    fn build(&self) -> Box<dyn Processor> {
-        Box::new(TestProcessor {
+    fn build(&self) -> Box<dyn StatefulProcessor> {
+        Box::new(DynPortsProcessor {
             id: self.id,
             ctr: 0,
             db: None,
@@ -163,41 +168,24 @@ impl ProcessorFactory for TestProcessorFactory {
     }
 }
 
-pub struct TestProcessor {
+pub struct DynPortsProcessor {
     id: i32,
     ctr: u64,
     db: Option<Database>,
 }
 
-impl Processor for TestProcessor {
+impl StatefulProcessor for DynPortsProcessor {
     fn update_schema(
         &mut self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
-        let mut sorted: Vec<PortHandle> = input_schemas.iter().map(|e| *e.0).collect();
-        sorted.sort();
-        let mut out_schema = Schema::empty();
-        for i in sorted {
-            let src_schema = input_schemas.get(&i).unwrap().clone();
-            for f in src_schema.fields {
-                out_schema.fields.push(f.clone());
-            }
-        }
-        out_schema.fields.push(FieldDefinition::new(
-            format!("node_{}_port_{}", self.id, output_port),
-            FieldType::String,
-            false,
-        ));
-        Ok(out_schema)
+        Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
     }
 
-    fn init<'a>(&'_ mut self, tx: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
-        let mut opts = DatabaseOptions::default();
-        opts.create = true;
-
-        self.db = Some(tx.unwrap().open_database("test".to_string(), opts)?);
+        self.db = Some(tx.open_database("test", false)?);
         Ok(())
     }
 
@@ -205,16 +193,19 @@ impl Processor for TestProcessor {
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        fw: &dyn ProcessorChannelForwarder,
-        state: Option<&mut Transaction>,
+        fw: &mut dyn ProcessorChannelForwarder,
+        tx: &mut dyn RwTransaction,
+        _readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
-        state.unwrap().put(
+
+        tx.put(
             self.db.as_ref().unwrap(),
             &self.ctr.to_ne_bytes(),
             &self.id.to_ne_bytes(),
-            PutOptions::default(),
         )?;
+        let v = tx.get(self.db.as_ref().unwrap(), &self.ctr.to_ne_bytes())?;
+        assert!(v.is_some());
         fw.send(op, DEFAULT_PORT_HANDLE)?;
         Ok(())
     }

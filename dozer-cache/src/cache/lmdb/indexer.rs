@@ -87,13 +87,15 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{lmdb::test_utils as lmdb_utils, test_utils, Cache, LmdbCache};
+    use crate::cache::{
+        lmdb::tests::utils as lmdb_utils, lmdb::CacheOptions, test_utils, Cache, LmdbCache,
+    };
 
     use super::*;
 
     #[test]
     fn test_secondary_indexes() {
-        let cache = LmdbCache::new(true);
+        let cache = LmdbCache::new(CacheOptions::default()).unwrap();
         let schema = test_utils::schema_1();
 
         cache.insert_schema("sample", &schema).unwrap();

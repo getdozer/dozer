@@ -16,7 +16,7 @@ use super::super::Cache;
 use super::indexer::Indexer;
 use super::query::handler::LmdbQueryHandler;
 use super::query::helper;
-use super::utils;
+use super::{utils, CacheOptions};
 use crate::cache::expression::QueryExpression;
 use crate::cache::index::{self, compare_secondary_index};
 use crate::errors::{CacheError, QueryError};
@@ -58,6 +58,7 @@ pub struct LmdbCache {
     db: Database,
     index_metadata: Arc<IndexMetaData>,
     schema_db: Database,
+    cache_options: CacheOptions,
 }
 
 pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
@@ -70,17 +71,17 @@ pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
 }
 
 impl LmdbCache {
-    pub fn new(temp_storage: bool) -> Self {
-        let env = utils::init_env(temp_storage).unwrap();
-        let db = utils::init_db(&env, Some("records")).unwrap();
-        // let indexer_db = utils::init_db(&env, Some("indexes")).unwrap();
-        let schema_db = utils::init_db(&env, Some("schemas")).unwrap();
-        Self {
+    pub fn new(cache_options: CacheOptions) -> Result<Self, CacheError> {
+        let env = utils::init_env(&cache_options)?;
+        let db = utils::init_db(&env, Some("records"), &cache_options)?;
+        let schema_db = utils::init_db(&env, Some("schemas"), &cache_options)?;
+        Ok(Self {
             env,
             db,
             index_metadata: Arc::new(IndexMetaData::default()),
             schema_db,
-        }
+            cache_options,
+        })
     }
 
     fn _insert(
@@ -268,7 +269,7 @@ impl Cache for LmdbCache {
         for (idx, index) in schema.secondary_indexes.iter().enumerate() {
             let key = IndexMetaData::get_key(schema, idx);
             let name = format!("index_#{}", key);
-            let db = utils::init_db(&self.env, Some(&name))?;
+            let db = utils::init_db(&self.env, Some(&name), &self.cache_options)?;
 
             if let IndexDefinition::SortedInverted(_) = index {
                 let txn = self
