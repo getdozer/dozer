@@ -34,7 +34,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
     Delete { seq: u64, old: Record },
     Insert { seq: u64, new: Record },
