@@ -12,7 +12,7 @@ use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::errors;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
-use odbc::{create_environment_v3};
+use odbc::create_environment_v3;
 use std::sync::Arc;
 
 pub struct StreamConsumer {}
@@ -153,7 +153,7 @@ impl StreamConsumer {
                             SchemaHelper::map_schema(truncated_schema)?,
                         ),
                     ))
-                    .map_err(errors::ConnectorError::IngestorError)?;
+                    .map_err(ConnectorError::IngestorError)?;
 
                 let columns_length = schema.len();
                 let used_columns_for_schema = columns_length - 3;
