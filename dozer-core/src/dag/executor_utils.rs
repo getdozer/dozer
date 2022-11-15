@@ -77,6 +77,14 @@ pub(crate) fn map_to_op(op: ExecutorOperation) -> Result<(u64, Operation), Execu
     }
 }
 
+pub(crate) fn map_to_exec_op(seq: u64, op: Operation) -> ExecutorOperation {
+    match op {
+        Operation::Update { old, new } => ExecutorOperation::Update { old, new, seq },
+        Operation::Delete { old } => ExecutorOperation::Delete { old, seq },
+        Operation::Insert { new } => ExecutorOperation::Insert { new, seq },
+    }
+}
+
 pub(crate) fn index_edges(
     dag: &Dag,
     channel_buf_sz: usize,

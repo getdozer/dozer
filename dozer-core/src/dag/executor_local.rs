@@ -79,11 +79,11 @@ impl SchemaKey {
 
 pub struct MultiThreadedDagExecutor {
     channel_buf_sz: usize,
-    commit_size: u16,
+    commit_size: u32,
 }
 
 impl MultiThreadedDagExecutor {
-    pub fn new(channel_buf_sz: usize, commit_size: u16) -> Self {
+    pub fn new(channel_buf_sz: usize, commit_size: u32) -> Self {
         Self {
             channel_buf_sz,
             commit_size,
@@ -123,7 +123,8 @@ impl MultiThreadedDagExecutor {
         sources: Vec<(NodeHandle, SourceHolder)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         path: &PathBuf,
-        commit_size: u16,
+        commit_size: u32,
+        channel_buffer: usize,
     ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
 
@@ -138,6 +139,7 @@ impl MultiThreadedDagExecutor {
                         s,
                         senders.remove(&holder.0).unwrap(),
                         commit_size,
+                        channel_buffer,
                         path.clone(),
                     ));
                 }
@@ -231,6 +233,7 @@ impl MultiThreadedDagExecutor {
             &mut senders,
             &path,
             self.commit_size,
+            self.channel_buf_sz,
         )?);
 
         for sh in all_handles {

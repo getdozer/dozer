@@ -10,6 +10,7 @@ mod executor_source;
 mod executor_utils;
 pub mod forwarder;
 pub mod node;
+mod ops_manager;
 pub mod record_store;
 
 #[cfg(test)]

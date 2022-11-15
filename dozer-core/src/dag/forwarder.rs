@@ -61,8 +61,8 @@ impl PortRecordStoreWriter {
 pub struct LocalChannelForwarder {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     curr_seq_no: u64,
-    commit_size: u16,
-    commit_counter: u16,
+    commit_size: u32,
+    commit_counter: u32,
     source_handle: NodeHandle,
     rec_store_writer: Option<PortRecordStoreWriter>,
 }
@@ -71,7 +71,7 @@ impl LocalChannelForwarder {
     pub fn new_source_forwarder(
         source_handle: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        commit_size: u16,
+        commit_size: u32,
         rec_store_writer: Option<PortRecordStoreWriter>,
     ) -> Self {
         Self {

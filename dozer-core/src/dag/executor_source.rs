@@ -27,7 +27,8 @@ pub(crate) fn start_stateless_source(
     handle: NodeHandle,
     src_factory: Box<dyn StatelessSourceFactory>,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-    commit_size: u16,
+    commit_size: u32,
+    channel_buffer: usize,
     base_path: PathBuf,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     let mut fw =

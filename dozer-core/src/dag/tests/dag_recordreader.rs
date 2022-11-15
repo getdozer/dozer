@@ -196,7 +196,7 @@ fn test_run_dag_reacord_reader() {
     }
     fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-    let exec = MultiThreadedDagExecutor::new(300000, 50_000);
+    let exec = MultiThreadedDagExecutor::new(20_000 - 1, 20_000);
 
     assert!(exec.start(dag, tmp_dir.into_path()).is_ok());
 }
