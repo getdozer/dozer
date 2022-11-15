@@ -7,7 +7,7 @@ use crate::pipeline::errors::PipelineError::{InvalidQuery, InvalidRelation};
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::NodeType;
-use dozer_core::dag::mt_executor::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::NodeHandle;
 use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
 use std::collections::HashMap;
@@ -58,7 +58,7 @@ impl PipelineBuilder {
         let projection = ProjectionProcessorFactory::new(select.projection.clone());
 
         dag.add_node(
-            NodeType::Processor(Box::new(projection)),
+            NodeType::StatelessProcessor(Box::new(projection)),
             String::from("projection"),
         );
 
@@ -68,7 +68,7 @@ impl PipelineBuilder {
             first_node_name = String::from("selection");
 
             dag.add_node(
-                NodeType::Processor(Box::new(selection)),
+                NodeType::StatelessProcessor(Box::new(selection)),
                 String::from("selection"),
             );
 
@@ -86,7 +86,7 @@ impl PipelineBuilder {
             last_node_name = String::from("aggregation");
 
             dag.add_node(
-                NodeType::Processor(Box::new(aggregation)),
+                NodeType::StatefulProcessor(Box::new(aggregation)),
                 String::from("aggregation"),
             );
 

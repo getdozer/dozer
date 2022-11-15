@@ -1,7 +1,6 @@
-use dozer_core::dag::channels::{ChannelManager, SourceChannelForwarder};
+use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::node::{PortHandle, Source, SourceFactory};
-use dozer_core::storage::lmdb_sys::Transaction;
+use dozer_core::dag::node::{PortHandle, StatelessSource, StatelessSourceFactory};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -44,11 +43,7 @@ impl ConnectorSourceFactory {
     }
 }
 
-impl SourceFactory for ConnectorSourceFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
+impl StatelessSourceFactory for ConnectorSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.table_map
             .values()
@@ -56,7 +51,7 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect::<Vec<PortHandle>>()
     }
 
-    fn build(&self) -> Box<dyn Source> {
+    fn build(&self) -> Box<dyn StatelessSource> {
         Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
             connection_map: self.connection_map.to_owned(),
@@ -79,12 +74,10 @@ pub struct ConnectorSource {
     iterator: Arc<RwLock<IngestionIterator>>,
 }
 
-impl Source for ConnectorSource {
+impl StatelessSource for ConnectorSource {
     fn start(
         &self,
-        fw: &dyn SourceChannelForwarder,
-        cm: &dyn ChannelManager,
-        _state: Option<&mut Transaction>,
+        fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         let mut threads = vec![];
@@ -127,7 +120,7 @@ impl Source for ConnectorSource {
             // shutdown signal
             if !self.running.load(Ordering::SeqCst) {
                 debug!("Exiting Executor on Ctrl-C");
-                cm.terminate().unwrap();
+                fw.terminate().unwrap();
                 return Ok(());
             }
             // Keep a reference of schema to table mapping

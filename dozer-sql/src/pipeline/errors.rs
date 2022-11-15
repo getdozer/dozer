@@ -1,7 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
-use dozer_core::storage::lmdb_sys::LmdbError;
 use dozer_types::errors::types::TypeError;
 use thiserror::Error;
 
@@ -29,8 +28,6 @@ pub enum PipelineError {
     DataTypeMismatch,
 
     // Error forwarding
-    #[error(transparent)]
-    InternalDatabaseError(#[from] LmdbError),
     #[error(transparent)]
     InternalStorageError(#[from] StorageError),
     #[error(transparent)]
