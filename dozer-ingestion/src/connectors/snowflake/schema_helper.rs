@@ -36,7 +36,7 @@ impl SchemaHelper {
         Ok(FieldDefinition {
             name: c.name.clone().to_lowercase(),
             typ,
-            nullable: None != c.nullable,
+            nullable: c.nullable.is_some(),
         })
     }
 

@@ -153,10 +153,7 @@ impl Client {
 
     fn parse_exist(result: ResultSetState<Executed, AutocommitOn>) -> bool {
         match result {
-            Data(mut x) => match x.fetch().unwrap() {
-                None => false,
-                Some(_) => true,
-            },
+            Data(mut x) => x.fetch().unwrap().is_some(),
             NoData(_) => false,
         }
     }

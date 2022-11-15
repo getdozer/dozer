@@ -9,7 +9,6 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
-use crate::errors;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 use odbc::create_environment_v3;
@@ -140,36 +139,33 @@ impl StreamConsumer {
         }
 
         let result = client.fetch(&conn, format!("SELECT * FROM {};", temp_table_name))?;
-        match result {
-            Some((schema, iterator)) => {
-                let mut truncated_schema = schema.clone();
-                truncated_schema.truncate(schema.len() - 3);
+        if let Some((schema, iterator)) = result {
+            let mut truncated_schema = schema.clone();
+            truncated_schema.truncate(schema.len() - 3);
+            ingestor
+                .write()
+                .handle_message((
+                    connector_id,
+                    IngestionMessage::Schema(
+                        table_name.clone(),
+                        SchemaHelper::map_schema(truncated_schema)?,
+                    ),
+                ))
+                .map_err(ConnectorError::IngestorError)?;
+
+            let columns_length = schema.len();
+            let used_columns_for_schema = columns_length - 3;
+            let action_idx = used_columns_for_schema;
+
+            for row in iterator {
+                let ingestion_message =
+                    Self::get_ingestion_message(row, action_idx, used_columns_for_schema)?;
                 ingestor
                     .write()
-                    .handle_message((
-                        connector_id,
-                        IngestionMessage::Schema(
-                            table_name.clone(),
-                            SchemaHelper::map_schema(truncated_schema)?,
-                        ),
-                    ))
+                    .handle_message((connector_id, ingestion_message))
                     .map_err(ConnectorError::IngestorError)?;
-
-                let columns_length = schema.len();
-                let used_columns_for_schema = columns_length - 3;
-                let action_idx = used_columns_for_schema;
-
-                for row in iterator {
-                    let ingestion_message =
-                        Self::get_ingestion_message(row, action_idx, used_columns_for_schema)?;
-                    ingestor
-                        .write()
-                        .handle_message((connector_id, ingestion_message))
-                        .map_err(ConnectorError::IngestorError)?;
-                }
             }
-            None => {}
-        };
+        }
 
         let query = format!("DROP TABLE {};", temp_table_name);
 
