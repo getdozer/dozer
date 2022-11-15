@@ -1,7 +1,8 @@
+#![allow(non_snake_case)]
 use crate::dag::channels::ProcessorChannelForwarder;
 use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
-use crate::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use crate::dag::executor_local::MultiThreadedDagExecutor;
 use crate::dag::node::{
     NodeHandle, PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory,
     StatelessProcessor, StatelessProcessorFactory,
@@ -10,10 +11,10 @@ use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::common::{Environment, RwTransaction};
-use dozer_types::types::{Field, FieldType, Operation, Schema};
+use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
-use std::sync::Arc;
+
 use tempdir::TempDir;
 
 pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = 50;
@@ -47,7 +48,7 @@ pub(crate) struct PassthroughProcessor {}
 impl StatefulProcessor for PassthroughProcessor {
     fn update_schema(
         &mut self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(input_schemas
@@ -56,7 +57,7 @@ impl StatefulProcessor for PassthroughProcessor {
             .clone())
     }
 
-    fn init<'a>(&'_ mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -65,8 +66,8 @@ impl StatefulProcessor for PassthroughProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: &mut dyn RwTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        _tx: &mut dyn RwTransaction,
+        _readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
     }
@@ -102,7 +103,7 @@ pub(crate) struct RecordReaderProcessor {
 impl StatelessProcessor for RecordReaderProcessor {
     fn update_schema(
         &mut self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(input_schemas
@@ -167,25 +168,22 @@ fn test_run_dag_reacord_reader() {
 
     assert!(dag
         .connect(
-            Endpoint::new(SOURCE_ID.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+            Endpoint::new(SOURCE_ID, GENERATOR_SOURCE_OUTPUT_PORT),
             Endpoint::new(PASSTHROUGH_ID.clone(), PASSTHROUGH_PROCESSOR_INPUT_PORT),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(PASSTHROUGH_ID.clone(), PASSTHROUGH_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(PASSTHROUGH_ID, PASSTHROUGH_PROCESSOR_OUTPUT_PORT),
             Endpoint::new(RECORD_READER_ID.clone(), RECORD_READER_PROCESSOR_INPUT_PORT),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(
-                RECORD_READER_ID.clone(),
-                RECORD_READER_PROCESSOR_OUTPUT_PORT
-            ),
-            Endpoint::new(SINK_ID.clone(), COUNTING_SINK_INPUT_PORT),
+            Endpoint::new(RECORD_READER_ID, RECORD_READER_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(SINK_ID, COUNTING_SINK_INPUT_PORT),
         )
         .is_ok());
 

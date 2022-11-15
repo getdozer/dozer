@@ -37,7 +37,7 @@ pub struct DynPortsSource {
 }
 
 impl StatelessSource for DynPortsSource {
-    fn get_output_schema(&self, port: PortHandle) -> Option<Schema> {
+    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
                 .field(
@@ -177,7 +177,7 @@ pub struct DynPortsProcessor {
 impl StatefulProcessor for DynPortsProcessor {
     fn update_schema(
         &mut self,
-        output_port: PortHandle,
+        _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
@@ -195,7 +195,7 @@ impl StatefulProcessor for DynPortsProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         tx: &mut dyn RwTransaction,
-        readers: &HashMap<PortHandle, RecordReader>,
+        _readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.ctr += 1;
 

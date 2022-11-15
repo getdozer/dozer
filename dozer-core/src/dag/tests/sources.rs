@@ -29,7 +29,7 @@ pub(crate) struct GeneratorSource {
 }
 
 impl StatelessSource for GeneratorSource {
-    fn get_output_schema(&self, port: PortHandle) -> Option<Schema> {
+    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
                 .field(
