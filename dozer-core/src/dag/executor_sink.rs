@@ -29,7 +29,7 @@ pub(crate) fn start_stateful_sink(
         let mut input_schemas = HashMap::<PortHandle, Schema>::new();
         let mut schema_initialized = false;
 
-        let mut state_meta = init_component(&handle, base_path, |e| snk.init(e))?;
+        let mut state_meta = init_component(&handle, base_path.as_path(), |e| snk.init(e))?;
         let mut master_tx = state_meta.env.create_txn()?;
 
         let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
@@ -88,7 +88,6 @@ pub(crate) fn start_stateless_sink(
     _handle: NodeHandle,
     snk_factory: Box<dyn StatelessSinkFactory>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
-    _base_path: PathBuf,
     latch: Arc<CountDownLatch>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {

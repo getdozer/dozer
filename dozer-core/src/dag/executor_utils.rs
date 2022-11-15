@@ -15,7 +15,7 @@ use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
 const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
@@ -33,7 +33,7 @@ impl StorageMetadata {
 
 pub(crate) fn init_component<F>(
     node_handle: &NodeHandle,
-    base_path: PathBuf,
+    base_path: &Path,
     mut init_f: F,
 ) -> Result<StorageMetadata, ExecutionError>
 where

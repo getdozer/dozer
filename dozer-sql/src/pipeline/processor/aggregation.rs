@@ -588,7 +588,7 @@ impl StatefulProcessor for AggregationProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         txn: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         match &self.db {
             Some(d) => {

@@ -2,7 +2,6 @@ use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, StatelessSink, StatelessSinkFactory};
-use dozer_core::storage::common::Environment;
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::events::ApiEvent;

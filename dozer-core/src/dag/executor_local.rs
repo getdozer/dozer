@@ -1,4 +1,5 @@
 #![allow(clippy::type_complexity)]
+#![allow(clippy::ptr_arg)]
 use crate::dag::dag::{Dag, Edge, PortDirection};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{MissingNodeInput, MissingNodeOutput};
@@ -79,7 +80,7 @@ impl MultiThreadedDagExecutor {
     fn start_sinks(
         sinks: Vec<(NodeHandle, SinkHolder)>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
-        path: &PathBuf,
+        path: PathBuf,
         latch: &Arc<CountDownLatch>,
     ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
@@ -101,7 +102,6 @@ impl MultiThreadedDagExecutor {
                         holder.0.clone(),
                         s,
                         snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
-                        path.clone(),
                         latch.clone(),
                     ));
                 }
@@ -114,7 +114,7 @@ impl MultiThreadedDagExecutor {
     fn start_sources(
         sources: Vec<(NodeHandle, SourceHolder)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
-        path: &PathBuf,
+        path: PathBuf,
         commit_size: u32,
         channel_buffer: usize,
     ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
@@ -144,7 +144,7 @@ impl MultiThreadedDagExecutor {
         processors: Vec<(NodeHandle, ProcessorHolder)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
-        path: &PathBuf,
+        path: PathBuf,
         edges: &Vec<Edge>,
         latch: &Arc<CountDownLatch>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
@@ -205,12 +205,17 @@ impl MultiThreadedDagExecutor {
 
         let mut all_handles = Vec::<JoinHandle<Result<(), ExecutionError>>>::new();
 
-        all_handles.extend(Self::start_sinks(sinks, &mut receivers, &path, &latch)?);
+        all_handles.extend(Self::start_sinks(
+            sinks,
+            &mut receivers,
+            path.clone(),
+            &latch,
+        )?);
         all_handles.extend(Self::start_processors(
             processors,
             &mut senders,
             &mut receivers,
-            &path,
+            path.clone(),
             &edges,
             &latch,
             &record_stores,
@@ -221,7 +226,7 @@ impl MultiThreadedDagExecutor {
         all_handles.extend(Self::start_sources(
             sources,
             &mut senders,
-            &path,
+            path,
             self.commit_size,
             self.channel_buf_sz,
         )?);

@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::Edge;
 use crate::dag::errors::ExecutionError;
@@ -142,7 +143,7 @@ fn update_stateful_processor_schema(
     proc: &mut Box<dyn StatefulProcessor>,
     fw: &mut LocalChannelForwarder,
 ) -> Result<bool, ExecutionError> {
-    if requires_schema_update(new, out_handle, input_schemas, &input_ports) {
+    if requires_schema_update(new, out_handle, input_schemas, input_ports) {
         for out_port in output_ports {
             let r = proc.update_schema(*out_port, input_schemas);
             match r {
@@ -188,7 +189,7 @@ pub(crate) fn start_stateful_processor(
         let mut output_schemas = HashMap::<PortHandle, Schema>::new();
         let mut schema_initialized = false;
 
-        let mut state_meta = init_component(&handle, base_path, |e| proc.init(e))?;
+        let mut state_meta = init_component(&handle, base_path.as_path(), |e| proc.init(e))?;
 
         let port_databases = create_ports_databases(
             state_meta.env.as_environment(),

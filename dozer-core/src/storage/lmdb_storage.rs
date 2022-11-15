@@ -9,7 +9,7 @@ use crate::storage::lmdb_sys::{
     PutOptions as LmdbPutOptions, Transaction as LmdbTransaction,
 };
 use libc::size_t;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 const DEFAULT_MAX_DBS: u32 = 256;
 const DEFAULT_MAX_READERS: u32 = 256;
@@ -22,7 +22,7 @@ pub struct LmdbEnvironmentManager {
 
 impl LmdbEnvironmentManager {
     pub fn create(
-        base_path: PathBuf,
+        base_path: &Path,
         name: &str,
     ) -> Result<Box<dyn EnvironmentManager>, StorageError> {
         let full_path = base_path.join(Path::new(name));
