@@ -92,14 +92,18 @@ impl<'a> CacheIterator<'a> {
 mod tests {
     use lmdb::{Transaction, WriteFlags};
 
-    use crate::cache::lmdb::utils::{init_db, init_env};
+    use crate::cache::lmdb::{
+        utils::{init_db, init_env},
+        CacheOptions,
+    };
 
     use super::CacheIterator;
 
     #[test]
     fn test_cache_iterator() {
-        let env = init_env(true).unwrap();
-        let db = init_db(&env, None).unwrap();
+        let options = CacheOptions::default();
+        let env = init_env(&options).unwrap();
+        let db = init_db(&env, None, &options).unwrap();
 
         // Insert test data.
         let mut txn = env.begin_rw_txn().unwrap();

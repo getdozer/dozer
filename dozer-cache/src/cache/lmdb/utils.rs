@@ -2,48 +2,73 @@ use std::fs;
 use std::path::Path;
 
 use crate::errors::CacheError;
-use lmdb::{Cursor, Database, DatabaseFlags, Environment, RoCursor};
+use lmdb::{Cursor, Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor};
 use tempdir::TempDir;
 
-pub fn init_env(temp: bool) -> Result<Environment, CacheError> {
-    let map_size = 1024 * 1024 * 1024 * 5;
-    let db_size = 10000;
-    let mut env = Environment::new();
+use super::CacheOptions;
 
-    let env = env
-        .set_max_readers(10)
-        .set_map_size(map_size)
-        .set_max_dbs(db_size)
-        .set_map_size(map_size);
+pub fn init_env(options: &CacheOptions) -> Result<Environment, CacheError> {
+    match options {
+        CacheOptions::Write(options) => {
+            let mut env = Environment::new();
 
-    let env = match temp {
-        true => env
-            .open(
-                TempDir::new("cache")
-                    .map_err(|e| CacheError::InternalError(Box::new(e)))?
-                    .path(),
-            )
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?,
-        false => {
-            fs::create_dir_all("target/cache.mdb")
-                .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-            env.open(Path::new("target/cache.mdb"))
-                .map_err(|e| CacheError::InternalError(Box::new(e)))?
+            let env = env
+                .set_max_readers(options.max_readers)
+                .set_map_size(options.max_size)
+                .set_max_dbs(options.max_db_size);
+
+            let env = match options.path.to_owned() {
+                None => env
+                    .open(
+                        TempDir::new("dozer")
+                            .map_err(|e| CacheError::InternalError(Box::new(e)))?
+                            .path()
+                            .as_ref(),
+                    )
+                    .map_err(|e| CacheError::InternalError(Box::new(e)))?,
+                Some(path) => {
+                    fs::create_dir_all(&path)
+                        .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+                    env.open(Path::new(&path))
+                        .map_err(|e| CacheError::InternalError(Box::new(e)))?
+                }
+            };
+            Ok(env)
         }
-    };
-
-    Ok(env)
+        CacheOptions::ReadOnly(options) => {
+            let mut env = Environment::new();
+            let env = env
+                .set_flags(EnvironmentFlags::READ_ONLY)
+                .set_max_dbs(options.max_db_size);
+            env.open(Path::new(&options.path))
+                .map_err(|e| CacheError::InternalError(Box::new(e)))
+        }
+    }
 }
 
-pub fn init_db(env: &Environment, name: Option<&str>) -> Result<Database, CacheError> {
-    let mut flags = DatabaseFlags::default();
-    flags.set(DatabaseFlags::DUP_SORT, true);
+pub fn init_db(
+    env: &Environment,
+    name: Option<&str>,
+    options: &CacheOptions,
+) -> Result<Database, CacheError> {
+    match options {
+        CacheOptions::Write(_) => {
+            let mut flags = DatabaseFlags::default();
+            flags.set(DatabaseFlags::DUP_SORT, true);
 
-    let db = env
-        .create_db(name, flags)
-        .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+            let db = env
+                .create_db(name, flags)
+                .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
-    Ok(db)
+            Ok(db)
+        }
+        CacheOptions::ReadOnly(_) => {
+            let db = env
+                .open_db(name)
+                .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+            Ok(db)
+        }
+    }
 }
 pub fn _cursor_dump(mut cursor: RoCursor) -> Vec<(&[u8], &[u8])> {
     cursor
@@ -58,13 +83,17 @@ mod tests {
     use dozer_types::types::Field;
     use lmdb::{Transaction, WriteFlags};
 
-    use crate::cache::lmdb::utils::{_cursor_dump, init_db, init_env};
+    use crate::cache::lmdb::{
+        utils::{_cursor_dump, init_db, init_env},
+        CacheOptions,
+    };
 
     #[test]
     fn duplicate_test_nested() {
-        let env = init_env(true).unwrap();
+        let options = CacheOptions::default();
+        let env = init_env(&options).unwrap();
 
-        let db = init_db(&env, Some("test")).unwrap();
+        let db = init_db(&env, Some("test"), &options).unwrap();
 
         let mut txn = env.begin_rw_txn().unwrap();
 

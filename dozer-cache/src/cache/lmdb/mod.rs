@@ -5,3 +5,57 @@ pub mod utils;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Debug)]
+pub enum CacheOptions {
+    // Write Options
+    Write(CacheWriteOptions),
+
+    // Read Options
+    ReadOnly(CacheReadOptions),
+}
+
+impl Default for CacheOptions {
+    fn default() -> Self {
+        CacheOptions::Write(CacheWriteOptions {
+            max_size: 1024 * 1024 * 5,
+            max_readers: 10,
+            max_db_size: 1000,
+            path: None,
+        })
+    }
+}
+impl CacheOptions {
+    fn _read_default(path: String) -> Self {
+        CacheOptions::ReadOnly(CacheReadOptions {
+            max_readers: 10,
+            // Max no of dbs
+            max_db_size: 1000,
+            path,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CacheReadOptions {
+    // Total number of readers allowed
+    pub max_readers: u32,
+    // Absolute path
+    pub path: String,
+    // Max no of dbs
+    pub max_db_size: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct CacheWriteOptions {
+    // Total size allocated for data in a memory mapped file.
+    // This size is allocated at initialization.
+    pub max_size: usize,
+    // Total number of readers allowed
+    pub max_readers: u32,
+    // Max no of dbs
+    pub max_db_size: u32,
+
+    // Provide a path where db will be created. If nothing is provided, will default to a temp location.
+    pub path: Option<String>,
+}
