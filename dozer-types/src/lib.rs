@@ -1,6 +1,7 @@
 pub mod core;
 pub mod errors;
-mod field_type;
+pub mod events;
+pub mod field_type;
 pub mod helper;
 pub mod ingestion_types;
 pub mod models;

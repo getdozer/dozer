@@ -12,7 +12,7 @@ use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::errors;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
-use odbc::create_environment_v3;
+use odbc::{create_environment_v3};
 use std::sync::Arc;
 
 pub struct StreamConsumer {}
@@ -58,10 +58,7 @@ impl StreamConsumer {
 
     fn map_record(row: Vec<Option<Field>>) -> Record {
         Record {
-            schema_id: Some(SchemaIdentifier {
-                id: 10101,
-                version: 1,
-            }),
+            schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
             values: row
                 .iter()
                 .map(|v| match v.clone() {
@@ -146,7 +143,7 @@ impl StreamConsumer {
         match result {
             Some((schema, iterator)) => {
                 let mut truncated_schema = schema.clone();
-                truncated_schema.truncate(3);
+                truncated_schema.truncate(schema.len() - 3);
                 ingestor
                     .write()
                     .handle_message((
@@ -170,14 +167,15 @@ impl StreamConsumer {
                         .handle_message((connector_id, ingestion_message))
                         .map_err(ConnectorError::IngestorError)?;
                 }
-
-                Ok(())
             }
-            None => Ok(()),
-        }?;
+            None => {}
+        };
 
-        let query = format!("DELETE TEMP TABLE {};", temp_table_name);
+        let query = format!("DROP TABLE {};", temp_table_name);
 
-        client.exec(&conn, query).map_err(ConnectorError::SnowflakeError).map(|_| ())
+        client
+            .exec(&conn, query)
+            .map_err(ConnectorError::SnowflakeError)
+            .map(|_| ())
     }
 }

@@ -5,7 +5,7 @@ use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
 use crate::errors::SnowflakeError::QueryError;
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
-use dozer_types::types::Field;
+use dozer_types::types::*;
 use odbc::ffi::SqlDataType;
 use odbc::odbc_safe::AutocommitOn;
 use odbc::{
@@ -58,10 +58,11 @@ pub fn convert_data(
         //     }
         // },
         // SqlDataType::SQL_TIMESTAMP => Ok(FieldType::Timestamp),
-        _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
-            "{:?}",
-            &column_descriptor.data_type
-        ))),
+        // _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
+        //     "{:?}",
+        //     &column_descriptor.data_type
+        // ))),
+        _ => Ok(Field::Null),
     }
 }
 
@@ -98,7 +99,11 @@ pub struct Client {
 impl Client {
     pub fn new(config: &SnowflakeConfig) -> Self {
         let mut conn_hashmap: HashMap<String, String> = HashMap::new();
-        conn_hashmap.insert("Driver".to_string(), config.clone().driver);
+        let driver = match &config.driver {
+            None => "Snowflake".to_string(),
+            Some(driver) => driver.to_string(),
+        };
+        conn_hashmap.insert("Driver".to_string(), driver);
         conn_hashmap.insert("Server".to_string(), config.clone().server);
         conn_hashmap.insert("Port".to_string(), config.clone().port);
         conn_hashmap.insert("Uid".to_string(), config.clone().user);
@@ -106,6 +111,7 @@ impl Client {
         conn_hashmap.insert("Schema".to_string(), config.clone().schema);
         conn_hashmap.insert("Warehouse".to_string(), config.clone().warehouse);
         conn_hashmap.insert("Database".to_string(), config.clone().database);
+        conn_hashmap.insert("Role".to_string(), "ACCOUNTADMIN".to_string());
 
         let mut parts = vec![];
         conn_hashmap.keys().into_iter().for_each(|k| {
@@ -130,9 +136,7 @@ impl Client {
     ) -> Result<Option<bool>, SnowflakeError> {
         let stmt = Statement::with_parent(conn).map_err(QueryError)?;
 
-        let result = stmt
-            .exec_direct(&query)
-            .map_err(SnowflakeError::QueryError)?;
+        let result = stmt.exec_direct(&query).map_err(QueryError)?;
         match result {
             Data(_) => Ok(Some(true)),
             NoData(_) => Ok(None),
@@ -143,13 +147,16 @@ impl Client {
         if e.get_native_error() == 2003 {
             Ok(false)
         } else {
-            Err(SnowflakeError::QueryError(e))
+            Err(QueryError(e))
         }
     }
 
     fn parse_exist(result: ResultSetState<Executed, AutocommitOn>) -> bool {
         match result {
-            Data(_) => true,
+            Data(mut x) => match x.fetch().unwrap() {
+                None => false,
+                Some(_) => true,
+            },
             NoData(_) => false,
         }
     }
@@ -173,7 +180,10 @@ impl Client {
         conn: &Connection<AutocommitOn>,
         table_name: &String,
     ) -> Result<bool, SnowflakeError> {
-        let query = format!("DESCRIBE TABLE {};", table_name);
+        let query = format!(
+            "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{}';",
+            table_name
+        );
 
         let stmt = Statement::with_parent(conn).map_err(QueryError)?;
         stmt.exec_direct(&query)

@@ -49,10 +49,7 @@ impl SchemaHelper {
         let defined_fields = fields.map_err(SnowflakeError::SnowflakeSchemaError)?;
 
         Ok(Schema {
-            identifier: Some(SchemaIdentifier {
-                id: 10101,
-                version: 1,
-            }),
+            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
             fields: defined_fields,
             values: vec![],
             primary_index: vec![0],

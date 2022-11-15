@@ -56,5 +56,5 @@ pub struct SnowflakeConfig {
     pub database: String,
     pub schema: String,
     pub warehouse: String,
-    pub driver: String,
+    pub driver: Option<String>,
 }

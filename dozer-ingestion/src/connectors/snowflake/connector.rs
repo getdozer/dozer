@@ -108,28 +108,28 @@ async fn run(
                         table.name.clone(),
                     )?;
                     StreamConsumer::create_stream(&client, &table.name)?;
-                } else {
-                    let stream_client = Client::new(&config);
-                    let table_name = table.clone();
-                    let ingestor_stream = Arc::clone(&ingestor);
-                    let forever = task::spawn(async move {
-                        let mut interval = time::interval(Duration::from_secs(5));
-
-                        loop {
-                            interval.tick().await;
-
-                            StreamConsumer::consume_stream(
-                                &stream_client,
-                                connector_id,
-                                &table_name.name,
-                                &ingestor_stream,
-                            )
-                            .unwrap();
-                        }
-                    });
-
-                    forever.await.unwrap();
                 }
+
+                let stream_client = Client::new(&config);
+                let table_name = table.clone();
+                let ingestor_stream = Arc::clone(&ingestor);
+                let forever = task::spawn(async move {
+                    let mut interval = time::interval(Duration::from_secs(5));
+
+                    loop {
+                        StreamConsumer::consume_stream(
+                            &stream_client,
+                            connector_id,
+                            &table_name.name,
+                            &ingestor_stream,
+                        )
+                        .unwrap();
+
+                        interval.tick().await;
+                    }
+                });
+
+                forever.await.unwrap();
             }
         }
     };

@@ -55,10 +55,7 @@ impl Snapshotter {
                                 seq_no: 0,
                                 operation: Operation::Insert {
                                     new: Record {
-                                        schema_id: Some(SchemaIdentifier {
-                                            id: 10101,
-                                            version: 1,
-                                        }),
+                                        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                                         values: values
                                             .iter()
                                             .map(|v| match v {

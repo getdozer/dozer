@@ -42,7 +42,7 @@ pub enum Authentication {
         database: String,
         schema: String,
         warehouse: String,
-        driver: String,
+        driver: Option<String>,
     },
 }
 impl Display for DBType {
