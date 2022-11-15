@@ -49,6 +49,7 @@ message Operation {
   OperationType typ = 1;
   optional Record old = 2;
   Record new = 3;
+  string endpoint_name = 4;
 }
 message Record { repeated Value values = 1; }
 

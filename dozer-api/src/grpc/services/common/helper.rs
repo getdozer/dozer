@@ -4,22 +4,25 @@ use dozer_types::types::{Field, FieldType, Operation as DozerOperation, Record a
 
 use super::common_grpc::{Operation, OperationType, Record};
 
-pub fn map_operation(operation: &DozerOperation) -> Operation {
+pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Operation {
     match operation.to_owned() {
         DozerOperation::Delete { old } => Operation {
             typ: OperationType::Delete as i32,
             old: Some(map_record(old)),
             new: None,
+            endpoint_name,
         },
         DozerOperation::Insert { new } => Operation {
             typ: OperationType::Insert as i32,
             old: None,
             new: Some(map_record(new)),
+            endpoint_name,
         },
         DozerOperation::Update { old, new } => Operation {
             typ: OperationType::Insert as i32,
             old: Some(map_record(old)),
             new: Some(map_record(new)),
+            endpoint_name,
         },
     }
 }

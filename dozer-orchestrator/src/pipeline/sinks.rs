@@ -120,7 +120,10 @@ impl Sink for CacheSink {
 
         if let Some(notifier) = &self.notifier {
             notifier
-                .try_send(ApiEvent::Operation(op.clone()))
+                .try_send(ApiEvent::Operation(
+                    self.api_endpoint.name.to_owned(),
+                    op.clone(),
+                ))
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
         match op {
@@ -182,7 +185,10 @@ impl Sink for CacheSink {
 
             if let Some(notifier) = &self.notifier {
                 let res = notifier
-                    .try_send(ApiEvent::SchemaChange(schema))
+                    .try_send(ApiEvent::SchemaChange(
+                        self.api_endpoint.name.to_owned(),
+                        schema,
+                    ))
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::SchemaNotificationFailed(Box::new(e)))
                     });
