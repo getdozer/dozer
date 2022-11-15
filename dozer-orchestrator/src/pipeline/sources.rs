@@ -7,14 +7,13 @@ use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
-use dozer_types::parking_lot::{RawRwLock, RwLock};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use log::debug;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use dozer_types::parking_lot::lock_api::RwLockWriteGuard;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -159,7 +158,6 @@ impl Source for ConnectorSource {
                         schema_map.insert(schema_id, port.to_owned());
                         fw.update_schema(schema.clone(), port.to_owned())?
                     }
-                    _ => {}
                 }
             } else {
                 break;
