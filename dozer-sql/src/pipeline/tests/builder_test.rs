@@ -2,8 +2,9 @@ use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
-use dozer_core::dag::node::{PortHandle, Sink, SinkFactory, Source, SourceFactory};
-use dozer_core::storage::lmdb_sys::Transaction;
+use dozer_core::dag::node::{
+    PortHandle, StatelessSink, StatelessSinkFactory, StatelessSource, StatelessSourceFactory,
+};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
@@ -27,22 +28,18 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory for TestSourceFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
+impl StatelessSourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<PortHandle> {
         self.output_ports.clone()
     }
-    fn build(&self) -> Box<dyn Source> {
+    fn build(&self) -> Box<dyn StatelessSource> {
         Box::new(TestSource {})
     }
 }
 
 pub struct TestSource {}
 
-impl Source for TestSource {
+impl StatelessSource for TestSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
@@ -68,7 +65,6 @@ impl Source for TestSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _state: Option<&mut Transaction>,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         for n in 0..10000 {
@@ -103,22 +99,18 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory for TestSinkFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
+impl StatelessSinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn Sink> {
+    fn build(&self) -> Box<dyn StatelessSink> {
         Box::new(TestSink {})
     }
 }
 
 pub struct TestSink {}
 
-impl Sink for TestSink {
+impl StatelessSink for TestSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -126,7 +118,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init(&mut self) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -136,7 +128,6 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
-        _state: Option<&mut Transaction>,
     ) -> Result<(), ExecutionError> {
         //    debug!("SINK: Message {} received", _op.seq_no);
         Ok(())
@@ -163,8 +154,11 @@ fn test_pipeline_builder() {
     let source = TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
     let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
-    dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
-    dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
+    dag.add_node(
+        NodeType::StatelessSource(Box::new(source)),
+        "source".to_string(),
+    );
+    dag.add_node(NodeType::StatelessSink(Box::new(sink)), "sink".to_string());
 
     let input_point = in_handle.remove("customers").unwrap();
 
@@ -184,7 +178,7 @@ fn test_pipeline_builder() {
     }
     fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-    let exec = MultiThreadedDagExecutor::new(100000);
+    let exec = MultiThreadedDagExecutor::new(100000, 20000);
 
     use std::time::Instant;
     let now = Instant::now();

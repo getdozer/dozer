@@ -8,11 +8,14 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{PortHandle, Processor, ProcessorFactory};
-use dozer_core::storage::lmdb_sys::{Database, DatabaseOptions, PutOptions, Transaction};
+use dozer_core::dag::node::{
+    PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory,
+};
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
+use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
@@ -62,20 +65,16 @@ impl AggregationProcessorFactory {
     }
 }
 
-impl ProcessorFactory for AggregationProcessorFactory {
-    fn is_stateful(&self) -> bool {
-        true
-    }
-
+impl StatefulProcessorFactory for AggregationProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
+    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
+        vec![StatefulPortHandle::new(DEFAULT_PORT_HANDLE, false)]
     }
 
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(&self) -> Box<dyn StatefulProcessor> {
         Box::new(AggregationProcessor {
             select: self.select.clone(),
             groupby: self.groupby.clone(),
@@ -281,18 +280,9 @@ impl AggregationProcessor {
         Ok(output_schema)
     }
 
-    fn init_store(&mut self, txn: Option<&mut Transaction>) -> Result<(), PipelineError> {
-        match txn {
-            Some(t) => {
-                let mut opts = DatabaseOptions::default();
-                opts.create = true;
-                self.db = Some(t.open_database("aggr".to_string(), opts)?);
-                Ok(())
-            }
-            None => Err(PipelineError::InternalExecutionError(
-                ExecutionError::InvalidDatabase,
-            )),
-        }
+    fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
+        self.db = Some(txn.open_database("aggr", false)?);
+        Ok(())
     }
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> Result<(), PipelineError> {
@@ -311,7 +301,7 @@ impl AggregationProcessor {
 
     fn calc_and_fill_measures(
         &self,
-        curr_state: Option<&[u8]>,
+        curr_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
         out_rec_delete: &mut Record,
@@ -323,7 +313,7 @@ impl AggregationProcessor {
 
         for measure in &self.out_measures {
             let curr_state_slice = match curr_state {
-                Some(e) => {
+                Some(ref e) => {
                     let len = u16::from_ne_bytes(e[offset..offset + 2].try_into().unwrap());
                     if len == 0 {
                         None
@@ -372,7 +362,7 @@ impl AggregationProcessor {
 
     fn update_segment_count(
         &self,
-        txn: &mut Transaction,
+        txn: &mut dyn RwTransaction,
         db: &Database,
         key: Vec<u8>,
         delta: u64,
@@ -395,14 +385,13 @@ impl AggregationProcessor {
             })
             .to_ne_bytes()
             .as_slice(),
-            PutOptions::default(),
         )?;
         Ok(curr_count)
     }
 
     fn agg_delete(
         &self,
-        txn: &mut Transaction,
+        txn: &mut dyn RwTransaction,
         db: &Database,
         old: &Record,
     ) -> Result<Operation, PipelineError> {
@@ -422,7 +411,7 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            curr_state,
+            &curr_state,
             Some(old),
             None,
             &mut out_rec_delete,
@@ -445,12 +434,7 @@ impl AggregationProcessor {
         };
 
         if prev_count > 0 {
-            txn.put(
-                db,
-                record_key.as_slice(),
-                new_state.as_slice(),
-                PutOptions::default(),
-            )?;
+            txn.put(db, record_key.as_slice(), new_state.as_slice())?;
         } else {
             let _ = txn.del(db, record_key.as_slice(), None)?;
         }
@@ -459,7 +443,7 @@ impl AggregationProcessor {
 
     fn agg_insert(
         &self,
-        txn: &mut Transaction,
+        txn: &mut dyn RwTransaction,
         db: &Database,
         new: &Record,
     ) -> Result<Operation, PipelineError> {
@@ -479,7 +463,7 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            curr_state,
+            &curr_state,
             None,
             Some(new),
             &mut out_rec_delete,
@@ -501,19 +485,14 @@ impl AggregationProcessor {
             }
         };
 
-        txn.put(
-            db,
-            record_key.as_slice(),
-            new_state.as_slice(),
-            PutOptions::default(),
-        )?;
+        txn.put(db, record_key.as_slice(), new_state.as_slice())?;
 
         Ok(res)
     }
 
     fn agg_update(
         &self,
-        txn: &mut Transaction,
+        txn: &mut dyn RwTransaction,
         db: &Database,
         old: &Record,
         new: &Record,
@@ -525,7 +504,7 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            curr_state,
+            &curr_state,
             Some(old),
             Some(new),
             &mut out_rec_delete,
@@ -541,19 +520,14 @@ impl AggregationProcessor {
             old: out_rec_delete,
         };
 
-        txn.put(
-            db,
-            record_key.as_slice(),
-            new_state.as_slice(),
-            PutOptions::default(),
-        )?;
+        txn.put(db, record_key.as_slice(), new_state.as_slice())?;
 
         Ok(res)
     }
 
     pub fn aggregate(
         &self,
-        txn: &mut Transaction,
+        txn: &mut dyn RwTransaction,
         db: &Database,
         op: Operation,
     ) -> Result<Vec<Operation>, PipelineError> {
@@ -584,7 +558,7 @@ impl AggregationProcessor {
     }
 }
 
-impl Processor for AggregationProcessor {
+impl StatefulProcessor for AggregationProcessor {
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -604,7 +578,7 @@ impl Processor for AggregationProcessor {
         self.build_output_schema(input_schema)
     }
 
-    fn init(&mut self, state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
         internal_err!(self.init_store(state))
     }
 
@@ -613,11 +587,12 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        txn: Option<&mut Transaction>,
+        txn: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
-        match (txn, &self.db) {
-            (Some(t), Some(d)) => {
-                let ops = internal_err!(self.aggregate(t, d, op))?;
+        match &self.db {
+            Some(d) => {
+                let ops = internal_err!(self.aggregate(txn, d, op))?;
                 for op in ops {
                     fw.send(op, DEFAULT_PORT_HANDLE)?;
                 }

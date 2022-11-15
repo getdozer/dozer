@@ -4,9 +4,8 @@ use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::PortHandle;
-use dozer_core::dag::node::{Processor, ProcessorFactory};
-use dozer_core::storage::lmdb_sys::Transaction;
+use dozer_core::dag::node::{PortHandle, StatelessProcessor, StatelessProcessorFactory};
+use dozer_core::dag::record_store::RecordReader;
 use dozer_types::types::{Field, Operation, Schema};
 use log::info;
 use sqlparser::ast::Expr as SqlExpr;
@@ -23,11 +22,7 @@ impl SelectionProcessorFactory {
     }
 }
 
-impl ProcessorFactory for SelectionProcessorFactory {
-    fn is_stateful(&self) -> bool {
-        false
-    }
-
+impl StatelessProcessorFactory for SelectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -36,7 +31,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(&self) -> Box<dyn StatelessProcessor> {
         Box::new(SelectionProcessor {
             statement: self.statement.clone(),
             expression: Box::new(Expression::Literal(Field::Boolean(true))),
@@ -75,7 +70,7 @@ impl SelectionProcessor {
     }
 }
 
-impl Processor for SelectionProcessor {
+impl StatelessProcessor for SelectionProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,
@@ -86,7 +81,7 @@ impl Processor for SelectionProcessor {
         Ok(schema.clone())
     }
 
-    fn init<'a>(&'_ mut self, _state: Option<&mut Transaction>) -> Result<(), ExecutionError> {
+    fn init<'a>(&'_ mut self) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Selection Processor");
         Ok(())
     }
@@ -95,8 +90,8 @@ impl Processor for SelectionProcessor {
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        fw: &dyn ProcessorChannelForwarder,
-        _state: Option<&mut Transaction>,
+        fw: &mut dyn ProcessorChannelForwarder,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {

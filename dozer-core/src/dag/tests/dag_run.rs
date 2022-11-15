@@ -8,8 +8,8 @@ use tempdir::TempDir;
 
 #[test]
 fn test_run_dag() {
-    log4rs::init_file("../log4rs.sample.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    //log4rs::init_file("../log4rs.sample.yaml", Default::default())
+    //    .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let src = DynPortsSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
     let proc1 =
