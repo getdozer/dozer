@@ -1,5 +1,5 @@
 use crate::pipeline::CacheSink;
-use dozer_cache::cache::LmdbCache;
+use dozer_cache::cache::{CacheOptions, LmdbCache};
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
@@ -30,7 +30,7 @@ pub fn get_schema() -> Schema {
 }
 
 pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
-    let cache = Arc::new(LmdbCache::new(true));
+    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
 
     let mut input_schemas: HashMap<PortHandle, Schema> = HashMap::new();
     input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());

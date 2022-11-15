@@ -17,7 +17,7 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
         .iter()
         .map(|idx| {
             let field = &values[*idx];
-            let encoded: Vec<u8> = bincode::serialize(field).unwrap();
+            let encoded: Vec<u8> = field.to_bytes().unwrap();
             encoded
         })
         .collect();

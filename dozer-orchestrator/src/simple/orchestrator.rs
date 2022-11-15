@@ -2,7 +2,7 @@ use std::{sync::Arc, thread};
 
 use dozer_api::CacheEndpoint;
 use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
-use dozer_cache::cache::LmdbCache;
+use dozer_cache::cache::{CacheOptions, LmdbCache};
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::events::ApiEvent;
 
@@ -58,7 +58,7 @@ impl Orchestrator for SimpleOrchestrator {
             .api_endpoints
             .iter()
             .map(|e| CacheEndpoint {
-                cache: Arc::new(LmdbCache::new(true)),
+                cache: Arc::new(LmdbCache::new(CacheOptions::default()).unwrap()),
                 endpoint: e.to_owned(),
             })
             .collect();

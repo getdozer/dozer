@@ -9,7 +9,7 @@ use dozer_types::{
 };
 use std::sync::Arc;
 
-use dozer_cache::cache::{Cache, LmdbCache};
+use dozer_cache::cache::{Cache, CacheOptions, LmdbCache};
 
 pub fn get_schema() -> Schema {
     let fields = vec![
@@ -132,7 +132,7 @@ pub fn initialize_cache(
     schema_name: &str,
     schema: Option<dozer_types::types::Schema>,
 ) -> Arc<LmdbCache> {
-    let cache = Arc::new(LmdbCache::new(true));
+    let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
     let schema: dozer_types::types::Schema = schema.unwrap_or_else(get_schema);
     let records_value: Vec<Value> = get_films();
     for record_str in records_value {

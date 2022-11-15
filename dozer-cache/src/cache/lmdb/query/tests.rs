@@ -1,6 +1,6 @@
 use crate::cache::{
     expression::{self, FilterExpression, QueryExpression},
-    lmdb::{cache::LmdbCache, test_utils::insert_rec_1},
+    lmdb::{cache::LmdbCache, tests::utils, CacheOptions},
     test_utils, Cache,
 };
 use dozer_types::{
@@ -10,7 +10,7 @@ use dozer_types::{
 
 #[test]
 fn query_secondary() {
-    let cache = LmdbCache::new(true);
+    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
     let schema = test_utils::schema_1();
     let record = Record::new(
         schema.identifier.clone(),
@@ -69,7 +69,7 @@ fn query_secondary() {
 
 #[test]
 fn query_secondary_vars() {
-    let cache = LmdbCache::new(true);
+    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
     let schema = test_utils::schema_1();
 
     cache.insert_schema("sample", &schema).unwrap();
@@ -85,7 +85,7 @@ fn query_secondary_vars() {
     ];
     // 26 alphabets
     for val in items {
-        insert_rec_1(&cache, &schema, val);
+        utils::insert_rec_1(&cache, &schema, val);
     }
 
     test_query(json!({}), 7, &cache);
