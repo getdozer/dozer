@@ -11,7 +11,7 @@ use crate::{
         UpdateConnectionRequest, UpdateConnectionResponse,
     },
 };
-use dozer_orchestrator::{get_schema, test_connection};
+use dozer_orchestrator::get_connector;
 use dozer_types::models::{self, connection::Connection};
 use std::thread;
 
@@ -31,8 +31,10 @@ impl ConnectionService {
         &self,
         connection: Connection,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ErrorResponse> {
-        let get_schema_res =
-            thread::spawn(|| get_schema(connection).map_err(|err| err.to_string()));
+        let get_schema_res = thread::spawn(|| {
+            let connector = get_connector(connection);
+            connector.get_schemas(None).map_err(|err| err.to_string())
+        });
         get_schema_res
             .join()
             .unwrap()
@@ -148,8 +150,11 @@ impl ConnectionService {
         let connection = Connection::try_from(connection_info).map_err(|err| ErrorResponse {
             message: err.to_string(),
         })?;
-        let connection_test =
-            thread::spawn(|| test_connection(connection).map_err(|err| err.to_string()));
+
+        let connection_test = thread::spawn(|| {
+            let connector = get_connector(connection);
+            connector.test_connection().map_err(|err| err.to_string())
+        });
         connection_test
             .join()
             .unwrap()
