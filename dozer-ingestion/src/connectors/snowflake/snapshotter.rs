@@ -1,5 +1,4 @@
 use crate::connectors::snowflake::connection::client::Client;
-use crate::errors;
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
