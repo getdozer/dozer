@@ -6,13 +6,14 @@ use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 use crate::errors::SnowflakeError::QueryError;
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use dozer_types::types::*;
-use odbc::ffi::SqlDataType;
+use odbc::ffi::{SQL_TIMESTAMP_STRUCT, SqlDataType};
 use odbc::odbc_safe::AutocommitOn;
 use odbc::{
     ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
     ResultSetState, Statement,
 };
 use std::collections::HashMap;
+use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
 pub fn convert_data(
     cursor: &mut Cursor<Executed, AutocommitOn>,
@@ -50,19 +51,23 @@ pub fn convert_data(
                 Some(value) => Ok(Field::from(value)),
             }
         }
-        // // SqlDataType::SQL_DATETIME => Ok(FieldType::Timestamp),
-        // SqlDataType::SQL_VARCHAR => {
-        //     match cursor.get_data::<String>(i).map_err(SnowflakeSchemaError::ValueConversionError)? {
-        //         None => Ok(Field::Null),
-        //         Some(value) => Ok(Field::from(value))
-        //     }
-        // },
-        // SqlDataType::SQL_TIMESTAMP => Ok(FieldType::Timestamp),
-        // _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
-        //     "{:?}",
-        //     &column_descriptor.data_type
-        // ))),
-        _ => Ok(Field::Null),
+        SqlDataType::SQL_TIMESTAMP => {
+            match cursor
+                .get_data::<SQL_TIMESTAMP_STRUCT>(i)
+                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+            {
+                None => Ok(Field::Null),
+                Some(value) => {
+                    let date = NaiveDate::from_ymd(value.year as i32, value.month as u32, value.day as u32);
+                    let time = NaiveTime::from_hms_milli(value.hour as u32, value.minute as u32, value.second as u32, value.fraction);
+                    Ok(Field::from(NaiveDateTime::new(date, time)))
+                },
+            }
+        },
+        _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
+            "{:?}",
+            &column_descriptor.data_type
+        ))),
     }
 }
 
