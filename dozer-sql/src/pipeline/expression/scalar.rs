@@ -8,6 +8,7 @@ use num_traits::Float;
 pub enum ScalarFunctionType {
     Abs,
     Round,
+    Ucase,
 }
 
 impl ScalarFunctionType {
@@ -15,6 +16,7 @@ impl ScalarFunctionType {
         match name {
             "abs" => Ok(ScalarFunctionType::Abs),
             "round" => Ok(ScalarFunctionType::Round),
+            "ucase" => Ok(ScalarFunctionType::Ucase),
             _ => Err(PipelineError::InvalidFunction(name.to_string())),
         }
     }
@@ -27,6 +29,7 @@ impl ScalarFunctionType {
         match self {
             ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
             ScalarFunctionType::Round => evaluate_round(&args[0], args.get(1), record),
+            ScalarFunctionType::Ucase => evaluate_ucase(&args[0], record),
         }
     }
 }
@@ -64,8 +67,49 @@ fn evaluate_round(
     }
 }
 
+fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
+    let value = arg.evaluate(record)?;
+    match value {
+        Field::String(s) => Ok(Field::String(s.to_uppercase())),
+        Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
+        Field::Int(i) => Ok(Field::Int(i)),
+        Field::UInt(i) => Ok(Field::UInt(i)),
+        Field::Float(f) => Ok(Field::Float(f)),
+        Field::Decimal(d) => Ok(Field::Decimal(d)),
+        Field::Boolean(b) => Ok(Field::Boolean(b)),
+        Field::Binary(b) => Ok(Field::Binary(b)),
+        Field::Timestamp(t) => Ok(Field::Timestamp(t)),
+        _ => Err(PipelineError::InvalidOperandType("UCASE()".to_string())),
+    }
+}
+
 #[cfg(test)]
 use crate::pipeline::expression::execution::Expression::Literal;
+
+#[test]
+fn test_ucase() {
+    let row = Record::new(None, vec![]);
+
+    let s = Box::new(Literal(Field::String(String::from("data"))));
+    let t = Box::new(Literal(Field::Text(String::from("Data"))));
+    let i = Box::new(Literal(Field::Int(1)));
+    let s_output = Field::String(String::from("DATA"));
+    let t_output = Field::Text(String::from("DATA"));
+    let i_output = Field::Int(1);
+
+    assert_eq!(
+        evaluate_ucase(&s, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        s_output
+    );
+    assert_eq!(
+        evaluate_ucase(&t, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        t_output
+    );
+    assert_eq!(
+        evaluate_ucase(&i, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        i_output
+    );
+}
 
 #[test]
 fn test_round() {

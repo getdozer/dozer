@@ -194,6 +194,7 @@ fn get_scalar_function_type(
     match function {
         ScalarFunctionType::Abs => args.get(0).unwrap().get_type(schema),
         ScalarFunctionType::Round => FieldType::Int,
+        ScalarFunctionType::Ucase => args.get(0).unwrap().get_type(schema),
     }
 }
 
