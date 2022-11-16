@@ -4,7 +4,7 @@ use clap::Parser;
 use dozer_orchestrator::errors::OrchestrationError;
 use log::warn;
 
-use crate::cli::{load_config, Args, SubCommand};
+use crate::cli::{cli_parse, load_config};
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 
@@ -30,13 +30,6 @@ fn main() -> Result<(), OrchestrationError> {
      | |_| | |_| / /_| |___|  _ <
      |____/ \\___/____|_____|_| \\_\\"
     );
-    let args = Args::parse();
 
-    if let Some(cmd) = args.cmd {
-        match cmd {
-            SubCommand::GenerateToken => generate_token(),
-        }
-    } else {
-        run(args.config_path)
-    }
+    Ok(())
 }
