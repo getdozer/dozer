@@ -76,8 +76,6 @@ impl StatelessSource for GeneratorSource {
         loop {
             thread::sleep(Duration::from_millis(1000));
         }
-
-        Ok(())
     }
 }
 
@@ -147,7 +145,5 @@ impl StatefulSource for StatefulGeneratorSource {
         loop {
             thread::sleep(Duration::from_millis(1000));
         }
-
-        Ok(())
     }
 }
