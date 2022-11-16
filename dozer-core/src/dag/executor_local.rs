@@ -17,7 +17,8 @@ use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
@@ -64,19 +65,26 @@ impl SchemaKey {
     }
 }
 
+pub struct ExecutorOptions {
+    pub commit_sz: u32,
+    pub channel_buffer_sz: usize,
+}
+
+impl ExecutorOptions {
+    pub fn default() -> Self {
+        Self {
+            commit_sz: 10_000,
+            channel_buffer_sz: 20_000,
+        }
+    }
+}
+
 pub struct MultiThreadedDagExecutor {
-    channel_buf_sz: usize,
-    commit_size: u32,
+    handles: Vec<JoinHandle<Result<(), ExecutionError>>>,
+    stop_req: Arc<AtomicBool>,
 }
 
 impl MultiThreadedDagExecutor {
-    pub fn new(channel_buf_sz: usize, commit_size: u32) -> Self {
-        Self {
-            channel_buf_sz,
-            commit_size,
-        }
-    }
-
     fn start_sinks(
         sinks: Vec<(NodeHandle, SinkHolder)>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
@@ -112,6 +120,7 @@ impl MultiThreadedDagExecutor {
     }
 
     fn start_sources(
+        stop_req: Arc<AtomicBool>,
         sources: Vec<(NodeHandle, SourceHolder)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         path: PathBuf,
@@ -126,6 +135,7 @@ impl MultiThreadedDagExecutor {
             match holder.1 {
                 SourceHolder::Stateful(s) => {
                     handles.push(start_stateful_source(
+                        stop_req.clone(),
                         edges.clone(),
                         holder.0.clone(),
                         s,
@@ -138,6 +148,7 @@ impl MultiThreadedDagExecutor {
                 }
                 SourceHolder::Stateless(s) => {
                     handles.push(start_stateless_source(
+                        stop_req.clone(),
                         holder.0.clone(),
                         s,
                         senders.remove(&holder.0).unwrap(),
@@ -201,8 +212,12 @@ impl MultiThreadedDagExecutor {
         Ok(handles)
     }
 
-    pub fn start(&self, dag: Dag, path: PathBuf) -> Result<(), ExecutionError> {
-        let (mut senders, mut receivers) = index_edges(&dag, self.channel_buf_sz);
+    pub fn start(
+        dag: Dag,
+        path: PathBuf,
+        options: ExecutorOptions,
+    ) -> Result<MultiThreadedDagExecutor, ExecutionError> {
+        let (mut senders, mut receivers) = index_edges(&dag, options.channel_buffer_sz);
 
         let record_stores = Arc::new(RwLock::new(
             dag.nodes
@@ -234,20 +249,33 @@ impl MultiThreadedDagExecutor {
 
         latch.wait();
 
+        let stop_req = Arc::new(AtomicBool::new(false));
         all_handles.extend(Self::start_sources(
+            stop_req.clone(),
             sources,
             &mut senders,
             path,
-            self.commit_size,
-            self.channel_buf_sz,
+            options.commit_sz,
+            options.channel_buffer_sz,
             &edges,
             &record_stores,
         )?);
 
-        for sh in all_handles {
-            sh.join().unwrap()?;
-        }
+        Ok(MultiThreadedDagExecutor {
+            stop_req: stop_req,
+            handles: all_handles,
+        })
+    }
 
-        Ok(())
+    pub fn stop(&self) {
+        self.stop_req.store(true, Ordering::Relaxed);
+    }
+
+    pub fn join(mut self) -> Vec<Result<(), ExecutionError>> {
+        let mut results = Vec::new();
+        for t in self.handles {
+            results.push(t.join().unwrap());
+        }
+        results
     }
 }

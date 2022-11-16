@@ -11,7 +11,7 @@ use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use log::warn;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;

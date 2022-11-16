@@ -15,10 +15,11 @@ use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
-use log::warn;
+use log::{info, warn};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -61,11 +62,18 @@ impl SourceChannelForwarder for InternalChannelSourceForwarder {
 }
 
 fn process_message(
+    stop_req: &Arc<AtomicBool>,
     owner: &NodeHandle,
     r: Result<ExecutorOperation, RecvTimeoutError>,
     dag_fw: &mut LocalChannelForwarder,
     port: PortHandle,
 ) -> Result<bool, ExecutionError> {
+    if stop_req.load(Ordering::Relaxed) {
+        info!("[{}] Stop requested...", owner);
+        dag_fw.terminate()?;
+        return Ok(true);
+    }
+
     match r {
         Err(RecvTimeoutError::Timeout) => Ok(false),
         Err(RecvTimeoutError::Disconnected) => {
@@ -97,6 +105,7 @@ fn process_message(
 }
 
 pub(crate) fn start_stateless_source(
+    stop_req: Arc<AtomicBool>,
     handle: NodeHandle,
     src_factory: Box<dyn StatelessSourceFactory>,
     out_channels: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -135,7 +144,13 @@ pub(crate) fn start_stateless_source(
             let r = internal_receivers[port_index]
                 .recv_deadline(Instant::now().add(Duration::from_millis(500)));
 
-            if process_message(&listener_handle, r, &mut dag_fw, output_ports[port_index])? {
+            if process_message(
+                &stop_req,
+                &listener_handle,
+                r,
+                &mut dag_fw,
+                output_ports[port_index],
+            )? {
                 return Ok(());
             }
         }
@@ -143,6 +158,7 @@ pub(crate) fn start_stateless_source(
 }
 
 pub(crate) fn start_stateful_source(
+    stop_req: Arc<AtomicBool>,
     edges: Vec<Edge>,
     handle: NodeHandle,
     src_factory: Box<dyn StatefulSourceFactory>,
@@ -211,6 +227,7 @@ pub(crate) fn start_stateful_source(
                 .recv_deadline(Instant::now().add(Duration::from_millis(500)));
 
             if process_message(
+                &stop_req,
                 &listener_handle,
                 r,
                 &mut dag_fw,
