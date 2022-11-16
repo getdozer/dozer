@@ -5,7 +5,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{MissingNodeInput, MissingNodeOutput};
 use crate::dag::executor_processor::{start_stateful_processor, start_stateless_processor};
 use crate::dag::executor_sink::{start_stateful_sink, start_stateless_sink};
-use crate::dag::executor_source::start_stateless_source;
+use crate::dag::executor_source::{start_stateful_source, start_stateless_source};
 use crate::dag::executor_utils::{
     get_node_types_and_edges, index_edges, ProcessorHolder, SinkHolder, SourceHolder,
 };
@@ -117,13 +117,24 @@ impl MultiThreadedDagExecutor {
         path: PathBuf,
         commit_size: u32,
         channel_buffer: usize,
+        edges: &Vec<Edge>,
+        record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
 
         for holder in sources {
             match holder.1 {
-                SourceHolder::Stateful(_s) => {
-                    todo!()
+                SourceHolder::Stateful(s) => {
+                    handles.push(start_stateful_source(
+                        edges.clone(),
+                        holder.0.clone(),
+                        s,
+                        senders.remove(&holder.0).unwrap(),
+                        commit_size,
+                        channel_buffer,
+                        record_stores.clone(),
+                        path.clone(),
+                    ));
                 }
                 SourceHolder::Stateless(s) => {
                     handles.push(start_stateless_source(
@@ -229,6 +240,8 @@ impl MultiThreadedDagExecutor {
             path,
             self.commit_size,
             self.channel_buf_sz,
+            &edges,
+            &record_stores,
         )?);
 
         for sh in all_handles {
