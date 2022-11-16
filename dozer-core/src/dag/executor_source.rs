@@ -113,10 +113,11 @@ pub(crate) fn start_stateless_source(
                     )?;
                 }
                 Ok(ExecutorOperation::SchemaUpdate { new }) => {
-                    dag_fw.send_update_schema(new, output_ports[port_index])?;
+                    dag_fw.update_schema(new, output_ports[port_index])?;
                 }
                 Ok(ExecutorOperation::Terminate) => {
-                    dag_fw.send_term_and_wait()?;
+                    dag_fw.terminate()?;
+                    return Ok(());
                 }
                 _ => {}
             }

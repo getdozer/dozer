@@ -2,6 +2,8 @@ use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{PortHandle, StatelessSource, StatelessSourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use std::thread;
+use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
@@ -65,9 +67,13 @@ impl StatelessSource for GeneratorSource {
                 },
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
-            //  thread::sleep(Duration::from_millis(2));
         }
         fw.terminate()?;
+
+        loop {
+            thread::sleep(Duration::from_millis(1000));
+        }
+
         Ok(())
     }
 }
