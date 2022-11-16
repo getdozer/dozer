@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::ptr_arg)]
+#![allow(clippy::too_many_arguments)]
 use crate::dag::dag::{Dag, Edge, PortDirection};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{MissingNodeInput, MissingNodeOutput};
@@ -17,7 +18,7 @@ use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -262,7 +263,7 @@ impl MultiThreadedDagExecutor {
         )?);
 
         Ok(MultiThreadedDagExecutor {
-            stop_req: stop_req,
+            stop_req,
             handles: all_handles,
         })
     }
@@ -271,11 +272,18 @@ impl MultiThreadedDagExecutor {
         self.stop_req.store(true, Ordering::Relaxed);
     }
 
-    pub fn join(mut self) -> Vec<Result<(), ExecutionError>> {
+    pub fn join(self) -> Result<(), Vec<ExecutionError>> {
         let mut results = Vec::new();
         for t in self.handles {
-            results.push(t.join().unwrap());
+            let r = t.join().unwrap();
+            if let Err(e) = r {
+                results.push(e);
+            }
         }
-        results
+        if results.is_empty() {
+            Ok(())
+        } else {
+            Err(results)
+        }
     }
 }
