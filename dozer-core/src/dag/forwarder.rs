@@ -9,24 +9,32 @@ use crossbeam::channel::Sender;
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
+use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
-pub struct PortRecordStoreWriter {
+pub struct StateWriter {
+    meta_db: Database,
     dbs: HashMap<PortHandle, Database>,
     schemas: HashMap<PortHandle, Schema>,
     tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
 }
 
-impl PortRecordStoreWriter {
+impl StateWriter {
     pub fn new(
+        meta_db: Database,
         dbs: HashMap<PortHandle, Database>,
         schemas: HashMap<PortHandle, Schema>,
         tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
     ) -> Self {
-        Self { dbs, schemas, tx }
+        Self {
+            meta_db,
+            dbs,
+            schemas,
+            tx,
+        }
     }
 
     fn store_op(
@@ -56,6 +64,14 @@ impl PortRecordStoreWriter {
         }
         Ok(())
     }
+
+    fn store_commit_info(&mut self, source: &NodeHandle, seq: u64) -> Result<(), ExecutionError> {
+        self.tx
+            .write()
+            .put(&self.meta_db, source.as_bytes(), &seq.to_be_bytes())?;
+        self.tx.write().commit_and_renew()?;
+        Ok(())
+    }
 }
 
 pub struct LocalChannelForwarder {
@@ -63,44 +79,44 @@ pub struct LocalChannelForwarder {
     curr_seq_no: u64,
     commit_size: u32,
     commit_counter: u32,
-    source_handle: NodeHandle,
-    rec_store_writer: Option<PortRecordStoreWriter>,
+    owner: NodeHandle,
+    state_writer: Option<StateWriter>,
 }
 
 impl LocalChannelForwarder {
     pub fn new_source_forwarder(
-        source_handle: NodeHandle,
+        owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         commit_size: u32,
-        rec_store_writer: Option<PortRecordStoreWriter>,
+        state_writer: Option<StateWriter>,
     ) -> Self {
         Self {
             senders,
             curr_seq_no: 0,
             commit_size,
             commit_counter: 0,
-            source_handle,
-            rec_store_writer,
+            owner,
+            state_writer,
         }
     }
 
     pub fn new_processor_forwarder(
-        source_handle: NodeHandle,
+        owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        rec_store_writer: Option<PortRecordStoreWriter>,
+        rec_store_writer: Option<StateWriter>,
     ) -> Self {
         Self {
             senders,
             curr_seq_no: 0,
             commit_size: 0,
             commit_counter: 0,
-            source_handle,
-            rec_store_writer,
+            owner,
+            state_writer: rec_store_writer,
         }
     }
 
     fn update_output_schema(&mut self, port: PortHandle, schema: Schema) {
-        if let Some(w) = &mut self.rec_store_writer {
+        if let Some(w) = &mut self.state_writer {
             w.schemas.insert(port, schema);
         }
     }
@@ -111,12 +127,11 @@ impl LocalChannelForwarder {
 
     fn send_op(
         &mut self,
-        seq_opt: Option<u64>,
+        seq: u64,
         op: Operation,
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
-        let seq = seq_opt.unwrap_or(self.curr_seq_no);
-        if let Some(rs) = self.rec_store_writer.as_mut() {
+        if let Some(rs) = self.state_writer.as_mut() {
             rs.store_op(seq, &op, &port_id)?;
         }
 
@@ -142,23 +157,31 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
-    pub fn send_term(&self) -> Result<(), ExecutionError> {
+    pub fn send_term_and_wait(&self) -> Result<(), ExecutionError> {
         for senders in &self.senders {
             for sender in senders.1 {
                 internal_err!(sender.send(ExecutorOperation::Terminate))?;
             }
 
             loop {
-                let mut is_empty = true;
+                let mut count = 0_usize;
                 for senders in &self.senders {
                     for sender in senders.1 {
-                        is_empty |= sender.is_empty();
+                        count += sender.len();
                     }
                 }
 
-                if !is_empty {
-                    sleep(Duration::from_millis(250));
+                if count > 0 {
+                    info!(
+                        "[{}] Terminating: waiting for {} messages to be flushed",
+                        self.owner, count
+                    );
+                    sleep(Duration::from_millis(500));
                 } else {
+                    info!(
+                        "[{}] Terminating: all messages flushed. Exiting message loop.",
+                        self.owner
+                    );
                     break;
                 }
             }
@@ -167,11 +190,23 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
-    pub fn send_commit(&self, seq: u64) -> Result<(), ExecutionError> {
+    pub fn store_and_send_commit(
+        &mut self,
+        source_node: NodeHandle,
+        seq: u64,
+    ) -> Result<(), ExecutionError> {
+        if let Some(ref mut s) = self.state_writer {
+            info!(
+                "[{}] Checkpointing (source: {}, epoch: {})",
+                self.owner, source_node, seq
+            );
+            s.store_commit_info(&source_node, seq)?;
+        }
+
         for senders in &self.senders {
             for sender in senders.1 {
                 internal_err!(sender.send(ExecutorOperation::Commit {
-                    source: self.source_handle.clone(),
+                    source: source_node.clone(),
                     epoch: seq
                 }))?;
             }
@@ -203,11 +238,12 @@ impl LocalChannelForwarder {
 
 impl SourceChannelForwarder for LocalChannelForwarder {
     fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
+        self.curr_seq_no = seq;
         if self.commit_counter >= self.commit_size {
-            self.send_commit(seq)?;
+            self.store_and_send_commit(self.owner.clone(), seq)?;
             self.commit_counter = 0;
         }
-        self.send_op(Some(seq), op, port)?;
+        self.send_op(seq, op, port)?;
         self.commit_counter += 1;
         Ok(())
     }
@@ -217,12 +253,13 @@ impl SourceChannelForwarder for LocalChannelForwarder {
     }
 
     fn terminate(&mut self) -> Result<(), ExecutionError> {
-        self.send_term()
+        self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
+        self.send_term_and_wait()
     }
 }
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
     fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.send_op(None, op, port)
+        self.send_op(self.curr_seq_no, op, port)
     }
 }

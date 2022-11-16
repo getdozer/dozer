@@ -36,7 +36,6 @@ pub trait StatefulSource {
     fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
     fn start(
         &self,
-        tx: &mut dyn RwTransaction,
         fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<u64>,
     ) -> Result<(), ExecutionError>;
