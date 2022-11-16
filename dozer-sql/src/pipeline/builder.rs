@@ -2,6 +2,7 @@ use super::expression::builder::normalize_ident;
 use super::processor::aggregation::AggregationProcessorFactory;
 use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
+use super::product::factory::ProductProcessorFactory;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{InvalidQuery, InvalidRelation};
 use dozer_core::dag::dag::Dag;
@@ -53,6 +54,9 @@ impl PipelineBuilder {
         // Until the implementation of FROM clause, projection (or selection) comes first
         let mut first_node_name = String::from("projection");
         let mut last_node_name = String::from("projection");
+
+        // FROM clause
+        let product = ProductProcessorFactory::new(select.from.clone());
 
         // Select clause
         let projection = ProjectionProcessorFactory::new(select.projection.clone());

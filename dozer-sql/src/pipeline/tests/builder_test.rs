@@ -143,7 +143,7 @@ impl Sink for TestSink {
 #[test]
 fn test_pipeline_builder() {
     let sql = "SELECT Country, SUM(Spending) \
-                            FROM Customers \
+                            FROM Department d JOIN Users u ON d.id=u.did \
                             WHERE Spending >= 1 GROUP BY Country";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
