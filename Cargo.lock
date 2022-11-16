@@ -1400,6 +1400,7 @@ dependencies = [
  "log4rs",
  "ordered-float",
  "parking_lot 0.12.1",
+ "prost",
  "rust_decimal",
  "serde",
  "serde_json",

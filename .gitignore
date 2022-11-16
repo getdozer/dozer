@@ -18,3 +18,5 @@ dozer-sql/data
 dozer-config.yaml
 log4rs.yaml
 .DS_Store
+
+.dozer/
