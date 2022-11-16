@@ -13,6 +13,8 @@ use dozer_types::types::{Operation, Schema};
 use sqlparser::ast::TableWithJoins;
 use std::collections::HashMap;
 
+use dozer_core::dag::errors::ExecutionError::InternalError;
+
 pub struct TableOperation {
     relation: i16,
     join: Vec<JoinOperation>,
