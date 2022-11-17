@@ -12,7 +12,9 @@ pub trait CacheIndex {
 
 use dozer_types::types::Field;
 
-pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
+use crate::errors::CacheError;
+
+pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Result<[u8; 8], CacheError> {
     let key: Vec<Vec<u8>> = primary_index
         .iter()
         .map(|idx| {
@@ -22,7 +24,14 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
         })
         .collect();
 
-    key.join("#".as_bytes())
+    let mut key = key.join("#".as_bytes());
+
+    if key.len() > std::mem::size_of::<u64>() {
+        return Err(CacheError::PrimaryKeyTooLong);
+    }
+
+    key.resize(8, 0);
+    Ok(key.try_into().unwrap())
 }
 
 pub fn has_primary_key_changed(

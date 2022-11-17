@@ -92,12 +92,17 @@ impl LmdbCache {
     ) -> Result<(), CacheError> {
         let p_key = &schema.primary_index;
         let values = &rec.values;
-        let key = index::get_primary_key(p_key, values);
+        let key = index::get_primary_key(p_key, values)?;
         let encoded: Vec<u8> =
             bincode::serialize(&rec).map_err(CacheError::map_serialization_error)?;
 
-        txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        txn.put(
+            self.db,
+            &key.as_slice(),
+            &encoded.as_slice(),
+            WriteFlags::default(),
+        )
+        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         let indexer = Indexer {
             index_metadata: self.index_metadata.clone(),

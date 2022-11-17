@@ -41,23 +41,21 @@ fn insert_and_get_schema() -> Result<(), CacheError> {
 }
 
 #[test]
-fn insert_get_and_delete_record() -> Result<(), CacheError> {
+fn insert_get_and_delete_record() {
     let val = "bar".to_string();
     let (cache, schema) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
-    cache.insert_schema("docs", &schema)?;
-    cache.insert(&record)?;
+    cache.insert_schema("docs", &schema).unwrap();
+    cache.insert(&record).unwrap();
 
-    let key = index::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::String(val)]).unwrap();
 
-    let get_record = cache.get(&key)?;
+    let get_record = cache.get(&key).unwrap();
     assert_eq!(get_record, record, "must be equal");
 
-    cache.delete(&key)?;
+    cache.delete(&key).unwrap();
 
     cache.get(&key).expect_err("Must not find a record");
-
-    Ok(())
 }
 
 #[test]

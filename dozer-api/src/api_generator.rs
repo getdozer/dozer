@@ -69,7 +69,8 @@ pub async fn list(
             | CacheError::IndexError(_)
             | CacheError::PlanError(_)
             | CacheError::TypeError(_)
-            | CacheError::SchemaIdentifierNotFound => Err(ApiError::InternalError(Box::new(e))),
+            | CacheError::SchemaIdentifierNotFound
+            | CacheError::PrimaryKeyTooLong => Err(ApiError::InternalError(Box::new(e))),
         },
     }
 }

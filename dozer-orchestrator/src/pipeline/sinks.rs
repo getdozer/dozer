@@ -122,7 +122,10 @@ impl StatelessSink for CacheSink {
         }
         match op {
             Operation::Delete { old } => {
-                let key = index::get_primary_key(&schema.primary_index, &old.values);
+                let key =
+                    index::get_primary_key(&schema.primary_index, &old.values).map_err(|e| {
+                        ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
+                    })?;
                 self.cache.delete(&key).map_err(|e| {
                     ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
                 })?;
@@ -136,7 +139,8 @@ impl StatelessSink for CacheSink {
                 })?;
             }
             Operation::Update { old, new } => {
-                let key = index::get_primary_key(&schema.primary_index, &old.values);
+                let key = index::get_primary_key(&schema.primary_index, &old.values)
+                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                 let mut new = new;
                 new.schema_id = schema.identifier.clone();
                 if index::has_primary_key_changed(&schema.primary_index, &old.values, &new.values) {
@@ -337,7 +341,7 @@ mod tests {
         sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation)
             .unwrap();
 
-        let key = index::get_primary_key(&schema.primary_index, &initial_values);
+        let key = index::get_primary_key(&schema.primary_index, &initial_values).unwrap();
         let record = cache.get(&key).unwrap();
 
         assert_eq!(initial_values, record.values);
@@ -346,14 +350,14 @@ mod tests {
             .unwrap();
 
         // Primary key with old values
-        let key = index::get_primary_key(&schema.primary_index, &initial_values);
+        let key = index::get_primary_key(&schema.primary_index, &initial_values).unwrap();
 
         let record = cache.get(&key);
 
         assert!(record.is_err());
 
         // Primary key with updated values
-        let key = index::get_primary_key(&schema.primary_index, &updated_values);
+        let key = index::get_primary_key(&schema.primary_index, &updated_values).unwrap();
         let record = cache.get(&key).unwrap();
 
         assert_eq!(updated_values, record.values);

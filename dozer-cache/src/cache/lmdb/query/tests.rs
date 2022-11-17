@@ -48,7 +48,7 @@ fn query_secondary() {
     let schema = test_utils::schema_full_text_single();
     let record = Record::new(
         schema.identifier.clone(),
-        vec![Field::String("today is a good day".into())],
+        vec![Field::Int(0), Field::String("today is a good day".into())],
     );
 
     cache.insert_schema("full_text_sample", &schema).unwrap();

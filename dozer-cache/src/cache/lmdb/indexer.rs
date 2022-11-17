@@ -17,7 +17,7 @@ impl Indexer {
         parent_txn: &mut RwTransaction,
         rec: &Record,
         schema: &Schema,
-        pkey: Vec<u8>,
+        pkey: [u8; 8],
     ) -> Result<(), CacheError> {
         let mut txn = parent_txn
             .begin_nested_txn()
@@ -32,8 +32,13 @@ impl Indexer {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = self._build_index_sorted_inverted(fields, &rec.values)?;
-                    txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
-                        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+                    txn.put(
+                        db,
+                        &secondary_key.as_slice(),
+                        &pkey.as_slice(),
+                        WriteFlags::default(),
+                    )
+                    .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in self._build_indices_full_text(*field_index, &rec.values)? {

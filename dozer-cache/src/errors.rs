@@ -23,6 +23,8 @@ pub enum CacheError {
     TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
+    #[error("Primary key is too long")]
+    PrimaryKeyTooLong,
 }
 
 impl CacheError {

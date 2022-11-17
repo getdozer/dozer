@@ -78,7 +78,7 @@ impl ApiHelper {
             .collect();
         let key = json_value_to_field(&key, &field_types[0]).map_err(CacheError::TypeError)?;
 
-        let key = index::get_primary_key(&[0], &[key]);
+        let key = index::get_primary_key(&[0], &[key])?;
         let rec = self.reader.get(&key)?;
 
         record_to_json(&rec, &schema).map_err(CacheError::TypeError)
