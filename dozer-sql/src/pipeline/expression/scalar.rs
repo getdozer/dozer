@@ -1,9 +1,9 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::serde_json::json;
 use dozer_types::types::{Field, Record};
 use num_traits::Float;
-use dozer_types::serde_json::json;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
@@ -74,7 +74,9 @@ fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineEr
     match value {
         Field::String(s) => Ok(Field::String(s.to_uppercase())),
         Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
-        _ => Err(PipelineError::InvalidFunction(String::from("UCASE() for ") + &*json!({"value":value}).to_string())),
+        _ => Err(PipelineError::InvalidFunction(
+            String::from("UCASE() for ") + &*json!({ "value": value }).to_string(),
+        )),
     }
 }
 
