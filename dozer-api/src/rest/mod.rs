@@ -1,6 +1,7 @@
 // Exports
-pub mod api_generator;
-pub mod api_server;
+mod api_generator;
+mod api_server;
+pub use api_server::ApiServer;
 
 #[cfg(test)]
 mod tests;

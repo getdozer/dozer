@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
 use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
-use crate::grpc::common_grpc::{Record, Value};
+use crate::grpc::internal_grpc::{pipeline_request::ApiEvent, PipelineRequest};
 use crate::{api_helper, PipelineDetails};
 use dozer_cache::cache::expression::QueryExpression;
-use dozer_types::events::ApiEvent;
 use dozer_types::log::warn;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
-use super::helper;
+use super::super::types_helper;
 use crate::grpc::common_grpc::{
-    FieldDefinition, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest,
-    GetFieldsResponse, OnEventRequest, Operation, QueryRequest, QueryResponse,
+    GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, OnEventRequest,
+    QueryRequest, QueryResponse,
 };
+use crate::grpc::types::{FieldDefinition, Operation, Record, Value};
 
 type EventResult<T> = Result<Response<T>, Status>;
 type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
@@ -21,7 +21,7 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     pub pipeline_map: HashMap<String, PipelineDetails>,
-    pub event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
+    pub event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 }
 #[tonic::async_trait]
 impl CommonGrpcService for CommonService {
@@ -50,7 +50,7 @@ impl CommonGrpcService for CommonService {
             .fields
             .iter()
             .map(|f| FieldDefinition {
-                typ: helper::map_field_type_to_pb(&f.typ) as i32,
+                typ: types_helper::map_field_type_to_pb(&f.typ) as i32,
                 name: f.name.to_owned(),
                 nullable: f.nullable,
             })
@@ -62,7 +62,7 @@ impl CommonGrpcService for CommonService {
                     .to_owned()
                     .values
                     .iter()
-                    .map(helper::field_to_prost_value)
+                    .map(types_helper::field_to_prost_value)
                     .collect();
 
                 Record { values }
@@ -101,7 +101,7 @@ impl CommonGrpcService for CommonService {
             .fields
             .iter()
             .map(|f| FieldDefinition {
-                typ: helper::map_field_type_to_pb(&f.typ) as i32,
+                typ: types_helper::map_field_type_to_pb(&f.typ) as i32,
                 name: f.name.to_owned(),
                 nullable: f.nullable,
             })
@@ -128,9 +128,8 @@ impl CommonGrpcService for CommonService {
                 let receiver_event = broadcast_receiver.recv().await;
                 match receiver_event {
                     Ok(event) => {
-                        if let ApiEvent::Operation(endpoint_name, operation) = event {
-                            if endpoint_name == request.endpoint {
-                                let op = helper::map_operation(endpoint_name, &operation);
+                        if let Some(ApiEvent::Op(op)) = event.api_event {
+                            if event.endpoint == request.endpoint {
                                 if (tx.send(Ok(op)).await).is_err() {
                                     warn!("on_insert_grpc_server_stream receiver drop");
                                     // receiver drop

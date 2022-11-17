@@ -2,7 +2,6 @@ use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
     CacheEndpoint, PipelineDetails,
 };
-use dozer_types::{events::ApiEvent, types::Schema};
 use heck::ToUpperCamelCase;
 use std::{
     collections::HashMap,
@@ -18,17 +17,19 @@ use super::{
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
     dynamic::util::{create_descriptor_set, read_file_as_byte},
+    internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
+    types::SchemaEvent,
 };
 
-pub struct ClientServer {
+pub struct ApiServer {
     port: u16,
     dynamic: bool,
-    event_notifier: crossbeam::channel::Receiver<ApiEvent>,
+    event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
 }
 
-impl ClientServer {
+impl ApiServer {
     pub fn new(
-        event_notifier: crossbeam::channel::Receiver<ApiEvent>,
+        event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
         port: u16,
         dynamic: bool,
     ) -> Self {
@@ -39,8 +40,8 @@ impl ClientServer {
         }
     }
     pub fn setup_broad_cast_channel(
-        sender: broadcast::Sender<ApiEvent>,
-        event_notifier: crossbeam::channel::Receiver<ApiEvent>,
+        sender: broadcast::Sender<PipelineRequest>,
+        event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
     ) -> Result<(), GRPCError> {
         let _thread = thread::spawn(move || {
             while let Some(event) = event_notifier.iter().next() {
@@ -52,7 +53,7 @@ impl ClientServer {
     fn get_dynamic_service(
         &self,
         pipeline_map: HashMap<String, PipelineDetails>,
-        rx1: broadcast::Receiver<ApiEvent>,
+        rx1: broadcast::Receiver<PipelineRequest>,
         _running: Arc<AtomicBool>,
     ) -> Result<
         (
@@ -61,13 +62,15 @@ impl ClientServer {
         ),
         GRPCError,
     > {
-        let mut schemas: HashMap<u32, Schema> = HashMap::new();
+        let mut schemas: HashMap<String, SchemaEvent> = HashMap::new();
         // wait until all schemas are initalized
         while schemas.len() < pipeline_map.len() {
             let event = self.event_notifier.clone().recv();
-            if let Ok(ApiEvent::SchemaChange(_endpoint_name, schema_change)) = event {
-                let id = schema_change.get_id();
-                schemas.insert(id, schema_change);
+            if let Ok(event) = event {
+                let api_event = event.api_event;
+                if let Some(ApiEvent::Schema(schema)) = api_event {
+                    schemas.insert(event.endpoint, schema);
+                }
             }
         }
         let tmp_dir = TempDir::new("proto_generated").unwrap();
@@ -112,8 +115,8 @@ impl ClientServer {
         running: Arc<AtomicBool>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
-        let (tx, rx1) = broadcast::channel::<ApiEvent>(16);
-        ClientServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
+        let (tx, rx1) = broadcast::channel::<PipelineRequest>(16);
+        ApiServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
 
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
 

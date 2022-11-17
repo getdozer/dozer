@@ -1,7 +1,30 @@
 use dozer_types::chrono::SecondsFormat;
-use dozer_types::types::{Field, FieldType, Operation as DozerOperation, Record as DozerRecord};
+use dozer_types::types::{
+    Field, FieldType, Operation as DozerOperation, Record as DozerRecord, Schema as DozerSchema,
+};
 
-use crate::grpc::common_grpc::{value, ArrayValue, Operation, OperationType, Record, Type, Value};
+use crate::grpc::types::{
+    value, ArrayValue, FieldDefinition, Operation, OperationType, Record, SchemaEvent, Type, Value,
+};
+
+pub fn map_schema(endpoint_name: String, schema: &DozerSchema) -> SchemaEvent {
+    let fields = schema
+        .fields
+        .iter()
+        .map(|f| FieldDefinition {
+            typ: map_field_type_to_pb(&f.typ) as i32,
+            name: f.name.to_owned(),
+            nullable: f.nullable,
+        })
+        .collect();
+    let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
+    SchemaEvent {
+        endpoint: endpoint_name,
+        version: schema.identifier.as_ref().unwrap().version as u64,
+        fields,
+        primary_index,
+    }
+}
 
 pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Operation {
     match operation.to_owned() {

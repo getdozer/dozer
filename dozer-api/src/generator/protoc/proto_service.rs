@@ -42,9 +42,7 @@ pub enum GrpcType {
     List,
     GetById,
     Query,
-    OnInsert,
-    OnUpdate,
-    OnDelete,
+    OnEvent,
     OnSchemaChange,
 }
 
@@ -426,9 +424,7 @@ impl ProtoService {
         function_with_type.insert(get_rpc.0.name, GrpcType::List);
         function_with_type.insert(get_by_id_rpc.0.name, GrpcType::GetById);
         function_with_type.insert(query_rpc.0.name, GrpcType::Query);
-        function_with_type.insert(on_insert_rpc.0.name, GrpcType::OnInsert);
-        function_with_type.insert(on_update_rpc.0.name, GrpcType::OnUpdate);
-        function_with_type.insert(on_delete_rpc.0.name, GrpcType::OnDelete);
+        function_with_type.insert(on_insert_rpc.0.name, GrpcType::OnEvent);
         function_with_type.insert(on_schema_change_rpc.0.name, GrpcType::OnSchemaChange);
 
         let import_libs: Vec<String> = self.libs_by_type()?;

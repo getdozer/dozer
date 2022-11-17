@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::{sync::Arc, thread};
 
+use dozer_api::actix_web::dev::ServerHandle;
 use dozer_api::CacheEndpoint;
-use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
 use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::events::ApiEvent;
@@ -10,8 +10,8 @@ use dozer_types::events::ApiEvent;
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
-use dozer_api::client_server::GRPCServer;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_api::{grpc, rest};
 use dozer_types::crossbeam::channel::{self, unbounded};
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,7 +77,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         // Initialize API Server
         let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            let api_server = ApiServer::default();
+            let api_server = rest::ApiServer::default();
             api_server
                 .run(ce3, tx)
                 .map_err(OrchestrationError::ApiServerFailed)
@@ -85,7 +85,7 @@ impl Orchestrator for SimpleOrchestrator {
         let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
 
         // Initialize GRPC Server
-        let grpc_server = GRPCServer::new(receiver, 50051, false);
+        let grpc_server = grpc::ApiServer::new(receiver, 50051, false);
 
         let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             grpc_server
@@ -97,7 +97,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
-        ApiServer::stop(server_handle);
+        rest::ApiServer::stop(server_handle);
 
         thread.join().unwrap()?;
 
@@ -138,38 +138,7 @@ impl Orchestrator for SimpleOrchestrator {
         let ce3 = cache_endpoints.clone();
         let sources = self.sources.clone();
 
-        let _thread2 = thread::spawn(move || -> Result<(), OrchestrationError> {
-            let executor = Executor::new(sources, cache_endpoints, ingestor, iterator);
-            executor.run(Some(sender), running2).unwrap();
-            Ok(())
-        });
-
-        // Initialize API Server
-        let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            let api_server = ApiServer::default();
-            api_server
-                .run(ce3, tx)
-                .map_err(OrchestrationError::ApiServerFailed)
-        });
-        let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
-
-        // Initialize GRPC Server
-        let grpc_server = GRPCServer::new(receiver, 50051, false);
-
-        let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            grpc_server
-                .run(ce2, running3.to_owned())
-                .map_err(OrchestrationError::GrpcServerFailed)
-                .unwrap();
-            Ok(())
-        });
-
-        // Waiting for Ctrl+C
-        while running.load(Ordering::SeqCst) {}
-        ApiServer::stop(server_handle);
-
-        thread.join().unwrap()?;
-
-        Ok(())
+        let executor = Executor::new(sources, cache_endpoints, ingestor, iterator);
+        executor.run(Some(sender), running2)
     }
 }

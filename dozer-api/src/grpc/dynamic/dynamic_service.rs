@@ -2,15 +2,13 @@ use super::{
     by_id::GetByIdService,
     dynamic_codec::DynamicCodec,
     list::ListService,
-    on_delete::OnDeleteService,
-    on_insert::OnInsertService,
-    on_schema_change::OnSchemaChangeService,
-    on_update::OnUpdateService,
     query::QueryService,
     util::{get_method_by_name, get_proto_descriptor, get_service_name},
 };
-use crate::{generator::protoc::proto_service::GrpcType, PipelineDetails};
-use dozer_types::events::ApiEvent;
+use crate::{
+    generator::protoc::proto_service::GrpcType, grpc::internal_grpc::PipelineRequest,
+    PipelineDetails,
+};
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use tonic::codegen::{self, *};
@@ -21,7 +19,7 @@ pub struct DynamicService {
     descriptor: DescriptorPool,
     function_types: HashMap<String, GrpcType>,
     pipeline_map: HashMap<String, PipelineDetails>,
-    event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
+    event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 }
 impl Clone for DynamicService {
     fn clone(&self) -> Self {
@@ -41,7 +39,7 @@ impl DynamicService {
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
         pipeline_map: HashMap<String, PipelineDetails>,
-        event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
+        event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
         DynamicService {
@@ -149,49 +147,28 @@ where
                     };
                     Box::pin(fut)
                 }
-                GrpcType::OnInsert => {
-                    let method = OnInsertService {
-                        pipeline_details: pipeline_detail,
-                        event_notifier: self.event_notifier.resubscribe(),
-                    };
-                    let fut = async move {
-                        let res = grpc.server_streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                GrpcType::OnUpdate => {
-                    let method = OnUpdateService {
-                        pipeline_details: pipeline_detail,
-                        event_notifier: self.event_notifier.resubscribe(),
-                    };
-                    let fut = async move {
-                        let res = grpc.server_streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                GrpcType::OnDelete => {
-                    let method = OnDeleteService {
-                        pipeline_details: pipeline_detail,
-                        event_notifier: self.event_notifier.resubscribe(),
-                    };
-                    let fut = async move {
-                        let res = grpc.server_streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                GrpcType::OnSchemaChange => {
-                    let method = OnSchemaChangeService {
-                        event_notifier: self.event_notifier.resubscribe(),
-                    };
-                    let fut = async move {
-                        let res = grpc.server_streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
+                // GrpcType::OnEvent => {
+                //     let method = OnEventService {
+                //         pipeline_details: pipeline_detail,
+                //         event_notifier: self.event_notifier.resubscribe(),
+                //     };
+                //     let fut = async move {
+                //         let res = grpc.server_streaming(method, req).await;
+                //         Ok(res)
+                //     };
+                //     Box::pin(fut)
+                // }
+                // GrpcType::OnSchemaChange => {
+                //     let method = OnSchemaChangeService {
+                //         event_notifier: self.event_notifier.resubscribe(),
+                //     };
+                //     let fut = async move {
+                //         let res = grpc.server_streaming(method, req).await;
+                //         Ok(res)
+                //     };
+                //     Box::pin(fut)
+                // }
+                _ => todo!(),
             };
         }
         Box::pin(async move {
