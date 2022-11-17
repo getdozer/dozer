@@ -31,21 +31,19 @@ impl tonic::server::ServerStreamingService<DynamicMessage> for OnDeleteService {
 
 async fn on_delete_grpc_server_stream(
     pipeline_details: PipelineDetails,
-    req: Request<DynamicMessage>,
+    _req: Request<DynamicMessage>,
     event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 ) -> Result<Response<ReceiverStream<Result<Operation, tonic::Status>>>, Status> {
-    let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
+    let _api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     // create subscribe
     let mut broadcast_receiver = event_notifier.resubscribe();
     tokio::spawn(async move {
         while let Ok(event) = broadcast_receiver.recv().await {
             if let Some(ApiEvent::Op(op)) = event.api_event {
-                if op.typ == OperationType::Delete as i32 {
-                    if (tx.send(Ok(op)).await).is_err() {
-                        // receiver drop
-                        break;
-                    }
+                if op.typ == OperationType::Delete as i32 && (tx.send(Ok(op)).await).is_err() {
+                    // receiver dropped
+                    break;
                 }
             }
         }

@@ -416,8 +416,8 @@ impl ProtoService {
         rpc_message.push(filter_exp_model);
         rpc_message.extend(type_exp_model);
         rpc_message.extend(on_insert_rpc.to_owned().1);
-        rpc_message.extend(on_update_rpc.to_owned().1);
-        rpc_message.extend(on_delete_rpc.to_owned().1);
+        rpc_message.extend(on_update_rpc.1);
+        rpc_message.extend(on_delete_rpc.1);
         rpc_message.extend(on_schema_change_rpc.to_owned().1);
 
         let mut function_with_type = HashMap::new();

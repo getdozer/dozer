@@ -81,7 +81,7 @@ impl Orchestrator for SimpleOrchestrator {
             .collect();
 
         let ce2 = cache_endpoints.clone();
-        let ce3 = cache_endpoints.clone();
+        let ce3 = cache_endpoints;
 
         // Initialize Internal Server
         let _internal_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
@@ -122,7 +122,7 @@ impl Orchestrator for SimpleOrchestrator {
         //Set AtomicBool and wait for CtrlC
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
-        let running2 = running.clone();
+        let running2 = running;
 
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();

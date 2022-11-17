@@ -50,12 +50,7 @@ pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Opera
 }
 
 pub fn map_record(record: DozerRecord) -> Record {
-    let values: Vec<Value> = record
-        .to_owned()
-        .values
-        .iter()
-        .map(field_to_prost_value)
-        .collect();
+    let values: Vec<Value> = record.values.iter().map(field_to_prost_value).collect();
 
     Record { values }
 }
