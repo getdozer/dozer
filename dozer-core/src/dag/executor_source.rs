@@ -67,7 +67,7 @@ fn process_message(
     r: Result<ExecutorOperation, RecvTimeoutError>,
     dag_fw: &mut LocalChannelForwarder,
     port: PortHandle,
-    stateful: bool,
+    _stateful: bool,
 ) -> Result<bool, ExecutionError> {
     if stop_req.load(Ordering::Relaxed) {
         info!("[{}] Stop requested...", owner);
