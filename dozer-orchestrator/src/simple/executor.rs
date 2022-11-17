@@ -60,7 +60,7 @@ impl Executor {
     pub fn run(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-        running: Arc<AtomicBool>,
+        _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connections: Vec<Connection> = vec![];
         let mut connection_map: HashMap<String, Vec<String>> = HashMap::new();
@@ -161,7 +161,7 @@ impl Executor {
         }
 
         // let exec = MultiThreadedDagExecutor::new(100000, 20000);
-        let path = self.home_dir.join("pipeline".clone());
+        let path = self.home_dir.join("pipeline");
         fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
         let exec = MultiThreadedDagExecutor::start(parent_dag, path, ExecutorOptions::default())?;
 
@@ -171,7 +171,8 @@ impl Executor {
         }
 
         exec.stop();
-        exec.join();
+        exec.join()
+            .map_err(|_e| OrchestrationError::InternalServerError)?;
         Ok(())
     }
 }

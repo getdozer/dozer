@@ -8,7 +8,7 @@ use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
-use std::sync::atomic::AtomicBool;
+
 use std::sync::Arc;
 
 use crate::connectors::postgres::connection::helper;

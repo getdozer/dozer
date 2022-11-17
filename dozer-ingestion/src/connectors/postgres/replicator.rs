@@ -16,7 +16,7 @@ use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
+
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;

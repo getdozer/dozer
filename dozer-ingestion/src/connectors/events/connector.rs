@@ -1,4 +1,4 @@
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::Arc;
 
 use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 

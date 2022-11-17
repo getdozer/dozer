@@ -8,9 +8,9 @@ use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
-use log::debug;
+
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+
 use std::sync::Arc;
 use std::thread;
 
