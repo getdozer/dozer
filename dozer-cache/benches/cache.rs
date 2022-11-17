@@ -12,14 +12,14 @@ fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) {
     let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
 
     cache.insert(&record).unwrap();
-    let key = index::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::String(val)]).unwrap();
 
     let _get_record = cache.get(&key).unwrap();
 }
 
 fn get(cache: Arc<LmdbCache>, n: usize) {
     let val = format!("bar_{}", n);
-    let key = index::get_primary_key(&[0], &[Field::String(val)]);
+    let key = index::get_primary_key(&[0], &[Field::String(val)]).unwrap();
     let _get_record = cache.get(&key).unwrap();
 }
 
