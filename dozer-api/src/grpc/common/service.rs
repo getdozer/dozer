@@ -23,6 +23,7 @@ pub struct CommonService {
     pub pipeline_map: HashMap<String, PipelineDetails>,
     pub event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 }
+
 #[tonic::async_trait]
 impl CommonGrpcService for CommonService {
     async fn query(
@@ -114,9 +115,9 @@ impl CommonGrpcService for CommonService {
         }))
     }
 
-    #[allow(non_camel_case_types)]
-    type onEventStream = ResponseStream;
-    async fn on_event(&self, request: Request<OnEventRequest>) -> EventResult<Self::onEventStream> {
+    type OnEventStream = ResponseStream;
+
+    async fn on_event(&self, request: Request<OnEventRequest>) -> EventResult<Self::OnEventStream> {
         let request = request.into_inner();
 
         let (tx, rx) = tokio::sync::mpsc::channel(1);

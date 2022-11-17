@@ -22,15 +22,6 @@ impl Default for CacheOptions {
         CacheOptions::Write(CacheWriteOptions::default())
     }
 }
-impl CacheOptions {
-    fn read(path: PathBuf) -> Self {
-        CacheOptions::ReadOnly(CacheReadOptions {
-            path: Some(path),
-            ..Default::default()
-        })
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct CacheReadOptions {
     // Total number of readers allowed

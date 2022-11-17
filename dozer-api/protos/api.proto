@@ -4,7 +4,7 @@ package dozer.common;
 import "types.proto";
 service CommonGrpcService {
   rpc query(QueryRequest) returns (QueryResponse);
-  rpc onEvent(OnEventRequest) returns (stream dozer.types.Operation);
+  rpc OnEvent(OnEventRequest) returns (stream dozer.types.Operation);
   rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse);
   rpc getFields(GetFieldsRequest) returns (GetFieldsResponse);
 }
