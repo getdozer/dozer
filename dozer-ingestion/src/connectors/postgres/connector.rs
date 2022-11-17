@@ -88,7 +88,7 @@ impl Connector for PostgresConnector {
         self.ingestor = Some(ingestor);
         Ok(())
     }
-    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn start(&self) -> Result<(), ConnectorError> {
         let iterator = PostgresIterator::new(
             self.id,
             self.get_publication_name(),
@@ -101,7 +101,7 @@ impl Connector for PostgresConnector {
                 .clone(),
             self.conn_config.clone(),
         );
-        iterator.start(running)
+        iterator.start()
     }
 
     fn stop(&self) {}

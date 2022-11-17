@@ -63,7 +63,7 @@ impl Connector for EventsConnector {
         Ok(())
     }
 
-    fn start(&self, _: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn start(&self) -> Result<(), ConnectorError> {
         Ok(())
     }
 

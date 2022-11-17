@@ -96,7 +96,6 @@ impl Executor {
             connections,
             connection_map,
             table_map.clone(),
-            running,
             self.ingestor.to_owned(),
             self.iterator.to_owned(),
         );

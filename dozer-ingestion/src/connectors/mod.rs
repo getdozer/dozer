@@ -14,7 +14,6 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
@@ -31,7 +30,7 @@ pub trait Connector: Send + Sync {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
-    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError>;
+    fn start(&self) -> Result<(), ConnectorError>;
     fn stop(&self);
     fn validate(&self) -> Result<(), ConnectorError>;
 }

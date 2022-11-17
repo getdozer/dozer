@@ -15,8 +15,7 @@ use crate::dag::tests::sources::{
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
-use std::time::Duration;
-use std::{fs, thread};
+use std::fs;
 use tempdir::TempDir;
 
 macro_rules! chk {
@@ -151,7 +150,7 @@ fn test_run_dag_reacord_reader() {
     log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(1_000_000);
+    let src = GeneratorSourceFactory::new(10_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(1_000);
@@ -215,7 +214,7 @@ fn test_run_dag_reacord_reader_from_stateful_src() {
     // log4rs::init_file("../log4rs.sample.yaml", Default::default())
     //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = StatefulGeneratorSourceFactory::new(1_000_000);
+    let src = StatefulGeneratorSourceFactory::new(10_000);
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(1_000);
 
