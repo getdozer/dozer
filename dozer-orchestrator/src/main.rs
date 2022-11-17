@@ -38,7 +38,7 @@ fn main() -> Result<(), OrchestrationError> {
     .expect("Error setting Ctrl-C handler");
 
     let configuration = load_config(cli.config_path)?;
-    let path = Path::new("./dozer").to_owned();
+    let path = Path::new("./.dozer").to_owned();
     let mut dozer = Dozer::new(path);
     dozer.add_sources(configuration.sources);
     dozer.add_endpoints(configuration.endpoints);
