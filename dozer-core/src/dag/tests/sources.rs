@@ -1,8 +1,8 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{
-    PortHandle, StatefulPortHandle, StatefulSource, StatefulSourceFactory, StatelessSource,
-    StatelessSourceFactory,
+    PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulSource,
+    StatefulSourceFactory, StatelessSource, StatelessSourceFactory,
 };
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::thread;
@@ -91,7 +91,10 @@ impl StatefulGeneratorSourceFactory {
 
 impl StatefulSourceFactory for StatefulGeneratorSourceFactory {
     fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(GENERATOR_SOURCE_OUTPUT_PORT, true)]
+        vec![StatefulPortHandle::new(
+            GENERATOR_SOURCE_OUTPUT_PORT,
+            StatefulPortHandleOptions::new(true, true, true),
+        )]
     }
     fn build(&self) -> Box<dyn StatefulSource> {
         Box::new(StatefulGeneratorSource { count: self.count })

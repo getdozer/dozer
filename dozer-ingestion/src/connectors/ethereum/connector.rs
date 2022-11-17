@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::Connector;
@@ -8,7 +7,6 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter, IngestionMessage};
-use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use futures::StreamExt;
 use tokio::runtime::Runtime;
@@ -101,7 +99,7 @@ impl Connector for EthConnector {
         Ok(())
     }
 
-    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn start(&self) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.filter.to_owned();
@@ -113,7 +111,7 @@ impl Connector for EthConnector {
             .clone();
         Runtime::new()
             .unwrap()
-            .block_on(async { run(wss_url, filter, ingestor, connector_id, running.clone()).await })
+            .block_on(async { run(wss_url, filter, ingestor, connector_id).await })
     }
 
     fn stop(&self) {}
@@ -133,7 +131,6 @@ async fn run(
     filter: Filter,
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
-    running: Arc<AtomicBool>,
 ) -> Result<(), ConnectorError> {
     let client = helper::get_client(&wss_url).await.unwrap();
 
@@ -156,10 +153,6 @@ async fn run(
         .map_err(ConnectorError::IngestorError)?;
 
     loop {
-        if !running.load(Ordering::SeqCst) {
-            debug!("Exiting Ethereum Connector on Ctrl-C");
-            break;
-        }
         let msg = stream.next().await;
 
         let msg = msg

@@ -10,7 +10,7 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Schema;
 use postgres::Client;
 use postgres_types::PgLsn;
-use std::sync::atomic::AtomicBool;
+
 use std::sync::Arc;
 use tokio_postgres::config::ReplicationMode;
 use tokio_postgres::Config;
@@ -88,7 +88,7 @@ impl Connector for PostgresConnector {
         self.ingestor = Some(ingestor);
         Ok(())
     }
-    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn start(&self) -> Result<(), ConnectorError> {
         let iterator = PostgresIterator::new(
             self.id,
             self.get_publication_name(),
@@ -101,7 +101,7 @@ impl Connector for PostgresConnector {
                 .clone(),
             self.conn_config.clone(),
         );
-        iterator.start(running)
+        iterator.start()
     }
 
     fn stop(&self) {}

@@ -8,7 +8,7 @@ use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
-use std::sync::atomic::AtomicBool;
+
 use std::sync::Arc;
 
 use crate::connectors::postgres::connection::helper;
@@ -67,7 +67,7 @@ impl PostgresIterator {
 }
 
 impl PostgresIterator {
-    pub fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    pub fn start(&self) -> Result<(), ConnectorError> {
         let lsn = RefCell::new(self.get_last_lsn_for_connection()?);
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
@@ -81,7 +81,7 @@ impl PostgresIterator {
             lsn,
             connector_id,
         };
-        stream_inner._start(running)
+        stream_inner._start()
     }
 
     pub fn get_last_lsn_for_connection(&self) -> Result<Option<String>, ConnectorError> {
@@ -126,7 +126,7 @@ impl PostgresIteratorHandler {
         3) Replicating
         - Replicate CDC events using lsn
     */
-    pub fn _start(&mut self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    pub fn _start(&mut self) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
         let client = Arc::new(RefCell::new(helper::connect(replication_conn_config)?));
@@ -179,7 +179,7 @@ impl PostgresIteratorHandler {
         self.state.clone().replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
-        self.replicate(running)
+        self.replicate()
     }
 
     fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) {
@@ -249,7 +249,7 @@ impl PostgresIteratorHandler {
         }
     }
 
-    fn replicate(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn replicate(&self) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let ingestor = self.ingestor.clone();
         let lsn = self.lsn.borrow();
@@ -269,7 +269,7 @@ impl PostgresIteratorHandler {
                 last_commit_lsn: 0,
                 connector_id: self.connector_id,
             };
-            replicator.start(running).await
+            replicator.start().await
         })
     }
 }

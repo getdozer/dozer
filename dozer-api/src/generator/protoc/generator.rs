@@ -1,5 +1,5 @@
 use super::proto_service::{GrpcType, ProtoService, RPCFunction, RPCMessage};
-use crate::{api_server::PipelineDetails, errors::GenerationError};
+use crate::{errors::GenerationError, PipelineDetails};
 use dozer_cache::cache::Cache;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use handlebars::Handlebars;

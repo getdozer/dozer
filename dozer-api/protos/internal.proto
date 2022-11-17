@@ -1,0 +1,22 @@
+
+syntax = "proto3";
+
+package dozer.internal;
+import "types.proto";
+
+service InternalPipelineService {
+  // ClientStreamingEcho is client side streaming.
+  rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse) {
+  }
+}
+
+// ---------------- Internal ------------------------
+message PipelineRequest {
+  string endpoint = 1;
+  oneof api_event {
+    dozer.types.SchemaEvent schema = 2;
+    dozer.types.Operation op = 3;
+  }
+}
+
+message PipelineResponse {}

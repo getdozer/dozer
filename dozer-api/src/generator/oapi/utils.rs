@@ -17,7 +17,7 @@ pub fn create_contact_info() -> Option<Contact> {
     })
 }
 
-pub fn create_path_parameter(
+pub fn _create_path_parameter(
     name: String,
     description: Option<String>,
     required: bool,

@@ -1,6 +1,6 @@
 mod lmdb;
 use self::expression::QueryExpression;
-pub use self::lmdb::{cache::LmdbCache, CacheOptions};
+pub use self::lmdb::{cache::LmdbCache, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use crate::errors::CacheError;
 use dozer_types::types::{Record, Schema, SchemaIdentifier};
 pub mod expression;

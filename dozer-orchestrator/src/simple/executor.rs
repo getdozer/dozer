@@ -1,17 +1,21 @@
+use dozer_api::grpc::internal_grpc::PipelineRequest;
 use log::info;
 use std::collections::HashMap;
-use std::fs;
-use std::sync::atomic::AtomicBool;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
+use std::{fs, thread};
 
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
-use tempdir::TempDir;
 
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError::{self};
-use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::executor_local::{
+    ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE,
+};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
@@ -19,7 +23,6 @@ use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
 use dozer_types::crossbeam;
-use dozer_types::events::ApiEvent;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 
@@ -31,6 +34,8 @@ pub struct Executor {
     cache_endpoints: Vec<CacheEndpoint>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
+    pub home_dir: PathBuf,
+    running: Arc<AtomicBool>,
 }
 
 impl Executor {
@@ -39,19 +44,23 @@ impl Executor {
         cache_endpoints: Vec<CacheEndpoint>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
+        home_dir: PathBuf,
+        running: Arc<AtomicBool>,
     ) -> Self {
         Self {
             sources,
             cache_endpoints,
             ingestor,
             iterator,
+            home_dir,
+            running,
         }
     }
 
     pub fn run(
         &self,
-        notifier: Option<crossbeam::channel::Sender<ApiEvent>>,
-        running: Arc<AtomicBool>,
+        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connections: Vec<Connection> = vec![];
         let mut connection_map: HashMap<String, Vec<String>> = HashMap::new();
@@ -87,12 +96,12 @@ impl Executor {
             connections,
             connection_map,
             table_map.clone(),
-            running,
             self.ingestor.to_owned(),
             self.iterator.to_owned(),
         );
         let mut parent_dag = Dag::new();
         parent_dag.add_node(NodeType::StatelessSource(Box::new(source)), 1.to_string());
+        let running_wait = self.running.clone();
 
         for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
             let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
@@ -151,17 +160,19 @@ impl Executor {
             }
         }
 
-        let exec = MultiThreadedDagExecutor::new(100000, 20000);
+        // let exec = MultiThreadedDagExecutor::new(100000, 20000);
+        let path = self.home_dir.join("pipeline");
+        fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
+        let exec = MultiThreadedDagExecutor::start(parent_dag, path, ExecutorOptions::default())?;
 
-        let tmp_dir =
-            TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-        if tmp_dir.path().exists() {
-            fs::remove_dir_all(tmp_dir.path())
-                .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+        // Waiting for Ctrl+C
+        while running_wait.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(200));
         }
-        fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-        exec.start(parent_dag, tmp_dir.into_path())
-            .map_err(OrchestrationError::ExecutionError)
+        exec.stop();
+        exec.join()
+            .map_err(|_e| OrchestrationError::InternalServerError)?;
+        Ok(())
     }
 }

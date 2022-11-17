@@ -1,0 +1,31 @@
+refresh_rate: 30 seconds
+appenders:
+  stdout:
+    kind: console
+    encoder:
+      pattern: "{d} - {m}{n}"
+  api:
+    kind: file
+    path: "log/api.log"
+    encoder:
+      pattern: "{d} - {m}{n}"
+  app:
+    kind: file
+    path: "log/app.log"
+    encoder:
+      pattern: "{d} - {m}{n}"
+root:
+  level: warn
+  appenders:
+    - stdout
+loggers:
+  app:
+    level: info
+    appenders:
+      - app
+    additive: false
+  api:
+    level: warn
+    appenders:
+      - api
+    additive: false
