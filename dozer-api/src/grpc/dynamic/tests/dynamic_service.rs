@@ -145,6 +145,7 @@ async fn test_grpc_query() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_grpc_insert_streaming() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
