@@ -1,11 +1,11 @@
-use std::path::Path;
+use std::path::PathBuf;
 use std::{sync::Arc, thread};
 
 use dozer_api::actix_web::dev::ServerHandle;
+use dozer_api::grpc::{start_internal_client, start_internal_server};
 use dozer_api::CacheEndpoint;
 use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-use dozer_types::events::ApiEvent;
 
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
@@ -16,13 +16,23 @@ use dozer_types::crossbeam::channel::{self, unbounded};
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[derive(Default)]
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
     pub api_endpoints: Vec<ApiEndpoint>,
     pub cache_read_options: CacheReadOptions,
     pub cache_write_options: CacheWriteOptions,
     // Home directory where all files will be located
-    pub home_dir: Path,
+    pub home_dir: PathBuf,
+}
+
+impl SimpleOrchestrator {
+    pub fn new(home_dir: PathBuf) -> Self {
+        Self {
+            home_dir,
+            ..Default::default()
+        }
+    }
 }
 
 impl Orchestrator for SimpleOrchestrator {
@@ -42,7 +52,6 @@ impl Orchestrator for SimpleOrchestrator {
         //Set AtomicBool and wait for CtrlC
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
-        let running2 = running.clone();
         let running3 = running.clone();
 
         // Channel to communicate CtrlC with API Server
@@ -60,8 +69,8 @@ impl Orchestrator for SimpleOrchestrator {
             .api_endpoints
             .iter()
             .map(|e| {
-                let mut cache_read_options = self.cache_read_options;
-                cache_read_options.set_path(self.home_dir.join(e.name));
+                let mut cache_read_options = self.cache_read_options.clone();
+                cache_read_options.set_path(self.home_dir.join(e.name.clone()));
                 CacheEndpoint {
                     cache: Arc::new(
                         LmdbCache::new(CacheOptions::ReadOnly(cache_read_options)).unwrap(),
@@ -73,7 +82,12 @@ impl Orchestrator for SimpleOrchestrator {
 
         let ce2 = cache_endpoints.clone();
         let ce3 = cache_endpoints.clone();
-        let sources = self.sources.clone();
+
+        // Initialize Internal Server
+        let _internal_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
+            start_internal_server(50052, sender)
+                .map_err(|_e| OrchestrationError::InternalServerError)
+        });
 
         // Initialize API Server
         let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
@@ -109,13 +123,14 @@ impl Orchestrator for SimpleOrchestrator {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         let running2 = running.clone();
-        let running3 = running.clone();
-
-        // Channel to communicate CtrlC with API Server
-        let (tx, rx) = unbounded::<ServerHandle>();
 
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<ApiEvent>();
+        let (sender, receiver) = channel::unbounded::<PipelineRequest>();
+
+        // Initialize Internal Server Client
+        let _internal_thread = thread::spawn(move || {
+            start_internal_client(receiver);
+        });
 
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
@@ -133,9 +148,6 @@ impl Orchestrator for SimpleOrchestrator {
                 endpoint: e.to_owned(),
             })
             .collect();
-
-        let ce2 = cache_endpoints.clone();
-        let ce3 = cache_endpoints.clone();
         let sources = self.sources.clone();
 
         let executor = Executor::new(sources, cache_endpoints, ingestor, iterator);

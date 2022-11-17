@@ -181,7 +181,7 @@ impl StatelessSink for CacheSink {
             map.insert(*k, schema.to_owned());
 
             if let Some(notifier) = &self.notifier {
-                let schema = types_helper::map_schema(&schema);
+                let schema = types_helper::map_schema(self.api_endpoint.name.to_owned(), &schema);
                 let res = notifier
                     .try_send(PipelineRequest {
                         endpoint: self.api_endpoint.name.to_owned(),

@@ -1,3 +1,4 @@
+use dozer_api::grpc::internal_grpc::PipelineRequest;
 use log::info;
 use std::collections::HashMap;
 use std::fs;
@@ -19,7 +20,6 @@ use dozer_sql::sqlparser::ast::Statement;
 use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_sql::sqlparser::parser::Parser;
 use dozer_types::crossbeam;
-use dozer_types::events::ApiEvent;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 
@@ -50,7 +50,7 @@ impl Executor {
 
     pub fn run(
         &self,
-        notifier: Option<crossbeam::channel::Sender<ApiEvent>>,
+        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connections: Vec<Connection> = vec![];

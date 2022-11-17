@@ -33,6 +33,9 @@ pub enum OrchestrationError {
     #[error("Port not found with the table name")]
     PortNotFound(String),
 
+    #[error("Failed to initialize internal server")]
+    InternalServerError,
+
     #[error("Failed to initialize SQL Statement as pipeline..")]
     SqlStatementFailed(#[source] PipelineError),
 
