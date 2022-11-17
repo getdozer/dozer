@@ -9,7 +9,7 @@ use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::NodeHandle;
+use dozer_core::dag::node::{NodeHandle, PortHandle};
 use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
 use std::collections::HashMap;
 
@@ -62,9 +62,8 @@ impl PipelineBuilder {
             ));
         }
         let product = ProductProcessorFactory::new(select.from[0].clone());
-        let input_tables = product.get_input_tables();
-
-        let input_endpoints = self.get_input_endpoints(&first_node_name, &select.from)?;
+        let input_tables = product.get_input_tables()?;
+        let input_endpoints = self.get_input_endpoints(&first_node_name, &input_tables)?;
 
         // Select clause
         let projection = ProjectionProcessorFactory::new(select.projection.clone());
@@ -74,8 +73,8 @@ impl PipelineBuilder {
             String::from("projection"),
         );
 
+        // Where clause
         if let Some(selection) = select.selection {
-            // Where clause
             let selection = SelectionProcessorFactory::new(selection);
             first_node_name = String::from("selection");
 
@@ -118,38 +117,17 @@ impl PipelineBuilder {
     fn get_input_endpoints(
         &self,
         node_name: &String,
-        from: &[TableWithJoins],
+        input_tables: &[(PortHandle, String)],
     ) -> Result<HashMap<String, Endpoint>, PipelineError> {
         let mut endpoints = HashMap::new();
 
-        if from.len() != 1 {
-            panic!("Change following implementation to support multiple inputs")
-        }
-
-        for (_input_port, table) in from.iter().enumerate() {
-            let input_name = self.get_input_name(table).unwrap();
+        for (input_port, table) in input_tables.iter().enumerate() {
             endpoints.insert(
-                input_name,
-                Endpoint::new(NodeHandle::from(node_name), DEFAULT_PORT_HANDLE), // input_port as u16),
+                table.1.clone(),
+                Endpoint::new(NodeHandle::from(node_name), input_port as PortHandle),
             );
         }
 
         Ok(endpoints)
-    }
-
-    fn get_input_name(&self, table: &TableWithJoins) -> Result<String, PipelineError> {
-        match &table.relation {
-            TableFactor::Table { name, alias: _, .. } => {
-                let input_name = name
-                    .0
-                    .iter()
-                    .map(normalize_ident)
-                    .collect::<Vec<String>>()
-                    .join(".");
-
-                Ok(input_name)
-            }
-            _ => Err(InvalidRelation),
-        }
     }
 }

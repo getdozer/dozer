@@ -1,6 +1,9 @@
 use dozer_core::dag::{
     executor_local::DEFAULT_PORT_HANDLE,
-    node::{PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory},
+    node::{
+        PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
+        StatefulProcessorFactory,
+    },
 };
 use sqlparser::ast::{TableFactor, TableWithJoins};
 
@@ -70,7 +73,10 @@ impl StatefulProcessorFactory for ProductProcessorFactory {
     }
 
     fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(DEFAULT_PORT_HANDLE, false)]
+        vec![StatefulPortHandle::new(
+            DEFAULT_PORT_HANDLE,
+            StatefulPortHandleOptions::default(),
+        )]
     }
 
     fn build(&self) -> Box<dyn StatefulProcessor> {
