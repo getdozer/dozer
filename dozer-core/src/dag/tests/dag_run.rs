@@ -1,15 +1,21 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
-use crate::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::tests::processors::{
     DynPortsProcessorFactory, DynPortsSinkFactory, DynPortsSourceFactory,
 };
 use std::fs;
 use tempdir::TempDir;
 
+macro_rules! chk {
+    ($stmt:expr) => {
+        $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
+    };
+}
+
 #[test]
 fn test_run_dag() {
-    //log4rs::init_file("../log4rs.sample.yaml", Default::default())
-    //    .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    // log4rs::init_file("../log4rs.sample.yaml", Default::default())
+    //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let src = DynPortsSourceFactory::new(1, vec![DEFAULT_PORT_HANDLE]);
     let proc1 =
@@ -43,13 +49,17 @@ fn test_run_dag() {
     );
     assert!(proc1_to_sink.is_ok());
 
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    let tmp_dir = chk!(TempDir::new("example"));
     if tmp_dir.path().exists() {
-        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+        chk!(fs::remove_dir_all(tmp_dir.path()));
     }
-    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    chk!(fs::create_dir(tmp_dir.path()));
 
-    let exec = MultiThreadedDagExecutor::new(20_000, 20_000);
+    let exec = chk!(MultiThreadedDagExecutor::start(
+        dag,
+        tmp_dir.into_path(),
+        ExecutorOptions::default()
+    ));
 
-    assert!(exec.start(dag, tmp_dir.into_path()).is_ok());
+    assert!(exec.join().is_ok());
 }

@@ -2,22 +2,23 @@ use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor_local::ExecutorOperation;
+use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::common::{Database, RenewableRwTransaction};
 use crate::storage::errors::StorageError::SerializationError;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{Operation, Record, Schema};
 use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
-pub struct StateWriter {
+pub(crate) struct StateWriter {
     meta_db: Database,
-    dbs: HashMap<PortHandle, Database>,
+    dbs: HashMap<PortHandle, StateOptions>,
     schemas: HashMap<PortHandle, Schema>,
     tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
 }
@@ -25,7 +26,7 @@ pub struct StateWriter {
 impl StateWriter {
     pub fn new(
         meta_db: Database,
-        dbs: HashMap<PortHandle, Database>,
+        dbs: HashMap<PortHandle, StateOptions>,
         schemas: HashMap<PortHandle, Schema>,
         tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
     ) -> Self {
@@ -37,13 +38,41 @@ impl StateWriter {
         }
     }
 
+    fn write_record(
+        &self,
+        db: &Database,
+        rec: &Record,
+        schema: &Schema,
+    ) -> Result<(), ExecutionError> {
+        let key = rec.get_key(&schema.primary_index)?;
+        let value = bincode::serialize(&rec).map_err(|e| SerializationError {
+            typ: "Record".to_string(),
+            reason: Box::new(e),
+        })?;
+        self.tx.write().put(db, key.as_slice(), value.as_slice())?;
+        Ok(())
+    }
+
+    fn retr_record(&self, db: &Database, key: &[u8]) -> Result<Record, ExecutionError> {
+        let curr = self
+            .tx
+            .read()
+            .get(db, key)?
+            .ok_or_else(ExecutionError::RecordNotFound)?;
+        let r: Record = bincode::deserialize(&curr).map_err(|e| SerializationError {
+            typ: "Record".to_string(),
+            reason: Box::new(e),
+        })?;
+        Ok(r)
+    }
+
     fn store_op(
         &mut self,
         _seq_no: u64,
-        op: &Operation,
+        op: Operation,
         port: &PortHandle,
-    ) -> Result<(), ExecutionError> {
-        if let Some(db) = self.dbs.get(port) {
+    ) -> Result<Operation, ExecutionError> {
+        if let Some(opts) = self.dbs.get(port) {
             let schema = self
                 .schemas
                 .get(port)
@@ -51,18 +80,29 @@ impl StateWriter {
 
             match op {
                 Operation::Insert { new } => {
-                    let key = new.get_key(&schema.primary_index)?;
-                    let value = bincode::serialize(&new).map_err(|e| SerializationError {
-                        typ: "Record".to_string(),
-                        reason: Box::new(e),
-                    })?;
-                    self.tx.write().put(db, key.as_slice(), value.as_slice())?;
+                    self.write_record(&opts.db, &new, schema)?;
+                    Ok(Operation::Insert { new })
                 }
-                Operation::Delete { old: _ } => {}
-                Operation::Update { old: _, new: _ } => {}
+                Operation::Delete { mut old } => {
+                    let key = old.get_key(&schema.primary_index)?;
+                    if opts.options.retrieve_old_record_for_deletes {
+                        old = self.retr_record(&opts.db, &key)?;
+                    }
+                    self.tx.write().del(&opts.db, &key, None)?;
+                    Ok(Operation::Delete { old })
+                }
+                Operation::Update { mut old, new } => {
+                    let key = old.get_key(&schema.primary_index)?;
+                    if opts.options.retrieve_old_record_for_updates {
+                        old = self.retr_record(&opts.db, &key)?;
+                    }
+                    self.write_record(&opts.db, &new, schema)?;
+                    Ok(Operation::Update { old, new })
+                }
             }
+        } else {
+            Ok(op)
         }
-        Ok(())
     }
 
     fn store_commit_info(&mut self, source: &NodeHandle, seq: u64) -> Result<(), ExecutionError> {
@@ -84,7 +124,7 @@ pub struct LocalChannelForwarder {
 }
 
 impl LocalChannelForwarder {
-    pub fn new_source_forwarder(
+    pub(crate) fn new_source_forwarder(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         commit_size: u32,
@@ -100,7 +140,7 @@ impl LocalChannelForwarder {
         }
     }
 
-    pub fn new_processor_forwarder(
+    pub(crate) fn new_processor_forwarder(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         rec_store_writer: Option<StateWriter>,
@@ -128,11 +168,11 @@ impl LocalChannelForwarder {
     fn send_op(
         &mut self,
         seq: u64,
-        op: Operation,
+        mut op: Operation,
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
         if let Some(rs) = self.state_writer.as_mut() {
-            rs.store_op(seq, &op, &port_id)?;
+            op = rs.store_op(seq, op, &port_id)?;
         }
 
         let senders = self

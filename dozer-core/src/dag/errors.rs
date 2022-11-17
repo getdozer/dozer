@@ -23,11 +23,12 @@ pub enum ExecutionError {
     InvalidNodeType,
     #[error("The database is invalid")]
     InvalidDatabase,
-
     #[error("Field not found at position {0}")]
     FieldNotFound(String),
     #[error("Port not found in source {0}")]
     PortNotFound(String),
+    #[error("Record not found")]
+    RecordNotFound(),
 
     // Error forwarders
     #[error(transparent)]

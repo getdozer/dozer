@@ -4,8 +4,9 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulPortHandle, StatefulProcessorFactory, StatefulSinkFactory,
-    StatefulSourceFactory, StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
+    NodeHandle, PortHandle, StatefulPortHandle, StatefulPortHandleOptions,
+    StatefulProcessorFactory, StatefulSinkFactory, StatefulSourceFactory,
+    StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
@@ -222,18 +223,29 @@ pub(crate) fn get_inputs_for_output(
 
 const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
+pub(crate) struct StateOptions {
+    pub(crate) db: Database,
+    pub(crate) options: StatefulPortHandleOptions,
+}
+
 pub(crate) fn create_ports_databases(
     env: &mut dyn Environment,
     ports: &Vec<StatefulPortHandle>,
-) -> Result<HashMap<PortHandle, Database>, StorageError> {
-    let mut port_databases = HashMap::<PortHandle, Database>::new();
+) -> Result<HashMap<PortHandle, StateOptions>, StorageError> {
+    let mut port_databases = HashMap::<PortHandle, StateOptions>::new();
     for out_port in ports {
-        if out_port.stateful {
+        if out_port.options.stateful {
             let db = env.open_database(
                 format!("{}_{}", PORT_STATE_KEY, out_port.handle).as_str(),
                 false,
             )?;
-            port_databases.insert(out_port.handle, db);
+            port_databases.insert(
+                out_port.handle,
+                StateOptions {
+                    db,
+                    options: out_port.options.clone(),
+                },
+            );
         }
     }
     Ok(port_databases)
@@ -242,20 +254,20 @@ pub(crate) fn create_ports_databases(
 pub(crate) fn fill_ports_record_readers(
     handle: &NodeHandle,
     edges: &[Edge],
-    port_databases: &HashMap<PortHandle, Database>,
+    port_databases: &HashMap<PortHandle, StateOptions>,
     master_tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
     record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     output_ports: &Vec<StatefulPortHandle>,
 ) {
     for out_port in output_ports {
-        if out_port.stateful {
+        if out_port.options.stateful {
             for r in get_inputs_for_output(edges, handle, &out_port.handle) {
                 let mut writer = record_stores.write();
                 writer.get_mut(&r.node).unwrap().insert(
                     r.port,
                     RecordReader::new(
                         master_tx.clone(),
-                        port_databases.get(&out_port.handle).unwrap().clone(),
+                        port_databases.get(&out_port.handle).unwrap().db.clone(),
                     ),
                 );
             }

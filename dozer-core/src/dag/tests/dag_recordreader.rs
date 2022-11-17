@@ -2,10 +2,10 @@
 use crate::dag::channels::ProcessorChannelForwarder;
 use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
-use crate::dag::executor_local::MultiThreadedDagExecutor;
+use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor};
 use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory,
-    StatelessProcessor, StatelessProcessorFactory,
+    NodeHandle, PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
+    StatefulProcessorFactory, StatelessProcessor, StatelessProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -15,9 +15,15 @@ use crate::dag::tests::sources::{
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
-use std::fs;
-
+use std::time::Duration;
+use std::{fs, thread};
 use tempdir::TempDir;
+
+macro_rules! chk {
+    ($stmt:expr) => {
+        $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
+    };
+}
 
 pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = 50;
 pub(crate) const PASSTHROUGH_PROCESSOR_OUTPUT_PORT: PortHandle = 60;
@@ -37,7 +43,7 @@ impl StatefulProcessorFactory for PassthroughProcessorFactory {
     fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
         vec![StatefulPortHandle::new(
             PASSTHROUGH_PROCESSOR_OUTPUT_PORT,
-            true,
+            StatefulPortHandleOptions::new(true, true, true),
         )]
     }
     fn build(&self) -> Box<dyn StatefulProcessor> {
@@ -145,7 +151,7 @@ fn test_run_dag_reacord_reader() {
     log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(1_000);
+    let src = GeneratorSourceFactory::new(1_000_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(1_000);
@@ -189,15 +195,19 @@ fn test_run_dag_reacord_reader() {
         )
         .is_ok());
 
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    let tmp_dir = chk!(TempDir::new("example"));
     if tmp_dir.path().exists() {
-        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+        chk!(fs::remove_dir_all(tmp_dir.path()));
     }
-    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    chk!(fs::create_dir(tmp_dir.path()));
 
-    let exec = MultiThreadedDagExecutor::new(20_000 - 1, 20_000);
+    let exec = chk!(MultiThreadedDagExecutor::start(
+        dag,
+        tmp_dir.into_path(),
+        ExecutorOptions::default()
+    ));
 
-    assert!(exec.start(dag, tmp_dir.into_path()).is_ok());
+    assert!(exec.join().is_ok());
 }
 
 #[test]
@@ -205,7 +215,7 @@ fn test_run_dag_reacord_reader_from_stateful_src() {
     // log4rs::init_file("../log4rs.sample.yaml", Default::default())
     //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = StatefulGeneratorSourceFactory::new(1_000);
+    let src = StatefulGeneratorSourceFactory::new(1_000_000);
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(1_000);
 
@@ -236,13 +246,17 @@ fn test_run_dag_reacord_reader_from_stateful_src() {
         )
         .is_ok());
 
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    let tmp_dir = chk!(TempDir::new("example"));
     if tmp_dir.path().exists() {
-        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+        chk!(fs::remove_dir_all(tmp_dir.path()));
     }
-    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    chk!(fs::create_dir(tmp_dir.path()));
 
-    let exec = MultiThreadedDagExecutor::new(20_000 - 1, 20_000);
+    let exec = chk!(MultiThreadedDagExecutor::start(
+        dag,
+        tmp_dir.into_path(),
+        ExecutorOptions::default()
+    ));
 
-    assert!(exec.start(dag, tmp_dir.into_path()).is_ok());
+    assert!(exec.join().is_ok());
 }
