@@ -145,7 +145,6 @@ fn test_run_dag_reacord_reader() {
     log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-
     let src = GeneratorSourceFactory::new(1_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
