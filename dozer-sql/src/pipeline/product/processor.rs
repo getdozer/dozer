@@ -13,6 +13,8 @@ use std::collections::HashMap;
 
 use dozer_core::dag::errors::ExecutionError::InternalError;
 
+use super::factory::get_input_tables;
+
 pub struct TableOperation {
     relation: i16,
     join: Vec<JoinOperation>,
@@ -28,6 +30,9 @@ pub struct ProductProcessor {
     /// Parsed FROM Statement
     statement: TableWithJoins,
 
+    /// List of input ports by table name
+    input_tables: Vec<String>,
+
     /// Database to store the state
     db: Option<Database>,
 }
@@ -36,13 +41,14 @@ impl ProductProcessor {
     /// Creates a new [`ProductProcessor`].
     pub fn new(statement: TableWithJoins) -> Self {
         Self {
-            statement,
+            statement: statement.clone(),
+            input_tables: get_input_tables(&statement).unwrap(),
             db: None,
         }
     }
 
     fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
-        self.db = Some(txn.open_database("aggr", false)?);
+        self.db = Some(txn.open_database("product", false)?);
         Ok(())
     }
 
@@ -72,12 +78,33 @@ impl ProductProcessor {
         }
     }
 
-    fn join_schemas(
+    fn get_output_schema(
         &self,
-        input_schemas: &&HashMap<u16, Schema>,
+        input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
-        todo!()
+        let mut output_schema = Schema::empty();
+        for (port, table) in self.input_tables.iter().enumerate() {
+            if let Some(current_schema) = input_schemas.get(&(port as PortHandle)) {
+                output_schema = append_schema(output_schema, table, current_schema);
+            } else {
+                return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
+            }
+        }
+
+        Ok(output_schema)
     }
+}
+
+fn append_schema(mut output_schema: Schema, table: &String, current_schema: &Schema) -> Schema {
+    for mut field in current_schema.clone().fields.into_iter() {
+        let mut name = String::from(table);
+        name.push('.');
+        name.push_str(&field.name);
+        field.name = name;
+        output_schema.fields.push(field);
+    }
+
+    output_schema
 }
 
 impl StatefulProcessor for ProductProcessor {
@@ -86,7 +113,7 @@ impl StatefulProcessor for ProductProcessor {
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
-        let output_schema = self.join_schemas(&input_schemas)?;
+        let output_schema = self.get_output_schema(&input_schemas)?;
         Ok(output_schema)
     }
 

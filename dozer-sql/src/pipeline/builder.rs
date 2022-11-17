@@ -1,16 +1,16 @@
-use super::expression::builder::normalize_ident;
 use super::processor::aggregation::AggregationProcessorFactory;
 use super::processor::projection::ProjectionProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
+use super::product::factory::get_input_tables;
 use super::product::factory::ProductProcessorFactory;
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::errors::PipelineError::{InvalidQuery, InvalidRelation};
+use crate::pipeline::errors::PipelineError::InvalidQuery;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{NodeHandle, PortHandle};
-use sqlparser::ast::{Query, Select, SetExpr, Statement, TableFactor, TableWithJoins};
+use sqlparser::ast::{Query, Select, SetExpr, Statement};
 use std::collections::HashMap;
 
 pub struct PipelineBuilder {}
@@ -50,9 +50,7 @@ impl PipelineBuilder {
     ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         let mut dag = Dag::new();
 
-        // The simplest query can contains just SELECT and FROM
-        // Until the implementation of FROM clause, projection (or selection) comes first
-        let mut first_node_name = String::from("projection");
+        let first_node_name = String::from("product");
         let mut last_node_name = String::from("projection");
 
         // FROM clause
@@ -62,8 +60,13 @@ impl PipelineBuilder {
             ));
         }
         let product = ProductProcessorFactory::new(select.from[0].clone());
-        let input_tables = product.get_input_tables()?;
+        let input_tables = get_input_tables(&select.from[0])?;
         let input_endpoints = self.get_input_endpoints(&first_node_name, &input_tables)?;
+
+        dag.add_node(
+            NodeType::StatefulProcessor(Box::new(product)),
+            String::from("product"),
+        );
 
         // Select clause
         let projection = ProjectionProcessorFactory::new(select.projection.clone());
@@ -76,7 +79,7 @@ impl PipelineBuilder {
         // Where clause
         if let Some(selection) = select.selection {
             let selection = SelectionProcessorFactory::new(selection);
-            first_node_name = String::from("selection");
+            // first_node_name = String::from("selection");
 
             dag.add_node(
                 NodeType::Processor(Box::new(selection)),
@@ -84,7 +87,17 @@ impl PipelineBuilder {
             );
 
             let _ = dag.connect(
+                Endpoint::new(String::from("product"), DEFAULT_PORT_HANDLE),
                 Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
+            );
+
+            let _ = dag.connect(
+                Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+            );
+        } else {
+            let _ = dag.connect(
+                Endpoint::new(String::from("product"), DEFAULT_PORT_HANDLE),
                 Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
             );
         }
@@ -117,13 +130,13 @@ impl PipelineBuilder {
     fn get_input_endpoints(
         &self,
         node_name: &String,
-        input_tables: &[(PortHandle, String)],
+        input_tables: &[String],
     ) -> Result<HashMap<String, Endpoint>, PipelineError> {
         let mut endpoints = HashMap::new();
 
         for (input_port, table) in input_tables.iter().enumerate() {
             endpoints.insert(
-                table.1.clone(),
+                table.clone(),
                 Endpoint::new(NodeHandle::from(node_name), input_port as PortHandle),
             );
         }
