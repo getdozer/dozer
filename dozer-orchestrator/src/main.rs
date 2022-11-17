@@ -27,6 +27,15 @@ fn main() -> Result<(), OrchestrationError> {
     );
 
     let cli = Cli::parse();
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    let running_api = running.clone();
+
+    // run all
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
 
     let configuration = load_config(cli.config_path)?;
     let path = Path::new("./dozer").to_owned();
@@ -35,7 +44,6 @@ fn main() -> Result<(), OrchestrationError> {
     dozer.add_endpoints(configuration.endpoints);
 
     if let Some(cmd) = cli.cmd {
-        let running = Arc::new(AtomicBool::new(true));
         // run individual servers
         match cmd {
             Commands::Api(api) => match api.command {
@@ -48,18 +56,10 @@ fn main() -> Result<(), OrchestrationError> {
             Commands::Ps => todo!(),
         }
     } else {
-        let running = Arc::new(AtomicBool::new(true));
-        let r = running.clone();
-        let r2 = r.clone();
-        // run all
-        ctrlc::set_handler(move || {
-            r.store(false, Ordering::SeqCst);
-        })
-        .expect("Error setting Ctrl-C handler");
         let mut dozer_api = dozer.clone();
         thread::spawn(move || dozer.run_apps(running));
 
         thread::sleep(Duration::from_millis(200));
-        dozer_api.run_api(r2)
+        dozer_api.run_api(running_api)
     }
 }

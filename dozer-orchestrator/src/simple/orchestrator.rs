@@ -116,6 +116,7 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_apps(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         //Set AtomicBool and wait for CtrlC
 
+        let executor_running = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
@@ -144,7 +145,14 @@ impl Orchestrator for SimpleOrchestrator {
             .collect();
         let sources = self.sources.clone();
 
-        let executor = Executor::new(sources, cache_endpoints, ingestor, iterator);
-        executor.run(Some(sender), running)
+        let executor = Executor::new(
+            sources,
+            cache_endpoints,
+            ingestor,
+            iterator,
+            self.home_dir.to_owned(),
+            running,
+        );
+        executor.run(Some(sender), executor_running)
     }
 }
