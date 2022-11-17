@@ -1,5 +1,4 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::execution::Expression;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
@@ -8,7 +7,6 @@ use dozer_core::dag::node::{PortHandle, StatefulProcessor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_types::internal_err;
-use dozer_types::types::Field;
 use dozer_types::types::{Operation, Schema};
 use sqlparser::ast::TableWithJoins;
 use std::collections::HashMap;
@@ -25,19 +23,20 @@ pub struct JoinOperation {
     constraint: Expression,
 }
 
+/// Cartesian Product Processor
 pub struct ProductProcessor {
-    statement: Vec<TableWithJoins>,
-    expression: Box<Expression>,
-    builder: ExpressionBuilder,
+    /// Parsed FROM Statement
+    statement: TableWithJoins,
+
+    /// Database to store the state
     db: Option<Database>,
 }
 
 impl ProductProcessor {
-    pub fn new(statement: Vec<TableWithJoins>) -> Self {
+    /// Creates a new [`ProductProcessor`].
+    pub fn new(statement: TableWithJoins) -> Self {
         Self {
             statement,
-            expression: Box::new(Expression::Literal(Field::Boolean(true))),
-            builder: ExpressionBuilder {},
             db: None,
         }
     }
@@ -49,7 +48,7 @@ impl ProductProcessor {
 
     fn build_expression(
         &self,
-        sql_expression: &[TableWithJoins],
+        sql_expression: &TableWithJoins,
         input_schema: &Schema,
     ) -> Result<Box<Expression>, ExecutionError> {
         // let expressions = sql_expression
@@ -72,6 +71,13 @@ impl ProductProcessor {
             new: record.clone(),
         }
     }
+
+    fn join_schemas(
+        &self,
+        input_schemas: &&HashMap<u16, Schema>,
+    ) -> Result<Schema, ExecutionError> {
+        todo!()
+    }
 }
 
 impl StatefulProcessor for ProductProcessor {
@@ -80,7 +86,8 @@ impl StatefulProcessor for ProductProcessor {
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
-        todo!()
+        let output_schema = self.join_schemas(&input_schemas)?;
+        Ok(output_schema)
     }
 
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {

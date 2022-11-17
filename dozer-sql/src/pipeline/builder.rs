@@ -22,7 +22,7 @@ impl PipelineBuilder {
     ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         match statement {
             Statement::Query(query) => self.query_to_pipeline(*query),
-            _ => Err(InvalidQuery),
+            _ => Err(InvalidQuery(statement.to_string())),
         }
     }
 
@@ -40,7 +40,7 @@ impl PipelineBuilder {
         match set_expr {
             SetExpr::Select(s) => self.select_to_pipeline(*s),
             SetExpr::Query(q) => self.query_to_pipeline(*q),
-            _ => Err(InvalidQuery),
+            _ => Err(InvalidQuery(set_expr.to_string())),
         }
     }
 
@@ -56,7 +56,15 @@ impl PipelineBuilder {
         let mut last_node_name = String::from("projection");
 
         // FROM clause
-        let product = ProductProcessorFactory::new(select.from.clone());
+        if select.from.len() != 1 {
+            return Err(InvalidQuery(
+                "FROM clause doesn't support \"Comma Syntax\"".to_string(),
+            ));
+        }
+        let product = ProductProcessorFactory::new(select.from[0].clone());
+        let input_tables = product.get_input_tables();
+
+        let input_endpoints = self.get_input_endpoints(&first_node_name, &select.from)?;
 
         // Select clause
         let projection = ProjectionProcessorFactory::new(select.projection.clone());
@@ -99,9 +107,6 @@ impl PipelineBuilder {
                 Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
             );
         }
-
-        // From clause
-        let input_endpoints = self.get_input_endpoints(&first_node_name, &select.from)?;
 
         Ok((
             dag,
