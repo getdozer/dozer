@@ -8,7 +8,7 @@ use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, init_component,
     init_select, map_to_op, requires_schema_update,
 };
-use crate::dag::forwarder::{LocalChannelForwarder, PortRecordStoreWriter};
+use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
 use crate::dag::node::{
     NodeHandle, PortHandle, StatefulProcessor, StatefulProcessorFactory, StatelessProcessor,
     StatelessProcessorFactory,
@@ -105,12 +105,12 @@ pub(crate) fn start_stateless_processor(
                 }
 
                 ExecutorOperation::Terminate => {
-                    fw.send_term()?;
+                    fw.send_term_and_wait()?;
                     return Ok(());
                 }
 
-                ExecutorOperation::Commit { epoch, source: _ } => {
-                    fw.send_commit(epoch)?;
+                ExecutorOperation::Commit { epoch, source } => {
+                    fw.store_and_send_commit(source, epoch)?;
                 }
 
                 _ => {
@@ -212,7 +212,8 @@ pub(crate) fn start_stateful_processor(
         let mut fw = LocalChannelForwarder::new_processor_forwarder(
             handle.clone(),
             senders,
-            Some(PortRecordStoreWriter::new(
+            Some(StateWriter::new(
+                state_meta.meta_db,
                 port_databases,
                 output_schemas.clone(),
                 master_tx.clone(),
@@ -244,19 +245,12 @@ pub(crate) fn start_stateful_processor(
                 }
 
                 ExecutorOperation::Terminate => {
-                    fw.send_term()?;
+                    fw.send_term_and_wait()?;
                     return Ok(());
                 }
 
                 ExecutorOperation::Commit { epoch, source } => {
-                    master_tx.write().put(
-                        &state_meta.meta_db,
-                        source.as_bytes(),
-                        &epoch.to_be_bytes(),
-                    )?;
-                    master_tx.write().commit_and_renew()?;
-                    info!("[{}] Committed seq_no {}", handle, epoch);
-                    fw.send_commit(epoch)?;
+                    fw.store_and_send_commit(source, epoch)?;
                 }
 
                 _ => {
