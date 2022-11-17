@@ -3,6 +3,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, Record};
 use num_traits::Float;
+use dozer_types::serde_json::json;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
@@ -67,19 +68,13 @@ fn evaluate_round(
     }
 }
 
+/// `evaluate_ucase` is a scalar function which converts string, text to upper-case, implementing support for UCASE()
 fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
     match value {
         Field::String(s) => Ok(Field::String(s.to_uppercase())),
         Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
-        Field::Int(i) => Ok(Field::Int(i)),
-        Field::UInt(i) => Ok(Field::UInt(i)),
-        Field::Float(f) => Ok(Field::Float(f)),
-        Field::Decimal(d) => Ok(Field::Decimal(d)),
-        Field::Boolean(b) => Ok(Field::Boolean(b)),
-        Field::Binary(b) => Ok(Field::Binary(b)),
-        Field::Timestamp(t) => Ok(Field::Timestamp(t)),
-        _ => Err(PipelineError::InvalidOperandType("UCASE()".to_string())),
+        _ => Err(PipelineError::InvalidFunction(String::from("UCASE() for ") + &*json!({"value":value}).to_string())),
     }
 }
 
@@ -92,10 +87,8 @@ fn test_ucase() {
 
     let s = Box::new(Literal(Field::String(String::from("data"))));
     let t = Box::new(Literal(Field::Text(String::from("Data"))));
-    let i = Box::new(Literal(Field::Int(1)));
     let s_output = Field::String(String::from("DATA"));
     let t_output = Field::Text(String::from("DATA"));
-    let i_output = Field::Int(1);
 
     assert_eq!(
         evaluate_ucase(&s, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
@@ -104,10 +97,6 @@ fn test_ucase() {
     assert_eq!(
         evaluate_ucase(&t, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
         t_output
-    );
-    assert_eq!(
-        evaluate_ucase(&i, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        i_output
     );
 }
 
