@@ -1,7 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(author, version, arg_required_else_help = true, name = "dozer")]
+#[command(author, version, name = "dozer")]
 #[command(
     about = "CLI to interact with dozer components",
     long_about = " Dozer lets you publish blazing fast data apis directly from your data sources. \
@@ -13,7 +13,7 @@ pub struct Cli {
     pub config_path: String,
 
     #[clap(subcommand)]
-    pub cmd: Commands,
+    pub cmd: Option<Commands>,
 }
 
 #[derive(Debug, Subcommand)]

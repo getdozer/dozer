@@ -3,9 +3,12 @@ use super::internal_grpc::{
     internal_pipeline_service_server::InternalPipelineService, PipelineRequest, PipelineResponse,
 };
 use crossbeam::channel::Receiver;
-use dozer_types::{crossbeam::channel::Sender, log};
+use dozer_types::{
+    crossbeam::channel::Sender,
+    log::{self, debug},
+};
 use log::warn;
-use std::net::ToSocketAddrs;
+use std::{net::ToSocketAddrs, thread, time::Duration};
 use tokio::runtime::Runtime;
 use tokio_stream::StreamExt;
 use tonic::{transport::Server, Response, Status};
@@ -68,17 +71,28 @@ pub fn start_internal_server(
     Ok(())
 }
 
-pub fn start_internal_client(receiver: Receiver<PipelineRequest>) {
+pub fn start_internal_client(port: u16, receiver: Receiver<PipelineRequest>) {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let mut client = InternalPipelineServiceClient::connect("http://[::1]:50051")
-            .await
-            .unwrap();
+        let mut connected = false;
+        let mut idx = 0;
+        while !connected {
+            let addr = format!("http://[::1]:{}", port);
+            if let Ok(mut client) = InternalPipelineServiceClient::connect(addr).await {
+                connected = true;
+                let iterator = InternalIterator {
+                    receiver: receiver.to_owned(),
+                };
+                let in_stream = tokio_stream::iter(iterator);
 
-        let iterator = InternalIterator { receiver };
-        let in_stream = tokio_stream::iter(iterator);
-
-        client.stream_pipeline_request(in_stream).await.unwrap();
+                client.stream_pipeline_request(in_stream).await.unwrap();
+            } else {
+                debug!("waiting to connect to api_server : {}", idx);
+                connected = false;
+                idx += 1;
+                thread::sleep(Duration::from_millis(1200));
+            };
+        }
     });
 }
 

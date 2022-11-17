@@ -8,6 +8,10 @@ use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use log::warn;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 fn main() -> Result<(), OrchestrationError> {
     log4rs::init_file("log4rs.yaml", Default::default())
@@ -30,14 +34,32 @@ fn main() -> Result<(), OrchestrationError> {
     dozer.add_sources(configuration.sources);
     dozer.add_endpoints(configuration.endpoints);
 
-    match cli.cmd {
-        Commands::Api(api) => match api.command {
-            ApiCommands::Run => dozer.run_api(),
-            ApiCommands::GenerateToken => todo!(),
-        },
-        Commands::App(apps) => match apps.command {
-            AppCommands::Run => dozer.run_apps(),
-        },
-        Commands::Ps => todo!(),
+    if let Some(cmd) = cli.cmd {
+        let running = Arc::new(AtomicBool::new(true));
+        // run individual servers
+        match cmd {
+            Commands::Api(api) => match api.command {
+                ApiCommands::Run => dozer.run_api(running),
+                ApiCommands::GenerateToken => todo!(),
+            },
+            Commands::App(apps) => match apps.command {
+                AppCommands::Run => dozer.run_apps(running),
+            },
+            Commands::Ps => todo!(),
+        }
+    } else {
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
+        let r2 = r.clone();
+        // run all
+        ctrlc::set_handler(move || {
+            r.store(false, Ordering::SeqCst);
+        })
+        .expect("Error setting Ctrl-C handler");
+        let mut dozer_api = dozer.clone();
+        thread::spawn(move || dozer.run_apps(running));
+
+        thread::sleep(Duration::from_millis(200));
+        dozer_api.run_api(r2)
     }
 }

@@ -1,6 +1,8 @@
 pub mod errors;
 pub mod pipeline;
 pub mod simple;
+use std::sync::{atomic::AtomicBool, Arc};
+
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use errors::OrchestrationError;
 
@@ -10,8 +12,8 @@ mod test_utils;
 pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;
     fn add_endpoints(&mut self, endpoint: Vec<ApiEndpoint>) -> &mut Self;
-    fn run_api(&mut self) -> Result<(), OrchestrationError>;
-    fn run_apps(&mut self) -> Result<(), OrchestrationError>;
+    fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
+    fn run_apps(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports

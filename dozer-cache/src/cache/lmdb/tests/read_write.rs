@@ -1,4 +1,5 @@
 use crate::cache::lmdb::CacheWriteOptions;
+use crate::cache::CacheReadOptions;
 use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, Cache, CacheOptions, LmdbCache};
 use dozer_types::types::Field;
 use tempdir::TempDir;
@@ -29,7 +30,11 @@ fn read_and_write() {
         lmdb_utils::insert_rec_1(&cache_writer, &schema, val.clone());
     }
 
-    let cache_reader = LmdbCache::new(CacheOptions::read(path)).unwrap();
+    let read_options = CacheOptions::ReadOnly(CacheReadOptions {
+        path: Some(path),
+        ..Default::default()
+    });
+    let cache_reader = LmdbCache::new(read_options).unwrap();
     for (a, b, c) in items {
         let rec = cache_reader.get(a.to_be_bytes().as_ref()).unwrap();
         let values = vec![Field::Int(a), Field::String(b), Field::Int(c)];
