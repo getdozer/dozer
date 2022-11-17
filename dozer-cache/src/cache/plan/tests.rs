@@ -37,7 +37,7 @@ fn test_generate_plan_simple() {
                 assert_eq!(
                     eq_filters[0],
                     (
-                        0,
+                        1,
                         SortDirection::Ascending,
                         Field::String("bar".to_string())
                     )

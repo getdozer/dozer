@@ -6,14 +6,21 @@ use dozer_types::types::{
 pub fn schema_0() -> Schema {
     Schema {
         identifier: Some(SchemaIdentifier { id: 0, version: 1 }),
-        fields: vec![FieldDefinition {
-            name: "foo".to_string(),
-            typ: dozer_types::types::FieldType::String,
-            nullable: true,
-        }],
-        values: vec![0],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                typ: dozer_types::types::FieldType::Int,
+                nullable: false,
+            },
+            FieldDefinition {
+                name: "foo".to_string(),
+                typ: dozer_types::types::FieldType::String,
+                nullable: true,
+            },
+        ],
+        values: vec![0, 1],
         primary_index: vec![0],
-        secondary_indexes: vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
+        secondary_indexes: vec![IndexDefinition::SortedInverted(vec![(1, Ascending)])],
     }
 }
 

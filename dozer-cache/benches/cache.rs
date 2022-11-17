@@ -9,17 +9,19 @@ use std::sync::Arc;
 fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) {
     let val = format!("bar_{}", n);
 
-    let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
+    let record = Record::new(
+        schema.identifier,
+        vec![Field::Int(n as i64), Field::String(val.clone())],
+    );
 
     cache.insert(&record).unwrap();
-    let key = index::get_primary_key(&[0], &[Field::String(val)]).unwrap();
+    let key = index::get_primary_key(&[0], &[Field::Int(n as i64)]).unwrap();
 
     let _get_record = cache.get(&key).unwrap();
 }
 
 fn get(cache: Arc<LmdbCache>, n: usize) {
-    let val = format!("bar_{}", n);
-    let key = index::get_primary_key(&[0], &[Field::String(val)]).unwrap();
+    let key = index::get_primary_key(&[0], &[Field::Int(n as i64)]).unwrap();
     let _get_record = cache.get(&key).unwrap();
 }
 

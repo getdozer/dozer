@@ -62,7 +62,10 @@ fn insert_get_and_delete_record() {
 fn insert_and_query_record() -> Result<(), CacheError> {
     let val = "bar".to_string();
     let (cache, schema) = _setup();
-    let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
+    let record = Record::new(
+        schema.identifier.clone(),
+        vec![Field::Int(0), Field::String(val)],
+    );
 
     cache.insert_schema("docs", &schema)?;
     cache.insert(&record)?;
