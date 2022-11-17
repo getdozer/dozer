@@ -16,6 +16,9 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
+const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
+const SCHEMA_IDENTIFIER: u8 = 1_u8;
+
 pub(crate) struct StateWriter {
     meta_db: Database,
     dbs: HashMap<PortHandle, StateOptions>,
@@ -106,10 +109,28 @@ impl StateWriter {
     }
 
     fn store_commit_info(&mut self, source: &NodeHandle, seq: u64) -> Result<(), ExecutionError> {
+        let mut full_key = vec![SOURCE_ID_IDENTIFIER];
+        full_key.extend(source.as_bytes());
+
         self.tx
             .write()
-            .put(&self.meta_db, source.as_bytes(), &seq.to_be_bytes())?;
+            .put(&self.meta_db, full_key.as_slice(), &seq.to_be_bytes())?;
         self.tx.write().commit_and_renew()?;
+        Ok(())
+    }
+
+    fn store_schema(&mut self, port: PortHandle, schema: Schema) -> Result<(), ExecutionError> {
+        self.schemas.insert(port, schema);
+
+        let schemas_value = bincode::serialize(&self.schemas).map_err(|e| SerializationError {
+            typ: "HashMap<PortHandle, Schema>".to_string(),
+            reason: Box::new(e),
+        })?;
+        self.tx.write().put(
+            &self.meta_db,
+            vec![SCHEMA_IDENTIFIER].as_slice(),
+            schemas_value.as_slice(),
+        )?;
         Ok(())
     }
 }
@@ -155,10 +176,15 @@ impl LocalChannelForwarder {
         }
     }
 
-    fn update_output_schema(&mut self, port: PortHandle, schema: Schema) {
+    fn update_output_schema(
+        &mut self,
+        port: PortHandle,
+        schema: Schema,
+    ) -> Result<(), ExecutionError> {
         if let Some(w) = &mut self.state_writer {
-            w.schemas.insert(port, schema);
+            w.store_schema(port, schema)?;
         }
+        Ok(())
     }
 
     pub fn update_seq_no(&mut self, seq: u64) {
@@ -260,7 +286,7 @@ impl LocalChannelForwarder {
         schema: Schema,
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
-        self.update_output_schema(port_id, schema.clone());
+        self.update_output_schema(port_id, schema.clone())?;
         let senders = self
             .senders
             .get(&port_id)
