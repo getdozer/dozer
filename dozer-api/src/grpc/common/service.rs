@@ -1,30 +1,30 @@
 use std::collections::HashMap;
 
-use crate::grpc::services::common::common_grpc::common_grpc_service_server::CommonGrpcService;
-use crate::grpc::services::common::common_grpc::{Record, Value};
-use crate::{api_helper, api_server::PipelineDetails};
+use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
+use crate::grpc::common_grpc::{Record, Value};
+use crate::{api_helper, PipelineDetails};
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_types::events::ApiEvent;
 use dozer_types::log::warn;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
-use super::common_grpc::{
+use super::helper;
+use crate::grpc::common_grpc::{
     FieldDefinition, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest,
     GetFieldsResponse, OnEventRequest, Operation, QueryRequest, QueryResponse,
 };
-use super::helper;
 
 type EventResult<T> = Result<Response<T>, Status>;
 type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 
 // #[derive(Clone)]
-pub struct ApiService {
+pub struct CommonService {
     pub pipeline_map: HashMap<String, PipelineDetails>,
     pub event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
 }
 #[tonic::async_trait]
-impl CommonGrpcService for ApiService {
+impl CommonGrpcService for CommonService {
     async fn query(
         &self,
         request: Request<QueryRequest>,

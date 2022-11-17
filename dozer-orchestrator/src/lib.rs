@@ -7,6 +7,8 @@ use errors::OrchestrationError;
 #[cfg(test)]
 mod test_utils;
 
+mod grpc;
+
 pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;
     fn add_endpoints(&mut self, endpoint: Vec<ApiEndpoint>) -> &mut Self;

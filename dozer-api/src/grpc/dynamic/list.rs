@@ -1,29 +1,31 @@
-use super::util::{convert_grpc_message_to_query_exp, dozer_field_to_json_value, from_cache_error};
-use crate::{api_helper, api_server::PipelineDetails};
+use super::util::{dozer_field_to_json_value, from_cache_error};
+use crate::{api_helper, PipelineDetails};
+use dozer_cache::cache::expression::QueryExpression;
 use dozer_types::serde_json::{json, Map, Value};
 use prost_reflect::DynamicMessage;
 use tonic::{codegen::BoxFuture, Request, Response, Status};
-pub struct QueryService {
+pub struct ListService {
     pub(crate) pipeline_details: PipelineDetails,
 }
-impl tonic::server::UnaryService<DynamicMessage> for QueryService {
+impl ListService {}
+impl tonic::server::UnaryService<DynamicMessage> for ListService {
     type Response = Value;
     type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
-    fn call(&mut self, request: tonic::Request<DynamicMessage>) -> Self::Future {
+    fn call<'a>(&mut self, request: tonic::Request<DynamicMessage>) -> Self::Future {
         let pipeline_details = self.pipeline_details.to_owned();
-        let fut = async move { grpc_query(pipeline_details.to_owned(), request).await };
+        let fut = async move { grpc_list(pipeline_details, request).await };
         Box::pin(fut)
     }
 }
-pub async fn grpc_query(
+
+async fn grpc_list(
     pipeline_details: PipelineDetails,
     request: Request<DynamicMessage>,
 ) -> Result<Response<Value>, Status> {
+    let _dynamic_message = request.into_inner();
+    let exp = QueryExpression::new(None, vec![], 50, 0);
     let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
-    let dynamic_message = request.into_inner();
-    let exp = convert_grpc_message_to_query_exp(dynamic_message)?;
     let (schema, records) = api_helper.get_records(exp).map_err(from_cache_error)?;
-
     let fields = schema.fields;
     let mut vec_json: Vec<Value> = vec![];
     for rec in records {

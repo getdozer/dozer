@@ -1,23 +1,28 @@
+use std::path::Path;
 use std::{sync::Arc, thread};
 
 use dozer_api::CacheEndpoint;
 use dozer_api::{actix_web::dev::ServerHandle, api_server::ApiServer};
-use dozer_cache::cache::{CacheOptions, LmdbCache};
+use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::events::ApiEvent;
 
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
-use dozer_api::grpc_server::GRPCServer;
+use dozer_api::client_server::GRPCServer;
+use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_types::crossbeam::channel::{self, unbounded};
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-#[derive(Default)]
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
     pub api_endpoints: Vec<ApiEndpoint>,
+    pub cache_read_options: CacheReadOptions,
+    pub cache_write_options: CacheWriteOptions,
+    // Home directory where all files will be located
+    pub home_dir: Path,
 }
 
 impl Orchestrator for SimpleOrchestrator {
@@ -44,7 +49,7 @@ impl Orchestrator for SimpleOrchestrator {
         let (tx, rx) = unbounded::<ServerHandle>();
 
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<ApiEvent>();
+        let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
         ctrlc::set_handler(move || {
             r.store(false, Ordering::SeqCst);
@@ -54,9 +59,15 @@ impl Orchestrator for SimpleOrchestrator {
         let cache_endpoints: Vec<CacheEndpoint> = self
             .api_endpoints
             .iter()
-            .map(|e| CacheEndpoint {
-                cache: Arc::new(LmdbCache::new(CacheOptions::default()).unwrap()),
-                endpoint: e.to_owned(),
+            .map(|e| {
+                let mut cache_read_options = self.cache_read_options;
+                cache_read_options.set_path(self.home_dir.join(e.name));
+                CacheEndpoint {
+                    cache: Arc::new(
+                        LmdbCache::new(CacheOptions::ReadOnly(cache_read_options)).unwrap(),
+                    ),
+                    endpoint: e.to_owned(),
+                }
             })
             .collect();
 
@@ -160,14 +171,5 @@ impl Orchestrator for SimpleOrchestrator {
         thread.join().unwrap()?;
 
         Ok(())
-    }
-}
-
-impl SimpleOrchestrator {
-    pub fn new() -> Self {
-        Self {
-            sources: vec![],
-            api_endpoints: vec![],
-        }
     }
 }

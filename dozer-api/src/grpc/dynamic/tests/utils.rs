@@ -6,11 +6,10 @@ use dozer_types::{
 use tokio::time;
 
 use crate::{
-    api_server::PipelineDetails,
     errors::GenerationError,
     generator::protoc::{generator::ProtoGenerator, proto_service::GrpcType},
-    grpc::util::create_descriptor_set,
-    test_utils, CacheEndpoint,
+    grpc::dynamic::util::create_descriptor_set,
+    test_utils, CacheEndpoint, PipelineDetails,
 };
 use std::{collections::HashMap, io, thread};
 

@@ -1,10 +1,10 @@
+use super::api_generator;
 use crate::{
-    api_generator,
     auth::{
         api::{auth_route, validate, ApiSecurity},
         Access,
     },
-    CacheEndpoint,
+    CacheEndpoint, PipelineDetails,
 };
 use actix_cors::Cors;
 use actix_web::{
@@ -17,11 +17,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use futures_util::FutureExt;
-#[derive(Clone)]
-pub struct PipelineDetails {
-    pub schema_name: String,
-    pub cache_endpoint: CacheEndpoint,
-}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
 pub enum CorsOptions {

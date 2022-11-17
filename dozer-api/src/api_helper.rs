@@ -1,7 +1,7 @@
-use crate::api_server::PipelineDetails;
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use crate::generator::oapi::generator::OpenApiGenerator;
+use crate::PipelineDetails;
 use dozer_cache::cache::{expression::QueryExpression, index};
 use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};

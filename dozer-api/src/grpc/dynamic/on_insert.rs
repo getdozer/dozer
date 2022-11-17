@@ -1,6 +1,6 @@
 use crate::api_helper;
-use crate::api_server::PipelineDetails;
 use crate::errors::GRPCError;
+use crate::PipelineDetails;
 
 use dozer_types::log::warn;
 use dozer_types::serde_json::{self, Map};

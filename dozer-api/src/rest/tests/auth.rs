@@ -1,6 +1,5 @@
-use super::super::api_server::ApiServer;
+use super::super::api_server::{ApiServer, CorsOptions};
 use crate::{
-    api_server::CorsOptions,
     auth::{api::ApiSecurity, Access, Authorizer},
     test_utils, CacheEndpoint,
 };

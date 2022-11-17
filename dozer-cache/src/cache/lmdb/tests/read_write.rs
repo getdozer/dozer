@@ -31,10 +31,8 @@ fn read_and_write() {
         lmdb_utils::insert_rec_1(&cache_writer, &schema, val.clone());
     }
 
-    let cache_reader = LmdbCache::new(CacheOptions::_read_default(
-        path2.to_string_lossy().to_string(),
-    ))
-    .unwrap();
+    let cache_reader =
+        LmdbCache::new(CacheOptions::read(path2.to_string_lossy().to_string())).unwrap();
     for (a, b, c) in items {
         let rec = cache_reader.get(a.to_be_bytes().as_ref()).unwrap();
         let values = vec![Field::Int(a), Field::String(b), Field::Int(c)];

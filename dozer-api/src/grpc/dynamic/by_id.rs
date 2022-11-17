@@ -1,5 +1,5 @@
 use super::util::from_cache_error;
-use crate::{api_helper, api_server::PipelineDetails, errors::GRPCError};
+use crate::{api_helper, errors::GRPCError, PipelineDetails};
 use dozer_cache::cache::Cache;
 use dozer_types::serde_json::{self, Map, Value};
 use prost_reflect::DynamicMessage;

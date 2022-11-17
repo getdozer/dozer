@@ -1,25 +1,21 @@
 use super::{
     dozer_test_client::{
+        films_service_client::FilmsServiceClient,
+        filter_expression::{self},
+        FilterExpression, GetFilmsByIdRequest, GetFilmsRequest, Int32Expression, OnInsertResponse,
+        QueryFilmsRequest,
+    },
+    utils::mock_event_notifier,
+};
+use super::{
+    dozer_test_client::{
         GetFilmsByIdResponse, GetFilmsResponse, OnInsertRequest, QueryFilmsResponse,
     },
     utils::{generate_descriptor, generate_proto},
 };
 use crate::{
-    api_server::PipelineDetails,
-    grpc::{
-        server::TonicServer,
-        tests::{
-            dozer_test_client::{
-                films_service_client::FilmsServiceClient,
-                filter_expression::{self},
-                FilterExpression, GetFilmsByIdRequest, GetFilmsRequest, Int32Expression,
-                OnInsertResponse, QueryFilmsRequest,
-            },
-            utils::mock_event_notifier,
-        },
-    },
-    grpc_server::GRPCServer,
-    test_utils, CacheEndpoint,
+    grpc::{client_server::ClientServer, dynamic::DynamicService},
+    test_utils, CacheEndpoint, PipelineDetails,
 };
 use dozer_types::events::ApiEvent;
 use futures_util::FutureExt;
@@ -33,7 +29,7 @@ use tonic::{
     Request,
 };
 
-fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
+fn setup_grpc_service(tmp_dir_path: String) -> DynamicService {
     let schema_name = String::from("films");
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
@@ -50,13 +46,13 @@ fn setup_grpc_service(tmp_dir_path: String) -> TonicServer {
     let function_types = proto_generated_result.1;
     let event_notifier = mock_event_notifier();
     let (tx, rx1) = broadcast::channel::<ApiEvent>(16);
-    GRPCServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
+    ClientServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
     let mut pipeline_map = HashMap::new();
     pipeline_map.insert(
         format!("Dozer.{}Service", "films".to_upper_camel_case()),
         pipeline_details,
     );
-    TonicServer::new(path_to_descriptor, function_types, pipeline_map, rx1)
+    DynamicService::new(path_to_descriptor, function_types, pipeline_map, rx1)
 }
 
 #[tokio::test]
@@ -132,7 +128,7 @@ async fn test_grpc_query() {
     let mut client = FilmsServiceClient::new(channel);
     // create filter expression
     let expression = filter_expression::Expression::FilmId(Int32Expression {
-        exp: Some(crate::grpc::tests::dozer_test_client::int32_expression::Exp::Eq(524)),
+        exp: Some(super::dozer_test_client::int32_expression::Exp::Eq(524)),
     });
     let filter_expression = FilterExpression {
         expression: Some(expression),

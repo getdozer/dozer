@@ -1,5 +1,5 @@
 use crate::{
-    grpc::tests::utils::{generate_descriptor, generate_proto},
+    grpc::dynamic::tests::utils::{generate_descriptor, generate_proto},
     test_utils,
 };
 use std::path::Path;

@@ -1,24 +1,20 @@
 use super::{
-    services::{
-        by_id::GetByIdService, list::ListService, on_delete::OnDeleteService,
-        on_insert::OnInsertService, on_schema_change::OnSchemaChangeService,
-        on_update::OnUpdateService, query::QueryService,
-    },
-    util::get_proto_descriptor,
+    by_id::GetByIdService,
+    dynamic_codec::DynamicCodec,
+    list::ListService,
+    on_delete::OnDeleteService,
+    on_insert::OnInsertService,
+    on_schema_change::OnSchemaChangeService,
+    on_update::OnUpdateService,
+    query::QueryService,
+    util::{get_method_by_name, get_proto_descriptor, get_service_name},
 };
-use crate::{
-    api_server::PipelineDetails,
-    generator::protoc::proto_service::GrpcType,
-    grpc::{
-        dynamic_codec::DynamicCodec,
-        util::{get_method_by_name, get_service_name},
-    },
-};
+use crate::{generator::protoc::proto_service::GrpcType, PipelineDetails};
 use dozer_types::events::ApiEvent;
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use tonic::codegen::{self, *};
-pub struct TonicServer {
+pub struct DynamicService {
     accept_compression_encodings: EnabledCompressionEncodings,
     send_compression_encodings: EnabledCompressionEncodings,
     descriptor_path: String,
@@ -27,7 +23,7 @@ pub struct TonicServer {
     pipeline_map: HashMap<String, PipelineDetails>,
     event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
 }
-impl Clone for TonicServer {
+impl Clone for DynamicService {
     fn clone(&self) -> Self {
         Self {
             accept_compression_encodings: self.accept_compression_encodings,
@@ -40,7 +36,7 @@ impl Clone for TonicServer {
         }
     }
 }
-impl TonicServer {
+impl DynamicService {
     pub fn new(
         descriptor_path: String,
         function_types: HashMap<String, GrpcType>,
@@ -48,7 +44,7 @@ impl TonicServer {
         event_notifier: tokio::sync::broadcast::Receiver<ApiEvent>,
     ) -> Self {
         let descriptor = get_proto_descriptor(descriptor_path.to_owned()).unwrap();
-        TonicServer {
+        DynamicService {
             accept_compression_encodings: Default::default(),
             send_compression_encodings: Default::default(),
             descriptor_path,
@@ -71,7 +67,7 @@ impl TonicServer {
     //     self
     // }
 }
-impl<B> codegen::Service<http::Request<B>> for TonicServer
+impl<B> codegen::Service<http::Request<B>> for DynamicService
 where
     B: Body + Send + 'static,
     B::Error: Into<StdError> + Send + 'static,
@@ -209,6 +205,6 @@ where
     }
 }
 
-impl tonic::server::NamedService for TonicServer {
+impl tonic::server::NamedService for DynamicService {
     const NAME: &'static str = ":package.servicename";
 }

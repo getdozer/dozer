@@ -1,15 +1,6 @@
 use crate::{
-    api_server::PipelineDetails,
-    errors::GRPCError,
-    generator::protoc::generator::ProtoGenerator,
-    grpc::{
-        server::TonicServer,
-        services::common::{
-            common_grpc::common_grpc_service_server::CommonGrpcServiceServer, ApiService,
-        },
-        util::{create_descriptor_set, read_file_as_byte},
-    },
-    CacheEndpoint,
+    errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
+    CacheEndpoint, PipelineDetails,
 };
 use dozer_types::{events::ApiEvent, types::Schema};
 use heck::ToUpperCamelCase;
@@ -23,13 +14,19 @@ use tokio::{runtime::Runtime, sync::broadcast};
 use tonic::transport::Server;
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 
-pub struct GRPCServer {
+use super::{
+    common::CommonService,
+    common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
+    dynamic::util::{create_descriptor_set, read_file_as_byte},
+};
+
+pub struct ClientServer {
     port: u16,
     dynamic: bool,
     event_notifier: crossbeam::channel::Receiver<ApiEvent>,
 }
 
-impl GRPCServer {
+impl ClientServer {
     pub fn new(
         event_notifier: crossbeam::channel::Receiver<ApiEvent>,
         port: u16,
@@ -57,7 +54,13 @@ impl GRPCServer {
         pipeline_map: HashMap<String, PipelineDetails>,
         rx1: broadcast::Receiver<ApiEvent>,
         _running: Arc<AtomicBool>,
-    ) -> Result<(TonicServer, ServerReflectionServer<impl ServerReflection>), GRPCError> {
+    ) -> Result<
+        (
+            DynamicService,
+            ServerReflectionServer<impl ServerReflection>,
+        ),
+        GRPCError,
+    > {
         let mut schemas: HashMap<u32, Schema> = HashMap::new();
         // wait until all schemas are initalized
         while schemas.len() < pipeline_map.len() {
@@ -94,7 +97,7 @@ impl GRPCServer {
         }
 
         // Service handling dynamic gRPC requests.
-        let grpc_service = TonicServer::new(
+        let grpc_service = DynamicService::new(
             descriptor_path,
             generated_proto.1,
             pipeline_hashmap,
@@ -110,7 +113,7 @@ impl GRPCServer {
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<ApiEvent>(16);
-        GRPCServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
+        ClientServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
 
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
 
@@ -124,7 +127,7 @@ impl GRPCServer {
             );
         }
 
-        let common_service = CommonGrpcServiceServer::new(ApiService {
+        let common_service = CommonGrpcServiceServer::new(CommonService {
             pipeline_map: pipeline_map.to_owned(),
             event_notifier: rx1.resubscribe(),
         });

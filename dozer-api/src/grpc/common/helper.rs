@@ -1,8 +1,7 @@
-use crate::grpc::services::common::common_grpc::{value, ArrayValue, Type, Value};
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::types::{Field, FieldType, Operation as DozerOperation, Record as DozerRecord};
 
-use super::common_grpc::{Operation, OperationType, Record};
+use crate::grpc::common_grpc::{value, ArrayValue, Operation, OperationType, Record, Type, Value};
 
 pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Operation {
     match operation.to_owned() {

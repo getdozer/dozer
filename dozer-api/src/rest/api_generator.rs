@@ -3,10 +3,8 @@ use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_types::log::info;
 
-use crate::api_helper::ApiHelper;
-use crate::api_server::PipelineDetails;
-use crate::auth::Access;
-use crate::errors::ApiError;
+use super::super::api_helper::ApiHelper;
+use crate::{auth::Access, errors::ApiError, PipelineDetails};
 use dozer_cache::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
@@ -64,12 +62,7 @@ pub async fn list(
                 info!("No records found.");
                 Ok(HttpResponse::Ok().json(res))
             }
-            CacheError::QueryValidationError(_)
-            | CacheError::InternalError(_)
-            | CacheError::IndexError(_)
-            | CacheError::PlanError(_)
-            | CacheError::TypeError(_)
-            | CacheError::SchemaIdentifierNotFound => Err(ApiError::InternalError(Box::new(e))),
+            _ => Err(ApiError::InternalError(Box::new(e))),
         },
     }
 }
