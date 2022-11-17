@@ -32,7 +32,7 @@ impl LmdbEnvironmentManager {
         env_opt.max_dbs = Some(DEFAULT_MAX_DBS);
         env_opt.map_size = Some(DEFAULT_MAX_MAP_SZ);
         env_opt.max_readers = Some(DEFAULT_MAX_READERS);
-        env_opt.writable_mem_map = true;
+        env_opt.writable_mem_map = false;
         env_opt.no_subdir = true;
         env_opt.no_thread_local_storage = true;
         env_opt.no_locking = true;
