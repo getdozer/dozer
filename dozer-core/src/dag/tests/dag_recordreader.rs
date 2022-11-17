@@ -4,8 +4,8 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor};
 use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory,
-    StatelessProcessor, StatelessProcessorFactory,
+    NodeHandle, PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
+    StatefulProcessorFactory, StatelessProcessor, StatelessProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -43,7 +43,7 @@ impl StatefulProcessorFactory for PassthroughProcessorFactory {
     fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
         vec![StatefulPortHandle::new(
             PASSTHROUGH_PROCESSOR_OUTPUT_PORT,
-            true,
+            StatefulPortHandleOptions::new(true, true, true),
         )]
     }
     fn build(&self) -> Box<dyn StatefulProcessor> {
@@ -151,7 +151,7 @@ fn test_run_dag_reacord_reader() {
     // log4rs::init_file("../log4rs.sample.yaml", Default::default())
     //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(1_000);
+    let src = GeneratorSourceFactory::new(1_000_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(1_000);
@@ -215,7 +215,7 @@ fn test_run_dag_reacord_reader_from_stateful_src() {
     // log4rs::init_file("../log4rs.sample.yaml", Default::default())
     //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = StatefulGeneratorSourceFactory::new(1_000);
+    let src = StatefulGeneratorSourceFactory::new(1_000_000);
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(1_000);
 
