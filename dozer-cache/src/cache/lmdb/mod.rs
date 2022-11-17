@@ -66,7 +66,7 @@ pub struct CacheWriteOptions {
 impl Default for CacheWriteOptions {
     fn default() -> Self {
         Self {
-            max_size: 1024 * 1024 * 5,
+            max_size: 1024 * 1024 * 1024,
             max_readers: 10,
             max_db_size: 1000,
             path: None,
