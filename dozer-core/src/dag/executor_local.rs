@@ -22,6 +22,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
@@ -69,6 +70,7 @@ impl SchemaKey {
 pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
+    pub commit_time_threshold: Duration,
 }
 
 impl ExecutorOptions {
@@ -76,6 +78,7 @@ impl ExecutorOptions {
         Self {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
+            commit_time_threshold: Duration::from_secs(30),
         }
     }
 }
@@ -126,6 +129,7 @@ impl MultiThreadedDagExecutor {
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         path: PathBuf,
         commit_size: u32,
+        commit_time: Duration,
         channel_buffer: usize,
         edges: &Vec<Edge>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
@@ -142,6 +146,7 @@ impl MultiThreadedDagExecutor {
                         s,
                         senders.remove(&holder.0).unwrap(),
                         commit_size,
+                        commit_time,
                         channel_buffer,
                         record_stores.clone(),
                         path.clone(),
@@ -154,6 +159,7 @@ impl MultiThreadedDagExecutor {
                         s,
                         senders.remove(&holder.0).unwrap(),
                         commit_size,
+                        commit_time,
                         channel_buffer,
                         path.clone(),
                     ));
@@ -257,6 +263,7 @@ impl MultiThreadedDagExecutor {
             &mut senders,
             path,
             options.commit_sz,
+            options.commit_time_threshold,
             options.channel_buffer_sz,
             &edges,
             &record_stores,

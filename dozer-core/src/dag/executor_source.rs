@@ -67,6 +67,7 @@ fn process_message(
     r: Result<ExecutorOperation, RecvTimeoutError>,
     dag_fw: &mut LocalChannelForwarder,
     port: PortHandle,
+    stateful: bool,
 ) -> Result<bool, ExecutionError> {
     if stop_req.load(Ordering::Relaxed) {
         info!("[{}] Stop requested...", owner);
@@ -75,7 +76,10 @@ fn process_message(
     }
 
     match r {
-        Err(RecvTimeoutError::Timeout) => Ok(false),
+        Err(RecvTimeoutError::Timeout) => {
+            dag_fw.trigger_commit_if_needed()?;
+            Ok(false)
+        }
         Err(RecvTimeoutError::Disconnected) => {
             warn!("[{}] Source exited. Shutting down...", owner);
             Ok(true)
@@ -110,6 +114,7 @@ pub(crate) fn start_stateless_source(
     src_factory: Box<dyn StatelessSourceFactory>,
     out_channels: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     commit_size: u32,
+    commit_time: Duration,
     channel_buffer: usize,
     _base_path: PathBuf,
 ) -> JoinHandle<Result<(), ExecutionError>> {
@@ -136,8 +141,13 @@ pub(crate) fn start_stateless_source(
 
     let listener_handle = handle.clone();
     thread::spawn(move || -> Result<(), ExecutionError> {
-        let mut dag_fw =
-            LocalChannelForwarder::new_source_forwarder(handle, out_channels, commit_size, None);
+        let mut dag_fw = LocalChannelForwarder::new_source_forwarder(
+            handle,
+            out_channels,
+            commit_size,
+            commit_time,
+            None,
+        );
         let mut sel = init_select(&internal_receivers);
         loop {
             let port_index = sel.ready();
@@ -150,6 +160,7 @@ pub(crate) fn start_stateless_source(
                 r,
                 &mut dag_fw,
                 output_ports[port_index],
+                false,
             )? {
                 return Ok(());
             }
@@ -164,6 +175,7 @@ pub(crate) fn start_stateful_source(
     src_factory: Box<dyn StatefulSourceFactory>,
     out_channels: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     commit_size: u32,
+    commit_time: Duration,
     channel_buffer: usize,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     base_path: PathBuf,
@@ -213,6 +225,7 @@ pub(crate) fn start_stateful_source(
             handle,
             out_channels,
             commit_size,
+            commit_time,
             Some(StateWriter::new(
                 state_meta.meta_db,
                 port_databases,
@@ -232,6 +245,7 @@ pub(crate) fn start_stateful_source(
                 r,
                 &mut dag_fw,
                 output_ports[port_index].handle,
+                true,
             )? {
                 return Ok(());
             }

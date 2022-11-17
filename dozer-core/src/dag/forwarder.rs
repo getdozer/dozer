@@ -14,7 +14,7 @@ use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
 const SCHEMA_IDENTIFIER: u8 = 1_u8;
@@ -140,6 +140,8 @@ pub struct LocalChannelForwarder {
     curr_seq_no: u64,
     commit_size: u32,
     commit_counter: u32,
+    max_commit_time: Duration,
+    last_commit_time: Instant,
     owner: NodeHandle,
     state_writer: Option<StateWriter>,
 }
@@ -149,6 +151,7 @@ impl LocalChannelForwarder {
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         commit_size: u32,
+        commit_threshold_max: Duration,
         state_writer: Option<StateWriter>,
     ) -> Self {
         Self {
@@ -158,6 +161,8 @@ impl LocalChannelForwarder {
             commit_counter: 0,
             owner,
             state_writer,
+            max_commit_time: commit_threshold_max,
+            last_commit_time: Instant::now(),
         }
     }
 
@@ -173,6 +178,8 @@ impl LocalChannelForwarder {
             commit_counter: 0,
             owner,
             state_writer: rec_store_writer,
+            max_commit_time: Duration::from_millis(0),
+            last_commit_time: Instant::now(),
         }
     }
 
@@ -300,14 +307,28 @@ impl LocalChannelForwarder {
 
         Ok(())
     }
+
+    fn timeout_commit_needed(&self) -> bool {
+        !self.max_commit_time.is_zero() && self.last_commit_time.elapsed().gt(&self.max_commit_time)
+    }
+
+    pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
+        if self.timeout_commit_needed() && self.commit_counter > 0 {
+            self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
+            self.commit_counter = 0;
+            self.last_commit_time = Instant::now();
+        }
+        Ok(())
+    }
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
     fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
         self.curr_seq_no = seq;
-        if self.commit_counter >= self.commit_size {
+        if self.commit_counter >= self.commit_size || self.timeout_commit_needed() {
             self.store_and_send_commit(self.owner.clone(), seq)?;
             self.commit_counter = 0;
+            self.last_commit_time = Instant::now();
         }
         self.send_op(seq, op, port)?;
         self.commit_counter += 1;
