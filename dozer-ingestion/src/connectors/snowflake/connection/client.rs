@@ -105,15 +105,8 @@ impl Iterator for ResultIterator<'_, '_> {
                 let mut values = vec![];
                 for i in 1..(self.cols + 1) {
                     let descriptor = self.schema.get((i - 1) as usize)?;
-                    let data_field = convert_data(&mut cursor, i as u16, descriptor);
-                    match data_field {
-                        Ok(value) => values.push(Some(value)),
-                        Err(e) => {
-                            eprintln!("ERROR: {:?}", e);
-                            eprintln!("DESCRIPTOR: {:?}", descriptor);
-                            eprintln!("i: {:?}", i);
-                        }
-                    };
+                    let value = convert_data(&mut cursor, i as u16, descriptor).unwrap();
+                    values.push(Some(value));
                 }
 
                 Some(values)
