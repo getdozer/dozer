@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::thread;
 
 #[cfg(feature = "snowflake")]
-use dozer_ingestion::ingestion::{IngestionIterator};
+use dozer_ingestion::ingestion::IngestionIterator;
 
 #[cfg(feature = "snowflake")]
 use dozer_ingestion::connectors::snowflake::test_utils::remove_streams;
@@ -14,13 +14,13 @@ use dozer_ingestion::connectors::snowflake::test_utils::remove_streams;
 use dozer_types::parking_lot::RwLock;
 
 #[cfg(feature = "snowflake")]
-use std::time::Duration;
-#[cfg(feature = "snowflake")]
 use dozer_ingestion::connectors::{get_connector, TableInfo};
+#[cfg(feature = "snowflake")]
+use dozer_ingestion::ingestion::test_utils::load_config;
 #[cfg(feature = "snowflake")]
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 #[cfg(feature = "snowflake")]
-use dozer_ingestion::ingestion::test_utils::load_config;
+use std::time::Duration;
 
 #[cfg(feature = "snowflake")]
 fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
