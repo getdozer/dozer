@@ -101,8 +101,8 @@ fn single_source_sink() {
             executor_running,
             tmp_path,
             SinkConfig {
-                record_cutoff: 6,
-                timeout: 10,
+                record_cutoff: 1,
+                timeout: 1,
             },
         );
         match executor.run(None, running) {
@@ -130,7 +130,7 @@ fn single_source_sink() {
     }
 
     // Allow for the thread to process the records
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(3000));
     //Shutdown the thread
     r.store(false, Ordering::SeqCst);
 

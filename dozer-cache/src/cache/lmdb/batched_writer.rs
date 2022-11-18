@@ -5,7 +5,7 @@ use std::{
 
 use dozer_types::{
     crossbeam,
-    log::info,
+    log::debug,
     types::{Operation, Schema},
 };
 use lmdb::Transaction;
@@ -24,7 +24,7 @@ pub struct BatchedWriter {
     pub cache: Arc<LmdbCache>,
     pub receiver: crossbeam::channel::Receiver<BatchedCacheMsg>,
     pub record_cutoff: u32,
-    pub timeout: u16,
+    pub timeout: u64,
 }
 impl BatchedWriter {
     pub fn run(&self) -> Result<(), CacheError> {
@@ -41,10 +41,11 @@ impl BatchedWriter {
 
             loop {
                 if idx > self.record_cutoff {
-                    info!("record_cutoff in Batch Writer ");
                     break;
                 }
-                let msg = self.receiver.recv_timeout(Duration::from_millis(300));
+                let msg = self
+                    .receiver
+                    .recv_timeout(Duration::from_millis(self.timeout));
                 match msg {
                     Ok(msg) => {
                         let schema = msg.schema;
@@ -64,6 +65,7 @@ impl BatchedWriter {
                             Operation::Update { old, new } => {
                                 let key =
                                     index::get_primary_key(&schema.primary_index, &old.values);
+
                                 let mut new = new;
                                 new.schema_id = schema.identifier.clone();
 
@@ -74,7 +76,6 @@ impl BatchedWriter {
                     Err(err) => match err {
                         crossbeam::channel::RecvTimeoutError::Timeout => {
                             // break the inner loop on timeout
-                            info!("Timeout in Batch Writer: {}", idx);
                             break;
                         }
                         crossbeam::channel::RecvTimeoutError::Disconnected => {
@@ -87,8 +88,8 @@ impl BatchedWriter {
             }
             total_idx += idx;
 
-            if idx > self.record_cutoff {
-                info!(
+            if idx > 0 {
+                debug!(
                     "Batch Writer: Commit : {} : {total_idx}: elapsed: {:.2?}",
                     commits,
                     before.elapsed()

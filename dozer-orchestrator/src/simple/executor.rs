@@ -40,7 +40,7 @@ pub struct Executor {
 }
 pub struct SinkConfig {
     pub record_cutoff: u32,
-    pub timeout: u16,
+    pub timeout: u64,
 }
 impl Default for SinkConfig {
     fn default() -> Self {

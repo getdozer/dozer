@@ -28,7 +28,7 @@ pub struct CacheSinkFactory {
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineRequest>>,
     record_cutoff: u32,
-    timeout: u16,
+    timeout: u64,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -57,7 +57,7 @@ impl CacheSinkFactory {
         api_endpoint: ApiEndpoint,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         record_cutoff: u32,
-        timeout: u16,
+        timeout: u64,
     ) -> Self {
         Self {
             input_ports,
@@ -136,10 +136,7 @@ impl StatelessSink for CacheSink {
         }
 
         self.batched_sender
-            .send(BatchedCacheMsg {
-                op: op,
-                schema: schema,
-            })
+            .send(BatchedCacheMsg { op, schema })
             .unwrap();
         Ok(())
     }
@@ -197,7 +194,7 @@ impl CacheSink {
         input_schemas: Mutex<HashMap<PortHandle, Schema>>,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         record_cutoff: u32,
-        timeout: u16,
+        timeout: u64,
     ) -> Self {
         let (batched_sender, batched_receiver) =
             crossbeam::channel::bounded::<BatchedCacheMsg>(100000);
@@ -303,7 +300,7 @@ mod tests {
     use dozer_core::dag::node::StatelessSink;
 
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
-    use std::collections::HashMap;
+    use std::{collections::HashMap, thread, time::Duration};
 
     #[test]
     // This test cases covers updation of records when primary key changes because of value change in primary_key
@@ -343,6 +340,7 @@ mod tests {
         sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation)
             .unwrap();
 
+        thread::sleep(Duration::from_millis(100));
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap();
 
@@ -351,6 +349,7 @@ mod tests {
         sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation)
             .unwrap();
 
+        thread::sleep(Duration::from_millis(100));
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
 
