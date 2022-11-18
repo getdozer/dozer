@@ -73,7 +73,10 @@ fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineEr
     match value {
         Field::String(s) => Ok(Field::String(s.to_uppercase())),
         Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
-        _ => Err(PipelineError::InvalidFunction(format!("UCASE() for {}", value))),
+        _ => Err(PipelineError::InvalidFunction(format!(
+            "UCASE() for {}",
+            value
+        ))),
     }
 }
 
