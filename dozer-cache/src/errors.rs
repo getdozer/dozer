@@ -46,6 +46,8 @@ pub enum QueryError {
     GetValue(#[source] lmdb::Error),
     #[error("Failed to insert value")]
     InsertValue(#[source] lmdb::Error),
+    #[error("Failed to delete value")]
+    DeleteValue(#[source] lmdb::Error),
     #[error("Field not found")]
     FieldNotFound,
     #[error("Cannot access record")]

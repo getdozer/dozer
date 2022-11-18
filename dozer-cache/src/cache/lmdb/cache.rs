@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use dozer_types::bincode;
 
-use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Cursor, Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
 
 use dozer_types::types::{IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
@@ -52,6 +52,7 @@ impl IndexMetaData {
 pub struct LmdbCache {
     env: Environment,
     db: Database,
+    primary_index: Database,
     index_metadata: Arc<IndexMetaData>,
     schema_db: Database,
     cache_options: CacheOptions,
@@ -73,11 +74,14 @@ impl LmdbCache {
     }
     pub fn new(cache_options: CacheOptions) -> Result<Self, CacheError> {
         let env = utils::init_env(&cache_options)?;
-        let db = utils::init_db(&env, Some("records"), &cache_options, false)?;
-        let schema_db = utils::init_db(&env, Some("schemas"), &cache_options, false)?;
+        let db = utils::init_db(&env, Some("records"), &cache_options, false, true)?;
+        let primary_index =
+            utils::init_db(&env, Some("primary_index"), &cache_options, false, false)?;
+        let schema_db = utils::init_db(&env, Some("schemas"), &cache_options, false, false)?;
         Ok(Self {
             env,
             db,
+            primary_index,
             index_metadata: Arc::new(IndexMetaData::default()),
             schema_db,
             cache_options,
@@ -91,20 +95,29 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        let p_key = &schema.primary_index;
-        let values = &rec.values;
-        let key = index::get_primary_key(p_key, values);
+        let id = {
+            let mut cursor = txn
+                .open_ro_cursor(self.db)
+                .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+            cursor.iter().count() as u64
+        };
         let encoded: Vec<u8> =
             bincode::serialize(&rec).map_err(CacheError::map_serialization_error)?;
 
-        txn.put::<Vec<u8>, Vec<u8>>(self.db, &key, &encoded, WriteFlags::default())
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        txn.put(
+            self.db,
+            &id.to_be_bytes().as_slice(),
+            &encoded.as_slice(),
+            WriteFlags::default(),
+        )
+        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         let indexer = Indexer {
+            primary_index: self.primary_index,
             index_metadata: self.index_metadata.clone(),
         };
 
-        indexer.build_indexes(txn, rec, schema, secondary_indexes, key)?;
+        indexer.build_indexes(txn, rec, schema, secondary_indexes, id)?;
 
         Ok(())
     }
@@ -182,10 +195,16 @@ impl LmdbCache {
         Ok(schema)
     }
 
-    pub fn _delete(&self, key: &[u8], txn: &mut RwTransaction) -> Result<(), CacheError> {
-        txn.del(self.db, &key, None)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+    fn _delete_internal(&self, key: &[u8], txn: &mut RwTransaction) -> Result<(), lmdb::Error> {
+        let id: [u8; 8] = txn.get(self.primary_index, &key)?.try_into().unwrap();
+        txn.del(self.db, &id, None)?;
+        txn.del(self.primary_index, &key, None)?;
         Ok(())
+    }
+
+    pub fn _delete(&self, key: &[u8], txn: &mut RwTransaction) -> Result<(), CacheError> {
+        self._delete_internal(key, txn)
+            .map_err(|e| CacheError::QueryError(QueryError::DeleteValue(e)))
     }
 
     pub fn _update(
@@ -196,12 +215,16 @@ impl LmdbCache {
         secondary_indexes: &[IndexDefinition],
         txn: &mut RwTransaction,
     ) -> Result<(), CacheError> {
-        txn.del(self.db, &key, None)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        self._delete(key, txn)?;
 
         self._insert(txn, rec, schema, secondary_indexes)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
+    }
+
+    fn _get<'a>(&self, key: &[u8], txn: &'a RoTransaction) -> Result<&'a [u8], lmdb::Error> {
+        let id: [u8; 8] = txn.get(self.primary_index, &key)?.try_into().unwrap();
+        txn.get(self.db, &id)
     }
 }
 
@@ -241,8 +264,10 @@ impl Cache for LmdbCache {
             .env
             .begin_ro_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let rec: Record = helper::get(&txn, self.db, key)?;
-        Ok(rec)
+        let id = txn
+            .get(self.primary_index, &key)
+            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
+        helper::get(&txn, self.db, id)
     }
 
     fn query(&self, name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError> {
@@ -310,7 +335,7 @@ impl Cache for LmdbCache {
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let key = IndexMetaData::get_key(schema, idx);
             let name = format!("index_#{}", key);
-            let db = utils::init_db(&self.env, Some(&name), &self.cache_options, true)?;
+            let db = utils::init_db(&self.env, Some(&name), &self.cache_options, true, false)?;
 
             if let IndexDefinition::SortedInverted(fields) = index {
                 comparator::set_sorted_inverted_comparator(&self.env, db, schema, fields)

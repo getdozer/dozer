@@ -3,12 +3,12 @@ use dozer_types::{bincode, serde};
 use lmdb::{Database, RoTransaction, Transaction};
 use lmdb_sys as ffi;
 use std::ffi::c_void;
-pub fn get<T>(txn: &RoTransaction, db: Database, key: &[u8]) -> Result<T, CacheError>
+pub fn get<T>(txn: &RoTransaction, db: Database, id: &[u8]) -> Result<T, CacheError>
 where
     T: for<'a> serde::de::Deserialize<'a>,
 {
     let rec = txn
-        .get(db, &key)
+        .get(db, &id)
         .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
     bincode::deserialize(rec).map_err(CacheError::map_deserialization_error)
 }

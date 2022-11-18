@@ -4,7 +4,6 @@ use crate::cache::{
     lmdb::CacheOptions,
     test_utils, Cache,
 };
-use crate::errors::CacheError;
 use dozer_types::{
     serde_json::Value,
     types::{Field, IndexDefinition, Record, Schema},
@@ -23,51 +22,55 @@ fn query_and_test(
     inserted_record: &Record,
     schema_name: &str,
     exp: &QueryExpression,
-) -> Result<(), CacheError> {
-    let records = cache.query(schema_name, exp)?;
+) {
+    let records = cache.query(schema_name, exp).unwrap();
     assert_eq!(records[0], inserted_record.clone(), "must be equal");
-    Ok(())
 }
 
 #[test]
-fn insert_and_get_schema() -> Result<(), CacheError> {
+fn insert_and_get_schema() {
     let (cache, schema, secondary_indexes) = _setup();
-    cache.insert_schema("test", &schema, &secondary_indexes)?;
-    let schema = cache.get_schema_and_indexes_by_name("test")?.0;
+    cache
+        .insert_schema("test", &schema, &secondary_indexes)
+        .unwrap();
+    let schema = cache.get_schema_and_indexes_by_name("test").unwrap().0;
 
-    let get_schema = cache.get_schema(&schema.identifier.to_owned().unwrap())?;
+    let get_schema = cache
+        .get_schema(&schema.identifier.to_owned().unwrap())
+        .unwrap();
     assert_eq!(get_schema, schema, "must be equal");
-    Ok(())
 }
 
 #[test]
-fn insert_get_and_delete_record() -> Result<(), CacheError> {
+fn insert_get_and_delete_record() {
     let val = "bar".to_string();
     let (cache, schema, secondary_indexes) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
-    cache.insert_schema("docs", &schema, &secondary_indexes)?;
-    cache.insert(&record)?;
+    cache
+        .insert_schema("docs", &schema, &secondary_indexes)
+        .unwrap();
+    cache.insert(&record).unwrap();
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
 
-    let get_record = cache.get(&key)?;
+    let get_record = cache.get(&key).unwrap();
     assert_eq!(get_record, record, "must be equal");
 
-    cache.delete(&key)?;
+    cache.delete(&key).unwrap();
 
     cache.get(&key).expect_err("Must not find a record");
-
-    Ok(())
 }
 
 #[test]
-fn insert_and_query_record() -> Result<(), CacheError> {
+fn insert_and_query_record() {
     let val = "bar".to_string();
     let (cache, schema, secondary_indexes) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
 
-    cache.insert_schema("docs", &schema, &secondary_indexes)?;
-    cache.insert(&record)?;
+    cache
+        .insert_schema("docs", &schema, &secondary_indexes)
+        .unwrap();
+    cache.insert(&record).unwrap();
 
     // Query with an expression
     let exp = QueryExpression::new(
@@ -81,7 +84,7 @@ fn insert_and_query_record() -> Result<(), CacheError> {
         0,
     );
 
-    query_and_test(&cache, &record, "docs", &exp)?;
+    query_and_test(&cache, &record, "docs", &exp);
 
     // Query without an expression
     query_and_test(
@@ -89,7 +92,5 @@ fn insert_and_query_record() -> Result<(), CacheError> {
         &record,
         "docs",
         &QueryExpression::new(None, vec![], 10, 0),
-    )?;
-
-    Ok(())
+    );
 }
