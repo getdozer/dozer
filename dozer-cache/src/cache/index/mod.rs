@@ -12,6 +12,10 @@ pub trait CacheIndex {
 
 use dozer_types::types::Field;
 
+use crate::errors::CacheError;
+
+use super::lmdb::comparator::compared_without_composite_key;
+
 pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
     let key: Vec<Vec<u8>> = primary_index
         .iter()
@@ -35,11 +39,18 @@ pub fn has_primary_key_changed(
         .any(|idx| old_values[*idx] != new_values[*idx])
 }
 
-pub fn get_secondary_index(fields: &[(&Field, SortDirection)]) -> Result<Vec<u8>, bincode::Error> {
-    bincode::serialize(fields)
+pub fn get_secondary_index(fields: &[(&Field, SortDirection)]) -> Result<Vec<u8>, CacheError> {
+    // This criteria must be kept consistent with `comparator.rs`.
+    if fields.len() == 1
+        && (fields[0].1 == SortDirection::Ascending || compared_without_composite_key(fields[0].0))
+    {
+        Ok(fields[0].0.to_bytes()?.to_vec())
+    } else {
+        bincode::serialize(fields).map_err(CacheError::map_serialization_error)
+    }
 }
 
-pub fn compare_secondary_index(a: &[u8], b: &[u8]) -> bincode::Result<Ordering> {
+pub fn compare_composite_secondary_index(a: &[u8], b: &[u8]) -> bincode::Result<Ordering> {
     let mut a_fields = bincode::deserialize::<Vec<(Field, SortDirection)>>(a)?.into_iter();
     let mut b_fields = bincode::deserialize::<Vec<(Field, SortDirection)>>(b)?.into_iter();
     Ok(loop {

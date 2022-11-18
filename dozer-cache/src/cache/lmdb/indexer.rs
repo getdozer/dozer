@@ -58,7 +58,7 @@ impl Indexer {
             .copied()
             .filter_map(|(index, direction)| (values.get(index).map(|value| (value, direction))))
             .collect::<Vec<_>>();
-        index::get_secondary_index(&values).map_err(CacheError::map_serialization_error)
+        index::get_secondary_index(&values)
     }
 
     fn _build_indices_full_text(
