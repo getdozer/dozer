@@ -29,6 +29,8 @@ pub enum ExecutionError {
     PortNotFound(String),
     #[error("Record not found")]
     RecordNotFound(),
+    #[error("Invalid checkpoint state for node: {0}")]
+    InvalidCheckpointState(NodeHandle),
 
     // Error forwarders
     #[error(transparent)]

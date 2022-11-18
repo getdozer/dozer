@@ -1,5 +1,6 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::{PortHandle, StatefulSink, StatefulSinkFactory};
+use crate::dag::node::{PortHandle, Sink, SinkFactory};
+use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
@@ -16,11 +17,11 @@ impl CountingSinkFactory {
     }
 }
 
-impl StatefulSinkFactory for CountingSinkFactory {
+impl SinkFactory for CountingSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }
-    fn build(&self) -> Box<dyn StatefulSink> {
+    fn build(&self) -> Box<dyn Sink> {
         Box::new(CountingSink {
             expected: self.expected,
             current: 0,
@@ -32,7 +33,7 @@ pub(crate) struct CountingSink {
     expected: u64,
     current: u64,
 }
-impl StatefulSink for CountingSink {
+impl Sink for CountingSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -50,6 +51,7 @@ impl StatefulSink for CountingSink {
         _seq: u64,
         _op: Operation,
         _state: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

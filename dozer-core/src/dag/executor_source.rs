@@ -8,7 +8,7 @@ use crate::dag::executor_utils::{
     create_ports_databases, fill_ports_record_readers, init_component, init_select, map_to_exec_op,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
-use crate::dag::node::{NodeHandle, PortHandle, StatefulSourceFactory, StatelessSourceFactory};
+use crate::dag::node::{NodeHandle, PortHandle, SourceFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
@@ -108,71 +108,11 @@ fn process_message(
     }
 }
 
-pub(crate) fn start_stateless_source(
-    stop_req: Arc<AtomicBool>,
-    handle: NodeHandle,
-    src_factory: Box<dyn StatelessSourceFactory>,
-    out_channels: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-    commit_size: u32,
-    commit_time: Duration,
-    channel_buffer: usize,
-    _base_path: PathBuf,
-) -> JoinHandle<Result<(), ExecutionError>> {
-    let mut internal_receivers: Vec<Receiver<ExecutorOperation>> = Vec::new();
-    let mut internal_senders: HashMap<PortHandle, Sender<ExecutorOperation>> = HashMap::new();
-    let output_ports = src_factory.get_output_ports();
-
-    for port in &output_ports {
-        let channels = bounded::<ExecutorOperation>(channel_buffer);
-        internal_receivers.push(channels.1);
-        internal_senders.insert(*port, channels.0);
-    }
-
-    let mut fw = InternalChannelSourceForwarder::new(internal_senders);
-    thread::spawn(move || -> Result<(), ExecutionError> {
-        let src = src_factory.build();
-        for p in src_factory.get_output_ports() {
-            if let Some(schema) = src.get_output_schema(p) {
-                fw.update_schema(schema, p)?
-            }
-        }
-        src.start(&mut fw, None)
-    });
-
-    let listener_handle = handle.clone();
-    thread::spawn(move || -> Result<(), ExecutionError> {
-        let mut dag_fw = LocalChannelForwarder::new_source_forwarder(
-            handle,
-            out_channels,
-            commit_size,
-            commit_time,
-            None,
-        );
-        let mut sel = init_select(&internal_receivers);
-        loop {
-            let port_index = sel.ready();
-            let r = internal_receivers[port_index]
-                .recv_deadline(Instant::now().add(Duration::from_millis(500)));
-
-            if process_message(
-                &stop_req,
-                &listener_handle,
-                r,
-                &mut dag_fw,
-                output_ports[port_index],
-                false,
-            )? {
-                return Ok(());
-            }
-        }
-    })
-}
-
-pub(crate) fn start_stateful_source(
+pub(crate) fn start_source(
     stop_req: Arc<AtomicBool>,
     edges: Vec<Edge>,
     handle: NodeHandle,
-    src_factory: Box<dyn StatefulSourceFactory>,
+    src_factory: Box<dyn SourceFactory>,
     out_channels: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     commit_size: u32,
     commit_time: Duration,
@@ -226,12 +166,8 @@ pub(crate) fn start_stateful_source(
             out_channels,
             commit_size,
             commit_time,
-            Some(StateWriter::new(
-                state_meta.meta_db,
-                port_databases,
-                output_schemas,
-                master_tx.clone(),
-            )),
+            StateWriter::new(state_meta.meta_db, port_databases, master_tx.clone(), None),
+            true,
         );
         let mut sel = init_select(&internal_receivers);
         loop {

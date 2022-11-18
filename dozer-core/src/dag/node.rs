@@ -9,13 +9,13 @@ pub type NodeHandle = String;
 pub type PortHandle = u16;
 
 #[derive(Debug, Clone)]
-pub struct StatefulPortHandleOptions {
+pub struct OutputPortDefOptions {
     pub stateful: bool,
     pub retrieve_old_record_for_updates: bool,
     pub retrieve_old_record_for_deletes: bool,
 }
 
-impl StatefulPortHandleOptions {
+impl OutputPortDefOptions {
     pub fn default() -> Self {
         Self {
             stateful: false,
@@ -36,23 +36,23 @@ impl StatefulPortHandleOptions {
     }
 }
 
-pub struct StatefulPortHandle {
+pub struct OutputPortDef {
     pub handle: PortHandle,
-    pub options: StatefulPortHandleOptions,
+    pub options: OutputPortDefOptions,
 }
 
-impl StatefulPortHandle {
-    pub fn new(handle: PortHandle, options: StatefulPortHandleOptions) -> Self {
+impl OutputPortDef {
+    pub fn new(handle: PortHandle, options: OutputPortDefOptions) -> Self {
         Self { handle, options }
     }
 }
 
-pub trait StatelessSourceFactory: Send + Sync {
-    fn get_output_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn StatelessSource>;
+pub trait SourceFactory: Send + Sync {
+    fn get_output_ports(&self) -> Vec<OutputPortDef>;
+    fn build(&self) -> Box<dyn Source>;
 }
 
-pub trait StatelessSource {
+pub trait Source {
     fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
     fn start(
         &self,
@@ -61,49 +61,13 @@ pub trait StatelessSource {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait StatefulSourceFactory: Send + Sync {
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle>;
-    fn build(&self) -> Box<dyn StatefulSource>;
-}
-
-pub trait StatefulSource {
-    fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<u64>,
-    ) -> Result<(), ExecutionError>;
-}
-
-pub trait StatelessProcessorFactory: Send + Sync {
+pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn get_output_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn StatelessProcessor>;
+    fn get_output_ports(&self) -> Vec<OutputPortDef>;
+    fn build(&self) -> Box<dyn Processor>;
 }
 
-pub trait StatelessProcessor {
-    fn init(&mut self) -> Result<(), ExecutionError>;
-    fn update_schema(
-        &mut self,
-        output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError>;
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        op: Operation,
-        fw: &mut dyn ProcessorChannelForwarder,
-        reader: &HashMap<PortHandle, RecordReader>,
-    ) -> Result<(), ExecutionError>;
-}
-
-pub trait StatefulProcessorFactory: Send + Sync {
-    fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle>;
-    fn build(&self) -> Box<dyn StatefulProcessor>;
-}
-
-pub trait StatefulProcessor {
+pub trait Processor {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
     fn update_schema(
         &mut self,
@@ -120,31 +84,12 @@ pub trait StatefulProcessor {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait StatelessSinkFactory: Send + Sync {
+pub trait SinkFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn StatelessSink>;
+    fn build(&self) -> Box<dyn Sink>;
 }
 
-pub trait StatelessSink {
-    fn update_schema(
-        &mut self,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<(), ExecutionError>;
-    fn init(&mut self) -> Result<(), ExecutionError>;
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        seq: u64,
-        op: Operation,
-    ) -> Result<(), ExecutionError>;
-}
-
-pub trait StatefulSinkFactory: Send + Sync {
-    fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn StatefulSink>;
-}
-
-pub trait StatefulSink {
+pub trait Sink {
     fn update_schema(
         &mut self,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -156,5 +101,6 @@ pub trait StatefulSink {
         seq: u64,
         op: Operation,
         state: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
 }
