@@ -8,7 +8,7 @@ use dozer_core::dag::node::{PortHandle, StatelessSink, StatelessSinkFactory};
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::parking_lot::{Mutex, RwLock};
+use dozer_types::parking_lot::Mutex;
 use dozer_types::types::FieldType;
 use dozer_types::types::{
     IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
@@ -27,6 +27,8 @@ pub struct CacheSinkFactory {
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineRequest>>,
+    record_cutoff: u32,
+    timeout: u16,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -54,12 +56,16 @@ impl CacheSinkFactory {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        record_cutoff: u32,
+        timeout: u16,
     ) -> Self {
         Self {
             input_ports,
             cache,
             api_endpoint,
             notifier,
+            record_cutoff,
+            timeout,
         }
     }
 }
@@ -74,6 +80,8 @@ impl StatelessSinkFactory for CacheSinkFactory {
             self.api_endpoint.clone(),
             Mutex::new(HashMap::new()),
             self.notifier.clone(),
+            self.record_cutoff,
+            self.timeout,
         ))
     }
 }
@@ -188,14 +196,19 @@ impl CacheSink {
         api_endpoint: ApiEndpoint,
         input_schemas: Mutex<HashMap<PortHandle, Schema>>,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        record_cutoff: u32,
+        timeout: u16,
     ) -> Self {
-        let (batched_sender, batched_receiver) = crossbeam::channel::unbounded::<BatchedCacheMsg>();
+        let (batched_sender, batched_receiver) =
+            crossbeam::channel::bounded::<BatchedCacheMsg>(100000);
         let cache_batch = cache.clone();
 
         thread::spawn(move || {
             let batched_writer = BatchedWriter {
                 cache: cache_batch,
                 receiver: batched_receiver,
+                record_cutoff,
+                timeout,
             };
             batched_writer.run().unwrap();
         });

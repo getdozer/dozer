@@ -7,7 +7,7 @@ use dozer_api::CacheEndpoint;
 use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
-use super::executor::Executor;
+use super::executor::{Executor, SinkConfig};
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
@@ -150,8 +150,9 @@ impl Orchestrator for SimpleOrchestrator {
             cache_endpoints,
             ingestor,
             iterator,
-            self.home_dir.to_owned(),
             running,
+            self.home_dir.to_owned(),
+            SinkConfig::default(),
         );
         executor.run(Some(sender), executor_running)
     }

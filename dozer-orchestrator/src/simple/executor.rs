@@ -32,28 +32,42 @@ use crate::validate;
 pub struct Executor {
     sources: Vec<Source>,
     cache_endpoints: Vec<CacheEndpoint>,
+    home_dir: PathBuf,
+    sink_config: SinkConfig,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
-    pub home_dir: PathBuf,
     running: Arc<AtomicBool>,
 }
-
+pub struct SinkConfig {
+    pub record_cutoff: u32,
+    pub timeout: u16,
+}
+impl Default for SinkConfig {
+    fn default() -> Self {
+        Self {
+            record_cutoff: 50000,
+            timeout: 300,
+        }
+    }
+}
 impl Executor {
     pub fn new(
         sources: Vec<Source>,
         cache_endpoints: Vec<CacheEndpoint>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
-        home_dir: PathBuf,
         running: Arc<AtomicBool>,
+        home_dir: PathBuf,
+        sink_config: SinkConfig,
     ) -> Self {
         Self {
             sources,
             cache_endpoints,
+            home_dir,
             ingestor,
             iterator,
-            home_dir,
             running,
+            sink_config,
         }
     }
 
@@ -126,6 +140,8 @@ impl Executor {
                 cache,
                 api_endpoint,
                 notifier.clone(),
+                self.sink_config.record_cutoff,
+                self.sink_config.timeout,
             );
             dag.add_node(NodeType::StatelessSink(Box::new(sink)), 4.to_string());
 

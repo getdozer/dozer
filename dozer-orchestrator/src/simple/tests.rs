@@ -23,7 +23,7 @@ use log::warn;
 use serde_json::{json, Value};
 use tempdir::TempDir;
 
-use super::executor::Executor;
+use super::executor::{Executor, SinkConfig};
 
 #[test]
 fn single_source_sink() {
@@ -98,8 +98,12 @@ fn single_source_sink() {
             vec![cache_endpoint],
             ingestor,
             iterator,
-            tmp_path,
             executor_running,
+            tmp_path,
+            SinkConfig {
+                record_cutoff: 6,
+                timeout: 10,
+            },
         );
         match executor.run(None, running) {
             Ok(_) => {}
@@ -126,7 +130,7 @@ fn single_source_sink() {
     }
 
     // Allow for the thread to process the records
-    thread::sleep(Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(2000));
     //Shutdown the thread
     r.store(false, Ordering::SeqCst);
 

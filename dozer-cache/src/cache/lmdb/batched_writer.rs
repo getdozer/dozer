@@ -1,8 +1,11 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use dozer_types::{
     crossbeam,
-    log::debug,
+    log::info,
     types::{Operation, Schema},
 };
 use lmdb::Transaction;
@@ -20,21 +23,28 @@ pub struct BatchedCacheMsg {
 pub struct BatchedWriter {
     pub cache: Arc<LmdbCache>,
     pub receiver: crossbeam::channel::Receiver<BatchedCacheMsg>,
+    pub record_cutoff: u32,
+    pub timeout: u16,
 }
 impl BatchedWriter {
     pub fn run(&self) -> Result<(), CacheError> {
         let mut disconnected = false;
+        let before = Instant::now();
+        let mut commits = 0;
+        let mut total_idx = 0;
         loop {
             if disconnected {
                 break;
             }
             let mut txn = self.cache.init_txn();
             let mut idx = 0;
+
             loop {
-                if idx > 500 {
+                if idx > self.record_cutoff {
+                    info!("record_cutoff in Batch Writer ");
                     break;
                 }
-                let msg = self.receiver.recv_timeout(Duration::from_millis(50));
+                let msg = self.receiver.recv_timeout(Duration::from_millis(300));
                 match msg {
                     Ok(msg) => {
                         let schema = msg.schema;
@@ -64,7 +74,7 @@ impl BatchedWriter {
                     Err(err) => match err {
                         crossbeam::channel::RecvTimeoutError::Timeout => {
                             // break the inner loop on timeout
-                            debug!("Timeout in Batch Writer:");
+                            info!("Timeout in Batch Writer: {}", idx);
                             break;
                         }
                         crossbeam::channel::RecvTimeoutError::Disconnected => {
@@ -75,8 +85,19 @@ impl BatchedWriter {
                 }
                 idx += 1;
             }
-            debug!("Batch Writer: Commit");
-            txn.commit().unwrap();
+            total_idx += idx;
+
+            if idx > self.record_cutoff {
+                info!(
+                    "Batch Writer: Commit : {} : {total_idx}: elapsed: {:.2?}",
+                    commits,
+                    before.elapsed()
+                );
+
+                txn.commit().unwrap();
+
+                commits += 1;
+            }
         }
         Ok(())
     }
