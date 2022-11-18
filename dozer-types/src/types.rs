@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use crate::errors::types::TypeError;
 use crate::errors::types::TypeError::InvalidFieldType;
 use chrono::{DateTime, Utc};
@@ -26,6 +27,12 @@ pub enum Field {
     Timestamp(DateTime<Utc>),
     Bson(Vec<u8>),
     Null,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl Field {
