@@ -42,9 +42,7 @@ pub enum GrpcType {
     List,
     GetById,
     Query,
-    OnInsert,
-    OnUpdate,
-    OnDelete,
+    OnEvent,
     OnSchemaChange,
 }
 
@@ -418,17 +416,15 @@ impl ProtoService {
         rpc_message.push(filter_exp_model);
         rpc_message.extend(type_exp_model);
         rpc_message.extend(on_insert_rpc.to_owned().1);
-        rpc_message.extend(on_update_rpc.to_owned().1);
-        rpc_message.extend(on_delete_rpc.to_owned().1);
+        rpc_message.extend(on_update_rpc.1);
+        rpc_message.extend(on_delete_rpc.1);
         rpc_message.extend(on_schema_change_rpc.to_owned().1);
 
         let mut function_with_type = HashMap::new();
         function_with_type.insert(get_rpc.0.name, GrpcType::List);
         function_with_type.insert(get_by_id_rpc.0.name, GrpcType::GetById);
         function_with_type.insert(query_rpc.0.name, GrpcType::Query);
-        function_with_type.insert(on_insert_rpc.0.name, GrpcType::OnInsert);
-        function_with_type.insert(on_update_rpc.0.name, GrpcType::OnUpdate);
-        function_with_type.insert(on_delete_rpc.0.name, GrpcType::OnDelete);
+        function_with_type.insert(on_insert_rpc.0.name, GrpcType::OnEvent);
         function_with_type.insert(on_schema_change_rpc.0.name, GrpcType::OnSchemaChange);
 
         let import_libs: Vec<String> = self.libs_by_type()?;

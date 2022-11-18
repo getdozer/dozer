@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 pub mod cache;
 pub mod indexer;
 pub mod query;
@@ -17,33 +19,34 @@ pub enum CacheOptions {
 
 impl Default for CacheOptions {
     fn default() -> Self {
-        CacheOptions::Write(CacheWriteOptions {
-            max_size: 1024 * 1024 * 5,
-            max_readers: 10,
-            max_db_size: 1000,
-            path: None,
-        })
+        CacheOptions::Write(CacheWriteOptions::default())
     }
 }
-impl CacheOptions {
-    fn _read_default(path: String) -> Self {
-        CacheOptions::ReadOnly(CacheReadOptions {
-            max_readers: 10,
-            // Max no of dbs
-            max_db_size: 1000,
-            path,
-        })
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct CacheReadOptions {
     // Total number of readers allowed
     pub max_readers: u32,
-    // Absolute path
-    pub path: String,
+
     // Max no of dbs
     pub max_db_size: u32,
+
+    // Absolute path
+    pub path: Option<PathBuf>,
+}
+impl Default for CacheReadOptions {
+    fn default() -> Self {
+        Self {
+            max_readers: 10,
+            // Max no of dbs
+            max_db_size: 1000,
+            path: None,
+        }
+    }
+}
+impl CacheReadOptions {
+    pub fn set_path(&mut self, path: PathBuf) {
+        self.path = Some(path);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -57,5 +60,22 @@ pub struct CacheWriteOptions {
     pub max_db_size: u32,
 
     // Provide a path where db will be created. If nothing is provided, will default to a temp location.
-    pub path: Option<String>,
+    pub path: Option<PathBuf>,
+}
+
+impl Default for CacheWriteOptions {
+    fn default() -> Self {
+        Self {
+            max_size: 1024 * 1024 * 1024,
+            max_readers: 10,
+            max_db_size: 1000,
+            path: None,
+        }
+    }
+}
+
+impl CacheWriteOptions {
+    pub fn set_path(&mut self, path: PathBuf) {
+        self.path = Some(path);
+    }
 }

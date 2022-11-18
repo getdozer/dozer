@@ -8,9 +8,43 @@ use std::collections::HashMap;
 pub type NodeHandle = String;
 pub type PortHandle = u16;
 
+#[derive(Debug, Clone)]
+pub struct StatefulPortHandleOptions {
+    pub stateful: bool,
+    pub retrieve_old_record_for_updates: bool,
+    pub retrieve_old_record_for_deletes: bool,
+}
+
+impl StatefulPortHandleOptions {
+    pub fn default() -> Self {
+        Self {
+            stateful: false,
+            retrieve_old_record_for_updates: false,
+            retrieve_old_record_for_deletes: false,
+        }
+    }
+    pub fn new(
+        stateful: bool,
+        retrieve_old_record_for_updates: bool,
+        retrieve_old_record_for_deletes: bool,
+    ) -> Self {
+        Self {
+            stateful,
+            retrieve_old_record_for_updates,
+            retrieve_old_record_for_deletes,
+        }
+    }
+}
+
 pub struct StatefulPortHandle {
     pub handle: PortHandle,
-    pub stateful: bool,
+    pub options: StatefulPortHandleOptions,
+}
+
+impl StatefulPortHandle {
+    pub fn new(handle: PortHandle, options: StatefulPortHandleOptions) -> Self {
+        Self { handle, options }
+    }
 }
 
 pub trait StatelessSourceFactory: Send + Sync {
@@ -36,7 +70,6 @@ pub trait StatefulSource {
     fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
     fn start(
         &self,
-        tx: &mut dyn RwTransaction,
         fw: &mut dyn SourceChannelForwarder,
         from_seq: Option<u64>,
     ) -> Result<(), ExecutionError>;
@@ -62,12 +95,6 @@ pub trait StatelessProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
-}
-
-impl StatefulPortHandle {
-    pub fn new(handle: PortHandle, stateful: bool) -> Self {
-        Self { handle, stateful }
-    }
 }
 
 pub trait StatefulProcessorFactory: Send + Sync {

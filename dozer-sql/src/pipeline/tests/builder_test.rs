@@ -1,6 +1,8 @@
+use crate::pipeline::builder::PipelineBuilder;
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::executor_local::ExecutorOptions;
 use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{
     PortHandle, StatelessSink, StatelessSinkFactory, StatelessSource, StatelessSourceFactory,
@@ -14,8 +16,6 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::fs;
 use tempdir::TempDir;
-
-use crate::pipeline::builder::PipelineBuilder;
 
 /// Test Source
 pub struct TestSourceFactory {
@@ -178,11 +178,14 @@ fn test_pipeline_builder() {
     }
     fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-    let exec = MultiThreadedDagExecutor::new(100000, 20000);
-
     use std::time::Instant;
     let now = Instant::now();
-    let _ = exec.start(dag, tmp_dir.into_path());
+
+    let exec =
+        MultiThreadedDagExecutor::start(dag, tmp_dir.into_path(), ExecutorOptions::default())
+            .unwrap();
+
+    exec.join().unwrap();
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }

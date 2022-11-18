@@ -23,6 +23,8 @@ pub enum CacheError {
     TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
+    #[error("Path not initialized for Cache Reader")]
+    PathNotInitialized,
 }
 
 impl CacheError {

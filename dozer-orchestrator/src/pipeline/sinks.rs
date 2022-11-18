@@ -1,10 +1,12 @@
+use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
+use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_api::grpc::types_helper;
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, StatelessSink, StatelessSinkFactory};
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::events::ApiEvent;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::types::FieldType;
@@ -23,7 +25,7 @@ pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    notifier: Option<Sender<ApiEvent>>,
+    notifier: Option<Sender<PipelineRequest>>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -50,7 +52,7 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        notifier: Option<crossbeam::channel::Sender<ApiEvent>>,
+        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
     ) -> Self {
         Self {
             input_ports,
@@ -82,7 +84,7 @@ pub struct CacheSink {
     input_schemas: Mutex<HashMap<PortHandle, Schema>>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
-    notifier: Option<crossbeam::channel::Sender<ApiEvent>>,
+    notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
 }
 
 impl StatelessSink for CacheSink {
@@ -113,11 +115,12 @@ impl StatelessSink for CacheSink {
             .to_owned();
 
         if let Some(notifier) = &self.notifier {
+            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
             notifier
-                .try_send(ApiEvent::Operation(
-                    self.api_endpoint.name.to_owned(),
-                    op.clone(),
-                ))
+                .try_send(PipelineRequest {
+                    endpoint: self.api_endpoint.name.to_owned(),
+                    api_event: Some(ApiEvent::Op(op)),
+                })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
         match op {
@@ -178,11 +181,12 @@ impl StatelessSink for CacheSink {
             map.insert(*k, schema.to_owned());
 
             if let Some(notifier) = &self.notifier {
+                let schema = types_helper::map_schema(self.api_endpoint.name.to_owned(), &schema);
                 let res = notifier
-                    .try_send(ApiEvent::SchemaChange(
-                        self.api_endpoint.name.to_owned(),
-                        schema,
-                    ))
+                    .try_send(PipelineRequest {
+                        endpoint: self.api_endpoint.name.to_owned(),
+                        api_event: Some(ApiEvent::Schema(schema)),
+                    })
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::SchemaNotificationFailed(Box::new(e)))
                     });
@@ -206,7 +210,7 @@ impl CacheSink {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         input_schemas: Mutex<HashMap<PortHandle, Schema>>,
-        notifier: Option<crossbeam::channel::Sender<ApiEvent>>,
+        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
     ) -> Self {
         Self {
             cache,

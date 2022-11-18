@@ -1,6 +1,8 @@
 pub mod errors;
 pub mod pipeline;
 pub mod simple;
+use std::sync::{atomic::AtomicBool, Arc};
+
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use errors::OrchestrationError;
 
@@ -10,13 +12,13 @@ mod test_utils;
 pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;
     fn add_endpoints(&mut self, endpoint: Vec<ApiEndpoint>) -> &mut Self;
-    fn run(&mut self) -> Result<(), OrchestrationError>;
+    fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
+    fn run_apps(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports
-pub use dozer_ingestion::connectors::{get_connector, Connector, TableInfo};
-use dozer_ingestion::errors::ConnectorError;
-use dozer_types::models::connection::Connection;
+pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
+pub use dozer_types::models::connection::Connection;
 
 pub fn validate(input: Connection) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input)?;

@@ -25,6 +25,7 @@ serde_yaml = "0.9.13"
 indicatif = "0.17.1"
 ctrlc = "3.2.3"
 
+
 [[bin]]
 edition = "2021"
 name = "dozer"

@@ -1,4 +1,4 @@
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::Arc;
 
 use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
@@ -63,7 +63,7 @@ impl Connector for EventsConnector {
         Ok(())
     }
 
-    fn start(&self, _: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn start(&self) -> Result<(), ConnectorError> {
         Ok(())
     }
 

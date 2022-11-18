@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package dozer.common;
+import "types.proto";
+service CommonGrpcService {
+  rpc query(QueryRequest) returns (QueryResponse);
+  rpc OnEvent(OnEventRequest) returns (stream dozer.types.Operation);
+  rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse);
+  rpc getFields(GetFieldsRequest) returns (GetFieldsResponse);
+}
+
+message QueryRequest {
+  string endpoint = 1;
+  optional string query = 2;
+}
+
+enum EventType {
+  ALL = 0;
+  INSERT_ONLY = 1;
+  UPDATE_ONLY = 2;
+  DELETE_ONLY = 3;
+}
+message OnEventRequest {
+  EventType type = 1;
+  string endpoint = 2;
+}
+
+message GetFieldsRequest { string endpoint = 1; }
+message GetFieldsResponse {
+  repeated int32 primary_index = 1;
+  repeated dozer.types.FieldDefinition fields = 2;
+}
+
+message QueryResponse {
+  repeated dozer.types.FieldDefinition fields = 1;
+  repeated dozer.types.Record records = 2;
+}
+
+message GetEndpointsRequest {}
+
+message GetEndpointsResponse { repeated string endpoints = 1; }
