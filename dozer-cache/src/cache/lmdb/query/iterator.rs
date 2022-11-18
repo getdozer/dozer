@@ -103,7 +103,7 @@ mod tests {
     fn test_cache_iterator() {
         let options = CacheOptions::default();
         let env = init_env(&options).unwrap();
-        let db = init_db(&env, None, &options).unwrap();
+        let db = init_db(&env, None, &options, true).unwrap();
 
         // Insert test data.
         let mut txn = env.begin_rw_txn().unwrap();

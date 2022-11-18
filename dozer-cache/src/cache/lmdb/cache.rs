@@ -73,8 +73,8 @@ impl LmdbCache {
     }
     pub fn new(cache_options: CacheOptions) -> Result<Self, CacheError> {
         let env = utils::init_env(&cache_options)?;
-        let db = utils::init_db(&env, Some("records"), &cache_options)?;
-        let schema_db = utils::init_db(&env, Some("schemas"), &cache_options)?;
+        let db = utils::init_db(&env, Some("records"), &cache_options, false)?;
+        let schema_db = utils::init_db(&env, Some("schemas"), &cache_options, false)?;
         Ok(Self {
             env,
             db,
@@ -310,7 +310,7 @@ impl Cache for LmdbCache {
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let key = IndexMetaData::get_key(schema, idx);
             let name = format!("index_#{}", key);
-            let db = utils::init_db(&self.env, Some(&name), &self.cache_options)?;
+            let db = utils::init_db(&self.env, Some(&name), &self.cache_options, true)?;
 
             if let IndexDefinition::SortedInverted(fields) = index {
                 comparator::set_sorted_inverted_comparator(&self.env, db, schema, fields)
