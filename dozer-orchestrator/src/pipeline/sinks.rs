@@ -1,14 +1,14 @@
 use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::grpc::types_helper;
-use dozer_cache::cache::LmdbCache;
-use dozer_cache::cache::{index, Cache};
+use dozer_cache::cache::{BatchedCacheMsg, Cache};
+use dozer_cache::cache::{BatchedWriter, LmdbCache};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, StatelessSink, StatelessSinkFactory};
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::parking_lot::Mutex;
+use dozer_types::parking_lot::{Mutex, RwLock};
 use dozer_types::types::FieldType;
 use dozer_types::types::{
     IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
@@ -19,6 +19,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
 use std::sync::Arc;
+use std::thread;
 use std::time::Instant;
 
 pub struct CacheSinkFactory {
@@ -85,11 +86,13 @@ pub struct CacheSink {
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
     notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+    batched_sender: Sender<BatchedCacheMsg>,
 }
 
 impl StatelessSink for CacheSink {
     fn init(&mut self) -> Result<(), ExecutionError> {
         info!("SINK: Initialising CacheSink");
+
         Ok(())
     }
 
@@ -123,39 +126,13 @@ impl StatelessSink for CacheSink {
                 })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
-        match op {
-            Operation::Delete { old } => {
-                let key = index::get_primary_key(&schema.primary_index, &old.values);
-                self.cache.delete(&key).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
-                })?;
-            }
-            Operation::Insert { new } => {
-                let mut new = new;
-                new.schema_id = schema.identifier;
 
-                self.cache.insert(&new).map_err(|e| {
-                    ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
-                })?;
-            }
-            Operation::Update { old, new } => {
-                let key = index::get_primary_key(&schema.primary_index, &old.values);
-                let mut new = new;
-                new.schema_id = schema.identifier.clone();
-                if index::has_primary_key_changed(&schema.primary_index, &old.values, &new.values) {
-                    self.cache
-                        .update(&key, &new, &schema)
-                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                } else {
-                    self.cache.delete(&key).map_err(|e| {
-                        ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
-                    })?;
-                    self.cache.insert(&new).map_err(|e| {
-                        ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
-                    })?;
-                }
-            }
-        };
+        self.batched_sender
+            .send(BatchedCacheMsg {
+                op: op,
+                schema: schema,
+            })
+            .unwrap();
         Ok(())
     }
 
@@ -212,6 +189,17 @@ impl CacheSink {
         input_schemas: Mutex<HashMap<PortHandle, Schema>>,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
     ) -> Self {
+        let (batched_sender, batched_receiver) = crossbeam::channel::unbounded::<BatchedCacheMsg>();
+        let cache_batch = cache.clone();
+
+        thread::spawn(move || {
+            let batched_writer = BatchedWriter {
+                cache: cache_batch,
+                receiver: batched_receiver,
+            };
+            batched_writer.run().unwrap();
+        });
+
         Self {
             cache,
             counter: 0,
@@ -220,6 +208,7 @@ impl CacheSink {
             api_endpoint,
             pb: get_progress(),
             notifier,
+            batched_sender,
         }
     }
     fn get_output_schema(&self, schema: &Schema) -> Result<Schema, ExecutionError> {

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+pub mod batched_writer;
 pub mod cache;
 pub mod indexer;
 pub mod query;
