@@ -1,7 +1,5 @@
 use crate::connectors::snowflake::connection::client::Client;
 
-use crate::connectors::snowflake::snapshotter::Snapshotter;
-
 use crate::errors::{ConnectorError, SnowflakeError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -9,6 +7,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
+use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 use odbc::create_environment_v3;

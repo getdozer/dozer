@@ -73,6 +73,15 @@ pub fn convert_data(
                 }
             }
         }
+        SqlDataType::SQL_EXT_BIT => {
+            match cursor
+                .get_data::<bool>(i)
+                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+            {
+                None => Ok(Field::Null),
+                Some(v) => Ok(Field::from(v)),
+            }
+        }
         _ => Err(SnowflakeSchemaError::ColumnTypeNotSupported(format!(
             "{:?}",
             &column_descriptor.data_type
@@ -96,8 +105,15 @@ impl Iterator for ResultIterator<'_, '_> {
                 let mut values = vec![];
                 for i in 1..(self.cols + 1) {
                     let descriptor = self.schema.get((i - 1) as usize)?;
-                    let value = convert_data(&mut cursor, i as u16, descriptor).unwrap();
-                    values.push(Some(value));
+                    let data_field = convert_data(&mut cursor, i as u16, descriptor);
+                    match data_field {
+                        Ok(value) => values.push(Some(value)),
+                        Err(e) => {
+                            eprintln!("ERROR: {:?}", e);
+                            eprintln!("DESCRIPTOR: {:?}", descriptor);
+                            eprintln!("i: {:?}", i);
+                        }
+                    };
                 }
 
                 Some(values)
@@ -197,6 +213,20 @@ impl Client {
             "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{}';",
             table_name
         );
+
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
+        stmt.exec_direct(&query)
+            .map_or_else(Self::parse_not_exist_error, |result| {
+                Ok(Self::parse_exist(result))
+            })
+    }
+
+    pub fn drop_stream(
+        &self,
+        conn: &Connection<AutocommitOn>,
+        stream_name: &String,
+    ) -> Result<bool, SnowflakeError> {
+        let query = format!("DROP STREAM IF EXISTS {}", stream_name);
 
         let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
         stmt.exec_direct(&query)

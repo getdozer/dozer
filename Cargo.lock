@@ -1278,6 +1278,7 @@ name = "dozer-ingestion"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "criterion",
  "crossbeam",
  "dozer-types",
  "futures",
@@ -1285,6 +1286,7 @@ dependencies = [
  "postgres",
  "postgres-protocol",
  "postgres-types",
+ "serde_yaml 0.9.14",
  "serial_test",
  "tokio",
  "tokio-postgres",

@@ -1,4 +1,3 @@
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -63,7 +62,7 @@ impl Connector for SnowflakeConnector {
         Ok(())
     }
 
-    fn start(&self, _running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn start(&self) -> Result<(), ConnectorError> {
         let connector_id = self.id;
         let ingestor = self
             .ingestor

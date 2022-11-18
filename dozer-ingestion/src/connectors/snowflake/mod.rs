@@ -1,5 +1,6 @@
 pub mod connection;
 pub mod connector;
 mod schema_helper;
-mod snapshotter;
-mod stream_consumer;
+pub mod snapshotter;
+pub mod stream_consumer;
+pub mod test_utils;

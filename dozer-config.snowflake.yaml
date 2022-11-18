@@ -5,13 +5,13 @@ sources:
     connection:
       db_type: Snowflake
       authentication: !SnowflakeAuthentication
-        server: tx06321.eu-north-1.aws.snowflakecomputing.com
+        server: "{server}.eu-north-1.aws.snowflakecomputing.com"
         port: 443
-        user: karolisgud
-        password: uQ@8S4856G9SHP6
-        database: DOZER_TEST
-        schema: PUBLIC
-        warehouse: TEST
+        user: "{username}"
+        password: "{password}"
+        database: "{database}"
+        schema: "{schema}"
+        warehouse: "{warehouse}"
       name: accounts
     history_type: null
     refresh_config: RealTime
