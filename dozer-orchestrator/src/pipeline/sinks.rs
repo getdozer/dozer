@@ -197,7 +197,7 @@ impl CacheSink {
         timeout: u64,
     ) -> Self {
         let (batched_sender, batched_receiver) =
-            crossbeam::channel::bounded::<BatchedCacheMsg>(100000);
+            crossbeam::channel::bounded::<BatchedCacheMsg>(record_cutoff as usize);
         let cache_batch = cache.clone();
 
         thread::spawn(move || {
