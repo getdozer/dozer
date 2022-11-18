@@ -1,6 +1,7 @@
 use crate::errors::types::TypeError;
 use crate::errors::types::TypeError::InvalidFieldType;
 use chrono::{DateTime, Utc};
+use std::fmt::{Display, Formatter};
 
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
@@ -26,6 +27,12 @@ pub enum Field {
     Timestamp(DateTime<Utc>),
     Bson(Vec<u8>),
     Null,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl Field {

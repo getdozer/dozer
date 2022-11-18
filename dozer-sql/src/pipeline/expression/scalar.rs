@@ -8,6 +8,7 @@ use num_traits::Float;
 pub enum ScalarFunctionType {
     Abs,
     Round,
+    Ucase,
 }
 
 impl ScalarFunctionType {
@@ -15,6 +16,7 @@ impl ScalarFunctionType {
         match name {
             "abs" => Ok(ScalarFunctionType::Abs),
             "round" => Ok(ScalarFunctionType::Round),
+            "ucase" => Ok(ScalarFunctionType::Ucase),
             _ => Err(PipelineError::InvalidFunction(name.to_string())),
         }
     }
@@ -27,6 +29,7 @@ impl ScalarFunctionType {
         match self {
             ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
             ScalarFunctionType::Round => evaluate_round(&args[0], args.get(1), record),
+            ScalarFunctionType::Ucase => evaluate_ucase(&args[0], record),
         }
     }
 }
@@ -64,8 +67,40 @@ fn evaluate_round(
     }
 }
 
+/// `evaluate_ucase` is a scalar function which converts string, text to upper-case, implementing support for UCASE()
+fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
+    let value = arg.evaluate(record)?;
+    match value {
+        Field::String(s) => Ok(Field::String(s.to_uppercase())),
+        Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
+        _ => Err(PipelineError::InvalidFunction(format!(
+            "UCASE() for {}",
+            value
+        ))),
+    }
+}
+
 #[cfg(test)]
 use crate::pipeline::expression::execution::Expression::Literal;
+
+#[test]
+fn test_ucase() {
+    let row = Record::new(None, vec![]);
+
+    let s = Box::new(Literal(Field::String(String::from("data"))));
+    let t = Box::new(Literal(Field::Text(String::from("Data"))));
+    let s_output = Field::String(String::from("DATA"));
+    let t_output = Field::Text(String::from("DATA"));
+
+    assert_eq!(
+        evaluate_ucase(&s, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        s_output
+    );
+    assert_eq!(
+        evaluate_ucase(&t, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        t_output
+    );
+}
 
 #[test]
 fn test_round() {
