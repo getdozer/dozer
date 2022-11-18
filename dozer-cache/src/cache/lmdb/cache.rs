@@ -218,11 +218,6 @@ impl LmdbCache {
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
     }
-
-    fn _get<'a>(&self, key: &[u8], txn: &'a RoTransaction) -> Result<&'a [u8], lmdb::Error> {
-        let id: [u8; 8] = txn.get(self.primary_index, &key)?.try_into().unwrap();
-        txn.get(self.db, &id)
-    }
 }
 
 impl Cache for LmdbCache {
