@@ -11,6 +11,8 @@ use dozer_core::dag::dag::NodeType;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{NodeHandle, PortHandle};
 use sqlparser::ast::{Query, Select, SetExpr, Statement};
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 use std::collections::HashMap;
 
 pub struct PipelineBuilder {}
@@ -142,5 +144,43 @@ impl PipelineBuilder {
         }
 
         Ok(endpoints)
+    }
+}
+
+pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
+    let statement = get_statement(sql);
+    get_query(statement)
+}
+
+fn get_statement(sql: &str) -> Statement {
+    let dialect = GenericDialect {};
+    // or AnsiDialect, or your own dialect ...
+    let ast = Parser::parse_sql(&dialect, sql).unwrap();
+    ast[0].clone()
+}
+
+pub fn statement_to_pipeline(statement: Statement) -> Result<Box<Select>, PipelineError> {
+    match statement {
+        Statement::Query(query) => get_body(*query),
+        _ => Err(InvalidQuery(statement.to_string())),
+    }
+}
+
+pub fn get_query(statement: Statement) -> Result<Box<Select>, PipelineError> {
+    if let Statement::Query(query) = statement {
+        get_body(*query)
+    } else {
+        Err(InvalidQuery(statement.to_string()))
+    }
+}
+
+pub fn get_body(query: Query) -> Result<Box<Select>, PipelineError> {
+    {
+        let set_expr = *query.body;
+        match set_expr {
+            SetExpr::Select(s) => Ok(s),
+            SetExpr::Query(q) => get_body(*q),
+            _ => Err(InvalidQuery(set_expr.to_string())),
+        }
     }
 }
