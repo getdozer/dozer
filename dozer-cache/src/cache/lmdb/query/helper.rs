@@ -28,3 +28,20 @@ pub fn lmdb_cmp(txn: &RoTransaction, db: &Database, a: &[u8], b: Option<&Vec<u8>
         2
     }
 }
+
+pub fn lmdb_stat<T: Transaction>(txn: &T, db: Database) -> Result<ffi::MDB_stat, lmdb::Error> {
+    let mut stat = ffi::MDB_stat {
+        ms_psize: 0,
+        ms_depth: 0,
+        ms_branch_pages: 0,
+        ms_leaf_pages: 0,
+        ms_overflow_pages: 0,
+        ms_entries: 0,
+    };
+    let code = unsafe { lmdb_sys::mdb_stat(txn.txn(), db.dbi(), &mut stat) };
+    if code == ffi::MDB_SUCCESS {
+        Ok(stat)
+    } else {
+        Err(lmdb::Error::from_err_code(code))
+    }
+}

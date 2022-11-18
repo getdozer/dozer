@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use dozer_types::bincode;
 
-use lmdb::{Cursor, Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
 
 use dozer_types::types::{IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
@@ -95,12 +95,9 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        let id = {
-            let mut cursor = txn
-                .open_ro_cursor(self.db)
-                .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-            cursor.iter().count() as u64
-        };
+        let id = helper::lmdb_stat(txn, self.db)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?
+            .ms_entries as u64;
         let encoded: Vec<u8> =
             bincode::serialize(&rec).map_err(CacheError::map_serialization_error)?;
 
