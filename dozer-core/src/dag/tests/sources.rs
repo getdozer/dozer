@@ -81,11 +81,12 @@ impl StatelessSource for GeneratorSource {
 
 pub(crate) struct StatefulGeneratorSourceFactory {
     count: u64,
+    sleep: Duration,
 }
 
 impl StatefulGeneratorSourceFactory {
-    pub fn new(count: u64) -> Self {
-        Self { count }
+    pub fn new(count: u64, sleep: Duration) -> Self {
+        Self { count, sleep }
     }
 }
 
@@ -97,12 +98,16 @@ impl StatefulSourceFactory for StatefulGeneratorSourceFactory {
         )]
     }
     fn build(&self) -> Box<dyn StatefulSource> {
-        Box::new(StatefulGeneratorSource { count: self.count })
+        Box::new(StatefulGeneratorSource {
+            count: self.count,
+            sleep: self.sleep,
+        })
     }
 }
 
 pub(crate) struct StatefulGeneratorSource {
     count: u64,
+    sleep: Duration,
 }
 
 impl StatefulSource for StatefulGeneratorSource {
@@ -142,6 +147,9 @@ impl StatefulSource for StatefulGeneratorSource {
                 },
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
+            if !self.sleep.is_zero() {
+                thread::sleep(self.sleep);
+            }
         }
         fw.terminate()?;
 
