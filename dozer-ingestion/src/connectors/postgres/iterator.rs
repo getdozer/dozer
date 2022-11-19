@@ -2,11 +2,9 @@ use crate::connectors::TableInfo;
 
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::bincode;
 use dozer_types::log::debug;
 
 use dozer_types::parking_lot::RwLock;
-use postgres_types::PgLsn;
 use std::cell::RefCell;
 
 use std::sync::Arc;
@@ -19,6 +17,7 @@ use tokio::runtime::Runtime;
 use tokio_postgres::SimpleQueryMessage;
 
 pub struct Details {
+    #[allow(dead_code)]
     id: u64,
     publication_name: String,
     slot_name: String,
@@ -85,22 +84,8 @@ impl PostgresIterator {
     }
 
     pub fn get_last_lsn_for_connection(&self) -> Result<Option<String>, ConnectorError> {
-        let storage_client = self.ingestor.read().storage_client.clone();
-        let commit_key = storage_client.get_commit_message_key(&(self.details.id as usize));
-        let commit_message = storage_client.get_db().get(commit_key);
-        match commit_message {
-            Ok(Some(value)) => {
-                let (_, message): (usize, u64) = bincode::deserialize(value.as_slice())
-                    .map_err(ConnectorError::map_bincode_serialization_error)?;
-                if message == 0 {
-                    Ok(None)
-                } else {
-                    debug!("lsn: {:?}", PgLsn::from(message).to_string());
-                    Ok(Some(PgLsn::from(message).to_string()))
-                }
-            }
-            _ => Ok(None),
-        }
+        // TODO: implement logic of getting last lsn from pipeline
+        Ok(None)
     }
 }
 

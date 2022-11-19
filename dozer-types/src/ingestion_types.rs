@@ -6,7 +6,7 @@ use crate::{
     types::{Commit, OperationEvent, Schema},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IngestionOperation {
     OperationEvent(OperationEvent),
     // Table Name, Schema

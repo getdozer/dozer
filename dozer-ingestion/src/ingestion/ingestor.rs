@@ -4,12 +4,9 @@ use dozer_types::ingestion_types::{
 };
 use dozer_types::log::{debug, warn};
 use dozer_types::parking_lot::RwLock;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
-use super::seq_no_resolver::SeqNoResolver;
-use super::storage::RocksStorage;
-use super::writer::{BatchedRocksDbWriter, Writer};
 use super::IngestionConfig;
 
 pub struct ChannelForwarder {
@@ -44,11 +41,8 @@ impl Iterator for IngestionIterator {
 }
 
 pub struct Ingestor {
-    pub storage_client: Arc<RocksStorage>,
     pub sender: Arc<Box<dyn IngestorForwarder>>,
-    writer: BatchedRocksDbWriter,
     timer: Instant,
-    seq_no_resolver: Arc<Mutex<SeqNoResolver>>,
 }
 
 impl Ingestor {
@@ -63,13 +57,13 @@ impl Ingestor {
         let iterator = Arc::new(RwLock::new(IngestionIterator { rx }));
         (ingestor, iterator)
     }
-    pub fn new(config: IngestionConfig, sender: Arc<Box<dyn IngestorForwarder + 'static>>) -> Self {
+    pub fn new(
+        _config: IngestionConfig,
+        sender: Arc<Box<dyn IngestorForwarder + 'static>>,
+    ) -> Self {
         Self {
-            storage_client: config.storage_client,
             sender,
-            writer: BatchedRocksDbWriter::new(),
             timer: Instant::now(),
-            seq_no_resolver: config.seq_resolver,
         }
     }
 
@@ -78,32 +72,18 @@ impl Ingestor {
         (connector_id, message): (u64, IngestionMessage),
     ) -> Result<(), IngestorError> {
         match message {
-            IngestionMessage::OperationEvent(mut event) => {
-                let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
-                event.seq_no = seq_no as u64;
-
-                let (key, encoded) = self.storage_client.map_operation_event(&event);
-                self.writer.insert(key.as_ref(), encoded);
+            IngestionMessage::OperationEvent(event) => {
                 self.sender
                     .forward((connector_id, IngestionOperation::OperationEvent(event)))?;
             }
             IngestionMessage::Schema(name, schema) => {
-                let _seq_no: u64 = self.seq_no_resolver.lock().unwrap().get_next_seq_no() as u64;
                 self.sender
                     .forward((connector_id, IngestionOperation::SchemaUpdate(name, schema)))?;
             }
-            IngestionMessage::Commit(event) => {
-                let seq_no = self.seq_no_resolver.lock().unwrap().get_next_seq_no();
-                let (commit_key, commit_encoded) = self
-                    .storage_client
-                    .map_commit_message(&1, &seq_no, &event.lsn);
-                self.writer.insert(commit_key.as_ref(), commit_encoded);
-                self.writer.commit(&self.storage_client);
-
+            IngestionMessage::Commit(_event) => {
                 debug!("Batch processing took: {:.2?}", self.timer.elapsed());
             }
             IngestionMessage::Begin() => {
-                self.writer.begin();
                 self.timer = Instant::now();
             }
         }
@@ -126,8 +106,7 @@ mod tests {
     #[tokio::test]
     async fn test_message_handle() {
         let config = IngestionConfig::default();
-        let storage_client = config.storage_client.clone();
-        let (tx, _rx) = unbounded::<(u64, IngestionOperation)>();
+        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
         let forwarder: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         let mut ingestor = Ingestor::new(config, forwarder);
@@ -166,7 +145,7 @@ mod tests {
         let table_name = "test".to_string();
         ingestor.handle_message((1, Begin())).unwrap();
         ingestor
-            .handle_message((1, Schema(table_name, schema_message)))
+            .handle_message((1, Schema(table_name.clone(), schema_message.clone())))
             .unwrap();
         ingestor
             .handle_message((1, OperationEvent(operation_event_message.clone())))
@@ -178,32 +157,16 @@ mod tests {
             .handle_message((1, Commit(commit_message)))
             .unwrap();
 
-        let mut expected_event = operation_event_message;
-        expected_event.seq_no = 2;
-        let mut expected_event2 = operation_event_message2;
-        expected_event2.seq_no = 3;
-
-        let mut expected_op_event_message = vec![
-            storage_client.map_operation_event(&expected_event),
-            storage_client.map_operation_event(&expected_event2),
-            storage_client.map_commit_message(&1, &4, &commit_message.lsn),
+        let expected_op_event_message = vec![
+            IngestionOperation::SchemaUpdate(table_name, schema_message),
+            IngestionOperation::OperationEvent(operation_event_message),
+            IngestionOperation::OperationEvent(operation_event_message2),
         ]
         .into_iter();
 
-        let db = storage_client.get_db();
-        let mut seq_iterator = db.raw_iterator();
-
-        seq_iterator.seek_to_first();
-        while seq_iterator.valid() {
-            let key = seq_iterator.key().unwrap();
-            let value = seq_iterator.value().unwrap();
-
-            let (expected_key, expected_value) = expected_op_event_message.next().unwrap();
-
-            assert_eq!(expected_key, key);
-            assert_eq!(expected_value, value);
-
-            seq_iterator.next();
+        for x in expected_op_event_message {
+            let msg = rx.recv().unwrap();
+            assert_eq!(x, msg.1);
         }
     }
 }
