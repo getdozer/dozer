@@ -182,6 +182,11 @@ impl RoCursor for ReaderWriterCursor {
     fn prev(&self) -> Result<bool, StorageError> {
         self.inner.prev().map_err(InternalDbError)
     }
+
+    #[inline]
+    fn first(&self) -> Result<bool, StorageError> {
+        self.inner.first().map_err(InternalDbError)
+    }
 }
 
 impl RwCursor for ReaderWriterCursor {

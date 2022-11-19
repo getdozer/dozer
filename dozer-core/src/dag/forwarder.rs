@@ -16,8 +16,8 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
-const SCHEMA_IDENTIFIER: u8 = 1_u8;
+pub(crate) const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
+pub(crate) const SCHEMA_IDENTIFIER: u8 = 1_u8;
 
 pub(crate) struct StateWriter {
     meta_db: Database,

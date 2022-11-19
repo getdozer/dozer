@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
+pub(crate) const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
 pub(crate) struct StorageMetadata {
     pub env: Box<dyn EnvironmentManager>,
