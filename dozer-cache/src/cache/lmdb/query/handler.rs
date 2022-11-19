@@ -263,7 +263,7 @@ impl<'a> LmdbQueryHandler<'a> {
                         fields.push((val, range_query.sort_direction));
                     }
                 }
-                index::get_secondary_index(&fields).map_err(CacheError::map_serialization_error)
+                index::get_secondary_index(&fields)
             }
             IndexScanKind::FullText { filter } => {
                 if let Field::String(token) = &filter.val {
