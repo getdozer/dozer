@@ -1,0 +1,103 @@
+name: Dozer Scheduled
+# Long running tests, Performance benchmarks, Code vulnerability, Code coverage etc
+on:
+  push:
+    branches: [dev/nightly-snowflake]
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  # Run benches on stable
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/release
+          key: ${{ runner.os }}-cargo-release-bench-
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-bench-
+            ${{ runner.os }}-cargo-release-
+
+      - name: Install Snowflake ODBC driver
+        run: curl ${SNOWFLAKE_DRIVER_URL} -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
+        env:
+          SNOWFLAKE_DRIVER_URL: https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.2/snowflake-odbc-2.25.2.x86_64.deb
+
+      - uses: franzbischoff/replace_envs@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
+          USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+        with:
+          from_file: 'test.snowflake.sample.yaml'
+          to_file: 'dozer-config.test.snowflake.yaml'
+          commit: 'false'
+
+      - name: Run debug
+        continue-on-error: true
+        run: cat dozer-config.test.snowflake.yaml
+
+      - name: Install Criterion
+        continue-on-error: true
+        run: cargo install cargo-criterion
+
+      - id: bench
+        name: Run Bench
+        continue-on-error: true
+        run: cargo criterion --features snowflake
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - uses: keithweaver/aws-s3-github-action@v1.0.0
+        continue-on-error: true
+        with:
+          command: sync
+          source: ./target/criterion
+          destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/criterion
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+          aws_region: ap-southeast-1
+
+#      - name: Post to a Slack channel
+#        id: slack
+#        continue-on-error: true
+#        uses: slackapi/slack-github-action@v1.23.0
+#        with:
+#          channel-id: "release-notifications"
+#          slack-message: |
+#            ```
+#            Criterion: ${{ job.status }}
+#
+#            Criterion Report: https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/criterion/reports/index.html
+#            ```
+#        env:
+#          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

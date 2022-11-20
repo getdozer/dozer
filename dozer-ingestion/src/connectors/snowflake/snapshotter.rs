@@ -37,7 +37,7 @@ impl Snapshotter {
 
         let result = client.fetch(&conn, format!("SELECT * FROM {};", table_name));
         match result {
-            Ok(Some((schema, iterator))) => {
+            Ok(Some((schema, mut iterator))) => {
                 ingestor
                     .write()
                     .handle_message((
@@ -45,7 +45,7 @@ impl Snapshotter {
                         IngestionMessage::Schema(table_name, SchemaHelper::map_schema(schema)?),
                     ))
                     .map_err(ConnectorError::IngestorError)?;
-                iterator.for_each(|values| {
+                iterator.try_for_each(|values| -> Result<(), ConnectorError> {
                     ingestor
                         .write()
                         .handle_message((
@@ -65,9 +65,10 @@ impl Snapshotter {
                                     },
                                 },
                             }),
-                        ))
-                        .unwrap()
-                });
+                        )).map_err(ConnectorError::IngestorError)?;
+
+                    Ok(())
+                })?;
 
                 Ok(())
             }

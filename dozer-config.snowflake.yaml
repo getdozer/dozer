@@ -5,13 +5,13 @@ sources:
     connection:
       db_type: Snowflake
       authentication: !SnowflakeAuthentication
-        server: "{server}.eu-north-1.aws.snowflakecomputing.com"
+        server: "${SERVER}"
         port: 443
-        user: "{username}"
-        password: "{password}"
-        database: "{database}"
-        schema: "{schema}"
-        warehouse: "{warehouse}"
+        user: "${USERNAME}"
+        password: "${PASSWORD}"
+        database: "${DATABASE}"
+        schema: "${SCHEMA}"
+        warehouse: "${WAREHOUSE}"
       name: accounts
     history_type: null
     refresh_config: RealTime
