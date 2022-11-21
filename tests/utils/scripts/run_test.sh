@@ -4,7 +4,7 @@ last_id=`docker exec dozer-tests-films-db psql -U postgres -d films -t -c "SELEC
 last_id=`echo $last_id | sed -e 's/^[[:space:]]*//'`
 echo "Last id: $last_id"
 
-url="http://localhost:8080/films/${last_id##*( )}"
+url="http://localhost:8081/films/${last_id##*( )}"
 echo $url
 
 curl $url
