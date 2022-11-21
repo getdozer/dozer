@@ -7,7 +7,6 @@ use std::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub storage_path: Option<String>,
     pub sources: Vec<Source>,
     pub endpoints: Vec<ApiEndpoint>,
 }

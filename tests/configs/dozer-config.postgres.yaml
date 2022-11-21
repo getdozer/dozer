@@ -1,4 +1,3 @@
-storage_path: null
 sources:
   - name: users
     table_name: users

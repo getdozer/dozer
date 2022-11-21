@@ -10,10 +10,7 @@ tokio = { version = "1", features = ["full"] }
 futures = "0.3.24"
 bytes = "1.2.1"
 dozer-types = { version = "0.1.0", path = "../dozer-types" }
-rocksdb = "0.19.0"
 crossbeam = "0.8.2"
-tempdir = "0.3.7"
-atomic-counter = "1.0.1"
 # Postgres connector
 postgres = "0.19.4"
 postgres-protocol = "0.6.4"
