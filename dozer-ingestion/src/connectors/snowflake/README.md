@@ -1,14 +1,28 @@
 # Snowflake
 
 ## Prerequisites
-This module enabled developer connect to snowflake database via ODBC protocol. In order to make it working, you have to 
-install odbc and snowflake odbc driver
+This module allows developer to connect snowflake database via ODBC protocol.
+This connector requires the installation of odbc and snowflake odbc driver.
+
 
 ## Installation guide
 https://docs.snowflake.com/en/user-guide/odbc.html
 
+## Benchmarking / Testing
+
+For benchmarking and testing we use customer table from dozer samples TPCH_SF10 database.
+```sql
+DROP TABLE CUSTOMER;
+
+CREATE TABLE CUSTOMER LIKE SNOWFLAKE_SAMPLE_DATA.TPCH_SF10.CUSTOMER;
+
+INSERT INTO CUSTOMER SELECT * FROM "SNOWFLAKE_SAMPLE_DATA"."TPCH_SF10"."CUSTOMER";
+```
+
 ## Flow of data
-```flow js
+![Flow](flow.png)
+
+```
 st=>start: Start
 cond=>condition: Is stream table created?
     cond_snapshot=>condition: Is snapshot stream table created?
@@ -30,7 +44,7 @@ temp_table_condition(no)->create_temp_table->fetch_temp_data
 temp_table_condition(yes)->fetch_temp_data->delete_temp_table->temp_table_condition
 ```
 
-#### Additional commands for M1 processor
+### Additional commands for M1 processor
 ```
 export LDFLAGS="-L/opt/homebrew/Cellar/unixodbc/2.3.11/lib"
 export CPPFLAGS="-I/opt/homebrew/Cellar/unixodbc/2.3.11/include"
