@@ -10,7 +10,8 @@ https://docs.snowflake.com/en/user-guide/odbc.html
 
 ## Benchmarking / Testing
 
-For benchmarking and testing we use customer table from dozer samples TPCH_SF10 database.
+For benchmarking and testing we use customer table from snowflakes samples TPCH_SF10 database.
+
 ```sql
 DROP TABLE CUSTOMER;
 
