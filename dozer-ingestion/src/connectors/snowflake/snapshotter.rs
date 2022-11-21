@@ -65,7 +65,8 @@ impl Snapshotter {
                                     },
                                 },
                             }),
-                        )).map_err(ConnectorError::IngestorError)?;
+                        ))
+                        .map_err(ConnectorError::IngestorError)?;
 
                     Ok(())
                 })?;

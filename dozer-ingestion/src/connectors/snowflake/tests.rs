@@ -1,9 +1,9 @@
-use std::thread;
-use dozer_types::ingestion_types::IngestionOperation;
 use crate::connectors::snowflake::test_utils::remove_streams;
 use crate::connectors::{get_connector, TableInfo};
-use crate::ingestion::{IngestionConfig, Ingestor};
 use crate::ingestion::test_utils::load_config;
+use crate::ingestion::{IngestionConfig, Ingestor};
+use dozer_types::ingestion_types::IngestionOperation;
+use std::thread;
 
 #[cfg(feature = "snowflake")]
 #[test]
