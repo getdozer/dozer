@@ -21,8 +21,6 @@ use dozer_ingestion::ingestion::test_utils::load_config;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 #[cfg(feature = "snowflake")]
 use std::time::Duration;
-#[cfg(feature = "snowflake")]
-use dozer_ingestion::errors::ConnectorError;
 
 #[cfg(feature = "snowflake")]
 fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
@@ -32,10 +30,10 @@ fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
     group.sample_size(100);
     group.measurement_time(Duration::from_secs(10));
 
-    group.bench_function("snowflake (chunks of 1000)", |b| {
+    group.bench_function("snowflake (chunks of 10000)", |b| {
         b.iter(|| {
             let mut i = 0;
-            while i < 1000 {
+            while i < 10000 {
                 iterator.write().next();
                 i += 1;
             }
@@ -55,7 +53,7 @@ pub fn main() {
 
     let (ingestor, iterator) = Ingestor::initialize_channel(config);
 
-    thread::spawn(|| -> Result<(), ConnectorError> {
+    thread::spawn(|| {
         let tables: Vec<TableInfo> = vec![TableInfo {
             name: source.table_name,
             id: 0,
@@ -64,12 +62,7 @@ pub fn main() {
 
         let mut connector = get_connector(source.connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
-        match connector.start() {
-            Ok(_) => {}
-            Err(_) => {}
-        }
-
-        Ok(())
+        connector.start().unwrap();
     });
 
     let mut criterion = Criterion::default().configure_from_args();

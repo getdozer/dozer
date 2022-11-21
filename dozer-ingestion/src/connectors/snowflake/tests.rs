@@ -2,7 +2,6 @@ use std::thread;
 use dozer_types::ingestion_types::IngestionOperation;
 use crate::connectors::snowflake::test_utils::remove_streams;
 use crate::connectors::{get_connector, TableInfo};
-use crate::errors::ConnectorError;
 use crate::ingestion::{IngestionConfig, Ingestor};
 use crate::ingestion::test_utils::load_config;
 
@@ -17,7 +16,7 @@ fn connect_and_read_from_snowflake_stream() {
 
     let (ingestor, iterator) = Ingestor::initialize_channel(config);
 
-    thread::spawn(|| -> Result<(), ConnectorError> {
+    thread::spawn(|| {
         let tables: Vec<TableInfo> = vec![TableInfo {
             name: source.table_name,
             id: 0,
@@ -26,12 +25,7 @@ fn connect_and_read_from_snowflake_stream() {
 
         let mut connector = get_connector(source.connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
-        match connector.start() {
-            Ok(_) => {}
-            Err(_) => {}
-        }
-
-        Ok(())
+        connector.start().unwrap();
     });
 
     let mut i = 0;
