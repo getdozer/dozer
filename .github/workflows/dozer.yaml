@@ -34,6 +34,25 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Snowflake ODBC driver
+        run: curl ${SNOWFLAKE_DRIVER_URL} -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
+        env:
+        SNOWFLAKE_DRIVER_URL: https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb
+
+      - uses: franzbischoff/replace_envs@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
+          USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+        with:
+          from_file: 'test.snowflake.sample.yaml'
+          to_file: 'dozer-config.test.snowflake.yaml'
+          commit: 'false'
+
       - name: ⚡ Cache
         uses: actions/cache@v3
         with:
@@ -61,4 +80,4 @@ jobs:
           cargo fmt -- --check
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --features snowflake --verbose
