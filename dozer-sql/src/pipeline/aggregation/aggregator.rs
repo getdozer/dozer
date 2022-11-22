@@ -12,10 +12,6 @@ pub enum Aggregator {
     FloatSum,
 }
 
-const COUNT_AGGREGATOR_ID: u8 = 0x02;
-const INTEGER_SUM_AGGREGATOR_ID: u8 = 0x01;
-const FLOAT_SUM_AGGREGATOR_ID: u8 = 0x01;
-
 impl Display for Aggregator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
@@ -32,11 +28,11 @@ impl Aggregator {
         }
     }
 
-    pub(crate) fn get_type(&self) -> u8 {
+    pub(crate) fn _get_type(&self) -> u8 {
         match &self {
-            Aggregator::Count => COUNT_AGGREGATOR_ID,
-            Aggregator::IntegerSum => INTEGER_SUM_AGGREGATOR_ID,
-            Aggregator::FloatSum => FLOAT_SUM_AGGREGATOR_ID,
+            Aggregator::Count => 0x02,
+            Aggregator::IntegerSum => 0x01,
+            Aggregator::FloatSum => 0x01,
         }
     }
 
