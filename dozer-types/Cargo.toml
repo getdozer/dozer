@@ -23,5 +23,8 @@ bytes = "1.2.1"
 indexmap = "1.9.1"
 ordered-float = { version = "2.10.0", features = ["serde"] }
 
+[features]
+snowflake=[]
+
 [build-dependencies]
 tonic-build = "0.8"

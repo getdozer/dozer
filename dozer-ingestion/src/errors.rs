@@ -7,6 +7,12 @@ use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
 
+#[cfg(feature = "snowflake")]
+use std::num::TryFromIntError;
+
+#[cfg(feature = "snowflake")]
+use odbc::DiagnosticRecord;
+
 #[derive(Error, Debug)]
 pub enum ConnectorError {
     #[error("Table not found: {0}")]
@@ -35,6 +41,10 @@ pub enum ConnectorError {
 
     #[error(transparent)]
     PostgresConnectorError(#[from] PostgresConnectorError),
+
+    #[cfg(feature = "snowflake")]
+    #[error(transparent)]
+    SnowflakeError(#[from] SnowflakeError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -142,4 +152,43 @@ pub enum PostgresSchemaError {
 
     #[error("Value conversion error: {0}")]
     ValueConversionError(String),
+}
+
+#[cfg(feature = "snowflake")]
+#[derive(Error, Debug)]
+pub enum SnowflakeError {
+    #[error("Snowflake query error")]
+    QueryError(#[source] Box<DiagnosticRecord>),
+
+    #[error("Snowflake connection error")]
+    ConnectionError(#[from] Box<DiagnosticRecord>),
+
+    #[error(transparent)]
+    SnowflakeSchemaError(#[from] SnowflakeSchemaError),
+
+    #[error(transparent)]
+    SnowflakeStreamError(#[from] SnowflakeStreamError),
+}
+
+#[cfg(feature = "snowflake")]
+#[derive(Error, Debug)]
+pub enum SnowflakeSchemaError {
+    #[error("Column type {0} not supported")]
+    ColumnTypeNotSupported(String),
+
+    #[error("Value conversion Error")]
+    ValueConversionError(#[source] Box<DiagnosticRecord>),
+
+    #[error("Schema conversion Error")]
+    SchemaConversionError(#[source] TryFromIntError),
+}
+
+#[cfg(feature = "snowflake")]
+#[derive(Error, Debug)]
+pub enum SnowflakeStreamError {
+    #[error("Unsupported \"{0}\" action in stream")]
+    UnsupportedActionInStream(String),
+
+    #[error("Cannot determine action")]
+    CannotDetermineAction,
 }

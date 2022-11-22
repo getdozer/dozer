@@ -46,3 +46,15 @@ pub struct EthConfig {
     pub filter: EthFilter,
     pub wss_url: String,
 }
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct SnowflakeConfig {
+    pub server: String,
+    pub port: String,
+    pub user: String,
+    pub password: String,
+    pub database: String,
+    pub schema: String,
+    pub warehouse: String,
+    pub driver: Option<String>,
+}
