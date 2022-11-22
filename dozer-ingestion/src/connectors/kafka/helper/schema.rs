@@ -2,13 +2,30 @@ use crate::connectors::kafka::connector::KafkaSchemaStruct;
 
 
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+use crate::errors::DebeziumSchemaError;
+use crate::errors::DebeziumSchemaError::TypeNotSupported;
 
-
-fn map_type(typ: String) -> Option<FieldType> {
-    match typ.as_str() {
-        "int8" | "int16" | "int32" | "int64" => Some(FieldType::Int),
-        "string" => Some(FieldType::String),
-        _ => None,
+// Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
+fn map_type(schema: &KafkaSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
+    match schema.name.clone() {
+        None => {
+            match schema.r#type.as_str() {
+                "int8" | "int16" | "int32" | "int64" => Ok(FieldType::Int),
+                "string" => Ok(FieldType::String),
+                "bytes" => Ok(FieldType::Binary),
+                "float32" | "float64" => Ok(FieldType::Float),
+                "boolean" => Ok(FieldType::Boolean),
+                type_name => Err(TypeNotSupported(type_name.to_string())),
+            }
+        }
+        Some(name) => {
+            match name.as_str() {
+                "io.debezium.time.Date" | "io.debezium.time.MicroTime" | "io.debezium.time.Timestamp" |"io.debezium.time.MicroTimestamp" | "org.apache.kafka.connect.data.Date" | "org.apache.kafka.connect.data.Time" | "org.apache.kafka.connect.data.Timestamp" => Ok(FieldType::Timestamp),
+                "org.apache.kafka.connect.data.Decimal" | "io.debezium.data.VariableScaleDecimal" => Ok(FieldType::Decimal),
+                "io.debezium.data.Json" => Ok(FieldType::Bson),
+                _ => Err(TypeNotSupported(name))
+            }
+        }
     }
 }
 
@@ -37,7 +54,7 @@ pub fn map_schema(schema: &KafkaSchemaStruct, key_schema: &KafkaSchemaStruct) ->
                         .iter()
                         .enumerate()
                         .map(|(idx, f)| {
-                            let typ = map_type(f.r#type.clone()).unwrap();
+                            let typ = map_type(f).unwrap();
                             let name = f.field.clone().unwrap();
                             if pk_fields.contains(&name) {
                                 pk_keys_indexes.push(idx);

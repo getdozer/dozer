@@ -47,6 +47,9 @@ pub enum ConnectorError {
     SnowflakeError(#[from] SnowflakeError),
 
     #[error(transparent)]
+    DebeziumError(#[from] DebeziumError),
+
+    #[error(transparent)]
     TypeError(#[from] TypeError),
 
     #[error(transparent)]
@@ -191,4 +194,16 @@ pub enum SnowflakeStreamError {
 
     #[error("Cannot determine action")]
     CannotDetermineAction,
+}
+
+#[derive(Error, Debug)]
+pub enum DebeziumError {
+    #[error(transparent)]
+    DebeziumSchemaError(#[from] DebeziumSchemaError)
+}
+
+#[derive(Error, Debug)]
+pub enum DebeziumSchemaError {
+    #[error("Unsupported \"{0}\" type")]
+    TypeNotSupported(String)
 }
