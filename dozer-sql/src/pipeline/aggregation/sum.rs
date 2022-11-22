@@ -1,8 +1,8 @@
-use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType};
-use dozer_types::types::Field::{Float, Int};
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::types::Field::{Float, Int};
+use dozer_types::types::{Field, FieldType};
 
 pub struct IntegerSumAggregator {}
 
@@ -17,10 +17,7 @@ impl IntegerSumAggregator {
         IntegerSumAggregator::_AGGREGATOR_ID
     }
 
-    pub(crate) fn insert(
-        curr_state: Option<&[u8]>,
-        new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn insert(curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -62,10 +59,7 @@ impl IntegerSumAggregator {
         Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
     }
 
-    pub(crate) fn delete(
-        curr_state: Option<&[u8]>,
-        old: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn delete(curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -99,10 +93,7 @@ impl FloatSumAggregator {
         FloatSumAggregator::_AGGREGATOR_ID
     }
 
-    pub(crate) fn insert(
-        curr_state: Option<&[u8]>,
-        new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn insert(curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = OrderedFloat(match curr_state {
             Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_f64,
@@ -144,10 +135,7 @@ impl FloatSumAggregator {
         Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
     }
 
-    pub(crate) fn delete(
-        curr_state: Option<&[u8]>,
-        old: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn delete(curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = OrderedFloat(match curr_state {
             Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_f64,

@@ -1,3 +1,3 @@
 pub mod aggregator;
-mod sum;
 mod count;
+mod sum;

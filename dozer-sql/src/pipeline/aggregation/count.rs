@@ -1,6 +1,6 @@
-use dozer_types::types::{Field, FieldType};
-use dozer_types::types::Field::Int;
 use crate::pipeline::errors::PipelineError;
+use dozer_types::types::Field::Int;
+use dozer_types::types::{Field, FieldType};
 
 pub struct CountAggregator {}
 

@@ -1,8 +1,8 @@
+use crate::pipeline::aggregation::count::CountAggregator;
+use crate::pipeline::aggregation::sum::{FloatSumAggregator, IntegerSumAggregator};
 use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
-use crate::pipeline::aggregation::count::CountAggregator;
-use crate::pipeline::aggregation::sum::{FloatSumAggregator, IntegerSumAggregator};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Aggregator {
