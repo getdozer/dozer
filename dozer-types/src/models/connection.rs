@@ -17,6 +17,7 @@ pub enum DBType {
     Ethereum,
     Events,
     Snowflake,
+    Kafka,
 }
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum Authentication {
@@ -43,6 +44,10 @@ pub enum Authentication {
         warehouse: String,
         driver: Option<String>,
     },
+    KafkaAuthentication {
+        broker: String,
+        topic: String,
+    },
 }
 impl Display for DBType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -57,6 +62,7 @@ impl FromStr for DBType {
             "Postgres" | "postgres" => Ok(DBType::Postgres),
             "Ethereum" | "ethereum" => Ok(DBType::Ethereum),
             "Snowflake" | "snowflake" => Ok(DBType::Snowflake),
+            "Kafka" | "kafka" => Ok(DBType::Kafka),
             _ => Err("Not match any value in Enum DBType"),
         }
     }
