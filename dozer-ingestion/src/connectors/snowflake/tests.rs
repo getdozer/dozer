@@ -7,6 +7,7 @@ use std::thread;
 
 #[cfg(feature = "snowflake")]
 #[test]
+#[ignore]
 fn connect_and_read_from_snowflake_stream() {
     let source = load_config("../dozer-config.test.snowflake.yaml".to_string()).unwrap();
 
