@@ -1,5 +1,4 @@
 #![allow(clippy::too_many_arguments)]
-use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::Edge;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::SchemaNotInitialized;

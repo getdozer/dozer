@@ -9,7 +9,6 @@ use crate::dag::tests::dag_recordreader::{
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
-
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -26,28 +25,28 @@ fn build_dag() -> Dag {
 
     let mut dag = Dag::new();
 
-    let SOURCE_ID: NodeHandle = "source".to_string();
-    let PASSTHROUGH_ID: NodeHandle = "passthrough".to_string();
-    let SINK_ID: NodeHandle = "sink".to_string();
+    let source_id: NodeHandle = "source".to_string();
+    let passthrough_id: NodeHandle = "passthrough".to_string();
+    let sink_id: NodeHandle = "sink".to_string();
 
-    dag.add_node(NodeType::Source(Box::new(src)), SOURCE_ID.clone());
+    dag.add_node(NodeType::Source(Box::new(src)), source_id.clone());
     dag.add_node(
         NodeType::Processor(Box::new(passthrough)),
-        PASSTHROUGH_ID.clone(),
+        passthrough_id.clone(),
     );
-    dag.add_node(NodeType::Sink(Box::new(sink)), SINK_ID.clone());
+    dag.add_node(NodeType::Sink(Box::new(sink)), sink_id.clone());
 
     assert!(dag
         .connect(
-            Endpoint::new(SOURCE_ID, GENERATOR_SOURCE_OUTPUT_PORT),
-            Endpoint::new(PASSTHROUGH_ID.clone(), PASSTHROUGH_PROCESSOR_INPUT_PORT),
+            Endpoint::new(source_id, GENERATOR_SOURCE_OUTPUT_PORT),
+            Endpoint::new(passthrough_id.clone(), PASSTHROUGH_PROCESSOR_INPUT_PORT),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(PASSTHROUGH_ID, PASSTHROUGH_PROCESSOR_OUTPUT_PORT),
-            Endpoint::new(SINK_ID, COUNTING_SINK_INPUT_PORT),
+            Endpoint::new(passthrough_id, PASSTHROUGH_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(sink_id, COUNTING_SINK_INPUT_PORT),
         )
         .is_ok());
 

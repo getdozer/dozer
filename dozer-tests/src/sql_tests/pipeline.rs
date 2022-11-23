@@ -145,7 +145,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, env: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -155,8 +155,8 @@ impl Sink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         op: Operation,
-        state: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        _state: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let sql = self
             .mapper
