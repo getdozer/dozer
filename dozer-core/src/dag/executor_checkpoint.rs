@@ -8,7 +8,7 @@ use crate::dag::forwarder::{
 use crate::dag::node::{NodeHandle, PortHandle};
 
 use crate::storage::errors::StorageError;
-use crate::storage::errors::StorageError::{DeserializationError};
+use crate::storage::errors::StorageError::DeserializationError;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
@@ -37,7 +37,10 @@ pub(crate) struct CheckpointMetadataReader<'a> {
 }
 
 impl<'a> CheckpointMetadataReader<'a> {
-    pub fn new(dag: &'a Dag, path: &'a Path) -> Result<CheckpointMetadataReader, ExecutionError> {
+    pub fn new(
+        dag: &'a Dag,
+        path: &'a Path,
+    ) -> Result<CheckpointMetadataReader<'a>, ExecutionError> {
         let metadata = CheckpointMetadataReader::get_checkpoint_metadata(path, dag)?;
         Ok(Self {
             path,
@@ -82,7 +85,8 @@ impl<'a> CheckpointMetadataReader<'a> {
                 OUTPUT_SCHEMA_IDENTIFIER => {
                     let handle: PortHandle = PortHandle::from_be_bytes(
                         (&value.0[1..])
-                            .try_into().map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
+                            .try_into()
+                            .map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
                     );
                     let schema: Schema =
                         bincode::deserialize(value.1).map_err(|e| DeserializationError {
@@ -94,7 +98,8 @@ impl<'a> CheckpointMetadataReader<'a> {
                 INPUT_SCHEMA_IDENTIFIER => {
                     let handle: PortHandle = PortHandle::from_be_bytes(
                         (&value.0[1..])
-                            .try_into().map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
+                            .try_into()
+                            .map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
                     );
                     let schema: Schema =
                         bincode::deserialize(value.1).map_err(|e| DeserializationError {
@@ -147,7 +152,8 @@ impl<'a> CheckpointMetadataReader<'a> {
             .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))?;
         node_meta
             .commits
-            .get(src).copied()
+            .get(src)
+            .copied()
             .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))
     }
 
