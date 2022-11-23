@@ -55,7 +55,7 @@ jobs:
       - uses: keithweaver/aws-s3-github-action@v1.0.0
         continue-on-error: true
         with:
-          command: sync
+          command: cp
           source: ./dozer-tests/logs/sql-tests.log
           destination: s3://dozer-ci/${{ steps.date.outputs.date }}/sql-tests.log
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}

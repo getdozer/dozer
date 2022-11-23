@@ -133,7 +133,7 @@ jobs:
         with:
           command: sync
           source: ./target/criterion
-          destination: s3://getdozer/dozer-ci/${{ steps.date.outputs.date }}/criterion
+          destination: s3://dozer-ci/${{ steps.date.outputs.date }}/criterion
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
           aws_region: ap-southeast-1
