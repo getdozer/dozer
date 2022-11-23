@@ -8,7 +8,6 @@ use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::common::{Database, RenewableRwTransaction};
 use crate::storage::errors::StorageError::SerializationError;
-use bytemuck::bytes_of;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
@@ -147,7 +146,7 @@ impl StateWriter {
         } else {
             OUTPUT_SCHEMA_IDENTIFIER
         }];
-        full_key.extend(bytes_of(&port));
+        full_key.extend(port.to_be_bytes());
 
         let schema_val = bincode::serialize(&schema).map_err(|e| SerializationError {
             typ: "Schema".to_string(),

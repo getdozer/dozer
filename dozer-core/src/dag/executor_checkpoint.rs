@@ -10,7 +10,6 @@ use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, InvalidRecord};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-use bytemuck::from_bytes;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::path::Path;
@@ -81,15 +80,30 @@ impl<'a> CheckpointMetadataReader<'a> {
                     map.insert(handle, seq);
                 }
                 OUTPUT_SCHEMA_IDENTIFIER => {
-                    let handle: &PortHandle = from_bytes::<PortHandle>(&value.0[1..]);
-
-                    // schemas =
-                    //     Some(
-                    //         bincode::deserialize(value.1).map_err(|e| DeserializationError {
-                    //             typ: "HashMap<PortHandle, Schema>".to_string(),
-                    //             reason: Box::new(e),
-                    //         })?,
-                    //     )
+                    let handle: PortHandle = PortHandle::from_be_bytes(
+                        (&value.0[1..])
+                            .try_into()
+                            .or_else(|e| Err(ExecutionError::InvalidPortHandle(0)))?,
+                    );
+                    let schema: Schema =
+                        bincode::deserialize(value.1).map_err(|e| DeserializationError {
+                            typ: "Schema".to_string(),
+                            reason: Box::new(e),
+                        })?;
+                    output_schemas.insert(handle, schema);
+                }
+                INPUT_SCHEMA_IDENTIFIER => {
+                    let handle: PortHandle = PortHandle::from_be_bytes(
+                        (&value.0[1..])
+                            .try_into()
+                            .or_else(|e| Err(ExecutionError::InvalidPortHandle(0)))?,
+                    );
+                    let schema: Schema =
+                        bincode::deserialize(value.1).map_err(|e| DeserializationError {
+                            typ: "Schema".to_string(),
+                            reason: Box::new(e),
+                        })?;
+                    input_schemas.insert(handle, schema);
                 }
                 _ => {
                     return Err(ExecutionError::InternalDatabaseError(

@@ -1,4 +1,5 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
+use crate::dag::executor_checkpoint::CheckpointMetadataReader;
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor};
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::dag_recordreader::{
@@ -18,8 +19,7 @@ macro_rules! chk {
     };
 }
 
-#[test]
-fn test_checpoint() {
+fn build_dag() -> Dag {
     let src = StatefulGeneratorSourceFactory::new(25_000, Duration::from_millis(0));
     let passthrough = PassthroughProcessorFactory::new();
     let sink = CountingSinkFactory::new(25_000);
@@ -51,12 +51,14 @@ fn test_checpoint() {
         )
         .is_ok());
 
-    let tmp_dir = chk!(TempDir::new("example"));
-    if tmp_dir.path().exists() {
-        chk!(fs::remove_dir_all(tmp_dir.path()));
-    }
-    chk!(fs::create_dir(tmp_dir.path()));
+    dag
+}
 
+#[test]
+fn test_checpoint() {
+    let dag = build_dag();
+
+    let tmp_dir = chk!(TempDir::new("example"));
     let exec = chk!(MultiThreadedDagExecutor::start(
         dag,
         tmp_dir.path(),
@@ -65,6 +67,10 @@ fn test_checpoint() {
 
     assert!(exec.join().is_ok());
 
-    let r = LmdbEnvironmentManager::exists(tmp_dir.path(), "source");
-    println!("dd");
+    let dag_check = build_dag();
+
+    let chk = chk!(CheckpointMetadataReader::get_checkpoint_metadata(
+        tmp_dir.path(),
+        &dag_check
+    ));
 }
