@@ -57,7 +57,7 @@ jobs:
         with:
           command: sync
           source: ./logs/sql.log
-          destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/sql.log
+          destination: s3://getdozer/dozer-ci/${{ steps.date.outputs.date }}/sql.log
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
           aws_region: ap-southeast-1
@@ -70,9 +70,7 @@ jobs:
           channel-id: "release-notifications"
           slack-message: |
             ```
-            Criterion: ${{ job.status }}
-
-            Criterion Report: https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/sql.log
+            SQL log: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/sql.log
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
