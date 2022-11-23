@@ -49,6 +49,11 @@ impl StatelessSource for UserTestSource {
                     false,
                 )
                 .field(
+                    FieldDefinition::new(String::from("name"), FieldType::String, false),
+                    false,
+                    false,
+                )
+                .field(
                     FieldDefinition::new(String::from("DepartmentID"), FieldType::Int, false),
                     false,
                     false,
@@ -75,6 +80,7 @@ impl StatelessSource for UserTestSource {
                         None,
                         vec![
                             Field::Int(0),
+                            Field::String("Alice".to_string()),
                             Field::Int(0),
                             Field::Float(OrderedFloat(5.5)),
                         ],
@@ -195,14 +201,15 @@ impl StatelessSink for TestSink {
 }
 
 #[test]
-fn test_join_pipeline() {
-    let sql = "SELECT name \
-                    FROM Users \
-                    WHERE salary >= 1";
+fn test_pipeline_builder() {
+    let sql = "SELECT d.name, SUM(u.spending) \
+                            FROM Users u JOIN Departments d ON u.DepartmentID=d.id \
+                            WHERE u.salary >= 1 GROUP BY d.name";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
+    debug!("AST: {:?}", ast);
 
     let statement: &Statement = &ast[0];
 
@@ -238,6 +245,61 @@ fn test_join_pipeline() {
 
     let _source_to_department = dag.connect(
         Endpoint::new("departments".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(input_point.node, input_point.port),
+    );
+
+    let _output_to_sink = dag.connect(
+        Endpoint::new(out_handle.node, out_handle.port),
+        Endpoint::new("sink".to_string(), DEFAULT_PORT_HANDLE),
+    );
+
+    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    if tmp_dir.path().exists() {
+        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    }
+    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
+    use std::time::Instant;
+    let now = Instant::now();
+
+    let exec =
+        MultiThreadedDagExecutor::start(dag, tmp_dir.into_path(), ExecutorOptions::default())
+            .unwrap();
+
+    exec.join().unwrap();
+    let elapsed = now.elapsed();
+    debug!("Elapsed: {:.2?}", elapsed);
+}
+
+#[test]
+fn test_single_table_pipeline() {
+    let sql = "SELECT name FROM Users ";
+
+    let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+
+    let ast = Parser::parse_sql(&dialect, sql).unwrap();
+
+    let statement: &Statement = &ast[0];
+
+    let builder = PipelineBuilder {};
+    let (mut dag, mut in_handle, out_handle) =
+        builder.statement_to_pipeline(statement.clone()).unwrap();
+
+    let user_source = UserTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
+
+    let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
+
+    dag.add_node(
+        NodeType::StatelessSource(Box::new(user_source)),
+        "users".to_string(),
+    );
+
+    dag.add_node(NodeType::StatelessSink(Box::new(sink)), "sink".to_string());
+
+    let input_point = in_handle.remove("users").unwrap();
+
+    let _source_to_users = dag.connect(
+        Endpoint::new("users".to_string(), DEFAULT_PORT_HANDLE),
         Endpoint::new(input_point.node, input_point.port),
     );
 

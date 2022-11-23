@@ -42,7 +42,7 @@ impl ProductProcessor {
     }
 
     fn init_store(&mut self, env: &mut dyn Environment) -> Result<(), PipelineError> {
-        self.db = Some(env.open_database("product", false)?);
+        self.db = Some(env.open_database("product", true)?);
         Ok(())
     }
 
@@ -99,7 +99,7 @@ impl ProductProcessor {
     }
 
     fn get_output_schema(
-        &self,
+        &mut self,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let mut output_schema = Schema::empty();
@@ -111,7 +111,9 @@ impl ProductProcessor {
             }
         }
 
-        if build_join_chain(&self.statement).is_err() {
+        if let Ok(join_tables) = build_join_chain(&self.statement) {
+            self.join_tables = join_tables;
+        } else {
             return Err(ExecutionError::InvalidOperation(
                 "Unable to build Join".to_string(),
             ));
@@ -127,8 +129,8 @@ impl ProductProcessor {
 
 fn append_schema(mut output_schema: Schema, table: &String, current_schema: &Schema) -> Schema {
     for mut field in current_schema.clone().fields.into_iter() {
-        let mut name = String::from(table);
-        name.push('.');
+        let mut name = String::from(""); //String::from(table);
+                                         //name.push('.');
         name.push_str(&field.name);
         field.name = name;
         output_schema.fields.push(field);

@@ -1,5 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder::{column_index, ExpressionBuilder, ExpressionType};
+use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::processor::projection::PipelineError::InvalidExpression;
 use crate::pipeline::processor::projection::PipelineError::InvalidOperator;
@@ -111,7 +111,7 @@ impl ProjectionProcessor {
             let field_type = e.1.get_type(input_schema);
             let field_nullable = true;
 
-            if column_index(&field_name, &output_schema).is_err() {
+            if output_schema.get_field_index(field_name.as_str()).is_err() {
                 output_schema.fields.push(FieldDefinition::new(
                     field_name,
                     field_type,
@@ -149,7 +149,7 @@ impl ProjectionProcessor {
         }
 
         for expr in self.expressions.clone() {
-            if let Ok(idx) = column_index(&expr.0, &self.input_schema) {
+            if let Ok((idx, _def)) = self.input_schema.get_field_index(&expr.0) {
                 let _ =
                     std::mem::replace(&mut results[idx], internal_err!(expr.1.evaluate(record))?);
             } else {
