@@ -233,7 +233,7 @@ impl Record {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct OperationEvent {
     pub seq_no: u64,
     pub operation: Operation,

@@ -1,0 +1,35 @@
+storage_path: null
+sources:
+  - name: customers
+    table_name: customer
+    connection:
+      db_type: Snowflake
+      authentication: !SnowflakeAuthentication
+        server: _SERVER_.snowflakecomputing.com
+        port: 443
+        user: _USER_
+        password: _PASSWORD_
+        database: _DATABASE_
+        schema: _PUBLIC_
+        warehouse: _WAREHOUSE_
+        driver: "SnowflakeDSIIDriver"
+      name: customers
+    history_type: null
+    refresh_config: RealTime
+endpoints:
+  - name: customers
+    path: /customers
+    enable_rest: false
+    enable_grpc: true
+    sql: select c_custkey, c_name from customer;
+    index:
+      primary_key:
+        - c_custkey
+  - name: customers_count
+    path: /customers_count
+    enable_rest: false
+    enable_grpc: true
+    sql: select COUNT(c_custkey) from customer;
+    index:
+      primary_key:
+        - c_custkey

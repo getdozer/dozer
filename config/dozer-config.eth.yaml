@@ -1,4 +1,3 @@
-storage_path: null
 sources:
   - name: all_events
     table_name: eth_logs

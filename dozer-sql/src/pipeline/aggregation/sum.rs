@@ -1,37 +1,23 @@
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
 
-const INTEGER_SUM_AGGREGATOR_ID: u8 = 0x01;
-
-#[derive(Clone)]
 pub struct IntegerSumAggregator {}
 
-impl Default for IntegerSumAggregator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl IntegerSumAggregator {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+    const _AGGREGATOR_ID: u8 = 0x01;
 
-impl Aggregator for IntegerSumAggregator {
-    fn get_return_type(&self, _input_type: FieldType) -> FieldType {
+    pub(crate) fn get_return_type() -> FieldType {
         FieldType::Int
     }
 
-    fn get_type(&self) -> u8 {
-        INTEGER_SUM_AGGREGATOR_ID
+    pub(crate) fn _get_type() -> u8 {
+        IntegerSumAggregator::_AGGREGATOR_ID
     }
 
-    fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn insert(curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -47,8 +33,7 @@ impl Aggregator for IntegerSumAggregator {
         Ok(Vec::from((prev + *curr).to_ne_bytes()))
     }
 
-    fn update(
-        &self,
+    pub(crate) fn update(
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
@@ -74,7 +59,7 @@ impl Aggregator for IntegerSumAggregator {
         Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
     }
 
-    fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn delete(curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -90,38 +75,25 @@ impl Aggregator for IntegerSumAggregator {
         Ok(Vec::from((prev - *curr).to_ne_bytes()))
     }
 
-    fn get_value(&self, f: &[u8]) -> Field {
+    pub(crate) fn get_value(f: &[u8]) -> Field {
         Int(i64::from_ne_bytes(f.try_into().unwrap()))
     }
 }
 
-const FLOAT_SUM_AGGREGATOR_ID: u8 = 0x01;
-
-#[derive(Clone)]
 pub struct FloatSumAggregator {}
 
-impl Default for FloatSumAggregator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl FloatSumAggregator {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+    const _AGGREGATOR_ID: u8 = 0x01;
 
-impl Aggregator for FloatSumAggregator {
-    fn get_return_type(&self, _input_type: FieldType) -> FieldType {
+    pub(crate) fn get_return_type() -> FieldType {
         FieldType::Float
     }
 
-    fn get_type(&self) -> u8 {
-        FLOAT_SUM_AGGREGATOR_ID
+    pub(crate) fn _get_type() -> u8 {
+        FloatSumAggregator::_AGGREGATOR_ID
     }
 
-    fn insert(&self, curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn insert(curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = OrderedFloat(match curr_state {
             Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_f64,
@@ -137,8 +109,7 @@ impl Aggregator for FloatSumAggregator {
         Ok(Vec::from((prev + *curr).to_ne_bytes()))
     }
 
-    fn update(
-        &self,
+    pub(crate) fn update(
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
@@ -164,7 +135,7 @@ impl Aggregator for FloatSumAggregator {
         Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
     }
 
-    fn delete(&self, curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn delete(curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
         let prev = OrderedFloat(match curr_state {
             Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_f64,
@@ -180,7 +151,7 @@ impl Aggregator for FloatSumAggregator {
         Ok(Vec::from((prev - *curr).to_ne_bytes()))
     }
 
-    fn get_value(&self, f: &[u8]) -> Field {
+    pub(crate) fn get_value(f: &[u8]) -> Field {
         Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap())))
     }
 }
