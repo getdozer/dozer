@@ -9,9 +9,7 @@ use crate::dag::executor_processor::start_processor;
 use crate::dag::executor_sink::start_sink;
 use crate::dag::executor_source::start_source;
 use crate::dag::executor_utils::{get_node_types_and_edges, index_edges};
-use crate::dag::node::{
-    NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
-};
+use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
 use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;

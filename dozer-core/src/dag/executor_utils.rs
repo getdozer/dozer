@@ -4,8 +4,8 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, ProcessorFactory,
-    SinkFactory, SourceFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, ProcessorFactory, SinkFactory,
+    SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};

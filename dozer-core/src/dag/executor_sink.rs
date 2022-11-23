@@ -1,19 +1,17 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::SchemaNotInitialized;
 use crate::dag::executor_local::ExecutorOperation;
-use crate::dag::executor_utils::{
-    build_receivers_lists, init_component, init_select, map_to_op,
-};
+use crate::dag::executor_utils::{build_receivers_lists, init_component, init_select, map_to_op};
 use crate::dag::forwarder::StateWriter;
 use crate::dag::node::{NodeHandle, PortHandle, SinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
-use crate::storage::transactions::{SharedTransaction};
+use crate::storage::transactions::SharedTransaction;
 use crossbeam::channel::Receiver;
 use dozer_types::parking_lot::RwLock;
 
 use fp_rust::sync::CountDownLatch;
-use log::{error};
+use log::error;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
