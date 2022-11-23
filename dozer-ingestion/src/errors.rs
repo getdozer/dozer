@@ -204,6 +204,9 @@ pub enum DebeziumError {
 
 #[derive(Error, Debug)]
 pub enum DebeziumSchemaError {
+    #[error("Schema definition not found")]
+    SchemaDefinitionNotFound,
+
     #[error("Unsupported \"{0}\" type")]
     TypeNotSupported(String)
 }

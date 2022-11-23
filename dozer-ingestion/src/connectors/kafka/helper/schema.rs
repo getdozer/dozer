@@ -3,7 +3,7 @@ use crate::connectors::kafka::connector::KafkaSchemaStruct;
 
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 use crate::errors::DebeziumSchemaError;
-use crate::errors::DebeziumSchemaError::TypeNotSupported;
+use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
 fn map_type(schema: &KafkaSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
@@ -29,14 +29,14 @@ fn map_type(schema: &KafkaSchemaStruct) -> Result<FieldType, DebeziumSchemaError
     }
 }
 
-pub fn map_schema(schema: &KafkaSchemaStruct, key_schema: &KafkaSchemaStruct) -> Option<Schema> {
+pub fn map_schema(schema: &KafkaSchemaStruct, key_schema: &KafkaSchemaStruct) -> Result<Schema, DebeziumSchemaError> {
     let pk_fields = match &key_schema.fields {
         None => vec![],
         Some(fields) => fields.iter().map(|f| f.field.clone().unwrap()).collect(),
     };
 
     match &schema.fields {
-        None => None,
+        None => Err(SchemaDefinitionNotFound),
         Some(fields) => {
             let new_schema_struct = fields.iter().find(|f| {
                 if let Some(val) = f.field.clone() {
@@ -48,35 +48,35 @@ pub fn map_schema(schema: &KafkaSchemaStruct, key_schema: &KafkaSchemaStruct) ->
 
             if let Some(schema) = new_schema_struct {
                 let mut pk_keys_indexes = vec![];
-                let defined_fields = match &schema.fields {
-                    None => vec![],
+                let defined_fields: Result<Vec<FieldDefinition>, _> = match &schema.fields {
+                    None => Ok(vec![]),
                     Some(fields) => fields
                         .iter()
                         .enumerate()
                         .map(|(idx, f)| {
-                            let typ = map_type(f).unwrap();
+                            let typ = map_type(f)?;
                             let name = f.field.clone().unwrap();
                             if pk_fields.contains(&name) {
                                 pk_keys_indexes.push(idx);
                             }
-                            FieldDefinition {
+                            Ok(FieldDefinition {
                                 name,
                                 typ,
                                 nullable: f.optional,
-                            }
+                            })
                         })
                         .collect(),
                 };
 
-                Some(Schema {
+                Ok(Schema {
                     identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
-                    fields: defined_fields,
+                    fields: defined_fields?,
                     values: vec![],
                     primary_index: pk_keys_indexes,
                     secondary_indexes: vec![],
                 })
             } else {
-                None
+                Err(SchemaDefinitionNotFound)
             }
         }
     }
