@@ -1,0 +1,22 @@
+refresh_rate: 30 seconds
+appenders:
+  stdout:
+    kind: console
+  sql:
+    kind: file
+    path: "log/sql.log"
+    encoder:
+      pattern: "{m}{n}"
+root:
+  level: off
+  appenders:
+    - stdout
+loggers:
+  dozer_tests:
+    level: info
+    appenders:
+      - sql
+  dozer_core:
+    level: off
+  dozer_orchestrator:
+    level: off

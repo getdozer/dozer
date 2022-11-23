@@ -1,8 +1,10 @@
+use dozer_types::{log::info, log4rs};
+
 use crate::{
     framework::{download, get_inserts_from_csv},
     TestFramework,
 };
-use std::sync::Once;
+use std::{path::Path, sync::Once};
 
 static INIT: Once = Once::new();
 
@@ -57,6 +59,11 @@ fn setup() -> TestFramework {
 
 #[test]
 fn test_queries() {
+    let path = std::env::current_dir().unwrap().join("log4rs.tests.yaml");
+    println!("{:?}", path);
+    log4rs::init_file(path, Default::default())
+        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+
     // Downloading test files to target/debug/actor-data
     INIT.call_once(|| {
         download("actor");
@@ -103,13 +110,13 @@ fn test_queries() {
         results.push((test, success));
     }
 
-    println!("---------------------------------------------");
-    println!();
+    info!("---------------------------------------------");
+    info!("");
     let mut idx = 0;
     for (test, result) in results {
-        println!("{}: {}        {}", idx, test, result);
+        info!("{}: {}        {}", idx, test, result);
         idx += 1;
     }
-    println!();
-    println!("---------------------------------------------");
+    info!("");
+    info!("---------------------------------------------");
 }

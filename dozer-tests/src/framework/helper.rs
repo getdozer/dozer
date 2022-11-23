@@ -256,13 +256,14 @@ pub fn read_csv(folder_name: &str, name: &str) -> Result<csv::Reader<std::fs::Fi
     let current_dir = std::env::current_dir().unwrap();
     println!("{:?}", current_dir);
     let paths = vec![
-        format!("../target/debug/{}-data/{}.csv", folder_name, name),
-        format!("./target/debug/{}-data/{}.csv", folder_name, name),
+        current_dir.join(format!("../target/debug/{}-data/{}.csv", folder_name, name)),
+        current_dir.join(format!("./target/debug/{}-data/{}.csv", folder_name, name)),
     ];
 
     let mut err = None;
     for path in paths {
-        let rdr = csv::Reader::from_path(Path::new(path.as_str()));
+        println!("{:?}", path);
+        let rdr = csv::Reader::from_path(path);
         match rdr {
             Ok(rdr) => return Ok(rdr),
             Err(e) => err = Some(Err(e)),
@@ -272,13 +273,17 @@ pub fn read_csv(folder_name: &str, name: &str) -> Result<csv::Reader<std::fs::Fi
 }
 
 pub fn download(folder_name: &str) {
-    let path = format!("../target/debug/{}", folder_name);
+    let path = std::env::current_dir()
+        .unwrap()
+        .join(format!("../target/debug/{}-data", folder_name));
     let exists = Path::new(&path).is_dir();
     if !exists {
         Command::new("sh")
             .arg("-C")
             .arg(format!("./scripts/download_{}.sh", folder_name))
             .spawn()
-            .expect("sh command failed to start");
+            .expect("sh command failed to start")
+            .wait()
+            .expect("failed to wait");
     }
 }

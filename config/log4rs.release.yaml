@@ -19,13 +19,11 @@ root:
   appenders:
     - stdout
 loggers:
-  app:
+  dozer_orchestrator:
     level: info
     appenders:
       - app
-    additive: false
-  api:
-    level: warn
+  dozer_api:
+    level: info
     appenders:
       - api
-    additive: false

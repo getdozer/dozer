@@ -21,3 +21,4 @@ log4rs.yaml
 
 .dozer/
 logs/
+dozer-tests/log/
