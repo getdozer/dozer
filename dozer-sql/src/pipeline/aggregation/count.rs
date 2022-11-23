@@ -1,35 +1,24 @@
-use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::PipelineError;
 use dozer_types::types::Field::Int;
 use dozer_types::types::{Field, FieldType};
 
-const COUNT_AGGREGATOR_ID: u8 = 0x02;
-
-#[derive(Clone)]
 pub struct CountAggregator {}
 
-impl Default for CountAggregator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl CountAggregator {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+    const _AGGREGATOR_ID: u8 = 0x02;
 
-impl Aggregator for CountAggregator {
-    fn get_return_type(&self, _input_type: FieldType) -> FieldType {
+    pub(crate) fn get_return_type() -> FieldType {
         FieldType::Int
     }
 
-    fn get_type(&self) -> u8 {
-        COUNT_AGGREGATOR_ID
+    pub(crate) fn _get_type() -> u8 {
+        CountAggregator::_AGGREGATOR_ID
     }
 
-    fn insert(&self, curr_state: Option<&[u8]>, _new: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn insert(
+        curr_state: Option<&[u8]>,
+        _new: &Field,
+    ) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -38,8 +27,7 @@ impl Aggregator for CountAggregator {
         Ok(Vec::from((prev + 1).to_ne_bytes()))
     }
 
-    fn update(
-        &self,
+    pub(crate) fn update(
         curr_state: Option<&[u8]>,
         _old: &Field,
         _new: &Field,
@@ -52,7 +40,10 @@ impl Aggregator for CountAggregator {
         Ok(Vec::from((prev).to_ne_bytes()))
     }
 
-    fn delete(&self, curr_state: Option<&[u8]>, _old: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn delete(
+        curr_state: Option<&[u8]>,
+        _old: &Field,
+    ) -> Result<Vec<u8>, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
@@ -61,7 +52,7 @@ impl Aggregator for CountAggregator {
         Ok(Vec::from((prev - 1).to_ne_bytes()))
     }
 
-    fn get_value(&self, f: &[u8]) -> Field {
+    pub(crate) fn get_value(f: &[u8]) -> Field {
         Int(i64::from_ne_bytes(f.try_into().unwrap()))
     }
 }
