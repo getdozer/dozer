@@ -19,6 +19,7 @@ pub struct KafkaConnector {
     pub id: u64,
     config: KafkaConfig,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
+    tables: Option<Vec<TableInfo>>,
 }
 
 impl KafkaConnector {
@@ -27,6 +28,7 @@ impl KafkaConnector {
             id,
             config,
             ingestor: None,
+            tables: None,
         }
     }
 }
@@ -51,9 +53,10 @@ impl Connector for KafkaConnector {
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
-        _: Option<Vec<TableInfo>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         self.ingestor = Some(ingestor);
+        self.tables = tables;
         Ok(())
     }
 
@@ -67,9 +70,9 @@ impl Connector for KafkaConnector {
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(broker, topic, ingestor, connector_id).await })
+        Runtime::new().unwrap().block_on(async {
+            run(broker, topic, ingestor, connector_id, self.tables.clone()).await
+        })
     }
 
     fn stop(&self) {}
@@ -88,6 +91,7 @@ async fn run(
     topic: String,
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
+    tables: Option<Vec<TableInfo>>,
 ) -> Result<(), ConnectorError> {
     let con = Consumer::from_hosts(vec![broker])
         .with_topic(topic)
@@ -96,6 +100,7 @@ async fn run(
         .create()
         .map_err(DebeziumConnectionError)?;
 
+    let table_name = tables.unwrap().get(0).unwrap().name.clone();
     let consumer = DebeziumStreamConsumer::default();
-    consumer.run(con, ingestor, connector_id)
+    consumer.run(con, ingestor, connector_id, table_name)
 }

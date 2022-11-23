@@ -5,7 +5,7 @@ use crate::errors::DebeziumError::{BytesConvertError, JsonDecodeError};
 use crate::errors::{ConnectorError, DebeziumError, DebeziumStreamError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::log::info;
+
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
@@ -84,6 +84,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
         mut con: Consumer,
         ingestor: Arc<RwLock<Ingestor>>,
         connector_id: u64,
+        table_name: String,
     ) -> Result<(), ConnectorError> {
         loop {
             let mss = con.poll().map_err(|e| {
@@ -110,7 +111,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             .write()
                             .handle_message((
                                 connector_id,
-                                IngestionMessage::Schema("customerss".to_string(), schema.clone()),
+                                IngestionMessage::Schema(table_name.clone(), schema.clone()),
                             ))
                             .map_err(ConnectorError::IngestorError)?;
 

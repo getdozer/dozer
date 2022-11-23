@@ -30,7 +30,10 @@ fn convert_decimal(value: &str, scale: u32) -> Result<Field, DebeziumSchemaError
     ))
 }
 
-fn convert_value(value: Value, schema: &&DebeziumSchemaStruct) -> Result<Field, DebeziumSchemaError> {
+fn convert_value(
+    value: Value,
+    schema: &&DebeziumSchemaStruct,
+) -> Result<Field, DebeziumSchemaError> {
     match schema.name.clone() {
         None => match schema.r#type.as_str() {
             "int8" | "int16" | "int32" | "int64" => value
