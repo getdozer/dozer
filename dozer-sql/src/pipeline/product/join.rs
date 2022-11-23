@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+
+use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::PortHandle;
-use dozer_core::storage::common::{Database, Environment};
+use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::types::Record;
 use sqlparser::ast::TableFactor;
 
@@ -9,19 +13,37 @@ use super::factory::get_input_name;
 
 #[derive(Clone)]
 pub struct JoinOperator {
+    /// Type of the Join operation
     operator: JoinOperatorType,
+
+    /// relation on the right side of the JOIN
     table: PortHandle,
-    db: Option<Database>,
+
+    /// key on the left side of the JOIN
+    foreign_key_index: usize,
+
+    /// key on the right side of the JOIN
+    primary_key_index: usize,
+
+    /// prefix for the index key
+    prefix: String,
 }
 
 impl JoinOperator {
-    pub fn new(operator: JoinOperatorType, table: PortHandle, txn: &mut dyn Environment) -> Self {
-        let mut name = String::from(&table.to_string());
-        name.push_str("_right");
+    pub fn new(
+        operator: JoinOperatorType,
+        table: PortHandle,
+        foreign_key_index: usize,
+        primary_key_index: usize,
+    ) -> Self {
+        let mut prefix = table.to_string();
+        prefix.push_str("r");
         Self {
             operator,
             table,
-            db: Some(txn.open_database(&name, false).unwrap()),
+            foreign_key_index,
+            primary_key_index,
+            prefix,
         }
     }
 }
@@ -29,18 +51,35 @@ impl JoinOperator {
 #[derive(Clone)]
 pub struct ReverseJoinOperator {
     operator: JoinOperatorType,
+
+    /// relation on the left side of the JOIN
     table: PortHandle,
-    db: Option<Database>,
+
+    /// key on the left side of the JOIN
+    foreign_key_index: usize,
+
+    /// key on the right side of the JOIN
+    primary_key_index: usize,
+
+    /// prefix for the index key
+    prefix: String,
 }
 
 impl ReverseJoinOperator {
-    pub fn new(operator: JoinOperatorType, table: PortHandle, txn: &mut dyn Environment) -> Self {
-        let mut name = String::from(&table.to_string());
-        name.push_str("_left");
+    pub fn new(
+        operator: JoinOperatorType,
+        table: PortHandle,
+        foreign_key_index: usize,
+        primary_key_index: usize,
+    ) -> Self {
+        let mut prefix = table.to_string();
+        prefix.push_str("l");
         Self {
             operator,
             table,
-            db: Some(txn.open_database(&name, false).unwrap()),
+            foreign_key_index,
+            primary_key_index,
+            prefix,
         }
     }
 }
@@ -54,7 +93,13 @@ pub struct JoinTable {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinOperatorType {
-    NaturalJoin,
+    Inner,
+    LeftOuter,
+    RightOuter,
+    FullOuter,
+    CrossJoin,
+    CrossApply,
+    OuterApply,
 }
 
 impl JoinTable {
@@ -68,16 +113,63 @@ impl JoinTable {
 }
 
 pub trait JoinExecutor: Send + Sync {
-    fn evaluate_left(&self, record: Vec<Record>) -> Result<Vec<Record>, PipelineError>;
-    fn evaluate_right(&self, record: Vec<Record>) -> Result<Vec<Record>, PipelineError>;
+    fn execute(
+        &self,
+        record: &Record,
+        txn: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<Vec<Record>, ExecutionError>;
 }
 
-impl JoinExecutor for JoinTable {
-    fn evaluate_left(&self, _record: Vec<Record>) -> Result<Vec<Record>, PipelineError> {
+impl JoinExecutor for JoinOperator {
+    fn execute(
+        &self,
+        record: &Record,
+        txn: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<Vec<Record>, ExecutionError> {
         todo!()
     }
+}
 
-    fn evaluate_right(&self, _record: Vec<Record>) -> Result<Vec<Record>, PipelineError> {
+impl JoinExecutor for ReverseJoinOperator {
+    fn execute(
+        &self,
+        record: &Record,
+        txn: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<Vec<Record>, ExecutionError> {
+        todo!()
+    }
+}
+
+pub trait IndexUpdater: Send + Sync {
+    fn index_insert(
+        &self,
+        record: &Record,
+        txn: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
+    );
+}
+
+impl IndexUpdater for JoinOperator {
+    fn index_insert(
+        &self,
+        _record: &Record,
+        _txn: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
+    ) {
+        todo!()
+    }
+}
+
+impl IndexUpdater for ReverseJoinOperator {
+    fn index_insert(
+        &self,
+        record: &Record,
+        _txn: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
+    ) {
         todo!()
     }
 }

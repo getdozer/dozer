@@ -66,7 +66,7 @@ fn test_join_tables_three() {
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     let join_tables =
-        build_join_chain(&statement.from[0], env).unwrap_or_else(|e| panic!("{}", e.to_string()));
+        build_join_chain(&statement.from[0]).unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     assert_eq!(join_tables.keys().len(), 3);
 }

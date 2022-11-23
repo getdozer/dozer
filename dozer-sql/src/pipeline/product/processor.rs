@@ -4,7 +4,7 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{PortHandle, StatefulProcessor};
 use dozer_core::dag::record_store::RecordReader;
-use dozer_core::storage::common::{Environment, RwTransaction};
+use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record, Schema};
 use sqlparser::ast::TableWithJoins;
@@ -25,6 +25,9 @@ pub struct ProductProcessor {
 
     /// Join operations
     join_tables: HashMap<PortHandle, JoinTable>,
+
+    /// Database to store Join indexes
+    db: Option<Database>,
 }
 
 impl ProductProcessor {
@@ -34,12 +37,12 @@ impl ProductProcessor {
             statement: statement.clone(),
             input_tables: get_input_tables(&statement).unwrap(),
             join_tables: HashMap::new(),
+            db: None,
         }
     }
 
     fn init_store(&mut self, env: &mut dyn Environment) -> Result<(), PipelineError> {
-        self.join_tables = build_join_chain(&self.statement, env).unwrap();
-
+        self.db = Some(env.open_database("product", false)?);
         Ok(())
     }
 
@@ -57,14 +60,28 @@ impl ProductProcessor {
 
     fn insert(
         &self,
-        _from_port: PortHandle,
+        from_port: PortHandle,
         record: &Record,
         _txn: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
-    ) -> Operation {
-        Operation::Insert {
-            new: record.clone(),
+    ) -> Result<Vec<Record>, ExecutionError> {
+        if let Some(input_table) = self.join_tables.get(&from_port) {
+            let output_records = vec![record.clone()];
+
+            if let Some(_left_join) = &input_table.left {
+                todo!() // left_records = left_join.execute(record, txn, reader)?;
+            }
+
+            if let Some(_right_join) = &input_table.right {
+                todo!() // right_records = right_join.execute(record, txn, reader)?;
+            }
+            return Ok(output_records);
         }
+
+        Err(ExecutionError::MissingNodeInput(format!(
+            "Cannot load data from Port {}",
+            from_port
+        )))
     }
 
     fn update(
@@ -94,8 +111,18 @@ impl ProductProcessor {
             }
         }
 
+        if build_join_chain(&self.statement).is_err() {
+            return Err(ExecutionError::InvalidOperation(
+                "Unable to build Join".to_string(),
+            ));
+        }
+
         Ok(output_schema)
     }
+
+    // fn merge(&self, _left_records: &[Record], _right_records: &[Record]) -> Vec<Record> {
+    //     todo!()
+    // }
 }
 
 fn append_schema(mut output_schema: Schema, table: &String, current_schema: &Schema) -> Schema {
@@ -140,10 +167,11 @@ impl StatefulProcessor for ProductProcessor {
                 );
             }
             Operation::Insert { ref new } => {
-                let _ = fw.send(
-                    self.insert(from_port, new, txn, reader),
-                    DEFAULT_PORT_HANDLE,
-                );
+                let records = self.insert(from_port, new, txn, reader)?;
+
+                for record in records.into_iter() {
+                    let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                }
             }
             Operation::Update { ref old, ref new } => {
                 let _ = fw.send(

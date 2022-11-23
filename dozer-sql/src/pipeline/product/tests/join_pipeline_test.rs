@@ -195,15 +195,14 @@ impl StatelessSink for TestSink {
 }
 
 #[test]
-fn test_pipeline_builder() {
-    let sql = "SELECT d.name, SUM(u.spending) \
-                            FROM Users u JOIN Departments d ON u.DepartmentID=d.id \
-                            WHERE u.salary >= 1 GROUP BY d.name";
+fn test_join_pipeline() {
+    let sql = "SELECT name \
+                    FROM Users \
+                    WHERE salary >= 1";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
-    debug!("AST: {:?}", ast);
 
     let statement: &Statement = &ast[0];
 
