@@ -196,16 +196,22 @@ impl SqlMapper {
 
                 let mut field_names = vec![];
                 for (idx, v) in new.values.iter().enumerate() {
-                    field_names.push(format!(
-                        "{}={}",
-                        schema.fields.get(idx).map_or(
-                            Err(ExecutionError::InternalStringError(
-                                "index out of bounds for schema".to_string()
-                            )),
-                            |f| Ok(f.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
-                        )?,
-                        map_field_to_string(v)
-                    ))
+                    if let Some(old_value) = old.values.get(idx) {
+                        if old_value != v {
+                            field_names.push(format!(
+                                "{}={}",
+                                schema.fields.get(idx).map_or(
+                                    Err(ExecutionError::InternalStringError(
+                                        "index out of bounds for schema".to_string()
+                                    )),
+                                    |f| Ok(f
+                                        .name
+                                        .replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
+                                )?,
+                                map_field_to_string(v)
+                            ))
+                        }
+                    }
                 }
                 let values_str = field_names.join(",");
                 Ok(format!(

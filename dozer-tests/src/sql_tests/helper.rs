@@ -61,10 +61,10 @@ pub fn get_inserts_from_csv(
                     }
                 }
                 FieldType::String | FieldType::Text | FieldType::Timestamp => {
-                    format!("'{}'", val.replace("'", "\'"))
+                    format!("'{}'", val)
                 }
                 _ => {
-                    format!("'{}'", val.replace("'", "\'"))
+                    format!("'{}'", val)
                 }
             };
             values.push(val);

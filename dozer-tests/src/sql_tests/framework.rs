@@ -24,7 +24,7 @@ impl TestFramework {
         list: Vec<(&str, String)>,
         final_sql: String,
     ) -> Result<bool, FrameworkError> {
-        let name = list[0].0.clone();
+        let name = list[0].0;
 
         let source_schema = self.source.lock().unwrap().get_schema(name).to_owned();
 
