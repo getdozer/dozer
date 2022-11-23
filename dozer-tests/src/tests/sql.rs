@@ -7,7 +7,12 @@ use crate::{
 use std::sync::Once;
 
 static INIT: Once = Once::new();
-
+fn init() {
+    // Downloading test files to target/debug/actor-data
+    INIT.call_once(|| {
+        download("actor");
+    });
+}
 fn setup() -> TestFramework {
     let tables = vec![
         (
@@ -57,21 +62,8 @@ fn setup() -> TestFramework {
     framework
 }
 
-#[test]
-#[ignore]
-fn nightly_long_test_queries() {
-    let path = std::env::current_dir().unwrap().join("log4rs.tests.yaml");
-    log4rs::init_file(path, Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
-
-    // Downloading test files to target/debug/actor-data
-    INIT.call_once(|| {
-        download("actor");
-    });
-
-    // let names = vec!["actor", "film", "film_actor"];
-
-    let tests = vec![
+fn get_queries() -> Vec<&'static str> {
+    vec![
         "select actor_id, first_name, last_name,last_update from actor order by actor_id",
         "select actor_id, first_name, last_name,last_update from actor where actor_id<=5",
         "select count(actor_id) from actor",
@@ -81,7 +73,20 @@ fn nightly_long_test_queries() {
         "select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>200)",
         "select actor_id from actor order by actor_id",
         "select actor_id, count(actor_id) from actor group by actor_id",
-    ];
+    ]
+}
+
+#[test]
+#[ignore]
+fn nightly_long_init_queries() {
+    let path = std::env::current_dir().unwrap().join("log4rs.tests.yaml");
+    log4rs::init_file(path, Default::default())
+        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+
+    init();
+    // let names = vec!["actor", "film", "film_actor"];
+
+    let tests = get_queries();
 
     let mut results = vec![];
 
@@ -118,7 +123,7 @@ fn nightly_long_test_queries() {
     info!("----------------   Report   ------------------");
     info!("");
     for (idx, (test, result)) in results.into_iter().enumerate() {
-        info!("{}: {}   {}", idx, test, result);
+        info!("{}: {} - {}", idx, result, test);
     }
     info!("");
     info!("---------------------------------------------");
