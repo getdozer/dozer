@@ -8,6 +8,7 @@ members = [
   "dozer-orchestrator",
   "dozer-sql",
   "dozer-cache",
+  "dozer-tests",
 ]
 exclude = ["tests/**/**", "config/**/**"]
 
