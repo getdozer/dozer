@@ -100,7 +100,7 @@ impl Executor {
             self.iterator.to_owned(),
         );
         let mut parent_dag = Dag::new();
-        parent_dag.add_node(NodeType::StatelessSource(Box::new(source)), 1.to_string());
+        parent_dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
         let running_wait = self.running.clone();
 
         for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
@@ -127,7 +127,7 @@ impl Executor {
                 api_endpoint,
                 notifier.clone(),
             );
-            dag.add_node(NodeType::StatelessSink(Box::new(sink)), 4.to_string());
+            dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
             // Connect Pipeline to Sink
             dag.connect(
@@ -163,7 +163,11 @@ impl Executor {
         // let exec = MultiThreadedDagExecutor::new(100000, 20000);
         let path = self.home_dir.join("pipeline");
         fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let exec = MultiThreadedDagExecutor::start(parent_dag, path, ExecutorOptions::default())?;
+        let exec = MultiThreadedDagExecutor::start(
+            parent_dag,
+            path.as_path(),
+            ExecutorOptions::default(),
+        )?;
 
         // Waiting for Ctrl+C
         while running_wait.load(Ordering::SeqCst) {

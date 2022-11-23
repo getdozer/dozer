@@ -4,7 +4,9 @@ use dozer_api::grpc::types_helper;
 use dozer_cache::cache::LmdbCache;
 use dozer_cache::cache::{index, Cache};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
-use dozer_core::dag::node::{PortHandle, StatelessSink, StatelessSinkFactory};
+use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
+use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -63,11 +65,11 @@ impl CacheSinkFactory {
     }
 }
 
-impl StatelessSinkFactory for CacheSinkFactory {
+impl SinkFactory for CacheSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn StatelessSink> {
+    fn build(&self) -> Box<dyn Sink> {
         Box::new(CacheSink::new(
             self.cache.clone(),
             self.api_endpoint.clone(),
@@ -87,8 +89,8 @@ pub struct CacheSink {
     notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
 }
 
-impl StatelessSink for CacheSink {
-    fn init(&mut self) -> Result<(), ExecutionError> {
+impl Sink for CacheSink {
+    fn init(&mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("SINK: Initialising CacheSink");
         Ok(())
     }
@@ -98,6 +100,8 @@ impl StatelessSink for CacheSink {
         from_port: PortHandle,
         _seq: u64,
         op: Operation,
+        tx: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
         if self.counter % 100 == 0 {
@@ -298,14 +302,25 @@ mod tests {
     use dozer_cache::cache::{index, Cache};
 
     use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-    use dozer_core::dag::node::StatelessSink;
+    use dozer_core::dag::node::Sink;
 
+    use dozer_core::storage::common::RenewableRwTransaction;
+    use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
+    use dozer_core::storage::transactions::SharedTransaction;
+    use dozer_types::parking_lot::RwLock;
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
+    use std::sync::Arc;
+    use tempdir::TempDir;
 
     #[test]
     // This test cases covers updation of records when primary key changes because of value change in primary_key
     fn update_record_when_primary_changes() {
+        let tmp_dir = TempDir::new("example").unwrap();
+        let mut env = LmdbEnvironmentManager::create(tmp_dir.path(), "test").unwrap();
+        let txn: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+            Arc::new(RwLock::new(env.create_txn().unwrap()));
+
         let schema = test_utils::get_schema();
 
         let (cache, mut sink) = test_utils::init_sink(&schema);
@@ -338,16 +353,29 @@ mod tests {
         input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
         sink.update_schema(&input_schemas).unwrap();
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation)
-            .unwrap();
+        let mut t = SharedTransaction::new(&txn);
+        sink.process(
+            DEFAULT_PORT_HANDLE,
+            0_u64,
+            insert_operation,
+            &mut t,
+            &HashMap::new(),
+        )
+        .unwrap();
 
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap();
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation)
-            .unwrap();
+        sink.process(
+            DEFAULT_PORT_HANDLE,
+            0_u64,
+            update_operation,
+            &mut t,
+            &HashMap::new(),
+        )
+        .unwrap();
 
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);

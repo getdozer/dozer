@@ -9,8 +9,7 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{
-    PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
-    StatefulProcessorFactory,
+    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
@@ -66,19 +65,19 @@ impl AggregationProcessorFactory {
     }
 }
 
-impl StatefulProcessorFactory for AggregationProcessorFactory {
+impl ProcessorFactory for AggregationProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            StatefulPortHandleOptions::default(),
+            OutputPortDefOptions::default(),
         )]
     }
 
-    fn build(&self) -> Box<dyn StatefulProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(AggregationProcessor {
             select: self.select.clone(),
             groupby: self.groupby.clone(),
@@ -562,7 +561,7 @@ impl AggregationProcessor {
     }
 }
 
-impl StatefulProcessor for AggregationProcessor {
+impl Processor for AggregationProcessor {
     fn update_schema(
         &mut self,
         output_port: PortHandle,
