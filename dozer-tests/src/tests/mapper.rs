@@ -54,40 +54,46 @@ fn test_framework_to_dozer_types() {
         op
     );
 
-    let sql = mapper.map_operation_to_sql(
-        &"actor".to_string(),
-        Operation::Insert {
-            new: Record {
-                schema_id: schema_id.clone(),
-                values: values.clone(),
+    let sql = mapper
+        .map_operation_to_sql(
+            &"actor".to_string(),
+            Operation::Insert {
+                new: Record {
+                    schema_id: schema_id.clone(),
+                    values: values.clone(),
+                },
             },
-        },
-    );
+        )
+        .unwrap();
     assert_eq!(sql, "INSERT INTO actor(actor_id,name) values (1,'mario')");
 
-    let sql = mapper.map_operation_to_sql(
-        &"actor".to_string(),
-        Operation::Update {
-            old: Record {
-                schema_id: schema_id.clone(),
-                values,
+    let sql = mapper
+        .map_operation_to_sql(
+            &"actor".to_string(),
+            Operation::Update {
+                old: Record {
+                    schema_id: schema_id.clone(),
+                    values,
+                },
+                new: Record {
+                    schema_id: schema_id.clone(),
+                    values: new_values.clone(),
+                },
             },
-            new: Record {
-                schema_id: schema_id.clone(),
-                values: new_values.clone(),
-            },
-        },
-    );
+        )
+        .unwrap();
     assert_eq!(sql, "UPDATE actor SET name='dario' WHERE actor_id=1");
 
-    let sql = mapper.map_operation_to_sql(
-        &"actor".to_string(),
-        Operation::Delete {
-            old: Record {
-                schema_id,
-                values: new_values,
+    let sql = mapper
+        .map_operation_to_sql(
+            &"actor".to_string(),
+            Operation::Delete {
+                old: Record {
+                    schema_id,
+                    values: new_values,
+                },
             },
-        },
-    );
+        )
+        .unwrap();
     assert_eq!(sql, "DELETE FROM actor WHERE actor_id=1");
 }

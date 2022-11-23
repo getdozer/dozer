@@ -16,8 +16,10 @@ use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
-use std::fs;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::RecvTimeoutError;
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
+use std::{fs, thread};
 use tempdir::TempDir;
 
 use super::helper::get_table_create_sql;
@@ -153,12 +155,12 @@ impl StatelessSink for TestSink {
             .mapper
             .lock()
             .unwrap()
-            .map_operation_to_sql(&"results".to_string(), op);
+            .map_operation_to_sql(&"results".to_string(), op)?;
 
         self.mapper
             .lock()
             .unwrap()
-            .execute_list(vec![("results".to_string(), sql)])
+            .execute_list(vec![("results", sql)])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         Ok(())
     }
@@ -234,15 +236,31 @@ impl TestPipeline {
 
         match rx.recv() {
             Ok(schema) => {
-                exec.join().map_err(|errors| {
-                    let str = errors
-                        .iter()
-                        .map(|e| e.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",");
-                    ExecutionError::InternalStringError(str)
-                })?;
-                Ok(schema)
+                let (tx, rx) = mpsc::channel();
+                let _ = thread::spawn(move || -> Result<(), ExecutionError> {
+                    let result = exec.join().map_err(|errors| {
+                        let str = errors
+                            .iter()
+                            .map(|e| e.to_string())
+                            .collect::<Vec<String>>()
+                            .join(",");
+                        ExecutionError::InternalStringError(str)
+                    });
+                    match tx.send(result) {
+                        Ok(()) => Ok(()),
+                        Err(_) => Err(ExecutionError::InternalStringError(
+                            "Disconnected".to_string(),
+                        )),
+                    }
+                });
+
+                match rx.recv_timeout(Duration::from_millis(2000)) {
+                    Ok(_) => Ok(schema),
+                    Err(RecvTimeoutError::Timeout) => Err(ExecutionError::InternalStringError(
+                        "Pipeline timed out".to_string(),
+                    )),
+                    Err(RecvTimeoutError::Disconnected) => unreachable!(),
+                }
             }
             Err(_e) => Err(ExecutionError::InternalStringError(
                 "Schema not sent in the pipeline".to_string(),

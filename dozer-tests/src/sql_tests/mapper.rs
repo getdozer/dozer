@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use super::helper::*;
+use dozer_core::dag::errors::ExecutionError;
 use dozer_types::types::{Field, Operation, Record, Schema};
 use sqlparser::ast::{BinaryOperator, Expr, Statement};
 use sqlparser::ast::{SetExpr, TableFactor};
@@ -42,10 +43,7 @@ impl SqlMapper {
         Ok(get_schema(&columns))
     }
 
-    pub fn execute_list(
-        &mut self,
-        list: Vec<(String, String)>,
-    ) -> rusqlite::Result<Vec<Operation>> {
+    pub fn execute_list(&mut self, list: Vec<(&str, String)>) -> rusqlite::Result<Vec<Operation>> {
         let mut ops = vec![];
         for (_schema_name, sql) in list {
             self.conn.execute(sql.as_str(), ())?;
@@ -55,9 +53,9 @@ impl SqlMapper {
         Ok(ops)
     }
 
-    pub fn get_schema(&self, name: String) -> &Schema {
+    pub fn get_schema(&self, name: &str) -> &Schema {
         self.schema_map
-            .get(&name)
+            .get(name)
             .unwrap_or_else(|| panic!("Schema is missing: {}", name))
     }
 
@@ -150,7 +148,11 @@ impl SqlMapper {
         Ok(())
     }
 
-    pub fn map_operation_to_sql(&self, name: &String, op: Operation) -> String {
+    pub fn map_operation_to_sql(
+        &self,
+        name: &String,
+        op: Operation,
+    ) -> Result<String, ExecutionError> {
         let schema = self
             .schema_map
             .get(name)
@@ -160,12 +162,12 @@ impl SqlMapper {
         match op {
             Operation::Delete { old } => {
                 let pkey_value = get_primary_key_value(schema, &old);
-                format!(
+                Ok(format!(
                     "DELETE FROM {} WHERE {}={}",
                     name,
                     pkey_name,
                     map_field_to_string(&pkey_value)
-                )
+                ))
             }
             Operation::Insert { new } => {
                 let column_names = schema
@@ -184,36 +186,35 @@ impl SqlMapper {
                     .map(map_field_to_string)
                     .collect::<Vec<String>>()
                     .join(",");
-                format!(
+                Ok(format!(
                     "INSERT INTO {}({}) values ({})",
                     name, column_names, values_str
-                )
+                ))
             }
             Operation::Update { old, new } => {
                 let pkey_value = get_primary_key_value(schema, &old);
-                let values_str = new
-                    .values
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, a)| old.values[*idx] != **a)
-                    .map(|(idx, a)| {
-                        format!(
-                            "{}={}",
-                            schema.fields[idx]
-                                .name
-                                .replace(|c: char| !c.is_ascii_alphanumeric(), "_"),
-                            map_field_to_string(a)
-                        )
-                    })
-                    .collect::<Vec<String>>()
-                    .join(",");
-                format!(
+
+                let mut field_names = vec![];
+                for (idx, v) in new.values.iter().enumerate() {
+                    field_names.push(format!(
+                        "{}={}",
+                        schema.fields.get(idx).map_or(
+                            Err(ExecutionError::InternalStringError(
+                                "index out of bounds for schema".to_string()
+                            )),
+                            |f| Ok(f.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_"))
+                        )?,
+                        map_field_to_string(v)
+                    ))
+                }
+                let values_str = field_names.join(",");
+                Ok(format!(
                     "UPDATE {} SET {} WHERE {}={}",
                     name,
                     values_str,
                     pkey_name,
                     map_field_to_string(&pkey_value)
-                )
+                ))
             }
         }
     }

@@ -21,7 +21,7 @@ pub struct TestFramework {
 impl TestFramework {
     pub fn run_test(
         &mut self,
-        list: Vec<(String, String)>,
+        list: Vec<(&str, String)>,
         final_sql: String,
     ) -> Result<bool, FrameworkError> {
         let name = list[0].0.clone();
