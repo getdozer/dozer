@@ -30,12 +30,12 @@ fn test_checpoint() {
     let PASSTHROUGH_ID: NodeHandle = "passthrough".to_string();
     let SINK_ID: NodeHandle = "sink".to_string();
 
-    dag.add_node(NodeType::StatefulSource(Box::new(src)), SOURCE_ID.clone());
+    dag.add_node(NodeType::Source(Box::new(src)), SOURCE_ID.clone());
     dag.add_node(
-        NodeType::StatefulProcessor(Box::new(passthrough)),
+        NodeType::Processor(Box::new(passthrough)),
         PASSTHROUGH_ID.clone(),
     );
-    dag.add_node(NodeType::StatefulSink(Box::new(sink)), SINK_ID.clone());
+    dag.add_node(NodeType::Sink(Box::new(sink)), SINK_ID.clone());
 
     assert!(dag
         .connect(

@@ -4,8 +4,7 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor};
 use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
-    StatefulProcessorFactory, StatelessProcessor, StatelessProcessorFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -37,24 +36,24 @@ impl PassthroughProcessorFactory {
     }
 }
 
-impl StatefulProcessorFactory for PassthroughProcessorFactory {
+impl ProcessorFactory for PassthroughProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![PASSTHROUGH_PROCESSOR_INPUT_PORT]
     }
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             PASSTHROUGH_PROCESSOR_OUTPUT_PORT,
-            StatefulPortHandleOptions::new(true, true, true),
+            OutputPortDefOptions::new(true, true, true),
         )]
     }
-    fn build(&self) -> Box<dyn StatefulProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(PassthroughProcessor {})
     }
 }
 
 pub(crate) struct PassthroughProcessor {}
 
-impl StatefulProcessor for PassthroughProcessor {
+impl Processor for PassthroughProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,
@@ -66,7 +65,7 @@ impl StatefulProcessor for PassthroughProcessor {
             .clone())
     }
 
-    fn init<'a>(&'_ mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -93,14 +92,17 @@ impl RecordReaderProcessorFactory {
 pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
 pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
-impl StatelessProcessorFactory for RecordReaderProcessorFactory {
+impl ProcessorFactory for RecordReaderProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![RECORD_READER_PROCESSOR_INPUT_PORT]
     }
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![RECORD_READER_PROCESSOR_OUTPUT_PORT]
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
+            RECORD_READER_PROCESSOR_OUTPUT_PORT,
+            OutputPortDefOptions::default(),
+        )]
     }
-    fn build(&self) -> Box<dyn StatelessProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(RecordReaderProcessor { ctr: 0 })
     }
 }
@@ -109,7 +111,7 @@ pub(crate) struct RecordReaderProcessor {
     ctr: u64,
 }
 
-impl StatelessProcessor for RecordReaderProcessor {
+impl Processor for RecordReaderProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,
@@ -121,7 +123,7 @@ impl StatelessProcessor for RecordReaderProcessor {
             .clone())
     }
 
-    fn init<'a>(&'_ mut self) -> Result<(), ExecutionError> {
+    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -130,6 +132,7 @@ impl StatelessProcessor for RecordReaderProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
+        _tx: &mut dyn RwTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let v = readers
@@ -164,16 +167,16 @@ fn test_run_dag_reacord_reader() {
     let RECORD_READER_ID: NodeHandle = "record_reader".to_string();
     let SINK_ID: NodeHandle = "sink".to_string();
 
-    dag.add_node(NodeType::StatelessSource(Box::new(src)), SOURCE_ID.clone());
+    dag.add_node(NodeType::Source(Box::new(src)), SOURCE_ID.clone());
     dag.add_node(
-        NodeType::StatefulProcessor(Box::new(passthrough)),
+        NodeType::Processor(Box::new(passthrough)),
         PASSTHROUGH_ID.clone(),
     );
     dag.add_node(
-        NodeType::StatelessProcessor(Box::new(record_reader)),
+        NodeType::Processor(Box::new(record_reader)),
         RECORD_READER_ID.clone(),
     );
-    dag.add_node(NodeType::StatefulSink(Box::new(sink)), SINK_ID.clone());
+    dag.add_node(NodeType::Sink(Box::new(sink)), SINK_ID.clone());
 
     assert!(dag
         .connect(
@@ -226,12 +229,12 @@ fn test_run_dag_reacord_reader_from_stateful_src() {
     let RECORD_READER_ID: NodeHandle = "record_reader".to_string();
     let SINK_ID: NodeHandle = "sink".to_string();
 
-    dag.add_node(NodeType::StatefulSource(Box::new(src)), SOURCE_ID.clone());
+    dag.add_node(NodeType::Source(Box::new(src)), SOURCE_ID.clone());
     dag.add_node(
-        NodeType::StatelessProcessor(Box::new(record_reader)),
+        NodeType::Processor(Box::new(record_reader)),
         RECORD_READER_ID.clone(),
     );
-    dag.add_node(NodeType::StatefulSink(Box::new(sink)), SINK_ID.clone());
+    dag.add_node(NodeType::Sink(Box::new(sink)), SINK_ID.clone());
 
     assert!(dag
         .connect(
@@ -277,12 +280,12 @@ fn test_run_dag_reacord_reader_from_stateful_src_timeout() {
     let RECORD_READER_ID: NodeHandle = "record_reader".to_string();
     let SINK_ID: NodeHandle = "sink".to_string();
 
-    dag.add_node(NodeType::StatefulSource(Box::new(src)), SOURCE_ID.clone());
+    dag.add_node(NodeType::Source(Box::new(src)), SOURCE_ID.clone());
     dag.add_node(
-        NodeType::StatelessProcessor(Box::new(record_reader)),
+        NodeType::Processor(Box::new(record_reader)),
         RECORD_READER_ID.clone(),
     );
-    dag.add_node(NodeType::StatefulSink(Box::new(sink)), SINK_ID.clone());
+    dag.add_node(NodeType::Sink(Box::new(sink)), SINK_ID.clone());
 
     assert!(dag
         .connect(

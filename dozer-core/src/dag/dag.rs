@@ -1,10 +1,7 @@
 use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InvalidNodeHandle, InvalidNodeType, InvalidPortHandle};
-use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulProcessorFactory, StatefulSinkFactory, StatefulSourceFactory,
-    StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
-};
+use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -32,12 +29,9 @@ impl Edge {
 }
 
 pub enum NodeType {
-    StatelessSource(Box<dyn StatelessSourceFactory>),
-    StatefulSource(Box<dyn StatefulSourceFactory>),
-    StatelessProcessor(Box<dyn StatelessProcessorFactory>),
-    StatefulProcessor(Box<dyn StatefulProcessorFactory>),
-    StatelessSink(Box<dyn StatelessSinkFactory>),
-    StatefulSink(Box<dyn StatefulSinkFactory>),
+    Source(Box<dyn SourceFactory>),
+    Processor(Box<dyn ProcessorFactory>),
+    Sink(Box<dyn SinkFactory>),
 }
 
 pub struct Node {
@@ -76,42 +70,21 @@ impl Dag {
 
     fn get_ports(&self, n: &NodeType, d: PortDirection) -> Result<Vec<PortHandle>, ExecutionError> {
         match n {
-            NodeType::StatelessProcessor(p) => {
-                if matches!(d, Output) {
-                    Ok(p.get_output_ports())
-                } else {
-                    Ok(p.get_input_ports())
-                }
-            }
-            NodeType::StatefulProcessor(p) => {
+            NodeType::Processor(p) => {
                 if matches!(d, Output) {
                     Ok(p.get_output_ports().iter().map(|e| e.handle).collect())
                 } else {
                     Ok(p.get_input_ports())
                 }
             }
-            NodeType::StatelessSink(s) => {
+            NodeType::Sink(s) => {
                 if matches!(d, Output) {
                     Err(InvalidNodeType)
                 } else {
                     Ok(s.get_input_ports())
                 }
             }
-            NodeType::StatefulSink(s) => {
-                if matches!(d, Output) {
-                    Err(InvalidNodeType)
-                } else {
-                    Ok(s.get_input_ports())
-                }
-            }
-            NodeType::StatelessSource(s) => {
-                if matches!(d, Output) {
-                    Ok(s.get_output_ports())
-                } else {
-                    Err(InvalidNodeType)
-                }
-            }
-            NodeType::StatefulSource(s) => {
+            NodeType::Source(s) => {
                 if matches!(d, Output) {
                     Ok(s.get_output_ports().iter().map(|e| e.handle).collect())
                 } else {
@@ -171,25 +144,8 @@ impl Dag {
     pub fn get_sources(&self) -> Vec<NodeHandle> {
         self.nodes
             .iter()
-            .filter(|source| {
-                matches!(source.1, NodeType::StatefulSource(_))
-                    || matches!(source.1, NodeType::StatelessSource(_))
-            })
+            .filter(|source| matches!(source.1, NodeType::Source(_)))
             .map(|e| e.0.clone())
             .collect()
-    }
-
-    pub fn is_stateful(&self, handle: &NodeHandle) -> Result<bool, ExecutionError> {
-        let node = self
-            .nodes
-            .get(handle)
-            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-
-        Ok(match node {
-            NodeType::StatelessProcessor(_) => true,
-            NodeType::StatefulSource(_) => true,
-            NodeType::StatefulSink(_) => true,
-            _ => false,
-        })
     }
 }

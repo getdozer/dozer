@@ -5,9 +5,7 @@ use crate::dag::executor_utils::{
     build_receivers_lists, init_component, init_select, map_to_op, requires_schema_update,
 };
 use crate::dag::forwarder::StateWriter;
-use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulSink, StatefulSinkFactory, StatelessSink, StatelessSinkFactory,
-};
+use crate::dag::node::{NodeHandle, PortHandle, SinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crate::storage::transactions::{ExclusiveTransaction, SharedTransaction};
@@ -22,54 +20,19 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
-pub(crate) enum SinkFactoryHolder {
-    Stateful(Box<dyn StatefulSinkFactory>),
-    Stateless(Box<dyn StatelessSinkFactory>),
-}
-
-pub(crate) enum SinkHolder {
-    Stateful(Box<dyn StatefulSink>),
-    Stateless(Box<dyn StatelessSink>),
-}
-
-struct SinkDetails {
-    snk: SinkHolder,
-    input_ports: Vec<PortHandle>,
-}
-
-impl SinkDetails {
-    pub fn new(snk: SinkHolder, input_ports: Vec<PortHandle>) -> Self {
-        Self { snk, input_ports }
-    }
-}
-
 pub(crate) fn start_sink(
     handle: NodeHandle,
-    snk_factory: SinkFactoryHolder,
+    snk_factory: Box<dyn SinkFactory>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
     base_path: PathBuf,
     latch: Arc<CountDownLatch>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
-        let mut snk_details = match snk_factory {
-            SinkFactoryHolder::Stateful(s) => {
-                SinkDetails::new(SinkHolder::Stateful(s.build()), s.get_input_ports())
-            }
-            SinkFactoryHolder::Stateless(s) => {
-                SinkDetails::new(SinkHolder::Stateless(s.build()), s.get_input_ports())
-            }
-        };
-
+        let mut snk = snk_factory.build();
         let mut schema_initialized = false;
 
-        let mut state_meta =
-            init_component(&handle, base_path.as_path(), |e| {
-                match &mut snk_details.snk {
-                    SinkHolder::Stateful(s) => s.init(e),
-                    SinkHolder::Stateless(s) => s.init(),
-                }
-            })?;
+        let mut state_meta = init_component(&handle, base_path.as_path(), |e| snk.init(e))?;
 
         let mut master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
             Arc::new(RwLock::new(state_meta.env.create_txn()?));
@@ -78,7 +41,7 @@ pub(crate) fn start_sink(
             state_meta.meta_db,
             HashMap::new(),
             master_tx.clone(),
-            Some(snk_details.input_ports),
+            Some(snk_factory.get_input_ports()),
         );
 
         let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
@@ -96,10 +59,7 @@ pub(crate) fn start_sink(
                     let all_input_schemas =
                         state_writer.update_input_schema(handles_ls[index], new)?;
                     if let Some(input_schemas) = all_input_schemas {
-                        match match &mut snk_details.snk {
-                            SinkHolder::Stateful(s) => s.update_schema(&input_schemas),
-                            SinkHolder::Stateless(s) => s.update_schema(&input_schemas),
-                        } {
+                        match snk.update_schema(&input_schemas) {
                             Err(e) => {
                                 error!(
                                     "[{}] Error during update_schema(). Unsupported new schema.",
@@ -129,18 +89,13 @@ pub(crate) fn start_sink(
                         .get(&handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
-                    match snk_details.snk {
-                        SinkHolder::Stateful(ref mut s) => s.process(
-                            handles_ls[index],
-                            data_op.0,
-                            data_op.1,
-                            &mut SharedTransaction::new(&master_tx),
-                            reader,
-                        )?,
-                        SinkHolder::Stateless(ref mut s) => {
-                            s.process(handles_ls[index], data_op.0, data_op.1, reader)?
-                        }
-                    }
+                    snk.process(
+                        handles_ls[index],
+                        data_op.0,
+                        data_op.1,
+                        &mut SharedTransaction::new(&master_tx),
+                        reader,
+                    )?;
                 }
             }
         }
