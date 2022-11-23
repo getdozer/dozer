@@ -8,8 +8,8 @@ use crate::dag::tests::dag_recordreader::{
 };
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-use std::fs;
+
+
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -69,7 +69,7 @@ fn test_checpoint() {
 
     let dag_check = build_dag();
 
-    let chk = chk!(CheckpointMetadataReader::get_checkpoint_metadata(
+    let _chk = chk!(CheckpointMetadataReader::get_checkpoint_metadata(
         tmp_dir.path(),
         &dag_check
     ));

@@ -6,7 +6,7 @@ use crate::dag::errors::ExecutionError::SchemaNotInitialized;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, init_component,
-    init_select, map_to_op, requires_schema_update,
+    init_select, map_to_op,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
 use crate::dag::node::{NodeHandle, OutputPortDef, PortHandle, Processor, ProcessorFactory};

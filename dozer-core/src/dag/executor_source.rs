@@ -143,7 +143,7 @@ pub(crate) fn start_source(
 
     let listener_handle = handle.clone();
     thread::spawn(move || -> Result<(), ExecutionError> {
-        let output_schemas = HashMap::<PortHandle, Schema>::new();
+        let _output_schemas = HashMap::<PortHandle, Schema>::new();
         let mut state_meta = init_component(&handle, base_path.as_path(), |_e| Ok(()))?;
 
         let port_databases =

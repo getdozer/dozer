@@ -87,7 +87,7 @@ impl Processor for SelectionProcessor {
         Ok(schema.clone())
     }
 
-    fn init(&mut self, env: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Selection Processor");
         Ok(())
     }
@@ -97,7 +97,7 @@ impl Processor for SelectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: &mut dyn RwTransaction,
+        _tx: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         match op {

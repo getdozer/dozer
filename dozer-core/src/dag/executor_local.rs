@@ -4,13 +4,13 @@
 use crate::dag::dag::{Dag, Edge, PortDirection};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{MissingNodeInput, MissingNodeOutput};
-use crate::dag::executor_checkpoint::CheckpointMetadataReader;
+
 use crate::dag::executor_processor::start_processor;
 use crate::dag::executor_sink::start_sink;
 use crate::dag::executor_source::start_source;
 use crate::dag::executor_utils::{get_node_types_and_edges, index_edges};
 use crate::dag::node::{
-    NodeHandle, PortHandle, Processor, ProcessorFactory, SinkFactory, Source, SourceFactory,
+    NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crossbeam::channel::{Receiver, Sender};

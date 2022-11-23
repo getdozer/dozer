@@ -2,18 +2,18 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::SchemaNotInitialized;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::executor_utils::{
-    build_receivers_lists, init_component, init_select, map_to_op, requires_schema_update,
+    build_receivers_lists, init_component, init_select, map_to_op,
 };
 use crate::dag::forwarder::StateWriter;
 use crate::dag::node::{NodeHandle, PortHandle, SinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
-use crate::storage::transactions::{ExclusiveTransaction, SharedTransaction};
+use crate::storage::transactions::{SharedTransaction};
 use crossbeam::channel::Receiver;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::Schema;
+
 use fp_rust::sync::CountDownLatch;
-use log::{error, warn};
+use log::{error};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -34,7 +34,7 @@ pub(crate) fn start_sink(
 
         let mut state_meta = init_component(&handle, base_path.as_path(), |e| snk.init(e))?;
 
-        let mut master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+        let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
             Arc::new(RwLock::new(state_meta.env.create_txn()?));
 
         let mut state_writer = StateWriter::new(

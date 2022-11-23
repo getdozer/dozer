@@ -210,7 +210,7 @@ impl Processor for ProjectionProcessor {
         self.build_output_schema(input_schema, expressions)
     }
 
-    fn init(&mut self, env: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
@@ -220,7 +220,7 @@ impl Processor for ProjectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: &mut dyn RwTransaction,
+        _tx: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let _ = match op {

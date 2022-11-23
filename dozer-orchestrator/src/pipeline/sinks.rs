@@ -100,51 +100,6 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn init(&mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
-        info!("SINK: Initialising CacheSink");
-
-        Ok(())
-    }
-
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        _seq: u64,
-        op: Operation,
-        tx: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
-    ) -> Result<(), ExecutionError> {
-        self.counter += 1;
-        if self.counter % 100 == 0 {
-            self.pb.set_message(format!(
-                "Count: {}, Elapsed time: {:.2?}",
-                self.counter,
-                self.before.elapsed(),
-            ));
-        }
-        let schema = self
-            .input_schemas
-            .lock()
-            .get(&from_port)
-            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
-            .to_owned();
-
-        if let Some(notifier) = &self.notifier {
-            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
-            notifier
-                .try_send(PipelineRequest {
-                    endpoint: self.api_endpoint.name.to_owned(),
-                    api_event: Some(ApiEvent::Op(op)),
-                })
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
-
-        self.batched_sender
-            .send(BatchedCacheMsg { op, schema })
-            .unwrap();
-        Ok(())
-    }
-
     fn update_schema(
         &mut self,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -186,6 +141,51 @@ impl Sink for CacheSink {
                 };
             }
         }
+        Ok(())
+    }
+
+    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+        info!("SINK: Initialising CacheSink");
+
+        Ok(())
+    }
+
+    fn process(
+        &mut self,
+        from_port: PortHandle,
+        _seq: u64,
+        op: Operation,
+        _tx: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<(), ExecutionError> {
+        self.counter += 1;
+        if self.counter % 100 == 0 {
+            self.pb.set_message(format!(
+                "Count: {}, Elapsed time: {:.2?}",
+                self.counter,
+                self.before.elapsed(),
+            ));
+        }
+        let schema = self
+            .input_schemas
+            .lock()
+            .get(&from_port)
+            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
+            .to_owned();
+
+        if let Some(notifier) = &self.notifier {
+            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
+            notifier
+                .try_send(PipelineRequest {
+                    endpoint: self.api_endpoint.name.to_owned(),
+                    api_event: Some(ApiEvent::Op(op)),
+                })
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        }
+
+        self.batched_sender
+            .send(BatchedCacheMsg { op, schema })
+            .unwrap();
         Ok(())
     }
 }
@@ -301,6 +301,7 @@ mod tests {
 
     use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 
+    use dozer_core::dag::node::Sink;
     use dozer_core::storage::common::RenewableRwTransaction;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::storage::transactions::SharedTransaction;

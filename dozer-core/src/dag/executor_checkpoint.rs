@@ -6,9 +6,9 @@ use crate::dag::forwarder::{
     INPUT_SCHEMA_IDENTIFIER, OUTPUT_SCHEMA_IDENTIFIER, SOURCE_ID_IDENTIFIER,
 };
 use crate::dag::node::{NodeHandle, PortHandle};
-use crate::storage::common::Database;
+
 use crate::storage::errors::StorageError;
-use crate::storage::errors::StorageError::{DeserializationError, InvalidRecord};
+use crate::storage::errors::StorageError::{DeserializationError};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub enum CheckpointConsistency {
 struct ConsistencyTree {
     pub handle: NodeHandle,
     pub seq: u64,
-    pub children: Vec<Box<ConsistencyTree>>,
+    pub children: Vec<ConsistencyTree>,
 }
 
 pub(crate) struct CheckpointMetadata {
@@ -82,8 +82,7 @@ impl<'a> CheckpointMetadataReader<'a> {
                 OUTPUT_SCHEMA_IDENTIFIER => {
                     let handle: PortHandle = PortHandle::from_be_bytes(
                         (&value.0[1..])
-                            .try_into()
-                            .or_else(|e| Err(ExecutionError::InvalidPortHandle(0)))?,
+                            .try_into().map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
                     );
                     let schema: Schema =
                         bincode::deserialize(value.1).map_err(|e| DeserializationError {
@@ -95,8 +94,7 @@ impl<'a> CheckpointMetadataReader<'a> {
                 INPUT_SCHEMA_IDENTIFIER => {
                     let handle: PortHandle = PortHandle::from_be_bytes(
                         (&value.0[1..])
-                            .try_into()
-                            .or_else(|e| Err(ExecutionError::InvalidPortHandle(0)))?,
+                            .try_into().map_err(|_e| ExecutionError::InvalidPortHandle(0))?,
                     );
                     let schema: Schema =
                         bincode::deserialize(value.1).map_err(|e| DeserializationError {
@@ -149,8 +147,7 @@ impl<'a> CheckpointMetadataReader<'a> {
             .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))?;
         node_meta
             .commits
-            .get(src)
-            .map(|e| *e)
+            .get(src).copied()
             .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))
     }
 

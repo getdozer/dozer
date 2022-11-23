@@ -4,8 +4,8 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory, Sink,
-    SinkFactory, Source, SourceFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, ProcessorFactory,
+    SinkFactory, SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
@@ -54,8 +54,8 @@ pub(crate) fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Selec
 }
 
 pub(crate) fn requires_schema_update(
-    new: Schema,
-    port_handle: &PortHandle,
+    _new: Schema,
+    _port_handle: &PortHandle,
     input_schemas: &mut HashMap<PortHandle, Schema>,
     input_ports: &[PortHandle],
 ) -> bool {

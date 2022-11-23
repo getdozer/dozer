@@ -131,7 +131,7 @@ impl Sink for DynPortsSink {
         _seq: u64,
         _op: Operation,
         _tx: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

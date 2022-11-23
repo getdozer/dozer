@@ -123,18 +123,18 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self, env: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
 
     fn process(
         &mut self,
-        from_port: PortHandle,
-        seq: u64,
-        op: Operation,
-        state: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        _from_port: PortHandle,
+        _seq: u64,
+        _op: Operation,
+        _state: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
