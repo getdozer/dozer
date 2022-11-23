@@ -1,4 +1,3 @@
-use crate::connectors::kafka::connector::KafkaSchemaStruct;
 use crate::errors::DebeziumSchemaError;
 use crate::errors::DebeziumSchemaError::{
     BinaryDecodeError, DecimalConvertError, FieldNotFound, ScaleIsInvalid, ScaleNotFound,
@@ -7,6 +6,7 @@ use crate::errors::DebeziumSchemaError::{
 use base64::STANDARD;
 use dozer_types::chrono::NaiveDateTime;
 
+use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Schema};
@@ -30,7 +30,7 @@ fn convert_decimal(value: &str, scale: u32) -> Result<Field, DebeziumSchemaError
     ))
 }
 
-fn convert_value(value: Value, schema: &&KafkaSchemaStruct) -> Result<Field, DebeziumSchemaError> {
+fn convert_value(value: Value, schema: &&DebeziumSchemaStruct) -> Result<Field, DebeziumSchemaError> {
     match schema.name.clone() {
         None => match schema.r#type.as_str() {
             "int8" | "int16" | "int32" | "int64" => value
@@ -109,7 +109,7 @@ fn convert_value(value: Value, schema: &&KafkaSchemaStruct) -> Result<Field, Deb
 pub fn convert_value_to_schema(
     value: Value,
     schema: Schema,
-    fields_map: HashMap<String, &KafkaSchemaStruct>,
+    fields_map: HashMap<String, &DebeziumSchemaStruct>,
 ) -> Result<Vec<Field>, DebeziumSchemaError> {
     schema
         .fields

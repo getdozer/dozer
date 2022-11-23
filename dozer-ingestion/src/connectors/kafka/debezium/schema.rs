@@ -1,12 +1,12 @@
-use crate::connectors::kafka::connector::KafkaSchemaStruct;
 use std::collections::HashMap;
 
+use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::errors::DebeziumSchemaError;
 use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
-fn map_type(schema: &KafkaSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
+fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
     match schema.name.clone() {
         None => match schema.r#type.as_str() {
             "int8" | "int16" | "int32" | "int64" => Ok(FieldType::Int),
@@ -34,9 +34,9 @@ fn map_type(schema: &KafkaSchemaStruct) -> Result<FieldType, DebeziumSchemaError
 }
 
 pub fn map_schema<'a>(
-    schema: &'a KafkaSchemaStruct,
-    key_schema: &'a KafkaSchemaStruct,
-) -> Result<(Schema, HashMap<String, &'a KafkaSchemaStruct>), DebeziumSchemaError> {
+    schema: &'a DebeziumSchemaStruct,
+    key_schema: &'a DebeziumSchemaStruct,
+) -> Result<(Schema, HashMap<String, &'a DebeziumSchemaStruct>), DebeziumSchemaError> {
     let pk_fields = match &key_schema.fields {
         None => vec![],
         Some(fields) => fields.iter().map(|f| f.field.clone().unwrap()).collect(),
@@ -55,7 +55,7 @@ pub fn map_schema<'a>(
 
             if let Some(schema) = new_schema_struct {
                 let mut pk_keys_indexes = vec![];
-                let mut fields_schema_map: HashMap<String, &KafkaSchemaStruct> = HashMap::new();
+                let mut fields_schema_map: HashMap<String, &DebeziumSchemaStruct> = HashMap::new();
 
                 let defined_fields: Result<Vec<FieldDefinition>, _> = match &schema.fields {
                     None => Ok(vec![]),
