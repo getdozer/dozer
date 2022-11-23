@@ -36,7 +36,6 @@ pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
         .collect::<Vec<String>>()
         .join(",");
     let creation_sql = format!("CREATE TABLE {} ({})", name, columns);
-    println!("CREATION: {:?}", creation_sql);
     creation_sql
 }
 
@@ -89,17 +88,8 @@ pub fn get_inserts_from_csv(
 pub fn query_sqllite(
     mapper: Arc<Mutex<SqlMapper>>,
     sql: &str,
+    schema: &Schema,
 ) -> Result<Vec<Record>, rusqlite::Error> {
-    let schema = mapper
-        .lock()
-        .map(|mapper_guard| -> rusqlite::Result<Schema> {
-            let stmt = mapper_guard.conn.prepare(sql)?;
-            let columns = stmt.columns();
-            let schema = get_schema(&columns);
-            Ok(schema)
-        })
-        .unwrap()
-        .unwrap();
     mapper
         .lock()
         .map(|mapper_guard| -> rusqlite::Result<Vec<Record>> {
@@ -254,7 +244,6 @@ pub fn get_schema(columns: &Vec<rusqlite::Column>) -> Schema {
 
 pub fn read_csv(folder_name: &str, name: &str) -> Result<csv::Reader<std::fs::File>, csv::Error> {
     let current_dir = std::env::current_dir().unwrap();
-    println!("{:?}", current_dir);
     let paths = vec![
         current_dir.join(format!("../target/debug/{}-data/{}.csv", folder_name, name)),
         current_dir.join(format!("./target/debug/{}-data/{}.csv", folder_name, name)),
@@ -262,7 +251,6 @@ pub fn read_csv(folder_name: &str, name: &str) -> Result<csv::Reader<std::fs::Fi
 
     let mut err = None;
     for path in paths {
-        println!("{:?}", path);
         let rdr = csv::Reader::from_path(path);
         match rdr {
             Ok(rdr) => return Ok(rdr),

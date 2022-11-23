@@ -9,6 +9,7 @@ use dozer_core::dag::node::{
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 
+use dozer_types::crossbeam::channel::{unbounded, Sender};
 use dozer_types::log::debug;
 use dozer_types::types::{Operation, Schema};
 use sqlparser::ast::Statement;
@@ -78,13 +79,15 @@ impl StatelessSource for TestSource {
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
     mapper: Arc<Mutex<SqlMapper>>,
+    tx: Sender<Schema>,
 }
 
 impl TestSinkFactory {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>) -> Self {
+    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>) -> Self {
         Self {
             input_ports: vec![DEFAULT_PORT_HANDLE],
             mapper,
+            tx,
         }
     }
 }
@@ -94,20 +97,22 @@ impl StatelessSinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
     fn build(&self) -> Box<dyn StatelessSink> {
-        Box::new(TestSink::new(self.mapper.clone()))
+        Box::new(TestSink::new(self.mapper.clone(), self.tx.clone()))
     }
 }
 
 pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
     input_schemas: HashMap<PortHandle, Schema>,
+    tx: Sender<Schema>,
 }
 
 impl TestSink {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>) -> Self {
+    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>) -> Self {
         Self {
             mapper,
             input_schemas: HashMap::new(),
+            tx,
         }
     }
 }
@@ -120,6 +125,7 @@ impl StatelessSink for TestSink {
         self.input_schemas = input_schemas.to_owned();
 
         for (_port, schema) in input_schemas.iter() {
+            self.tx.send(schema.clone()).unwrap();
             self.mapper
                 .lock()
                 .unwrap()
@@ -179,8 +185,10 @@ impl TestPipeline {
             mapper,
         }
     }
-    pub fn run(&mut self) -> Result<(), ExecutionError> {
+    pub fn run(&mut self) -> Result<Schema, ExecutionError> {
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+
+        let (tx, rx) = unbounded::<Schema>();
 
         let ast = Parser::parse_sql(&dialect, &self.sql).unwrap();
 
@@ -191,7 +199,7 @@ impl TestPipeline {
             builder.statement_to_pipeline(statement.clone()).unwrap();
 
         let source = TestSourceFactory::new(self.schema.clone(), self.ops.to_owned());
-        let sink = TestSinkFactory::new(self.mapper.clone());
+        let sink = TestSinkFactory::new(self.mapper.clone(), tx);
 
         dag.add_node(
             NodeType::StatelessSource(Box::new(source)),
@@ -224,13 +232,21 @@ impl TestPipeline {
         let exec =
             MultiThreadedDagExecutor::start(dag, tmp_dir.into_path(), ExecutorOptions::default())?;
 
-        exec.join().map_err(|errors| {
-            let str = errors
-                .iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<String>>()
-                .join(",");
-            ExecutionError::InternalStringError(str)
-        })
+        match rx.recv() {
+            Ok(schema) => {
+                exec.join().map_err(|errors| {
+                    let str = errors
+                        .iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",");
+                    ExecutionError::InternalStringError(str)
+                })?;
+                Ok(schema)
+            }
+            Err(e) => Err(ExecutionError::InternalStringError(
+                "Schema not sent in the pipeline".to_string(),
+            )),
+        }
     }
 }

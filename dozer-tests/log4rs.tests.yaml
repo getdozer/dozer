@@ -4,7 +4,7 @@ appenders:
     kind: console
   sql:
     kind: file
-    path: "log/sql.log"
+    path: "logs/sql-tests.log"
     encoder:
       pattern: "{m}{n}"
 root:

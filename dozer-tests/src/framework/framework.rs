@@ -1,8 +1,10 @@
 use super::pipeline::TestPipeline;
 use super::{helper::*, SqlMapper};
+use dozer_types::crossbeam::channel::unbounded;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
+use dozer_types::types::Schema;
 use std::sync::{Arc, Mutex};
 
 #[derive(Error, Debug)]
@@ -39,13 +41,14 @@ impl TestFramework {
             ops.clone(),
             self.dest.clone(),
         );
-        pipeline
+
+        let output_schema = pipeline
             .run()
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
-        let source_result = query_sqllite(self.source.clone(), &final_sql)
+        let source_result = query_sqllite(self.source.clone(), &final_sql, &output_schema)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
-        let dest_result = query_sqllite(self.dest.clone(), "select * from results")
+        let dest_result = query_sqllite(self.dest.clone(), "select * from results", &output_schema)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
         Ok(source_result == dest_result)

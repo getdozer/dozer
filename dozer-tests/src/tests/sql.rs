@@ -60,7 +60,6 @@ fn setup() -> TestFramework {
 #[test]
 fn test_queries() {
     let path = std::env::current_dir().unwrap().join("log4rs.tests.yaml");
-    println!("{:?}", path);
     log4rs::init_file(path, Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
@@ -72,22 +71,24 @@ fn test_queries() {
     // let names = vec!["actor", "film", "film_actor"];
 
     let tests = vec![
-        // "select actor_id, first_name, last_name,last_update from actor order by actor_id",
-        // "select actor_id, first_name, last_name,last_update from actor where actor_id<=5",
-        // "select count(actor_id) from actor",
-        // "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)",
-        // "select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'",
-        // "select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2",
-        // "select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>200)",
-        // "select actor_id from actor order by actor_id",
+        "select actor_id, first_name, last_name,last_update from actor order by actor_id",
+        "select actor_id, first_name, last_name,last_update from actor where actor_id<=5",
+        "select count(actor_id) from actor",
+        "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)",
+        "select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'",
+        "select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2",
+        "select actor_id, first_name, last_name,last_update from actor where (actor_id<5 and actor_id>2) or (actor_id>200)",
+        "select actor_id from actor order by actor_id",
         "select actor_id, count(actor_id) from actor group by actor_id",
     ];
 
     let mut results = vec![];
+    let mut idx = 0;
     for test in tests {
         let mut framework = setup();
         let names = vec!["actor"];
         let mut list = vec![];
+
         for name in names {
             let source = framework.source.lock().unwrap();
             let schema = source.get_schema(name.to_string());
@@ -103,18 +104,22 @@ fn test_queries() {
             Ok(true) => "success",
             Ok(false) => "failed",
             Err(e) => {
-                println!("{:?}", e);
+                info!("---------------------------------------------");
+                info!("Error in {}:{}", idx, test);
+                info!("{:?}", e);
+                info!("");
                 "failed"
             }
         };
         results.push((test, success));
+        idx += 1;
     }
 
-    info!("---------------------------------------------");
+    info!("----------------   Report   ------------------");
     info!("");
     let mut idx = 0;
     for (test, result) in results {
-        info!("{}: {}        {}", idx, test, result);
+        info!("{}: {}   {}", idx, test, result);
         idx += 1;
     }
     info!("");
