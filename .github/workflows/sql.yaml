@@ -1,7 +1,7 @@
 name: Dozer Long Running Tests
 
 on:
-  pull_request:
+  push:
     branches: [feat/test-framework]
 
 env:
@@ -47,3 +47,32 @@ jobs:
 
       - name: Run tests
         run: cargo test -- nightly_long_ --ignored
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
+      - uses: keithweaver/aws-s3-github-action@v1.0.0
+        continue-on-error: true
+        with:
+          command: sync
+          source: ./logs/sql.log
+          destination: s3://getdozer/bench-test-result/${{ steps.date.outputs.date }}/sql.log
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+          aws_region: ap-southeast-1
+
+      - name: Post to a Slack channel
+        id: slack
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: "release-notifications"
+          slack-message: |
+            ```
+            Criterion: ${{ job.status }}
+
+            Criterion Report: https://getdozer.s3.ap-southeast-1.amazonaws.com/bench-test-result/${{ steps.date.outputs.date }}/sql.log
+            ```
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
