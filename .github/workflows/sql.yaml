@@ -1,6 +1,9 @@
 name: Dozer Long Running Tests
 
 on:
+  schedule:
+    # 9pm SGT
+    - cron: "0 13 * * *"
   push:
     branches: [feat/test-framework]
 
@@ -57,7 +60,7 @@ jobs:
         with:
           command: cp
           source: ./dozer-tests/logs/sql-tests.log
-          destination: s3://dozer-ci/${{ steps.date.outputs.date }}/sql-tests.log
+          destination: s3://dozer-ci/${{ steps.date.outputs.date }}/sql-tests.txt
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
           aws_region: ap-southeast-1
@@ -70,7 +73,7 @@ jobs:
           channel-id: "release-notifications"
           slack-message: |
             ```
-            SQL log: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/sql-tests.log
+            SQL log: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/sql-tests.txt
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
