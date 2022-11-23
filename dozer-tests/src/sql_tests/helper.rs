@@ -267,7 +267,7 @@ pub fn download(folder_name: &str) {
         .join(format!("../target/debug/{}-data", folder_name));
     let exists = Path::new(&path).is_dir();
     if !exists {
-        Command::new("sh")
+        Command::new("bash")
             .arg("-C")
             .arg(format!("./scripts/download_{}.sh", folder_name))
             .spawn()
