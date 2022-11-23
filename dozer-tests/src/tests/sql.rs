@@ -1,7 +1,7 @@
 use dozer_types::{log::info, log4rs};
 
 use crate::{
-    framework::{download, get_inserts_from_csv},
+    sql_tests::{download, get_inserts_from_csv},
     TestFramework,
 };
 use std::sync::Once;

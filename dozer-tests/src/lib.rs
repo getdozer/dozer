@@ -1,7 +1,7 @@
 #[cfg(test)]
-mod framework;
+mod sql_tests;
 #[cfg(test)]
-pub use framework::TestFramework;
+pub use sql_tests::TestFramework;
 
 #[cfg(test)]
 mod tests;

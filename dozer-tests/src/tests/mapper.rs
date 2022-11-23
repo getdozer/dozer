@@ -1,6 +1,6 @@
 use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
 
-use crate::framework::SqlMapper;
+use crate::sql_tests::SqlMapper;
 
 #[test]
 fn test_framework_to_dozer_types() {
