@@ -1,5 +1,6 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{PortHandle, StatefulSink, StatefulSinkFactory};
+use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
@@ -50,6 +51,7 @@ impl StatefulSink for CountingSink {
         _seq: u64,
         _op: Operation,
         _state: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

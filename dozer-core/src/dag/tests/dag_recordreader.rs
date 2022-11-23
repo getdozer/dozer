@@ -16,6 +16,7 @@ use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -148,10 +149,10 @@ impl StatelessProcessor for RecordReaderProcessor {
 
 #[test]
 fn test_run_dag_reacord_reader() {
-    // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
-    //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
+        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(10_000);
+    let src = GeneratorSourceFactory::new(1_000_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(1_000);
@@ -203,7 +204,7 @@ fn test_run_dag_reacord_reader() {
 
     let exec = chk!(MultiThreadedDagExecutor::start(
         dag,
-        tmp_dir.into_path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 
@@ -254,7 +255,7 @@ fn test_run_dag_reacord_reader_from_stateful_src() {
 
     let exec = chk!(MultiThreadedDagExecutor::start(
         dag,
-        tmp_dir.into_path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 
@@ -308,7 +309,7 @@ fn test_run_dag_reacord_reader_from_stateful_src_timeout() {
 
     let exec = chk!(MultiThreadedDagExecutor::start(
         dag,
-        tmp_dir.into_path(),
+        tmp_dir.path(),
         exec_opts
     ));
 

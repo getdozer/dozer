@@ -57,7 +57,7 @@ fn test_run_dag() {
 
     let exec = chk!(MultiThreadedDagExecutor::start(
         dag,
-        tmp_dir.into_path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 

@@ -128,6 +128,7 @@ impl StatelessSink for DynPortsSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

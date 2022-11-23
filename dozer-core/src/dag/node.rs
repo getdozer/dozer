@@ -136,6 +136,7 @@ pub trait StatelessSink {
         from_port: PortHandle,
         seq: u64,
         op: Operation,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -156,5 +157,6 @@ pub trait StatefulSink {
         seq: u64,
         op: Operation,
         state: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
 }

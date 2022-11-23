@@ -60,7 +60,6 @@ pub(crate) fn requires_schema_update(
     input_schemas: &mut HashMap<PortHandle, Schema>,
     input_ports: &[PortHandle],
 ) -> bool {
-    input_schemas.insert(*port_handle, new);
     let count = input_ports
         .iter()
         .filter(|e| !input_schemas.contains_key(*e))

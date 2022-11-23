@@ -21,6 +21,11 @@ pub struct LmdbEnvironmentManager {
 }
 
 impl LmdbEnvironmentManager {
+    pub fn exists(path: &Path, name: &str) -> bool {
+        let full_path = path.join(Path::new(name));
+        Path::exists(full_path.as_path())
+    }
+
     pub fn create(
         base_path: &Path,
         name: &str,

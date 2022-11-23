@@ -159,4 +159,37 @@ impl Dag {
             ));
         }
     }
+
+    fn get_node_children(&self, handle: &NodeHandle) -> Vec<NodeHandle> {
+        self.edges
+            .iter()
+            .filter(|e| &e.from.node == handle)
+            .map(|e| e.to.node.clone())
+            .collect()
+    }
+
+    pub fn get_sources(&self) -> Vec<NodeHandle> {
+        self.nodes
+            .iter()
+            .filter(|source| {
+                matches!(source.1, NodeType::StatefulSource(_))
+                    || matches!(source.1, NodeType::StatelessSource(_))
+            })
+            .map(|e| e.0.clone())
+            .collect()
+    }
+
+    pub fn is_stateful(&self, handle: &NodeHandle) -> Result<bool, ExecutionError> {
+        let node = self
+            .nodes
+            .get(handle)
+            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+
+        Ok(match node {
+            NodeType::StatelessProcessor(_) => true,
+            NodeType::StatefulSource(_) => true,
+            NodeType::StatefulSink(_) => true,
+            _ => false,
+        })
+    }
 }
