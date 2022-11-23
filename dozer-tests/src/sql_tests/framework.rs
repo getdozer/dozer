@@ -35,12 +35,8 @@ impl TestFramework {
             .execute_list(list)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
-        let mut pipeline = TestPipeline::new(
-            final_sql.clone(),
-            source_schema,
-            ops,
-            self.dest.clone(),
-        );
+        let mut pipeline =
+            TestPipeline::new(final_sql.clone(), source_schema, ops, self.dest.clone());
 
         let output_schema = pipeline
             .run()

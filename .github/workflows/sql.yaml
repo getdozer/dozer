@@ -1,8 +1,8 @@
-name: Dozer CI
+name: Dozer Long Running Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [feat/test-framework]
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,13 +12,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  test_long:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Check for println!()
-        run: (! grep -R -a -n --include "*.rs" --exclude-dir target "println\!" *)
 
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
@@ -48,15 +45,5 @@ jobs:
             ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
             ${{ runner.os }}-cargo-
 
-      - name: Clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -D warnings
-
-      - name: Lint
-        run: |
-          cargo fmt -- --check
-
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test -- nightly_long_ --ignored

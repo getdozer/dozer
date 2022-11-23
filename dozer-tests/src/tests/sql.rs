@@ -58,7 +58,8 @@ fn setup() -> TestFramework {
 }
 
 #[test]
-fn test_queries() {
+#[ignore]
+fn nightly_long_test_queries() {
     let path = std::env::current_dir().unwrap().join("log4rs.tests.yaml");
     log4rs::init_file(path, Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
