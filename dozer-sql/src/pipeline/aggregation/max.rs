@@ -1,7 +1,6 @@
 use std::cmp::max;
-use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
-use dozer_types::types::Field::{Float, Int};
+use dozer_types::types::Field::Int;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
