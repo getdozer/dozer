@@ -4,11 +4,13 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor_local::ExecutorOptions;
 use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{
-    PortHandle, StatelessSink, StatelessSinkFactory, StatelessSource, StatelessSourceFactory,
+    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 
+use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::{unbounded, Sender};
 use dozer_types::log::debug;
 use dozer_types::types::{Operation, Schema};
@@ -41,11 +43,14 @@ impl TestSourceFactory {
     }
 }
 
-impl StatelessSourceFactory for TestSourceFactory {
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
+impl SourceFactory for TestSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        self.output_ports
+            .iter()
+            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .collect()
     }
-    fn build(&self) -> Box<dyn StatelessSource> {
+    fn build(&self) -> Box<dyn Source> {
         Box::new(TestSource {
             schema: self.schema.to_owned(),
             ops: self.ops.to_owned(),
@@ -58,7 +63,7 @@ pub struct TestSource {
     ops: Vec<Operation>,
 }
 
-impl StatelessSource for TestSource {
+impl Source for TestSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(self.schema.to_owned())
     }
@@ -94,11 +99,11 @@ impl TestSinkFactory {
     }
 }
 
-impl StatelessSinkFactory for TestSinkFactory {
+impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn StatelessSink> {
+    fn build(&self) -> Box<dyn Sink> {
         Box::new(TestSink::new(self.mapper.clone(), self.tx.clone()))
     }
 }
@@ -119,7 +124,7 @@ impl TestSink {
     }
 }
 
-impl StatelessSink for TestSink {
+impl Sink for TestSink {
     fn update_schema(
         &mut self,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -140,7 +145,7 @@ impl StatelessSink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -150,6 +155,8 @@ impl StatelessSink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         op: Operation,
+        _state: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let sql = self
             .mapper
@@ -203,11 +210,8 @@ impl TestPipeline {
         let source = TestSourceFactory::new(self.schema.clone(), self.ops.to_owned());
         let sink = TestSinkFactory::new(self.mapper.clone(), tx);
 
-        dag.add_node(
-            NodeType::StatelessSource(Box::new(source)),
-            "source".to_string(),
-        );
-        dag.add_node(NodeType::StatelessSink(Box::new(sink)), "sink".to_string());
+        dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
+        dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
 
         for (_table_name, endpoint) in in_handle.into_iter() {
             dag.connect(
@@ -232,7 +236,7 @@ impl TestPipeline {
         fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
         let exec =
-            MultiThreadedDagExecutor::start(dag, tmp_dir.into_path(), ExecutorOptions::default())?;
+            MultiThreadedDagExecutor::start(dag, tmp_dir.path(), ExecutorOptions::default())?;
 
         match rx.recv() {
             Ok(schema) => {

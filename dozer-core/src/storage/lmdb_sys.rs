@@ -5,7 +5,7 @@ use lmdb_sys::{
     mdb_del, mdb_env_close, mdb_env_create, mdb_env_open, mdb_env_set_mapsize, mdb_env_set_maxdbs,
     mdb_env_set_maxreaders, mdb_get, mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit,
     MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_APPEND, MDB_APPENDDUP,
-    MDB_CREATE, MDB_CURRENT, MDB_DBS_FULL, MDB_DUPFIXED, MDB_DUPSORT, MDB_GET_CURRENT,
+    MDB_CREATE, MDB_CURRENT, MDB_DBS_FULL, MDB_DUPFIXED, MDB_DUPSORT, MDB_FIRST, MDB_GET_CURRENT,
     MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA,
     MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_NOTLS,
     MDB_PANIC, MDB_PREV, MDB_RDONLY, MDB_READERS_FULL, MDB_RESERVE, MDB_SET, MDB_SET_RANGE,
@@ -791,6 +791,15 @@ impl Cursor {
 
     pub fn next(&self) -> Result<bool, LmdbError> {
         let r = self.internal_get_cursor_op(MDB_NEXT, None, None);
+        match r {
+            Ok(Some(_v)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn first(&self) -> Result<bool, LmdbError> {
+        let r = self.internal_get_cursor_op(MDB_FIRST, None, None);
         match r {
             Ok(Some(_v)) => Ok(true),
             Ok(None) => Ok(false),

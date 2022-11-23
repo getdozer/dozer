@@ -4,9 +4,8 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor_local::ExecutorOperation;
 use crate::dag::node::{
-    NodeHandle, PortHandle, StatefulPortHandle, StatefulPortHandleOptions,
-    StatefulProcessorFactory, StatefulSinkFactory, StatefulSourceFactory,
-    StatelessProcessorFactory, StatelessSinkFactory, StatelessSourceFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, ProcessorFactory, SinkFactory,
+    SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
@@ -19,7 +18,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
+pub(crate) const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
 pub(crate) struct StorageMetadata {
     pub env: Box<dyn EnvironmentManager>,
@@ -55,12 +54,11 @@ pub(crate) fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Selec
 }
 
 pub(crate) fn requires_schema_update(
-    new: Schema,
-    port_handle: &PortHandle,
+    _new: Schema,
+    _port_handle: &PortHandle,
     input_schemas: &mut HashMap<PortHandle, Schema>,
     input_ports: &[PortHandle],
 ) -> bool {
-    input_schemas.insert(*port_handle, new);
     let count = input_ports
         .iter()
         .filter(|e| !input_schemas.contains_key(*e))
@@ -149,27 +147,12 @@ pub(crate) fn index_edges(
     (senders, receivers)
 }
 
-pub(crate) enum SourceHolder {
-    Stateful(Box<dyn StatefulSourceFactory>),
-    Stateless(Box<dyn StatelessSourceFactory>),
-}
-
-pub(crate) enum ProcessorHolder {
-    Stateful(Box<dyn StatefulProcessorFactory>),
-    Stateless(Box<dyn StatelessProcessorFactory>),
-}
-
-pub(crate) enum SinkHolder {
-    Stateful(Box<dyn StatefulSinkFactory>),
-    Stateless(Box<dyn StatelessSinkFactory>),
-}
-
 pub(crate) fn get_node_types_and_edges(
     dag: Dag,
 ) -> (
-    Vec<(NodeHandle, SourceHolder)>,
-    Vec<(NodeHandle, ProcessorHolder)>,
-    Vec<(NodeHandle, SinkHolder)>,
+    Vec<(NodeHandle, Box<dyn SourceFactory>)>,
+    Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
+    Vec<(NodeHandle, Box<dyn SinkFactory>)>,
     Vec<Edge>,
 ) {
     let mut sources = Vec::new();
@@ -178,18 +161,9 @@ pub(crate) fn get_node_types_and_edges(
 
     for node in dag.nodes.into_iter() {
         match node.1 {
-            NodeType::StatefulSource(s) => sources.push((node.0, SourceHolder::Stateful(s))),
-            NodeType::StatelessSource(s) => sources.push((node.0, SourceHolder::Stateless(s))),
-
-            NodeType::StatefulProcessor(s) => {
-                processors.push((node.0, ProcessorHolder::Stateful(s)))
-            }
-            NodeType::StatelessProcessor(s) => {
-                processors.push((node.0, ProcessorHolder::Stateless(s)))
-            }
-
-            NodeType::StatefulSink(s) => sinks.push((node.0, SinkHolder::Stateful(s))),
-            NodeType::StatelessSink(s) => sinks.push((node.0, SinkHolder::Stateless(s))),
+            NodeType::Source(s) => sources.push((node.0, s)),
+            NodeType::Processor(s) => processors.push((node.0, s)),
+            NodeType::Sink(s) => sinks.push((node.0, s)),
         }
     }
     (sources, processors, sinks, dag.edges)
@@ -225,12 +199,12 @@ const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
 pub(crate) struct StateOptions {
     pub(crate) db: Database,
-    pub(crate) options: StatefulPortHandleOptions,
+    pub(crate) options: OutputPortDefOptions,
 }
 
 pub(crate) fn create_ports_databases(
     env: &mut dyn Environment,
-    ports: &Vec<StatefulPortHandle>,
+    ports: &Vec<OutputPortDef>,
 ) -> Result<HashMap<PortHandle, StateOptions>, StorageError> {
     let mut port_databases = HashMap::<PortHandle, StateOptions>::new();
     for out_port in ports {
@@ -257,7 +231,7 @@ pub(crate) fn fill_ports_record_readers(
     port_databases: &HashMap<PortHandle, StateOptions>,
     master_tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
     record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    output_ports: &Vec<StatefulPortHandle>,
+    output_ports: &Vec<OutputPortDef>,
 ) {
     for out_port in output_ports {
         if out_port.options.stateful {

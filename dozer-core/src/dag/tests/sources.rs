@@ -1,9 +1,6 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::{
-    PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulSource,
-    StatefulSourceFactory, StatelessSource, StatelessSourceFactory,
-};
+use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::thread;
 use std::time::Duration;
@@ -20,11 +17,14 @@ impl GeneratorSourceFactory {
     }
 }
 
-impl StatelessSourceFactory for GeneratorSourceFactory {
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![GENERATOR_SOURCE_OUTPUT_PORT]
+impl SourceFactory for GeneratorSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
+            GENERATOR_SOURCE_OUTPUT_PORT,
+            OutputPortDefOptions::default(),
+        )]
     }
-    fn build(&self) -> Box<dyn StatelessSource> {
+    fn build(&self) -> Box<dyn Source> {
         Box::new(GeneratorSource { count: self.count })
     }
 }
@@ -33,7 +33,7 @@ pub(crate) struct GeneratorSource {
     count: u64,
 }
 
-impl StatelessSource for GeneratorSource {
+impl Source for GeneratorSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
@@ -90,14 +90,14 @@ impl StatefulGeneratorSourceFactory {
     }
 }
 
-impl StatefulSourceFactory for StatefulGeneratorSourceFactory {
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(
+impl SourceFactory for StatefulGeneratorSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
-            StatefulPortHandleOptions::new(true, true, true),
+            OutputPortDefOptions::new(true, true, true),
         )]
     }
-    fn build(&self) -> Box<dyn StatefulSource> {
+    fn build(&self) -> Box<dyn Source> {
         Box::new(StatefulGeneratorSource {
             count: self.count,
             sleep: self.sleep,
@@ -110,7 +110,7 @@ pub(crate) struct StatefulGeneratorSource {
     sleep: Duration,
 }
 
-impl StatefulSource for StatefulGeneratorSource {
+impl Source for StatefulGeneratorSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()

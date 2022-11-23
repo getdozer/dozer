@@ -4,8 +4,11 @@ use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{PortHandle, StatelessProcessor, StatelessProcessorFactory};
+use dozer_core::dag::node::{
+    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+};
 use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 use log::info;
 use sqlparser::ast::Expr as SqlExpr;
@@ -22,16 +25,19 @@ impl SelectionProcessorFactory {
     }
 }
 
-impl StatelessProcessorFactory for SelectionProcessorFactory {
+impl ProcessorFactory for SelectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortDefOptions::default(),
+        )]
     }
 
-    fn build(&self) -> Box<dyn StatelessProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(SelectionProcessor {
             statement: self.statement.clone(),
             expression: Box::new(Expression::Literal(Field::Boolean(true))),
@@ -70,7 +76,7 @@ impl SelectionProcessor {
     }
 }
 
-impl StatelessProcessor for SelectionProcessor {
+impl Processor for SelectionProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,
@@ -81,7 +87,7 @@ impl StatelessProcessor for SelectionProcessor {
         Ok(schema.clone())
     }
 
-    fn init<'a>(&'_ mut self) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Selection Processor");
         Ok(())
     }
@@ -91,6 +97,7 @@ impl StatelessProcessor for SelectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
+        _tx: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         match op {

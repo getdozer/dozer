@@ -26,10 +26,10 @@ fn test_run_dag() {
 
     let mut dag = Dag::new();
 
-    dag.add_node(NodeType::StatelessSource(Box::new(src)), 1.to_string());
-    dag.add_node(NodeType::StatefulProcessor(Box::new(proc1)), 2.to_string());
-    dag.add_node(NodeType::StatefulProcessor(Box::new(proc2)), 3.to_string());
-    dag.add_node(NodeType::StatelessSink(Box::new(sink)), 4.to_string());
+    dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc1)), 2.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc2)), 3.to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
 
     let src_to_proc1 = dag.connect(
         Endpoint::new(1.to_string(), DEFAULT_PORT_HANDLE),
@@ -57,7 +57,7 @@ fn test_run_dag() {
 
     let exec = chk!(MultiThreadedDagExecutor::start(
         dag,
-        tmp_dir.into_path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 
