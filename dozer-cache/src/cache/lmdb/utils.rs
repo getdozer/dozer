@@ -40,8 +40,14 @@ pub fn init_env(options: &CacheOptions) -> Result<Environment, CacheError> {
             let env = env
                 .set_flags(EnvironmentFlags::READ_ONLY)
                 .set_max_dbs(options.max_db_size);
-            env.open(Path::new(&options.path))
-                .map_err(|e| CacheError::InternalError(Box::new(e)))
+
+            env.open(Path::new(
+                &options
+                    .path
+                    .as_ref()
+                    .map_or(Err(CacheError::PathNotInitialized), Ok)?,
+            ))
+            .map_err(|e| CacheError::InternalError(Box::new(e)))
         }
     }
 }

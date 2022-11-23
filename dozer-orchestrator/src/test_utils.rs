@@ -40,6 +40,8 @@ pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
         init_endpoint(),
         Mutex::new(input_schemas),
         None,
+        1,
+        1,
     );
     (cache, sink)
 }

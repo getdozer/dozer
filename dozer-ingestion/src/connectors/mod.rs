@@ -1,6 +1,7 @@
 pub mod ethereum;
 pub mod events;
 pub mod postgres;
+
 use crate::connectors::postgres::connection::helper::map_connection_config;
 
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
@@ -14,8 +15,16 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+#[cfg(feature = "snowflake")]
+pub mod snowflake;
+
+#[cfg(feature = "snowflake")]
+use crate::connectors::snowflake::connector::SnowflakeConnector;
+
+#[cfg(feature = "snowflake")]
+use dozer_types::ingestion_types::SnowflakeConfig;
 
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
@@ -31,7 +40,7 @@ pub trait Connector: Send + Sync {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
-    fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError>;
+    fn start(&self) -> Result<(), ConnectorError>;
     fn stop(&self);
     fn validate(&self) -> Result<(), ConnectorError>;
 }
@@ -69,5 +78,29 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             Ok(Box::new(EthConnector::new(2, eth_config)))
         }
         Authentication::Events {} => Ok(Box::new(EventsConnector::new(3, connection.name))),
+        #[cfg(feature = "snowflake")]
+        Authentication::SnowflakeAuthentication {
+            server,
+            port,
+            user,
+            password,
+            database,
+            schema,
+            warehouse,
+            driver,
+        } => {
+            let snowflake_config = SnowflakeConfig {
+                server,
+                port,
+                user,
+                password,
+                database,
+                schema,
+                warehouse,
+                driver,
+            };
+
+            Ok(Box::new(SnowflakeConnector::new(4, snowflake_config)))
+        }
     }
 }

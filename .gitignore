@@ -16,5 +16,9 @@ dozer-sql/data
 
 # Local configuration for development
 dozer-config.yaml
+dozer-config.test.*
 log4rs.yaml
 .DS_Store
+
+.dozer/
+logs/

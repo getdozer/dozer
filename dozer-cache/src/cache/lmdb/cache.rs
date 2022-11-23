@@ -3,22 +3,18 @@ use std::sync::{Arc, RwLock};
 
 use dozer_types::bincode;
 
-use lmdb::{
-    Database, Environment, Error as LmdbError, RoTransaction, RwTransaction, Transaction,
-    WriteFlags,
-};
+use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
 
 use dozer_types::types::{IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
-use lmdb_sys::{mdb_set_compare, MDB_val, MDB_SUCCESS};
 
 use super::super::Cache;
 use super::indexer::Indexer;
 use super::query::handler::LmdbQueryHandler;
 use super::query::helper;
-use super::{utils, CacheOptions};
+use super::{comparator, utils, CacheOptions};
 use crate::cache::expression::QueryExpression;
-use crate::cache::index::{self, compare_secondary_index};
+use crate::cache::index;
 use crate::errors::{CacheError, QueryError};
 
 pub struct IndexMetaData {
@@ -71,6 +67,10 @@ pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
 }
 
 impl LmdbCache {
+    pub fn init_txn(&self) -> RwTransaction {
+        let txn = self.env.begin_rw_txn().unwrap();
+        txn
+    }
     pub fn new(cache_options: CacheOptions) -> Result<Self, CacheError> {
         let env = utils::init_env(&cache_options)?;
         let db = utils::init_db(&env, Some("records"), &cache_options)?;
@@ -84,7 +84,7 @@ impl LmdbCache {
         })
     }
 
-    fn _insert(
+    pub fn _insert(
         &self,
         txn: &mut RwTransaction,
         rec: &Record,
@@ -108,7 +108,7 @@ impl LmdbCache {
         Ok(())
     }
 
-    fn _insert_schema(
+    pub fn _insert_schema(
         &self,
         txn: &mut RwTransaction,
         schema: &Schema,
@@ -181,10 +181,24 @@ impl LmdbCache {
         Ok(schema)
     }
 
-    fn _delete(&self, key: &[u8]) -> Result<(), LmdbError> {
-        let mut txn: RwTransaction = self.env.begin_rw_txn()?;
-        txn.del(self.db, &key, None)?;
-        txn.commit()?;
+    pub fn _delete(&self, key: &[u8], txn: &mut RwTransaction) -> Result<(), CacheError> {
+        txn.del(self.db, &key, None)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        Ok(())
+    }
+
+    pub fn _update(
+        &self,
+        key: &[u8],
+        rec: &Record,
+        schema: &Schema,
+        txn: &mut RwTransaction,
+    ) -> Result<(), CacheError> {
+        txn.del(self.db, &key, None)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+
+        self._insert(txn, rec, schema)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
     }
 }
@@ -208,8 +222,16 @@ impl Cache for LmdbCache {
     }
 
     fn delete(&self, key: &[u8]) -> Result<(), CacheError> {
-        self._delete(key)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))
+        let mut txn: RwTransaction = self
+            .env
+            .begin_rw_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+
+        self._delete(key, &mut txn)?;
+
+        txn.commit()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        Ok(())
     }
 
     fn get(&self, key: &[u8]) -> Result<Record, CacheError> {
@@ -239,10 +261,7 @@ impl Cache for LmdbCache {
             .env
             .begin_rw_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        txn.del(self.db, &key, None)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-
-        self._insert(&mut txn, rec, schema)?;
+        self._update(key, rec, schema, &mut txn)?;
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
@@ -271,18 +290,8 @@ impl Cache for LmdbCache {
             let name = format!("index_#{}", key);
             let db = utils::init_db(&self.env, Some(&name), &self.cache_options)?;
 
-            if let IndexDefinition::SortedInverted(_) = index {
-                let txn = self
-                    .env
-                    .begin_rw_txn()
-                    .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-                unsafe {
-                    assert_eq!(
-                        mdb_set_compare(txn.txn(), db.dbi(), Some(compare_sorted_inverted_key)),
-                        MDB_SUCCESS
-                    );
-                }
-                txn.commit()
+            if let IndexDefinition::SortedInverted(fields) = index {
+                comparator::set_sorted_inverted_comparator(&self.env, db, schema, fields)
                     .map_err(|e| CacheError::InternalError(Box::new(e)))?;
             }
 
@@ -297,22 +306,5 @@ impl Cache for LmdbCache {
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
-    }
-}
-
-unsafe fn mdb_val_to_slice(val: &MDB_val) -> &[u8] {
-    std::slice::from_raw_parts(val.mv_data as *const u8, val.mv_size)
-}
-
-unsafe extern "C" fn compare_sorted_inverted_key(
-    a: *const MDB_val,
-    b: *const MDB_val,
-) -> std::ffi::c_int {
-    match compare_secondary_index(mdb_val_to_slice(&*a), mdb_val_to_slice(&*b)) {
-        Ok(ordering) => ordering as std::ffi::c_int,
-        Err(e) => {
-            dozer_types::log::error!("Error deserializing secondary index key: {}", e);
-            0
-        }
     }
 }

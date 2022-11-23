@@ -2,13 +2,11 @@ use crate::connectors::TableInfo;
 
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::bincode;
 use dozer_types::log::debug;
 
 use dozer_types::parking_lot::RwLock;
-use postgres_types::PgLsn;
 use std::cell::RefCell;
-use std::sync::atomic::AtomicBool;
+
 use std::sync::Arc;
 
 use crate::connectors::postgres::connection::helper;
@@ -19,6 +17,7 @@ use tokio::runtime::Runtime;
 use tokio_postgres::SimpleQueryMessage;
 
 pub struct Details {
+    #[allow(dead_code)]
     id: u64,
     publication_name: String,
     slot_name: String,
@@ -67,7 +66,7 @@ impl PostgresIterator {
 }
 
 impl PostgresIterator {
-    pub fn start(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    pub fn start(&self) -> Result<(), ConnectorError> {
         let lsn = RefCell::new(self.get_last_lsn_for_connection()?);
         let state = RefCell::new(ReplicationState::Pending);
         let details = self.details.clone();
@@ -81,26 +80,12 @@ impl PostgresIterator {
             lsn,
             connector_id,
         };
-        stream_inner._start(running)
+        stream_inner._start()
     }
 
     pub fn get_last_lsn_for_connection(&self) -> Result<Option<String>, ConnectorError> {
-        let storage_client = self.ingestor.read().storage_client.clone();
-        let commit_key = storage_client.get_commit_message_key(&(self.details.id as usize));
-        let commit_message = storage_client.get_db().get(commit_key);
-        match commit_message {
-            Ok(Some(value)) => {
-                let (_, message): (usize, u64) = bincode::deserialize(value.as_slice())
-                    .map_err(ConnectorError::map_bincode_serialization_error)?;
-                if message == 0 {
-                    Ok(None)
-                } else {
-                    debug!("lsn: {:?}", PgLsn::from(message).to_string());
-                    Ok(Some(PgLsn::from(message).to_string()))
-                }
-            }
-            _ => Ok(None),
-        }
+        // TODO: implement logic of getting last lsn from pipeline
+        Ok(None)
     }
 }
 
@@ -126,7 +111,7 @@ impl PostgresIteratorHandler {
         3) Replicating
         - Replicate CDC events using lsn
     */
-    pub fn _start(&mut self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    pub fn _start(&mut self) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
         let client = Arc::new(RefCell::new(helper::connect(replication_conn_config)?));
@@ -179,7 +164,7 @@ impl PostgresIteratorHandler {
         self.state.clone().replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
-        self.replicate(running)
+        self.replicate()
     }
 
     fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) {
@@ -249,7 +234,7 @@ impl PostgresIteratorHandler {
         }
     }
 
-    fn replicate(&self, running: Arc<AtomicBool>) -> Result<(), ConnectorError> {
+    fn replicate(&self) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let ingestor = self.ingestor.clone();
         let lsn = self.lsn.borrow();
@@ -269,7 +254,7 @@ impl PostgresIteratorHandler {
                 last_commit_lsn: 0,
                 connector_id: self.connector_id,
             };
-            replicator.start(running).await
+            replicator.start().await
         })
     }
 }

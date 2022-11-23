@@ -1,4 +1,5 @@
 use std::{
+    fs,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -20,8 +21,9 @@ use dozer_types::{
 };
 use log::warn;
 use serde_json::{json, Value};
+use tempdir::TempDir;
 
-use super::executor::Executor;
+use super::executor::{Executor, SinkConfig};
 
 #[test]
 fn single_source_sink() {
@@ -61,6 +63,7 @@ fn single_source_sink() {
     let ingestor2 = ingestor.clone();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
+    let executor_running = running.clone();
 
     let schema = test_utils::schema_1();
     // Initialize a schema.
@@ -82,8 +85,26 @@ fn single_source_sink() {
         (7, "james".to_string(), 528),
     ];
 
+    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    if tmp_dir.path().exists() {
+        fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+    }
+    fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+
+    let tmp_path = tmp_dir.path().to_owned();
     let _thread = thread::spawn(move || {
-        let executor = Executor::new(vec![source], vec![cache_endpoint], ingestor, iterator);
+        let executor = Executor::new(
+            vec![source],
+            vec![cache_endpoint],
+            ingestor,
+            iterator,
+            executor_running,
+            tmp_path,
+            SinkConfig {
+                record_cutoff: 1,
+                timeout: 1,
+            },
+        );
         match executor.run(None, running) {
             Ok(_) => {}
             Err(e) => warn!("Exiting: {:?}", e),
@@ -109,7 +130,7 @@ fn single_source_sink() {
     }
 
     // Allow for the thread to process the records
-    thread::sleep(Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(3000));
     //Shutdown the thread
     r.store(false, Ordering::SeqCst);
 

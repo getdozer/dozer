@@ -8,9 +8,9 @@ use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
-use log::debug;
+
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+
 use std::sync::Arc;
 use std::thread;
 
@@ -18,7 +18,6 @@ pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
     connection_map: HashMap<String, Vec<String>>,
     table_map: HashMap<String, u16>,
-    running: Arc<AtomicBool>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
 }
@@ -28,7 +27,6 @@ impl ConnectorSourceFactory {
         connections: Vec<Connection>,
         connection_map: HashMap<String, Vec<String>>,
         table_map: HashMap<String, u16>,
-        running: Arc<AtomicBool>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Self {
@@ -36,7 +34,6 @@ impl ConnectorSourceFactory {
             connections,
             connection_map,
             table_map,
-            running,
             ingestor,
             iterator,
         }
@@ -55,7 +52,6 @@ impl StatelessSourceFactory for ConnectorSourceFactory {
         Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
             connection_map: self.connection_map.to_owned(),
-            running: self.running.to_owned(),
             ingestor: self.ingestor.to_owned(),
             iterator: self.iterator.clone(),
             table_map: self.table_map.clone(),
@@ -69,7 +65,6 @@ pub struct ConnectorSource {
     // Connection Index in the array to List of Tables
     connection_map: HashMap<String, Vec<String>>,
     table_map: HashMap<String, u16>,
-    running: Arc<AtomicBool>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
 }
@@ -85,7 +80,6 @@ impl StatelessSource for ConnectorSource {
             let connection = connection.clone();
             let ingestor = self.ingestor.clone();
             let connection_map = self.connection_map.clone();
-            let ra = self.running.clone();
             let t = thread::spawn(move || -> Result<(), ConnectorError> {
                 let mut connector = get_connector(connection.to_owned())?;
 
@@ -109,7 +103,7 @@ impl StatelessSource for ConnectorSource {
                     .collect();
 
                 connector.initialize(ingestor, Some(tables))?;
-                connector.start(ra)?;
+                connector.start()?;
                 Ok(())
             });
             threads.push(t);
@@ -117,12 +111,6 @@ impl StatelessSource for ConnectorSource {
 
         let mut schema_map: HashMap<u32, u16> = HashMap::new();
         loop {
-            // shutdown signal
-            if !self.running.load(Ordering::SeqCst) {
-                debug!("Exiting Executor on Ctrl-C");
-                fw.terminate().unwrap();
-                return Ok(());
-            }
             // Keep a reference of schema to table mapping
             let msg = self.iterator.write().next();
             if let Some(msg) = msg {

@@ -2,8 +2,9 @@ use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{
-    PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory, StatelessSink,
-    StatelessSinkFactory, StatelessSource, StatelessSourceFactory,
+    PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
+    StatefulProcessorFactory, StatelessSink, StatelessSinkFactory, StatelessSource,
+    StatelessSourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, RwTransaction};
@@ -156,7 +157,7 @@ impl StatefulProcessorFactory for DynPortsProcessorFactory {
         self.output_ports
             .clone()
             .iter()
-            .map(|e| StatefulPortHandle::new(*e, false))
+            .map(|e| StatefulPortHandle::new(*e, StatefulPortHandleOptions::default()))
             .collect()
     }
     fn build(&self) -> Box<dyn StatefulProcessor> {

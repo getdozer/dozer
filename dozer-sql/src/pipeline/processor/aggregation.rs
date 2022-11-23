@@ -9,7 +9,8 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{
-    PortHandle, StatefulPortHandle, StatefulProcessor, StatefulProcessorFactory,
+    PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
+    StatefulProcessorFactory,
 };
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
@@ -71,7 +72,10 @@ impl StatefulProcessorFactory for AggregationProcessorFactory {
     }
 
     fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(DEFAULT_PORT_HANDLE, false)]
+        vec![StatefulPortHandle::new(
+            DEFAULT_PORT_HANDLE,
+            StatefulPortHandleOptions::default(),
+        )]
     }
 
     fn build(&self) -> Box<dyn StatefulProcessor> {

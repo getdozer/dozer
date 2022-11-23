@@ -1,7 +1,7 @@
-use crate::api_server::PipelineDetails;
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use crate::generator::oapi::generator::OpenApiGenerator;
+use crate::PipelineDetails;
 use dozer_cache::cache::{expression::QueryExpression, index};
 use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};
@@ -112,13 +112,5 @@ impl ApiHelper {
     pub fn get_schema(&self) -> Result<Schema, CacheError> {
         let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
         Ok(schema)
-    }
-
-    pub fn convert_record_to_json(
-        &self,
-        record: Record,
-    ) -> Result<IndexMap<String, String>, CacheError> {
-        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
-        record_to_json(&record, &schema).map_err(CacheError::TypeError)
     }
 }

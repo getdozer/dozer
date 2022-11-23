@@ -1,23 +1,18 @@
 mod cli;
-
 use clap::Parser;
-use dozer_orchestrator::errors::OrchestrationError;
-use log::warn;
 
-use crate::cli::{load_config, Args, SubCommand};
+use cli::load_config;
+use cli::types::{ApiCommands, AppCommands, Cli, Commands};
+use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
+use log::warn;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
-fn run(config_path: String) -> Result<(), OrchestrationError> {
-    let configuration = load_config(config_path)?;
-    let mut dozer = Dozer::new();
-    dozer.add_sources(configuration.sources);
-    dozer.add_endpoints(configuration.endpoints);
-    dozer.run()
-}
-fn generate_token() -> Result<(), OrchestrationError> {
-    todo!()
-}
 fn main() -> Result<(), OrchestrationError> {
     log4rs::init_file("log4rs.yaml", Default::default())
         .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
@@ -30,13 +25,41 @@ fn main() -> Result<(), OrchestrationError> {
      | |_| | |_| / /_| |___|  _ <
      |____/ \\___/____|_____|_| \\_\\"
     );
-    let args = Args::parse();
 
-    if let Some(cmd) = args.cmd {
+    let cli = Cli::parse();
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    let running_api = running.clone();
+
+    // run all
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    let configuration = load_config(cli.config_path)?;
+    let path = Path::new("./.dozer").to_owned();
+    let mut dozer = Dozer::new(path);
+    dozer.add_sources(configuration.sources);
+    dozer.add_endpoints(configuration.endpoints);
+
+    if let Some(cmd) = cli.cmd {
+        // run individual servers
         match cmd {
-            SubCommand::GenerateToken => generate_token(),
+            Commands::Api(api) => match api.command {
+                ApiCommands::Run => dozer.run_api(running),
+                ApiCommands::GenerateToken => todo!(),
+            },
+            Commands::App(apps) => match apps.command {
+                AppCommands::Run => dozer.run_apps(running),
+            },
+            Commands::Ps => todo!(),
         }
     } else {
-        run(args.config_path)
+        let mut dozer_api = dozer.clone();
+        thread::spawn(move || dozer.run_apps(running));
+
+        thread::sleep(Duration::from_millis(200));
+        dozer_api.run_api(running_api)
     }
 }

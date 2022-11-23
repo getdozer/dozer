@@ -15,10 +15,11 @@ use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
-use log::warn;
+use log::{info, warn};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -61,13 +62,24 @@ impl SourceChannelForwarder for InternalChannelSourceForwarder {
 }
 
 fn process_message(
+    stop_req: &Arc<AtomicBool>,
     owner: &NodeHandle,
     r: Result<ExecutorOperation, RecvTimeoutError>,
     dag_fw: &mut LocalChannelForwarder,
     port: PortHandle,
+    _stateful: bool,
 ) -> Result<bool, ExecutionError> {
+    if stop_req.load(Ordering::Relaxed) {
+        info!("[{}] Stop requested...", owner);
+        dag_fw.terminate()?;
+        return Ok(true);
+    }
+
     match r {
-        Err(RecvTimeoutError::Timeout) => Ok(false),
+        Err(RecvTimeoutError::Timeout) => {
+            dag_fw.trigger_commit_if_needed()?;
+            Ok(false)
+        }
         Err(RecvTimeoutError::Disconnected) => {
             warn!("[{}] Source exited. Shutting down...", owner);
             Ok(true)
@@ -97,10 +109,12 @@ fn process_message(
 }
 
 pub(crate) fn start_stateless_source(
+    stop_req: Arc<AtomicBool>,
     handle: NodeHandle,
     src_factory: Box<dyn StatelessSourceFactory>,
     out_channels: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     commit_size: u32,
+    commit_time: Duration,
     channel_buffer: usize,
     _base_path: PathBuf,
 ) -> JoinHandle<Result<(), ExecutionError>> {
@@ -127,15 +141,27 @@ pub(crate) fn start_stateless_source(
 
     let listener_handle = handle.clone();
     thread::spawn(move || -> Result<(), ExecutionError> {
-        let mut dag_fw =
-            LocalChannelForwarder::new_source_forwarder(handle, out_channels, commit_size, None);
+        let mut dag_fw = LocalChannelForwarder::new_source_forwarder(
+            handle,
+            out_channels,
+            commit_size,
+            commit_time,
+            None,
+        );
         let mut sel = init_select(&internal_receivers);
         loop {
             let port_index = sel.ready();
             let r = internal_receivers[port_index]
                 .recv_deadline(Instant::now().add(Duration::from_millis(500)));
 
-            if process_message(&listener_handle, r, &mut dag_fw, output_ports[port_index])? {
+            if process_message(
+                &stop_req,
+                &listener_handle,
+                r,
+                &mut dag_fw,
+                output_ports[port_index],
+                false,
+            )? {
                 return Ok(());
             }
         }
@@ -143,11 +169,13 @@ pub(crate) fn start_stateless_source(
 }
 
 pub(crate) fn start_stateful_source(
+    stop_req: Arc<AtomicBool>,
     edges: Vec<Edge>,
     handle: NodeHandle,
     src_factory: Box<dyn StatefulSourceFactory>,
     out_channels: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     commit_size: u32,
+    commit_time: Duration,
     channel_buffer: usize,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     base_path: PathBuf,
@@ -197,6 +225,7 @@ pub(crate) fn start_stateful_source(
             handle,
             out_channels,
             commit_size,
+            commit_time,
             Some(StateWriter::new(
                 state_meta.meta_db,
                 port_databases,
@@ -211,10 +240,12 @@ pub(crate) fn start_stateful_source(
                 .recv_deadline(Instant::now().add(Duration::from_millis(500)));
 
             if process_message(
+                &stop_req,
                 &listener_handle,
                 r,
                 &mut dag_fw,
                 output_ports[port_index].handle,
+                true,
             )? {
                 return Ok(());
             }
