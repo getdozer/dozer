@@ -10,6 +10,8 @@ pub enum TypeError {
     InvalidFieldName(String),
     #[error("Invalid field type")]
     InvalidFieldType,
+    #[error("Invalid field value: {0}")]
+    InvalidFieldValue(String),
     #[error("Failed to serialise the field")]
     SerializationError(#[source] SerializationError),
     #[error("Failed to deserialise the field")]

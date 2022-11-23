@@ -1,0 +1,15 @@
+[package]
+name = "dozer-tests"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dev-dependencies]
+sqlparser = "0.24.0"
+dozer-types = {path = "../dozer-types"}
+dozer-core = {path = "../dozer-core"}
+dozer-sql = {path = "../dozer-sql"}
+rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
+csv = "1.1"
+tempdir = "0.3.7"
