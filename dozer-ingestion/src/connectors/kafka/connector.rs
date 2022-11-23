@@ -3,18 +3,21 @@ use std::sync::Arc;
 use crate::connectors::Connector;
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
-use dozer_types::ingestion_types::KafkaConfig;
-use dozer_types::log::{info};
+use dozer_types::ingestion_types::{IngestionMessage, KafkaConfig};
+
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+use dozer_types::types::{Operation, OperationEvent, Record, SchemaIdentifier};
 use tokio::runtime::Runtime;
 
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
+use crate::connectors::kafka::helper::mapper::convert_value_to_schema;
 use crate::connectors::kafka::helper::schema::map_schema;
+use crate::errors::DebeziumError::{BytesConvertError, DebeziumConnectionError, JsonDecodeError};
+use crate::errors::{DebeziumError, DebeziumStreamError};
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
-
+use dozer_types::serde_json::Value;
 
 pub struct KafkaConnector {
     pub id: u64,
@@ -49,6 +52,14 @@ pub struct KafkaField {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
+pub struct KafkaSchemaParameters {
+    pub scale: Option<String>,
+    #[serde(rename(deserialize = "connect.decimal.precision"))]
+    pub precision: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct KafkaSchemaStruct {
     pub r#type: String,
     pub fields: Option<Vec<KafkaSchemaStruct>>,
@@ -56,12 +67,21 @@ pub struct KafkaSchemaStruct {
     pub name: Option<String>,
     pub field: Option<String>,
     pub version: Option<i64>,
+    pub parameters: Option<KafkaSchemaParameters>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+pub struct KafkaPayload {
+    pub before: Option<Value>,
+    pub after: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
 pub struct KafkaMessageStruct {
     pub schema: KafkaSchemaStruct,
+    pub payload: KafkaPayload,
 }
 
 impl KafkaConnector {
@@ -79,36 +99,7 @@ impl Connector for KafkaConnector {
         &self,
         _table_names: Option<Vec<String>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        Ok(vec![(
-            "dbserver1.inventory.customers".to_string(),
-            Schema {
-                identifier: Some(SchemaIdentifier {
-                    id: 333,
-                    version: 1,
-                }),
-                fields: vec![
-                    FieldDefinition {
-                        name: "id".to_string(),
-                        typ: FieldType::Int,
-                        nullable: false,
-                    },
-                    FieldDefinition {
-                        name: "first_name".to_string(),
-                        typ: FieldType::String,
-                        nullable: false,
-                    },
-                    FieldDefinition {
-                        name: "last_name".to_string(),
-                        typ: FieldType::String,
-                        nullable: false,
-                    },
-                ],
-                values: vec![],
-                // Log Index
-                primary_index: vec![0],
-                secondary_indexes: vec![],
-            },
-        )])
+        Ok(vec![])
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
@@ -155,36 +146,159 @@ impl Connector for KafkaConnector {
     }
 }
 
-#[allow(unreachable_code)]
 async fn run(
     broker: String,
     topic: String,
-    _ingestor: Arc<RwLock<Ingestor>>,
-    _connector_id: u64,
+    ingestor: Arc<RwLock<Ingestor>>,
+    connector_id: u64,
 ) -> Result<(), ConnectorError> {
     let mut con = Consumer::from_hosts(vec![broker])
         .with_topic(topic)
         .with_fallback_offset(FetchOffset::Earliest)
         .with_offset_storage(GroupOffsetStorage::Kafka)
         .create()
-        .unwrap();
+        .map_err(DebeziumConnectionError)?;
 
     loop {
-        let mss = con.poll().unwrap();
+        let mss = con.poll().map_err(|e| {
+            DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
+        })?;
         if !mss.is_empty() {
             for ms in mss.iter() {
                 for m in ms.messages() {
-                    let value_struct: KafkaMessageStruct =
-                        serde_json::from_str(std::str::from_utf8(m.value).unwrap()).unwrap();
-                    let key_struct: KafkaMessageStruct =
-                        serde_json::from_str(std::str::from_utf8(m.key).unwrap()).unwrap();
+                    let value_struct: KafkaMessageStruct = serde_json::from_str(
+                        std::str::from_utf8(m.value).map_err(BytesConvertError)?,
+                    )
+                    .map_err(JsonDecodeError)?;
+                    let key_struct: KafkaMessageStruct = serde_json::from_str(
+                        std::str::from_utf8(m.key).map_err(BytesConvertError)?,
+                    )
+                    .map_err(JsonDecodeError)?;
 
-                    let schema = map_schema(&value_struct.schema, &key_struct.schema);
-                    info!("Schema: {:?}", schema);
+                    let (schema, fields_map) = map_schema(&value_struct.schema, &key_struct.schema)
+                        .map_err(|e| {
+                            ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                        })?;
+
+                    ingestor
+                        .write()
+                        .handle_message((
+                            connector_id,
+                            IngestionMessage::Schema("customerss".to_string(), schema.clone()),
+                        ))
+                        .map_err(ConnectorError::IngestorError)?;
+
+                    match (value_struct.payload.after, value_struct.payload.before) {
+                        (Some(new_payload), Some(old_payload)) => {
+                            let new = convert_value_to_schema(
+                                new_payload,
+                                schema.clone(),
+                                fields_map.clone(),
+                            )
+                            .map_err(|e| {
+                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                            })?;
+                            let old =
+                                convert_value_to_schema(old_payload, schema.clone(), fields_map)
+                                    .map_err(|e| {
+                                        ConnectorError::DebeziumError(
+                                            DebeziumError::DebeziumSchemaError(e),
+                                        )
+                                    })?;
+
+                            ingestor
+                                .write()
+                                .handle_message((
+                                    connector_id,
+                                    IngestionMessage::OperationEvent(OperationEvent {
+                                        seq_no: 0,
+                                        operation: Operation::Update {
+                                            old: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: old,
+                                            },
+                                            new: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: new,
+                                            },
+                                        },
+                                    }),
+                                ))
+                                .map_err(ConnectorError::IngestorError)?;
+                        }
+                        (None, Some(old_payload)) => {
+                            let old = convert_value_to_schema(old_payload, schema, fields_map)
+                                .map_err(|e| {
+                                    ConnectorError::DebeziumError(
+                                        DebeziumError::DebeziumSchemaError(e),
+                                    )
+                                })?;
+
+                            ingestor
+                                .write()
+                                .handle_message((
+                                    connector_id,
+                                    IngestionMessage::OperationEvent(OperationEvent {
+                                        seq_no: 0,
+                                        operation: Operation::Delete {
+                                            old: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: old,
+                                            },
+                                        },
+                                    }),
+                                ))
+                                .map_err(ConnectorError::IngestorError)?;
+                        }
+                        (Some(new_payload), None) => {
+                            let new = convert_value_to_schema(
+                                new_payload,
+                                schema.clone(),
+                                fields_map.clone(),
+                            )
+                            .map_err(|e| {
+                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                            })?;
+                            //
+                            ingestor
+                                .write()
+                                .handle_message((
+                                    connector_id,
+                                    IngestionMessage::OperationEvent(OperationEvent {
+                                        seq_no: 0,
+                                        operation: Operation::Insert {
+                                            new: Record {
+                                                schema_id: Some(SchemaIdentifier {
+                                                    id: 1,
+                                                    version: 1,
+                                                }),
+                                                values: new,
+                                            },
+                                        },
+                                    }),
+                                ))
+                                .map_err(ConnectorError::IngestorError)?;
+                        }
+                        (None, None) => {}
+                    }
                 }
-                let _ = con.consume_messageset(ms);
+
+                con.consume_messageset(ms).map_err(|e| {
+                    DebeziumError::DebeziumStreamError(DebeziumStreamError::MessageConsumeError(e))
+                })?;
             }
-            con.commit_consumed().unwrap();
+            con.commit_consumed().map_err(|e| {
+                DebeziumError::DebeziumStreamError(DebeziumStreamError::ConsumeCommitError(e))
+            })?;
         }
     }
 }

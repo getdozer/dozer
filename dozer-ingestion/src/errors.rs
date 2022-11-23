@@ -3,12 +3,14 @@
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
-use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
+use dozer_types::{rust_decimal, thiserror};
 
+use base64::DecodeError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
+use std::str::Utf8Error;
 
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
@@ -199,7 +201,31 @@ pub enum SnowflakeStreamError {
 #[derive(Error, Debug)]
 pub enum DebeziumError {
     #[error(transparent)]
-    DebeziumSchemaError(#[from] DebeziumSchemaError)
+    DebeziumSchemaError(#[from] DebeziumSchemaError),
+
+    #[error("Connection error")]
+    DebeziumConnectionError(#[source] kafka::Error),
+
+    #[error("JSON decode error")]
+    JsonDecodeError(#[source] serde_json::Error),
+
+    #[error("Bytes convert error")]
+    BytesConvertError(#[source] Utf8Error),
+
+    #[error(transparent)]
+    DebeziumStreamError(#[from] DebeziumStreamError),
+}
+
+#[derive(Error, Debug)]
+pub enum DebeziumStreamError {
+    #[error("Consume commit error")]
+    ConsumeCommitError(#[source] kafka::Error),
+
+    #[error("Message consume error")]
+    MessageConsumeError(#[source] kafka::Error),
+
+    #[error("Polling error")]
+    PollingError(#[source] kafka::Error),
 }
 
 #[derive(Error, Debug)]
@@ -208,5 +234,20 @@ pub enum DebeziumSchemaError {
     SchemaDefinitionNotFound,
 
     #[error("Unsupported \"{0}\" type")]
-    TypeNotSupported(String)
+    TypeNotSupported(String),
+
+    #[error("Field \"{0}\" not found")]
+    FieldNotFound(String),
+
+    #[error("Binary decode error")]
+    BinaryDecodeError(#[source] DecodeError),
+
+    #[error("Scale not found")]
+    ScaleNotFound,
+
+    #[error("Scale is invalid")]
+    ScaleIsInvalid(),
+
+    #[error("Decimal convert error")]
+    DecimalConvertError(#[source] rust_decimal::Error),
 }
