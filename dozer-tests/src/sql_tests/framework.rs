@@ -21,10 +21,10 @@ pub struct TestFramework {
 impl TestFramework {
     pub fn run_test(
         &mut self,
-        list: Vec<(&str, String)>,
+        list: Vec<(String, String)>,
         final_sql: String,
     ) -> Result<bool, FrameworkError> {
-        let name = list[0].0;
+        let name = &list[0].0;
 
         let source_schema = self.source.lock().unwrap().get_schema(name).to_owned();
 
@@ -44,8 +44,10 @@ impl TestFramework {
 
         let source_result = query_sqllite(self.source.clone(), &final_sql, &output_schema)
             .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
-        let dest_result = query_sqllite(self.dest.clone(), "select * from results", &output_schema)
-            .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
+
+        let dest_result =
+            query_sqllite(self.dest.clone(), "select * from results;", &output_schema)
+                .map_err(|e| FrameworkError::InternalError(Box::new(e)))?;
 
         Ok(source_result == dest_result)
     }

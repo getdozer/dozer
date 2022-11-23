@@ -160,7 +160,7 @@ impl StatelessSink for TestSink {
         self.mapper
             .lock()
             .unwrap()
-            .execute_list(vec![("results", sql)])
+            .execute_list(vec![("results".to_string(), sql)])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         Ok(())
     }

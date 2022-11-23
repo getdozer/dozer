@@ -1,3 +1,4 @@
+use super::SqlMapper;
 use dozer_types::errors::types;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
@@ -9,8 +10,24 @@ use std::process::Command;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use super::SqlMapper;
-
+#[macro_export]
+macro_rules! match_type {
+   ($obj:expr, $($field_typ:pat => $block:expr),*) => {
+       match $obj {
+           $($field_typ => $block),*
+       }
+   }
+}
+#[macro_export]
+macro_rules! convert_type {
+    ($typ:expr, $field_def:expr, $row:expr, $idx: expr) => {
+        if $field_def.nullable {
+            $row.get($idx).map_or(Field::Null, $typ)
+        } else {
+            $typ($row.get($idx)?)
+        }
+    };
+}
 pub fn get_table_create_sql(name: &str, schema: Schema) -> String {
     let columns = schema
         .fields
@@ -105,25 +122,20 @@ pub fn query_sqllite(
                 let mut values = vec![];
 
                 for (idx, f) in schema.fields.clone().into_iter().enumerate() {
-                    values.push(match f.typ {
-                        dozer_types::types::FieldType::UInt => Field::UInt(row.get(idx)?),
-                        dozer_types::types::FieldType::Int => Field::Int(row.get(idx)?),
-                        dozer_types::types::FieldType::Float => {
-                            Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?))
-                        }
-                        dozer_types::types::FieldType::Boolean => Field::Boolean(row.get(idx)?),
-                        dozer_types::types::FieldType::String => Field::String(row.get(idx)?),
-                        dozer_types::types::FieldType::Text => Field::Text(row.get(idx)?),
-                        dozer_types::types::FieldType::Binary => Field::Binary(row.get(idx)?),
-                        dozer_types::types::FieldType::Timestamp => {
-                            let val: String = row.get(idx)?;
-                            Field::String(val)
-                        }
-                        dozer_types::types::FieldType::Decimal => {
+                    let val = match_type! {
+                        f.typ,
+                        FieldType::UInt => convert_type!(Field::UInt, f, row, idx),
+                        FieldType::Int => convert_type!(Field::Int, f, row, idx),
+                        FieldType::Float => Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?)),
+                        FieldType::Boolean => convert_type!(Field::Boolean, f, row, idx),
+                        FieldType::String => convert_type!(Field::String, f, row, idx),
+                        FieldType::Text => convert_type!(Field::Text, f, row, idx),
+                        FieldType::Binary => convert_type!(Field::Binary, f, row, idx),
+                        FieldType::Timestamp => convert_type!(Field::String, f, row, idx),
+                        FieldType::Decimal => {
                             let val: String = row.get(idx)?;
                             Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
-                        }
-
+                        },
                         dozer_types::types::FieldType::Null => Field::Null,
                         dozer_types::types::FieldType::UIntArray
                         | dozer_types::types::FieldType::IntArray
@@ -133,7 +145,8 @@ pub fn query_sqllite(
                         | dozer_types::types::FieldType::Bson => {
                             panic!("type not supported : {:?}", f.typ.to_owned())
                         }
-                    });
+                    };
+                    values.push(val);
                 }
                 let record = Record {
                     schema_id: schema.identifier.clone(),

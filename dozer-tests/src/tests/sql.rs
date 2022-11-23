@@ -84,55 +84,58 @@ fn get_queries() -> Vec<&'static str> {
 #[test]
 #[ignore]
 fn nightly_long_init_queries() {
-    init();
-    // let names = vec!["actor", "film", "film_actor"];
+    run_tests(
+        "from_csv".to_string(),
+        TestInstruction::FromCsv("actor".to_string(), vec!["actor".to_string()]),
+    );
+}
 
-    let tests = get_queries();
-
-    let mut results = vec![];
-
-    for (idx, test) in tests.into_iter().enumerate() {
-        let mut framework = setup();
-        let names = vec!["actor"];
-        let mut list = vec![];
-
-        for name in names {
-            let source = framework.source.lock().unwrap();
-            let schema = source.get_schema(name);
-            let inserts = get_inserts_from_csv("actor", name, schema).unwrap();
-
-            for i in inserts {
-                list.push((name, i));
-            }
-        }
-        let result = framework.run_test(list.clone(), test.to_string());
-
-        let success = match result {
-            Ok(true) => "success",
-            Ok(false) => "failed",
-            Err(e) => {
-                info!("---------------------------------------------");
-                info!("Error in {}:{}", idx, test);
-                info!("{:?}", e);
-                info!("");
-                "failed"
-            }
-        };
-        results.push((test, success));
-    }
-
-    info!("----------------   Report   ------------------");
-    info!("");
-    for (idx, (test, result)) in results.into_iter().enumerate() {
-        info!("{}: {} - {}", idx, result, test);
-    }
-    info!("");
-    info!("---------------------------------------------");
+#[test]
+#[ignore]
+fn nightly_long_nullable_queries() {
+    let list = vec![
+            (
+                "actor".to_string(),
+                "INSERT INTO actor(actor_id,first_name) values (1, 'mario')".to_string(),
+            ),
+            (
+                "actor".to_string(),
+                "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)".to_string(),
+            ),
+            (
+                "actor".to_string(),
+                "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)".to_string(),
+            ),
+        ];
+    run_tests("nullable".to_string(), TestInstruction::List(list));
 }
 
 #[test]
 #[ignore]
 fn nightly_long_changes_queries() {
+    let list = vec![
+        (
+            "actor".to_string(),
+            "INSERT INTO actor(actor_id,first_name) values (1, 'mario')".to_string(),
+        ),
+        (
+            "actor".to_string(),
+            "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)".to_string(),
+        ),
+        (
+            "actor".to_string(),
+            "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)".to_string(),
+        ),
+        (
+            "actor".to_string(),
+            "UPDATE actor SET first_name ='sampras' WHERE actor_id=1".to_string(),
+        ),
+        ("actor".to_string(), "DELETE FROM actor WHERE actor_id=1".to_string()),
+    ];
+    run_tests("changes".to_string(), TestInstruction::List(list));
+}
+
+fn run_tests(test_name: String, test_instruction: TestInstruction) {
     init();
 
     let tests = get_queries();
@@ -142,27 +145,25 @@ fn nightly_long_changes_queries() {
     for (idx, test) in tests.into_iter().enumerate() {
         let mut framework = setup();
 
-        let list = vec![
-            (
-                "actor",
-                "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (1, 'mario', null, null)".to_string(),
-            ),
-            (
-                "actor",
-                "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)".to_string(),
-            ),
-            (
-                "actor",
-                "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'luigi', null, null)".to_string(),
-            ),
-            (
-                "actor",
-                "UPDATE actor SET first_name ='sampras' WHERE actor_id=1".to_string(),
-            ),
-            ("actor", "DELETE FROM actor WHERE actor_id=1".to_string()),
-        ];
+        let list = match test_instruction {
+            TestInstruction::FromCsv(ref folder_name, ref names) => {
+                let mut list = vec![];
 
-        let result = framework.run_test(list.clone(), test.to_string());
+                for name in names.clone() {
+                    let source = framework.source.lock().unwrap();
+                    let schema = source.get_schema(&name);
+                    let inserts = get_inserts_from_csv(folder_name, &name.clone(), schema).unwrap();
+
+                    for i in inserts {
+                        list.push((name.clone(), i));
+                    }
+                }
+                list
+            }
+            TestInstruction::List(ref list) => list.clone(),
+        };
+
+        let result = framework.run_test(list, test.to_string());
 
         let success = match result {
             Ok(true) => "success",
@@ -178,11 +179,20 @@ fn nightly_long_changes_queries() {
         results.push((test, success));
     }
 
-    info!("----------------   Report   ------------------");
+    info!(
+        "----------------   Report: {}   ------------------",
+        test_name
+    );
     info!("");
     for (idx, (test, result)) in results.into_iter().enumerate() {
         info!("{}: {} - {}", idx, result, test);
     }
     info!("");
     info!("---------------------------------------------");
+}
+
+#[derive(Clone, Debug)]
+enum TestInstruction {
+    FromCsv(String, Vec<String>),
+    List(Vec<(String, String)>),
 }

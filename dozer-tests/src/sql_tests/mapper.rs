@@ -43,7 +43,10 @@ impl SqlMapper {
         Ok(get_schema(&columns))
     }
 
-    pub fn execute_list(&mut self, list: Vec<(&str, String)>) -> rusqlite::Result<Vec<Operation>> {
+    pub fn execute_list(
+        &mut self,
+        list: Vec<(String, String)>,
+    ) -> rusqlite::Result<Vec<Operation>> {
         let mut ops = vec![];
         for (_schema_name, sql) in list {
             self.conn.execute(sql.as_str(), ())?;
@@ -69,7 +72,7 @@ impl SqlMapper {
             Statement::Insert {
                 or: _,
                 into: _,
-                columns: _,
+                columns,
                 overwrite: _,
                 partitioned: _,
                 table_name,
@@ -79,7 +82,7 @@ impl SqlMapper {
                 table: _,
                 on: _,
             } => {
-                let values: Vec<Field> = match &*source.body {
+                let expr_values: Vec<Field> = match &*source.body {
                     SetExpr::Values(values) => values.0[0].iter().map(parse_exp_to_field).collect(),
                     _ => panic!("not supported"),
                 };
@@ -88,6 +91,21 @@ impl SqlMapper {
                     .schema_map
                     .get(&name)
                     .expect("schema is not inserted with the name");
+
+                let mut values = vec![];
+                for f in schema.fields.iter() {
+                    let c_tuple = columns.iter().enumerate().find(|(_, c)| c.value == f.name);
+
+                    match c_tuple {
+                        Some((c_idx, _)) => {
+                            let expr_value = expr_values.get(c_idx).expect("column value expected");
+                            values.push(expr_value.to_owned());
+                        }
+                        None => {
+                            values.push(Field::Null);
+                        }
+                    }
+                }
                 let rec = Record::new(schema.identifier.clone(), values);
                 let key = get_primary_key_value(schema, &rec);
                 self.record_map
