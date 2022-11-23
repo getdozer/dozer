@@ -6,20 +6,28 @@ appenders:
       pattern: "{d} - {m}{n}"
   api:
     kind: file
-    path: "log/api.log"
+    path: "logs/api.log"
     encoder:
       pattern: "{d} - {m}{n}"
   app:
     kind: file
-    path: "log/app.log"
+    path: "logs/app.log"
     encoder:
       pattern: "{d} - {m}{n}"
 root:
-  level: warn
+  level: info
   appenders:
     - stdout
 loggers:
-  dozer_orchestrator:
+  dozer_sql:
+    level: info
+    appenders:
+      - app
+  dozer_core:
+    level: info
+    appenders:
+      - app
+  dozer_ingesetion:
     level: info
     appenders:
       - app
