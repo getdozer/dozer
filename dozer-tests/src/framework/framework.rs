@@ -1,10 +1,10 @@
 use super::pipeline::TestPipeline;
 use super::{helper::*, SqlMapper};
-use dozer_types::crossbeam::channel::unbounded;
+
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use dozer_types::types::Schema;
+
 use std::sync::{Arc, Mutex};
 
 #[derive(Error, Debug)]
@@ -37,8 +37,8 @@ impl TestFramework {
 
         let mut pipeline = TestPipeline::new(
             final_sql.clone(),
-            source_schema.clone(),
-            ops.clone(),
+            source_schema,
+            ops,
             self.dest.clone(),
         );
 

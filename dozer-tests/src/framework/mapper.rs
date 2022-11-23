@@ -58,7 +58,7 @@ impl SqlMapper {
     pub fn get_schema(&self, name: String) -> &Schema {
         self.schema_map
             .get(&name)
-            .expect(&format!("Schema is missing: {}", name))
+            .unwrap_or_else(|| panic!("Schema is missing: {}", name))
     }
 
     pub fn get_operation_from_sql(&mut self, sql: &str) -> Operation {
@@ -116,7 +116,7 @@ impl SqlMapper {
                         .find(|(_, f)| {
                             f.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_") == id.value
                         })
-                        .expect(&format!("field not found with name : {:?}", id.value))
+                        .unwrap_or_else(|| panic!("field not found with name : {:?}", id.value))
                         .to_owned();
 
                     rec2.values[idx.0] = parse_exp_to_field(&a.value);
@@ -125,7 +125,7 @@ impl SqlMapper {
                     .insert((schema_res.name, schema_res.key), rec2.clone());
 
                 Operation::Update {
-                    old: rec.clone(),
+                    old: rec,
                     new: rec2,
                 }
             }
@@ -134,7 +134,7 @@ impl SqlMapper {
                 using: _,
                 selection,
             } => {
-                let (rec, _) = self.map_selection(&table_name, selection);
+                let (rec, _) = self.map_selection(table_name, selection);
                 Operation::Delete { old: rec }
             }
             _ => panic!("Not supported"),
@@ -154,7 +154,7 @@ impl SqlMapper {
         let schema = self
             .schema_map
             .get(name)
-            .expect(&format!("Schema is missing: {}", name));
+            .unwrap_or_else(|| panic!("Schema is missing: {}", name));
         let pkey_name = get_primary_key_name(schema);
 
         match op {
@@ -234,7 +234,7 @@ impl SqlMapper {
             let schema = self
                 .schema_map
                 .get(&name)
-                .expect(&format!("Schema is missing: {}", name))
+                .unwrap_or_else(|| panic!("Schema is missing: {}", name))
                 .to_owned();
 
             if let Some(Expr::BinaryOp {
@@ -248,7 +248,7 @@ impl SqlMapper {
                     _ => panic!("not supported: {:?}", left),
                 };
 
-                let val = parse_exp_to_field(&*right.to_owned()).to_bytes().unwrap();
+                let val = parse_exp_to_field(&right.to_owned()).to_bytes().unwrap();
 
                 assert_eq!(
                     column_name,

@@ -4,7 +4,7 @@ use crate::{
     framework::{download, get_inserts_from_csv},
     TestFramework,
 };
-use std::{path::Path, sync::Once};
+use std::sync::Once;
 
 static INIT: Once = Once::new();
 
@@ -83,8 +83,8 @@ fn test_queries() {
     ];
 
     let mut results = vec![];
-    let mut idx = 0;
-    for test in tests {
+
+    for (idx, test) in tests.into_iter().enumerate() {
         let mut framework = setup();
         let names = vec!["actor"];
         let mut list = vec![];
@@ -112,15 +112,12 @@ fn test_queries() {
             }
         };
         results.push((test, success));
-        idx += 1;
     }
 
     info!("----------------   Report   ------------------");
     info!("");
-    let mut idx = 0;
-    for (test, result) in results {
+    for (idx, (test, result)) in results.into_iter().enumerate() {
         info!("{}: {}   {}", idx, test, result);
-        idx += 1;
     }
     info!("");
     info!("---------------------------------------------");

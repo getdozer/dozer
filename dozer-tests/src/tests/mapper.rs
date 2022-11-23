@@ -84,7 +84,7 @@ fn test_framework_to_dozer_types() {
         &"actor".to_string(),
         Operation::Delete {
             old: Record {
-                schema_id: schema_id.clone(),
+                schema_id,
                 values: new_values,
             },
         },

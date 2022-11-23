@@ -67,7 +67,7 @@ impl StatelessSource for TestSource {
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         let mut idx = 0;
-        for op in self.ops.to_owned() {
+        for op in self.ops.iter().cloned() {
             idx += 1;
             fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
         }
@@ -244,7 +244,7 @@ impl TestPipeline {
                 })?;
                 Ok(schema)
             }
-            Err(e) => Err(ExecutionError::InternalStringError(
+            Err(_e) => Err(ExecutionError::InternalStringError(
                 "Schema not sent in the pipeline".to_string(),
             )),
         }

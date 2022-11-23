@@ -60,8 +60,11 @@ pub fn get_inserts_from_csv(
                         val.to_string()
                     }
                 }
-                FieldType::String | FieldType::Text | FieldType::Timestamp | _ => {
-                    format!("'{}'", val.replace("'", "\'"))
+                FieldType::String | FieldType::Text | FieldType::Timestamp => {
+                    format!("'{}'", val.replace("", "\'"))
+                }
+                _ => {
+                    format!("'{}'", val.replace("", "\'"))
                 }
             };
             values.push(val);
@@ -100,8 +103,8 @@ pub fn query_sqllite(
 
             while let Ok(Some(row)) = rows.next() {
                 let mut values = vec![];
-                let mut idx = 0;
-                for f in schema.fields.clone() {
+
+                for (idx, f) in schema.fields.clone().into_iter().enumerate() {
                     values.push(match f.typ {
                         dozer_types::types::FieldType::UInt => Field::UInt(row.get(idx)?),
                         dozer_types::types::FieldType::Int => Field::Int(row.get(idx)?),
@@ -131,7 +134,6 @@ pub fn query_sqllite(
                             panic!("type not supported : {:?}", f.typ.to_owned())
                         }
                     });
-                    idx += 1;
                 }
                 let record = Record {
                     schema_id: schema.identifier.clone(),
@@ -181,7 +183,6 @@ pub fn get_primary_key_name(schema: &Schema) -> String {
     schema.fields[idx]
         .name
         .replace(|c: char| !c.is_ascii_alphanumeric(), "_")
-        .to_owned()
 }
 
 pub fn get_table_name(name: &ObjectName) -> String {
@@ -194,7 +195,7 @@ pub fn map_field_to_string(f: &Field) -> String {
         Field::Int(i) => i.to_string(),
         Field::Float(i) => i.to_string(),
         Field::Boolean(i) => i.to_string(),
-        Field::String(i) => format!("'{}'", i.to_string()),
+        Field::String(i) => format!("'{}'", i),
         Field::Text(i) => i.to_string(),
         Field::Binary(_)
         | Field::UIntArray(_)
@@ -209,7 +210,7 @@ pub fn map_field_to_string(f: &Field) -> String {
     }
 }
 
-pub fn get_schema(columns: &Vec<rusqlite::Column>) -> Schema {
+pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
     Schema {
         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
         fields: columns
