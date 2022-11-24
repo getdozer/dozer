@@ -245,7 +245,7 @@ impl TestPipeline {
                     let result = exec.join().map_err(|errors| {
                         let str = errors
                             .iter()
-                            .map(|e| e.to_string())
+                            .map(|e| e.1.to_string())
                             .collect::<Vec<String>>()
                             .join(",");
                         ExecutionError::InternalStringError(str)
