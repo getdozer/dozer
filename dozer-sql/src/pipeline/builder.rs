@@ -66,7 +66,7 @@ impl PipelineBuilder {
         let input_endpoints = self.get_input_endpoints(&first_node_name, &input_tables)?;
 
         dag.add_node(
-            NodeType::StatefulProcessor(Box::new(product)),
+            NodeType::Processor(Box::new(product)),
             String::from("product"),
         );
 

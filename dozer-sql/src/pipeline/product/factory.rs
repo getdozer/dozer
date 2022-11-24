@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use dozer_core::{
     dag::{
         executor_local::DEFAULT_PORT_HANDLE,
-        node::{
-            PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
-            StatefulProcessorFactory,
-        },
+        node::{OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory},
     },
     storage::common::Environment,
 };
@@ -35,7 +32,7 @@ impl ProductProcessorFactory {
     }
 }
 
-impl StatefulProcessorFactory for ProductProcessorFactory {
+impl ProcessorFactory for ProductProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         let input_tables = get_input_tables(&self.from).unwrap();
         input_tables
@@ -45,14 +42,14 @@ impl StatefulProcessorFactory for ProductProcessorFactory {
             .collect::<Vec<PortHandle>>()
     }
 
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            StatefulPortHandleOptions::default(),
+            OutputPortDefOptions::default(),
         )]
     }
 
-    fn build(&self) -> Box<dyn StatefulProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(ProductProcessor::new(self.from.clone()))
     }
 }

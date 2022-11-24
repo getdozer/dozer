@@ -1,8 +1,4 @@
-use std::path::Path;
-
-use dozer_core::{
-    dag::node::StatefulProcessorFactory, storage::lmdb_storage::LmdbEnvironmentManager,
-};
+use dozer_core::dag::node::ProcessorFactory;
 
 use crate::pipeline::{
     builder::get_select,
@@ -53,10 +49,10 @@ fn test_product_three() {
 
 #[test]
 fn test_join_tables_three() {
-    let mut env_man = LmdbEnvironmentManager::create(Path::new("/tmp"), "tmp_join_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    // let mut env_man = LmdbEnvironmentManager::create(Path::new("/tmp"), "tmp_join_test")
+    //     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let env = env_man.as_environment();
+    // let env = env_man.as_environment();
 
     let statement = get_select(
         "SELECT c.name, d.name, AVG(salary) \

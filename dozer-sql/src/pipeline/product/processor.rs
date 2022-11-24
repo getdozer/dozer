@@ -2,7 +2,7 @@ use crate::pipeline::errors::PipelineError;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{PortHandle, StatefulProcessor};
+use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_types::internal_err;
@@ -139,7 +139,7 @@ fn append_schema(mut output_schema: Schema, table: &String, current_schema: &Sch
     output_schema
 }
 
-impl StatefulProcessor for ProductProcessor {
+impl Processor for ProductProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,

@@ -5,8 +5,10 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor_local::ExecutorOptions;
 use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{
-    PortHandle, StatelessSink, StatelessSinkFactory, StatelessSource, StatelessSourceFactory,
+    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
+use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
@@ -28,18 +30,21 @@ impl UserTestSourceFactory {
     }
 }
 
-impl StatelessSourceFactory for UserTestSourceFactory {
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
+impl SourceFactory for UserTestSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        self.output_ports
+            .iter()
+            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .collect()
     }
-    fn build(&self) -> Box<dyn StatelessSource> {
+    fn build(&self) -> Box<dyn Source> {
         Box::new(UserTestSource {})
     }
 }
 
 pub struct UserTestSource {}
 
-impl StatelessSource for UserTestSource {
+impl Source for UserTestSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
@@ -106,18 +111,21 @@ impl DepartmentTestSourceFactory {
     }
 }
 
-impl StatelessSourceFactory for DepartmentTestSourceFactory {
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
+impl SourceFactory for DepartmentTestSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        self.output_ports
+            .iter()
+            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .collect()
     }
-    fn build(&self) -> Box<dyn StatelessSource> {
+    fn build(&self) -> Box<dyn Source> {
         Box::new(DepartmentTestSource {})
     }
 }
 
 pub struct DepartmentTestSource {}
 
-impl StatelessSource for DepartmentTestSource {
+impl Source for DepartmentTestSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
@@ -165,18 +173,18 @@ impl TestSinkFactory {
     }
 }
 
-impl StatelessSinkFactory for TestSinkFactory {
+impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn StatelessSink> {
+    fn build(&self) -> Box<dyn Sink> {
         Box::new(TestSink {})
     }
 }
 
 pub struct TestSink {}
 
-impl StatelessSink for TestSink {
+impl Sink for TestSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -184,7 +192,7 @@ impl StatelessSink for TestSink {
         Ok(())
     }
 
-    fn init(&mut self) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -194,8 +202,9 @@ impl StatelessSink for TestSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
+        _state: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
-        //    debug!("SINK: Message {} received", _op.seq_no);
         Ok(())
     }
 }
@@ -222,17 +231,14 @@ fn test_pipeline_builder() {
 
     let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
-    dag.add_node(
-        NodeType::StatelessSource(Box::new(user_source)),
-        "users".to_string(),
-    );
+    dag.add_node(NodeType::Source(Box::new(user_source)), "users".to_string());
 
     dag.add_node(
-        NodeType::StatelessSource(Box::new(department_source)),
+        NodeType::Source(Box::new(department_source)),
         "departments".to_string(),
     );
 
-    dag.add_node(NodeType::StatelessSink(Box::new(sink)), "sink".to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
 
     let input_point = in_handle.remove("users").unwrap();
 
@@ -263,7 +269,7 @@ fn test_pipeline_builder() {
     let now = Instant::now();
 
     let exec =
-        MultiThreadedDagExecutor::start(dag, tmp_dir.into_path(), ExecutorOptions::default())
+        MultiThreadedDagExecutor::start(dag, &tmp_dir.into_path(), ExecutorOptions::default())
             .unwrap();
 
     exec.join().unwrap();
@@ -289,12 +295,9 @@ fn test_single_table_pipeline() {
 
     let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
-    dag.add_node(
-        NodeType::StatelessSource(Box::new(user_source)),
-        "users".to_string(),
-    );
+    dag.add_node(NodeType::Source(Box::new(user_source)), "users".to_string());
 
-    dag.add_node(NodeType::StatelessSink(Box::new(sink)), "sink".to_string());
+    dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
 
     let input_point = in_handle.remove("users").unwrap();
 
@@ -318,7 +321,7 @@ fn test_single_table_pipeline() {
     let now = Instant::now();
 
     let exec =
-        MultiThreadedDagExecutor::start(dag, tmp_dir.into_path(), ExecutorOptions::default())
+        MultiThreadedDagExecutor::start(dag, &tmp_dir.into_path(), ExecutorOptions::default())
             .unwrap();
 
     exec.join().unwrap();
