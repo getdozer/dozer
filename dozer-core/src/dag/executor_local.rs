@@ -15,12 +15,13 @@ use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
+use libc::sync;
 use log::error;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -101,6 +102,7 @@ impl MultiThreadedDagExecutor {
         path: PathBuf,
         latch: &Arc<CountDownLatch>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        term_barrier: &Arc<Barrier>,
     ) -> Result<HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>> =
             HashMap::new();
@@ -116,6 +118,7 @@ impl MultiThreadedDagExecutor {
                     path.clone(),
                     latch.clone(),
                     record_stores.clone(),
+                    term_barrier.clone(),
                 ),
             );
         }
@@ -133,6 +136,7 @@ impl MultiThreadedDagExecutor {
         channel_buffer: usize,
         edges: &Vec<Edge>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        term_barrier: &Arc<Barrier>,
     ) -> Result<HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>> =
             HashMap::new();
@@ -150,6 +154,7 @@ impl MultiThreadedDagExecutor {
                     channel_buffer,
                     record_stores.clone(),
                     path.clone(),
+                    term_barrier.clone(),
                 ),
             );
         }
@@ -164,6 +169,7 @@ impl MultiThreadedDagExecutor {
         edges: &Vec<Edge>,
         latch: &Arc<CountDownLatch>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        term_barrier: &Arc<Barrier>,
     ) -> Result<HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>> =
             HashMap::new();
@@ -189,6 +195,7 @@ impl MultiThreadedDagExecutor {
                     path.clone(),
                     record_stores.clone(),
                     latch.clone(),
+                    term_barrier.clone(),
                 ),
             );
         }
@@ -218,16 +225,17 @@ impl MultiThreadedDagExecutor {
         ));
 
         let (sources, processors, sinks, edges) = get_node_types_and_edges(dag);
-        let latch = Arc::new(CountDownLatch::new((processors.len() + sinks.len()) as u64));
-
+        let start_latch = Arc::new(CountDownLatch::new((processors.len() + sinks.len()) as u64));
         let mut all_handles = HashMap::<NodeHandle, JoinHandle<Result<(), ExecutionError>>>::new();
+        let term_barrier = Arc::new(Barrier::new(sources.len() + processors.len() + sinks.len()));
 
         all_handles.extend(Self::start_sinks(
             sinks,
             &mut receivers,
             PathBuf::from(path),
-            &latch,
+            &start_latch,
             &record_stores,
+            &term_barrier,
         )?);
         all_handles.extend(Self::start_processors(
             processors,
@@ -235,11 +243,12 @@ impl MultiThreadedDagExecutor {
             &mut receivers,
             PathBuf::from(path),
             &edges,
-            &latch,
+            &start_latch,
             &record_stores,
+            &term_barrier,
         )?);
 
-        latch.wait();
+        start_latch.wait();
 
         let stop_req = Arc::new(AtomicBool::new(false));
         all_handles.extend(Self::start_sources(
@@ -252,6 +261,7 @@ impl MultiThreadedDagExecutor {
             options.channel_buffer_sz,
             &edges,
             &record_stores,
+            &term_barrier,
         )?);
 
         Ok(MultiThreadedDagExecutor {

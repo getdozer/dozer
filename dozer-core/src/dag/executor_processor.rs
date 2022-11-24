@@ -20,7 +20,7 @@ use log::{error, info, warn};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -63,6 +63,7 @@ pub(crate) fn start_processor(
     base_path: PathBuf,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     latch: Arc<CountDownLatch>,
+    term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut proc = proc_factory.build();
@@ -171,6 +172,7 @@ pub(crate) fn start_processor(
                     );
                     if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                         fw.send_term_and_wait()?;
+                        term_barrier.wait();
                         return Ok(());
                     }
                 }
@@ -180,11 +182,6 @@ pub(crate) fn start_processor(
                 }
 
                 _ => {
-                    // if !schema_initialized {
-                    //     error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
-                    //     return Err(SchemaNotInitialized);
-                    // }
-
                     let guard = record_stores.read();
                     let reader = guard
                         .get(&handle)

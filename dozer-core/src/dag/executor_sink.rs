@@ -14,7 +14,7 @@ use fp_rust::sync::CountDownLatch;
 use log::{error, info};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -25,6 +25,7 @@ pub(crate) fn start_sink(
     base_path: PathBuf,
     latch: Arc<CountDownLatch>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut snk = snk_factory.build();
@@ -72,6 +73,7 @@ pub(crate) fn start_sink(
 
                 ExecutorOperation::Terminate => {
                     info!("[{}] Terminating: Exiting message loop", handle);
+                    term_barrier.wait();
                     return Ok(());
                 }
                 ExecutorOperation::Commit { epoch, source } => {

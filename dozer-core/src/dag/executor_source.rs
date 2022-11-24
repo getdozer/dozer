@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::ops::Add;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -68,6 +68,7 @@ fn process_message(
     dag_fw: &mut LocalChannelForwarder,
     port: PortHandle,
     _stateful: bool,
+    term_barrier: &Arc<Barrier>,
 ) -> Result<bool, ExecutionError> {
     if stop_req.load(Ordering::Relaxed) {
         info!("[{}] Stop requested...", owner);
@@ -102,6 +103,7 @@ fn process_message(
         }
         Ok(ExecutorOperation::Terminate) => {
             dag_fw.terminate()?;
+            term_barrier.wait();
             Ok(true)
         }
         _ => Ok(false),
@@ -119,6 +121,7 @@ pub(crate) fn start_source(
     channel_buffer: usize,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     base_path: PathBuf,
+    term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     let mut internal_receivers: Vec<Receiver<ExecutorOperation>> = Vec::new();
     let mut internal_senders: HashMap<PortHandle, Sender<ExecutorOperation>> = HashMap::new();
@@ -182,6 +185,7 @@ pub(crate) fn start_source(
                 &mut dag_fw,
                 output_ports[port_index].handle,
                 true,
+                &term_barrier,
             )? {
                 return Ok(());
             }
