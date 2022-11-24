@@ -13,7 +13,6 @@ use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 
 use std::collections::HashMap;
 
-use log::error;
 use std::sync::Arc;
 use std::thread;
 
