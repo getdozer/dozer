@@ -43,7 +43,7 @@ pub enum Authentication {
         schema: String,
         warehouse: String,
         driver: Option<String>,
-    },
+    }
 }
 impl Display for DBType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

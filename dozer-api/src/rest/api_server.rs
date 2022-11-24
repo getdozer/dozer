@@ -104,7 +104,8 @@ impl ApiServer {
                         .route("/query", web::post().to(api_generator::query))
                         .route("/oapi", web::post().to(api_generator::generate_oapi))
                         .route("/{id}", web::get().to(api_generator::get))
-                        .route("/", web::get().to(api_generator::list)),
+                        .route("/", web::get().to(api_generator::list))
+                        .route("", web::get().to(api_generator::list)),
                 )
             })
             // Attach token generation route

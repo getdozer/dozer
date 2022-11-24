@@ -157,4 +157,13 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
 
         Ok(self)
     }
+
+    fn delete(pool: DbPool, input_id: String, application_id: String) -> Result<bool, Box<dyn Error>> {
+        let mut db = pool.get()?;
+        diesel::delete(FilterDsl::filter(
+            FilterDsl::filter(connections, id.eq(input_id)),
+            app_id.eq(application_id),
+        )).execute(&mut db)?;
+        Ok(true)
+    }
 }

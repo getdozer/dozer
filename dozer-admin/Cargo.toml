@@ -35,4 +35,5 @@ tonic-build = "0.8"
 prost-wkt-build = "0.3.3"
 
 [features]
-snowflake=[]
+default = ["snowflake"]
+snowflake = ["dozer-types/snowflake", "dozer-orchestrator/snowflake"]

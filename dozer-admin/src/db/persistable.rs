@@ -13,4 +13,6 @@ pub trait Persistable<'a, T: Serialize + Deserialize<'a>> {
         offset: Option<u32>,
     ) -> Result<(Vec<T>, Pagination), Box<dyn Error>>;
     fn upsert(&mut self, pool: DbPool) -> Result<&mut T, Box<dyn Error>>;
+    fn delete(pool: DbPool, input_id: String, app_id: String) -> Result<bool, Box<dyn Error>>;
+
 }

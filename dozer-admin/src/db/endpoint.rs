@@ -61,7 +61,7 @@ impl TryFrom<EndpointInfo> for NewEndpoint {
     fn try_from(input: EndpointInfo) -> Result<Self, Self::Error> {
         let generated_id = uuid::Uuid::new_v4().to_string();
         Ok(NewEndpoint {
-            id: generated_id,
+            id: input.id,
             name: input.name,
             path: input.path,
             enable_rest: input.enable_rest,
@@ -106,24 +106,6 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
         input_id: String,
         application_id: String,
     ) -> Result<EndpointInfo, Box<dyn Error>> {
-        // let mut db = pool.get()?;
-        // let result: Vec<(String, DbEndpoint)> = FilterDsl::filter(
-        //     FilterDsl::filter(
-        //         source_endpoints::table
-        //             .inner_join(endpoints::table)
-        //             .select((source_endpoints::source_id, endpoints::all_columns)),
-        //         endpoints::id.eq(input_id),
-        //     ),
-        //     endpoints::app_id.eq(application_id),
-        // )
-        // .load::<(String, DbEndpoint)>(&mut db)?;
-        // if result.is_empty() {
-        //     return Err("There's no endpoint with input id".to_owned())?;
-        // }
-        // let source_ids: Vec<String> = result.iter().map(|element| element.0.to_owned()).collect();
-        // let db_endpoint = &result[0].1;
-        // let mut endpoint_info = EndpointInfo::try_from(db_endpoint.to_owned())?;
-        // endpoint_info.source_ids = source_ids;
         let mut db = pool.get()?;
         let result: DbEndpoint = FilterDsl::filter(
             FilterDsl::filter(endpoints, endpoints::id.eq(input_id)),
@@ -157,6 +139,7 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
                 return Err("source ids input is not correct".to_owned())?;
             }
             let new_endpoint = NewEndpoint::try_from(self.clone())?;
+
             insert_into(endpoints)
                 .values(&new_endpoint)
                 .on_conflict(endpoints::id)
@@ -218,5 +201,19 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
                 offset,
             },
         ))
+    }
+
+    fn delete(
+        pool: DbPool,
+        input_id: String,
+        application_id: String,
+    ) -> Result<bool, Box<dyn Error>> {
+        let mut db = pool.get()?;
+        diesel::delete(FilterDsl::filter(
+            FilterDsl::filter(endpoints, endpoints::id.eq(input_id)),
+            endpoints::app_id.eq(application_id),
+        ))
+        .execute(&mut db)?;
+        Ok(true)
     }
 }

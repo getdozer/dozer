@@ -30,3 +30,6 @@ ctrlc = "3.2.3"
 edition = "2021"
 name = "dozer"
 path = "src/main.rs"
+
+[features]
+snowflake = ["dozer-types/snowflake", "dozer-ingestion/snowflake"]

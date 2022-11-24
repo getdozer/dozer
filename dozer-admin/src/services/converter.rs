@@ -5,6 +5,7 @@ use crate::{
     },
     server::dozer_admin_grpc::{
         self, authentication, ConnectionInfo, EthereumAuthentication, PostgresAuthentication,
+        SnowflakeAuthentication,
     },
 };
 use dozer_types::ingestion_types::EthFilter;
@@ -146,9 +147,25 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
             }
 
             #[cfg(feature = "snowflake")]
-            models::connection::Authentication::SnowflakeAuthentication { .. } => {
-                todo!()
-            }
+            models::connection::Authentication::SnowflakeAuthentication {
+                server,
+                port,
+                user,
+                password,
+                database,
+                schema,
+                warehouse,
+                driver,
+            } => authentication::Authentication::Snowflake(SnowflakeAuthentication {
+                server,
+                port,
+                user,
+                password,
+                database,
+                schema,
+                driver,
+                warehouse,
+            }),
             models::connection::Authentication::Events {} => todo!(),
         };
         Ok(dozer_admin_grpc::Authentication {
@@ -175,13 +192,18 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
                     }
                 }
                 authentication::Authentication::Ethereum(ethereum_authentication) => {
-                    let eth_filter = ethereum_authentication.filter.unwrap();
-                    models::connection::Authentication::EthereumAuthentication {
-                        filter: EthFilter {
-                            from_block: eth_filter.from_block,
-                            addresses: eth_filter.addresses,
-                            topics: eth_filter.topics,
+                    let eth_filter = match ethereum_authentication.filter {
+                        Some(filter) => EthFilter {
+                            from_block: filter.from_block,
+                            addresses: filter.addresses,
+                            topics: filter.topics,
                         },
+                        None => EthFilter {
+                            ..Default::default()
+                        },
+                    };
+                    models::connection::Authentication::EthereumAuthentication {
+                        filter: eth_filter,
                         wss_url: ethereum_authentication.wss_url,
                     }
                 }

@@ -4,9 +4,10 @@ use crate::{
         pool::{establish_connection, DbPool},
     },
     server::dozer_admin_grpc::{
-        CreateEndpointRequest, CreateEndpointResponse, EndpointInfo, ErrorResponse,
-        GetAllEndpointRequest, GetAllEndpointResponse, GetEndpointRequest, GetEndpointResponse,
-        Pagination, UpdateEndpointRequest, UpdateEndpointResponse,
+        CreateEndpointRequest, CreateEndpointResponse, DeleteEndpointRequest,
+        DeleteEndpointResponse, EndpointInfo, ErrorResponse, GetAllEndpointRequest,
+        GetAllEndpointResponse, GetEndpointRequest, GetEndpointResponse, Pagination,
+        UpdateEndpointRequest, UpdateEndpointResponse,
     },
 };
 
@@ -22,6 +23,17 @@ impl EndpointService {
     }
 }
 impl EndpointService {
+    pub fn delete(
+        &self,
+        request: DeleteEndpointRequest,
+    ) -> Result<DeleteEndpointResponse, ErrorResponse> {
+        let endpoint_info =
+            EndpointInfo::delete(self.db_pool.to_owned(), request.endpoint_id, request.app_id)
+                .map_err(|op| ErrorResponse {
+                    message: op.to_string(),
+                })?;
+        Ok(DeleteEndpointResponse { success: true })
+    }
     pub fn list(
         &self,
         input: GetAllEndpointRequest,

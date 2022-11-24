@@ -31,6 +31,8 @@ service DozerAdmin {
   rpc get_endpoint(GetEndpointRequest) returns (GetEndpointResponse);
   rpc list_endpoints(GetAllEndpointRequest) returns (GetAllEndpointResponse);
   rpc update_endpoint(UpdateEndpointRequest) returns (UpdateEndpointResponse);
+  rpc delete_endpoint(DeleteEndpointRequest) returns (DeleteEndpointResponse);
+
 
   rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
 }
@@ -88,7 +90,13 @@ message GetEndpointRequest {
 message GetEndpointResponse {
   EndpointInfo info = 1;
 }
-
+message DeleteEndpointRequest {
+  string app_id = 1;
+  string endpoint_id = 2;
+}
+message DeleteEndpointResponse {
+  bool success = 1;
+}
 message UpdateEndpointRequest {
   string id = 1;
   string app_id = 2;
