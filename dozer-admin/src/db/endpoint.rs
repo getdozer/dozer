@@ -85,7 +85,7 @@ impl TryFrom<DbEndpoint> for EndpointInfo {
             .collect();
         Ok(EndpointInfo {
             id: input.id,
-            app_id: "".to_string(),
+            app_id: input.app_id,
             name: input.name,
             path: input.path,
             enable_rest: input.enable_rest,
@@ -106,25 +106,32 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
         input_id: String,
         application_id: String,
     ) -> Result<EndpointInfo, Box<dyn Error>> {
+        // let mut db = pool.get()?;
+        // let result: Vec<(String, DbEndpoint)> = FilterDsl::filter(
+        //     FilterDsl::filter(
+        //         source_endpoints::table
+        //             .inner_join(endpoints::table)
+        //             .select((source_endpoints::source_id, endpoints::all_columns)),
+        //         endpoints::id.eq(input_id),
+        //     ),
+        //     endpoints::app_id.eq(application_id),
+        // )
+        // .load::<(String, DbEndpoint)>(&mut db)?;
+        // if result.is_empty() {
+        //     return Err("There's no endpoint with input id".to_owned())?;
+        // }
+        // let source_ids: Vec<String> = result.iter().map(|element| element.0.to_owned()).collect();
+        // let db_endpoint = &result[0].1;
+        // let mut endpoint_info = EndpointInfo::try_from(db_endpoint.to_owned())?;
+        // endpoint_info.source_ids = source_ids;
         let mut db = pool.get()?;
-        let result: Vec<(String, DbEndpoint)> = FilterDsl::filter(
-            FilterDsl::filter(
-                source_endpoints::table
-                    .inner_join(endpoints::table)
-                    .select((source_endpoints::source_id, endpoints::all_columns)),
-                endpoints::id.eq(input_id),
-            ),
+        let result: DbEndpoint = FilterDsl::filter(
+            FilterDsl::filter(endpoints, endpoints::id.eq(input_id)),
             endpoints::app_id.eq(application_id),
         )
-        .load::<(String, DbEndpoint)>(&mut db)?;
-        if result.is_empty() {
-            return Err("There's no endpoint with input id".to_owned())?;
-        }
-        let source_ids: Vec<String> = result.iter().map(|element| element.0.to_owned()).collect();
-        let db_endpoint = &result[0].1;
-        let mut endpoint_info = EndpointInfo::try_from(db_endpoint.to_owned())?;
-        endpoint_info.source_ids = source_ids;
-        Ok(endpoint_info)
+        .first(&mut db)?;
+        let response = EndpointInfo::try_from(result)?;
+        Ok(response)
     }
 
     fn upsert(&mut self, pool: DbPool) -> Result<&mut EndpointInfo, Box<dyn Error>> {
@@ -138,7 +145,8 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
             let _ = apps
                 .find(self.app_id.to_owned())
                 .first::<Application>(conn)
-                .map_err(|err| format!("App_id: {:}", err))?;
+                .map_err(|err| format!("App_id: {:} {:}", self.app_id.to_owned(), err))?;
+
             let source_id_query = FilterDsl::filter(
                 FilterDsl::filter(sources, sources::id.eq_any(source_ids.to_owned())),
                 sources::app_id.eq(self.app_id.to_owned()),
