@@ -112,13 +112,6 @@ impl Source for ConnectorSource {
             threads.push(t);
         }
 
-        for t in threads {
-            t.join().unwrap().map_err(|e| {
-                error!("Source error: {:?}", e);
-                ExecutionError::ConnectorError(Box::new(e))
-            })?;
-        }
-
         let mut schema_map: HashMap<u32, u16> = HashMap::new();
         loop {
             // Keep a reference of schema to table mapping
