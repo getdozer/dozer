@@ -16,7 +16,7 @@ use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
 use tokio::runtime::Runtime;
-use tokio::{task, time};
+use tokio::time;
 
 pub struct SnowflakeConnector {
     pub id: u64,
@@ -113,27 +113,24 @@ async fn run(
                     )?;
                     StreamConsumer::create_stream(&client, &table.name)?;
                 }
+            }
 
-                let stream_client = Client::new(&config);
-                let table_name = table.clone();
-                let ingestor_stream = Arc::clone(&ingestor);
-                let forever = task::spawn(async move {
-                    let mut interval = time::interval(Duration::from_secs(5));
+            let stream_client = Client::new(&config);
+            let ingestor_stream = Arc::clone(&ingestor);
+            let mut interval = time::interval(Duration::from_secs(5));
 
-                    loop {
-                        StreamConsumer::consume_stream(
-                            &stream_client,
-                            connector_id,
-                            &table_name.name,
-                            &ingestor_stream,
-                        )
-                        .unwrap();
+            loop {
+                for table in tables.iter() {
+                    StreamConsumer::consume_stream(
+                        &stream_client,
+                        connector_id,
+                        &table.name,
+                        &ingestor_stream,
+                    )
+                    .unwrap();
 
-                        interval.tick().await;
-                    }
-                });
-
-                forever.await.unwrap();
+                    interval.tick().await;
+                }
             }
         }
     };
