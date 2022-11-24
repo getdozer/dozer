@@ -9,7 +9,7 @@ use std::{
     thread,
 };
 use tempdir::TempDir;
-use tokio::{runtime::Runtime, sync::broadcast};
+use tokio::sync::broadcast;
 use tonic::transport::Server;
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 
@@ -109,7 +109,7 @@ impl ApiServer {
         Ok((grpc_service, inflection_service))
     }
 
-    pub fn run(
+    pub async fn run(
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
@@ -157,11 +157,9 @@ impl ApiServer {
         };
 
         let addr = format!("[::0]:{:}", self.port).parse().unwrap();
-        let grpc_router = grpc_router.serve(addr);
-        let rt = Runtime::new().unwrap();
-        rt.block_on(grpc_router)
-            .expect("failed to successfully run the future on RunTime");
-
-        Ok(())
+        grpc_router
+            .serve(addr)
+            .await
+            .map_err(|e| GRPCError::InternalError(Box::new(e)))
     }
 }

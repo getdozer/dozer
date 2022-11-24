@@ -245,7 +245,7 @@ impl XlogMapper {
                 id: table.rel_id as u32,
                 version: table.rel_id as u16,
             }),
-            fields: fields,
+            fields,
             values: vec![0],
             primary_index: vec![0],
             secondary_indexes: vec![],

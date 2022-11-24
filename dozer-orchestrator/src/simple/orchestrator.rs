@@ -12,7 +12,7 @@ use crate::errors::OrchestrationError;
 use crate::Orchestrator;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::{grpc, rest};
-use dozer_types::crossbeam::channel::{self, unbounded};
+use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -78,44 +78,49 @@ impl Orchestrator for SimpleOrchestrator {
 
         let internal_port = self.internal_port;
 
-        // Initialize Internal Server
-        let _internal_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            start_internal_server(internal_port, sender)
-                .map_err(|_e| OrchestrationError::InternalServerError)
+        let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
+
+        rt.block_on(async {
+            // Initialize Internal Server
+            tokio::spawn(async move {
+                start_internal_server(internal_port, sender)
+                    .await
+                    .expect("Failed to initialize internal server")
+            });
+
+            // Initialize API Server
+            tokio::spawn(async move {
+                let api_server = rest::ApiServer::default();
+                api_server
+                    .run(ce3, tx)
+                    .await
+                    .expect("Failed to initialize api server")
+            });
+
+            // Initialize GRPC Server
+            let grpc_server = grpc::ApiServer::new(receiver, 50051, false);
+            tokio::spawn(async move {
+                grpc_server
+                    .run(ce2, running2.to_owned())
+                    .await
+                    .expect("Failed to initialize gRPC server")
+            });
         });
 
-        // Initialize API Server
-        let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            let api_server = rest::ApiServer::default();
-            api_server
-                .run(ce3, tx)
-                .map_err(OrchestrationError::ApiServerFailed)
-        });
         let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
-
-        // Initialize GRPC Server
-        let grpc_server = grpc::ApiServer::new(receiver, 50051, false);
-
-        let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            grpc_server
-                .run(ce2, running2.to_owned())
-                .map_err(OrchestrationError::GrpcServerFailed)
-                .unwrap();
-            Ok(())
-        });
 
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
         rest::ApiServer::stop(server_handle);
 
-        thread.join().unwrap()?;
-
         Ok(())
     }
 
-    fn run_apps(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        //Set AtomicBool and wait for CtrlC
-
+    fn run_apps(
+        &mut self,
+        running: Arc<AtomicBool>,
+        api_notifier: Option<Sender<bool>>,
+    ) -> Result<(), OrchestrationError> {
         let executor_running = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
@@ -143,6 +148,13 @@ impl Orchestrator for SimpleOrchestrator {
                 }
             })
             .collect();
+
+        if let Some(api_notifier) = api_notifier {
+            api_notifier
+                .send(true)
+                .expect("Failed to notify API server");
+        }
+
         let sources = self.sources.clone();
 
         let executor = Executor::new(

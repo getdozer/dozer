@@ -60,10 +60,8 @@ impl SchemaHelper {
         })?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
-        results
-            .iter()
-            .map(|r| self.convert_row(r))
-            .try_for_each(|row| -> Result<(), ConnectorError> {
+        results.iter().map(|r| self.convert_row(r)).try_for_each(
+            |row| -> Result<(), ConnectorError> {
                 match row {
                     Ok((table_name, field_def, is_primary_key, table_id)) => {
                         let vals = map.get(&table_name);
@@ -81,7 +79,8 @@ impl SchemaHelper {
                     }
                     Err(e) => Err(e),
                 }
-            })?;
+            },
+        )?;
 
         for (table_name, (fields, primary_keys, table_id)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys
