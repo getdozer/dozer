@@ -12,7 +12,7 @@ fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaEr
             "int8" | "int16" | "int32" | "int64" => Ok(FieldType::Int),
             "string" => Ok(FieldType::String),
             "bytes" => Ok(FieldType::Binary),
-            "float32" | "float64" => Ok(FieldType::Float),
+            "float32" | "float64" | "double" => Ok(FieldType::Float),
             "boolean" => Ok(FieldType::Boolean),
             type_name => Err(TypeNotSupported(type_name.to_string())),
         },

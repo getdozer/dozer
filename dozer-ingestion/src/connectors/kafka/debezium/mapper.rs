@@ -47,7 +47,7 @@ fn convert_value(
                     base64::decode_config(s, STANDARD).map_err(BinaryDecodeError)?,
                 ))
             }),
-            "float32" | "float64" => value
+            "float32" | "float64" | "double" => value
                 .as_f64()
                 .map_or(Ok(Field::Null), |s| Ok(Field::from(s))),
             "boolean" => value
