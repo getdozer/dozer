@@ -1,5 +1,5 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
-use crate::dag::executor_checkpoint::CheckpointMetadataReader;
+use crate::dag::executor_checkpoint::{CheckpointMetadataReader, Consistency};
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor};
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::dag_recordreader::{
@@ -8,7 +8,9 @@ use crate::dag::tests::dag_recordreader::{
 };
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use std::collections::HashMap;
 
+use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -54,7 +56,7 @@ fn build_dag() -> Dag {
 }
 
 #[test]
-fn test_checpoint() {
+fn test_checpoint_consistency() {
     let dag = build_dag();
 
     let tmp_dir = chk!(TempDir::new("example"));
@@ -68,8 +70,24 @@ fn test_checpoint() {
 
     let dag_check = build_dag();
 
-    let _chk = chk!(CheckpointMetadataReader::get_checkpoint_metadata(
-        tmp_dir.path(),
-        &dag_check
+    let r = chk!(CheckpointMetadataReader::new(&dag_check, tmp_dir.path()));
+    let c = r.get_dependency_tree_consistency();
+
+    assert!(matches!(
+        c.get("source").unwrap(),
+        Consistency::FullyConsistent(24999)
+    ));
+
+    LmdbEnvironmentManager::remove(tmp_dir.path(), "passthrough");
+    let r = chk!(CheckpointMetadataReader::new(&dag_check, tmp_dir.path()));
+    let c = r.get_dependency_tree_consistency();
+
+    let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
+    expected.insert(24999_u64, vec!["source".to_string(), "sink".to_string()]);
+    expected.insert(0_u64, vec!["passthrough".to_string()]);
+
+    assert!(matches!(
+        c.get("source").unwrap(),
+        Consistency::PartiallyConsistent(expected)
     ));
 }
