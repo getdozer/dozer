@@ -54,9 +54,7 @@ impl PostgresSnapshotter {
             self.conn_config.clone(),
         )?));
 
-        let tables = self.get_tables(
-            tables.map(|t| t.iter().map(|t| t.name.clone()).collect()),
-        )?;
+        let tables = self.get_tables(tables.map(|t| t.iter().map(|t| t.name.clone()).collect()))?;
 
         let mut idx: u32 = 0;
         for table_info in tables.iter() {

@@ -13,9 +13,9 @@ use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 
 use std::collections::HashMap;
 
+use log::error;
 use std::sync::Arc;
 use std::thread;
-use log::error;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -113,12 +113,10 @@ impl Source for ConnectorSource {
         }
 
         for t in threads {
-            t.join()
-                .unwrap()
-                .map_err(|e| {
-                    error!("Source error: {:?}", e);
-                    ExecutionError::ConnectorError(Box::new(e))
-                })?;
+            t.join().unwrap().map_err(|e| {
+                error!("Source error: {:?}", e);
+                ExecutionError::ConnectorError(Box::new(e))
+            })?;
         }
 
         let mut schema_map: HashMap<u32, u16> = HashMap::new();
