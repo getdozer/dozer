@@ -1,4 +1,3 @@
-use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::processor::aggregation::PipelineError::InvalidExpression;
@@ -9,8 +8,7 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{
-    PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
-    StatefulProcessorFactory,
+    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
@@ -20,7 +18,6 @@ use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
-use crate::pipeline::aggregation::sum::{FloatSumAggregator, IntegerSumAggregator};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::builder::ExpressionType;
@@ -44,7 +41,7 @@ pub enum FieldRule {
         /// Field to be aggregated in the source schema
         String,
         /// Aggregator implementation for this measure
-        Box<dyn Aggregator>,
+        Aggregator,
         /// true if this field should be included in the list of values of the
         /// output schema, otherwise false. Generally this value is true if the field appears
         /// in the output results in addition of being a condition for the HAVING condition
@@ -66,19 +63,19 @@ impl AggregationProcessorFactory {
     }
 }
 
-impl StatefulProcessorFactory for AggregationProcessorFactory {
+impl ProcessorFactory for AggregationProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
-        vec![StatefulPortHandle::new(
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            StatefulPortHandleOptions::default(),
+            OutputPortDefOptions::default(),
         )]
     }
 
-    fn build(&self) -> Box<dyn StatefulProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(AggregationProcessor {
             select: self.select.clone(),
             groupby: self.groupby.clone(),
@@ -96,7 +93,7 @@ pub struct AggregationProcessor {
     groupby: Vec<SqlExpr>,
     output_field_rules: Vec<FieldRule>,
     out_dimensions: Vec<(usize, Box<Expression>, usize)>,
-    out_measures: Vec<(usize, Box<dyn Aggregator>, usize)>,
+    out_measures: Vec<(usize, Box<Aggregator>, usize)>,
     builder: ExpressionBuilder,
     db: Option<Database>,
 }
@@ -190,18 +187,14 @@ impl AggregationProcessor {
         &self,
         expression: Box<Expression>,
         schema: &Schema,
-    ) -> Result<Box<dyn Aggregator>, PipelineError> {
+    ) -> Result<Aggregator, PipelineError> {
         match *expression {
             Expression::AggregateFunction { fun, args } => {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
-                    (AggregateFunctionType::Sum, FieldType::Int) => {
-                        Ok(Box::new(IntegerSumAggregator::new()))
-                    }
-                    (AggregateFunctionType::Sum, FieldType::Float) => {
-                        Ok(Box::new(FloatSumAggregator::new()))
-                    }
-                    (AggregateFunctionType::Count, _) => Ok(Box::new(CountAggregator::new())),
+                    (AggregateFunctionType::Sum, FieldType::Int) => Ok(Aggregator::IntegerSum),
+                    (AggregateFunctionType::Sum, FieldType::Float) => Ok(Aggregator::FloatSum),
+                    (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
                     _ => Err(InvalidExpression(format!(
                         "Not implemented Aggreagation function: {:?}",
                         fun
@@ -216,7 +209,7 @@ impl AggregationProcessor {
     }
 
     fn populate_rules(&mut self, schema: &Schema) -> Result<(), PipelineError> {
-        let mut out_measures: Vec<(usize, Box<dyn Aggregator>, usize)> = Vec::new();
+        let mut out_measures: Vec<(usize, Box<Aggregator>, usize)> = Vec::new();
         let mut out_dimensions: Vec<(usize, Box<Expression>, usize)> = Vec::new();
 
         for rule in self.output_field_rules.iter().enumerate() {
@@ -224,7 +217,7 @@ impl AggregationProcessor {
                 FieldRule::Measure(idx, aggr, _nullable, _name) => {
                     out_measures.push((
                         schema.get_field_index(idx.as_str())?.0,
-                        aggr.clone(),
+                        Box::new(aggr.clone()),
                         rule.0,
                     ));
                 }
@@ -562,7 +555,7 @@ impl AggregationProcessor {
     }
 }
 
-impl StatefulProcessor for AggregationProcessor {
+impl Processor for AggregationProcessor {
     fn update_schema(
         &mut self,
         output_port: PortHandle,

@@ -4,7 +4,9 @@ use dozer_api::grpc::types_helper;
 use dozer_cache::cache::{BatchedCacheMsg, Cache};
 use dozer_cache::cache::{BatchedWriter, LmdbCache};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
-use dozer_core::dag::node::{PortHandle, StatelessSink, StatelessSinkFactory};
+use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
+use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -70,11 +72,11 @@ impl CacheSinkFactory {
     }
 }
 
-impl StatelessSinkFactory for CacheSinkFactory {
+impl SinkFactory for CacheSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn StatelessSink> {
+    fn build(&self) -> Box<dyn Sink> {
         Box::new(CacheSink::new(
             self.cache.clone(),
             self.api_endpoint.clone(),
@@ -97,50 +99,7 @@ pub struct CacheSink {
     batched_sender: Sender<BatchedCacheMsg>,
 }
 
-impl StatelessSink for CacheSink {
-    fn init(&mut self) -> Result<(), ExecutionError> {
-        info!("SINK: Initialising CacheSink");
-
-        Ok(())
-    }
-
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        _seq: u64,
-        op: Operation,
-    ) -> Result<(), ExecutionError> {
-        self.counter += 1;
-        if self.counter % 100 == 0 {
-            self.pb.set_message(format!(
-                "Count: {}, Elapsed time: {:.2?}",
-                self.counter,
-                self.before.elapsed(),
-            ));
-        }
-        let schema = self
-            .input_schemas
-            .lock()
-            .get(&from_port)
-            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
-            .to_owned();
-
-        if let Some(notifier) = &self.notifier {
-            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
-            notifier
-                .try_send(PipelineRequest {
-                    endpoint: self.api_endpoint.name.to_owned(),
-                    api_event: Some(ApiEvent::Op(op)),
-                })
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
-
-        self.batched_sender
-            .send(BatchedCacheMsg { op, schema })
-            .unwrap();
-        Ok(())
-    }
-
+impl Sink for CacheSink {
     fn update_schema(
         &mut self,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -182,6 +141,51 @@ impl StatelessSink for CacheSink {
                 };
             }
         }
+        Ok(())
+    }
+
+    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+        info!("SINK: Initialising CacheSink");
+
+        Ok(())
+    }
+
+    fn process(
+        &mut self,
+        from_port: PortHandle,
+        _seq: u64,
+        op: Operation,
+        _tx: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<(), ExecutionError> {
+        self.counter += 1;
+        if self.counter % 100 == 0 {
+            self.pb.set_message(format!(
+                "Count: {}, Elapsed time: {:.2?}",
+                self.counter,
+                self.before.elapsed(),
+            ));
+        }
+        let schema = self
+            .input_schemas
+            .lock()
+            .get(&from_port)
+            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
+            .to_owned();
+
+        if let Some(notifier) = &self.notifier {
+            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
+            notifier
+                .try_send(PipelineRequest {
+                    endpoint: self.api_endpoint.name.to_owned(),
+                    api_event: Some(ApiEvent::Op(op)),
+                })
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        }
+
+        self.batched_sender
+            .send(BatchedCacheMsg { op, schema })
+            .unwrap();
         Ok(())
     }
 }
@@ -296,14 +300,25 @@ mod tests {
     use dozer_cache::cache::{index, Cache};
 
     use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-    use dozer_core::dag::node::StatelessSink;
 
+    use dozer_core::dag::node::Sink;
+    use dozer_core::storage::common::RenewableRwTransaction;
+    use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
+    use dozer_core::storage::transactions::SharedTransaction;
+    use dozer_types::parking_lot::RwLock;
     use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
+    use std::sync::Arc;
     use std::{collections::HashMap, thread, time::Duration};
+    use tempdir::TempDir;
 
     #[test]
     // This test cases covers updation of records when primary key changes because of value change in primary_key
     fn update_record_when_primary_changes() {
+        let tmp_dir = TempDir::new("example").unwrap();
+        let mut env = LmdbEnvironmentManager::create(tmp_dir.path(), "test").unwrap();
+        let txn: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+            Arc::new(RwLock::new(env.create_txn().unwrap()));
+
         let schema = test_utils::get_schema();
 
         let (cache, mut sink) = test_utils::init_sink(&schema);
@@ -336,8 +351,15 @@ mod tests {
         input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
         sink.update_schema(&input_schemas).unwrap();
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, insert_operation)
-            .unwrap();
+        let mut t = SharedTransaction::new(&txn);
+        sink.process(
+            DEFAULT_PORT_HANDLE,
+            0_u64,
+            insert_operation,
+            &mut t,
+            &HashMap::new(),
+        )
+        .unwrap();
 
         thread::sleep(Duration::from_millis(100));
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
@@ -345,8 +367,14 @@ mod tests {
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(DEFAULT_PORT_HANDLE, 0_u64, update_operation)
-            .unwrap();
+        sink.process(
+            DEFAULT_PORT_HANDLE,
+            0_u64,
+            update_operation,
+            &mut t,
+            &HashMap::new(),
+        )
+        .unwrap();
 
         thread::sleep(Duration::from_millis(100));
         // Primary key with old values

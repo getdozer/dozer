@@ -6,16 +6,24 @@ use cli::types::{ApiCommands, AppCommands, Cli, Commands};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
-use log::warn;
+use log::{debug, warn};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+fn load_default_config() {
+    let config_str = include_str!("../../config/log4rs.release.yaml");
+    let config = serde_yaml::from_str(config_str).unwrap();
+    log4rs::init_raw_config(config).unwrap();
+}
+
 fn main() -> Result<(), OrchestrationError> {
-    log4rs::init_file("log4rs.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    log4rs::init_file("log4rs.yaml", Default::default()).unwrap_or_else(|_e| {
+        debug!("log4rs.yaml not found. Loading default config.");
+        load_default_config();
+    });
 
     warn!(
         "

@@ -4,13 +4,12 @@
 use crate::dag::dag::{Dag, Edge, PortDirection};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{MissingNodeInput, MissingNodeOutput};
-use crate::dag::executor_processor::{start_stateful_processor, start_stateless_processor};
-use crate::dag::executor_sink::{start_stateful_sink, start_stateless_sink};
-use crate::dag::executor_source::{start_stateful_source, start_stateless_source};
-use crate::dag::executor_utils::{
-    get_node_types_and_edges, index_edges, ProcessorHolder, SinkHolder, SourceHolder,
-};
-use crate::dag::node::{NodeHandle, PortHandle};
+
+use crate::dag::executor_processor::start_processor;
+use crate::dag::executor_sink::start_sink;
+use crate::dag::executor_source::start_source;
+use crate::dag::executor_utils::{get_node_types_and_edges, index_edges};
+use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
 use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
@@ -18,7 +17,7 @@ use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -90,34 +89,24 @@ pub struct MultiThreadedDagExecutor {
 
 impl MultiThreadedDagExecutor {
     fn start_sinks(
-        sinks: Vec<(NodeHandle, SinkHolder)>,
+        sinks: Vec<(NodeHandle, Box<dyn SinkFactory>)>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
         path: PathBuf,
         latch: &Arc<CountDownLatch>,
+        record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
 
         for holder in sinks {
             let snk_receivers = receivers.remove(&holder.0.clone());
-            match holder.1 {
-                SinkHolder::Stateful(s) => {
-                    handles.push(start_stateful_sink(
-                        holder.0.clone(),
-                        s,
-                        snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
-                        path.clone(),
-                        latch.clone(),
-                    ));
-                }
-                SinkHolder::Stateless(s) => {
-                    handles.push(start_stateless_sink(
-                        holder.0.clone(),
-                        s,
-                        snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
-                        latch.clone(),
-                    ));
-                }
-            }
+            handles.push(start_sink(
+                holder.0.clone(),
+                holder.1,
+                snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
+                path.clone(),
+                latch.clone(),
+                record_stores.clone(),
+            ));
         }
 
         Ok(handles)
@@ -125,7 +114,7 @@ impl MultiThreadedDagExecutor {
 
     fn start_sources(
         stop_req: Arc<AtomicBool>,
-        sources: Vec<(NodeHandle, SourceHolder)>,
+        sources: Vec<(NodeHandle, Box<dyn SourceFactory>)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         path: PathBuf,
         commit_size: u32,
@@ -135,42 +124,25 @@ impl MultiThreadedDagExecutor {
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
         let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
-
         for holder in sources {
-            match holder.1 {
-                SourceHolder::Stateful(s) => {
-                    handles.push(start_stateful_source(
-                        stop_req.clone(),
-                        edges.clone(),
-                        holder.0.clone(),
-                        s,
-                        senders.remove(&holder.0).unwrap(),
-                        commit_size,
-                        commit_time,
-                        channel_buffer,
-                        record_stores.clone(),
-                        path.clone(),
-                    ));
-                }
-                SourceHolder::Stateless(s) => {
-                    handles.push(start_stateless_source(
-                        stop_req.clone(),
-                        holder.0.clone(),
-                        s,
-                        senders.remove(&holder.0).unwrap(),
-                        commit_size,
-                        commit_time,
-                        channel_buffer,
-                        path.clone(),
-                    ));
-                }
-            }
+            handles.push(start_source(
+                stop_req.clone(),
+                edges.clone(),
+                holder.0.clone(),
+                holder.1,
+                senders.remove(&holder.0).unwrap(),
+                commit_size,
+                commit_time,
+                channel_buffer,
+                record_stores.clone(),
+                path.clone(),
+            ));
         }
         Ok(handles)
     }
 
     fn start_processors(
-        processors: Vec<(NodeHandle, ProcessorHolder)>,
+        processors: Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
         path: PathBuf,
@@ -190,38 +162,31 @@ impl MultiThreadedDagExecutor {
                 return Err(MissingNodeOutput(holder.0));
             }
 
-            match holder.1 {
-                ProcessorHolder::Stateful(s) => {
-                    handles.push(start_stateful_processor(
-                        edges.clone(),
-                        holder.0,
-                        s,
-                        proc_senders.unwrap(),
-                        proc_receivers.unwrap(),
-                        path.clone(),
-                        record_stores.clone(),
-                        latch.clone(),
-                    ));
-                }
-                ProcessorHolder::Stateless(s) => {
-                    handles.push(start_stateless_processor(
-                        holder.0,
-                        s,
-                        proc_senders.unwrap(),
-                        proc_receivers.unwrap(),
-                        record_stores.clone(),
-                        latch.clone(),
-                    ));
-                }
-            }
+            handles.push(start_processor(
+                edges.clone(),
+                holder.0,
+                holder.1,
+                proc_senders.unwrap(),
+                proc_receivers.unwrap(),
+                path.clone(),
+                record_stores.clone(),
+                latch.clone(),
+            ));
         }
 
         Ok(handles)
     }
 
+    // fn restore(&self, dag: &Dag, path: &Path) -> Result<(), ExecutionError> {
+    //     let meta_reader = CheckpointMetadataReader::new(&dag, path)?;
+    //     for source in dag.get_sources() {
+    //         meta_reader.get_source_checkpointing_consistency()
+    //     }
+    // }
+
     pub fn start(
         dag: Dag,
-        path: PathBuf,
+        path: &Path,
         options: ExecutorOptions,
     ) -> Result<MultiThreadedDagExecutor, ExecutionError> {
         let (mut senders, mut receivers) = index_edges(&dag, options.channel_buffer_sz);
@@ -241,14 +206,15 @@ impl MultiThreadedDagExecutor {
         all_handles.extend(Self::start_sinks(
             sinks,
             &mut receivers,
-            path.clone(),
+            PathBuf::from(path),
             &latch,
+            &record_stores,
         )?);
         all_handles.extend(Self::start_processors(
             processors,
             &mut senders,
             &mut receivers,
-            path.clone(),
+            PathBuf::from(path),
             &edges,
             &latch,
             &record_stores,
@@ -261,7 +227,7 @@ impl MultiThreadedDagExecutor {
             stop_req.clone(),
             sources,
             &mut senders,
-            path,
+            PathBuf::from(path),
             options.commit_sz,
             options.commit_time_threshold,
             options.channel_buffer_sz,

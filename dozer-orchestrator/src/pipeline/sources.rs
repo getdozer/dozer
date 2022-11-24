@@ -1,6 +1,8 @@
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::node::{PortHandle, StatelessSource, StatelessSourceFactory};
+use dozer_core::dag::node::{
+    OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory,
+};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -40,15 +42,15 @@ impl ConnectorSourceFactory {
     }
 }
 
-impl StatelessSourceFactory for ConnectorSourceFactory {
-    fn get_output_ports(&self) -> Vec<PortHandle> {
+impl SourceFactory for ConnectorSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.table_map
             .values()
-            .cloned()
-            .collect::<Vec<PortHandle>>()
+            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .collect()
     }
 
-    fn build(&self) -> Box<dyn StatelessSource> {
+    fn build(&self) -> Box<dyn Source> {
         Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
             connection_map: self.connection_map.to_owned(),
@@ -69,7 +71,7 @@ pub struct ConnectorSource {
     iterator: Arc<RwLock<IngestionIterator>>,
 }
 
-impl StatelessSource for ConnectorSource {
+impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,

@@ -19,38 +19,3 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
-  dozer:
-    container_name: dozer
-    networks: ["dozer_net"]
-    build: ../..
-    ports:
-      - "9005:9005"
-      - "8080:8080"
-    volumes:
-      - ./../../log4rs.yaml:/usr/dozer/log4rs.yaml
-      - ./dozer-config.yaml:/usr/local/dozer-config.yaml
-    depends_on:
-      postgres:
-        condition: service_healthy
-    links:
-      - postgres
-    command: /usr/local/bin/dozer -c /usr/local/dozer-config.yaml
-    stdin_open: true
-    tty: true
-
-# volumes:
-#   db:
-#     driver: local
-
-networks:
-  dozer_net:
-    enable_ipv6: true
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: "true"
-    ipam:
-      driver: default
-      config:
-        - subnet: fd00:0:0:1::/64
-          gateway: fd00:0:0:1::1

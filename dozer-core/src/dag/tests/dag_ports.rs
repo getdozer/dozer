@@ -11,8 +11,8 @@ macro_rules! test_ports {
 
             let mut dag = Dag::new();
 
-            dag.add_node(NodeType::StatelessSource(Box::new(src)), 1.to_string());
-            dag.add_node(NodeType::StatefulProcessor(Box::new(proc)), 2.to_string());
+            dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
+            dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
 
             let res = dag.connect(
                 Endpoint::new(1.to_string(), $from_port),
@@ -69,8 +69,8 @@ fn test_dag_merge() {
 
     let mut dag = Dag::new();
 
-    dag.add_node(NodeType::StatelessSource(Box::new(src)), 1.to_string());
-    dag.add_node(NodeType::StatefulProcessor(Box::new(proc)), 2.to_string());
+    dag.add_node(NodeType::Source(Box::new(src)), 1.to_string());
+    dag.add_node(NodeType::Processor(Box::new(proc)), 2.to_string());
 
     let mut new_dag: Dag = Dag::new();
     new_dag.merge("test".to_string(), dag);

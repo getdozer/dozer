@@ -15,6 +15,8 @@ pub enum StorageError {
     InvalidDatasetIdentifier(String),
     #[error("Invalid key: {0}")]
     InvalidKey(String),
+    #[error("Invalid record")]
+    InvalidRecord,
 
     // Error forwarding
     #[error(transparent)]
