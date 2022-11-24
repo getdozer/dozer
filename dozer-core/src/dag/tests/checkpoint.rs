@@ -1,6 +1,6 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::executor_checkpoint::{CheckpointMetadataReader, Consistency};
-use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor};
+use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::dag_recordreader::{
     PassthroughProcessorFactory, PASSTHROUGH_PROCESSOR_INPUT_PORT,
@@ -10,6 +10,7 @@ use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use std::collections::HashMap;
 
+use crate::dag::tests::processors::{DynPortsProcessorFactory, DynPortsSinkFactory};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use std::time::Duration;
 use tempdir::TempDir;
@@ -21,33 +22,40 @@ macro_rules! chk {
 }
 
 fn build_dag() -> Dag {
-    let src = StatefulGeneratorSourceFactory::new(25_000, Duration::from_millis(0));
-    let passthrough = PassthroughProcessorFactory::new();
-    let sink = CountingSinkFactory::new(25_000);
+    let src1 = StatefulGeneratorSourceFactory::new(25_000, Duration::from_millis(0));
+    let src2 = StatefulGeneratorSourceFactory::new(10_000, Duration::from_millis(0));
+    let proc = DynPortsProcessorFactory::new(1, vec![1, 2], vec![DEFAULT_PORT_HANDLE]);
+    let sink = CountingSinkFactory::new(0);
 
     let mut dag = Dag::new();
 
-    let source_id: NodeHandle = "source".to_string();
-    let passthrough_id: NodeHandle = "passthrough".to_string();
+    let source_id_1: NodeHandle = "source1".to_string();
+    let source_id_2: NodeHandle = "source2".to_string();
+    let proc_id: NodeHandle = "proc".to_string();
     let sink_id: NodeHandle = "sink".to_string();
 
-    dag.add_node(NodeType::Source(Box::new(src)), source_id.clone());
-    dag.add_node(
-        NodeType::Processor(Box::new(passthrough)),
-        passthrough_id.clone(),
-    );
+    dag.add_node(NodeType::Source(Box::new(src1)), source_id_1.clone());
+    dag.add_node(NodeType::Source(Box::new(src2)), source_id_2.clone());
+    dag.add_node(NodeType::Processor(Box::new(proc)), proc_id.clone());
     dag.add_node(NodeType::Sink(Box::new(sink)), sink_id.clone());
 
     assert!(dag
         .connect(
-            Endpoint::new(source_id, GENERATOR_SOURCE_OUTPUT_PORT),
-            Endpoint::new(passthrough_id.clone(), PASSTHROUGH_PROCESSOR_INPUT_PORT),
+            Endpoint::new(source_id_1, GENERATOR_SOURCE_OUTPUT_PORT),
+            Endpoint::new(proc_id.clone(), 1),
         )
         .is_ok());
 
     assert!(dag
         .connect(
-            Endpoint::new(passthrough_id, PASSTHROUGH_PROCESSOR_OUTPUT_PORT),
+            Endpoint::new(source_id_2, GENERATOR_SOURCE_OUTPUT_PORT),
+            Endpoint::new(proc_id.clone(), 2),
+        )
+        .is_ok());
+
+    assert!(dag
+        .connect(
+            Endpoint::new(proc_id, DEFAULT_PORT_HANDLE),
             Endpoint::new(sink_id, COUNTING_SINK_INPUT_PORT),
         )
         .is_ok());

@@ -15,6 +15,7 @@ use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
+use log::error;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -83,7 +84,7 @@ impl ExecutorOptions {
 }
 
 pub struct MultiThreadedDagExecutor {
-    handles: Vec<JoinHandle<Result<(), ExecutionError>>>,
+    handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>,
     stop_req: Arc<AtomicBool>,
 }
 
@@ -94,19 +95,23 @@ impl MultiThreadedDagExecutor {
         path: PathBuf,
         latch: &Arc<CountDownLatch>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
-        let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
+    ) -> Result<HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
+        let mut handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>> =
+            HashMap::new();
 
         for holder in sinks {
             let snk_receivers = receivers.remove(&holder.0.clone());
-            handles.push(start_sink(
+            handles.insert(
                 holder.0.clone(),
-                holder.1,
-                snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
-                path.clone(),
-                latch.clone(),
-                record_stores.clone(),
-            ));
+                start_sink(
+                    holder.0.clone(),
+                    holder.1,
+                    snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
+                    path.clone(),
+                    latch.clone(),
+                    record_stores.clone(),
+                ),
+            );
         }
 
         Ok(handles)
@@ -122,21 +127,25 @@ impl MultiThreadedDagExecutor {
         channel_buffer: usize,
         edges: &Vec<Edge>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
-        let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
+    ) -> Result<HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
+        let mut handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>> =
+            HashMap::new();
         for holder in sources {
-            handles.push(start_source(
-                stop_req.clone(),
-                edges.clone(),
+            handles.insert(
                 holder.0.clone(),
-                holder.1,
-                senders.remove(&holder.0).unwrap(),
-                commit_size,
-                commit_time,
-                channel_buffer,
-                record_stores.clone(),
-                path.clone(),
-            ));
+                start_source(
+                    stop_req.clone(),
+                    edges.clone(),
+                    holder.0.clone(),
+                    holder.1,
+                    senders.remove(&holder.0).unwrap(),
+                    commit_size,
+                    commit_time,
+                    channel_buffer,
+                    record_stores.clone(),
+                    path.clone(),
+                ),
+            );
         }
         Ok(handles)
     }
@@ -149,8 +158,9 @@ impl MultiThreadedDagExecutor {
         edges: &Vec<Edge>,
         latch: &Arc<CountDownLatch>,
         record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    ) -> Result<Vec<JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
-        let mut handles: Vec<JoinHandle<Result<(), ExecutionError>>> = Vec::new();
+    ) -> Result<HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>, ExecutionError> {
+        let mut handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>> =
+            HashMap::new();
 
         for holder in processors {
             let proc_receivers = receivers.remove(&holder.0.clone());
@@ -162,16 +172,19 @@ impl MultiThreadedDagExecutor {
                 return Err(MissingNodeOutput(holder.0));
             }
 
-            handles.push(start_processor(
-                edges.clone(),
-                holder.0,
-                holder.1,
-                proc_senders.unwrap(),
-                proc_receivers.unwrap(),
-                path.clone(),
-                record_stores.clone(),
-                latch.clone(),
-            ));
+            handles.insert(
+                holder.0.clone(),
+                start_processor(
+                    edges.clone(),
+                    holder.0,
+                    holder.1,
+                    proc_senders.unwrap(),
+                    proc_receivers.unwrap(),
+                    path.clone(),
+                    record_stores.clone(),
+                    latch.clone(),
+                ),
+            );
         }
 
         Ok(handles)
@@ -201,7 +214,7 @@ impl MultiThreadedDagExecutor {
         let (sources, processors, sinks, edges) = get_node_types_and_edges(dag);
         let latch = Arc::new(CountDownLatch::new((processors.len() + sinks.len()) as u64));
 
-        let mut all_handles = Vec::<JoinHandle<Result<(), ExecutionError>>>::new();
+        let mut all_handles = HashMap::<NodeHandle, JoinHandle<Result<(), ExecutionError>>>::new();
 
         all_handles.extend(Self::start_sinks(
             sinks,
@@ -245,18 +258,18 @@ impl MultiThreadedDagExecutor {
         self.stop_req.store(true, Ordering::Relaxed);
     }
 
-    pub fn join(self) -> Result<(), Vec<ExecutionError>> {
-        let mut results = Vec::new();
+    pub fn join(self) -> Result<(), HashMap<NodeHandle, ExecutionError>> {
+        let mut results: HashMap<NodeHandle, ExecutionError> = HashMap::new();
         for t in self.handles {
-            let r = t.join().unwrap();
+            let r = t.1.join().unwrap();
             if let Err(e) = r {
-                results.push(e);
+                //   error!("[{}]: Thread exited with error {}", &t.0, e);
+                results.insert(t.0, e);
             }
         }
-        if results.is_empty() {
-            Ok(())
-        } else {
-            Err(results)
+        match results.is_empty() {
+            true => Ok(()),
+            false => Err(results),
         }
     }
 }
