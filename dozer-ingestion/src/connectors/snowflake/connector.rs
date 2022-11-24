@@ -127,7 +127,7 @@ async fn run(
                         &table.name,
                         &ingestor_stream,
                     )
-                        .unwrap();
+                    .unwrap();
 
                     interval.tick().await;
                 }
