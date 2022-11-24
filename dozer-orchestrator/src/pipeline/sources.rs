@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 
-
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
     connection_map: HashMap<String, Vec<String>>,
