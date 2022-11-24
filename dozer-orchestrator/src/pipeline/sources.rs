@@ -15,6 +15,7 @@ use std::collections::HashMap;
 
 use std::sync::Arc;
 use std::thread;
+use log::error;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
@@ -109,6 +110,15 @@ impl Source for ConnectorSource {
                 Ok(())
             });
             threads.push(t);
+        }
+
+        for t in threads {
+            t.join()
+                .unwrap()
+                .map_err(|e| {
+                    error!("Source error: {:?}", e);
+                    ExecutionError::ConnectorError(Box::new(e))
+                })?;
         }
 
         let mut schema_map: HashMap<u32, u16> = HashMap::new();
