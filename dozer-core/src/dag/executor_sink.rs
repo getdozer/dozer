@@ -25,7 +25,7 @@ pub(crate) fn start_sink(
     base_path: PathBuf,
     latch: Arc<CountDownLatch>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    term_barrier: Arc<Barrier>,
+    _term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut snk = snk_factory.build();

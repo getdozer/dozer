@@ -160,7 +160,7 @@ impl<'a> CheckpointMetadataReader<'a> {
                 Ok(r) => {
                     all.insert(node.0.clone(), r);
                 }
-                Err(e) => LmdbEnvironmentManager::remove(path, node.0),
+                Err(_e) => LmdbEnvironmentManager::remove(path, node.0),
             }
         }
         Ok(all)
@@ -211,7 +211,7 @@ impl<'a> CheckpointMetadataReader<'a> {
         res.get_mut(&seq).unwrap().push(tree_node.handle.clone());
 
         for child in &tree_node.children {
-            self.get_dependency_tree_consistency_rec(source_handle, &child, res);
+            self.get_dependency_tree_consistency_rec(source_handle, child, res);
         }
     }
 

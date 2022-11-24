@@ -15,8 +15,8 @@ use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
-use libc::sync;
-use log::error;
+
+
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};

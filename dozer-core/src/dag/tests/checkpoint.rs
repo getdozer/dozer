@@ -2,16 +2,13 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::executor_checkpoint::{CheckpointMetadataReader, Consistency};
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::node::NodeHandle;
-use crate::dag::tests::dag_recordreader::{
-    PassthroughProcessorFactory, PASSTHROUGH_PROCESSOR_INPUT_PORT,
-    PASSTHROUGH_PROCESSOR_OUTPUT_PORT,
-};
+
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use std::collections::HashMap;
 use std::thread;
 
-use crate::dag::tests::processors::{DynPortsProcessorFactory, DynPortsSinkFactory};
+use crate::dag::tests::processors::{DynPortsProcessorFactory};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use std::time::Duration;
 use tempdir::TempDir;
@@ -89,12 +86,12 @@ fn test_checpoint_consistency() {
     let c = r.get_dependency_tree_consistency();
 
     match c.get("source1").unwrap() {
-        Consistency::PartiallyConsistent(r) => panic!("Wrong consistency"),
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
         Consistency::FullyConsistent(r) => assert_eq!(r, &24999),
     }
 
     match c.get("source2").unwrap() {
-        Consistency::PartiallyConsistent(r) => panic!("Wrong consistency"),
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
         Consistency::FullyConsistent(r) => assert_eq!(r, &49999),
     }
 
@@ -107,7 +104,7 @@ fn test_checpoint_consistency() {
     expected.insert(0_u64, vec!["proc".to_string()]);
     match c.get("source1").unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
-        Consistency::FullyConsistent(r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
     }
 
     let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
@@ -115,6 +112,6 @@ fn test_checpoint_consistency() {
     expected.insert(0_u64, vec!["proc".to_string()]);
     match c.get("source2").unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
-        Consistency::FullyConsistent(r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
     }
 }

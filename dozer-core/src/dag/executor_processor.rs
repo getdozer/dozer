@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use crate::dag::dag::Edge;
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::SchemaNotInitialized;
+
 use crate::dag::executor_local::{ExecutorOperation, InputPortState};
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, init_component,
@@ -18,12 +18,11 @@ use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use log::{error, info, warn};
 use std::collections::HashMap;
-use std::ops::Add;
+
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
 
 fn update_processor_schema(
     new: Schema,
@@ -63,12 +62,10 @@ pub(crate) fn start_processor(
     base_path: PathBuf,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     latch: Arc<CountDownLatch>,
-    term_barrier: Arc<Barrier>,
+    _term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut proc = proc_factory.build();
-
-        let mut schema_initialized = false;
         let mut state_meta = init_component(&handle, base_path.as_path(), |e| proc.init(e))?;
 
         let port_databases = create_ports_databases(
@@ -144,7 +141,7 @@ pub(crate) fn start_processor(
         );
 
         let mut port_states: Vec<InputPortState> =
-            handles_ls.iter().map(|h| InputPortState::Open).collect();
+            handles_ls.iter().map(|_h| InputPortState::Open).collect();
 
         let mut sel = init_select(&receivers_ls);
         loop {
@@ -155,7 +152,7 @@ pub(crate) fn start_processor(
 
             match op {
                 ExecutorOperation::SchemaUpdate { new } => {
-                    schema_initialized = update_processor_schema(
+                    update_processor_schema(
                         new,
                         &handles_ls[index],
                         &proc_factory.get_output_ports(),
