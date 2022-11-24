@@ -6,7 +6,7 @@ use dotenvy::dotenv;
 use std::env;
 use tonic::{transport::Server, Request, Response, Status};
 pub mod dozer_admin_grpc {
-    #![allow(clippy::derive_partial_eq_without_eq)]
+    #![allow(clippy::derive_partial_eq_without_eq, clippy::large_enum_variant)]
     tonic::include_proto!("dozer_admin_grpc");
     pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("dozer_admin_grpc_descriptor");
