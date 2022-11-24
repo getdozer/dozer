@@ -172,7 +172,6 @@ pub(crate) fn start_processor(
                     );
                     if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                         fw.send_term_and_wait()?;
-                        term_barrier.wait();
                         return Ok(());
                     }
                 }

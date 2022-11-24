@@ -9,6 +9,7 @@ use crate::dag::tests::dag_recordreader::{
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use std::collections::HashMap;
+use std::thread;
 
 use crate::dag::tests::processors::{DynPortsProcessorFactory, DynPortsSinkFactory};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
@@ -66,8 +67,8 @@ fn build_dag() -> Dag {
 
 #[test]
 fn test_checpoint_consistency() {
-    // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
-    //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
+        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let dag = build_dag();
 
@@ -77,6 +78,8 @@ fn test_checpoint_consistency() {
         tmp_dir.path(),
         ExecutorOptions::default()
     ));
+
+    thread::sleep(Duration::from_secs(5));
 
     assert!(exec.join().is_ok());
 

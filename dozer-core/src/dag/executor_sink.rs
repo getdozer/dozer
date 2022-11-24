@@ -73,7 +73,6 @@ pub(crate) fn start_sink(
 
                 ExecutorOperation::Terminate => {
                     info!("[{}] Terminating: Exiting message loop", handle);
-                    term_barrier.wait();
                     return Ok(());
                 }
                 ExecutorOperation::Commit { epoch, source } => {
