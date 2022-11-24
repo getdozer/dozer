@@ -152,6 +152,7 @@ impl Source for ConnectorSource {
                 .unwrap()
                 .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
         }
+
         Ok(())
     }
 
