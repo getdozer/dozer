@@ -264,19 +264,14 @@ impl CacheSink {
                 | FieldType::String
                 | FieldType::Decimal
                 | FieldType::Timestamp
+                | FieldType::Date
                 | FieldType::Null => Some(IndexDefinition::SortedInverted(vec![(idx, Ascending)])),
 
                 // Create full text indexes for text fields
                 FieldType::Text => Some(IndexDefinition::FullText(idx)),
 
                 // Skip creating indexes
-                FieldType::Binary
-                | FieldType::UIntArray
-                | FieldType::IntArray
-                | FieldType::FloatArray
-                | FieldType::BooleanArray
-                | FieldType::StringArray
-                | FieldType::Bson => None,
+                FieldType::Binary | FieldType::Bson => None,
             })
             .collect();
         Ok(schema)

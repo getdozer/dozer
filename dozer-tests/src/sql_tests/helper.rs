@@ -137,12 +137,8 @@ pub fn query_sqllite(
                             Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
                         },
                         dozer_types::types::FieldType::Null => Field::Null,
-                        dozer_types::types::FieldType::UIntArray
-                        | dozer_types::types::FieldType::IntArray
-                        | dozer_types::types::FieldType::FloatArray
-                        | dozer_types::types::FieldType::BooleanArray
-                        | dozer_types::types::FieldType::StringArray
-                        | dozer_types::types::FieldType::Bson => {
+                        FieldType::Date =>  convert_type!(Field::String, f, row, idx),
+                        dozer_types::types::FieldType::Bson => {
                             panic!("type not supported : {:?}", f.typ.to_owned())
                         }
                     };
@@ -210,14 +206,9 @@ pub fn map_field_to_string(f: &Field) -> String {
         Field::Boolean(i) => i.to_string(),
         Field::String(i) => format!("'{}'", i),
         Field::Text(i) => i.to_string(),
-        Field::Binary(_)
-        | Field::UIntArray(_)
-        | Field::IntArray(_)
-        | Field::FloatArray(_)
-        | Field::BooleanArray(_)
-        | Field::StringArray(_)
-        | Field::Timestamp(_)
-        | Field::Bson(_) => panic!("not supported {:?}", f),
+        Field::Timestamp(i) => i.to_string(),
+        Field::Date(i) => i.to_string(),
+        Field::Binary(_) | Field::Bson(_) => panic!("not supported {:?}", f),
         Field::Decimal(i) => i.to_string(),
         Field::Null => "null".to_string(),
     }

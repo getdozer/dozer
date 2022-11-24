@@ -133,36 +133,7 @@ pub fn dozer_field_to_json_value(field: &Field) -> Result<Value, TypeError> {
             })?;
             Ok(result)
         }
-        Field::UIntArray(n) => {
-            let result = serde_json::to_value(n).map_err(|e| {
-                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
-            })?;
-            Ok(result)
-        }
-        Field::IntArray(n) => {
-            let result = serde_json::to_value(n).map_err(|e| {
-                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
-            })?;
-            Ok(result)
-        }
-        Field::FloatArray(n) => {
-            let result = serde_json::to_value(n).map_err(|e| {
-                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
-            })?;
-            Ok(result)
-        }
-        Field::BooleanArray(n) => {
-            let result = serde_json::to_value(n).map_err(|e| {
-                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
-            })?;
-            Ok(result)
-        }
-        Field::StringArray(n) => {
-            let result = serde_json::to_value(n).map_err(|e| {
-                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
-            })?;
-            Ok(result)
-        }
+
         Field::Decimal(n) => {
             let result = serde_json::to_value(n).map_err(|e| {
                 TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
@@ -182,6 +153,12 @@ pub fn dozer_field_to_json_value(field: &Field) -> Result<Value, TypeError> {
             Ok(result)
         }
         Field::Null => Ok(Value::Null),
+        Field::Date(date) => {
+            let result = serde_json::to_value(date).map_err(|e| {
+                TypeError::SerializationError(SerializationError::Custom(Box::new(e)))
+            })?;
+            Ok(result)
+        }
     }
 }
 

@@ -41,11 +41,7 @@ impl OpenApiGenerator {
                     | FieldType::Null => Value::Null,
 
                     FieldType::Text => Value::from("lorem ipsum".to_string()),
-                    FieldType::UIntArray => Value::from(vec![1, 2, 3]),
-                    FieldType::IntArray => Value::from(vec![1, -2, 3]),
-                    FieldType::FloatArray => Value::from(vec![1.0_f64, 2.0_f64, 3.2_f64]),
-                    FieldType::BooleanArray => Value::from(vec![true, true, false]),
-                    FieldType::StringArray => Value::from(vec!["a".to_string(), "b".to_string()]),
+                    FieldType::Date => Value::from("2022-11-24"),
                 };
                 json!({ name: val })
             } else {
