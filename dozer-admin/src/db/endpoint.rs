@@ -59,7 +59,7 @@ struct NewSourceEndpoint {
 impl TryFrom<EndpointInfo> for NewEndpoint {
     type Error = Box<dyn Error>;
     fn try_from(input: EndpointInfo) -> Result<Self, Self::Error> {
-        let generated_id = uuid::Uuid::new_v4().to_string();
+        let _generated_id = uuid::Uuid::new_v4().to_string();
         Ok(NewEndpoint {
             id: input.id,
             name: input.name,

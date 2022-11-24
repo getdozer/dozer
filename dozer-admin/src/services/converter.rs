@@ -141,7 +141,7 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
             }),
             models::connection::Authentication::EthereumAuthentication { filter, wss_url } => {
                 authentication::Authentication::Ethereum(EthereumAuthentication {
-                    wss_url: wss_url,
+                    wss_url,
                     filter: Some(dozer_admin_grpc::EthereumFilter::try_from(filter).unwrap()),
                 })
             }

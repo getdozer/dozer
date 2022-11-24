@@ -105,7 +105,7 @@ impl AppService {
         let errors_log_file = dozer_log_file.try_clone().map_err(|op| ErrorResponse {
             message: op.to_string(),
         })?;
-        
+
         // kill process at port 8080 50051 lsof -t -i:8080 | xargs -r kill
         let mut check_ports_used = Command::new("lsof");
         check_ports_used.args(["-t", "-i:50051"]);

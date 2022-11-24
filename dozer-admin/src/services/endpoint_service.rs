@@ -27,7 +27,7 @@ impl EndpointService {
         &self,
         request: DeleteEndpointRequest,
     ) -> Result<DeleteEndpointResponse, ErrorResponse> {
-        let endpoint_info =
+        let _endpoint_info =
             EndpointInfo::delete(self.db_pool.to_owned(), request.endpoint_id, request.app_id)
                 .map_err(|op| ErrorResponse {
                     message: op.to_string(),
