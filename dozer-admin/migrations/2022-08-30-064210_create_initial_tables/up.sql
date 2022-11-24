@@ -42,6 +42,7 @@ create table endpoints
     enable_rest BOOLEAN NOT NULL,
     enable_grpc BOOLEAN NOT NULL,
     sql TEXT NOT NULL,
+    primary_keys  TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     FOREIGN KEY(app_id) REFERENCES apps(id)

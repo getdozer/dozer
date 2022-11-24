@@ -1198,6 +1198,7 @@ dependencies = [
  "r2d2",
  "serde",
  "serde_json",
+ "serde_yaml 0.9.14",
  "tokio",
  "tonic",
  "tonic-build",

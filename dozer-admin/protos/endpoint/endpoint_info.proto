@@ -11,4 +11,5 @@ message EndpointInfo {
   bool enable_grpc = 6;
   string sql = 7;
   repeated string source_ids = 8;
+  repeated string primary_keys = 9;
 }

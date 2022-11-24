@@ -30,6 +30,7 @@ diesel::table! {
         enable_rest -> Bool,
         enable_grpc -> Bool,
         sql -> Text,
+        primary_keys -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

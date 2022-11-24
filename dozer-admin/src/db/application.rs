@@ -1,28 +1,30 @@
 use std::error::Error;
 
 use super::{
+    connection::DbConnection,
     constants,
+    endpoint::DbEndpoint,
     pool::DbPool,
-    schema::{self, apps,sources, connections, endpoints},
-    source::DBSource, connection::DbConnection, endpoint::DbEndpoint,
+    schema::{self, apps, connections, endpoints, sources},
+    source::DBSource,
 };
 use crate::diesel::ExpressionMethods;
 use crate::server::dozer_admin_grpc::{ApplicationInfo, Pagination};
-use diesel::{*, query_dsl::methods::FilterDsl};
 use diesel::{insert_into, AsChangeset, Insertable, QueryDsl, Queryable, RunQueryDsl};
+use diesel::{query_dsl::methods::FilterDsl, *};
 use schema::apps::dsl::*;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApplicationDetail {
-    app: Application,
-    sources_connections: Vec<(DBSource, DbConnection)>,
-    endpoints: Vec<DbEndpoint>
+    pub app: Application,
+    pub sources_connections: Vec<(DBSource, DbConnection)>,
+    pub endpoints: Vec<DbEndpoint>,
 }
 #[derive(Identifiable, Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[diesel(table_name = apps)]
 pub struct Application {
-    id: String,
-    name: String,
+    pub id: String,
+    pub name: String,
     created_at: String,
     updated_at: String,
 }
@@ -67,10 +69,11 @@ impl AppDbService {
                 .inner_join(connections::table)
                 .select((sources::all_columns, connections::all_columns)),
             sources::app_id.eq(input_id.to_owned()),
-        ).load::<(DBSource, DbConnection)>(&mut db)?;
-        let filter_dsl_endpoints = FilterDsl::filter(endpoints::table, endpoints::app_id.eq(input_id.to_owned()));
+        )
+        .load::<(DBSource, DbConnection)>(&mut db)?;
+        let filter_dsl_endpoints =
+            FilterDsl::filter(endpoints::table, endpoints::app_id.eq(input_id));
         let endpoints: Vec<DbEndpoint> = filter_dsl_endpoints
-            .to_owned()
             .order_by(endpoints::id.asc())
             .load(&mut db)?;
 

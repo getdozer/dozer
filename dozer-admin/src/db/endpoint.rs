@@ -12,16 +12,17 @@ use schema::{endpoints::dsl::*, source_endpoints::dsl::*, sources::dsl::*};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-#[derive(Queryable, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[diesel(table_name = endpoints)]
 pub struct DbEndpoint {
-    id: String,
-    app_id: String,
-    name: String,
-    path: String,
-    enable_rest: bool,
-    enable_grpc: bool,
-    sql: String,
+    pub id: String,
+    pub app_id: String,
+    pub name: String,
+    pub path: String,
+    pub enable_rest: bool,
+    pub enable_grpc: bool,
+    pub sql: String,
+    pub primary_keys: String,
     created_at: String,
     updated_at: String,
 }
@@ -34,6 +35,7 @@ struct NewEndpoint {
     path: String,
     enable_rest: bool,
     enable_grpc: bool,
+    primary_keys: String,
     sql: String,
 }
 
@@ -66,6 +68,7 @@ impl TryFrom<EndpointInfo> for NewEndpoint {
             enable_grpc: input.enable_grpc,
             sql: input.sql,
             app_id: input.app_id,
+            primary_keys: input.primary_keys.join(","),
         })
     }
 }
@@ -74,6 +77,12 @@ impl TryFrom<DbEndpoint> for EndpointInfo {
 
     fn try_from(input: DbEndpoint) -> Result<Self, Self::Error> {
         let ids: Vec<String> = Vec::new();
+        let primary_keys_arr: Vec<String> = input
+            .primary_keys
+            .split(',')
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
         Ok(EndpointInfo {
             id: input.id,
             app_id: "".to_string(),
@@ -83,6 +92,7 @@ impl TryFrom<DbEndpoint> for EndpointInfo {
             enable_grpc: input.enable_grpc,
             sql: input.sql,
             source_ids: ids,
+            primary_keys: primary_keys_arr,
         })
     }
 }

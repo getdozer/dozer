@@ -73,6 +73,8 @@ message CreateEndpointRequest {
   bool enable_grpc = 5;
   string sql = 6;
   repeated string source_ids = 7;
+  repeated string primary_keys = 9;
+
 }
 
 message CreateEndpointResponse {
@@ -96,6 +98,8 @@ message UpdateEndpointRequest {
   optional bool enable_grpc = 6;
   optional string sql = 7;
   repeated string source_ids = 8;
+  repeated string primary_keys = 9;
+
 }
 
 message UpdateEndpointResponse {

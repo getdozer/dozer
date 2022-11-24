@@ -1,9 +1,67 @@
-use crate::server::dozer_admin_grpc::{
-    self, authentication, ConnectionInfo, PostgresAuthentication,
+use crate::{
+    db::{
+        application::ApplicationDetail, connection::DbConnection, endpoint::DbEndpoint,
+        source::DBSource,
+    },
+    server::dozer_admin_grpc::{self, authentication, ConnectionInfo, PostgresAuthentication},
 };
-use dozer_types::models;
+use dozer_types::models::{
+    self,
+    api_endpoint::{ApiEndpoint, ApiIndex},
+    source::Source,
+};
 use dozer_types::types::Schema;
 use std::{convert::From, error::Error};
+
+fn convert_to_source(input: (DBSource, DbConnection)) -> Result<Source, Box<dyn Error>> {
+    let db_source = input.0;
+    let connection_info = ConnectionInfo::try_from(input.1)?;
+    let connection = models::connection::Connection::try_from(connection_info)?;
+    Ok(Source {
+        id: Some(db_source.id),
+        name: db_source.name,
+        table_name: db_source.table_name,
+        connection,
+        history_type: None,
+        refresh_config: models::source::RefreshConfig::RealTime,
+    })
+}
+
+fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Error>> {
+    let primary_keys_arr: Vec<String> = input
+        .primary_keys
+        .split(',')
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
+    Ok(ApiEndpoint {
+        id: Some(input.id),
+        name: input.name,
+        path: input.path,
+        enable_rest: input.enable_rest,
+        enable_grpc: input.enable_grpc,
+        sql: input.sql,
+        index: ApiIndex {
+            primary_key: primary_keys_arr,
+        },
+    })
+}
+impl TryFrom<ApplicationDetail> for dozer_orchestrator::cli::Config {
+    type Error = Box<dyn Error>;
+    fn try_from(input: ApplicationDetail) -> Result<Self, Self::Error> {
+        let sources = input
+            .sources_connections
+            .iter()
+            .map(|sc| convert_to_source(sc.to_owned()).unwrap())
+            .collect();
+        let endpoints = input
+            .endpoints
+            .iter()
+            .map(|sc| convert_to_api_endpoint(sc.to_owned()).unwrap())
+            .collect();
+        Ok(dozer_orchestrator::cli::Config { sources, endpoints })
+    }
+}
 
 impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
     fn from(item: (String, Schema)) -> Self {

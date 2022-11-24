@@ -14,14 +14,16 @@ use schema::sources::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-#[derive(Queryable,Identifiable,Associations, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(
+    Queryable, Identifiable, Associations, PartialEq, Eq, Debug, Clone, Serialize, Deserialize,
+)]
 #[diesel(belongs_to(Application, foreign_key = app_id))]
 #[diesel(table_name = sources)]
 pub struct DBSource {
-    id: String,
-    app_id: String,
-    name: String,
-    table_name: String,
+    pub id: String,
+    pub app_id: String,
+    pub name: String,
+    pub table_name: String,
     connection_id: String,
     created_at: String,
     updated_at: String,

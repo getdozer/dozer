@@ -54,6 +54,7 @@ impl EndpointService {
             enable_grpc: request.enable_grpc.to_owned(),
             sql: request.sql,
             source_ids: request.source_ids,
+            primary_keys: request.primary_keys,
         };
         endpoint_info
             .upsert(self.db_pool.to_owned())
