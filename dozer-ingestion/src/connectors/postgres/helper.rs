@@ -5,7 +5,7 @@ use crate::errors::PostgresSchemaError::{
 };
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use bytes::Bytes;
-use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
+use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Column, Row};
@@ -49,7 +49,7 @@ pub fn postgres_type_to_field(
                     "%Y-%m-%d %H:%M:%S",
                 )
                 .unwrap();
-                Ok(Field::Timestamp(DateTime::<Utc>::from_utc(date, Utc)))
+                Ok(Field::Timestamp(DateTime::from_utc(date, Utc.fix())))
             }
             &Type::TIMESTAMPTZ => {
                 let date: DateTime<FixedOffset> = DateTime::parse_from_str(
@@ -57,10 +57,7 @@ pub fn postgres_type_to_field(
                     "%Y-%m-%d %H:%M:%S%.f%#z",
                 )
                 .unwrap();
-                Ok(Field::Timestamp(DateTime::<Utc>::from_utc(
-                    date.naive_utc(),
-                    Utc,
-                )))
+                Ok(Field::Timestamp(date))
             }
             &Type::JSONB | &Type::JSON => Ok(Field::Bson(value.to_vec())),
             &Type::BOOL => Ok(Field::Boolean(value.slice(0..1) == "t")),
@@ -248,17 +245,19 @@ mod tests {
         let value = Decimal::from_f64(8.28).unwrap();
         test_conversion!("8.28", Type::NUMERIC, Field::Decimal(value));
 
-        let value =
-            DateTime::<Utc>::from_utc(NaiveDate::from_ymd(2022, 9, 16).and_hms(5, 56, 29), Utc);
+        let value = DateTime::from_utc(
+            NaiveDate::from_ymd(2022, 9, 16).and_hms(5, 56, 29),
+            Utc.fix(),
+        );
         test_conversion!(
             "2022-09-16 05:56:29",
             Type::TIMESTAMP,
             Field::Timestamp(value)
         );
 
-        let value = DateTime::<Utc>::from_utc(
+        let value = DateTime::from_utc(
             NaiveDate::from_ymd(2022, 9, 16).and_hms_micro(3, 56, 30, 959787),
-            Utc,
+            Utc.fix(),
         );
         test_conversion!(
             "2022-09-16 10:56:30.959787+07",

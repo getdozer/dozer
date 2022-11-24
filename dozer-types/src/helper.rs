@@ -4,7 +4,7 @@ use crate::{
     errors::types,
     types::{Field, FieldType, Record, Schema},
 };
-use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
+use chrono::{DateTime, NaiveDate, SecondsFormat};
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use std::str::FromStr;
@@ -67,10 +67,7 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
             .map(Field::Decimal),
         FieldType::Timestamp => DateTime::parse_from_rfc3339(val)
             .map_err(|e| DeserializationError::Custom(Box::new(e)))
-            .map(|date| {
-                let val: DateTime<Utc> = date.with_timezone(&Utc);
-                Field::Timestamp(val)
-            }),
+            .map(Field::Timestamp),
         FieldType::Bson => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Bson),
@@ -83,7 +80,7 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
             .map(Field::Text),
         FieldType::Date => NaiveDate::parse_from_str(val, DATE_FORMAT)
             .map_err(|e| DeserializationError::Custom(Box::new(e)))
-            .map(|date| Field::Date(date)),
+            .map(Field::Date),
     }
     .map_err(TypeError::DeserializationError)
 }
@@ -94,7 +91,7 @@ mod tests {
         helper::{field_to_json_value, json_value_to_field},
         types::{Field, FieldType},
     };
-    use chrono::{NaiveDate, TimeZone, Utc};
+    use chrono::{NaiveDate, Offset, TimeZone, Utc};
     use ordered_float::OrderedFloat;
     use rust_decimal::Decimal;
     use serde_json::json;
@@ -121,7 +118,7 @@ mod tests {
             (FieldType::Decimal, Field::Decimal(Decimal::new(202, 2))),
             (
                 FieldType::Timestamp,
-                Field::Timestamp(Utc.ymd(2001, 1, 1).and_hms_milli(0, 4, 0, 42)),
+                Field::Timestamp(Utc.fix().ymd(2001, 1, 1).and_hms_milli(0, 4, 0, 42)),
             ),
             (
                 FieldType::Date,

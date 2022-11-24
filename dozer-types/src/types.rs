@@ -1,5 +1,5 @@
 use crate::errors::types::TypeError;
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use std::fmt::{Display, Formatter};
 
 use ordered_float::OrderedFloat;
@@ -18,7 +18,7 @@ pub enum Field {
     Binary(Vec<u8>),
     #[serde(with = "rust_decimal::serde::float")]
     Decimal(Decimal),
-    Timestamp(DateTime<Utc>),
+    Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
     Bson(Vec<u8>),
     Null,
