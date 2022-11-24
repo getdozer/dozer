@@ -1,5 +1,5 @@
 use crate::types::Field;
-use chrono::{DateTime, FixedOffset, NaiveDateTime, Offset, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 
@@ -60,5 +60,11 @@ impl From<NaiveDateTime> for Field {
 impl From<DateTime<FixedOffset>> for Field {
     fn from(value: DateTime<FixedOffset>) -> Self {
         Field::Timestamp(value)
+    }
+}
+
+impl From<NaiveDate> for Field {
+    fn from(value: NaiveDate) -> Self {
+        Field::Date(value)
     }
 }

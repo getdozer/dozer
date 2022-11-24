@@ -5,7 +5,7 @@ use crate::errors::PostgresSchemaError::{
 };
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use bytes::Bytes;
-use dozer_types::chrono::{DateTime, FixedOffset, NaiveDateTime, Offset, Utc};
+use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, types::*};
 use postgres::{Column, Row};
@@ -59,6 +59,14 @@ pub fn postgres_type_to_field(
                 .unwrap();
                 Ok(Field::Timestamp(date))
             }
+            &Type::DATE => {
+                let date: NaiveDate = NaiveDate::parse_from_str(
+                    String::from_utf8(value.to_vec()).unwrap().as_str(),
+                    DATE_FORMAT,
+                )
+                .unwrap();
+                Ok(Field::from(date))
+            }
             &Type::JSONB | &Type::JSON => Ok(Field::Bson(value.to_vec())),
             &Type::BOOL => Ok(Field::Boolean(value.slice(0..1) == "t")),
             _ => Err(ConnectorError::PostgresConnectorError(
@@ -85,6 +93,7 @@ pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> Result<FieldType, 
             Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
             Type::NUMERIC => Ok(FieldType::Decimal),
             Type::JSONB => Ok(FieldType::Bson),
+            Type::DATE => Ok(FieldType::Date),
             _ => Err(ConnectorError::PostgresConnectorError(
                 PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
                     column_type.name().to_string(),
@@ -135,6 +144,7 @@ pub fn value_to_field(
         &Type::TIMESTAMP => convert_row_value_to_field!(row, idx, NaiveDateTime),
         &Type::TIMESTAMPTZ => convert_row_value_to_field!(row, idx, DateTime<FixedOffset>),
         &Type::NUMERIC => convert_row_value_to_field!(row, idx, Decimal),
+        &Type::DATE => convert_row_value_to_field!(row, idx, NaiveDate),
         &Type::BYTEA => {
             let value: Result<Vec<u8>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
