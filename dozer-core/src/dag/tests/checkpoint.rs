@@ -67,8 +67,8 @@ fn build_dag() -> Dag {
 
 #[test]
 fn test_checpoint_consistency() {
-    log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
+    //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let dag = build_dag();
 
