@@ -1,20 +1,20 @@
 use std::path::PathBuf;
 use std::{sync::Arc, thread};
 
-use dozer_api::actix_web::dev::ServerHandle;
-use dozer_api::grpc::{start_internal_client, start_internal_server};
-use dozer_api::CacheEndpoint;
-use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-
 use super::executor::{Executor, SinkConfig};
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
+use dozer_api::actix_web::dev::ServerHandle;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_api::grpc::{start_internal_client, start_internal_server};
+use dozer_api::CacheEndpoint;
 use dozer_api::{grpc, rest};
+use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::crossbeam::channel::{self, unbounded};
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::oneshot;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -53,7 +53,6 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
-
         let running2 = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
@@ -91,23 +90,23 @@ impl Orchestrator for SimpleOrchestrator {
                 .run(ce3, tx)
                 .map_err(OrchestrationError::ApiServerFailed)
         });
-        let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
 
         // Initialize GRPC Server
-        let grpc_server = grpc::ApiServer::new(receiver, 50051, false);
+        let grpc_server = grpc::ApiServer::new(receiver, 50051, true);
+        let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
 
         let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
             grpc_server
-                .run(ce2, running2.to_owned())
+                .run(ce2, running2.to_owned(), receiver_shutdown)
                 .map_err(OrchestrationError::GrpcServerFailed)
                 .unwrap();
             Ok(())
         });
-
+        let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
+        sender_shutdown.send(()).unwrap();
         rest::ApiServer::stop(server_handle);
-
         thread.join().unwrap()?;
 
         Ok(())
