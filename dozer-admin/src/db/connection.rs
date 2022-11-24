@@ -54,6 +54,7 @@ impl TryFrom<i32> for ConnectionType {
             0 => Ok(ConnectionType::Postgres),
             1 => Ok(ConnectionType::Snowflake),
             2 => Ok(ConnectionType::Databricks),
+            3 => Ok(ConnectionType::Eth),
             _ => Err("ConnectionType enum not match".to_owned())?,
         }
     }
@@ -64,6 +65,7 @@ impl TryFrom<String> for ConnectionType {
         match item.to_lowercase().as_str() {
             "postgres" => Ok(ConnectionType::Postgres),
             "snowflake" => Ok(ConnectionType::Snowflake),
+            "eth" => Ok(ConnectionType::Eth),
             "databricks" => Ok(ConnectionType::Databricks),
             _ => Err("String not match ConnectionType".to_owned())?,
         }

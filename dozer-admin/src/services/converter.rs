@@ -3,8 +3,11 @@ use crate::{
         application::ApplicationDetail, connection::DbConnection, endpoint::DbEndpoint,
         source::DBSource,
     },
-    server::dozer_admin_grpc::{self, authentication, ConnectionInfo, PostgresAuthentication},
+    server::dozer_admin_grpc::{
+        self, authentication, ConnectionInfo, EthereumAuthentication, PostgresAuthentication,
+    },
 };
+use dozer_types::ingestion_types::EthFilter;
 use dozer_types::models::{
     self,
     api_endpoint::{ApiEndpoint, ApiIndex},
@@ -46,6 +49,7 @@ fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Err
         },
     })
 }
+
 impl TryFrom<ApplicationDetail> for dozer_orchestrator::cli::Config {
     type Error = Box<dyn Error>;
     fn try_from(input: ApplicationDetail) -> Result<Self, Self::Error> {
@@ -87,7 +91,9 @@ impl TryFrom<ConnectionInfo> for models::connection::Connection {
     fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {
         let db_type_value = match item.r#type {
             0 => models::connection::DBType::Postgres,
-            _ => models::connection::DBType::Ethereum,
+            1 => models::connection::DBType::Snowflake,
+            3 => models::connection::DBType::Ethereum,
+            _ => models::connection::DBType::Events,
         };
         if item.authentication.is_none() {
             Err("Missing authentication props when converting ".to_owned())?
@@ -101,6 +107,17 @@ impl TryFrom<ConnectionInfo> for models::connection::Connection {
                 id: None,
             })
         }
+    }
+}
+impl TryFrom<EthFilter> for dozer_admin_grpc::EthereumFilter {
+    type Error = Box<dyn Error>;
+
+    fn try_from(item: EthFilter) -> Result<Self, Self::Error> {
+        Ok(dozer_admin_grpc::EthereumFilter {
+            from_block: item.from_block,
+            addresses: item.addresses,
+            topics: item.topics,
+        })
     }
 }
 impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authentication {
@@ -121,12 +138,13 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 port: port as u32,
                 password,
             }),
-            models::connection::Authentication::EthereumAuthentication {
-                filter: _,
-                wss_url: _,
-            } => {
-                todo!()
+            models::connection::Authentication::EthereumAuthentication { filter, wss_url } => {
+                authentication::Authentication::Ethereum(EthereumAuthentication {
+                    wss_url: wss_url,
+                    filter: Some(dozer_admin_grpc::EthereumFilter::try_from(filter).unwrap()),
+                })
             }
+
             #[cfg(feature = "snowflake")]
             models::connection::Authentication::SnowflakeAuthentication { .. } => {
                 todo!()
@@ -156,6 +174,18 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
                         database: postgres_authentication.database,
                     }
                 }
+                authentication::Authentication::Ethereum(ethereum_authentication) => {
+                    let eth_filter = ethereum_authentication.filter.unwrap();
+                    models::connection::Authentication::EthereumAuthentication {
+                        filter: EthFilter {
+                            from_block: eth_filter.from_block,
+                            addresses: eth_filter.addresses,
+                            topics: eth_filter.topics,
+                        },
+                        wss_url: ethereum_authentication.wss_url,
+                    }
+                }
+                authentication::Authentication::Snowflake(_) => todo!(),
             };
             Ok(result)
         }

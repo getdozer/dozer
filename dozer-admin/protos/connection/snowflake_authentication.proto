@@ -1,0 +1,12 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+message SnowflakeAuthentication {
+  string server = 1;
+  string port = 2;
+  string user = 3;
+  string password = 4;
+  string database = 5;
+  string schema = 6;
+  string warehouse = 7;
+  optional string driver = 8;
+}
