@@ -46,12 +46,17 @@ impl PostgresSnapshotter {
         }
     }
 
-    pub fn sync_tables(&self) -> Result<Vec<String>, ConnectorError> {
+    pub fn sync_tables(
+        &self,
+        tables: Option<Vec<TableInfo>>,
+    ) -> Result<Vec<String>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(connection_helper::connect(
             self.conn_config.clone(),
         )?));
 
-        let tables = self.get_tables(None)?;
+        let tables = self.get_tables(
+            tables.map(|t| t.iter().map(|t| t.name.clone()).collect()),
+        )?;
 
         let mut idx: u32 = 0;
         for table_info in tables.iter() {
