@@ -156,7 +156,7 @@ impl ApiServer {
             grpc_router
                 .add_service(inflection_service)
                 // GRPC service to handle typed requests
-                .add_service(tonic_web::enable(grpc_service))
+                .add_service(tonic_web::config().allow_all_origins().enable(grpc_service))
         } else {
             grpc_router
         };

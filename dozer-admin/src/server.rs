@@ -15,12 +15,12 @@ use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
     CreateAppRequest, CreateAppResponse, CreateConnectionRequest, CreateConnectionResponse,
     CreateEndpointRequest, CreateEndpointResponse, CreateSourceRequest, CreateSourceResponse,
-    GetAllConnectionRequest, GetAllConnectionResponse, GetConnectionDetailsRequest,
-    GetConnectionDetailsResponse, GetEndpointRequest, GetEndpointResponse, GetSchemaRequest,
-    GetSchemaResponse, GetSourceRequest, GetSourceResponse, StartPipelineRequest,
-    StartPipelineResponse, TestConnectionRequest, TestConnectionResponse, UpdateConnectionRequest,
-    UpdateConnectionResponse, UpdateEndpointRequest, UpdateEndpointResponse, UpdateSourceRequest,
-    UpdateSourceResponse,
+    DeleteEndpointRequest, DeleteEndpointResponse, GetAllConnectionRequest,
+    GetAllConnectionResponse, GetConnectionDetailsRequest, GetConnectionDetailsResponse,
+    GetEndpointRequest, GetEndpointResponse, GetSchemaRequest, GetSchemaResponse, GetSourceRequest,
+    GetSourceResponse, StartPipelineRequest, StartPipelineResponse, TestConnectionRequest,
+    TestConnectionResponse, UpdateConnectionRequest, UpdateConnectionResponse,
+    UpdateEndpointRequest, UpdateEndpointResponse, UpdateSourceRequest, UpdateSourceResponse,
 };
 
 use self::dozer_admin_grpc::{
@@ -251,6 +251,16 @@ impl DozerAdmin for GrpcService {
             Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
         }
     }
+    async fn delete_endpoint(
+        &self,
+        request: tonic::Request<DeleteEndpointRequest>,
+    ) -> Result<tonic::Response<DeleteEndpointResponse>, tonic::Status> {
+        let result = self.endpoint_service.delete(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
 }
 
 pub async fn get_server() -> Result<(), tonic::transport::Error> {
@@ -264,10 +274,7 @@ pub async fn get_server() -> Result<(), tonic::transport::Error> {
         app_service: AppService::new(database_url.to_owned()),
     };
     let server = DozerAdminServer::new(grpc_service);
-    let server = tonic_web::config()
-        .allow_origins(vec!["http://localhost:3000", "http://localhost:3001"])
-        .allow_all_origins()
-        .enable(server);
+    let server = tonic_web::config().allow_all_origins().enable(server);
     let reflection_service = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(dozer_admin_grpc::FILE_DESCRIPTOR_SET)
         .build()
