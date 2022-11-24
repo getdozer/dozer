@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::errors::{ConnectorError, PostgresConnectorError};
+use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
 use crate::connectors::TableInfo;
@@ -60,8 +60,10 @@ impl SchemaHelper {
         })?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
-        results.iter().map(|r| self.convert_row(r)).try_for_each(
-            |row| -> Result<(), ConnectorError> {
+        results
+            .iter()
+            .map(|r| self.convert_row(r))
+            .try_for_each(|row| -> Result<(), ConnectorError> {
                 match row {
                     Ok((table_name, field_def, is_primary_key, table_id)) => {
                         let vals = map.get(&table_name);
@@ -79,8 +81,7 @@ impl SchemaHelper {
                     }
                     Err(e) => Err(e),
                 }
-            },
-        )?;
+            })?;
 
         for (table_name, (fields, primary_keys, table_id)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys
@@ -141,15 +142,20 @@ impl SchemaHelper {
             s.finish() as u32
         };
         let type_oid: u32 = row.get(6);
-        match postgres_type_to_dozer_type(Type::from_oid(type_oid)) {
-            Ok(typ) => Ok((
-                table_name,
-                FieldDefinition::new(column_name, typ, is_nullable),
-                is_primary_index,
-                table_id,
+        let typ = Type::from_oid(type_oid);
+
+        let typ = typ.map_or(
+            Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(PostgresSchemaError::InvalidColumnType),
             )),
-            Err(e) => Err(e),
-        }
+            postgres_type_to_dozer_type,
+        )?;
+        Ok((
+            table_name,
+            FieldDefinition::new(column_name, typ, is_nullable),
+            is_primary_index,
+            table_id,
+        ))
     }
 }
 
