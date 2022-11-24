@@ -2,14 +2,12 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::executor_checkpoint::{CheckpointMetadataReader, Consistency};
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::node::NodeHandle;
-
+use crate::dag::tests::processors::DynPortsProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use std::collections::HashMap;
 use std::thread;
-
-use crate::dag::tests::processors::{DynPortsProcessorFactory};
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use std::time::Duration;
 use tempdir::TempDir;
 
