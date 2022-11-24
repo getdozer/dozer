@@ -2,7 +2,7 @@
 use crate::dag::dag::Edge;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::SchemaNotInitialized;
-use crate::dag::executor_local::ExecutorOperation;
+use crate::dag::executor_local::{ExecutorOperation, InputPortState};
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, init_component,
     init_select, map_to_op,
@@ -18,10 +18,12 @@ use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use log::{error, info, warn};
 use std::collections::HashMap;
+use std::ops::Add;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 fn update_processor_schema(
     new: Schema,
@@ -50,26 +52,6 @@ fn update_processor_schema(
         }
         None => Ok(true),
     }
-
-    // if let Some(input_schemas) = all_input_schemas {
-    //     for out_port in output_ports {
-    //         match proc.update_schema(*out_port.handle, &input_schemas) {
-    //             Ok(out_schema) => {
-    //                 fw.send_and_update_output_schema(out_schema, *out_port.handle)?;
-    //             }
-    //             Err(e) => {
-    //                 warn!(
-    //                     "New schema is not compatible with older version. Handling it. {:?}",
-    //                     e
-    //                 );
-    //                 return Ok(false);
-    //             }
-    //         }
-    //     }
-    //     Ok(true)
-    // } else {
-    //     Ok(true)
-    // }
 }
 
 pub(crate) fn start_processor(
@@ -118,8 +100,50 @@ pub(crate) fn start_processor(
             true,
         );
 
-        info!("[{}] Initialization complete. Ready to start...", handle);
+        info!(
+            "[{}] Initialization started. Waiting for schema definitions...",
+            handle
+        );
         latch.countdown();
+
+        for rcv in receivers_ls.iter().enumerate() {
+            let op = rcv
+                .1
+                .recv()
+                .map_err(|e| ExecutionError::ProcessorReceiverError(rcv.0, Box::new(e)))?;
+            match op {
+                ExecutorOperation::SchemaUpdate { new } => {
+                    info!(
+                        "[{}] Received Schema configuration on port {}",
+                        handle, &handles_ls[rcv.0]
+                    );
+                    update_processor_schema(
+                        new,
+                        &handles_ls[rcv.0],
+                        &proc_factory.get_output_ports(),
+                        &mut proc,
+                        &mut fw,
+                    )?;
+                }
+                _ => {
+                    return {
+                        error!(
+                            "[{}] Invalid message received. Expected a SchemaUpdate",
+                            handle
+                        );
+                        Err(ExecutionError::SchemaNotInitialized)
+                    }
+                }
+            }
+        }
+
+        info!(
+            "[{}] Schema definition complete. Waiting for data...",
+            handle
+        );
+
+        let mut port_states: Vec<InputPortState> =
+            handles_ls.iter().map(|h| InputPortState::Open).collect();
 
         let mut sel = init_select(&receivers_ls);
         loop {
@@ -140,8 +164,15 @@ pub(crate) fn start_processor(
                 }
 
                 ExecutorOperation::Terminate => {
-                    fw.send_term_and_wait()?;
-                    return Ok(());
+                    port_states[index] = InputPortState::Terminated;
+                    info!(
+                        "[{}] Received Terminate request on port {}",
+                        handle, &handles_ls[index]
+                    );
+                    if port_states.iter().all(|v| v == &InputPortState::Terminated) {
+                        fw.send_term_and_wait()?;
+                        return Ok(());
+                    }
                 }
 
                 ExecutorOperation::Commit { epoch, source } => {
@@ -149,10 +180,10 @@ pub(crate) fn start_processor(
                 }
 
                 _ => {
-                    if !schema_initialized {
-                        error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
-                        return Err(SchemaNotInitialized);
-                    }
+                    // if !schema_initialized {
+                    //     error!("Received a CDC before schema initialization. Exiting from SNK message loop.");
+                    //     return Err(SchemaNotInitialized);
+                    // }
 
                     let guard = record_stores.read();
                     let reader = guard

@@ -25,6 +25,12 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum InputPortState {
+    Open,
+    Terminated,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
     Delete { seq: u64, old: Record },
     Insert { seq: u64, new: Record },
@@ -263,7 +269,6 @@ impl MultiThreadedDagExecutor {
         for t in self.handles {
             let r = t.1.join().unwrap();
             if let Err(e) = r {
-                //   error!("[{}]: Thread exited with error {}", &t.0, e);
                 results.insert(t.0, e);
             }
         }
