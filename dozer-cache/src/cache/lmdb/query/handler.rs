@@ -60,7 +60,7 @@ impl<'a> LmdbQueryHandler<'a> {
                     !index_scans.is_empty(),
                     "Planner should not generate empty index scan"
                 );
-                self.query_with_secondary_index(&index_scans)?
+                self.query_with_secondary_index(&index_scans[0])?
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize()?,
         };
@@ -82,13 +82,12 @@ impl<'a> LmdbQueryHandler<'a> {
 
     fn query_with_secondary_index(
         &self,
-        index_scans: &[IndexScan],
+        index_scan: &IndexScan,
     ) -> Result<Vec<Record>, CacheError> {
-        let index_scan = index_scans[0].to_owned();
         let index_db = self.index_metadata.get_db(self.schema, index_scan.index_id);
 
-        let comparision_key = self.build_comparision_key(&index_scan)?;
-        let last_filter = match index_scan.kind {
+        let comparision_key = self.build_comparision_key(index_scan)?;
+        let last_filter = match &index_scan.kind {
             IndexScanKind::SortedInverted {
                 range_query:
                     Some(SortedInvertedRangeQuery {
@@ -97,7 +96,7 @@ impl<'a> LmdbQueryHandler<'a> {
                         ..
                     }),
                 ..
-            } => Some((operator, sort_direction)),
+            } => Some((*operator, *sort_direction)),
             IndexScanKind::SortedInverted { eq_filters, .. } => {
                 let filter = eq_filters.last().unwrap();
                 Some((Operator::EQ, filter.1))

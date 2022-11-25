@@ -2,7 +2,7 @@ use crate::errors::{CacheError, QueryError};
 use dozer_types::{bincode, serde};
 use lmdb::{Database, RoTransaction, Transaction};
 use lmdb_sys as ffi;
-use std::{ffi::c_void, cmp::Ordering};
+use std::{cmp::Ordering, ffi::c_void};
 pub fn get<T>(txn: &RoTransaction, db: Database, id: &[u8]) -> Result<T, CacheError>
 where
     T: for<'a> serde::de::Deserialize<'a>,
