@@ -1,6 +1,9 @@
-use std::sync::Arc;
+use std::{cmp::Ordering, sync::Arc};
 
-use super::{helper, iterator::CacheIterator};
+use super::{
+    helper,
+    iterator::{CacheIterator, KeyEndpoint},
+};
 use crate::cache::{
     expression::{Operator, QueryExpression},
     index::{self},
@@ -11,11 +14,11 @@ use crate::errors::{
     CacheError::{self},
     IndexError,
 };
+use dozer_types::types::SortDirection;
 use dozer_types::{
     bincode,
     types::{Field, IndexDefinition, Record, Schema},
 };
-use dozer_types::{errors::types::TypeError, types::SortDirection};
 use lmdb::{Database, RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
@@ -57,7 +60,7 @@ impl<'a> LmdbQueryHandler<'a> {
                     !index_scans.is_empty(),
                     "Planner should not generate empty index scan"
                 );
-                self.query_with_secondary_index(&index_scans)?
+                self.query_with_secondary_index(&index_scans[0])?
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize()?,
         };
@@ -70,43 +73,21 @@ impl<'a> LmdbQueryHandler<'a> {
             .txn
             .open_ro_cursor(*self.db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let mut cache_iterator = CacheIterator::new(&cursor, None, true);
-        // cache_iterator.skip(skip);
-
-        let mut records = vec![];
-        let mut idx = 0;
-        loop {
-            let rec = cache_iterator.next();
-            if self.query.skip > idx {
-                //
-            } else if rec.is_some() && idx < self.query.limit {
-                if let Some((_key, val)) = rec {
-                    let rec = bincode::deserialize::<Record>(val).map_err(|e| {
-                        TypeError::SerializationError(
-                            dozer_types::errors::types::SerializationError::Bincode(e),
-                        )
-                    })?;
-                    records.push(rec);
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-            idx += 1;
-        }
-        Ok(records)
+        CacheIterator::new(cursor, None, true)
+            .skip(self.query.skip)
+            .take(self.query.limit)
+            .map(|(_, v)| bincode::deserialize(v).map_err(CacheError::map_deserialization_error))
+            .collect::<Result<Vec<_>, CacheError>>()
     }
 
     fn query_with_secondary_index(
         &self,
-        index_scans: &[IndexScan],
+        index_scan: &IndexScan,
     ) -> Result<Vec<Record>, CacheError> {
-        let index_scan = index_scans[0].to_owned();
-        let db = self.index_metadata.get_db(self.schema, index_scan.index_id);
+        let index_db = self.index_metadata.get_db(self.schema, index_scan.index_id);
 
-        let comparision_key = self.build_comparision_key(&index_scan)?;
-        let last_filter = match index_scan.kind {
+        let comparision_key = self.build_comparision_key(index_scan)?;
+        let last_filter = match &index_scan.kind {
             IndexScanKind::SortedInverted {
                 range_query:
                     Some(SortedInvertedRangeQuery {
@@ -115,7 +96,7 @@ impl<'a> LmdbQueryHandler<'a> {
                         ..
                     }),
                 ..
-            } => Some((operator, sort_direction)),
+            } => Some((*operator, *sort_direction)),
             IndexScanKind::SortedInverted { eq_filters, .. } => {
                 let filter = eq_filters.last().unwrap();
                 Some((Operator::EQ, filter.1))
@@ -125,130 +106,27 @@ impl<'a> LmdbQueryHandler<'a> {
 
         let (start_key, end_key) = get_start_end_keys(last_filter, comparision_key);
 
-        let mut pkeys = vec![];
-        let mut idx = 0;
-
         let cursor = self
             .txn
-            .open_ro_cursor(db)
+            .open_ro_cursor(index_db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
-        let mut cache_iterator =
-            CacheIterator::new(&cursor, start_key.as_ref().map(|a| a as &[u8]), true);
-        // For GT, LT operators dont include the first record returned.
-
-        loop {
-            let tuple = cache_iterator.next();
-
-            if self.query.skip > idx {
-            } else if idx < self.query.limit {
-                // Check if the tuple returns a value
-                if let Some((key, val)) = tuple {
-                    // Skip Eq Values
-                    if self.skip_eq_values(
-                        &db,
-                        last_filter,
-                        start_key.as_ref(),
-                        end_key.as_ref(),
-                        key,
-                    ) {
-                    }
-                    // Compare partial key
-                    else if self.compare_key(
-                        &db,
-                        key,
-                        start_key.as_ref(),
-                        end_key.as_ref(),
-                        last_filter,
-                    ) {
-                        let rec = helper::get(self.txn, *self.db, val)?;
-                        pkeys.push(rec);
-                    } else {
-                        break;
+        CacheIterator::new(cursor, start_key, true)
+            .skip(self.query.skip)
+            .take(self.query.limit)
+            .take_while(move |(key, _)| {
+                if let Some(end_key) = &end_key {
+                    match lmdb_cmp(self.txn, index_db, key, end_key.key()) {
+                        Ordering::Less => true,
+                        Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
+                        Ordering::Greater => false,
                     }
                 } else {
-                    break;
+                    true
                 }
-            } else {
-                break;
-            }
-            idx += 1;
-        }
-        Ok(pkeys)
-    }
-
-    // Based on the filters provided and sort_order, determine to include the first result.
-    fn skip_eq_values(
-        &self,
-        db: &Database,
-        last_filter: Option<(Operator, SortDirection)>,
-        start_key: Option<&Vec<u8>>,
-        end_key: Option<&Vec<u8>>,
-        current_key: &[u8],
-    ) -> bool {
-        last_filter.map_or(false, |(operator, sort_direction)| match operator {
-            Operator::LT => match sort_direction {
-                SortDirection::Ascending => {
-                    let cmp = lmdb_cmp(self.txn, db, current_key, end_key);
-                    cmp == 0
-                }
-                SortDirection::Descending => {
-                    let end_cmp = lmdb_cmp(self.txn, db, current_key, end_key);
-                    end_cmp == 0
-                }
-            },
-            Operator::GT => match sort_direction {
-                SortDirection::Ascending => {
-                    let cmp = lmdb_cmp(self.txn, db, current_key, start_key);
-                    cmp == 0
-                }
-                SortDirection::Descending => {
-                    let end_cmp = lmdb_cmp(self.txn, db, current_key, end_key);
-                    end_cmp == 0
-                }
-            },
-            Operator::GTE
-            | Operator::LTE
-            | Operator::EQ
-            | Operator::Contains
-            | Operator::MatchesAny
-            | Operator::MatchesAll => false,
-        })
-    }
-
-    fn compare_key(
-        &self,
-        db: &Database,
-        key: &[u8],
-        start_key: Option<&Vec<u8>>,
-        end_key: Option<&Vec<u8>>,
-        last_filter: Option<(Operator, SortDirection)>,
-    ) -> bool {
-        let cmp = lmdb_cmp(self.txn, db, key, start_key);
-        let end_cmp = lmdb_cmp(self.txn, db, key, end_key);
-
-        last_filter.map_or(cmp == 0, |(operator, sort_direction)| match operator {
-            Operator::LT => match sort_direction {
-                SortDirection::Ascending => end_cmp < 0,
-                SortDirection::Descending => cmp >= 0,
-            },
-            Operator::LTE => match sort_direction {
-                SortDirection::Ascending => end_cmp <= 0,
-                SortDirection::Descending => cmp > 0,
-            },
-
-            Operator::GT => match sort_direction {
-                SortDirection::Ascending => cmp > 0,
-                SortDirection::Descending => end_cmp <= 0,
-            },
-            Operator::GTE => match sort_direction {
-                SortDirection::Ascending => cmp >= 0,
-                SortDirection::Descending => end_cmp < 0,
-            },
-            Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
-                cmp == 0
-            }
-        })
+            })
+            .map(|(_, id)| helper::get(self.txn, *self.db, id))
+            .collect::<Result<Vec<_>, CacheError>>()
     }
 
     fn build_comparision_key(&self, index_scan: &'a IndexScan) -> Result<Vec<u8>, CacheError> {
@@ -282,22 +160,44 @@ impl<'a> LmdbQueryHandler<'a> {
 fn get_start_end_keys(
     last_filter: Option<(Operator, SortDirection)>,
     comp_key: Vec<u8>,
-) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
+) -> (Option<KeyEndpoint>, Option<KeyEndpoint>) {
     last_filter.map_or(
-        (Some(comp_key.to_owned()), None),
-        |(operator, sort_direction)| match operator {
-            Operator::LT | Operator::LTE => match sort_direction {
-                SortDirection::Ascending => (None, Some(comp_key)),
-                SortDirection::Descending => (Some(comp_key), None),
-            },
-
-            Operator::GT | Operator::GTE => match sort_direction {
-                SortDirection::Ascending => (Some(comp_key), None),
-                SortDirection::Descending => (None, Some(comp_key)),
-            },
-            Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll => {
-                (Some(comp_key), None)
+        (
+            Some(KeyEndpoint::Including(comp_key.clone())),
+            Some(KeyEndpoint::Including(comp_key.clone())),
+        ),
+        |(operator, sort_direction)| match (operator, sort_direction) {
+            (Operator::LT, SortDirection::Ascending) => {
+                (None, Some(KeyEndpoint::Excluding(comp_key)))
             }
+            (Operator::LT, SortDirection::Descending) => {
+                (Some(KeyEndpoint::Excluding(comp_key)), None)
+            }
+            (Operator::LTE, SortDirection::Ascending) => {
+                (None, Some(KeyEndpoint::Including(comp_key)))
+            }
+            (Operator::LTE, SortDirection::Descending) => {
+                (Some(KeyEndpoint::Including(comp_key)), None)
+            }
+            (Operator::GT, SortDirection::Ascending) => {
+                (Some(KeyEndpoint::Excluding(comp_key)), None)
+            }
+            (Operator::GT, SortDirection::Descending) => {
+                (None, Some(KeyEndpoint::Excluding(comp_key)))
+            }
+            (Operator::GTE, SortDirection::Ascending) => {
+                (Some(KeyEndpoint::Including(comp_key)), None)
+            }
+            (Operator::GTE, SortDirection::Descending) => {
+                (None, Some(KeyEndpoint::Including(comp_key)))
+            }
+            (
+                Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll,
+                _,
+            ) => (
+                Some(KeyEndpoint::Including(comp_key.clone())),
+                Some(KeyEndpoint::Including(comp_key)),
+            ),
         },
     )
 }
