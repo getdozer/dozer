@@ -123,7 +123,7 @@ impl ApiServer {
             .wrap(cors_middleware)
     }
 
-    pub fn run(
+    pub async fn run(
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
         tx: Sender<ServerHandle>,
@@ -142,7 +142,7 @@ impl ApiServer {
         .run();
 
         let _ = tx.send(server.handle());
-        rt::System::new().block_on(async move { server.await })
+        server.await
     }
 
     pub fn stop(server_handle: ServerHandle) {

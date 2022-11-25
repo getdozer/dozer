@@ -9,6 +9,7 @@ use crate::storage::lmdb_sys::{
     PutOptions as LmdbPutOptions, Transaction as LmdbTransaction,
 };
 use libc::size_t;
+use std::fs;
 use std::path::Path;
 
 const DEFAULT_MAX_DBS: u32 = 256;
@@ -24,6 +25,11 @@ impl LmdbEnvironmentManager {
     pub fn exists(path: &Path, name: &str) -> bool {
         let full_path = path.join(Path::new(name));
         Path::exists(full_path.as_path())
+    }
+
+    pub fn remove(path: &Path, name: &str) {
+        let full_path = path.join(Path::new(name));
+        let _ = fs::remove_file(full_path);
     }
 
     pub fn create(

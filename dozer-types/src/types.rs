@@ -1,12 +1,12 @@
 use crate::errors::types::TypeError;
-use crate::errors::types::TypeError::InvalidFieldType;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use std::fmt::{Display, Formatter};
 
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 
+pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum Field {
     UInt(u64),
@@ -16,15 +16,10 @@ pub enum Field {
     String(String),
     Text(String),
     Binary(Vec<u8>),
-    UIntArray(Vec<u64>),
-    IntArray(Vec<i64>),
-    FloatArray(Vec<OrderedFloat<f64>>),
-    BooleanArray(Vec<bool>),
-    StringArray(Vec<String>),
     #[serde(with = "rust_decimal::serde::float")]
     Decimal(Decimal),
-    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
-    Timestamp(DateTime<Utc>),
+    Timestamp(DateTime<FixedOffset>),
+    Date(NaiveDate),
     Bson(Vec<u8>),
     Null,
 }
@@ -51,9 +46,9 @@ impl Field {
             Field::Binary(b) => Ok(Vec::from(b.as_slice())),
             Field::Decimal(d) => Ok(Vec::from(d.serialize())),
             Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
+            Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
             Field::Bson(b) => Ok(b.clone()),
             Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
-            _ => Err(InvalidFieldType),
         }
     }
 }
@@ -67,13 +62,9 @@ pub enum FieldType {
     String,
     Text,
     Binary,
-    UIntArray,
-    IntArray,
-    FloatArray,
-    BooleanArray,
-    StringArray,
     Decimal,
     Timestamp,
+    Date,
     Bson,
     Null,
 }
@@ -182,14 +173,20 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the asscoiated schema
     pub values: Vec<Field>,
 }
-
+impl std::fmt::Debug for Record {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Record")
+            .field("values", &self.values)
+            .finish()
+    }
+}
 impl Record {
     pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
         Record { schema_id, values }

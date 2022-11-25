@@ -43,8 +43,8 @@ jobs:
           SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
           WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
         with:
-          from_file: "test.snowflake.sample.yaml"
-          to_file: "dozer-config.test.snowflake.yaml"
+          from_file: "config/test.snowflake.sample.yaml"
+          to_file: "config/dozer-config.test.snowflake.yaml"
           commit: "false"
 
       - uses: actions-rs/cargo@v1
@@ -142,8 +142,8 @@ jobs:
           SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
           WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
         with:
-          from_file: "test.snowflake.sample.yaml"
-          to_file: "dozer-config.test.snowflake.yaml"
+          from_file: "config/test.snowflake.sample.yaml"
+          to_file: "config/dozer-config.test.snowflake.yaml"
           commit: "false"
 
       - name: Install Criterion

@@ -1,3 +1,10 @@
+use super::{
+    common::CommonService,
+    common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
+    dynamic::util::{create_descriptor_set, read_file_as_byte},
+    internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
+    types::SchemaEvent,
+};
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
     CacheEndpoint, PipelineDetails,
@@ -11,17 +18,9 @@ use std::{
     sync::{atomic::AtomicBool, Arc},
     thread,
 };
-use tokio::{runtime::Runtime, sync::broadcast};
+use tokio::sync::broadcast;
 use tonic::transport::Server;
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
-
-use super::{
-    common::CommonService,
-    common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
-    dynamic::util::{create_descriptor_set, read_file_as_byte},
-    internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
-    types::SchemaEvent,
-};
 
 pub struct ApiServer {
     port: u16,
@@ -115,7 +114,7 @@ impl ApiServer {
         Ok((grpc_service, inflection_service))
     }
 
-    pub fn run(
+    pub async fn run(
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
@@ -162,10 +161,9 @@ impl ApiServer {
         };
         ApiServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
         let addr = format!("[::0]:{:}", self.port).parse().unwrap();
-        let grpc_router = grpc_router.serve_with_shutdown(addr, receiver_shutdown.map(drop));
-        let rt = Runtime::new().unwrap();
-        rt.block_on(grpc_router)
-            .expect("failed to successfully run the future on RunTime");
-        Ok(())
+        grpc_router
+            .serve_with_shutdown(addr, receiver_shutdown.map(drop))
+            .await
+            .map_err(|e| GRPCError::InternalError(Box::new(e)))
     }
 }

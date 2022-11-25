@@ -1,4 +1,4 @@
-use crate::dag::dag::Dag;
+use crate::dag::dag::{Dag, Edge, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidCheckpointState;
 use crate::dag::executor_utils::CHECKPOINT_DB_NAME;
@@ -14,14 +14,23 @@ use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::path::Path;
 
-pub enum CheckpointConsistency {
-    FullyConsistent { seq: u64 },
+pub(crate) enum Consistency {
+    FullyConsistent(u64),
+    PartiallyConsistent(HashMap<u64, Vec<NodeHandle>>),
 }
 
-struct ConsistencyTree {
+struct DependencyTreeNode {
     pub handle: NodeHandle,
-    pub seq: u64,
-    pub children: Vec<ConsistencyTree>,
+    pub children: Vec<DependencyTreeNode>,
+}
+
+impl DependencyTreeNode {
+    pub fn new(handle: NodeHandle) -> Self {
+        Self {
+            handle,
+            children: Vec::new(),
+        }
+    }
 }
 
 pub(crate) struct CheckpointMetadata {
@@ -34,6 +43,7 @@ pub(crate) struct CheckpointMetadataReader<'a> {
     dag: &'a Dag,
     path: &'a Path,
     metadata: HashMap<NodeHandle, CheckpointMetadata>,
+    deps_trees: HashMap<NodeHandle, DependencyTreeNode>,
 }
 
 impl<'a> CheckpointMetadataReader<'a> {
@@ -42,10 +52,24 @@ impl<'a> CheckpointMetadataReader<'a> {
         path: &'a Path,
     ) -> Result<CheckpointMetadataReader<'a>, ExecutionError> {
         let metadata = CheckpointMetadataReader::get_checkpoint_metadata(path, dag)?;
+        let mut deps_trees: HashMap<NodeHandle, DependencyTreeNode> = HashMap::new();
+
+        for src in dag
+            .nodes
+            .iter()
+            .filter(|e| matches!(e.1, NodeType::Source(_)))
+            .map(|e| e.0)
+        {
+            let mut root = DependencyTreeNode::new(src.clone());
+            Self::get_source_dependency_tree(&mut root, dag);
+            deps_trees.insert(src.clone(), root);
+        }
+
         Ok(Self {
             path,
             dag,
             metadata,
+            deps_trees,
         })
     }
 
@@ -132,12 +156,13 @@ impl<'a> CheckpointMetadataReader<'a> {
     ) -> Result<HashMap<NodeHandle, CheckpointMetadata>, ExecutionError> {
         let mut all = HashMap::<NodeHandle, CheckpointMetadata>::new();
         for node in &dag.nodes {
-            all.insert(
-                node.0.clone(),
-                CheckpointMetadataReader::get_node_checkpoint_metadata(path, node.0)?,
-            );
+            match CheckpointMetadataReader::get_node_checkpoint_metadata(path, node.0) {
+                Ok(r) => {
+                    all.insert(node.0.clone(), r);
+                }
+                Err(_e) => LmdbEnvironmentManager::remove(path, node.0),
+            }
         }
-
         Ok(all)
     }
 
@@ -155,6 +180,55 @@ impl<'a> CheckpointMetadataReader<'a> {
             .get(src)
             .copied()
             .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))
+    }
+
+    fn get_source_dependency_tree(curr: &mut DependencyTreeNode, dag: &Dag) {
+        let children: Vec<&Edge> = dag
+            .edges
+            .iter()
+            .filter(|e| e.from.node == curr.handle)
+            .collect();
+
+        for child in children {
+            let mut new_node = DependencyTreeNode::new(child.to.node.clone());
+            Self::get_source_dependency_tree(&mut new_node, dag);
+            curr.children.push(new_node);
+        }
+    }
+
+    fn get_dependency_tree_consistency_rec(
+        &self,
+        source_handle: &NodeHandle,
+        tree_node: &DependencyTreeNode,
+        res: &mut HashMap<u64, Vec<NodeHandle>>,
+    ) {
+        let seq = match self.metadata.get(&tree_node.handle) {
+            Some(v) => *v.commits.get(source_handle).unwrap_or(&0),
+            None => 0,
+        };
+
+        res.entry(seq).or_insert_with(Vec::new);
+        res.get_mut(&seq).unwrap().push(tree_node.handle.clone());
+
+        for child in &tree_node.children {
+            self.get_dependency_tree_consistency_rec(source_handle, child, res);
+        }
+    }
+
+    pub(crate) fn get_dependency_tree_consistency(&self) -> HashMap<NodeHandle, Consistency> {
+        let mut r: HashMap<NodeHandle, Consistency> = HashMap::new();
+        for e in &self.deps_trees {
+            let mut res: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
+            self.get_dependency_tree_consistency_rec(&e.1.handle, e.1, &mut res);
+            match res.len() {
+                1 => r.insert(
+                    e.0.clone(),
+                    Consistency::FullyConsistent(*res.iter().next().unwrap().0),
+                ),
+                _ => r.insert(e.0.clone(), Consistency::PartiallyConsistent(res)),
+            };
+        }
+        r
     }
 
     // fn get_state_schema_for_node(

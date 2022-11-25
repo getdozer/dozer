@@ -96,11 +96,7 @@ fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
         Field::Null => FieldType::Null,
         Field::UInt(_) => FieldType::UInt,
         Field::Text(_) => FieldType::Text,
-        Field::UIntArray(_) => FieldType::UIntArray,
-        Field::IntArray(_) => FieldType::IntArray,
-        Field::FloatArray(_) => FieldType::FloatArray,
-        Field::BooleanArray(_) => FieldType::BooleanArray,
-        Field::StringArray(_) => FieldType::StringArray,
+        Field::Date(_) => FieldType::Date,
     }
 }
 

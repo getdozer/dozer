@@ -4,7 +4,10 @@ pub mod pipeline;
 pub mod simple;
 use std::sync::{atomic::AtomicBool, Arc};
 
-use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
+use dozer_types::{
+    crossbeam::channel::Sender,
+    models::{api_endpoint::ApiEndpoint, source::Source},
+};
 use errors::OrchestrationError;
 
 #[cfg(test)]
@@ -14,7 +17,11 @@ pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;
     fn add_endpoints(&mut self, endpoint: Vec<ApiEndpoint>) -> &mut Self;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
-    fn run_apps(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
+    fn run_apps(
+        &mut self,
+        running: Arc<AtomicBool>,
+        api_notifier: Option<Sender<bool>>,
+    ) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports

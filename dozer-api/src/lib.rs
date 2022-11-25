@@ -24,5 +24,7 @@ pub mod rest;
 
 // Re-exports
 pub use actix_web;
+pub use tokio;
+
 #[cfg(test)]
 mod test_utils;

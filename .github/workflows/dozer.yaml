@@ -47,9 +47,9 @@ jobs:
           SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
           WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
         with:
-          from_file: 'test.snowflake.sample.yaml'
-          to_file: 'dozer-config.test.snowflake.yaml'
-          commit: 'false'
+          from_file: "config/test.snowflake.sample.yaml"
+          to_file: "config/dozer-config.test.snowflake.yaml"
+          commit: "false"
 
       - name: ⚡ Cache
         uses: actions/cache@v3

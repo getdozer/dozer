@@ -1,6 +1,3 @@
-use std::path::PathBuf;
-use std::{sync::Arc, thread};
-
 use super::executor::{Executor, SinkConfig};
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
@@ -9,13 +6,16 @@ use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::grpc::{start_internal_client, start_internal_server};
 use dozer_api::CacheEndpoint;
 use dozer_api::{grpc, rest};
-use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-use dozer_types::crossbeam::channel::{self, unbounded};
+use dozer_cache::cache::LmdbCache;
+use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions};
+use dozer_ingestion::ingestion::IngestionConfig;
+use dozer_ingestion::ingestion::Ingestor;
+use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
-
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
@@ -77,44 +77,50 @@ impl Orchestrator for SimpleOrchestrator {
 
         let internal_port = self.internal_port;
 
-        // Initialize Internal Server
-        let _internal_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            start_internal_server(internal_port, sender)
-                .map_err(|_e| OrchestrationError::InternalServerError)
-        });
-
-        // Initialize API Server
-        let thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            let api_server = rest::ApiServer::default();
-            api_server
-                .run(ce3, tx)
-                .map_err(OrchestrationError::ApiServerFailed)
-        });
-
-        // Initialize GRPC Server
-        let grpc_server = grpc::ApiServer::new(receiver, 50051, true);
+        let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
+        rt.block_on(async {
+            // Initialize Internal Server
+            tokio::spawn(async move {
+                start_internal_server(internal_port, sender)
+                    .await
+                    .expect("Failed to initialize internal server")
+            });
 
-        let _grpc_thread = thread::spawn(move || -> Result<(), OrchestrationError> {
-            grpc_server
-                .run(ce2, running2.to_owned(), receiver_shutdown)
-                .map_err(OrchestrationError::GrpcServerFailed)
-                .unwrap();
-            Ok(())
+            // Initialize API Server
+            tokio::spawn(async move {
+                let api_server = rest::ApiServer::default();
+                api_server
+                    .run(ce3, tx)
+                    .await
+                    .expect("Failed to initialize api server")
+            });
+
+            // Initialize GRPC Server
+            let grpc_server = grpc::ApiServer::new(receiver, 50051, true);
+            tokio::spawn(async move {
+                grpc_server
+                    .run(ce2, running2.to_owned(), receiver_shutdown)
+                    .await
+                    .expect("Failed to initialize gRPC server")
+            });
         });
+
         let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
+
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
         sender_shutdown.send(()).unwrap();
         rest::ApiServer::stop(server_handle);
-        thread.join().unwrap()?;
 
         Ok(())
     }
 
-    fn run_apps(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        //Set AtomicBool and wait for CtrlC
-
+    fn run_apps(
+        &mut self,
+        running: Arc<AtomicBool>,
+        api_notifier: Option<Sender<bool>>,
+    ) -> Result<(), OrchestrationError> {
         let executor_running = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
@@ -142,6 +148,13 @@ impl Orchestrator for SimpleOrchestrator {
                 }
             })
             .collect();
+
+        if let Some(api_notifier) = api_notifier {
+            api_notifier
+                .send(true)
+                .expect("Failed to notify API server");
+        }
+
         let sources = self.sources.clone();
 
         let executor = Executor::new(
