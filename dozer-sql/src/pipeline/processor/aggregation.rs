@@ -192,6 +192,7 @@ impl AggregationProcessor {
             Expression::AggregateFunction { fun, args } => {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
+                    (AggregateFunctionType::Avg, _) => Ok(Aggregator::Avg),
                     (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
                     (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
                     (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
@@ -299,6 +300,8 @@ impl AggregationProcessor {
 
     fn calc_and_fill_measures(
         &self,
+        txn: &mut dyn RwTransaction,
+        db: &Database,
         curr_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
@@ -334,12 +337,12 @@ impl AggregationProcessor {
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
-                    measure.1.delete(curr_state_slice, field, curr_state)?
+                    measure.1.delete(txn, db, curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
                     let new = inserted_record.unwrap().get_value(measure.0)?;
-                    measure.1.update(curr_state_slice, old, new, curr_state)?
+                    measure.1.update(txn, db, curr_state_slice, old, new)?
                 }
             };
 
@@ -408,7 +411,10 @@ impl AggregationProcessor {
         let prev_count = self.update_segment_count(txn, db, record_count_key, 1, true)?;
 
         let curr_state = txn.get(db, record_key.as_slice())?;
+        // txn, db -> each aggregator -> write own data
         let new_state = self.calc_and_fill_measures(
+            txn,
+            db,
             &curr_state,
             Some(old),
             None,
@@ -461,6 +467,8 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
+            txn,
+            db,
             &curr_state,
             None,
             Some(new),
@@ -502,6 +510,8 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
+            txn,
+            db,
             &curr_state,
             Some(old),
             Some(new),

@@ -1,6 +1,7 @@
 use std::cmp::max;
 use chrono::{DateTime, NaiveDateTime, Offset, Utc};
 use num_traits::FromPrimitive;
+use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
 use dozer_types::types::Field::{Decimal, Float, Int, Timestamp};
@@ -63,6 +64,8 @@ impl MaxAggregator {
     }
 
     pub(crate) fn update(
+        _txn: &mut dyn RwTransaction,
+        _db: &Database,
         curr_state: Option<&[u8]>,
         old: &Field,
         _new: &Field,

@@ -1,6 +1,7 @@
 use std::cmp::min;
 use chrono::{DateTime, NaiveDateTime, Offset, Utc};
 use num_traits::FromPrimitive;
+use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
 use dozer_types::types::Field::{Decimal, Float, Int, Timestamp};
@@ -63,12 +64,13 @@ impl MinAggregator {
     }
 
     pub(crate) fn update(
+        txn: &mut dyn RwTransaction,
+        db: &Database,
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
-        curr_states: &Option<Vec<u8>>,
     ) -> Result<Vec<u8>, PipelineError> {
-        let prev = match Self::delete(curr_state, old, curr_states).unwrap().first() {
+        let prev = match Self::delete(txn, db, curr_state, old).unwrap().first() {
             Some(v) => i64::from(*v),
             None => 0_i64,
         };
@@ -84,25 +86,18 @@ impl MinAggregator {
     }
 
     pub(crate) fn delete(
+        _txn: &mut dyn RwTransaction,
+        _db: &Database,
         _curr_state: Option<&[u8]>,
         old: &Field,
-        curr_states: &Option<Vec<u8>>,
     ) -> Result<Vec<u8>, PipelineError> {
-        let mut prev = i64::MIN;
+        let prev = i64::MIN;
 
-        let curr = match &old {
+        let _curr = match &old {
             Int(i) => i,
             _ => {
                 return Err(InvalidOperandType("MIN".to_string()));
             }
-        };
-
-        if let Some(states) = curr_states.clone() {
-            for state in states {
-                if i64::from(state) != *curr {
-                    prev = min(prev, i64::from(state))
-                }
-            };
         };
 
         Ok(Vec::from(prev.to_ne_bytes()))
