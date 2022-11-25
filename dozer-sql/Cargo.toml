@@ -14,6 +14,7 @@ sqlparser = "0.24.0"
 bincode = "1.3.3"
 thiserror = "1.0.37"
 dyn-clone = "1.0.9"
+rust_decimal =  {version = "1.26", features = ["serde-float", "db-postgres"]}
 
 dozer-types = {path = "../dozer-types"}
 dozer-core = {path = "../dozer-core"}

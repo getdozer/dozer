@@ -1332,6 +1332,7 @@ dependencies = [
  "log",
  "log4rs",
  "num-traits",
+ "rust_decimal",
  "sqlparser",
  "tempdir",
  "thiserror",

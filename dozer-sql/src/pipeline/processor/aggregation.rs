@@ -192,9 +192,10 @@ impl AggregationProcessor {
             Expression::AggregateFunction { fun, args } => {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
-                    (AggregateFunctionType::Sum, FieldType::Int) => Ok(Aggregator::IntegerSum),
-                    (AggregateFunctionType::Sum, FieldType::Float) => Ok(Aggregator::FloatSum),
                     (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
+                    (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
+                    (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
+                    (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                     _ => Err(InvalidExpression(format!(
                         "Not implemented Aggreagation function: {:?}",
                         fun
@@ -322,7 +323,7 @@ impl AggregationProcessor {
             };
 
             if let Some(e) = curr_state_slice {
-                let curr_value = measure.1.get_value(e);
+                let curr_value = measure.1.get_value(e, FieldType::Float);
                 out_rec_delete.set_value(measure.2, curr_value);
             }
 
@@ -333,12 +334,12 @@ impl AggregationProcessor {
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
-                    measure.1.delete(curr_state_slice, field)?
+                    measure.1.delete(curr_state_slice, field, curr_state)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
                     let new = inserted_record.unwrap().get_value(measure.0)?;
-                    measure.1.update(curr_state_slice, old, new)?
+                    measure.1.update(curr_state_slice, old, new, curr_state)?
                 }
             };
 
@@ -346,7 +347,7 @@ impl AggregationProcessor {
             offset += next_state_slice.len() + 2;
 
             if !next_state_slice.is_empty() {
-                let next_value = measure.1.get_value(next_state_slice.as_slice());
+                let next_value = measure.1.get_value(next_state_slice.as_slice(), FieldType::Float);
                 next_state.extend(next_state_slice);
                 out_rec_insert.set_value(measure.2, next_value);
             } else {

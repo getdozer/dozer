@@ -51,6 +51,23 @@ impl Field {
             Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
         }
     }
+    
+    pub fn get_type(&self) -> Result<FieldType, TypeError> {
+        match self {
+            Field::Int(_i) => Ok(FieldType::Int),
+            Field::UInt(_i) => Ok(FieldType::UInt),
+            Field::Float(_f) => Ok(FieldType::Float),
+            Field::Boolean(_b) => Ok(FieldType::Boolean),
+            Field::String(_s) => Ok(FieldType::String),
+            Field::Text(_s) => Ok(FieldType::Text),
+            Field::Binary(_b) => Ok(FieldType::Binary),
+            Field::Decimal(_d) => Ok(FieldType::Decimal),
+            Field::Timestamp(_t) => Ok(FieldType::Timestamp),
+            Field::Date(_t) => Ok(FieldType::Date),
+            Field::Bson(_b) => Ok(FieldType::Bson),
+            Field::Null => Ok(FieldType::Null),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
