@@ -1,11 +1,28 @@
 use std::marker::PhantomData;
 
 use lmdb::Cursor;
-use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
+use lmdb_sys::{
+    MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_NEXT_NODUP, MDB_PREV, MDB_PREV_NODUP, MDB_SET_RANGE,
+};
+
+#[derive(Debug, Clone)]
+pub enum KeyEndpoint {
+    Including(Vec<u8>),
+    Excluding(Vec<u8>),
+}
+
+impl KeyEndpoint {
+    pub fn key(&self) -> &[u8] {
+        match self {
+            KeyEndpoint::Including(key) => key,
+            KeyEndpoint::Excluding(key) => key,
+        }
+    }
+}
 
 enum CacheIteratorState {
     First {
-        starting_key: Option<Vec<u8>>,
+        starting_key: Option<KeyEndpoint>,
         ascending: bool,
     },
     NotFirst {
@@ -31,8 +48,19 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
                 let res = match starting_key {
                     Some(starting_key) => {
                         if *ascending {
-                            match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
-                                Ok((key, value)) => Ok((key, value)),
+                            match self
+                                .cursor
+                                .get(Some(starting_key.key()), None, MDB_SET_RANGE)
+                            {
+                                Ok((key, value)) => {
+                                    if key == Some(starting_key.key())
+                                        && matches!(starting_key, KeyEndpoint::Excluding(_))
+                                    {
+                                        self.cursor.get(None, None, MDB_NEXT_NODUP)
+                                    } else {
+                                        Ok((key, value))
+                                    }
+                                }
                                 Err(lmdb::Error::NotFound) => {
                                     self.cursor.get(None, None, MDB_FIRST)
                                 }
@@ -40,12 +68,17 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
                                 Err(e) => Err(e),
                             }
                         } else {
-                            match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
+                            match self
+                                .cursor
+                                .get(Some(starting_key.key()), None, MDB_SET_RANGE)
+                            {
                                 Ok((key, value)) => {
-                                    if key == Some(starting_key) {
+                                    if key == Some(starting_key.key())
+                                        && matches!(starting_key, KeyEndpoint::Including(_))
+                                    {
                                         Ok((key, value))
                                     } else {
-                                        self.cursor.get(None, None, MDB_PREV)
+                                        self.cursor.get(None, None, MDB_PREV_NODUP)
                                     }
                                 }
                                 Err(lmdb::Error::NotFound) => self.cursor.get(None, None, MDB_LAST),
@@ -82,7 +115,7 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
     }
 }
 impl<'txn, C: Cursor<'txn>> CacheIterator<'txn, C> {
-    pub fn new(cursor: C, starting_key: Option<Vec<u8>>, ascending: bool) -> Self {
+    pub fn new(cursor: C, starting_key: Option<KeyEndpoint>, ascending: bool) -> Self {
         CacheIterator {
             cursor,
             state: CacheIteratorState::First {
@@ -103,7 +136,7 @@ mod tests {
         CacheOptions,
     };
 
-    use super::CacheIterator;
+    use super::{CacheIterator, KeyEndpoint};
 
     #[test]
     fn test_cache_iterator() {
@@ -151,15 +184,20 @@ mod tests {
         // Test ascending from existing key.
         let starting_key = b"ba".to_vec();
         check(
-            Some(starting_key),
+            Some(KeyEndpoint::Including(starting_key.clone())),
             true,
             vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
+        );
+        check(
+            Some(KeyEndpoint::Excluding(starting_key)),
+            true,
+            vec![b"bb", b"bc", b"ca", b"cb", b"cc"],
         );
 
         // Test ascending from non existing key.
         let starting_key = b"00".to_vec();
         check(
-            Some(starting_key),
+            Some(KeyEndpoint::Including(starting_key)),
             true,
             vec![
                 b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
@@ -169,15 +207,20 @@ mod tests {
         // Test descending from existing key.
         let starting_key = b"bc".to_vec();
         check(
-            Some(starting_key),
+            Some(KeyEndpoint::Including(starting_key.clone())),
             false,
             vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
+        );
+        check(
+            Some(KeyEndpoint::Excluding(starting_key)),
+            false,
+            vec![b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
 
         // Test ascending from non-existing key.
         let starting_key = b"ad".to_vec();
         check(
-            Some(starting_key),
+            Some(KeyEndpoint::Including(starting_key)),
             true,
             vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
         );
@@ -185,7 +228,7 @@ mod tests {
         // Test descending from non-existing key.
         let starting_key = b"bd".to_vec();
         check(
-            Some(starting_key),
+            Some(KeyEndpoint::Including(starting_key)),
             false,
             vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
@@ -193,7 +236,7 @@ mod tests {
         // Test descending from key past db end.
         let starting_key = b"dd".to_vec();
         check(
-            Some(starting_key),
+            Some(KeyEndpoint::Including(starting_key)),
             false,
             vec![
                 b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
