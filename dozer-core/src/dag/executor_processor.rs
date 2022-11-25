@@ -12,18 +12,20 @@ use crate::dag::node::{NodeHandle, OutputPortDef, PortHandle, Processor, Process
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crate::storage::transactions::SharedTransaction;
-use crossbeam::channel::{Receiver, RecvError, Sender};
+use crossbeam::channel::{Receiver, RecvError, RecvTimeoutError, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use log::{error, info, warn};
 use std::collections::HashMap;
+use std::ops::Add;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 fn update_processor_schema(
     new: Schema,
@@ -109,10 +111,22 @@ pub(crate) fn start_processor(
         for rcv in receivers_ls.iter().enumerate() {
             let op = rcv
                 .1
-                .recv()
-                .map_err(|e| ExecutionError::ProcessorReceiverError(rcv.0, Box::new(e)))?;
+                .recv_deadline(Instant::now().add(Duration::from_millis(50)));
             match op {
-                ExecutorOperation::SchemaUpdate { new } => {
+                Err(RecvTimeoutError::Timeout) => {
+                    if stop_req.load(Ordering::Relaxed) {
+                        stop_req.store(true, Ordering::Relaxed);
+                        term_barrier.wait();
+                        return Ok(());
+                    }
+                    continue;
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    stop_req.store(true, Ordering::Relaxed);
+                    term_barrier.wait();
+                    return Ok(());
+                }
+                Ok(ExecutorOperation::SchemaUpdate { new }) => {
                     info!(
                         "PRC [{}] Received Schema configuration on port {}",
                         handle, &handles_ls[rcv.0]
@@ -171,6 +185,7 @@ pub(crate) fn start_processor(
                     );
                     if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                         fw.send_term_and_wait()?;
+                        term_barrier.wait();
                         return Ok(());
                     }
                 }

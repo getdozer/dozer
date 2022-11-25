@@ -7,17 +7,19 @@ use crate::dag::node::{NodeHandle, PortHandle, SinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crate::storage::transactions::SharedTransaction;
-use crossbeam::channel::Receiver;
+use crossbeam::channel::{Receiver, RecvTimeoutError};
 use dozer_types::parking_lot::RwLock;
 
 use fp_rust::sync::CountDownLatch;
 use log::{error, info};
 use std::collections::HashMap;
+use std::ops::Add;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 pub(crate) fn start_sink(
     stop_req: Arc<AtomicBool>,
@@ -27,7 +29,7 @@ pub(crate) fn start_sink(
     base_path: PathBuf,
     latch: Arc<CountDownLatch>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    _term_barrier: Arc<Barrier>,
+    term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut snk = snk_factory.build();
@@ -47,6 +49,56 @@ pub(crate) fn start_sink(
 
         let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
         latch.countdown();
+
+        for rcv in receivers_ls.iter().enumerate() {
+            let op = rcv
+                .1
+                .recv_deadline(Instant::now().add(Duration::from_millis(50)));
+            match op {
+                Err(RecvTimeoutError::Timeout) => {
+                    if stop_req.load(Ordering::Relaxed) {
+                        stop_req.store(true, Ordering::Relaxed);
+                        term_barrier.wait();
+                        return Ok(());
+                    }
+                    continue;
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    stop_req.store(true, Ordering::Relaxed);
+                    term_barrier.wait();
+                    return Ok(());
+                }
+                Ok(ExecutorOperation::SchemaUpdate { new }) => {
+                    info!(
+                        "PRC [{}] Received Schema configuration on port {}",
+                        handle, &handles_ls[rcv.0]
+                    );
+                    let all_input_schemas =
+                        state_writer.update_input_schema(handles_ls[rcv.0], new)?;
+                    if let Some(input_schemas) = all_input_schemas {
+                        match snk.update_schema(&input_schemas) {
+                            Err(e) => {
+                                error!(
+                                    "SNK [{}] Error during update_schema(). Unsupported new schema.",
+                                    handle
+                                );
+                                return Err(e);
+                            }
+                            _ => schema_initialized = true,
+                        }
+                    }
+                }
+                _ => {
+                    return {
+                        error!(
+                            "PRC [{}] Invalid message received. Expected a SchemaUpdate",
+                            handle
+                        );
+                        Err(ExecutionError::SchemaNotInitialized)
+                    }
+                }
+            }
+        }
 
         let mut sel = init_select(&receivers_ls);
         loop {
@@ -78,6 +130,7 @@ pub(crate) fn start_sink(
                         "SNK [{}] TERM request received on port {}",
                         handle, handles_ls[index]
                     );
+                    term_barrier.wait();
                     return Ok(());
                 }
                 ExecutorOperation::Commit { epoch, source } => {

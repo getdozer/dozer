@@ -230,7 +230,7 @@ impl MultiThreadedDagExecutor {
         let (sources, processors, sinks, edges) = get_node_types_and_edges(dag);
         let start_latch = Arc::new(CountDownLatch::new((processors.len() + sinks.len()) as u64));
         let mut all_handles = HashMap::<NodeHandle, JoinHandle<Result<(), ExecutionError>>>::new();
-        let term_barrier = Arc::new(Barrier::new(sources.len()));
+        let term_barrier = Arc::new(Barrier::new(sources.len() + processors.len() + sinks.len()));
         let stop_req = Arc::new(AtomicBool::new(false));
 
         all_handles.extend(Self::start_sinks(

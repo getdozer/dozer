@@ -153,7 +153,7 @@ impl Source for StatefulGeneratorSource {
         }
         //Ok(())
 
-        thread::sleep(Duration::from_secs(5));
+        //     thread::sleep(Duration::from_secs(5));
         Ok(())
         // loop {
         //     thread::sleep(Duration::from_millis(1000));
