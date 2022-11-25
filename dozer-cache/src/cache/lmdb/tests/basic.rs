@@ -17,6 +17,12 @@ fn _setup() -> (LmdbCache, Schema, Vec<IndexDefinition>) {
     (cache, schema, secondary_indexes)
 }
 
+fn _setup_empty_primary_index() -> (LmdbCache, Schema, Vec<IndexDefinition>) {
+    let (schema, secondary_indexes) = test_utils::schema_empty_primary_index();
+    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    (cache, schema, secondary_indexes)
+}
+
 fn query_and_test(
     cache: &LmdbCache,
     inserted_record: &Record,
@@ -61,10 +67,12 @@ fn insert_get_and_delete_record() {
     cache.get(&key).expect_err("Must not find a record");
 }
 
-#[test]
-fn insert_and_query_record() {
+fn insert_and_query_record_impl(
+    cache: LmdbCache,
+    schema: Schema,
+    secondary_indexes: Vec<IndexDefinition>,
+) {
     let val = "bar".to_string();
-    let (cache, schema, secondary_indexes) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
 
     cache
@@ -93,4 +101,12 @@ fn insert_and_query_record() {
         "docs",
         &QueryExpression::new(None, vec![], 10, 0),
     );
+}
+
+#[test]
+fn insert_and_query_record() {
+    let (cache, schema, secondary_indexes) = _setup();
+    insert_and_query_record_impl(cache, schema, secondary_indexes);
+    let (cache, schema, secondary_indexes) = _setup_empty_primary_index();
+    insert_and_query_record_impl(cache, schema, secondary_indexes);
 }

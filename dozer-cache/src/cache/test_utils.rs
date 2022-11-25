@@ -70,3 +70,20 @@ pub fn schema_full_text_single() -> (Schema, Vec<IndexDefinition>) {
         vec![IndexDefinition::FullText(0)],
     )
 }
+
+// This is for testing appending only schema, which doesn't need a primary index, for example, eth logs.
+pub fn schema_empty_primary_index() -> (Schema, Vec<IndexDefinition>) {
+    (
+        Schema {
+            identifier: Some(SchemaIdentifier { id: 3, version: 1 }),
+            fields: vec![FieldDefinition {
+                name: "foo".to_string(),
+                typ: dozer_types::types::FieldType::String,
+                nullable: false,
+            }],
+            values: vec![0],
+            primary_index: vec![],
+        },
+        vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
+    )
+}
