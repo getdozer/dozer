@@ -6,7 +6,7 @@ use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
 use dozer_types::{
     serde,
-    types::{Record, Schema},
+    types::{IndexDefinition, Record, Schema},
 };
 use serde::{Deserialize, Serialize};
 
@@ -34,8 +34,11 @@ impl CacheReader {
         Ok(())
     }
 
-    pub fn get_schema_by_name(&self, name: &str) -> Result<Schema, CacheError> {
-        self.cache.get_schema_by_name(name)
+    pub fn get_schema_and_indexes_by_name(
+        &self,
+        name: &str,
+    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
+        self.cache.get_schema_and_indexes_by_name(name)
     }
 
     pub fn get(&self, key: &[u8]) -> Result<Record, CacheError> {

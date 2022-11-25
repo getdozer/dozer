@@ -10,6 +10,7 @@ use tempdir::TempDir;
 
 pub struct OpenApiGenerator {
     schema: dozer_types::types::Schema,
+    secondary_indexes: Vec<IndexDefinition>,
     schema_name: String,
     endpoint: ApiEndpoint,
     server_host: Vec<String>,
@@ -24,8 +25,8 @@ impl OpenApiGenerator {
 
     // Generate first secondary_index as an example
     fn generate_query_example(&self) -> Value {
-        if !self.schema.secondary_indexes.is_empty() {
-            if let IndexDefinition::SortedInverted(fields) = &self.schema.secondary_indexes[0] {
+        if !self.secondary_indexes.is_empty() {
+            if let IndexDefinition::SortedInverted(fields) = &self.secondary_indexes[0] {
                 let field_def = &self.schema.fields[fields[0].0];
                 let name = field_def.name.clone();
                 let val = match field_def.typ {
@@ -239,12 +240,14 @@ impl OpenApiGenerator {
 
     pub fn new(
         schema: dozer_types::types::Schema,
+        secondary_indexes: Vec<IndexDefinition>,
         schema_name: String,
         endpoint: ApiEndpoint,
         server_host: Vec<String>,
     ) -> Self {
         Self {
             schema,
+            secondary_indexes,
             endpoint,
             server_host,
             schema_name,

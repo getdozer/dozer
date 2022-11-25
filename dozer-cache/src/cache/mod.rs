@@ -6,16 +6,24 @@ pub use self::lmdb::{
     CacheOptions, CacheReadOptions, CacheWriteOptions,
 };
 use crate::errors::CacheError;
-use dozer_types::types::{Record, Schema, SchemaIdentifier};
+use dozer_types::types::{IndexDefinition, Record, Schema, SchemaIdentifier};
 pub mod expression;
 pub mod index;
 mod plan;
 pub mod test_utils;
 pub trait Cache {
     // Schema Operations
-    fn insert_schema(&self, name: &str, schema: &Schema) -> Result<(), CacheError>;
+    fn insert_schema(
+        &self,
+        name: &str,
+        schema: &Schema,
+        secondary_indexes: &[IndexDefinition],
+    ) -> Result<(), CacheError>;
     fn get_schema(&self, schema_identifier: &SchemaIdentifier) -> Result<Schema, CacheError>;
-    fn get_schema_by_name(&self, name: &str) -> Result<Schema, CacheError>;
+    fn get_schema_and_indexes_by_name(
+        &self,
+        name: &str,
+    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError>;
 
     // Record Operations
     fn insert(&self, rec: &Record) -> Result<(), CacheError>;

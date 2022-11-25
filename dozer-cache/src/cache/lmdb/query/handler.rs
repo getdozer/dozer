@@ -13,7 +13,7 @@ use crate::errors::{
 };
 use dozer_types::{
     bincode,
-    types::{Field, Record, Schema},
+    types::{Field, IndexDefinition, Record, Schema},
 };
 use dozer_types::{errors::types::TypeError, types::SortDirection};
 use lmdb::{Database, RoTransaction, Transaction};
@@ -23,6 +23,7 @@ pub struct LmdbQueryHandler<'a> {
     index_metadata: Arc<IndexMetaData>,
     txn: &'a RoTransaction<'a>,
     schema: &'a Schema,
+    secondary_indexes: &'a [IndexDefinition],
     query: &'a QueryExpression,
 }
 impl<'a> LmdbQueryHandler<'a> {
@@ -31,6 +32,7 @@ impl<'a> LmdbQueryHandler<'a> {
         index_metadata: Arc<IndexMetaData>,
         txn: &'a RoTransaction,
         schema: &'a Schema,
+        secondary_indexes: &'a [IndexDefinition],
         query: &'a QueryExpression,
     ) -> Self {
         Self {
@@ -38,12 +40,13 @@ impl<'a> LmdbQueryHandler<'a> {
             index_metadata,
             txn,
             schema,
+            secondary_indexes,
             query,
         }
     }
 
     pub fn query(&self) -> Result<Vec<Record>, CacheError> {
-        let planner = QueryPlanner::new(self.schema, self.query);
+        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
         let execution = planner.plan()?;
         let records = match execution {
             Plan::IndexScans(index_scans) => {
