@@ -1,9 +1,11 @@
-use lmdb::{Cursor, RoCursor};
+use std::marker::PhantomData;
+
+use lmdb::Cursor;
 use lmdb_sys::{MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_PREV, MDB_SET_RANGE};
 
-enum CacheIteratorState<'a> {
+enum CacheIteratorState {
     First {
-        starting_key: Option<&'a [u8]>,
+        starting_key: Option<Vec<u8>>,
         ascending: bool,
     },
     NotFirst {
@@ -11,23 +13,24 @@ enum CacheIteratorState<'a> {
     },
 }
 
-pub struct CacheIterator<'a> {
-    cursor: &'a RoCursor<'a>,
-    state: CacheIteratorState<'a>,
+pub struct CacheIterator<'txn, C: Cursor<'txn>> {
+    cursor: C,
+    state: CacheIteratorState,
+    _marker: PhantomData<fn() -> &'txn ()>,
 }
 
-impl<'a> Iterator for CacheIterator<'a> {
-    type Item = (&'a [u8], &'a [u8]);
+impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
+    type Item = (&'txn [u8], &'txn [u8]);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let res = match self.state {
+        let res = match &self.state {
             CacheIteratorState::First {
                 starting_key,
                 ascending,
             } => {
                 let res = match starting_key {
                     Some(starting_key) => {
-                        if ascending {
+                        if *ascending {
                             match self.cursor.get(Some(starting_key), None, MDB_SET_RANGE) {
                                 Ok((key, value)) => Ok((key, value)),
                                 Err(lmdb::Error::NotFound) => {
@@ -51,18 +54,20 @@ impl<'a> Iterator for CacheIterator<'a> {
                         }
                     }
                     None => {
-                        if ascending {
+                        if *ascending {
                             self.cursor.get(None, None, MDB_FIRST)
                         } else {
                             self.cursor.get(None, None, MDB_LAST)
                         }
                     }
                 };
-                self.state = CacheIteratorState::NotFirst { ascending };
+                self.state = CacheIteratorState::NotFirst {
+                    ascending: *ascending,
+                };
                 res
             }
             CacheIteratorState::NotFirst { ascending } => {
-                if ascending {
+                if *ascending {
                     self.cursor.get(None, None, MDB_NEXT)
                 } else {
                     self.cursor.get(None, None, MDB_PREV)
@@ -76,14 +81,15 @@ impl<'a> Iterator for CacheIterator<'a> {
         }
     }
 }
-impl<'a> CacheIterator<'a> {
-    pub fn new(cursor: &'a RoCursor, starting_key: Option<&'a [u8]>, ascending: bool) -> Self {
+impl<'txn, C: Cursor<'txn>> CacheIterator<'txn, C> {
+    pub fn new(cursor: C, starting_key: Option<Vec<u8>>, ascending: bool) -> Self {
         CacheIterator {
             cursor,
             state: CacheIteratorState::First {
                 starting_key,
                 ascending,
             },
+            _marker: PhantomData::default(),
         }
     }
 }
@@ -116,24 +122,15 @@ mod tests {
 
         // Create testing cursor and utility function.
         let txn = env.begin_ro_txn().unwrap();
-        let cursor = txn.open_ro_cursor(db).unwrap();
         let check = |starting_key, ascending, expected: Vec<&'static [u8]>| {
-            let actual = CacheIterator::new(&cursor, starting_key, ascending)
+            let cursor = txn.open_ro_cursor(db).unwrap();
+            let actual = CacheIterator::new(cursor, starting_key, ascending)
                 .map(|(key, _)| key)
                 .collect::<Vec<_>>();
             assert_eq!(actual, expected);
         };
 
         // Test ascending from start.
-        check(
-            None,
-            true,
-            vec![
-                b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
-            ],
-        );
-
-        // Test ascending from start using the same cursor again.
         check(
             None,
             true,
@@ -151,19 +148,10 @@ mod tests {
             ],
         );
 
-        // Test descending from last using the same cursor again.
-        check(
-            None,
-            false,
-            vec![
-                b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
-            ],
-        );
-
         // Test ascending from existing key.
         let starting_key = b"ba".to_vec();
         check(
-            Some(&starting_key),
+            Some(starting_key),
             true,
             vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
         );
@@ -171,7 +159,7 @@ mod tests {
         // Test ascending from non existing key.
         let starting_key = b"00".to_vec();
         check(
-            Some(&starting_key),
+            Some(starting_key),
             true,
             vec![
                 b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
@@ -181,7 +169,7 @@ mod tests {
         // Test descending from existing key.
         let starting_key = b"bc".to_vec();
         check(
-            Some(&starting_key),
+            Some(starting_key),
             false,
             vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
@@ -189,7 +177,7 @@ mod tests {
         // Test ascending from non-existing key.
         let starting_key = b"ad".to_vec();
         check(
-            Some(&starting_key),
+            Some(starting_key),
             true,
             vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
         );
@@ -197,7 +185,7 @@ mod tests {
         // Test descending from non-existing key.
         let starting_key = b"bd".to_vec();
         check(
-            Some(&starting_key),
+            Some(starting_key),
             false,
             vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
@@ -205,7 +193,7 @@ mod tests {
         // Test descending from key past db end.
         let starting_key = b"dd".to_vec();
         check(
-            Some(&starting_key),
+            Some(starting_key),
             false,
             vec![
                 b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",

@@ -70,7 +70,7 @@ impl<'a> LmdbQueryHandler<'a> {
             .txn
             .open_ro_cursor(*self.db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let mut cache_iterator = CacheIterator::new(&cursor, None, true);
+        let mut cache_iterator = CacheIterator::new(cursor, None, true);
         // cache_iterator.skip(skip);
 
         let mut records = vec![];
@@ -133,8 +133,7 @@ impl<'a> LmdbQueryHandler<'a> {
             .open_ro_cursor(db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
-        let mut cache_iterator =
-            CacheIterator::new(&cursor, start_key.as_ref().map(|a| a as &[u8]), true);
+        let mut cache_iterator = CacheIterator::new(cursor, start_key.clone(), true);
         // For GT, LT operators dont include the first record returned.
 
         loop {
