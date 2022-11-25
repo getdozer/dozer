@@ -20,8 +20,8 @@ pub enum PipelineError {
     InvalidArgument(String),
     #[error("Invalid value: {0}")]
     InvalidValue(String),
-    #[error("Invalid query")]
-    InvalidQuery,
+    #[error("Invalid query: {0}")]
+    InvalidQuery(String),
     #[error("Invalid relation")]
     InvalidRelation,
     #[error("Invalid relation")]

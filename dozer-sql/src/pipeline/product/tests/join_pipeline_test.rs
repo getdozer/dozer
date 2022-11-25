@@ -20,17 +20,17 @@ use std::fs;
 use tempdir::TempDir;
 
 /// Test Source
-pub struct TestSourceFactory {
+pub struct UserTestSourceFactory {
     output_ports: Vec<PortHandle>,
 }
 
-impl TestSourceFactory {
+impl UserTestSourceFactory {
     pub fn new(output_ports: Vec<PortHandle>) -> Self {
         Self { output_ports }
     }
 }
 
-impl SourceFactory for TestSourceFactory {
+impl SourceFactory for UserTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
@@ -38,28 +38,33 @@ impl SourceFactory for TestSourceFactory {
             .collect()
     }
     fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource {})
+        Box::new(UserTestSource {})
     }
 }
 
-pub struct TestSource {}
+pub struct UserTestSource {}
 
-impl Source for TestSource {
+impl Source for UserTestSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
                 .field(
-                    FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
+                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
                     false,
                     false,
                 )
                 .field(
-                    FieldDefinition::new(String::from("Country"), FieldType::String, false),
+                    FieldDefinition::new(String::from("name"), FieldType::String, false),
                     false,
                     false,
                 )
                 .field(
-                    FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
+                    FieldDefinition::new(String::from("DepartmentID"), FieldType::Int, false),
+                    false,
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(String::from("Salary"), FieldType::Float, false),
                     false,
                     false,
                 )
@@ -80,10 +85,74 @@ impl Source for TestSource {
                         None,
                         vec![
                             Field::Int(0),
-                            Field::String("Italy".to_string()),
+                            Field::String("Alice".to_string()),
+                            Field::Int(0),
                             Field::Float(OrderedFloat(5.5)),
                         ],
                     ),
+                },
+                DEFAULT_PORT_HANDLE,
+            )
+            .unwrap();
+        }
+        fw.terminate().unwrap();
+        Ok(())
+    }
+}
+
+/// Test Source
+pub struct DepartmentTestSourceFactory {
+    output_ports: Vec<PortHandle>,
+}
+
+impl DepartmentTestSourceFactory {
+    pub fn new(output_ports: Vec<PortHandle>) -> Self {
+        Self { output_ports }
+    }
+}
+
+impl SourceFactory for DepartmentTestSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        self.output_ports
+            .iter()
+            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .collect()
+    }
+    fn build(&self) -> Box<dyn Source> {
+        Box::new(DepartmentTestSource {})
+    }
+}
+
+pub struct DepartmentTestSource {}
+
+impl Source for DepartmentTestSource {
+    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
+        Some(
+            Schema::empty()
+                .field(
+                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
+                    false,
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(String::from("name"), FieldType::String, false),
+                    false,
+                    false,
+                )
+                .clone(),
+        )
+    }
+
+    fn start(
+        &self,
+        fw: &mut dyn SourceChannelForwarder,
+        _from_seq: Option<u64>,
+    ) -> Result<(), ExecutionError> {
+        for n in 0..10000 {
+            fw.send(
+                n,
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
                 },
                 DEFAULT_PORT_HANDLE,
             )
@@ -141,15 +210,12 @@ impl Sink for TestSink {
 }
 
 #[test]
-fn test_pipeline_builder() {
-    let sql = "SELECT Country, SUM(Spending) \
-                            FROM Users \
-                            WHERE Spending >= 1 GROUP BY Country";
+fn test_single_table_pipeline() {
+    let sql = "SELECT name FROM Users ";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
-    debug!("AST: {:?}", ast);
 
     let statement: &Statement = &ast[0];
 
@@ -157,16 +223,18 @@ fn test_pipeline_builder() {
     let (mut dag, mut in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 
-    let source = TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
+    let user_source = UserTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
+
     let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
-    dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
+    dag.add_node(NodeType::Source(Box::new(user_source)), "users".to_string());
+
     dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
 
     let input_point = in_handle.remove("users").unwrap();
 
-    let _source_to_input = dag.connect(
-        Endpoint::new("source".to_string(), DEFAULT_PORT_HANDLE),
+    let _source_to_users = dag.connect(
+        Endpoint::new("users".to_string(), DEFAULT_PORT_HANDLE),
         Endpoint::new(input_point.node, input_point.port),
     );
 
@@ -185,7 +253,8 @@ fn test_pipeline_builder() {
     let now = Instant::now();
 
     let exec =
-        MultiThreadedDagExecutor::start(dag, tmp_dir.path(), ExecutorOptions::default()).unwrap();
+        MultiThreadedDagExecutor::start(dag, &tmp_dir.into_path(), ExecutorOptions::default())
+            .unwrap();
 
     exec.join().unwrap();
     let elapsed = now.elapsed();
