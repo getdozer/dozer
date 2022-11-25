@@ -143,7 +143,7 @@ impl Sink for TestSink {
 #[test]
 fn test_pipeline_builder() {
     let sql = "SELECT Country, SUM(Spending) \
-                            FROM Department d JOIN Users u ON d.id=u.did \
+                            FROM Users \
                             WHERE Spending >= 1 GROUP BY Country";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
@@ -163,7 +163,7 @@ fn test_pipeline_builder() {
     dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
     dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
 
-    let input_point = in_handle.remove("customers").unwrap();
+    let input_point = in_handle.remove("users").unwrap();
 
     let _source_to_input = dag.connect(
         Endpoint::new("source".to_string(), DEFAULT_PORT_HANDLE),

@@ -1,5 +1,5 @@
 use super::processor::aggregation::AggregationProcessorFactory;
-use super::processor::projection::ProjectionProcessorFactory;
+use super::processor::preaggregation::PreAggregationProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
 use super::product::factory::get_input_tables;
 use super::product::factory::ProductProcessorFactory;
@@ -53,7 +53,7 @@ impl PipelineBuilder {
         let mut dag = Dag::new();
 
         let first_node_name = String::from("product");
-        let mut last_node_name = String::from("projection");
+        let mut last_node_name = String::from("preaggregation");
 
         // FROM clause
         if select.from.len() != 1 {
@@ -71,11 +71,11 @@ impl PipelineBuilder {
         );
 
         // Select clause
-        let projection = ProjectionProcessorFactory::new(select.projection.clone());
+        let preaggregation = PreAggregationProcessorFactory::new(select.projection.clone());
 
         dag.add_node(
-            NodeType::Processor(Box::new(projection)),
-            String::from("projection"),
+            NodeType::Processor(Box::new(preaggregation)),
+            String::from("preaggregation"),
         );
 
         // Where clause
@@ -95,12 +95,12 @@ impl PipelineBuilder {
 
             let _ = dag.connect(
                 Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
             );
         } else {
             let _ = dag.connect(
                 Endpoint::new(String::from("product"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
             );
         }
 
@@ -117,7 +117,7 @@ impl PipelineBuilder {
             );
 
             let _ = dag.connect(
-                Endpoint::new(String::from("projection"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
                 Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
             );
         }
