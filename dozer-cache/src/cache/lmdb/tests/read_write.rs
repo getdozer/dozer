@@ -17,9 +17,11 @@ fn read_and_write() {
     }))
     .unwrap();
 
-    let schema = test_utils::schema_1();
+    let (schema, secondary_indexes) = test_utils::schema_1();
 
-    cache_writer.insert_schema("sample", &schema).unwrap();
+    cache_writer
+        .insert_schema("sample", &schema, &secondary_indexes)
+        .unwrap();
     let items: Vec<(i64, String, i64)> = vec![
         (1, "a".to_string(), 521),
         (2, "a".to_string(), 521),

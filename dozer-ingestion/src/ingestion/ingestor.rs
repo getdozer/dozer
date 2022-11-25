@@ -117,7 +117,6 @@ mod tests {
             fields: vec![],
             values: vec![],
             primary_index: vec![],
-            secondary_indexes: vec![],
         };
 
         // Expected seq no - 2

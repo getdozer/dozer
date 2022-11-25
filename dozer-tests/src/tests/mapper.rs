@@ -153,7 +153,6 @@ fn test_null_inserts() {
                 }],
                 values: vec![],
                 primary_index: vec![0],
-                secondary_indexes: vec![]
             }
         )
         .unwrap(),
@@ -194,7 +193,6 @@ fn test_null_inserts() {
                 ],
                 values: vec![],
                 primary_index: vec![0],
-                secondary_indexes: vec![]
             }
         )
         .unwrap(),

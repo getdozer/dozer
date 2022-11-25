@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::errors::{ConnectorError, PostgresConnectorError};
+use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
 
 use crate::connectors::TableInfo;
@@ -98,7 +98,6 @@ impl SchemaHelper {
                 fields: fields.clone(),
                 values: vec![],
                 primary_index,
-                secondary_indexes: vec![],
             };
             schemas.push((table_name, schema));
         }
@@ -141,15 +140,20 @@ impl SchemaHelper {
             s.finish() as u32
         };
         let type_oid: u32 = row.get(6);
-        match postgres_type_to_dozer_type(Type::from_oid(type_oid)) {
-            Ok(typ) => Ok((
-                table_name,
-                FieldDefinition::new(column_name, typ, is_nullable),
-                is_primary_index,
-                table_id,
+        let typ = Type::from_oid(type_oid);
+
+        let typ = typ.map_or(
+            Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(PostgresSchemaError::InvalidColumnType),
             )),
-            Err(e) => Err(e),
-        }
+            postgres_type_to_dozer_type,
+        )?;
+        Ok((
+            table_name,
+            FieldDefinition::new(column_name, typ, is_nullable),
+            is_primary_index,
+            table_id,
+        ))
     }
 }
 

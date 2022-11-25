@@ -26,8 +26,9 @@ async fn grpc_get_by_id(
     let dynamic_message = request.into_inner();
     let cache = pipeline_details.cache_endpoint.cache.to_owned();
     let schema = cache
-        .get_schema_by_name(&pipeline_details.schema_name)
-        .map_err(from_cache_error)?;
+        .get_schema_and_indexes_by_name(&pipeline_details.schema_name)
+        .map_err(from_cache_error)?
+        .0;
     let primary_idx = schema.primary_index.first().ok_or_else(|| {
         GRPCError::MissingPrimaryKeyToQueryById(pipeline_details.schema_name.to_owned())
     })?;

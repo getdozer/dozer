@@ -6,12 +6,12 @@ use cli::types::{ApiCommands, AppCommands, Cli, Commands};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
+use dozer_types::crossbeam::channel;
 use log::{debug, warn};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 
 fn load_default_config() {
     let config_str = include_str!("../../config/log4rs.release.yaml");
@@ -59,15 +59,19 @@ fn main() -> Result<(), OrchestrationError> {
                 ApiCommands::GenerateToken => todo!(),
             },
             Commands::App(apps) => match apps.command {
-                AppCommands::Run => dozer.run_apps(running),
+                AppCommands::Run => dozer.run_apps(running, None),
             },
             Commands::Ps => todo!(),
         }
     } else {
         let mut dozer_api = dozer.clone();
-        thread::spawn(move || dozer.run_apps(running));
 
-        thread::sleep(Duration::from_millis(200));
+        let (tx, rx) = channel::unbounded::<bool>();
+        thread::spawn(move || dozer.run_apps(running, Some(tx)));
+
+        // Wait for pipeline to initialize caches before starting api server
+        rx.recv().unwrap();
+
         dozer_api.run_api(running_api)
     }
 }

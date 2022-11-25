@@ -65,7 +65,7 @@ fn single_source_sink() {
     let r = running.clone();
     let executor_running = running.clone();
 
-    let schema = test_utils::schema_1();
+    let schema = test_utils::schema_1().0;
     // Initialize a schema.
     ingestor2
         .write()

@@ -48,27 +48,21 @@ impl InternalPipelineService for InternalServer {
     }
 }
 
-pub fn start_internal_server(
+pub async fn start_internal_server(
     port: u16,
     sender: Sender<PipelineRequest>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async {
-        let server = InternalServer { sender };
+) -> Result<(), tonic::transport::Error> {
+    let server = InternalServer { sender };
 
-        let mut addr = format!("[::1]:{}", port).to_socket_addrs().unwrap();
-        Server::builder()
-            .add_service(
-                internal_grpc::internal_pipeline_service_server::InternalPipelineServiceServer::new(
-                    server,
-                ),
-            )
-            .serve(addr.next().unwrap())
-            .await
-            .unwrap();
-    });
-
-    Ok(())
+    let mut addr = format!("[::1]:{}", port).to_socket_addrs().unwrap();
+    Server::builder()
+        .add_service(
+            internal_grpc::internal_pipeline_service_server::InternalPipelineServiceServer::new(
+                server,
+            ),
+        )
+        .serve(addr.next().unwrap())
+        .await
 }
 
 pub fn start_internal_client(port: u16, receiver: Receiver<PipelineRequest>) {

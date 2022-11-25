@@ -10,11 +10,20 @@ use super::{IndexFilter, IndexScanKind};
 
 pub struct QueryPlanner<'a> {
     schema: &'a Schema,
+    secondary_indexes: &'a [IndexDefinition],
     query: &'a QueryExpression,
 }
 impl<'a> QueryPlanner<'a> {
-    pub fn new(schema: &'a Schema, query: &'a QueryExpression) -> Self {
-        Self { schema, query }
+    pub fn new(
+        schema: &'a Schema,
+        secondary_indexes: &'a [IndexDefinition],
+        query: &'a QueryExpression,
+    ) -> Self {
+        Self {
+            schema,
+            secondary_indexes,
+            query,
+        }
     }
 
     pub fn plan(&self) -> Result<Plan, PlanError> {
@@ -55,7 +64,8 @@ impl<'a> QueryPlanner<'a> {
 
         // Check if existing secondary indexes can satisfy any of the scans.
         for index_scans in all_index_scans {
-            if let Some(index_scans) = all_indexes_are_present(self.schema, index_scans) {
+            if let Some(index_scans) = all_indexes_are_present(self.secondary_indexes, index_scans)
+            {
                 return Ok(Plan::IndexScans(index_scans));
             }
         }
@@ -200,13 +210,12 @@ impl IndexScanKind {
 }
 
 fn all_indexes_are_present(
-    schema: &Schema,
+    indexes: &[IndexDefinition],
     index_scan_kinds: Vec<IndexScanKind>,
 ) -> Option<Vec<IndexScan>> {
     let mut scans = vec![];
     for index_scan_kind in index_scan_kinds {
-        let found = schema
-            .secondary_indexes
+        let found = indexes
             .iter()
             .enumerate()
             .find(|(_, i)| index_scan_kind.is_supported_by_index(i));

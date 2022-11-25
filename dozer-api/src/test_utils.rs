@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use dozer_cache::cache::{Cache, CacheOptions, LmdbCache};
 
-pub fn get_schema() -> Schema {
+pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![
         FieldDefinition {
             name: "film_id".to_string(),
@@ -39,19 +39,21 @@ pub fn get_schema() -> Schema {
         .enumerate()
         .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
         .collect();
-    Schema {
-        identifier: Some(SchemaIdentifier {
-            id: 3003108387,
-            version: 1,
-        }),
-        fields,
-        values: vec![],
-        primary_index: vec![0],
+    (
+        Schema {
+            identifier: Some(SchemaIdentifier {
+                id: 3003108387,
+                version: 1,
+            }),
+            fields,
+            values: vec![],
+            primary_index: vec![0],
+        },
         secondary_indexes,
-    }
+    )
 }
 
-pub fn get_schema_with_timestamp() -> Schema {
+pub fn get_schema_with_timestamp() -> (Schema, Vec<IndexDefinition>) {
     let fields = vec![
         FieldDefinition {
             name: "film_id".to_string(),
@@ -84,16 +86,18 @@ pub fn get_schema_with_timestamp() -> Schema {
         .enumerate()
         .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
         .collect();
-    Schema {
-        identifier: Some(SchemaIdentifier {
-            id: 3003108387,
-            version: 1,
-        }),
-        fields,
-        values: vec![],
-        primary_index: vec![0],
+    (
+        Schema {
+            identifier: Some(SchemaIdentifier {
+                id: 3003108387,
+                version: 1,
+            }),
+            fields,
+            values: vec![],
+            primary_index: vec![0],
+        },
         secondary_indexes,
-    }
+    )
 }
 
 pub fn get_endpoint() -> ApiEndpoint {
@@ -130,10 +134,10 @@ pub fn get_films() -> Vec<Value> {
 
 pub fn initialize_cache(
     schema_name: &str,
-    schema: Option<dozer_types::types::Schema>,
+    schema: Option<(dozer_types::types::Schema, Vec<IndexDefinition>)>,
 ) -> Arc<LmdbCache> {
     let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
-    let schema: dozer_types::types::Schema = schema.unwrap_or_else(get_schema);
+    let (schema, secondar_indexes) = schema.unwrap_or_else(get_schema);
     let records_value: Vec<Value> = get_films();
     for record_str in records_value {
         let film_id = record_str["film_id"].as_i64();
@@ -151,7 +155,9 @@ pub fn initialize_cache(
                     Field::Int(release_year),
                 ],
             );
-            cache.insert_schema(schema_name, &schema).unwrap();
+            cache
+                .insert_schema(schema_name, &schema, &secondar_indexes)
+                .unwrap();
             cache.insert(&record).unwrap();
         }
     }
