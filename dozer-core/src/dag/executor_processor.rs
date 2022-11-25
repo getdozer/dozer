@@ -99,7 +99,7 @@ pub(crate) fn start_processor(
         );
 
         info!(
-            "[{}] Initialization started. Waiting for schema definitions...",
+            "PRC [{}] Initialization started. Waiting for schema definitions...",
             handle
         );
         latch.countdown();
@@ -112,7 +112,7 @@ pub(crate) fn start_processor(
             match op {
                 ExecutorOperation::SchemaUpdate { new } => {
                     info!(
-                        "[{}] Received Schema configuration on port {}",
+                        "PRC [{}] Received Schema configuration on port {}",
                         handle, &handles_ls[rcv.0]
                     );
                     update_processor_schema(
@@ -126,7 +126,7 @@ pub(crate) fn start_processor(
                 _ => {
                     return {
                         error!(
-                            "[{}] Invalid message received. Expected a SchemaUpdate",
+                            "PRC [{}] Invalid message received. Expected a SchemaUpdate",
                             handle
                         );
                         Err(ExecutionError::SchemaNotInitialized)
@@ -136,7 +136,7 @@ pub(crate) fn start_processor(
         }
 
         info!(
-            "[{}] Schema definition complete. Waiting for data...",
+            "PRC [{}] Schema definition complete. Waiting for data...",
             handle
         );
 
@@ -164,7 +164,7 @@ pub(crate) fn start_processor(
                 ExecutorOperation::Terminate => {
                     port_states[index] = InputPortState::Terminated;
                     info!(
-                        "[{}] Received Terminate request on port {}",
+                        "PRC [{}] TERM request received on port {}. Forwarding...",
                         handle, &handles_ls[index]
                     );
                     if port_states.iter().all(|v| v == &InputPortState::Terminated) {

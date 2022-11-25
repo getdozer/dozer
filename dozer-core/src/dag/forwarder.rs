@@ -202,7 +202,11 @@ pub struct LocalChannelForwarder {
     owner: NodeHandle,
     state_writer: StateWriter,
     stateful: bool,
+    owner_type: &'static str,
 }
+
+const SRC_OWNER_TYPE_STR: &str = "SRC";
+const PRC_OWNER_TYPE_STR: &str = "PRC";
 
 impl LocalChannelForwarder {
     pub(crate) fn new_source_forwarder(
@@ -223,6 +227,7 @@ impl LocalChannelForwarder {
             max_commit_time: commit_threshold_max,
             last_commit_time: Instant::now(),
             stateful,
+            owner_type: SRC_OWNER_TYPE_STR,
         }
     }
 
@@ -242,6 +247,7 @@ impl LocalChannelForwarder {
             max_commit_time: Duration::from_millis(0),
             last_commit_time: Instant::now(),
             stateful,
+            owner_type: PRC_OWNER_TYPE_STR,
         }
     }
 
@@ -316,14 +322,14 @@ impl LocalChannelForwarder {
 
                 if count > 0 {
                     info!(
-                        "[{}] Terminating: waiting for {} messages to be flushed",
-                        self.owner, count
+                        "{} [{}] Terminating: waiting for {} messages to be flushed",
+                        self.owner_type, self.owner, count
                     );
                     sleep(Duration::from_millis(500));
                 } else {
                     info!(
-                        "[{}] Terminating: all messages flushed. Exiting message loop.",
-                        self.owner
+                        "{} [{}] Terminating: all messages flushed. Exiting message loop.",
+                        self.owner_type, self.owner
                     );
                     break;
                 }
@@ -339,8 +345,8 @@ impl LocalChannelForwarder {
         seq: u64,
     ) -> Result<(), ExecutionError> {
         info!(
-            "[{}] Checkpointing (source: {}, epoch: {})",
-            self.owner, source_node, seq
+            "{} [{}] Checkpointing (source: {}, epoch: {})",
+            self.owner_type, self.owner, source_node, seq
         );
         self.state_writer.store_commit_info(&source_node, seq)?;
 

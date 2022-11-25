@@ -61,7 +61,7 @@ pub(crate) fn start_sink(
                         match snk.update_schema(&input_schemas) {
                             Err(e) => {
                                 error!(
-                                    "[{}] Error during update_schema(). Unsupported new schema.",
+                                    "SNK [{}] Error during update_schema(). Unsupported new schema.",
                                     handle
                                 );
                                 return Err(e);
@@ -72,7 +72,10 @@ pub(crate) fn start_sink(
                 }
 
                 ExecutorOperation::Terminate => {
-                    info!("[{}] Terminating: Exiting message loop", handle);
+                    info!(
+                        "SNK [{}] TERM request received on port {}",
+                        handle, handles_ls[index]
+                    );
                     return Ok(());
                 }
                 ExecutorOperation::Commit { epoch, source } => {

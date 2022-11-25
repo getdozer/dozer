@@ -67,7 +67,7 @@ impl Source for DynPortsSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1_000 {
+        for n in 0..1_000_000 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -83,7 +83,7 @@ impl Source for DynPortsSource {
                 DEFAULT_PORT_HANDLE,
             )?;
         }
-        fw.terminate().unwrap();
+        // fw.terminate().unwrap();
         Ok(())
     }
 }

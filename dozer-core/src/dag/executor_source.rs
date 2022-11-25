@@ -15,7 +15,8 @@ use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
-use log::{info, warn};
+use fp_rust::sync::CountDownLatch;
+use log::{error, info, warn};
 use std::collections::HashMap;
 use std::ops::Add;
 use std::path::PathBuf;
@@ -71,8 +72,9 @@ fn process_message(
     term_barrier: &Arc<Barrier>,
 ) -> Result<bool, ExecutionError> {
     if stop_req.load(Ordering::Relaxed) {
-        info!("[{}] Stop requested...", owner);
+        info!("SRC [{}] Shutdown requested. Sending TERM request", owner);
         dag_fw.terminate()?;
+        term_barrier.wait();
         return Ok(true);
     }
 
@@ -82,7 +84,7 @@ fn process_message(
             Ok(false)
         }
         Err(RecvTimeoutError::Disconnected) => {
-            warn!("[{}] Source exited. Shutting down...", owner);
+            warn!("SRC [{}] Source exited. Shutting down...", owner);
             Ok(true)
         }
         Ok(ExecutorOperation::Insert { seq, new }) => {
@@ -133,16 +135,35 @@ pub(crate) fn start_source(
         internal_senders.insert(port.handle, channels.0);
     }
 
+    let source_thread_latch = Arc::new(CountDownLatch::new(1));
+    let source_thread_latch_thread = source_thread_latch.clone();
     let mut fw = InternalChannelSourceForwarder::new(internal_senders);
-    thread::spawn(move || -> Result<(), ExecutionError> {
+    let sender_handle = handle.clone();
+    let sender_thread = thread::spawn(move || -> Result<(), ExecutionError> {
+        info!("SRC [{}::sender] Starting up...", sender_handle);
         let src = src_factory.build();
         for p in src_factory.get_output_ports() {
             if let Some(schema) = src.get_output_schema(p.handle) {
                 fw.update_schema(schema, p.handle)?
             }
         }
-        src.start(&mut fw, None)
+        source_thread_latch_thread.countdown();
+        let r = src.start(&mut fw, None);
+        match &r {
+            Err(e) => {
+                error!(
+                    "SRC [{}::sender] Exiting with error {}",
+                    sender_handle,
+                    e.to_string()
+                );
+            }
+            Ok(()) => {
+                info!("SRC [{}::sender] Exiting without error", sender_handle);
+            }
+        }
+        r
     });
+    source_thread_latch.wait();
 
     let listener_handle = handle.clone();
     thread::spawn(move || -> Result<(), ExecutionError> {
@@ -177,6 +198,14 @@ pub(crate) fn start_source(
             let port_index = sel.ready();
             let r = internal_receivers[port_index]
                 .recv_deadline(Instant::now().add(Duration::from_millis(500)));
+
+            if sender_thread.is_finished() {
+                info!(
+                    "SRC [{}] Sender thread has exited. Requesting for shutdown...",
+                    &listener_handle
+                );
+                stop_req.store(true, Ordering::Relaxed);
+            }
 
             if process_message(
                 &stop_req,
