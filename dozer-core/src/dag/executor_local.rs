@@ -96,6 +96,7 @@ pub struct MultiThreadedDagExecutor {
 
 impl MultiThreadedDagExecutor {
     fn start_sinks(
+        stop_req: Arc<AtomicBool>,
         sinks: Vec<(NodeHandle, Box<dyn SinkFactory>)>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
         path: PathBuf,
@@ -111,6 +112,7 @@ impl MultiThreadedDagExecutor {
             handles.insert(
                 holder.0.clone(),
                 start_sink(
+                    stop_req.clone(),
                     holder.0.clone(),
                     holder.1,
                     snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
@@ -161,6 +163,7 @@ impl MultiThreadedDagExecutor {
     }
 
     fn start_processors(
+        stop_req: Arc<AtomicBool>,
         processors: Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
@@ -186,6 +189,7 @@ impl MultiThreadedDagExecutor {
             handles.insert(
                 holder.0.clone(),
                 start_processor(
+                    stop_req.clone(),
                     edges.clone(),
                     holder.0,
                     holder.1,
@@ -227,8 +231,10 @@ impl MultiThreadedDagExecutor {
         let start_latch = Arc::new(CountDownLatch::new((processors.len() + sinks.len()) as u64));
         let mut all_handles = HashMap::<NodeHandle, JoinHandle<Result<(), ExecutionError>>>::new();
         let term_barrier = Arc::new(Barrier::new(sources.len()));
+        let stop_req = Arc::new(AtomicBool::new(false));
 
         all_handles.extend(Self::start_sinks(
+            stop_req.clone(),
             sinks,
             &mut receivers,
             PathBuf::from(path),
@@ -237,6 +243,7 @@ impl MultiThreadedDagExecutor {
             &term_barrier,
         )?);
         all_handles.extend(Self::start_processors(
+            stop_req.clone(),
             processors,
             &mut senders,
             &mut receivers,
@@ -249,7 +256,6 @@ impl MultiThreadedDagExecutor {
 
         start_latch.wait();
 
-        let stop_req = Arc::new(AtomicBool::new(false));
         all_handles.extend(Self::start_sources(
             stop_req.clone(),
             sources,

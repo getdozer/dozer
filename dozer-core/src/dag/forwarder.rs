@@ -394,6 +394,11 @@ impl LocalChannelForwarder {
         }
         Ok(())
     }
+
+    pub fn terminate(&mut self) -> Result<(), ExecutionError> {
+        self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
+        self.send_term_and_wait()
+    }
 }
 
 impl SourceChannelForwarder for LocalChannelForwarder {
@@ -411,11 +416,6 @@ impl SourceChannelForwarder for LocalChannelForwarder {
 
     fn update_schema(&mut self, schema: Schema, port: PortHandle) -> Result<(), ExecutionError> {
         self.send_and_update_output_schema(schema, port)
-    }
-
-    fn terminate(&mut self) -> Result<(), ExecutionError> {
-        self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
-        self.send_term_and_wait()
     }
 }
 

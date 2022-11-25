@@ -71,11 +71,11 @@ impl Source for GeneratorSource {
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }
-        fw.terminate()?;
 
-        loop {
-            thread::sleep(Duration::from_millis(1000));
-        }
+        Ok(())
+        // loop {
+        //     thread::sleep(Duration::from_millis(1000));
+        // }
     }
 }
 
@@ -151,10 +151,12 @@ impl Source for StatefulGeneratorSource {
                 thread::sleep(self.sleep);
             }
         }
-        fw.terminate()?;
+        //Ok(())
 
-        loop {
-            thread::sleep(Duration::from_millis(1000));
-        }
+        thread::sleep(Duration::from_secs(5));
+        Ok(())
+        // loop {
+        //     thread::sleep(Duration::from_millis(1000));
+        // }
     }
 }

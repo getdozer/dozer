@@ -14,11 +14,13 @@ use fp_rust::sync::CountDownLatch;
 use log::{error, info};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
 
 pub(crate) fn start_sink(
+    stop_req: Arc<AtomicBool>,
     handle: NodeHandle,
     snk_factory: Box<dyn SinkFactory>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,

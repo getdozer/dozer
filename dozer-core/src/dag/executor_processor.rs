@@ -12,7 +12,7 @@ use crate::dag::node::{NodeHandle, OutputPortDef, PortHandle, Processor, Process
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
 use crate::storage::transactions::SharedTransaction;
-use crossbeam::channel::{Receiver, Sender};
+use crossbeam::channel::{Receiver, RecvError, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
@@ -20,6 +20,7 @@ use log::{error, info, warn};
 use std::collections::HashMap;
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
@@ -54,6 +55,7 @@ fn update_processor_schema(
 }
 
 pub(crate) fn start_processor(
+    stop_req: Arc<AtomicBool>,
     edges: Vec<Edge>,
     handle: NodeHandle,
     proc_factory: Box<dyn ProcessorFactory>,
@@ -62,7 +64,7 @@ pub(crate) fn start_processor(
     base_path: PathBuf,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     latch: Arc<CountDownLatch>,
-    _term_barrier: Arc<Barrier>,
+    term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
     thread::spawn(move || -> Result<(), ExecutionError> {
         let mut proc = proc_factory.build();
