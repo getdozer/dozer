@@ -173,14 +173,20 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the asscoiated schema
     pub values: Vec<Field>,
 }
-
+impl std::fmt::Debug for Record {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Record")
+            .field("values", &self.values)
+            .finish()
+    }
+}
 impl Record {
     pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
         Record { schema_id, values }

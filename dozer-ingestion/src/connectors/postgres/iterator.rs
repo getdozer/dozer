@@ -151,7 +151,7 @@ impl PostgresIteratorHandler {
                 ingestor: Arc::clone(&self.ingestor),
                 connector_id: self.connector_id,
             };
-            let tables = snapshotter.sync_tables()?;
+            let tables = snapshotter.sync_tables(details.tables.clone())?;
 
             debug!("\nInitialized with tables: {:?}", tables);
 

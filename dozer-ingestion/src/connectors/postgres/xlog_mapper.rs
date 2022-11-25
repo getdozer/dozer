@@ -1,5 +1,5 @@
 use crate::connectors::postgres::helper;
-use crate::errors::ConnectorError;
+use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
@@ -221,25 +221,31 @@ impl XlogMapper {
             rel_id,
         };
 
-        let fields: Result<Vec<FieldDefinition>, _> = table
-            .columns
-            .iter()
-            .map(|c| match postgres_type_to_dozer_type(c.r#type.clone()) {
-                Ok(typ) => Ok(FieldDefinition {
-                    name: c.name.clone(),
-                    typ,
-                    nullable: true,
-                }),
-                Err(e) => Err(e),
-            })
-            .collect();
+        let mut fields = vec![];
+        for c in &table.columns {
+            let typ = c.r#type.clone();
+            let typ = typ.map_or(
+                Err(ConnectorError::PostgresConnectorError(
+                    PostgresConnectorError::PostgresSchemaError(
+                        PostgresSchemaError::InvalidColumnType,
+                    ),
+                )),
+                postgres_type_to_dozer_type,
+            )?;
+
+            fields.push(FieldDefinition {
+                name: c.name.clone(),
+                typ,
+                nullable: true,
+            });
+        }
 
         let schema = Schema {
             identifier: Some(dozer_types::types::SchemaIdentifier {
                 id: table.rel_id as u32,
                 version: table.rel_id as u16,
             }),
-            fields: fields?,
+            fields,
             values: vec![0],
             primary_index: vec![0],
             secondary_indexes: vec![],

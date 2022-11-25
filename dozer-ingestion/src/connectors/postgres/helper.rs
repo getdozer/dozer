@@ -1,7 +1,6 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::errors::PostgresSchemaError::{
-    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, InvalidColumnType,
-    ValueConversionError,
+    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use bytes::Bytes;
@@ -82,28 +81,22 @@ pub fn postgres_type_to_field(
     }
 }
 
-pub fn postgres_type_to_dozer_type(col_type: Option<Type>) -> Result<FieldType, ConnectorError> {
-    if let Some(column_type) = col_type {
-        match column_type {
-            Type::BOOL => Ok(FieldType::Boolean),
-            Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
-            Type::CHAR | Type::TEXT | Type::VARCHAR => Ok(FieldType::String),
-            Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
-            Type::BIT => Ok(FieldType::Binary),
-            Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
-            Type::NUMERIC => Ok(FieldType::Decimal),
-            Type::JSONB => Ok(FieldType::Bson),
-            Type::DATE => Ok(FieldType::Date),
-            _ => Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
-                    column_type.name().to_string(),
-                )),
+pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, ConnectorError> {
+    match column_type {
+        Type::BOOL => Ok(FieldType::Boolean),
+        Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
+        Type::CHAR | Type::TEXT | Type::VARCHAR => Ok(FieldType::String),
+        Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
+        Type::BIT => Ok(FieldType::Binary),
+        Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
+        Type::NUMERIC => Ok(FieldType::Decimal),
+        Type::JSONB => Ok(FieldType::Bson),
+        Type::DATE => Ok(FieldType::Date),
+        _ => Err(ConnectorError::PostgresConnectorError(
+            PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
+                column_type.name().to_string(),
             )),
-        }
-    } else {
-        Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::PostgresSchemaError(InvalidColumnType),
-        ))
+        )),
     }
 }
 
@@ -210,7 +203,7 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Result<Schema, ConnectorE
 }
 
 pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, ConnectorError> {
-    match postgres_type_to_dozer_type(Some(column.type_().clone())) {
+    match postgres_type_to_dozer_type(column.type_().clone()) {
         Ok(typ) => Ok(FieldDefinition {
             name: column.name().to_string(),
             typ,
