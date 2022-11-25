@@ -7,8 +7,11 @@ use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{PortHandle, StatelessProcessor, StatelessProcessorFactory};
+use dozer_core::dag::node::{
+    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+};
 use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::internal_err;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;
@@ -26,16 +29,19 @@ impl ProjectionProcessorFactory {
     }
 }
 
-impl StatelessProcessorFactory for ProjectionProcessorFactory {
+impl ProcessorFactory for ProjectionProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortDefOptions::default(),
+        )]
     }
 
-    fn build(&self) -> Box<dyn StatelessProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(ProjectionProcessor {
             statement: self.statement.clone(),
             input_schema: Schema::empty(),
@@ -191,7 +197,7 @@ impl ProjectionProcessor {
     }
 }
 
-impl StatelessProcessor for ProjectionProcessor {
+impl Processor for ProjectionProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,
@@ -204,7 +210,7 @@ impl StatelessProcessor for ProjectionProcessor {
         self.build_output_schema(input_schema, expressions)
     }
 
-    fn init<'a>(&'_ mut self) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
@@ -214,6 +220,7 @@ impl StatelessProcessor for ProjectionProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
+        _tx: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let _ = match op {

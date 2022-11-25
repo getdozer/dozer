@@ -3,6 +3,7 @@
 pub mod channels;
 pub mod dag;
 pub mod errors;
+mod executor_checkpoint;
 pub mod executor_local;
 mod executor_processor;
 mod executor_sink;

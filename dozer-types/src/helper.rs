@@ -1,9 +1,10 @@
 use crate::errors::types::{DeserializationError, SerializationError, TypeError};
+use crate::types::DATE_FORMAT;
 use crate::{
     errors::types,
     types::{Field, FieldType, Record, Schema},
 };
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, NaiveDate, SecondsFormat};
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use std::str::FromStr;
@@ -39,11 +40,7 @@ pub fn field_to_json_value(field: &Field) -> Result<String, TypeError> {
         Field::Bson(b) => Ok(serde_json::to_string(b).map_err(SerializationError::Json))?,
         Field::UInt(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
         Field::Text(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::UIntArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::IntArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::FloatArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::BooleanArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
-        Field::StringArray(n) => Ok(serde_json::to_string(n).map_err(SerializationError::Json))?,
+        Field::Date(n) => Ok(n.format(DATE_FORMAT).to_string()),
     }
     .map_err(TypeError::SerializationError)
 }
@@ -70,10 +67,7 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
             .map(Field::Decimal),
         FieldType::Timestamp => DateTime::parse_from_rfc3339(val)
             .map_err(|e| DeserializationError::Custom(Box::new(e)))
-            .map(|date| {
-                let val: DateTime<Utc> = date.with_timezone(&Utc);
-                Field::Timestamp(val)
-            }),
+            .map(Field::Timestamp),
         FieldType::Bson => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Bson),
@@ -84,21 +78,9 @@ pub fn json_value_to_field(val: &str, typ: &FieldType) -> Result<Field, TypeErro
         FieldType::Text => serde_json::from_str(val)
             .map_err(DeserializationError::Json)
             .map(Field::Text),
-        FieldType::UIntArray => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::UIntArray),
-        FieldType::IntArray => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::IntArray),
-        FieldType::FloatArray => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::FloatArray),
-        FieldType::BooleanArray => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::BooleanArray),
-        FieldType::StringArray => serde_json::from_str(val)
-            .map_err(DeserializationError::Json)
-            .map(Field::StringArray),
+        FieldType::Date => NaiveDate::parse_from_str(val, DATE_FORMAT)
+            .map_err(|e| DeserializationError::Custom(Box::new(e)))
+            .map(Field::Date),
     }
     .map_err(TypeError::DeserializationError)
 }
@@ -109,7 +91,7 @@ mod tests {
         helper::{field_to_json_value, json_value_to_field},
         types::{Field, FieldType},
     };
-    use chrono::{TimeZone, Utc};
+    use chrono::{NaiveDate, Offset, TimeZone, Utc};
     use ordered_float::OrderedFloat;
     use rust_decimal::Decimal;
     use serde_json::json;
@@ -136,31 +118,17 @@ mod tests {
             (FieldType::Decimal, Field::Decimal(Decimal::new(202, 2))),
             (
                 FieldType::Timestamp,
-                Field::Timestamp(Utc.ymd(2001, 1, 1).and_hms_milli(0, 4, 0, 42)),
+                Field::Timestamp(Utc.fix().ymd(2001, 1, 1).and_hms_milli(0, 4, 0, 42)),
+            ),
+            (
+                FieldType::Date,
+                Field::Date(NaiveDate::from_ymd(2022, 11, 24)),
             ),
             (
                 FieldType::Bson,
                 Field::Bson(bincode::serialize(&json!({"a": 1}))?),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
-            (FieldType::UIntArray, Field::UIntArray(vec![1, 2, 3])),
-            (FieldType::IntArray, Field::IntArray(vec![1, -2, 3])),
-            (
-                FieldType::FloatArray,
-                Field::FloatArray(vec![
-                    OrderedFloat(1.0_f64),
-                    OrderedFloat(2.0_f64),
-                    OrderedFloat(3.2_f64),
-                ]),
-            ),
-            (
-                FieldType::BooleanArray,
-                Field::BooleanArray(vec![true, true, false]),
-            ),
-            (
-                FieldType::StringArray,
-                Field::StringArray(vec!["a".to_string(), "b".to_string()]),
-            ),
         ];
         for (field_type, field) in fields {
             test_field_conversion(field_type, field)?;

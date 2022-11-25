@@ -68,6 +68,7 @@ pub trait RoCursor {
     fn read(&self) -> Result<Option<(&[u8], &[u8])>, StorageError>;
     fn next(&self) -> Result<bool, StorageError>;
     fn prev(&self) -> Result<bool, StorageError>;
+    fn first(&self) -> Result<bool, StorageError>;
 }
 
 pub trait RwCursor: RoCursor {

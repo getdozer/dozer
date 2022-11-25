@@ -118,10 +118,6 @@ pub fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldTy
         dozer_types::types::FieldType::Null => get_type_by_name("string"),
         dozer_types::types::FieldType::UInt => get_type_by_name("string"),
         dozer_types::types::FieldType::Text => get_type_by_name("string"),
-        dozer_types::types::FieldType::UIntArray => get_type_by_name("string"),
-        dozer_types::types::FieldType::IntArray => get_type_by_name("string"),
-        dozer_types::types::FieldType::FloatArray => get_type_by_name("string"),
-        dozer_types::types::FieldType::BooleanArray => get_type_by_name("string"),
-        dozer_types::types::FieldType::StringArray => get_type_by_name("string"),
+        dozer_types::types::FieldType::Date => get_type_by_name("string"),
     }
 }

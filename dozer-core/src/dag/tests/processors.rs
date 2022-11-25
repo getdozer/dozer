@@ -2,9 +2,8 @@ use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{
-    PortHandle, StatefulPortHandle, StatefulPortHandleOptions, StatefulProcessor,
-    StatefulProcessorFactory, StatelessSink, StatelessSinkFactory, StatelessSource,
-    StatelessSourceFactory,
+    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory, Sink,
+    SinkFactory, Source, SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, RwTransaction};
@@ -24,11 +23,14 @@ impl DynPortsSourceFactory {
     }
 }
 
-impl StatelessSourceFactory for DynPortsSourceFactory {
-    fn get_output_ports(&self) -> Vec<PortHandle> {
-        self.output_ports.clone()
+impl SourceFactory for DynPortsSourceFactory {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        self.output_ports
+            .iter()
+            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .collect()
     }
-    fn build(&self) -> Box<dyn StatelessSource> {
+    fn build(&self) -> Box<dyn Source> {
         Box::new(DynPortsSource { id: self.id })
     }
 }
@@ -37,7 +39,7 @@ pub struct DynPortsSource {
     id: i32,
 }
 
-impl StatelessSource for DynPortsSource {
+impl Source for DynPortsSource {
     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
         Some(
             Schema::empty()
@@ -97,11 +99,11 @@ impl DynPortsSinkFactory {
     }
 }
 
-impl StatelessSinkFactory for DynPortsSinkFactory {
+impl SinkFactory for DynPortsSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn StatelessSink> {
+    fn build(&self) -> Box<dyn Sink> {
         Box::new(DynPortsSink { id: self.id })
     }
 }
@@ -110,7 +112,7 @@ pub struct DynPortsSink {
     id: i32,
 }
 
-impl StatelessSink for DynPortsSink {
+impl Sink for DynPortsSink {
     fn update_schema(
         &mut self,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -118,7 +120,7 @@ impl StatelessSink for DynPortsSink {
         Ok(())
     }
 
-    fn init(&mut self) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("SINK {}: Initialising TestSink", self.id);
         Ok(())
     }
@@ -128,6 +130,8 @@ impl StatelessSink for DynPortsSink {
         _from_port: PortHandle,
         _seq: u64,
         _op: Operation,
+        _tx: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -149,18 +153,18 @@ impl DynPortsProcessorFactory {
     }
 }
 
-impl StatefulProcessorFactory for DynPortsProcessorFactory {
+impl ProcessorFactory for DynPortsProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn get_output_ports(&self) -> Vec<StatefulPortHandle> {
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .clone()
             .iter()
-            .map(|e| StatefulPortHandle::new(*e, StatefulPortHandleOptions::default()))
+            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
             .collect()
     }
-    fn build(&self) -> Box<dyn StatefulProcessor> {
+    fn build(&self) -> Box<dyn Processor> {
         Box::new(DynPortsProcessor {
             id: self.id,
             ctr: 0,
@@ -175,7 +179,7 @@ pub struct DynPortsProcessor {
     db: Option<Database>,
 }
 
-impl StatefulProcessor for DynPortsProcessor {
+impl Processor for DynPortsProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,
@@ -184,7 +188,7 @@ impl StatefulProcessor for DynPortsProcessor {
         Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
     }
 
-    fn init<'a>(&'_ mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
         self.db = Some(tx.open_database("test", false)?);
         Ok(())
