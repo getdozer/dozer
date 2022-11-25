@@ -72,7 +72,7 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..10000 {
+        for n in 0..10 {
             fw.send(
                 n,
                 Operation::Insert {

@@ -57,11 +57,11 @@ impl Aggregator {
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
-        _curr_states: &Option<Vec<u8>>,
+        curr_states: &Option<Vec<u8>>,
     ) -> Result<Vec<u8>, PipelineError> {
         match &self {
             Aggregator::Count => CountAggregator::update(curr_state),
-            Aggregator::Min => MinAggregator::update(curr_state, old, new),
+            Aggregator::Min => MinAggregator::update(curr_state, old, new, curr_states),
             Aggregator::Max => MaxAggregator::update(curr_state, old, new),
             Aggregator::Sum => SumAggregator::update(curr_state, old, new),
         }

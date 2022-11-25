@@ -64,35 +64,46 @@ impl MinAggregator {
 
     pub(crate) fn update(
         curr_state: Option<&[u8]>,
-        _old: &Field,
-        _new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
-        let prev = match curr_state {
-            Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
-            None => 0_i64,
-        };
-
-        Ok(Vec::from(prev.to_ne_bytes()))
-    }
-
-    pub(crate) fn delete(
-        curr_state: Option<&[u8]>,
         old: &Field,
+        new: &Field,
         curr_states: &Option<Vec<u8>>,
     ) -> Result<Vec<u8>, PipelineError> {
-        let prev = match curr_state {
-            Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
+        let prev = match Self::delete(curr_state, old, curr_states).unwrap().first() {
+            Some(v) => i64::from(*v),
             None => 0_i64,
         };
 
-        let _curr = match &old {
+        let curr = match &new {
             Int(i) => i,
             _ => {
                 return Err(InvalidOperandType("MIN".to_string()));
             }
         };
 
-        let _states = curr_states.clone().unwrap();
+        Ok(Vec::from(min(prev, *curr).to_ne_bytes()))
+    }
+
+    pub(crate) fn delete(
+        _curr_state: Option<&[u8]>,
+        old: &Field,
+        curr_states: &Option<Vec<u8>>,
+    ) -> Result<Vec<u8>, PipelineError> {
+        let mut prev = i64::MIN;
+
+        let curr = match &old {
+            Int(i) => i,
+            _ => {
+                return Err(InvalidOperandType("MIN".to_string()));
+            }
+        };
+
+        if let Some(states) = curr_states.clone() {
+            for state in states {
+                if i64::from(state) != *curr {
+                    prev = min(prev, i64::from(state))
+                }
+            };
+        };
 
         Ok(Vec::from(prev.to_ne_bytes()))
     }
