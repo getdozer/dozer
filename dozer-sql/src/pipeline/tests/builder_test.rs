@@ -146,7 +146,7 @@ fn test_pipeline_builder() {
     //                         FROM Customers \
     //                         WHERE Spending >= 1 GROUP BY Country";
 
-    let sql = "SELECT Count(Country), Country, MIM(Spending) FROM Customers GROUP BY Country";
+    let sql = "SELECT Count(Country), Country, MIN(Spending) FROM Customers GROUP BY Country";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
