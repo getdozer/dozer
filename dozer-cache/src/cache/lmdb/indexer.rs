@@ -1,6 +1,6 @@
 use crate::errors::{CacheError, IndexError, QueryError};
 use dozer_types::types::{Field, IndexDefinition, Record, Schema, SortDirection};
-use lmdb::{RwTransaction, Transaction, WriteFlags};
+use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -9,6 +9,7 @@ use crate::cache::index::{self, get_full_text_secondary_index};
 use super::cache::IndexMetaData;
 
 pub struct Indexer {
+    pub primary_index: Database,
     pub index_metadata: Arc<IndexMetaData>,
 }
 impl Indexer {
@@ -18,11 +19,22 @@ impl Indexer {
         rec: &Record,
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
-        pkey: Vec<u8>,
+        id: u64,
     ) -> Result<(), CacheError> {
         let mut txn = parent_txn
             .begin_nested_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+
+        if !schema.primary_index.is_empty() {
+            let primary_key = index::get_primary_key(&schema.primary_index, &rec.values);
+            txn.put(
+                self.primary_index,
+                &primary_key.as_slice(),
+                &id.to_be_bytes().as_slice(),
+                WriteFlags::default(),
+            )
+            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        }
 
         if secondary_indexes.is_empty() {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
@@ -33,13 +45,24 @@ impl Indexer {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = self._build_index_sorted_inverted(fields, &rec.values)?;
-                    txn.put::<Vec<u8>, Vec<u8>>(db, &secondary_key, &pkey, WriteFlags::default())
-                        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+                    txn.put(
+                        db,
+                        &secondary_key.as_slice(),
+                        &id.to_be_bytes().as_slice(),
+                        WriteFlags::default(),
+                    )
+                    .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                 }
                 IndexDefinition::FullText(field_index) => {
-                    for secondary_key in self._build_indices_full_text(*field_index, &rec.values)? {
-                        txn.put(db, &secondary_key, &pkey, WriteFlags::default())
-                            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+                    for secondary_key in Self::_build_indices_full_text(*field_index, &rec.values)?
+                    {
+                        txn.put(
+                            db,
+                            &secondary_key.as_slice(),
+                            &id.to_be_bytes().as_slice(),
+                            WriteFlags::default(),
+                        )
+                        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
                     }
                 }
             }
@@ -63,7 +86,6 @@ impl Indexer {
     }
 
     fn _build_indices_full_text(
-        &self,
         field_index: usize,
         values: &[Field],
     ) -> Result<Vec<Vec<u8>>, CacheError> {
@@ -133,18 +155,13 @@ mod tests {
 
     #[test]
     fn test_build_indices_full_text() {
-        let indexer = Indexer {
-            index_metadata: Arc::new(IndexMetaData::new()),
-        };
-
         let field_index = 0;
         assert_eq!(
-            indexer
-                ._build_indices_full_text(
-                    field_index,
-                    &[Field::String("today is a good day".into())]
-                )
-                .unwrap(),
+            Indexer::_build_indices_full_text(
+                field_index,
+                &[Field::String("today is a good day".into())]
+            )
+            .unwrap(),
             vec![
                 get_full_text_secondary_index("today"),
                 get_full_text_secondary_index("is"),

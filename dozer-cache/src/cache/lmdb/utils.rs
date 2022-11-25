@@ -56,11 +56,20 @@ pub fn init_db(
     env: &Environment,
     name: Option<&str>,
     options: &CacheOptions,
+    allow_dup: bool,
+    fixed_length_key: bool,
 ) -> Result<Database, CacheError> {
     match options {
         CacheOptions::Write(_) => {
             let mut flags = DatabaseFlags::default();
-            flags.set(DatabaseFlags::DUP_SORT, true);
+            if allow_dup {
+                flags.set(DatabaseFlags::DUP_SORT, true);
+                if fixed_length_key {
+                    flags.set(DatabaseFlags::INTEGER_DUP, true);
+                }
+            } else if fixed_length_key {
+                flags.set(DatabaseFlags::INTEGER_KEY, true);
+            }
 
             let db = env
                 .create_db(name, flags)
@@ -99,7 +108,7 @@ mod tests {
         let options = CacheOptions::default();
         let env = init_env(&options).unwrap();
 
-        let db = init_db(&env, Some("test"), &options).unwrap();
+        let db = init_db(&env, Some("test"), &options, true, true).unwrap();
 
         let mut txn = env.begin_rw_txn().unwrap();
 

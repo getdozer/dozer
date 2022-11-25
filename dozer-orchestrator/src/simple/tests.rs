@@ -17,7 +17,7 @@ use dozer_types::{
         self,
         api_endpoint::{ApiEndpoint, ApiIndex},
     },
-    types::{Field, OperationEvent, Record},
+    types::{Field, OperationEvent, Record, Schema},
 };
 use log::warn;
 use serde_json::{json, Value};
@@ -25,8 +25,7 @@ use tempdir::TempDir;
 
 use super::executor::{Executor, SinkConfig};
 
-#[test]
-fn single_source_sink() {
+fn single_source_sink_impl(schema: Schema) {
     let source = models::source::Source {
         id: Some("1".to_string()),
         name: "events".to_string(),
@@ -65,7 +64,6 @@ fn single_source_sink() {
     let r = running.clone();
     let executor_running = running.clone();
 
-    let schema = test_utils::schema_1().0;
     // Initialize a schema.
     ingestor2
         .write()
@@ -135,6 +133,14 @@ fn single_source_sink() {
     r.store(false, Ordering::SeqCst);
 
     test_query("events".to_string(), json!({}), 7, &cache);
+}
+
+#[test]
+fn single_source_sink() {
+    let mut schema = test_utils::schema_1().0;
+    single_source_sink_impl(schema.clone());
+    schema.primary_index.clear();
+    single_source_sink_impl(schema);
 }
 
 fn test_query(schema_name: String, query: Value, count: usize, cache: &LmdbCache) {
