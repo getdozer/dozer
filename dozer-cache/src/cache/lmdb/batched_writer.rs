@@ -6,7 +6,7 @@ use std::{
 use dozer_types::{
     crossbeam,
     log::debug,
-    types::{Operation, Schema},
+    types::{IndexDefinition, Operation, Schema},
 };
 use lmdb::Transaction;
 
@@ -18,6 +18,7 @@ use crate::{
 pub struct BatchedCacheMsg {
     pub op: Operation,
     pub schema: Schema,
+    pub secondary_indexes: Vec<IndexDefinition>,
 }
 
 pub struct BatchedWriter {
@@ -49,6 +50,7 @@ impl BatchedWriter {
                 match msg {
                     Ok(msg) => {
                         let schema = msg.schema;
+                        let secondary_indexes = msg.secondary_indexes;
                         let op = msg.op;
                         match op {
                             Operation::Delete { old } => {
@@ -60,7 +62,8 @@ impl BatchedWriter {
                                 let mut new = new;
                                 new.schema_id = schema.identifier.to_owned();
 
-                                self.cache._insert(&mut txn, &new, &schema)?;
+                                self.cache
+                                    ._insert(&mut txn, &new, &schema, &secondary_indexes)?;
                             }
                             Operation::Update { old, new } => {
                                 let key =
@@ -69,7 +72,13 @@ impl BatchedWriter {
                                 let mut new = new;
                                 new.schema_id = schema.identifier.clone();
 
-                                self.cache._update(&key, &new, &schema, &mut txn)?;
+                                self.cache._update(
+                                    &key,
+                                    &new,
+                                    &schema,
+                                    &secondary_indexes,
+                                    &mut txn,
+                                )?;
                             }
                         }
                     }

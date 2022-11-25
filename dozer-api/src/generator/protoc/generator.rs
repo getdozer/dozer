@@ -35,7 +35,10 @@ impl ProtoGenerator<'_> {
                 let cache = x.to_owned().cache_endpoint.cache;
                 let endpoint = x.to_owned().cache_endpoint.endpoint;
                 let schema_name = endpoint.name.to_owned();
-                let schema = cache.get_schema_by_name(&schema_name).unwrap();
+                let schema = cache
+                    .get_schema_and_indexes_by_name(&schema_name)
+                    .unwrap()
+                    .0;
                 ProtoService::new(schema, schema_name, endpoint)
             })
             .collect();

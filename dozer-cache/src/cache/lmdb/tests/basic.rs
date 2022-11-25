@@ -7,15 +7,15 @@ use crate::cache::{
 use crate::errors::CacheError;
 use dozer_types::{
     serde_json::Value,
-    types::{Field, Record, Schema},
+    types::{Field, IndexDefinition, Record, Schema},
 };
 
 use super::super::cache::LmdbCache;
 
-fn _setup() -> (LmdbCache, Schema) {
-    let schema = test_utils::schema_0();
+fn _setup() -> (LmdbCache, Schema, Vec<IndexDefinition>) {
+    let (schema, secondary_indexes) = test_utils::schema_0();
     let cache = LmdbCache::new(CacheOptions::default()).unwrap();
-    (cache, schema)
+    (cache, schema, secondary_indexes)
 }
 
 fn query_and_test(
@@ -31,9 +31,9 @@ fn query_and_test(
 
 #[test]
 fn insert_and_get_schema() -> Result<(), CacheError> {
-    let (cache, schema) = _setup();
-    cache.insert_schema("test", &schema)?;
-    let schema = cache.get_schema_by_name("test")?;
+    let (cache, schema, secondary_indexes) = _setup();
+    cache.insert_schema("test", &schema, &secondary_indexes)?;
+    let schema = cache.get_schema_and_indexes_by_name("test")?.0;
 
     let get_schema = cache.get_schema(&schema.identifier.to_owned().unwrap())?;
     assert_eq!(get_schema, schema, "must be equal");
@@ -43,9 +43,9 @@ fn insert_and_get_schema() -> Result<(), CacheError> {
 #[test]
 fn insert_get_and_delete_record() -> Result<(), CacheError> {
     let val = "bar".to_string();
-    let (cache, schema) = _setup();
+    let (cache, schema, secondary_indexes) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
-    cache.insert_schema("docs", &schema)?;
+    cache.insert_schema("docs", &schema, &secondary_indexes)?;
     cache.insert(&record)?;
 
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
@@ -63,10 +63,10 @@ fn insert_get_and_delete_record() -> Result<(), CacheError> {
 #[test]
 fn insert_and_query_record() -> Result<(), CacheError> {
     let val = "bar".to_string();
-    let (cache, schema) = _setup();
+    let (cache, schema, secondary_indexes) = _setup();
     let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
 
-    cache.insert_schema("docs", &schema)?;
+    cache.insert_schema("docs", &schema, &secondary_indexes)?;
     cache.insert(&record)?;
 
     // Query with an expression

@@ -51,13 +51,14 @@ impl ApiHelper {
 
     pub fn generate_oapi3(&self) -> Result<OpenAPI, ApiError> {
         let schema_name = self.details.schema_name.clone();
-        let schema = self
+        let (schema, secondary_indexes) = self
             .reader
-            .get_schema_by_name(&schema_name)
+            .get_schema_and_indexes_by_name(&schema_name)
             .map_err(ApiError::SchemaNotFound)?;
 
         let oapi_generator = OpenApiGenerator::new(
             schema,
+            secondary_indexes,
             schema_name,
             self.details.cache_endpoint.endpoint.clone(),
             vec![format!("http://localhost:{}", "8080")],
@@ -69,7 +70,10 @@ impl ApiHelper {
     }
     /// Get a single record
     pub fn get_record(&self, key: String) -> Result<IndexMap<String, String>, CacheError> {
-        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        let schema = self
+            .reader
+            .get_schema_and_indexes_by_name(&self.details.schema_name)?
+            .0;
 
         let field_types: Vec<FieldType> = schema
             .primary_index
@@ -102,7 +106,10 @@ impl ApiHelper {
         &self,
         mut exp: QueryExpression,
     ) -> Result<(Schema, Vec<Record>), CacheError> {
-        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        let schema = self
+            .reader
+            .get_schema_and_indexes_by_name(&self.details.schema_name)?
+            .0;
         let records = self.reader.query(&self.details.schema_name, &mut exp)?;
 
         Ok((schema, records))
@@ -110,7 +117,10 @@ impl ApiHelper {
 
     /// Get schema
     pub fn get_schema(&self) -> Result<Schema, CacheError> {
-        let schema = self.reader.get_schema_by_name(&self.details.schema_name)?;
+        let schema = self
+            .reader
+            .get_schema_and_indexes_by_name(&self.details.schema_name)?
+            .0;
         Ok(schema)
     }
 }

@@ -11,7 +11,7 @@ use dozer_types::{
 #[test]
 fn query_secondary() {
     let cache = LmdbCache::new(CacheOptions::default()).unwrap();
-    let schema = test_utils::schema_1();
+    let (schema, seconary_indexes) = test_utils::schema_1();
     let record = Record::new(
         schema.identifier.clone(),
         vec![
@@ -21,7 +21,9 @@ fn query_secondary() {
         ],
     );
 
-    cache.insert_schema("sample", &schema).unwrap();
+    cache
+        .insert_schema("sample", &schema, &seconary_indexes)
+        .unwrap();
     cache.insert(&record).unwrap();
 
     let filter = FilterExpression::And(vec![
@@ -45,13 +47,15 @@ fn query_secondary() {
     assert_eq!(records[0], record, "must be equal");
 
     // Full text query.
-    let schema = test_utils::schema_full_text_single();
+    let (schema, secondary_indexes) = test_utils::schema_full_text_single();
     let record = Record::new(
         schema.identifier.clone(),
         vec![Field::String("today is a good day".into())],
     );
 
-    cache.insert_schema("full_text_sample", &schema).unwrap();
+    cache
+        .insert_schema("full_text_sample", &schema, &secondary_indexes)
+        .unwrap();
     cache.insert(&record).unwrap();
 
     let filter = FilterExpression::Simple(
@@ -70,9 +74,11 @@ fn query_secondary() {
 #[test]
 fn query_secondary_vars() {
     let cache = LmdbCache::new(CacheOptions::default()).unwrap();
-    let schema = test_utils::schema_1();
+    let (schema, seconary_indexes) = test_utils::schema_1();
 
-    cache.insert_schema("sample", &schema).unwrap();
+    cache
+        .insert_schema("sample", &schema, &seconary_indexes)
+        .unwrap();
 
     let items: Vec<(i64, String, i64)> = vec![
         (1, "yuri".to_string(), 521),

@@ -112,9 +112,6 @@ pub struct Schema {
     /// only Insert Operation are supported. Updates and Deletes are not supported without a
     /// primary key definition
     pub primary_index: Vec<usize>,
-
-    // Secondary indexes definitions
-    pub secondary_indexes: Vec<IndexDefinition>,
 }
 
 impl Schema {
@@ -124,7 +121,6 @@ impl Schema {
             fields: Vec::new(),
             values: Vec::new(),
             primary_index: Vec::new(),
-            secondary_indexes: Vec::new(),
         }
     }
 

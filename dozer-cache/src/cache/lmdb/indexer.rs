@@ -17,16 +17,17 @@ impl Indexer {
         parent_txn: &mut RwTransaction,
         rec: &Record,
         schema: &Schema,
+        secondary_indexes: &[IndexDefinition],
         pkey: Vec<u8>,
     ) -> Result<(), CacheError> {
         let mut txn = parent_txn
             .begin_nested_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
-        if schema.secondary_indexes.is_empty() {
+        if secondary_indexes.is_empty() {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }
-        for (idx, index) in schema.secondary_indexes.iter().enumerate() {
+        for (idx, index) in secondary_indexes.iter().enumerate() {
             let db = self.index_metadata.get_db(schema, idx);
 
             match index {
@@ -96,9 +97,11 @@ mod tests {
     #[test]
     fn test_secondary_indexes() {
         let cache = LmdbCache::new(CacheOptions::default()).unwrap();
-        let schema = test_utils::schema_1();
+        let (schema, secondary_indexes) = test_utils::schema_1();
 
-        cache.insert_schema("sample", &schema).unwrap();
+        cache
+            .insert_schema("sample", &schema, &secondary_indexes)
+            .unwrap();
 
         let items: Vec<(i64, String, i64)> = vec![
             (1, "a".to_string(), 521),
@@ -113,7 +116,7 @@ mod tests {
         let indexes = lmdb_utils::get_indexes(&cache);
 
         let index_count = indexes.iter().flatten().count();
-        let expected_count = schema.secondary_indexes.len();
+        let expected_count = secondary_indexes.len();
         // 3 columns, 1 compound, 1 descending
         assert_eq!(
             indexes.len(),

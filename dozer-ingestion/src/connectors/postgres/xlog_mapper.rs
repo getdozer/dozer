@@ -248,7 +248,6 @@ impl XlogMapper {
             fields,
             values: vec![0],
             primary_index: vec![0],
-            secondary_indexes: vec![],
         };
 
         self.relations_map.insert(rel_id, table);

@@ -53,7 +53,6 @@ impl SchemaHelper {
             fields: defined_fields,
             values: vec![],
             primary_index: vec![0],
-            secondary_indexes: vec![],
         })
     }
 }
