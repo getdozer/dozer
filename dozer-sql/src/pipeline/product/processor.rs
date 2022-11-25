@@ -127,7 +127,7 @@ impl ProductProcessor {
     // }
 }
 
-fn append_schema(mut output_schema: Schema, table: &String, current_schema: &Schema) -> Schema {
+fn append_schema(mut output_schema: Schema, _table: &str, current_schema: &Schema) -> Schema {
     for mut field in current_schema.clone().fields.into_iter() {
         let mut name = String::from(""); //String::from(table);
                                          //name.push('.');
