@@ -1,4 +1,4 @@
-use super::processor::aggregation::AggregationProcessorFactory;
+use super::aggregation::processor::AggregationProcessorFactory;
 use super::processor::preaggregation::PreAggregationProcessorFactory;
 use super::processor::selection::SelectionProcessorFactory;
 use super::product::factory::get_input_tables;
