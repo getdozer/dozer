@@ -51,26 +51,6 @@ fn update_processor_schema(
         }
         None => Ok(true),
     }
-
-    // if let Some(input_schemas) = all_input_schemas {
-    //     for out_port in output_ports {
-    //         match proc.update_schema(*out_port.handle, &input_schemas) {
-    //             Ok(out_schema) => {
-    //                 fw.send_and_update_output_schema(out_schema, *out_port.handle)?;
-    //             }
-    //             Err(e) => {
-    //                 warn!(
-    //                     "New schema is not compatible with older version. Handling it. {:?}",
-    //                     e
-    //                 );
-    //                 return Ok(false);
-    //             }
-    //         }
-    //     }
-    //     Ok(true)
-    // } else {
-    //     Ok(true)
-    // }
 }
 
 pub(crate) fn start_processor(
