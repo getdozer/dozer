@@ -4,7 +4,7 @@ use crate::errors::DebeziumSchemaError::{
     TypeNotSupported,
 };
 use base64::STANDARD;
-use dozer_types::chrono::NaiveDateTime;
+use dozer_types::chrono::{NaiveDate, NaiveDateTime};
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use dozer_types::rust_decimal::Decimal;
@@ -97,12 +97,17 @@ fn convert_value(
                         })
                     })
                 }
+                "io.debezium.time.Date" | "org.apache.kafka.connect.data.Date" => {
+                    value.as_i64()
+                        .map_or(Ok(Field::Null), |v| {
+                            Ok(Field::from(NaiveDate::from_num_days_from_ce(v as i32)))
+                        })
+                }
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
                 "io.debezium.data.Json" => value
                     .as_str()
                     .map_or(Ok(Field::Null), |s| Ok(Field::Bson(s.as_bytes().to_vec()))),
-                // "io.debezium.time.Date" | "io.debezium.time.MicroTime" |
-                // "org.apache.kafka.connect.data.Date" | "org.apache.kafka.connect.data.Time" => Ok(FieldType::Timestamp),
+                // | "io.debezium.time.MicroTime" | "org.apache.kafka.connect.data.Time" => Ok(FieldType::Timestamp),
                 _ => Err(TypeNotSupported(name)),
             }
         }
