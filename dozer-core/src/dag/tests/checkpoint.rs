@@ -2,10 +2,12 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::executor_checkpoint::{CheckpointMetadataReader, Consistency};
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::node::NodeHandle;
+use crate::dag::tests::data::{get_record_gen, get_schema};
 use crate::dag::tests::processors::DynPortsProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
-use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::dag::tests::sources::{FnOpGen, GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
 use std::thread;
@@ -21,8 +23,22 @@ macro_rules! chk {
 fn build_dag() -> Dag {
     let sync = Arc::new(Barrier::new(3));
 
-    let src1 = GeneratorSourceFactory::new(25_000, Duration::from_millis(0), sync.clone(), true);
-    let src2 = GeneratorSourceFactory::new(50_000, Duration::from_millis(0), sync.clone(), true);
+    let src1 = GeneratorSourceFactory::new(
+        25_000,
+        Duration::from_millis(0),
+        sync.clone(),
+        true,
+        get_schema(),
+        get_record_gen(),
+    );
+    let src2 = GeneratorSourceFactory::new(
+        50_000,
+        Duration::from_millis(0),
+        sync.clone(),
+        true,
+        get_schema(),
+        get_record_gen(),
+    );
     let proc =
         DynPortsProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE, 2], vec![DEFAULT_PORT_HANDLE]);
     let sink = CountingSinkFactory::new(75_000, sync.clone());

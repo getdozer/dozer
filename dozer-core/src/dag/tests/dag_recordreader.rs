@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::sync::{Arc, Barrier};
 
+use crate::dag::tests::data::{get_record_gen, get_schema};
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -158,7 +159,14 @@ fn test_run_dag_reacord_reader() {
 
     let sync = Arc::new(Barrier::new(2));
 
-    let src = GeneratorSourceFactory::new(TOT, Duration::from_millis(0), sync.clone(), false);
+    let src = GeneratorSourceFactory::new(
+        TOT,
+        Duration::from_millis(0),
+        sync.clone(),
+        false,
+        get_schema(),
+        get_record_gen(),
+    );
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(TOT, sync.clone());
@@ -226,7 +234,14 @@ fn test_run_dag_reacord_reader_from_stateful_src() {
 
     let sync = Arc::new(Barrier::new(2));
 
-    let src = GeneratorSourceFactory::new(TOT, Duration::from_micros(0), sync.clone(), true);
+    let src = GeneratorSourceFactory::new(
+        TOT,
+        Duration::from_micros(0),
+        sync.clone(),
+        true,
+        get_schema(),
+        get_record_gen(),
+    );
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(TOT, sync.clone());
 
@@ -281,7 +296,14 @@ fn test_run_dag_reacord_reader_from_stateful_src_timeout() {
 
     let sync = Arc::new(Barrier::new(2));
 
-    let src = GeneratorSourceFactory::new(TOT, Duration::from_millis(200), sync.clone(), true);
+    let src = GeneratorSourceFactory::new(
+        TOT,
+        Duration::from_millis(200),
+        sync.clone(),
+        true,
+        get_schema(),
+        get_record_gen(),
+    );
     let record_reader = RecordReaderProcessorFactory::new();
     let sink = CountingSinkFactory::new(TOT, sync);
 
