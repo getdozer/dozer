@@ -22,8 +22,7 @@ fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaEr
             | "io.debezium.time.MicroTimestamp"
             | "org.apache.kafka.connect.data.Time"
             | "org.apache.kafka.connect.data.Timestamp" => Ok(FieldType::Timestamp),
-            "io.debezium.time.Date"
-            | "org.apache.kafka.connect.data.Date" => Ok(FieldType::Date),
+            "io.debezium.time.Date" | "org.apache.kafka.connect.data.Date" => Ok(FieldType::Date),
             "org.apache.kafka.connect.data.Decimal" | "io.debezium.data.VariableScaleDecimal" => {
                 Ok(FieldType::Decimal)
             }

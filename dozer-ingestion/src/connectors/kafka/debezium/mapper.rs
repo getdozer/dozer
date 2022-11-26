@@ -98,10 +98,9 @@ fn convert_value(
                     })
                 }
                 "io.debezium.time.Date" | "org.apache.kafka.connect.data.Date" => {
-                    value.as_i64()
-                        .map_or(Ok(Field::Null), |v| {
-                            Ok(Field::from(NaiveDate::from_num_days_from_ce(v as i32)))
-                        })
+                    value.as_i64().map_or(Ok(Field::Null), |v| {
+                        Ok(Field::from(NaiveDate::from_num_days_from_ce(v as i32)))
+                    })
                 }
                 "io.debezium.time.MicroTime" => Ok(Field::Null),
                 "io.debezium.data.Json" => value

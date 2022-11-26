@@ -24,15 +24,22 @@ kafka = "0.9.0"
 odbc = { version = "0.17.0", optional = true }
 serde_yaml = "0.9.13"
 base64 = "0.13.1"
+serde = { version = "1.0.104", features = ["derive"] }
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc"]
+kafka_test = []
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
 serial_test = "0.4.0"
+reqwest = { version = "0.11.13", features = ["blocking"] }
 
 [[bench]]
 name = "snowflake"
+harness = false
+
+[[bench]]
+name = "debezium"
 harness = false

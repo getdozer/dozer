@@ -202,7 +202,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         DebeziumError::DebeziumSchemaError(e),
                                     )
                                 })?;
-                                //
+
                                 ingestor
                                     .write()
                                     .handle_message((
