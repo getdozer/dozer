@@ -4,16 +4,18 @@ use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
+use std::sync::{Arc, Barrier};
 
 pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = 90;
 
 pub(crate) struct CountingSinkFactory {
     expected: u64,
+    sync: Arc<Barrier>,
 }
 
 impl CountingSinkFactory {
-    pub fn new(expected: u64) -> Self {
-        Self { expected }
+    pub fn new(expected: u64, sync: Arc<Barrier>) -> Self {
+        Self { expected, sync }
     }
 }
 
@@ -25,6 +27,7 @@ impl SinkFactory for CountingSinkFactory {
         Box::new(CountingSink {
             expected: self.expected,
             current: 0,
+            sync: self.sync.clone(),
         })
     }
 }
@@ -32,6 +35,7 @@ impl SinkFactory for CountingSinkFactory {
 pub(crate) struct CountingSink {
     expected: u64,
     current: u64,
+    sync: Arc<Barrier>,
 }
 impl Sink for CountingSink {
     fn update_schema(
@@ -53,6 +57,10 @@ impl Sink for CountingSink {
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
+        self.current += 1;
+        if self.current == self.expected {
+            self.sync.wait();
+        }
         Ok(())
     }
 }

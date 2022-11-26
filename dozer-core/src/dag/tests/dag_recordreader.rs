@@ -8,13 +8,12 @@ use crate::dag::node::{
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
-use crate::dag::tests::sources::{
-    GeneratorSourceFactory, StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT,
-};
+use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
+use std::sync::{Arc, Barrier};
 
 use std::time::Duration;
 use tempdir::TempDir;
@@ -152,13 +151,17 @@ impl Processor for RecordReaderProcessor {
 
 #[test]
 fn test_run_dag_reacord_reader() {
-    log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
+    //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(1_000_000);
+    const TOT: u64 = 1_000_000;
+
+    let sync = Arc::new(Barrier::new(2));
+
+    let src = GeneratorSourceFactory::new(TOT, Duration::from_millis(0), sync.clone(), false);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
-    let sink = CountingSinkFactory::new(1_000);
+    let sink = CountingSinkFactory::new(TOT, sync.clone());
 
     let mut dag = Dag::new();
 
@@ -216,12 +219,16 @@ fn test_run_dag_reacord_reader() {
 
 #[test]
 fn test_run_dag_reacord_reader_from_stateful_src() {
-    log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
+    //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = StatefulGeneratorSourceFactory::new(1_000_000, Duration::from_micros(0));
+    const TOT: u64 = 1_000;
+
+    let sync = Arc::new(Barrier::new(2));
+
+    let src = GeneratorSourceFactory::new(TOT, Duration::from_micros(0), sync.clone(), true);
     let record_reader = RecordReaderProcessorFactory::new();
-    let sink = CountingSinkFactory::new(1_000);
+    let sink = CountingSinkFactory::new(TOT, sync.clone());
 
     let mut dag = Dag::new();
 
@@ -270,9 +277,13 @@ fn test_run_dag_reacord_reader_from_stateful_src_timeout() {
     // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
     //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = StatefulGeneratorSourceFactory::new(30, Duration::from_millis(200));
+    const TOT: u64 = 50;
+
+    let sync = Arc::new(Barrier::new(2));
+
+    let src = GeneratorSourceFactory::new(TOT, Duration::from_millis(200), sync.clone(), true);
     let record_reader = RecordReaderProcessorFactory::new();
-    let sink = CountingSinkFactory::new(1_000);
+    let sink = CountingSinkFactory::new(TOT, sync);
 
     let mut dag = Dag::new();
 

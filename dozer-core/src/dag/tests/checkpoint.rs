@@ -4,9 +4,10 @@ use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor, DEFA
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::processors::DynPortsProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
-use crate::dag::tests::sources::{StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use std::collections::HashMap;
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 use tempdir::TempDir;
@@ -18,11 +19,13 @@ macro_rules! chk {
 }
 
 fn build_dag() -> Dag {
-    let src1 = StatefulGeneratorSourceFactory::new(25_000, Duration::from_millis(0));
-    let src2 = StatefulGeneratorSourceFactory::new(50_000, Duration::from_millis(0));
+    let sync = Arc::new(Barrier::new(3));
+
+    let src1 = GeneratorSourceFactory::new(25_000, Duration::from_millis(0), sync.clone(), true);
+    let src2 = GeneratorSourceFactory::new(50_000, Duration::from_millis(0), sync.clone(), true);
     let proc =
         DynPortsProcessorFactory::new(1, vec![DEFAULT_PORT_HANDLE, 2], vec![DEFAULT_PORT_HANDLE]);
-    let sink = CountingSinkFactory::new(0);
+    let sink = CountingSinkFactory::new(75_000, sync.clone());
 
     let mut dag = Dag::new();
 
@@ -62,8 +65,8 @@ fn build_dag() -> Dag {
 
 #[test]
 fn test_checpoint_consistency() {
-    log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
-        .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+    // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
+    //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
     let dag = build_dag();
 
