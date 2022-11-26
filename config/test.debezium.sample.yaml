@@ -15,6 +15,6 @@ postgres_source_authentication: !PostgresAuthentication
   password: ${KAFKA_POSTGRES_PASSWORD}
   host: ${KAFKA_POSTGRES_HOST}
   port: ${KAFKA_POSTGRES_PORT}
-  database: ${KAFKA_POSTGRES_DB}
+  database: ${KAFKA_POSTGRES_DATABASE}
 
 debezium_connector_url: ${KAFKA_CONNECTOR_URL}
