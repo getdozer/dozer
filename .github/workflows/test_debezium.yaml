@@ -1,4 +1,4 @@
-name: Dozer Scheduled
+name: Dozer Scheduled - Debezium testing
 
 # Github action for running debezium tests and benchmarks
 
@@ -7,6 +7,7 @@ on:
     branches: [feat/debezium-pg]
 
 concurrency:
+  group: nightly
   cancel-in-progress: true
 
 jobs:
