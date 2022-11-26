@@ -19,7 +19,7 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::sync::mpsc::RecvTimeoutError;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Barrier, Mutex};
 use std::time::Duration;
 use std::{fs, thread};
 use tempdir::TempDir;
@@ -78,7 +78,6 @@ impl Source for TestSource {
             idx += 1;
             fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
         }
-        fw.terminate().unwrap();
         Ok(())
     }
 }

@@ -10,7 +10,5 @@ mod dag_run;
 mod data;
 #[cfg(test)]
 mod processors;
-#[cfg(test)]
-mod sinks;
-#[cfg(test)]
-mod sources;
+pub mod sinks;
+pub mod sources;

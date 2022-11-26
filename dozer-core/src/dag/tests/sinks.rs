@@ -1,4 +1,5 @@
 use crate::dag::errors::ExecutionError;
+use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{PortHandle, Sink, SinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RwTransaction};
@@ -6,9 +7,9 @@ use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
 
-pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = 90;
+pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
 
-pub(crate) struct CountingSinkFactory {
+pub struct CountingSinkFactory {
     expected: u64,
     sync: Arc<Barrier>,
 }
@@ -32,7 +33,7 @@ impl SinkFactory for CountingSinkFactory {
     }
 }
 
-pub(crate) struct CountingSink {
+pub struct CountingSink {
     expected: u64,
     current: u64,
     sync: Arc<Barrier>,

@@ -1,5 +1,6 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
+use crate::dag::executor_local::DEFAULT_PORT_HANDLE;
 use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::ops::Deref;
@@ -7,11 +8,11 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
+pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = DEFAULT_PORT_HANDLE;
 
-pub(crate) type FnOpGen = dyn Fn(u64) -> Operation + Send + Sync;
+pub type FnOpGen = dyn Fn(u64) -> Operation + Send + Sync;
 
-pub(crate) struct GeneratorSourceFactory {
+pub struct GeneratorSourceFactory {
     count: u64,
     sleep: Duration,
     sync: Arc<Barrier>,
@@ -58,7 +59,7 @@ impl SourceFactory for GeneratorSourceFactory {
     }
 }
 
-pub(crate) struct GeneratorSource {
+pub struct GeneratorSource {
     count: u64,
     sleep: Duration,
     sync: Arc<Barrier>,
