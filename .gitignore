@@ -23,4 +23,4 @@ log4rs.yaml
 .dozer/
 logs/
 *.log
-register-postgres.test.sample.json
+register-postgres.test.json
