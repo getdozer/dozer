@@ -215,7 +215,7 @@ jobs:
       - id: bench
         name: Run Bench
         continue-on-error: true
-        run: cargo criterion --features snowflake
+        run: cargo criterion --features snowflake,kafka_test
 
       - name: Get current date
         id: date
