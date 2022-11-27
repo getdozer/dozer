@@ -13,11 +13,13 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::{unbounded, Sender};
 use dozer_types::log::debug;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{mpsc, Arc, Barrier, Mutex};
 use std::time::Duration;
@@ -27,18 +29,43 @@ use tempdir::TempDir;
 use super::helper::get_table_create_sql;
 use super::SqlMapper;
 
+pub struct Sync {
+    pub count: Arc<AtomicU64>,
+    pub term_sync: Arc<Barrier>,
+}
+
+impl Sync {
+    pub fn new() -> Self {
+        Self {
+            count: Arc::new(AtomicU64::new(0)),
+            term_sync: Arc::new(Barrier::new(2)),
+        }
+    }
+}
+
+impl Clone for Sync {
+    fn clone(&self) -> Self {
+        Self {
+            count: self.count.clone(),
+            term_sync: self.term_sync.clone(),
+        }
+    }
+}
+
 pub struct TestSourceFactory {
     output_ports: Vec<PortHandle>,
     ops: Vec<Operation>,
     schema: Schema,
+    sync: Sync,
 }
 
 impl TestSourceFactory {
-    pub fn new(schema: Schema, ops: Vec<Operation>) -> Self {
+    pub fn new(schema: Schema, ops: Vec<Operation>, sync: Sync) -> Self {
         Self {
             output_ports: vec![DEFAULT_PORT_HANDLE],
             schema,
             ops,
+            sync,
         }
     }
 }
@@ -54,6 +81,7 @@ impl SourceFactory for TestSourceFactory {
         Box::new(TestSource {
             schema: self.schema.to_owned(),
             ops: self.ops.to_owned(),
+            sync: self.sync.clone(),
         })
     }
 }
@@ -61,6 +89,7 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {
     schema: Schema,
     ops: Vec<Operation>,
+    sync: Sync,
 }
 
 impl Source for TestSource {
@@ -76,8 +105,11 @@ impl Source for TestSource {
         let mut idx = 0;
         for op in self.ops.iter().cloned() {
             idx += 1;
+            //  self.sync.count.store(idx, Ordering::Relaxed);
             fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
         }
+        thread::sleep(Duration::from_millis(500));
+        // self.sync.term_sync.wait();
         Ok(())
     }
 }
@@ -86,14 +118,16 @@ pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
     mapper: Arc<Mutex<SqlMapper>>,
     tx: Sender<Schema>,
+    sync: Sync,
 }
 
 impl TestSinkFactory {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>) -> Self {
+    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>, sync: Sync) -> Self {
         Self {
             input_ports: vec![DEFAULT_PORT_HANDLE],
             mapper,
             tx,
+            sync,
         }
     }
 }
@@ -103,7 +137,11 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
     fn build(&self) -> Box<dyn Sink> {
-        Box::new(TestSink::new(self.mapper.clone(), self.tx.clone()))
+        Box::new(TestSink::new(
+            self.mapper.clone(),
+            self.tx.clone(),
+            self.sync.clone(),
+        ))
     }
 }
 
@@ -111,14 +149,18 @@ pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
     input_schemas: HashMap<PortHandle, Schema>,
     tx: Sender<Schema>,
+    sync: Sync,
+    counter: u64,
 }
 
 impl TestSink {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>) -> Self {
+    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>, sync: Sync) -> Self {
         Self {
             mapper,
             input_schemas: HashMap::new(),
             tx,
+            sync,
+            counter: 0,
         }
     }
 }
@@ -168,6 +210,12 @@ impl Sink for TestSink {
             .unwrap()
             .execute_list(vec![("results".to_string(), sql)])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
+        self.counter += 1;
+        //  if self.counter == self.sync.count.load(Ordering::Relaxed) {
+        //     self.sync.term_sync.wait();
+        //  }
+
         Ok(())
     }
 }
@@ -206,8 +254,10 @@ impl TestPipeline {
         let (mut dag, in_handle, out_handle) =
             builder.statement_to_pipeline(statement.clone()).unwrap();
 
-        let source = TestSourceFactory::new(self.schema.clone(), self.ops.to_owned());
-        let sink = TestSinkFactory::new(self.mapper.clone(), tx);
+        let sync = Sync::new();
+
+        let source = TestSourceFactory::new(self.schema.clone(), self.ops.to_owned(), sync.clone());
+        let sink = TestSinkFactory::new(self.mapper.clone(), tx, sync);
 
         dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
         dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
@@ -257,7 +307,7 @@ impl TestPipeline {
                     }
                 });
 
-                match rx.recv_timeout(Duration::from_millis(2000)) {
+                match rx.recv_timeout(Duration::from_millis(5000)) {
                     Ok(_) => Ok(schema),
                     Err(RecvTimeoutError::Timeout) => Err(ExecutionError::InternalStringError(
                         "Pipeline timed out".to_string(),

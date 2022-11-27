@@ -31,6 +31,8 @@ pub enum ExecutionError {
     RecordNotFound(),
     #[error("Invalid checkpoint state for node: {0}")]
     InvalidCheckpointState(NodeHandle),
+    #[error("Channel Disconnected")]
+    ChannelDisconnected,
 
     // Error forwarders
     #[error(transparent)]
