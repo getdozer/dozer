@@ -231,4 +231,8 @@ impl Processor for PreAggregationProcessor {
         };
         Ok(())
     }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }

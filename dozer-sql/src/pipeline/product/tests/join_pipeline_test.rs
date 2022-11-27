@@ -207,6 +207,10 @@ impl Sink for TestSink {
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 #[test]

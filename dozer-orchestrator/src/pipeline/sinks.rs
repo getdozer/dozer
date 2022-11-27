@@ -144,6 +144,10 @@ impl Sink for CacheSink {
         Ok(())
     }
 
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("SINK: Initialising CacheSink");
 

@@ -153,6 +153,10 @@ impl Processor for ProductProcessor {
         internal_err!(self.init_store(state))
     }
 
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn process(
         &mut self,
         from_port: PortHandle,

@@ -76,6 +76,7 @@ pub(crate) fn start_sink(
                     return Ok(());
                 }
                 ExecutorOperation::Commit { epoch, source } => {
+                    snk.commit(&mut SharedTransaction::new(&master_tx))?;
                     state_writer.store_commit_info(&source, epoch)?
                 }
 
