@@ -129,7 +129,7 @@ pub fn main() {
         .unwrap();
 
     let content =
-        std::fs::read_to_string("./tests/connectors/debezium/register-postgres.test.json").unwrap();
+        std::fs::read_to_string("./tests/connectors/debezium/register-postgres.test.sample.json").unwrap();
 
     connector_client
         .post(&config.debezium_connector_url)
