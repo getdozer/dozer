@@ -74,6 +74,7 @@ pub trait Processor {
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError>;
+    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
@@ -95,6 +96,7 @@ pub trait Sink {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
+    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,

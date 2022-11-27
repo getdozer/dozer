@@ -16,6 +16,7 @@ use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
 
+use log::info;
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -78,6 +79,11 @@ impl Processor for PassthroughProcessor {
         _readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
+    }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        info!("Commit notification");
+        Ok(())
     }
 }
 
@@ -147,6 +153,11 @@ impl Processor for RecordReaderProcessor {
         self.ctr += 1;
 
         fw.send(op, RECORD_READER_PROCESSOR_OUTPUT_PORT)
+    }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        info!("Commit notification");
+        Ok(())
     }
 }
 
