@@ -3,7 +3,6 @@ use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
-use dozer_core::storage::common::{Database, RwTransaction};
 use crate::pipeline::aggregation::avg::AvgAggregator;
 use crate::pipeline::aggregation::max::MaxAggregator;
 use crate::pipeline::aggregation::min::MinAggregator;
@@ -60,8 +59,6 @@ impl Aggregator {
 
     pub(crate) fn update(
         &self,
-        txn: &mut dyn RwTransaction,
-        db: &Database,
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
@@ -69,23 +66,21 @@ impl Aggregator {
         match &self {
             Aggregator::Avg => AvgAggregator::update(curr_state, old, new),
             Aggregator::Count => CountAggregator::update(curr_state),
-            Aggregator::Min => MinAggregator::update(txn, db, curr_state, old, new),
-            Aggregator::Max => MaxAggregator::update(txn, db,curr_state, old, new),
+            Aggregator::Min => MinAggregator::update(curr_state, old, new),
+            Aggregator::Max => MaxAggregator::update(curr_state, old, new),
             Aggregator::Sum => SumAggregator::update(curr_state, old, new),
         }
     }
 
     pub(crate) fn delete(
         &self,
-        txn: &mut dyn RwTransaction,
-        db: &Database,
         curr_state: Option<&[u8]>,
         old: &Field,
     ) -> Result<Vec<u8>, PipelineError> {
         match &self {
             Aggregator::Avg => AvgAggregator::delete(curr_state, old),
             Aggregator::Count => CountAggregator::delete(curr_state),
-            Aggregator::Min => MinAggregator::delete(txn, db, curr_state, old),
+            Aggregator::Min => MinAggregator::delete(curr_state, old),
             Aggregator::Max => MaxAggregator::delete(curr_state, old),
             Aggregator::Sum => SumAggregator::delete(curr_state, old),
         }

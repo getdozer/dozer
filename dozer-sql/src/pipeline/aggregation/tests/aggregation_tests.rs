@@ -15,14 +15,14 @@ use dozer_types::{
 
 use crate::pipeline::{aggregation::processor::AggregationProcessorFactory, builder::get_select};
 
-struct TestChannelForwarder {
-    operations: Vec<Operation>,
+pub struct TestChannelForwarder {
+    pub(crate) operations: Vec<Operation>,
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
     fn send(
         &mut self,
-        op: dozer_types::types::Operation,
+        op: Operation,
         _port: dozer_core::dag::node::PortHandle,
     ) -> Result<(), dozer_core::dag::errors::ExecutionError> {
         self.operations.push(op);

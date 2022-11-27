@@ -1,7 +1,6 @@
 use std::cmp::max;
 use chrono::{DateTime, NaiveDateTime, Offset, Utc};
 use num_traits::FromPrimitive;
-use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
 use dozer_types::types::Field::{Decimal, Float, Int, Timestamp};
@@ -10,18 +9,8 @@ use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
 pub struct MaxAggregator {}
 
-impl Default for MaxAggregator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MaxAggregator {
     const _AGGREGATOR_ID: u8 = 0x04;
-
-    pub fn new() -> Self {
-        Self {}
-    }
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
@@ -74,8 +63,6 @@ impl MaxAggregator {
     }
 
     pub(crate) fn update(
-        _txn: &mut dyn RwTransaction,
-        _db: &Database,
         curr_state: Option<&[u8]>,
         old: &Field,
         _new: &Field,

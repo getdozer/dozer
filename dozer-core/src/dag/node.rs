@@ -83,6 +83,7 @@ pub trait Processor {
         tx: &mut dyn RwTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError>;
+    // create fn before_commit() -> processor can take the pre-commit actions accordingly
 }
 
 pub trait SinkFactory: Send + Sync {

@@ -1,7 +1,6 @@
 use std::cmp::min;
 use chrono::{DateTime, NaiveDateTime, Offset, Utc};
 use num_traits::FromPrimitive;
-use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType};
 use dozer_types::types::Field::{Decimal, Float, Int, Timestamp};
@@ -10,18 +9,8 @@ use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
 pub struct MinAggregator {}
 
-impl Default for MinAggregator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MinAggregator {
     const _AGGREGATOR_ID: u8 = 0x03;
-
-    pub fn new() -> Self {
-        Self {}
-    }
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
@@ -74,13 +63,11 @@ impl MinAggregator {
     }
 
     pub(crate) fn update(
-        txn: &mut dyn RwTransaction,
-        db: &Database,
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
     ) -> Result<Vec<u8>, PipelineError> {
-        let prev = match Self::delete(txn, db, curr_state, old).unwrap().first() {
+        let prev = match Self::delete(curr_state, old).unwrap().first() {
             Some(v) => i64::from(*v),
             None => 0_i64,
         };
@@ -96,8 +83,6 @@ impl MinAggregator {
     }
 
     pub(crate) fn delete(
-        _txn: &mut dyn RwTransaction,
-        _db: &Database,
         _curr_state: Option<&[u8]>,
         old: &Field,
     ) -> Result<Vec<u8>, PipelineError> {

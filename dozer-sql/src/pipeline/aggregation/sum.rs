@@ -6,18 +6,8 @@ use dozer_types::types::{Field, FieldType};
 
 pub struct SumAggregator {}
 
-impl Default for SumAggregator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SumAggregator {
     const _AGGREGATOR_ID: u8 = 0x01;
-
-    pub fn new() -> Self {
-        Self {}
-    }
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {

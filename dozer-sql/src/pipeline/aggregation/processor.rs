@@ -305,8 +305,6 @@ impl AggregationProcessor {
         // For example, let's say we want to encode teh state of SUM(a), SUM(b). Sum's state is
         // represented as a uint64. The byte buffer will be 20-bytes long and look like this:
         // uint16(SUM(a) payload len), uint64(=SUM(a) state), uint16(SUM(b) payload len), uint64(=SUM(b) state)
-        txn: &mut dyn RwTransaction,
-        db: &Database,
         curr_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
@@ -348,12 +346,12 @@ impl AggregationProcessor {
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
-                    measure.1.delete(txn, db, curr_state_slice, field)?
+                    measure.1.delete(curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
                     let new = inserted_record.unwrap().get_value(measure.0)?;
-                    measure.1.update(txn, db, curr_state_slice, old, new)?
+                    measure.1.update(curr_state_slice, old, new)?
                 }
             };
 
@@ -425,8 +423,6 @@ impl AggregationProcessor {
         let curr_state = txn.get(db, record_key.as_slice())?;
         // txn, db -> each aggregator -> write own data
         let new_state = self.calc_and_fill_measures(
-            txn,
-            db,
             &curr_state,
             Some(old),
             None,
@@ -479,8 +475,6 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            txn,
-            db,
             &curr_state,
             None,
             Some(new),
@@ -522,8 +516,6 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
-            txn,
-            db,
             &curr_state,
             Some(old),
             Some(new),
