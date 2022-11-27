@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
 use dozer_types::{
-    errors::types::TypeError,
     ordered_float::OrderedFloat,
     types::{Field, Schema},
 };
@@ -11,13 +8,12 @@ use sqlparser::ast::{
     Ident, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
-use crate::pipeline::expression::builder::PipelineError::InternalTypeError;
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
 use crate::pipeline::expression::builder::PipelineError::InvalidOperator;
 use crate::pipeline::expression::builder::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
-use crate::pipeline::{errors::PipelineError, expression::builder::TypeError::InvalidFieldName};
 
 use super::{
     aggregate::AggregateFunctionType,
@@ -97,7 +93,7 @@ impl ExpressionBuilder {
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         Ok((
             Box::new(Expression::Column {
-                index: column_index(&ident.value, schema)?,
+                index: schema.get_field_index(&ident.value)?.0,
             }),
             false,
         ))
@@ -373,21 +369,6 @@ fn parse_sql_string(s: &str) -> Result<(Box<Expression>, bool), PipelineError> {
         Box::new(Expression::Literal(Field::String(s.to_owned()))),
         false,
     ))
-}
-
-pub fn column_index(name: &String, schema: &Schema) -> Result<usize, PipelineError> {
-    let schema_idx: HashMap<String, usize> = schema
-        .fields
-        .iter()
-        .enumerate()
-        .map(|e| (e.1.name.clone(), e.0))
-        .collect();
-
-    if let Some(index) = schema_idx.get(name).cloned() {
-        Ok(index)
-    } else {
-        Err(InternalTypeError(InvalidFieldName(name.clone())))
-    }
 }
 
 pub(crate) fn normalize_ident(id: &Ident) -> String {

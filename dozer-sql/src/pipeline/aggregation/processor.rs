@@ -1,6 +1,5 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
-use crate::pipeline::processor::aggregation::PipelineError::InvalidExpression;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
@@ -170,16 +169,17 @@ impl AggregationProcessor {
                     Err(error) => Err(error),
                 }
             }
-            SelectItem::ExprWithAlias { expr, alias } => Err(InvalidExpression(format!(
-                "Unsupported Expression {}:{}",
-                expr, alias
-            ))),
-            SelectItem::Wildcard => Err(InvalidExpression(
+            SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
+                format!("Unsupported Expression {}:{}", expr, alias),
+            )),
+            SelectItem::Wildcard => Err(PipelineError::InvalidExpression(
                 "Wildcard Operator is not supported".to_string(),
             )),
-            SelectItem::QualifiedWildcard(ref _object_name) => Err(InvalidExpression(
-                "Qualified Wildcard Operator is not supported".to_string(),
-            )),
+            SelectItem::QualifiedWildcard(ref _object_name) => {
+                Err(PipelineError::InvalidExpression(
+                    "Qualified Wildcard Operator is not supported".to_string(),
+                ))
+            }
         }
     }
 
@@ -197,13 +197,13 @@ impl AggregationProcessor {
                     (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
                     (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
                     (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
-                    _ => Err(InvalidExpression(format!(
+                    _ => Err(PipelineError::InvalidExpression(format!(
                         "Not implemented Aggreagation function: {:?}",
                         fun
                     ))),
                 }
             }
-            _ => Err(InvalidExpression(format!(
+            _ => Err(PipelineError::InvalidExpression(format!(
                 "Not an Aggreagation function: {:?}",
                 expression
             ))),
