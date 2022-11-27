@@ -16,6 +16,7 @@ use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
 
+use log::info;
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -78,6 +79,11 @@ impl Processor for PassthroughProcessor {
         _readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
+    }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        info!("Commit notification");
+        Ok(())
     }
 }
 
@@ -148,6 +154,11 @@ impl Processor for RecordReaderProcessor {
 
         fw.send(op, RECORD_READER_PROCESSOR_OUTPUT_PORT)
     }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        info!("Commit notification");
+        Ok(())
+    }
 }
 
 #[test]
@@ -155,10 +166,10 @@ fn test_run_dag_reacord_reader() {
     // log4rs::init_file("../config/log4rs.sample.yaml", Default::default())
     //     .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let src = GeneratorSourceFactory::new(1_000);
+    let src = GeneratorSourceFactory::new(1_000_000);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
-    let sink = CountingSinkFactory::new(1_000);
+    let sink = CountingSinkFactory::new(1_000_000);
 
     let mut dag = Dag::new();
 

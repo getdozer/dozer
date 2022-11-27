@@ -135,6 +135,10 @@ impl Sink for DynPortsSink {
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
+
+    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 pub struct DynPortsProcessorFactory {
@@ -212,6 +216,10 @@ impl Processor for DynPortsProcessor {
         let v = tx.get(self.db.as_ref().unwrap(), &self.ctr.to_ne_bytes())?;
         assert!(v.is_some());
         fw.send(op, DEFAULT_PORT_HANDLE)?;
+        Ok(())
+    }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
