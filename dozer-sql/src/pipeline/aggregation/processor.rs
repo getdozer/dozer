@@ -198,13 +198,13 @@ impl AggregationProcessor {
                     (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
                     (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                     _ => Err(PipelineError::InvalidExpression(format!(
-                        "Not implemented Aggreagation function: {:?}",
+                        "Not implemented Aggregation function: {:?}",
                         fun
                     ))),
                 }
             }
             _ => Err(PipelineError::InvalidExpression(format!(
-                "Not an Aggreagation function: {:?}",
+                "Not an Aggregation function: {:?}",
                 expression
             ))),
         }
@@ -302,7 +302,7 @@ impl AggregationProcessor {
         &self,
         // This represents the current state for a series of aggregators and it is encoded
         // with a leading uint16 representing the payload length, followe by the actual payload.
-        // For example, let's say we want to encode teh state of SUM(a), SUM(b). Sum's state is
+        // For example, let's say we want to encode the state of SUM(a), SUM(b). Sum's state is
         // represented as a uint64. The byte buffer will be 20-bytes long and look like this:
         // uint16(SUM(a) payload len), uint64(=SUM(a) state), uint16(SUM(b) payload len), uint64(=SUM(b) state)
         curr_state: &Option<Vec<u8>>,
@@ -331,26 +331,37 @@ impl AggregationProcessor {
                 None => None,
             };
 
-            if let Some(e) = curr_state_slice {
-                // pass the current payload to teh processor to extract the value
-                let curr_value = measure.1.get_value(e, FieldType::Float);
-                // set the value for the old record
-                out_rec_delete.set_value(measure.2, curr_value);
-            }
-
-            // Let the aggregator calculate the new value based on teh performed operation
+            // Let the aggregator calculate the new value based on the performed operation
             let next_state_slice = match op {
                 AggregatorOperation::Insert => {
                     let field = inserted_record.unwrap().get_value(measure.0)?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, field.get_type()?);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
                     measure.1.insert(curr_state_slice, field)?
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, field.get_type()?);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
                     measure.1.delete(curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
                     let new = inserted_record.unwrap().get_value(measure.0)?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, old.get_type()?);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
                     measure.1.update(curr_state_slice, old, new)?
                 }
             };
