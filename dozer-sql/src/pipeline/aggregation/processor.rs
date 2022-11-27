@@ -10,7 +10,7 @@ use dozer_core::dag::node::{
     OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
 use dozer_types::internal_err;
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
@@ -301,7 +301,7 @@ impl AggregationProcessor {
     fn calc_and_fill_measures(
         &self,
         // This represents the current state for a series of aggregators and it is encoded
-        // with a leading uint16 representing the payload length, followe by the actual payload.
+        // with a leading uint16 representing the payload length, followed by the actual payload.
         // For example, let's say we want to encode the state of SUM(a), SUM(b). Sum's state is
         // represented as a uint64. The byte buffer will be 20-bytes long and look like this:
         // uint16(SUM(a) payload len), uint64(=SUM(a) state), uint16(SUM(b) payload len), uint64(=SUM(b) state)
