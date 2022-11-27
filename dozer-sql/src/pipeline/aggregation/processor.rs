@@ -298,6 +298,11 @@ impl AggregationProcessor {
 
     fn calc_and_fill_measures(
         &self,
+        // This represents the current state for a series of aggregators and it is encoded
+        // with a leading uint16 representing the payload length, followe by the actual payload.
+        // For example, let's say we want to encode teh state of SUM(a), SUM(b). Sum's state is
+        // represented as a uint64. The byte buffer will be 20-bytes long and look like this:
+        // uint16(SUM(a) payload len), uint64(=SUM(a) state), uint16(SUM(b) payload len), uint64(=SUM(b) state)
         curr_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
@@ -305,16 +310,19 @@ impl AggregationProcessor {
         out_rec_insert: &mut Record,
         op: AggregatorOperation,
     ) -> Result<Vec<u8>, PipelineError> {
+        // array holding the list of states for all measures
         let mut next_state = Vec::<u8>::new();
         let mut offset: usize = 0;
 
         for measure in &self.out_measures {
             let curr_state_slice = match curr_state {
                 Some(ref e) => {
+                    // Read the 2-byte len header
                     let len = u16::from_ne_bytes(e[offset..offset + 2].try_into().unwrap());
                     if len == 0 {
                         None
                     } else {
+                        // Read the payload of len size
                         Some(&e[offset + 2..offset + 2 + len as usize])
                     }
                 }
@@ -322,10 +330,13 @@ impl AggregationProcessor {
             };
 
             if let Some(e) = curr_state_slice {
+                // pass the current payload to teh processor to extract the value
                 let curr_value = measure.1.get_value(e);
+                // set the value for the old record
                 out_rec_delete.set_value(measure.2, curr_value);
             }
 
+            // Let the aggregator calculate the new value based on teh performed operation
             let next_state_slice = match op {
                 AggregatorOperation::Insert => {
                     let field = inserted_record.unwrap().get_value(measure.0)?;
@@ -342,6 +353,7 @@ impl AggregationProcessor {
                 }
             };
 
+            // append the new state to array
             next_state.extend((next_state_slice.len() as u16).to_ne_bytes());
             offset += next_state_slice.len() + 2;
 

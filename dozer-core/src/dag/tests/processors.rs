@@ -136,7 +136,7 @@ impl Sink for DynPortsSink {
         Ok(())
     }
 
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

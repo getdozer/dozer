@@ -171,6 +171,10 @@ impl Sink for TestSink {
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         Ok(())
     }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 pub struct TestPipeline {
