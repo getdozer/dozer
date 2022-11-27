@@ -10,8 +10,18 @@ use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
 pub struct MaxAggregator {}
 
+impl Default for MaxAggregator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MaxAggregator {
     const _AGGREGATOR_ID: u8 = 0x04;
+
+    pub fn new() -> Self {
+        Self {}
+    }
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {

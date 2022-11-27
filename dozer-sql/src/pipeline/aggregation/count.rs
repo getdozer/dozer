@@ -4,8 +4,18 @@ use dozer_types::types::{Field, FieldType};
 
 pub struct CountAggregator {}
 
+impl Default for CountAggregator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CountAggregator {
     const _AGGREGATOR_ID: u8 = 0x02;
+
+    pub fn new() -> Self {
+        Self {}
+    }
 
     pub(crate) fn get_return_type() -> FieldType {
         FieldType::Int

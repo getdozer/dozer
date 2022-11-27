@@ -6,8 +6,18 @@ use dozer_types::types::{Field, FieldType};
 
 pub struct AvgAggregator {}
 
+impl Default for AvgAggregator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AvgAggregator {
     const _AGGREGATOR_ID: u8 = 0x05;
+
+    pub fn new() -> Self {
+        Self {}
+    }
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
