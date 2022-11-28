@@ -1,6 +1,7 @@
 {
   "name": "inventory-connector-test-9",
   "config": {
+    "name": "dozer-postgres-connector",
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "tasks.max": "1",
     "database.hostname": "${KAFKA_POSTGRES_HOST}",
