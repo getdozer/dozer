@@ -93,6 +93,8 @@ async fn run(
     connector_id: u64,
     tables: Option<Vec<TableInfo>>,
 ) -> Result<(), ConnectorError> {
+    eprintln!("BROKER: {:?}", broker);
+    eprintln!("TOPIC: {:?}", topic);
     let con = Consumer::from_hosts(vec![broker])
         .with_topic(topic)
         .with_fallback_offset(FetchOffset::Earliest)
