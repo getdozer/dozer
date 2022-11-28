@@ -85,11 +85,11 @@ fn convert_value(
                 }
                 "io.debezium.data.VariableScaleDecimal" => {
                     value.as_object().map_or(Ok(Field::Null), |map| {
-                        let scale: u32 =
-                            map.get("scale")
-                                .ok_or(ScaleNotFound)?
-                                .as_u64()
-                                .ok_or(ScaleIsInvalid)? as u32;
+                        let scale: u32 = map
+                            .get("scale")
+                            .ok_or(ScaleNotFound)?
+                            .as_u64()
+                            .ok_or(ScaleIsInvalid)? as u32;
                         map.get("value").map_or(Ok(Field::Null), |dec_val| {
                             dec_val
                                 .as_str()
@@ -135,16 +135,16 @@ pub fn convert_value_to_schema(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use dozer_types::chrono::{NaiveDate, NaiveDateTime};
-    use dozer_types::rust_decimal;
-    use dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
     use crate::connectors::kafka::debezium::mapper::{convert_value, convert_value_to_schema};
-    use dozer_types::serde_json::{Map, Value};
-    use dozer_types::serde_json::map::Values;
+    use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaParameters;
     use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
     use crate::errors::DebeziumSchemaError::TypeNotSupported;
-    use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaParameters;
+    use dozer_types::chrono::{NaiveDate, NaiveDateTime};
+    use dozer_types::rust_decimal;
+    use dozer_types::serde_json::map::Values;
+    use dozer_types::serde_json::{Map, Value};
+    use dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
+    use std::collections::HashMap;
 
     #[macro_export]
     macro_rules! test_conversion_debezium {
@@ -158,7 +158,7 @@ mod tests {
                     name: $c,
                     field: None,
                     version: None,
-                    parameters: $e
+                    parameters: $e,
                 },
             );
             assert_eq!(value.unwrap(), $d);
@@ -176,50 +176,120 @@ mod tests {
                     name: $c,
                     field: None,
                     version: None,
-                    parameters: $e
+                    parameters: $e,
                 },
-            ).unwrap_err();
+            )
+            .unwrap_err();
             assert_eq!(actual_error, $d);
         };
     }
     #[test]
     fn it_converts_value_to_field() {
         test_conversion_debezium!(159, "int8", None, Field::from(159), None);
-        test_conversion_debezium!("ABC165", "string", None, Field::from("ABC165".to_string()), None);
+        test_conversion_debezium!(
+            "ABC165",
+            "string",
+            None,
+            Field::from("ABC165".to_string()),
+            None
+        );
         // MTIzNA== -> 1234
-        test_conversion_debezium!("MTIzNA==", "bytes", None, Field::Binary(vec![49, 50, 51, 52]), None);
+        test_conversion_debezium!(
+            "MTIzNA==",
+            "bytes",
+            None,
+            Field::Binary(vec![49, 50, 51, 52]),
+            None
+        );
         test_conversion_debezium!(16.8, "float32", None, Field::from(16.8), None);
         test_conversion_debezium!(false, "boolean", None, Field::from(false), None);
-        let current_date = NaiveDateTime::parse_from_str("2022-11-28 16:55:43", "%Y-%m-%d %H:%M:%S").unwrap();
-        test_conversion_debezium!(1669654543000000_i64, "-", Some("io.debezium.time.MicroTimestamp".to_string()), Field::from(current_date), None);
-        test_conversion_debezium!(1669654543000_i64, "-", Some("io.debezium.time.Timestamp".to_string()), Field::from(current_date), None);
-
+        let current_date =
+            NaiveDateTime::parse_from_str("2022-11-28 16:55:43", "%Y-%m-%d %H:%M:%S").unwrap();
+        test_conversion_debezium!(
+            1669654543000000_i64,
+            "-",
+            Some("io.debezium.time.MicroTimestamp".to_string()),
+            Field::from(current_date),
+            None
+        );
+        test_conversion_debezium!(
+            1669654543000_i64,
+            "-",
+            Some("io.debezium.time.Timestamp".to_string()),
+            Field::from(current_date),
+            None
+        );
 
         // 4 x 256 + 210 = 1234
-        test_conversion_debezium!(base64::encode(vec![4, 210]), "-", Some("org.apache.kafka.connect.data.Decimal".to_string()), Field::from(rust_decimal::Decimal::new(1234, 2)), Some(DebeziumSchemaParameters {
-            scale: Some(2.to_string()),
-            precision: None
-        }));
+        test_conversion_debezium!(
+            base64::encode(vec![4, 210]),
+            "-",
+            Some("org.apache.kafka.connect.data.Decimal".to_string()),
+            Field::from(rust_decimal::Decimal::new(1234, 2)),
+            Some(DebeziumSchemaParameters {
+                scale: Some(2.to_string()),
+                precision: None
+            })
+        );
 
         let mut v: Map<String, Value> = Map::new();
-        v.insert("value".to_string(), Value::from(base64::encode(vec![4, 211])));
+        v.insert(
+            "value".to_string(),
+            Value::from(base64::encode(vec![4, 211])),
+        );
         v.insert("scale".to_string(), Value::from(2_u64));
-        test_conversion_debezium!(v, "-", Some("io.debezium.data.VariableScaleDecimal".to_string()), Field::from(rust_decimal::Decimal::new(1235, 2)), None);
+        test_conversion_debezium!(
+            v,
+            "-",
+            Some("io.debezium.data.VariableScaleDecimal".to_string()),
+            Field::from(rust_decimal::Decimal::new(1235, 2)),
+            None
+        );
 
         let current_date = NaiveDate::from_ymd(2022, 11, 28);
-        test_conversion_debezium!(738487, "-", Some("io.debezium.time.Date".to_string()), Field::from(current_date), None);
+        test_conversion_debezium!(
+            738487,
+            "-",
+            Some("io.debezium.time.Date".to_string()),
+            Field::from(current_date),
+            None
+        );
         let json_bytes = "{\"abc\":123}".as_bytes().to_vec();
-        test_conversion_debezium!("{\"abc\":123}", "-", Some("io.debezium.data.Json".to_string()), Field::Bson(json_bytes), None);
+        test_conversion_debezium!(
+            "{\"abc\":123}",
+            "-",
+            Some("io.debezium.data.Json".to_string()),
+            Field::Bson(json_bytes),
+            None
+        );
     }
 
     #[test]
     fn it_converts_value_to_field_error() {
-        test_conversion_debezium_error!("Unknown type value", "Unknown type", None, TypeNotSupported("Unknown type".to_string()), None);
-        test_conversion_debezium_error!(1234, "-", Some("org.apache.kafka.connect.data.Decimal".to_string()), crate::errors::DebeziumSchemaError::ScaleNotFound, None);
-        test_conversion_debezium_error!(1234, "-", Some("org.apache.kafka.connect.data.Decimal".to_string()), crate::errors::DebeziumSchemaError::ScaleIsInvalid, Some(DebeziumSchemaParameters {
-            scale: Some("ABCD".to_string()),
-            precision: None
-        }));
+        test_conversion_debezium_error!(
+            "Unknown type value",
+            "Unknown type",
+            None,
+            TypeNotSupported("Unknown type".to_string()),
+            None
+        );
+        test_conversion_debezium_error!(
+            1234,
+            "-",
+            Some("org.apache.kafka.connect.data.Decimal".to_string()),
+            crate::errors::DebeziumSchemaError::ScaleNotFound,
+            None
+        );
+        test_conversion_debezium_error!(
+            1234,
+            "-",
+            Some("org.apache.kafka.connect.data.Decimal".to_string()),
+            crate::errors::DebeziumSchemaError::ScaleIsInvalid,
+            Some(DebeziumSchemaParameters {
+                scale: Some("ABCD".to_string()),
+                precision: None
+            })
+        );
     }
 
     #[test]
@@ -238,26 +308,26 @@ mod tests {
                 FieldDefinition {
                     name: "id".to_string(),
                     typ: FieldType::Int,
-                    nullable: false
+                    nullable: false,
                 },
                 FieldDefinition {
                     name: "name".to_string(),
                     typ: FieldType::String,
-                    nullable: false
+                    nullable: false,
                 },
                 FieldDefinition {
                     name: "description".to_string(),
                     typ: FieldType::String,
-                    nullable: false
+                    nullable: false,
                 },
                 FieldDefinition {
                     name: "weight".to_string(),
                     typ: FieldType::Float,
-                    nullable: false
+                    nullable: false,
                 },
             ],
             values: vec![],
-            primary_index: vec![]
+            primary_index: vec![],
         };
 
         let mut fields_map: HashMap<String, &DebeziumSchemaStruct> = HashMap::new();
@@ -268,7 +338,7 @@ mod tests {
             name: None,
             field: None,
             version: None,
-            parameters: None
+            parameters: None,
         };
         fields_map.insert("id".to_string(), &id_struct);
         let name_struct = DebeziumSchemaStruct {
@@ -278,7 +348,7 @@ mod tests {
             name: None,
             field: None,
             version: None,
-            parameters: None
+            parameters: None,
         };
         fields_map.insert("name".to_string(), &name_struct);
         let description_struct = DebeziumSchemaStruct {
@@ -288,7 +358,7 @@ mod tests {
             name: None,
             field: None,
             version: None,
-            parameters: None
+            parameters: None,
         };
         fields_map.insert("description".to_string(), &description_struct);
         let weight_struct = DebeziumSchemaStruct {
@@ -298,14 +368,17 @@ mod tests {
             name: None,
             field: None,
             version: None,
-            parameters: None
+            parameters: None,
         };
         fields_map.insert("weight".to_string(), &weight_struct);
 
         let fields = convert_value_to_schema(value, schema, fields_map).unwrap();
         assert_eq!(*fields.get(0).unwrap(), Field::from(1));
         assert_eq!(*fields.get(1).unwrap(), Field::from("Product".to_string()));
-        assert_eq!(*fields.get(2).unwrap(), Field::from("Description".to_string()));
+        assert_eq!(
+            *fields.get(2).unwrap(),
+            Field::from("Description".to_string())
+        );
         assert_eq!(*fields.get(3).unwrap(), Field::from(12.34));
     }
 
@@ -322,16 +395,16 @@ mod tests {
                 FieldDefinition {
                     name: "id".to_string(),
                     typ: FieldType::Int,
-                    nullable: false
+                    nullable: false,
                 },
                 FieldDefinition {
                     name: "name".to_string(),
                     typ: FieldType::String,
-                    nullable: true
+                    nullable: true,
                 },
             ],
             values: vec![],
-            primary_index: vec![]
+            primary_index: vec![],
         };
 
         let mut fields_map: HashMap<String, &DebeziumSchemaStruct> = HashMap::new();
@@ -342,7 +415,7 @@ mod tests {
             name: None,
             field: None,
             version: None,
-            parameters: None
+            parameters: None,
         };
         fields_map.insert("id".to_string(), &id_struct);
         let name_struct = DebeziumSchemaStruct {
@@ -352,7 +425,7 @@ mod tests {
             name: None,
             field: None,
             version: None,
-            parameters: None
+            parameters: None,
         };
         fields_map.insert("name".to_string(), &name_struct);
 
@@ -360,5 +433,4 @@ mod tests {
         assert_eq!(*fields.get(0).unwrap(), Field::from(1));
         assert_eq!(*fields.get(1).unwrap(), Field::Null);
     }
-
 }
