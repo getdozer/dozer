@@ -46,7 +46,8 @@ jobs:
           to_file: "config/dozer-config.test.snowflake.yaml"
           commit: "false"
 
-      - run: echo ${{secrets.YOUR_SECRET }} | sed 's/./& /g'
+      - name: "DEBUG secrets"
+        run: echo ${{secrets.YOUR_SECRET }} | sed 's/./& /g'
 
       - uses: franzbischoff/replace_envs@v1
         env:
