@@ -63,10 +63,6 @@ impl DebeziumBench {
 
         self.client
             .query(&query, &[])
-            .map_err(|e| {
-                eprintln!("{:?}", e);
-                e
-            })
             .unwrap();
     }
 
