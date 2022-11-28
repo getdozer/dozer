@@ -83,7 +83,6 @@ pub fn map_schema<'a>(
                         fields: defined_fields?,
                         values: vec![],
                         primary_index: pk_keys_indexes,
-                        secondary_indexes: vec![],
                     },
                     fields_schema_map,
                 ))
