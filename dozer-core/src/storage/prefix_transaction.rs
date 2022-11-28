@@ -1,12 +1,5 @@
-use crate::storage::common::{
-    Database, RenewableRwTransaction, RoCursor, RoTransaction, RwCursor, RwTransaction,
-};
+use crate::storage::common::{Database, RoCursor, RwCursor, RwTransaction};
 use crate::storage::errors::StorageError;
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-use crate::storage::transactions::SharedTransaction;
-use dozer_types::parking_lot::RwLock;
-use std::fs;
-use std::sync::Arc;
 
 pub struct PrefixTransaction<'a> {
     prefix: [u8; 4],
@@ -54,10 +47,7 @@ impl<'a> RwTransaction for PrefixTransaction<'a> {
 
     fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError> {
         let cursor = self.tx.open_cursor(db)?;
-        Ok(Box::new(PrefixReaderWriterCursor::new(
-            cursor,
-            self.prefix.clone(),
-        )))
+        Ok(Box::new(PrefixReaderWriterCursor::new(cursor, self.prefix)))
     }
 }
 
@@ -111,7 +101,7 @@ impl RoCursor for PrefixReaderWriterCursor {
             return Ok(false);
         }
         match self.read()? {
-            Some((key, val)) => Ok(key[0..3] == self.prefix),
+            Some((key, _val)) => Ok(key[0..3] == self.prefix),
             None => Ok(false),
         }
     }
@@ -122,7 +112,7 @@ impl RoCursor for PrefixReaderWriterCursor {
             return Ok(false);
         }
         match self.read()? {
-            Some((key, val)) => Ok(key[0..3] == self.prefix),
+            Some((key, _val)) => Ok(key[0..3] == self.prefix),
             None => Ok(false),
         }
     }

@@ -26,10 +26,10 @@ fn test_prefix_tx() {
     let tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
         Arc::new(RwLock::new(chk!(env.create_txn())));
 
-    let mut tx0 = tx.clone();
-    let mut tx1 = tx.clone();
-    let mut tx2 = tx.clone();
-    let mut tx3 = tx.clone();
+    let tx0 = tx.clone();
+    let tx1 = tx.clone();
+    let tx2 = tx.clone();
+    let tx3 = tx.clone();
 
     let mut shared0 = SharedTransaction::new(&tx0);
     let mut shared1 = SharedTransaction::new(&tx1);
@@ -39,7 +39,7 @@ fn test_prefix_tx() {
     let mut ptx0 = PrefixTransaction::new(&mut shared0, 100);
     let mut ptx1 = PrefixTransaction::new(&mut shared1, 101);
     let mut ptx2 = PrefixTransaction::new(&mut shared2, 102);
-    let mut ptx3 = PrefixTransaction::new(&mut shared3, 103);
+    let ptx3 = PrefixTransaction::new(&mut shared3, 103);
 
     chk!(ptx0.put(&db, "a0".as_bytes(), "a0".as_bytes()));
     chk!(ptx0.put(&db, "a1".as_bytes(), "a1".as_bytes()));
