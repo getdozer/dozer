@@ -1,4 +1,4 @@
-use dozer_types::models::connection::{Authentication};
+use dozer_types::models::connection::Authentication;
 use dozer_types::models::source::Source;
 use dozer_types::serde::{Deserialize, Serialize};
 use std::fs;

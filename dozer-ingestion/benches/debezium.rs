@@ -12,7 +12,7 @@ use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 
 #[cfg(feature = "kafka_test")]
-use dozer_types::parking_lot::{RwLock};
+use dozer_types::parking_lot::RwLock;
 #[cfg(feature = "kafka_test")]
 use dozer_types::rust_decimal::Decimal;
 
@@ -43,7 +43,7 @@ impl DebeziumBench {
 
     pub fn insert_rows(&mut self, count: u64) {
         let mut buf = String::new();
-        for  i in 0..count {
+        for i in 0..count {
             if i > 0 {
                 buf.write_str(",").unwrap();
             }
@@ -61,13 +61,16 @@ impl DebeziumBench {
             buf,
         );
 
-        self.client.query(&query, &[]).map_err(|e| {
-            eprintln!("{:?}", e);
-            e
-        }).unwrap();
+        self.client
+            .query(&query, &[])
+            .map_err(|e| {
+                eprintln!("{:?}", e);
+                e
+            })
+            .unwrap();
     }
 
-    pub fn run_bench(&mut self, c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>){
+    pub fn run_bench(&mut self, c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
         let mut group = c.benchmark_group("Ingestion debezium");
 
         group.warm_up_time(Duration::from_secs(1));
@@ -106,16 +109,25 @@ pub fn main() {
 
     let connector_client = reqwest::blocking::Client::new();
 
-    eprintln!("DEBEZIUM CONNECTOR URL: {:?}", config.debezium_connector_url);
-    let z = connector_client.delete(format!("{}{}", config.debezium_connector_url, "dozer-postgres-connector".to_string()))
+    eprintln!(
+        "DEBEZIUM CONNECTOR URL: {:?}",
+        config.debezium_connector_url
+    );
+    let z = connector_client
+        .delete(format!(
+            "{}{}",
+            config.debezium_connector_url,
+            "dozer-postgres-connector".to_string()
+        ))
         .send()
         .unwrap()
         .text()
         .unwrap();
 
-
     eprintln!("Z: {:?}", z);
-    client.query("DROP TABLE IF EXISTS products_test", &[]).unwrap();
+    client
+        .query("DROP TABLE IF EXISTS products_test", &[])
+        .unwrap();
 
     client
         .query(
@@ -157,7 +169,7 @@ pub fn main() {
 
         let mut connector = get_connector(source.connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
-        connector.start().unwrap();
+        let _ = connector.start();
     });
 
     let mut criterion = Criterion::default().configure_from_args();
