@@ -156,7 +156,7 @@ pub fn main() {
         .text()
         .unwrap();
 
-    eprintln!("X: {:?}", x);
+    eprintln!("D: {:?}", d);
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     thread::spawn(move || {
