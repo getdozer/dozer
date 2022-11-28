@@ -11,7 +11,6 @@ mod executor_source;
 mod executor_utils;
 pub mod forwarder;
 pub mod node;
-pub mod record_store;
 
 #[cfg(test)]
 mod tests;

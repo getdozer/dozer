@@ -10,8 +10,8 @@ use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
-use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
+use dozer_core::storage::record_reader::RecordReader;
 use dozer_types::internal_err;
 use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
 use log::info;

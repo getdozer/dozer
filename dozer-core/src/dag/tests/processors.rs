@@ -5,8 +5,8 @@ use crate::dag::node::{
     OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory, Sink,
     SinkFactory, Source, SourceFactory,
 };
-use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, RwTransaction};
+use crate::storage::record_reader::RecordReader;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;

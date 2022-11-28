@@ -7,8 +7,8 @@ use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HAN
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
+use dozer_core::storage::record_reader::RecordReader;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;

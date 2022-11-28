@@ -9,8 +9,8 @@ use crate::dag::executor_utils::{
 };
 use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
 use crate::dag::node::{NodeHandle, PortHandle, SourceFactory};
-use crate::dag::record_store::RecordReader;
 use crate::storage::common::RenewableRwTransaction;
+use crate::storage::record_reader::RecordReader;
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;

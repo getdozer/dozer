@@ -10,7 +10,7 @@ use crate::dag::executor_sink::start_sink;
 use crate::dag::executor_source::start_source;
 use crate::dag::executor_utils::{get_node_types_and_edges, index_edges};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
-use crate::dag::record_store::RecordReader;
+use crate::storage::record_reader::RecordReader;
 use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Record, Schema};

@@ -7,10 +7,10 @@ use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, ProcessorFactory, SinkFactory,
     SourceFactory,
 };
-use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
+use crate::storage::record_reader::RecordReader;
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::PortHandle;
-use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::RwTransaction;
+use dozer_core::storage::record_reader::RecordReader;
 use dozer_types::types::Record;
 use sqlparser::ast::TableFactor;
 

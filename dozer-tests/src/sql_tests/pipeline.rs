@@ -9,8 +9,8 @@ use dozer_core::dag::node::{
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 
-use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
+use dozer_core::storage::record_reader::RecordReader;
 use dozer_types::crossbeam::channel::{unbounded, Sender};
 use dozer_types::log::debug;
 use dozer_types::types::{Operation, Schema};

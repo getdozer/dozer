@@ -6,12 +6,12 @@ use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor};
 use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
-use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{
     GeneratorSourceFactory, StatefulGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::storage::common::{Environment, RwTransaction};
+use crate::storage::record_reader::RecordReader;
 use dozer_types::types::{Field, Operation, Schema};
 use std::collections::HashMap;
 use std::fs;

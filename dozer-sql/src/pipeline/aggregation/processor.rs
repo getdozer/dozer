@@ -12,8 +12,8 @@ use dozer_core::dag::node::{
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
-use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::record_reader::RecordReader;
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
