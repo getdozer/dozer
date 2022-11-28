@@ -207,8 +207,8 @@ jobs:
           KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
           KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
         with:
-          from_file: "tests/connectors/debezium/register-postgres.test.sample.yaml"
-          to_file: "tests/connectors/debezium/register-postgres.test.yaml"
+          from_file: "tests/connectors/debezium/register-postgres.test.sample.json"
+          to_file: "tests/connectors/debezium/register-postgres.test.json"
           commit: "false"
       - name: Install Criterion
         continue-on-error: true
