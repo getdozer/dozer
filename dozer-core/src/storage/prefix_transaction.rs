@@ -140,23 +140,17 @@ impl RoCursor for PrefixReaderWriterCursor {
         if !self.inner.seek_gte(&next_prefix)? {
             if !self.inner.last()? {
                 Ok(false)
+            } else if let Some(r) = self.inner.read()? {
+                Ok(r.0[0..self.prefix.len()] == self.prefix)
             } else {
-                if let Some(r) = self.inner.read()? {
-                    Ok(r.0[0..self.prefix.len()] == self.prefix)
-                } else {
-                    Ok(false)
-                }
-            }
-        } else {
-            if !self.inner.prev()? {
                 Ok(false)
-            } else {
-                if let Some(r) = self.inner.read()? {
-                    Ok(r.0[0..self.prefix.len()] == self.prefix)
-                } else {
-                    Ok(false)
-                }
             }
+        } else if !self.inner.prev()? {
+            Ok(false)
+        } else if let Some(r) = self.inner.read()? {
+            Ok(r.0[0..self.prefix.len()] == self.prefix)
+        } else {
+            Ok(false)
         }
     }
 }
