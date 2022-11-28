@@ -11,6 +11,7 @@
     "database.dbname": "${KAFKA_POSTGRES_DATABASE}",
     "database.server.name": "dbserver1",
     "topic.prefix": "dbserver1",
-    "schema.include.list": "${KAFKA_POSTGRES_SCHEMA}"
+    "schema.include.list": "${KAFKA_POSTGRES_SCHEMA}",
+    "plugin.name": "pgoutput"
   }
 }
