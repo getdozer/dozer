@@ -1,10 +1,9 @@
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::{CacheOptions, LmdbCache};
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::PortHandle;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::parking_lot::Mutex;
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+use dozer_types::types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -25,15 +24,17 @@ pub fn get_schema() -> Schema {
         ],
         values: vec![0],
         primary_index: vec![0],
-        secondary_indexes: vec![],
     }
 }
 
-pub fn init_sink(schema: &Schema) -> (Arc<LmdbCache>, CacheSink) {
+pub fn init_sink(
+    schema: &Schema,
+    secondary_indexes: Vec<IndexDefinition>,
+) -> (Arc<LmdbCache>, CacheSink) {
     let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
 
-    let mut input_schemas: HashMap<PortHandle, Schema> = HashMap::new();
-    input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
+    let mut input_schemas = HashMap::new();
+    input_schemas.insert(DEFAULT_PORT_HANDLE, (schema.clone(), secondary_indexes));
 
     let sink = CacheSink::new(
         Arc::clone(&cache),

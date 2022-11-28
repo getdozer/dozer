@@ -1,8 +1,7 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder::{column_index, ExpressionBuilder, ExpressionType};
+use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use crate::pipeline::processor::projection::PipelineError::InvalidExpression;
-use crate::pipeline::processor::projection::PipelineError::InvalidOperator;
+
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
@@ -18,39 +17,6 @@ use log::info;
 use sqlparser::ast::SelectItem;
 use std::collections::HashMap;
 
-pub struct ProjectionProcessorFactory {
-    statement: Vec<SelectItem>,
-}
-
-impl ProjectionProcessorFactory {
-    /// Creates a new [`ProjectionProcessorFactory`].
-    pub fn new(statement: Vec<SelectItem>) -> Self {
-        Self { statement }
-    }
-}
-
-impl ProcessorFactory for ProjectionProcessorFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
-    }
-
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
-        )]
-    }
-
-    fn build(&self) -> Box<dyn Processor> {
-        Box::new(ProjectionProcessor {
-            statement: self.statement.clone(),
-            input_schema: Schema::empty(),
-            expressions: vec![],
-            builder: ExpressionBuilder {},
-        })
-    }
-}
-
 pub struct ProjectionProcessor {
     statement: Vec<SelectItem>,
     input_schema: Schema,
@@ -59,7 +25,7 @@ pub struct ProjectionProcessor {
 }
 
 impl ProjectionProcessor {
-    fn build_projection(
+    fn build(
         &self,
         statement: Vec<SelectItem>,
         input_schema: &Schema,
@@ -111,7 +77,7 @@ impl ProjectionProcessor {
             let field_type = e.1.get_type(input_schema);
             let field_nullable = true;
 
-            if column_index(&field_name, &output_schema).is_err() {
+            if output_schema.get_field_index(field_name.as_str()).is_err() {
                 output_schema.fields.push(FieldDefinition::new(
                     field_name,
                     field_type,
@@ -149,7 +115,7 @@ impl ProjectionProcessor {
         }
 
         for expr in self.expressions.clone() {
-            if let Ok(idx) = column_index(&expr.0, &self.input_schema) {
+            if let Ok((idx, _def)) = self.input_schema.get_field_index(&expr.0) {
                 let _ =
                     std::mem::replace(&mut results[idx], internal_err!(expr.1.evaluate(record))?);
             } else {
@@ -197,21 +163,20 @@ impl ProjectionProcessor {
     }
 }
 
-impl Processor for ProjectionProcessor {
+impl Processor for PreAggregationProcessor {
     fn update_schema(
         &mut self,
         _output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        let expressions =
-            internal_err!(self.build_projection(self.statement.clone(), input_schema))?;
+        let expressions = internal_err!(self.build(self.statement.clone(), input_schema))?;
         self.expressions = expressions.clone();
         self.build_output_schema(input_schema, expressions)
     }
 
     fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
-        info!("{:?}", "Initialising Projection Processor");
+        info!("{:?}", "Initialising PreAggregation Processor");
         Ok(())
     }
 

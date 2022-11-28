@@ -12,7 +12,7 @@ use dozer_types::{
 
 #[test]
 fn test_generate_plan_simple() {
-    let schema = test_utils::schema_0();
+    let (schema, secondary_indexes) = test_utils::schema_0();
 
     let query = QueryExpression::new(
         Some(FilterExpression::Simple(
@@ -24,7 +24,7 @@ fn test_generate_plan_simple() {
         10,
         0,
     );
-    let planner = QueryPlanner::new(&schema, &query);
+    let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
         assert_eq!(index_scans[0].index_id, 0);
@@ -53,7 +53,7 @@ fn test_generate_plan_simple() {
 
 #[test]
 fn test_generate_plan_and() {
-    let schema = test_utils::schema_1();
+    let (schema, secondary_indexes) = test_utils::schema_1();
 
     let filter = FilterExpression::And(vec![
         FilterExpression::Simple("a".to_string(), expression::Operator::EQ, Value::from(1)),
@@ -64,7 +64,7 @@ fn test_generate_plan_and() {
         ),
     ]);
     let query = QueryExpression::new(Some(filter), vec![], 10, 0);
-    let planner = QueryPlanner::new(&schema, &query);
+    let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     // Pick the 3rd index
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
@@ -95,7 +95,7 @@ fn test_generate_plan_and() {
 
 #[test]
 fn test_generate_plan_range_query_and_order_by() {
-    let schema = test_utils::schema_1();
+    let (schema, secondary_indexes) = test_utils::schema_1();
     let filter = FilterExpression::Simple("c".into(), expression::Operator::GT, 1.into());
     let query = QueryExpression::new(
         Some(filter),
@@ -106,7 +106,7 @@ fn test_generate_plan_range_query_and_order_by() {
         10,
         0,
     );
-    let planner = QueryPlanner::new(&schema, &query);
+    let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
         assert_eq!(index_scans[0].index_id, 4);

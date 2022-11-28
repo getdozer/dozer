@@ -174,6 +174,7 @@ pub(crate) fn start_processor(
                 }
 
                 ExecutorOperation::Commit { epoch, source } => {
+                    proc.commit(&mut SharedTransaction::new(&master_tx))?;
                     fw.store_and_send_commit(source, epoch)?;
                 }
 

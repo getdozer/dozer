@@ -39,10 +39,12 @@ fn query(cache: Arc<LmdbCache>, _n: usize) {
 }
 
 fn cache(c: &mut Criterion) {
-    let schema = test_utils::schema_0();
+    let (schema, secondary_indexes) = test_utils::schema_0();
     let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
 
-    cache.insert_schema("benches", &schema).unwrap();
+    cache
+        .insert_schema("benches", &schema, &secondary_indexes)
+        .unwrap();
 
     let size: usize = 1000000;
     c.bench_with_input(BenchmarkId::new("cache_insert", size), &size, |b, &s| {

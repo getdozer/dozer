@@ -133,6 +133,5 @@ pub fn get_eth_schema() -> Schema {
         values: vec![],
         // Log Index
         primary_index: vec![0],
-        secondary_indexes: vec![],
     }
 }

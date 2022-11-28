@@ -1,4 +1,5 @@
 use crossbeam::channel;
+use dozer_types::types::IndexDefinition;
 use tokio::time;
 
 use crate::{
@@ -16,7 +17,7 @@ use std::{collections::HashMap, io, thread};
 pub fn generate_proto(
     dir_path: String,
     schema_name: String,
-    schema: Option<dozer_types::types::Schema>,
+    schema: Option<(dozer_types::types::Schema, Vec<IndexDefinition>)>,
 ) -> Result<(std::string::String, HashMap<std::string::String, GrpcType>), GenerationError> {
     let endpoint = test_utils::get_endpoint();
     let mut map = HashMap::new();

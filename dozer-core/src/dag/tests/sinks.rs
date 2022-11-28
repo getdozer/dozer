@@ -45,6 +45,10 @@ impl Sink for CountingSink {
         Ok(())
     }
 
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn process(
         &mut self,
         _from_port: PortHandle,

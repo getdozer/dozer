@@ -198,7 +198,6 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Result<Schema, ConnectorE
         fields: field_defs.unwrap(),
         values: vec![],
         primary_index: vec![0],
-        secondary_indexes: vec![],
     })
 }
 

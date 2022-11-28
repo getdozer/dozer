@@ -92,7 +92,7 @@ pub struct CacheSink {
     cache: Arc<LmdbCache>,
     counter: i32,
     before: Instant,
-    input_schemas: Mutex<HashMap<PortHandle, Schema>>,
+    input_schemas: Mutex<HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
     notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
@@ -110,15 +110,15 @@ impl Sink for CacheSink {
             let mut map = self.input_schemas.lock();
 
             // Append primary and secondary keys
-            let schema = self.get_output_schema(schema)?;
+            let (schema, secondary_indexes) = self.get_output_schema(schema)?;
 
             self.cache
-                .insert_schema(&self.api_endpoint.name, &schema)
+                .insert_schema(&self.api_endpoint.name, &schema, &secondary_indexes)
                 .map_err(|e| {
                     ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
                 })?;
 
-            map.insert(*k, schema.to_owned());
+            map.insert(*k, (schema.clone(), secondary_indexes));
 
             if let Some(notifier) = &self.notifier {
                 let schema = types_helper::map_schema(self.api_endpoint.name.to_owned(), &schema);
@@ -144,6 +144,10 @@ impl Sink for CacheSink {
         Ok(())
     }
 
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("SINK: Initialising CacheSink");
 
@@ -166,7 +170,7 @@ impl Sink for CacheSink {
                 self.before.elapsed(),
             ));
         }
-        let schema = self
+        let (schema, secondary_indexes) = self
             .input_schemas
             .lock()
             .get(&from_port)
@@ -184,7 +188,11 @@ impl Sink for CacheSink {
         }
 
         self.batched_sender
-            .send(BatchedCacheMsg { op, schema })
+            .send(BatchedCacheMsg {
+                op,
+                schema,
+                secondary_indexes,
+            })
             .unwrap();
         Ok(())
     }
@@ -194,7 +202,7 @@ impl CacheSink {
     pub fn new(
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        input_schemas: Mutex<HashMap<PortHandle, Schema>>,
+        input_schemas: Mutex<HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>>,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         record_cutoff: u32,
         timeout: u64,
@@ -224,7 +232,10 @@ impl CacheSink {
             batched_sender,
         }
     }
-    fn get_output_schema(&self, schema: &Schema) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(
+        &self,
+        schema: &Schema,
+    ) -> Result<(Schema, Vec<IndexDefinition>), ExecutionError> {
         let mut schema = schema.clone();
 
         // Get hash of schema
@@ -251,7 +262,7 @@ impl CacheSink {
         });
 
         // Automatically create secondary indexes
-        schema.secondary_indexes = schema
+        let secondary_indexes = schema
             .fields
             .iter()
             .enumerate()
@@ -274,7 +285,7 @@ impl CacheSink {
                 FieldType::Binary | FieldType::Bson => None,
             })
             .collect();
-        Ok(schema)
+        Ok((schema, secondary_indexes))
     }
 
     fn get_schema_hash(&self) -> u64 {
@@ -316,7 +327,7 @@ mod tests {
 
         let schema = test_utils::get_schema();
 
-        let (cache, mut sink) = test_utils::init_sink(&schema);
+        let (cache, mut sink) = test_utils::init_sink(&schema, vec![]);
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 
