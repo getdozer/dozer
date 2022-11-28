@@ -146,6 +146,39 @@ jobs:
           to_file: "config/dozer-config.test.snowflake.yaml"
           commit: "false"
 
+      - uses: franzbischoff/replace_envs@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
+          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
+          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
+          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
+          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
+        with:
+          from_file: "config/test.debezium.sample.yaml"
+          to_file: "config/test.debezium.yaml"
+          commit: "false"
+
+      - uses: franzbischoff/replace_envs@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
+          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
+          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
+          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
+          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
+        with:
+          from_file: "tests/connectors/debezium/register-postgres.test.sample.json"
+          to_file: "tests/connectors/debezium/register-postgres.test.json"
+          commit: "false"
+
       - name: Install Criterion
         continue-on-error: true
         run: cargo install cargo-criterion
@@ -153,7 +186,7 @@ jobs:
       - id: bench
         name: Run Bench
         continue-on-error: true
-        run: cargo criterion --features snowflake
+        run: cargo criterion --features snowflake,kafka_test
 
       - name: Get current date
         id: date
@@ -183,6 +216,7 @@ jobs:
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
   test_long:
     runs-on: ubuntu-latest
     steps:
