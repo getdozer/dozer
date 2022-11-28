@@ -74,13 +74,13 @@ impl DebeziumBench {
         group.sample_size(100);
         group.measurement_time(Duration::from_secs(100));
 
-        group.bench_function("debezium (chunks of 1000)", |b| {
+        group.bench_function("debezium (chunks of 10)", |b| {
             b.iter_custom(|iters| {
-                self.insert_rows(iters * 1000);
+                self.insert_rows(iters * 10);
 
                 let start = Instant::now();
                 let mut i = 0;
-                while i < iters * 1000 {
+                while i < iters * 10 {
                     let m = iterator.write().next();
                     if let Some((_, IngestionOperation::OperationEvent(_))) = m {
                         i += 1;
