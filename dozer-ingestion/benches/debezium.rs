@@ -61,9 +61,7 @@ impl DebeziumBench {
             buf,
         );
 
-        self.client
-            .query(&query, &[])
-            .unwrap();
+        self.client.query(&query, &[]).unwrap();
     }
 
     pub fn run_bench(&mut self, c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
@@ -108,8 +106,7 @@ pub fn main() {
     connector_client
         .delete(format!(
             "{}{}",
-            config.debezium_connector_url,
-            "dozer-postgres-connector"
+            config.debezium_connector_url, "dozer-postgres-connector"
         ))
         .send()
         .unwrap()
