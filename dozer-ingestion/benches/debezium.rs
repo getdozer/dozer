@@ -107,7 +107,7 @@ pub fn main() {
     let connector_client = reqwest::blocking::Client::new();
 
     eprintln!("DEBEZIUM CONNECTOR URL: {:?}", config.debezium_connector_url);
-    let z = connector_client.delete(format!("{}{}", config.debezium_connector_url, "inventory-connector-test-9".to_string()))
+    let z = connector_client.delete(format!("{}{}", config.debezium_connector_url, "dozer-postgres-connector".to_string()))
         .send()
         .unwrap()
         .text()
@@ -146,17 +146,6 @@ pub fn main() {
 
     eprintln!("X: {:?}", x);
 
-    let d = connector_client
-        .post(format!("{}connector-plugins/postgres/config/validate",&config.debezium_connector_url))
-        .body(content)
-        .header(CONTENT_TYPE, "application/json")
-        .header(ACCEPT, "application/json")
-        .send()
-        .unwrap()
-        .text()
-        .unwrap();
-
-    eprintln!("D: {:?}", d);
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     thread::spawn(move || {
