@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 
 use super::factory::{build_join_chain, get_input_tables};
-use super::join::JoinTable;
+use super::join::{JoinExecutor, JoinTable};
 
 /// Cartesian Product Processor
 pub struct ProductProcessor {
@@ -62,19 +62,22 @@ impl ProductProcessor {
         &self,
         from_port: PortHandle,
         record: &Record,
-        _txn: &mut dyn RwTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        txn: &mut dyn RwTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<Vec<Record>, ExecutionError> {
         if let Some(input_table) = self.join_tables.get(&from_port) {
-            let output_records = vec![record.clone()];
+            let mut output_records = vec![record.clone()];
 
-            if let Some(_left_join) = &input_table.left {
-                todo!() // left_records = left_join.execute(record, txn, reader)?;
+            if let Some(database) = &self.db {
+                if let Some(left_join) = &input_table.left {
+                    output_records = left_join.execute(output_records, database, txn, reader)?;
+                }
+
+                if let Some(right_join) = &input_table.right {
+                    output_records = right_join.execute(output_records, database, txn, reader)?;
+                }
             }
 
-            if let Some(_right_join) = &input_table.right {
-                todo!() // right_records = right_join.execute(record, txn, reader)?;
-            }
             return Ok(output_records);
         }
 
