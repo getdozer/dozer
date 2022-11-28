@@ -48,9 +48,9 @@ impl DebeziumBench {
                 buf.write_str(",").unwrap();
             }
             buf.write_fmt(format_args!(
-                "({},{},{})",
-                format!("\'Product {}\'", i),
-                format!("\'Product {} description\'", i),
+                "(\'Product {}\',\'Product {} description\',{})",
+                i,
+                i,
                 Decimal::new((i * 41) as i64, 2)
             ))
             .unwrap();
@@ -109,11 +109,7 @@ pub fn main() {
 
     let connector_client = reqwest::blocking::Client::new();
 
-    eprintln!(
-        "DEBEZIUM CONNECTOR URL: {:?}",
-        config.debezium_connector_url
-    );
-    let z = connector_client
+    connector_client
         .delete(format!(
             "{}{}",
             config.debezium_connector_url,
@@ -124,7 +120,6 @@ pub fn main() {
         .text()
         .unwrap();
 
-    eprintln!("Z: {:?}", z);
     client
         .query("DROP TABLE IF EXISTS products_test", &[])
         .unwrap();
@@ -146,7 +141,7 @@ pub fn main() {
     let content =
         std::fs::read_to_string("./tests/connectors/debezium/register-postgres.test.json").unwrap();
 
-    let x = connector_client
+    connector_client
         .post(&config.debezium_connector_url)
         .body(content.clone())
         .header(CONTENT_TYPE, "application/json")
@@ -155,8 +150,6 @@ pub fn main() {
         .unwrap()
         .text()
         .unwrap();
-
-    eprintln!("X: {:?}", x);
 
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 

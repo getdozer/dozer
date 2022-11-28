@@ -24,3 +24,4 @@ log4rs.yaml
 logs/
 *.log
 register-postgres.test.json
+test.debezium.yaml
