@@ -6,7 +6,7 @@ use lmdb_sys::{
     mdb_env_set_maxreaders, mdb_get, mdb_put, mdb_txn_abort, mdb_txn_begin, mdb_txn_commit,
     MDB_cursor, MDB_cursor_op, MDB_dbi, MDB_env, MDB_txn, MDB_val, MDB_APPEND, MDB_APPENDDUP,
     MDB_CREATE, MDB_CURRENT, MDB_DBS_FULL, MDB_DUPFIXED, MDB_DUPSORT, MDB_FIRST, MDB_GET_CURRENT,
-    MDB_INTEGERKEY, MDB_INVALID, MDB_MAP_FULL, MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA,
+    MDB_INTEGERKEY, MDB_INVALID, MDB_LAST, MDB_MAP_FULL, MDB_MAP_RESIZED, MDB_NEXT, MDB_NODUPDATA,
     MDB_NOLOCK, MDB_NOMETASYNC, MDB_NOOVERWRITE, MDB_NOSUBDIR, MDB_NOSYNC, MDB_NOTFOUND, MDB_NOTLS,
     MDB_PANIC, MDB_PREV, MDB_RDONLY, MDB_READERS_FULL, MDB_RESERVE, MDB_SET, MDB_SET_RANGE,
     MDB_TXN_FULL, MDB_VERSION_MISMATCH, MDB_WRITEMAP,
@@ -809,6 +809,15 @@ impl Cursor {
 
     pub fn prev(&self) -> Result<bool, LmdbError> {
         let r = self.internal_get_cursor_op(MDB_PREV, None, None);
+        match r {
+            Ok(Some(_v)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn last(&self) -> Result<bool, LmdbError> {
+        let r = self.internal_get_cursor_op(MDB_LAST, None, None);
         match r {
             Ok(Some(_v)) => Ok(true),
             Ok(None) => Ok(false),
