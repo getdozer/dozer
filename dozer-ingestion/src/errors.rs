@@ -228,7 +228,7 @@ pub enum DebeziumStreamError {
     PollingError(#[source] kafka::Error),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum DebeziumSchemaError {
     #[error("Schema definition not found")]
     SchemaDefinitionNotFound,
@@ -246,7 +246,7 @@ pub enum DebeziumSchemaError {
     ScaleNotFound,
 
     #[error("Scale is invalid")]
-    ScaleIsInvalid(),
+    ScaleIsInvalid,
 
     #[error("Decimal convert error")]
     DecimalConvertError(#[source] rust_decimal::Error),
