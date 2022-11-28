@@ -12,7 +12,7 @@ use schema::{endpoints::dsl::*, source_endpoints::dsl::*, sources::dsl::*};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-#[derive(Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Default)]
 #[diesel(table_name = endpoints)]
 pub struct DbEndpoint {
     pub id: String,
@@ -23,8 +23,8 @@ pub struct DbEndpoint {
     pub enable_grpc: bool,
     pub sql: String,
     pub primary_keys: String,
-    created_at: String,
-    updated_at: String,
+    pub created_at: String,
+    pub updated_at: String,
 }
 #[derive(Insertable, AsChangeset, PartialEq, Debug, Serialize, Deserialize, Clone)]
 #[diesel(table_name = endpoints)]

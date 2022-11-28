@@ -1,8 +1,5 @@
 use crate::{
-    db::{
-        persistable::Persistable,
-        pool::{establish_connection, DbPool},
-    },
+    db::{persistable::Persistable, pool::DbPool},
     server::dozer_admin_grpc::{
         CreateEndpointRequest, CreateEndpointResponse, DeleteEndpointRequest,
         DeleteEndpointResponse, EndpointInfo, ErrorResponse, GetAllEndpointRequest,
@@ -16,10 +13,8 @@ pub struct EndpointService {
 }
 
 impl EndpointService {
-    pub fn new(database_url: String) -> Self {
-        Self {
-            db_pool: establish_connection(database_url),
-        }
+    pub fn new(db_pool: DbPool) -> Self {
+        Self { db_pool }
     }
 }
 impl EndpointService {

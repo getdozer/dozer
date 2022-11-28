@@ -1,6 +1,9 @@
-use crate::services::{
-    application_service::AppService, connection_service::ConnectionService,
-    endpoint_service::EndpointService, source_service::SourceService,
+use crate::{
+    db::pool::establish_connection,
+    services::{
+        application_service::AppService, connection_service::ConnectionService,
+        endpoint_service::EndpointService, source_service::SourceService,
+    },
 };
 use dotenvy::dotenv;
 use std::env;
@@ -267,11 +270,12 @@ pub async fn get_server() -> Result<(), tonic::transport::Error> {
     let addr = "[::1]:8081".parse().unwrap();
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_pool = establish_connection(database_url);
     let grpc_service = GrpcService {
-        connection_service: ConnectionService::new(database_url.to_owned()),
-        source_service: SourceService::new(database_url.to_owned()),
-        endpoint_service: EndpointService::new(database_url.to_owned()),
-        app_service: AppService::new(database_url.to_owned()),
+        connection_service: ConnectionService::new(db_pool.to_owned()),
+        source_service: SourceService::new(db_pool.to_owned()),
+        endpoint_service: EndpointService::new(db_pool.to_owned()),
+        app_service: AppService::new(db_pool.to_owned()),
     };
     let server = DozerAdminServer::new(grpc_service);
     let server = tonic_web::config().allow_all_origins().enable(server);

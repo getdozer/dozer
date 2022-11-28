@@ -12,25 +12,25 @@ use dozer_types::serde;
 use schema::connections::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-#[derive(Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Default)]
 #[diesel(table_name = connections)]
 pub struct DbConnection {
-    id: String,
-    app_id: String,
-    auth: String,
-    name: String,
-    db_type: String,
-    created_at: String,
-    updated_at: String,
+    pub(crate) id: String,
+    pub(crate) app_id: String,
+    pub(crate) auth: String,
+    pub(crate) name: String,
+    pub(crate) db_type: String,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
 }
 #[derive(Insertable, AsChangeset, PartialEq, Debug, Serialize, Deserialize)]
 #[diesel(table_name = connections)]
 struct NewConnection {
-    auth: String,
-    app_id: String,
-    name: String,
-    db_type: String,
-    id: String,
+    pub(crate) auth: String,
+    pub(crate) app_id: String,
+    pub(crate) name: String,
+    pub(crate) db_type: String,
+    pub(crate) id: String,
 }
 
 impl TryFrom<DbConnection> for ConnectionInfo {

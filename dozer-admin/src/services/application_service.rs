@@ -1,8 +1,5 @@
 use crate::{
-    db::{
-        application::AppDbService,
-        pool::{establish_connection, DbPool},
-    },
+    db::{application::AppDbService, pool::DbPool},
     server::dozer_admin_grpc::{
         ApplicationInfo, CreateAppRequest, CreateAppResponse, ErrorResponse, ListAppRequest,
         ListAppResponse, Pagination, StartPipelineRequest, StartPipelineResponse, UpdateAppRequest,
@@ -16,10 +13,8 @@ pub struct AppService {
     db_pool: DbPool,
 }
 impl AppService {
-    pub fn new(database_url: String) -> Self {
-        Self {
-            db_pool: establish_connection(database_url),
-        }
+    pub fn new(db_pool: DbPool) -> Self {
+        Self { db_pool }
     }
 }
 impl AppService {

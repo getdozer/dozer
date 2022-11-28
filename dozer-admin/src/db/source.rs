@@ -15,18 +15,27 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 #[derive(
-    Queryable, Identifiable, Associations, PartialEq, Eq, Debug, Clone, Serialize, Deserialize,
+    Queryable,
+    Identifiable,
+    Associations,
+    PartialEq,
+    Eq,
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    Default,
 )]
 #[diesel(belongs_to(Application, foreign_key = app_id))]
 #[diesel(table_name = sources)]
 pub struct DBSource {
-    pub id: String,
-    pub app_id: String,
-    pub name: String,
-    pub table_name: String,
-    connection_id: String,
-    created_at: String,
-    updated_at: String,
+    pub(crate) id: String,
+    pub(crate) app_id: String,
+    pub(crate) name: String,
+    pub(crate) table_name: String,
+    pub(crate) connection_id: String,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
 }
 #[derive(Insertable, AsChangeset, PartialEq, Eq, Debug, Clone)]
 #[diesel(table_name = sources)]

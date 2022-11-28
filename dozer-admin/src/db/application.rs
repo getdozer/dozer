@@ -20,13 +20,13 @@ pub struct ApplicationDetail {
     pub sources_connections: Vec<(DBSource, DbConnection)>,
     pub endpoints: Vec<DbEndpoint>,
 }
-#[derive(Identifiable, Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Identifiable, Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Default)]
 #[diesel(table_name = apps)]
 pub struct Application {
-    pub id: String,
-    pub name: String,
-    created_at: String,
-    updated_at: String,
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
 }
 #[derive(Insertable, AsChangeset, PartialEq, Debug, Serialize, Deserialize)]
 #[diesel(table_name = apps)]

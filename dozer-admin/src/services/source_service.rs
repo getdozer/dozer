@@ -1,8 +1,5 @@
 use crate::{
-    db::{
-        persistable::Persistable,
-        pool::{establish_connection, DbPool},
-    },
+    db::{persistable::Persistable, pool::DbPool},
     server::dozer_admin_grpc::{
         create_source_request, update_source_request, ConnectionInfo, CreateSourceRequest,
         CreateSourceResponse, ErrorResponse, GetAllSourceRequest, GetAllSourceResponse,
@@ -14,10 +11,8 @@ pub struct SourceService {
     db_pool: DbPool,
 }
 impl SourceService {
-    pub fn new(database_url: String) -> Self {
-        Self {
-            db_pool: establish_connection(database_url),
-        }
+    pub fn new(db_pool: DbPool) -> Self {
+        Self { db_pool }
     }
 }
 impl SourceService {

@@ -59,7 +59,4 @@ create table source_endpoints (
     FOREIGN KEY(app_id) REFERENCES apps(id),
     FOREIGN KEY(endpoint_id) REFERENCES endpoints(id),
     FOREIGN KEY(source_id) REFERENCES sources(id)
-
-
-
 );
