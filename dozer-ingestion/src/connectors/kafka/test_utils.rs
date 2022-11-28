@@ -1,18 +1,31 @@
+#[cfg(feature = "kafka_test")]
 use crate::connectors::postgres::connection::helper::{connect, map_connection_config};
+#[cfg(feature = "kafka_test")]
 use crate::connectors::{get_connector, TableInfo};
+#[cfg(feature = "kafka_test")]
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+#[cfg(feature = "kafka_test")]
 use dozer_types::models::connection::Authentication;
 
+#[cfg(feature = "kafka_test")]
 use dozer_types::models::source::Source;
+#[cfg(feature = "kafka_test")]
 use dozer_types::parking_lot::RwLock;
+#[cfg(feature = "kafka_test")]
 use dozer_types::serde::{Deserialize, Serialize};
+#[cfg(feature = "kafka_test")]
 use postgres::Client;
 
+#[cfg(feature = "kafka_test")]
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
+#[cfg(feature = "kafka_test")]
 use std::sync::Arc;
+#[cfg(feature = "kafka_test")]
 use std::time::Duration;
+#[cfg(feature = "kafka_test")]
 use std::{fs, thread};
 
+#[cfg(feature = "kafka_test")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DebeziumTestConfig {
     pub source: Source,
@@ -20,12 +33,14 @@ pub struct DebeziumTestConfig {
     pub debezium_connector_url: String,
 }
 
+#[cfg(feature = "kafka_test")]
 pub fn load_config(config_path: String) -> Result<DebeziumTestConfig, serde_yaml::Error> {
     let contents = fs::read_to_string(config_path).unwrap();
 
     serde_yaml::from_str::<DebeziumTestConfig>(&contents)
 }
 
+#[cfg(feature = "kafka_test")]
 pub fn get_iterator_and_client(
     prefix: &str,
     table_name: String,

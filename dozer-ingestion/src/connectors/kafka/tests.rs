@@ -67,8 +67,7 @@ impl KafkaPostgres {
 fn connect_and_use_kafka_stream() {
     let start = SystemTime::now();
     let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
+        .duration_since(UNIX_EPOCH);
     let table_name = format!("products_test_{}", since_the_epoch.as_millis());
     let (iterator, client) = get_iterator_and_client("../", table_name.clone());
 
