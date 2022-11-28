@@ -74,6 +74,7 @@ jobs:
           KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
           KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
           KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
         with:
           from_file: "tests/connectors/debezium/register-postgres.test.sample.json"
           to_file: "tests/connectors/debezium/register-postgres.test.json"
@@ -206,6 +207,7 @@ jobs:
           KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
           KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
           KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
         with:
           from_file: "tests/connectors/debezium/register-postgres.test.sample.json"
           to_file: "tests/connectors/debezium/register-postgres.test.json"
