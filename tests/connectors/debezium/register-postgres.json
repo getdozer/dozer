@@ -3,7 +3,7 @@
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "tasks.max": "1",
-    "database.hostname": "postgres",
+    "database.hostname": "database-1.cxtwfj9nkwtu.ap-southeast-1.rds.amazonaws.com",
     "database.port": "5432",
     "database.user": "postgres",
     "database.password": "postgres",
