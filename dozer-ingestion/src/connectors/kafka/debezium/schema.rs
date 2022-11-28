@@ -92,3 +92,212 @@ pub fn map_schema<'a>(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::connectors::kafka::debezium::schema::{map_schema, map_type};
+    use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
+    use crate::errors::DebeziumSchemaError::SchemaDefinitionNotFound;
+    use crate::errors::DebeziumSchemaError::TypeNotSupported;
+    use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+
+    #[test]
+    fn test_it_fails_when_schema_empty() {
+        let schema = DebeziumSchemaStruct {
+            r#type: "empty".to_string(),
+            fields: None,
+            optional: false,
+            name: None,
+            field: None,
+            version: None,
+            parameters: None,
+        };
+
+        let key_schema = DebeziumSchemaStruct {
+            r#type: "before".to_string(),
+            fields: None,
+            optional: false,
+            name: None,
+            field: None,
+            version: None,
+            parameters: None,
+        };
+
+        let actual_error = map_schema(&schema, &key_schema).unwrap_err();
+        assert_eq!(actual_error, SchemaDefinitionNotFound);
+    }
+
+    #[test]
+    fn test_it_converts_schema() {
+        let schema = DebeziumSchemaStruct {
+            r#type: "empty".to_string(),
+            fields: Some(vec![DebeziumSchemaStruct {
+                r#type: "after".to_string(),
+                fields: Some(vec![
+                    DebeziumSchemaStruct {
+                        r#type: "int32".to_string(),
+                        fields: None,
+                        optional: false,
+                        name: None,
+                        field: Some("id".to_string()),
+                        version: None,
+                        parameters: None,
+                    },
+                    DebeziumSchemaStruct {
+                        r#type: "string".to_string(),
+                        fields: None,
+                        optional: true,
+                        name: None,
+                        field: Some("name".to_string()),
+                        version: None,
+                        parameters: None,
+                    },
+                ]),
+                optional: false,
+                name: None,
+                field: Some("after".to_string()),
+                version: None,
+                parameters: None,
+            }]),
+            optional: false,
+            name: None,
+            field: Some("struct".to_string()),
+            version: None,
+            parameters: None,
+        };
+
+        let key_schema = DebeziumSchemaStruct {
+            r#type: "-".to_string(),
+            fields: Some(vec![DebeziumSchemaStruct {
+                r#type: "int32".to_string(),
+                fields: None,
+                optional: false,
+                name: None,
+                field: Some("id".to_string()),
+                version: None,
+                parameters: None,
+            }]),
+            optional: false,
+            name: None,
+            field: None,
+            version: None,
+            parameters: None,
+        };
+
+        let (schema, _) = map_schema(&schema, &key_schema).unwrap();
+        let expected_schema = Schema {
+            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    typ: FieldType::Int,
+                    nullable: false,
+                },
+                FieldDefinition {
+                    name: "name".to_string(),
+                    typ: FieldType::String,
+                    nullable: true,
+                },
+            ],
+            values: vec![],
+            primary_index: vec![0],
+        };
+        assert_eq!(schema, expected_schema);
+    }
+
+    #[test]
+    fn test_it_converts_empty_schema() {
+        let schema = DebeziumSchemaStruct {
+            r#type: "empty".to_string(),
+            fields: Some(vec![DebeziumSchemaStruct {
+                r#type: "after".to_string(),
+                fields: None,
+                optional: false,
+                name: None,
+                field: Some("after".to_string()),
+                version: None,
+                parameters: None,
+            }]),
+            optional: false,
+            name: None,
+            field: Some("struct".to_string()),
+            version: None,
+            parameters: None,
+        };
+
+        let key_schema = DebeziumSchemaStruct {
+            r#type: "-".to_string(),
+            fields: Some(vec![]),
+            optional: false,
+            name: None,
+            field: None,
+            version: None,
+            parameters: None,
+        };
+
+        let (schema, _) = map_schema(&schema, &key_schema).unwrap();
+        let expected_schema = Schema {
+            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+            fields: vec![],
+            values: vec![],
+            primary_index: vec![],
+        };
+        assert_eq!(schema, expected_schema);
+    }
+
+    macro_rules! test_map_type {
+        ($a:expr,$b:expr,$c:expr) => {
+            let schema = DebeziumSchemaStruct {
+                r#type: $a.to_string(),
+                fields: None,
+                optional: false,
+                name: $b,
+                field: None,
+                version: None,
+                parameters: None,
+            };
+
+            let typ = map_type(&schema);
+            assert_eq!(typ, $c);
+        };
+    }
+
+    #[test]
+    fn test_map_type() {
+        test_map_type!("int8", None, Ok(FieldType::Int));
+        test_map_type!("string", None, Ok(FieldType::String));
+        test_map_type!("bytes", None, Ok(FieldType::Binary));
+        test_map_type!("float32", None, Ok(FieldType::Float));
+        test_map_type!("boolean", None, Ok(FieldType::Boolean));
+        test_map_type!(
+            "not found",
+            None,
+            Err(TypeNotSupported("not found".to_string()))
+        );
+        test_map_type!(
+            "int8",
+            Some("io.debezium.time.MicroTime".to_string()),
+            Ok(FieldType::Timestamp)
+        );
+        test_map_type!(
+            "int8",
+            Some("io.debezium.time.Date".to_string()),
+            Ok(FieldType::Date)
+        );
+        test_map_type!(
+            "int8",
+            Some("org.apache.kafka.connect.data.Decimal".to_string()),
+            Ok(FieldType::Decimal)
+        );
+        test_map_type!(
+            "string",
+            Some("io.debezium.data.Json".to_string()),
+            Ok(FieldType::Bson)
+        );
+        test_map_type!(
+            "string",
+            Some("not existing".to_string()),
+            Err(TypeNotSupported("not existing".to_string()))
+        );
+    }
+}

@@ -39,7 +39,7 @@ pub struct DebeziumField {
     pub field: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumSchemaParameters {
     pub scale: Option<String>,
@@ -47,7 +47,7 @@ pub struct DebeziumSchemaParameters {
     pub precision: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumSchemaStruct {
     pub r#type: String,
@@ -64,6 +64,7 @@ pub struct DebeziumSchemaStruct {
 pub struct DebeziumPayload {
     pub before: Option<Value>,
     pub after: Option<Value>,
+    pub op: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -93,7 +94,11 @@ impl StreamConsumer for DebeziumStreamConsumer {
             if !mss.is_empty() {
                 for ms in mss.iter() {
                     for m in ms.messages() {
-                        let value_struct: DebeziumMessage = serde_json::from_str(
+                        if m.value.is_empty() {
+                            continue;
+                        }
+
+                        let mut value_struct: DebeziumMessage = serde_json::from_str(
                             std::str::from_utf8(m.value).map_err(BytesConvertError)?,
                         )
                         .map_err(JsonDecodeError)?;
@@ -114,6 +119,14 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 IngestionMessage::Schema(table_name.clone(), schema.clone()),
                             ))
                             .map_err(ConnectorError::IngestorError)?;
+
+                        // When update happens before is null.
+                        // If PK value changes, then debezium creates two events - delete and insert
+                        if value_struct.payload.before.is_none()
+                            && value_struct.payload.op == Some("u".to_string())
+                        {
+                            value_struct.payload.before = value_struct.payload.after.clone();
+                        }
 
                         match (value_struct.payload.after, value_struct.payload.before) {
                             (Some(new_payload), Some(old_payload)) => {

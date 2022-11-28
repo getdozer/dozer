@@ -1,13 +1,8 @@
 #[cfg(feature = "kafka_test")]
 use criterion::Criterion;
+
 #[cfg(feature = "kafka_test")]
-use dozer_ingestion::connectors::kafka::test_utils::load_config;
-#[cfg(feature = "kafka_test")]
-use dozer_ingestion::connectors::postgres::connection::helper::{connect, map_connection_config};
-#[cfg(feature = "kafka_test")]
-use dozer_ingestion::connectors::{get_connector, TableInfo};
-#[cfg(feature = "kafka_test")]
-use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+use dozer_ingestion::ingestion::IngestionIterator;
 #[cfg(feature = "kafka_test")]
 use dozer_types::ingestion_types::IngestionOperation;
 
@@ -20,15 +15,15 @@ use dozer_types::rust_decimal::Decimal;
 use postgres::Client;
 
 #[cfg(feature = "kafka_test")]
-use reqwest::header::{ACCEPT, CONTENT_TYPE};
-#[cfg(feature = "kafka_test")]
 use std::fmt::Write;
 #[cfg(feature = "kafka_test")]
 use std::sync::Arc;
-#[cfg(feature = "kafka_test")]
-use std::thread;
+
 #[cfg(feature = "kafka_test")]
 use std::time::{Duration, Instant};
+
+#[cfg(feature = "kafka_test")]
+use dozer_ingestion::connectors::kafka::test_utils::get_iterator_and_client;
 
 #[cfg(feature = "kafka_test")]
 struct DebeziumBench {
@@ -94,69 +89,7 @@ impl DebeziumBench {
 
 #[cfg(feature = "kafka_test")]
 pub fn main() {
-    let config = load_config("./config/test.debezium.yaml".to_string()).unwrap();
-
-    let source = config.source;
-    let postgres_config = map_connection_config(&config.postgres_source_authentication).unwrap();
-
-    let mut client = connect(postgres_config).unwrap();
-
-    let connector_client = reqwest::blocking::Client::new();
-
-    connector_client
-        .delete(format!(
-            "{}{}",
-            config.debezium_connector_url, "dozer-postgres-connector"
-        ))
-        .send()
-        .unwrap()
-        .text()
-        .unwrap();
-
-    client
-        .query("DROP TABLE IF EXISTS products_test", &[])
-        .unwrap();
-
-    client
-        .query(
-            "CREATE TABLE products_test
-(
-    id          SERIAL
-        PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description VARCHAR(512),
-    weight      DOUBLE PRECISION
-);",
-            &[],
-        )
-        .unwrap();
-
-    let content =
-        std::fs::read_to_string("./tests/connectors/debezium/register-postgres.test.json").unwrap();
-
-    connector_client
-        .post(&config.debezium_connector_url)
-        .body(content)
-        .header(CONTENT_TYPE, "application/json")
-        .header(ACCEPT, "application/json")
-        .send()
-        .unwrap()
-        .text()
-        .unwrap();
-
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-    thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![TableInfo {
-            name: source.table_name.clone(),
-            id: 0,
-            columns: None,
-        }];
-
-        let mut connector = get_connector(source.connection).unwrap();
-        connector.initialize(ingestor, Some(tables)).unwrap();
-        let _ = connector.start();
-    });
+    let (iterator, client) = get_iterator_and_client("", "products_test".to_string());
 
     let mut criterion = Criterion::default().configure_from_args();
     let mut bench = DebeziumBench::new(client);

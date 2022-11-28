@@ -141,7 +141,6 @@ mod tests {
     use crate::errors::DebeziumSchemaError::TypeNotSupported;
     use dozer_types::chrono::{NaiveDate, NaiveDateTime};
     use dozer_types::rust_decimal;
-    use dozer_types::serde_json::map::Values;
     use dozer_types::serde_json::{Map, Value};
     use dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
     use std::collections::HashMap;
