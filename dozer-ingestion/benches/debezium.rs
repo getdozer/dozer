@@ -106,6 +106,7 @@ pub fn main() {
 
     let connector_client = reqwest::blocking::Client::new();
 
+    eprintln!("DEBEZIUM CONNECTOR URL: {:?}", config.debezium_connector_url);
     let z = connector_client.delete(format!("{}{}", config.debezium_connector_url, "inventory-connector-test-9".to_string()))
         .send()
         .unwrap()
