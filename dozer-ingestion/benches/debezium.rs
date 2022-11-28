@@ -136,6 +136,18 @@ pub fn main() {
 
     let x = connector_client
         .post(&config.debezium_connector_url)
+        .body(content.clone())
+        .header(CONTENT_TYPE, "application/json")
+        .header(ACCEPT, "application/json")
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
+
+    eprintln!("X: {:?}", x);
+
+    let d = connector_client
+        .post(format!("{}connector-plugins/postgres/config/validate",&config.debezium_connector_url))
         .body(content)
         .header(CONTENT_TYPE, "application/json")
         .header(ACCEPT, "application/json")
