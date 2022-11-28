@@ -9,6 +9,7 @@
     "database.user": "${KAFKA_POSTGRES_USER}",
     "database.password": "${KAFKA_POSTGRES_PASSWORD}",
     "database.dbname": "${KAFKA_POSTGRES_DATABASE}",
+    "database.server.name": "dbserver1",
     "topic.prefix": "dbserver1",
     "schema.include.list": "${KAFKA_POSTGRES_SCHEMA}"
   }
