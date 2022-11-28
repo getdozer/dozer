@@ -106,12 +106,14 @@ pub fn main() {
 
     let connector_client = reqwest::blocking::Client::new();
 
-    connector_client.delete(format!("{}{}", config.debezium_connector_url, "inventory-connector-test-9".to_string()))
+    let z = connector_client.delete(format!("{}{}", config.debezium_connector_url, "inventory-connector-test-9".to_string()))
         .send()
         .unwrap()
         .text()
         .unwrap();
 
+
+    eprintln!("Z: {:?}", z);
     client.query("DROP TABLE IF EXISTS products_test", &[]).unwrap();
 
     client
@@ -129,9 +131,9 @@ pub fn main() {
         .unwrap();
 
     let content =
-        std::fs::read_to_string("./tests/connectors/debezium/register-postgres.test.sample.json").unwrap();
+        std::fs::read_to_string("./tests/connectors/debezium/register-postgres.test.json").unwrap();
 
-    connector_client
+    let x = connector_client
         .post(&config.debezium_connector_url)
         .body(content)
         .header(CONTENT_TYPE, "application/json")
@@ -141,6 +143,7 @@ pub fn main() {
         .text()
         .unwrap();
 
+    eprintln!("X: {:?}", x);
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
     thread::spawn(move || {
