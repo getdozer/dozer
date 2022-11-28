@@ -46,12 +46,12 @@ jobs:
           to_file: "config/dozer-config.test.snowflake.yaml"
           commit: "false"
 
-      - name: "DEBUG secrets"
-        run: echo ${{secrets.YOUR_SECRET }} | sed 's/./& /g'
 
       - uses: franzbischoff/replace_envs@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
           KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
           KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
           KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
@@ -59,8 +59,6 @@ jobs:
           KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
           KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
           DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
-          DEBEZIUM_KAFKA_HOST: ${{ secrets.DEBEZIUM_KAFKA_HOST }}
-          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
         with:
           from_file: "config/test.debezium.sample.yaml"
           to_file: "config/test.debezium.yaml"
@@ -184,6 +182,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
           DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
           KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
           KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
