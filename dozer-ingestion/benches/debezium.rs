@@ -109,7 +109,7 @@ pub fn main() {
         .delete(format!(
             "{}{}",
             config.debezium_connector_url,
-            "dozer-postgres-connector".to_string()
+            "dozer-postgres-connector"
         ))
         .send()
         .unwrap()
@@ -139,7 +139,7 @@ pub fn main() {
 
     connector_client
         .post(&config.debezium_connector_url)
-        .body(content.clone())
+        .body(content)
         .header(CONTENT_TYPE, "application/json")
         .header(ACCEPT, "application/json")
         .send()
