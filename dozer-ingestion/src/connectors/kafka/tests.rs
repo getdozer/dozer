@@ -90,7 +90,6 @@ fn connect_and_use_kafka_stream() {
                     match ev.operation {
                         Operation::Insert { .. } => {
                             if i > 10 {
-                                eprintln!("{}", i);
                                 panic!("Unexpected operation");
                             }
                         }
