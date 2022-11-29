@@ -49,6 +49,7 @@ mod grpc_service {
             .unwrap();
         assert_eq!(result.data.unwrap().name, request.name);
     }
+
     #[tokio::test]
     pub async fn validate_eth_connection() {
         let test_db_connection = database_url_for_test_env();
@@ -68,6 +69,6 @@ mod grpc_service {
                 }),
             }).
             await.unwrap();
-        assert_eq!(result.success, true);
+        assert!(result.success);
     }
 }
