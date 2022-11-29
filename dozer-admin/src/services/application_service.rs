@@ -121,7 +121,8 @@ impl AppService {
                 .unwrap();
         }
 
-        let _execute_cli_output = Command::new("./target/debug/dozer")
+        let path_to_bin = concat!(env!("OUT_DIR"), "/dozer");
+        let _execute_cli_output = Command::new(path_to_bin)
             .arg("-c")
             .arg(yaml_path.as_path().to_str().unwrap())
             .stdout(Stdio::from(dozer_log_file))
