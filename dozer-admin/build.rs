@@ -13,8 +13,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     // build dozer-orchestrator
     //cargo +nightly build -Z unstable-options --manifest-path=../dozer-orchestrator/Cargo.toml --release --bin dozer --out-dir dozer-admin/dozer-bin
-    let status = Command::new("cargo")
-        .args(&[
+    let orchestrator_cli = Command::new("cargo")
+        .args([
             "+nightly",
             "build",
             "-Z",
@@ -28,10 +28,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ])
         .status()
         .unwrap();
-    if !status.success() {
+    if !orchestrator_cli.success() {
         panic!("Cannot build dozer-orchestrator cli");
     }
 
-    // run db migration
+    // run reset db and run migration
+    Command::new("diesel")
+        .args(["database", "reset"])
+        .status()
+        .unwrap();
     Ok(())
 }

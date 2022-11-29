@@ -26,3 +26,4 @@ logs/
 register-postgres.test.json
 test.debezium.yaml
 test.snowflake.yaml
+dozer-admin/dozer.db
