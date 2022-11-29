@@ -28,7 +28,7 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: .github/workflows/setup-snowflake-and-kafka.yaml
+      - uses: ./.github/workflows/setup-snowflake-and-kafka.yaml
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SNOWFLAKE_SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
