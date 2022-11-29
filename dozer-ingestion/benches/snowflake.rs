@@ -45,7 +45,7 @@ fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
 
 #[cfg(feature = "snowflake")]
 pub fn main() {
-    let source = load_config("./dozer-config.test.snowflake.yaml".to_string()).unwrap();
+    let source = load_config("./config/dozer-config.test.snowflake.yaml".to_string()).unwrap();
 
     remove_streams(source.connection.clone(), &source.table_name).unwrap();
 
