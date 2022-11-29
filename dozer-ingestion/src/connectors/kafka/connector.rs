@@ -42,11 +42,6 @@ impl Connector for KafkaConnector {
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        // Ok(vec![TableInfo {
-        //     name: "log".to_string(),
-        //     id: 1,
-        //     columns: Some(helper::get_columns()),
-        // }])
         Ok(vec![])
     }
 

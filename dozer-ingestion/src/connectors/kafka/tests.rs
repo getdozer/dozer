@@ -80,31 +80,25 @@ fn connect_and_use_kafka_stream() {
     while i < 30 {
         let op = iterator.write().next();
 
-        match op {
-            None => {}
-            Some((_, ingestion_operation)) => match ingestion_operation {
-                IngestionOperation::OperationEvent(ev) => {
-                    i += 1;
-                    match ev.operation {
-                        Operation::Insert { .. } => {
-                            if i > 10 {
-                                panic!("Unexpected operation");
-                            }
-                        }
-                        Operation::Delete { .. } => {
-                            if i < 21 {
-                                panic!("Unexpected operation");
-                            }
-                        }
-                        Operation::Update { .. } => {
-                            if !(11..=20).contains(&i) {
-                                panic!("Unexpected operation");
-                            }
-                        }
+        if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
+            i += 1;
+            match ev.operation {
+                Operation::Insert { .. } => {
+                    if i > 10 {
+                        panic!("Unexpected operation");
                     }
                 }
-                _ => {}
-            },
+                Operation::Delete { .. } => {
+                    if i < 21 {
+                        panic!("Unexpected operation");
+                    }
+                }
+                Operation::Update { .. } => {
+                    if !(11..=20).contains(&i) {
+                        panic!("Unexpected operation");
+                    }
+                }
+            }
         }
     }
 
