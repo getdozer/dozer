@@ -1,0 +1,21 @@
+storage_path: null
+sources:
+  - name: all_events
+    table_name: dbserver1.inventory.customers
+    connection:
+      db_type: Kafka
+      authentication: !KafkaAuthentication
+        broker: localhost:9092
+        topic: dbserver1.inventory.customers
+      name: all_events
+    history_type: null
+    refresh_config: RealTime
+endpoints:
+  - name: customers
+    path: /customers
+    enable_rest: false
+    enable_grpc: true
+    sql: select id, first_tame from customers;
+    index:
+      primary_key:
+        - id

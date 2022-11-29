@@ -171,6 +171,7 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 warehouse,
             }),
             models::connection::Authentication::Events {} => todo!(),
+            _ => todo!(),
         };
         Ok(dozer_admin_grpc::Authentication {
             authentication: Some(authentication_value),
@@ -293,6 +294,12 @@ mod test {
                 db_type: "snowflake".to_owned(),
                 ..Default::default()
             },
+            DBType::Kafka => DbConnection {
+                auth: r#"{"authentication":{"Kafka":{"broker":"localhost:9092","topic":"dbserver1.public.products"}}}"#.to_owned(),
+                name: "kafka_debezium_connection".to_owned(),
+                db_type: "kafka".to_owned(),
+                ..Default::default()
+            }
         }
     }
 
