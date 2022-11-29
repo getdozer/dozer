@@ -7,13 +7,13 @@ use dozer_types::types::{Field, FieldType};
 pub struct IntegerSumAggregator {}
 
 impl IntegerSumAggregator {
-    const _AGGREGATOR_ID: u8 = 0x01;
+    const _AGGREGATOR_ID: u32 = 0x01;
 
     pub(crate) fn get_return_type() -> FieldType {
         FieldType::Int
     }
 
-    pub(crate) fn _get_type() -> u8 {
+    pub(crate) fn _get_type() -> u32 {
         IntegerSumAggregator::_AGGREGATOR_ID
     }
 
@@ -83,13 +83,13 @@ impl IntegerSumAggregator {
 pub struct FloatSumAggregator {}
 
 impl FloatSumAggregator {
-    const _AGGREGATOR_ID: u8 = 0x01;
+    const _AGGREGATOR_ID: u32 = 0x01;
 
     pub(crate) fn get_return_type() -> FieldType {
         FieldType::Float
     }
 
-    pub(crate) fn _get_type() -> u8 {
+    pub(crate) fn _get_type() -> u32 {
         FloatSumAggregator::_AGGREGATOR_ID
     }
 

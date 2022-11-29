@@ -16,6 +16,7 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::ExpressionBuilder;
@@ -192,6 +193,7 @@ impl AggregationProcessor {
             Expression::AggregateFunction { fun, args } => {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
+                    (AggregateFunctionType::Avg, _) => Ok(Aggregator::Avg),
                     (AggregateFunctionType::Sum, FieldType::Int) => Ok(Aggregator::IntegerSum),
                     (AggregateFunctionType::Sum, FieldType::Float) => Ok(Aggregator::FloatSum),
                     (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
@@ -309,12 +311,16 @@ impl AggregationProcessor {
         out_rec_delete: &mut Record,
         out_rec_insert: &mut Record,
         op: AggregatorOperation,
+        curr_count: u64,
+        txn: &mut dyn RwTransaction,
+        db: &Database,
     ) -> Result<Vec<u8>, PipelineError> {
         // array holding the list of states for all measures
         let mut next_state = Vec::<u8>::new();
         let mut offset: usize = 0;
 
         for measure in &self.out_measures {
+            let ptx = PrefixTransaction::new(txn, Aggregator::get_type(measure.1.as_ref()));
             let curr_state_slice = match curr_state {
                 Some(ref e) => {
                     // Read the 2-byte len header
@@ -329,27 +335,43 @@ impl AggregationProcessor {
                 None => None,
             };
 
-            if let Some(e) = curr_state_slice {
-                // pass the current payload to teh processor to extract the value
-                let curr_value = measure.1.get_value(e);
-                // set the value for the old record
-                out_rec_delete.set_value(measure.2, curr_value);
-            }
+            let agg_type;
 
-            // Let the aggregator calculate the new value based on teh performed operation
+            // Let the aggregator calculate the new value based on the performed operation
             let next_state_slice = match op {
                 AggregatorOperation::Insert => {
                     let field = inserted_record.unwrap().get_value(measure.0)?;
-                    measure.1.insert(curr_state_slice, field)?
+                    agg_type = field.get_type()?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, agg_type);
+                        // set the value for the old record
+                        out_rec_insert.set_value(measure.2, curr_value);
+                    }
+                    measure.1.insert(curr_state_slice, field, curr_count, ptx, db)?
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
-                    measure.1.delete(curr_state_slice, field)?
+                    agg_type = field.get_type()?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, agg_type);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
+                    measure.1.delete(curr_state_slice, field, curr_count, ptx, db)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
                     let new = inserted_record.unwrap().get_value(measure.0)?;
-                    measure.1.update(curr_state_slice, old, new)?
+                    agg_type = old.get_type()?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, agg_type);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
+                    measure.1.update(curr_state_slice, old, new, curr_count, ptx, db)?
                 }
             };
 
@@ -358,7 +380,7 @@ impl AggregationProcessor {
             offset += next_state_slice.len() + 2;
 
             if !next_state_slice.is_empty() {
-                let next_value = measure.1.get_value(next_state_slice.as_slice());
+                let next_value = measure.1.get_value(next_state_slice.as_slice(), agg_type);
                 next_state.extend(next_state_slice);
                 out_rec_insert.set_value(measure.2, next_value);
             } else {
@@ -426,6 +448,9 @@ impl AggregationProcessor {
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Delete,
+            prev_count,
+            txn,
+            db,
         )?;
 
         let res = if prev_count == 1 {
@@ -468,7 +493,7 @@ impl AggregationProcessor {
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
-        self.update_segment_count(txn, db, record_count_key, 1, false)?;
+        let curr_count = self.update_segment_count(txn, db, record_count_key, 1, false)?;
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
@@ -478,6 +503,9 @@ impl AggregationProcessor {
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Insert,
+            curr_count,
+            txn,
+            db,
         )?;
 
         let res = if curr_state.is_none() {
@@ -511,6 +539,9 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
+        let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
+        let curr_count = self.update_segment_count(txn, db, record_count_key, 1, true)?;
+
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             &curr_state,
@@ -519,6 +550,9 @@ impl AggregationProcessor {
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Update,
+            curr_count,
+            txn,
+            db,
         )?;
 
         self.fill_dimensions(new, &mut out_rec_insert)?;
