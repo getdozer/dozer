@@ -24,15 +24,11 @@ enum Type {
   String = 4;
   Text = 5;   // convert as string
   Binary = 6; // convert as bytes
-  UIntArray = 7;
-  IntArray = 8;
-  FloatArray = 9;
-  BooleanArray = 10;
-  StringArray = 11;
-  Decimal = 12;
-  Timestamp = 13;
-  Bson = 14;
-  Null = 15;
+  Decimal = 7;
+  Timestamp = 8;
+  Date = 9;
+  Bson = 10;
+  Null = 11;
 }
 message SchemaEvent {
   string endpoint = 1;

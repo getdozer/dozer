@@ -1,16 +1,17 @@
 use super::{
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
-    dynamic::util::{create_descriptor_set, read_file_as_byte},
     internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
+    typed::{
+        utils::{create_descriptor_set, get_proto_descriptor, read_file_as_byte},
+        TypedService,
+    },
     types::SchemaEvent,
 };
 use crate::{
-    errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
-    CacheEndpoint, PipelineDetails,
+    errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
 use futures_util::FutureExt;
-use heck::ToUpperCamelCase;
 use std::{
     collections::HashMap,
     fs,
@@ -56,20 +57,15 @@ impl ApiServer {
         pipeline_map: HashMap<String, PipelineDetails>,
         rx1: broadcast::Receiver<PipelineRequest>,
         _running: Arc<AtomicBool>,
-    ) -> Result<
-        (
-            DynamicService,
-            ServerReflectionServer<impl ServerReflection>,
-        ),
-        GRPCError,
-    > {
-        let mut schemas: HashMap<String, SchemaEvent> = HashMap::new();
+    ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
+        let mut schema_map: HashMap<String, SchemaEvent> = HashMap::new();
         // wait until all schemas are initalized
-        while schemas.len() < pipeline_map.len() {
-            if let Ok(event) = self.event_notifier.recv() {
+        while schema_map.len() < pipeline_map.len() {
+            let event = self.event_notifier.clone().recv();
+            if let Ok(event) = event {
                 let api_event = event.api_event;
                 if let Some(ApiEvent::Schema(schema)) = api_event {
-                    schemas.insert(event.endpoint, schema);
+                    schema_map.insert(event.endpoint, schema);
                 }
             }
         }
@@ -82,7 +78,7 @@ impl ApiServer {
         let tempdir_path = String::from(tmp_dir.to_str().unwrap());
 
         let proto_generator = ProtoGenerator::new(pipeline_map.to_owned())?;
-        let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
+        let _generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
 
         let descriptor_path = create_descriptor_set(&tempdir_path, "generated.proto")
             .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
@@ -93,25 +89,11 @@ impl ApiServer {
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(vec_byte.as_slice())
             .build()?;
-        let mut pipeline_hashmap: HashMap<String, PipelineDetails> = HashMap::new();
-        for (_, pipeline_details) in pipeline_map.iter() {
-            pipeline_hashmap.insert(
-                format!(
-                    "Dozer.{}Service",
-                    pipeline_details.schema_name.to_upper_camel_case()
-                ),
-                pipeline_details.to_owned(),
-            );
-        }
 
+        let desc = get_proto_descriptor(descriptor_path).unwrap();
         // Service handling dynamic gRPC requests.
-        let grpc_service = DynamicService::new(
-            descriptor_path,
-            generated_proto.1,
-            pipeline_hashmap,
-            rx1.resubscribe(),
-        );
-        Ok((grpc_service, inflection_service))
+        let typed_service = TypedService::new(desc, pipeline_map, schema_map, rx1.resubscribe());
+        Ok((typed_service, inflection_service))
     }
 
     pub async fn run(

@@ -4,7 +4,7 @@ use dozer_types::{
     models::api_endpoint::ApiEndpoint,
     serde::{self, Deserialize, Serialize},
 };
-use heck::{ToPascalCase, ToUpperCamelCase};
+use inflector::Inflector;
 use std::fmt::Write;
 use std::{collections::HashMap, vec};
 
@@ -138,7 +138,7 @@ impl ProtoService {
                 let _ = writeln!(
                     result,
                     "  {}Expression {} = {}; ",
-                    proto_type.to_upper_camel_case(),
+                    proto_type.to_pascal_case(),
                     Self::safe_name(&field.name),
                     idx + 1
                 );
@@ -150,11 +150,11 @@ impl ProtoService {
         props_array.push("}\n".to_owned());
         props_array.push(format!(
             "repeated {}FilterExpression and = 5;\n",
-            self.schema_name.to_upper_camel_case()
+            self.schema_name.to_pascal_case()
         ));
 
         RPCMessage {
-            name: format!("{}FilterExpression", self.schema_name.to_upper_camel_case()),
+            name: format!("{}FilterExpression", self.schema_name.to_pascal_case()),
             props: props_array,
         }
     }
@@ -183,7 +183,7 @@ impl ProtoService {
                 props_array.insert(0, "oneof exp {\n".to_owned());
                 props_array.push("}\n".to_owned());
                 RPCMessage {
-                    name: format!("{}Expression", type_name.to_upper_camel_case()),
+                    name: format!("{}Expression", type_name.to_pascal_case()),
                     props: props_array,
                 }
             })
@@ -210,7 +210,7 @@ impl ProtoService {
             props: vec![
                 format!(
                     "optional {}FilterExpression filter = 1; \n",
-                    self.schema_name.to_upper_camel_case()
+                    self.schema_name.to_pascal_case()
                 ),
                 "repeated SortOptions order_by = 2; \n".to_owned(),
                 "optional uint32 limit = 3; \n".to_owned(),
