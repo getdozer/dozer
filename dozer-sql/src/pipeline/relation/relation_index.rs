@@ -3,7 +3,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::node::PortHandle;
 use dozer_core::storage::errors::StorageError::SerializationError;
-use dozer_core::storage::indexed_db::IndexedDatabase;
+use dozer_core::storage::indexed_transaction::IndexedDatabase;
 use dozer_types::types::{Field, Operation, Record};
 
 pub struct RelationIndex {
