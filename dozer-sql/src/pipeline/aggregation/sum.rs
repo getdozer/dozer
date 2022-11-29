@@ -13,7 +13,7 @@ impl SumAggregator {
         match from {
             FieldType::Int => FieldType::Int,
             FieldType::Float => FieldType::Float,
-            _ => from
+            _ => from,
         }
     }
 
@@ -37,7 +37,7 @@ impl SumAggregator {
                 };
 
                 Ok(Vec::from((prev + *curr).to_ne_bytes()))
-            },
+            }
             Float(_f) => {
                 let prev = OrderedFloat(match curr_state {
                     Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
@@ -52,8 +52,8 @@ impl SumAggregator {
                 };
 
                 Ok(Vec::from((prev + *curr).to_ne_bytes()))
-            },
-            _ => Err(InvalidOperandType("SUM".to_string()))
+            }
+            _ => Err(InvalidOperandType("SUM".to_string())),
         }
     }
 
@@ -83,7 +83,7 @@ impl SumAggregator {
                 };
 
                 Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
-            },
+            }
             Float(_f) => {
                 let prev = OrderedFloat(match curr_state {
                     Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
@@ -104,8 +104,8 @@ impl SumAggregator {
                 };
 
                 Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
-            },
-            _ => Err(InvalidOperandType("SUM".to_string()))
+            }
+            _ => Err(InvalidOperandType("SUM".to_string())),
         }
     }
 
@@ -125,7 +125,7 @@ impl SumAggregator {
                 };
 
                 Ok(Vec::from((prev - *curr).to_ne_bytes()))
-            },
+            }
             Float(_f) => {
                 let prev = OrderedFloat(match curr_state {
                     Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
@@ -140,8 +140,8 @@ impl SumAggregator {
                 };
 
                 Ok(Vec::from((prev - *curr).to_ne_bytes()))
-            },
-            _ => Err(InvalidOperandType("SUM".to_string()))
+            }
+            _ => Err(InvalidOperandType("SUM".to_string())),
         }
     }
 
@@ -149,7 +149,7 @@ impl SumAggregator {
         match from {
             FieldType::Int => Int(i64::from_ne_bytes(f.try_into().unwrap())),
             FieldType::Float => Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap()))),
-            _ => Field::Null
+            _ => Field::Null,
         }
     }
 }
