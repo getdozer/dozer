@@ -1,0 +1,60 @@
+name: Setup snowflake and kafka (debezium)
+
+on:
+  workflow_call:
+
+jobs:
+  setup:
+    name: Setup snowflake and kafka (debezium)
+    steps:
+      - name: Install Snowflake ODBC driver
+        run: curl ${SNOWFLAKE_DRIVER_URL} -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
+        env:
+          SNOWFLAKE_DRIVER_URL: https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb
+
+      - uses: franzbischoff/replace_envs@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
+          USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+        with:
+          from_file: "config/test.snowflake.sample.yaml"
+          to_file: "config/dozer-config.test.snowflake.yaml"
+          commit: "false"
+
+      - uses: franzbischoff/replace_envs@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
+          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
+          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
+          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
+          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
+        with:
+          from_file: "config/test.debezium.sample.yaml"
+          to_file: "config/test.debezium.yaml"
+          commit: "false"
+
+      - uses: franzbischoff/replace_envs@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
+          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
+          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
+          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
+          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
+        with:
+          from_file: "tests/connectors/debezium/register-postgres.test.sample.json"
+          to_file: "tests/connectors/debezium/register-postgres.test.json"
+          commit: "false"
