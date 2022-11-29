@@ -144,6 +144,8 @@ impl ConnectionService {
     ) -> Result<TestConnectionResponse, ErrorResponse> {
         let db_type_value = match input.r#type {
             0 => models::connection::DBType::Postgres,
+            2 => models::connection::DBType::Events,
+            3 => models::connection::DBType::Snowflake,
             _ => models::connection::DBType::Ethereum,
         };
         let auth_input =

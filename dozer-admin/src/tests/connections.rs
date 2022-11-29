@@ -1,8 +1,9 @@
 #[cfg(test)]
 mod grpc_service {
     use crate::server::dozer_admin_grpc::{
-        authentication, Authentication, EthereumAuthentication, GetAllConnectionRequest,
-        GetAllConnectionResponse, TestConnectionRequest, TestConnectionResponse,
+        authentication, Authentication, CreateConnectionRequest, CreateConnectionResponse,
+        EthereumAuthentication, GetAllConnectionRequest, GetAllConnectionResponse,
+        ValidateConnectionRequest, ValidateConnectionResponse,
     };
     use crate::services::connection_service::ConnectionService;
     use crate::tests::util_sqlite_setup::database_url_for_test_env;
@@ -23,26 +24,50 @@ mod grpc_service {
         assert_eq!(result.data.len(), 1);
         assert_eq!(result.data[0].id, setup_ids.connection_ids[0]);
     }
+
     #[test]
-    pub fn test_eth_connection() {
+    pub fn create() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
         let setup_ids = get_setup_ids();
         let connection_service = ConnectionService::new(db_pool);
-        let result: TestConnectionResponse = connection_service
-            .test_connection(TestConnectionRequest {
-                name: "test_connection",
+        let request = CreateConnectionRequest {
+            app_id: setup_ids.app_id,
+            name: "connection_name".to_owned(),
+            r#type: 0,
+            authentication: Some(Authentication {
+                authentication: Some(authentication::Authentication::Ethereum(
+                    EthereumAuthentication {
+                        wss_url: "wss://skilled-patient-shadow.discover.quiknode.pro/c25accd8a73bb9f42cab0e9815349cc191954b95/".to_owned(),
+                        filter: None,
+                    },
+                )),
+            }),
+        };
+        let result: CreateConnectionResponse = connection_service
+            .create_connection(request.to_owned())
+            .unwrap();
+        assert_eq!(result.data.unwrap().name, request.name);
+    }
+    #[tokio::test]
+    pub async fn validate_eth_connection() {
+        let test_db_connection = database_url_for_test_env();
+        let db_pool = establish_test_connection(test_db_connection);
+        let connection_service = ConnectionService::new(db_pool);
+        let result: ValidateConnectionResponse = connection_service
+            .validate_connection(ValidateConnectionRequest {
+                name: "test_connection".to_owned(),
                 r#type: 3,
                 authentication: Some(Authentication {
                     authentication: Some(authentication::Authentication::Ethereum(
                         EthereumAuthentication {
-                            wss_url: "asdfadsf".to_owned(),
-                            filter: None(),
+                            wss_url: "wss://skilled-patient-shadow.discover.quiknode.pro/c25accd8a73bb9f42cab0e9815349cc191954b95/".to_owned(),
+                            filter: None,
                         },
                     )),
                 }),
-            })
-            .unwrap();
+            }).
+            await.unwrap();
         assert_eq!(result.success, true);
     }
 }
