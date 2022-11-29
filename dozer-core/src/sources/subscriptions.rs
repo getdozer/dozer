@@ -18,16 +18,16 @@ pub type RelationSourceId = (SourceId, RelationId);
 
 pub(crate) struct SubscriptionsManager {
     rel_name_idx: HashMap<RelationSourceName, RelationSourceId>,
-    subscribers: HashMap<RelationSourceId, HashMap<PipelineId, Rc<Sender<Arc<Operation>>>>>,
+    subscribers: HashMap<RelationSourceId, HashMap<PipelineId, Arc<Sender<Arc<Operation>>>>>,
     subscribed_pipelines:
-        HashMap<PipelineId, HashMap<RelationSourceName, Rc<Sender<Arc<Operation>>>>>,
+        HashMap<PipelineId, HashMap<RelationSourceName, Arc<Sender<Arc<Operation>>>>>,
 }
 
 impl SubscriptionsManager {
     pub fn subscribe_to_sources(
         &mut self,
         from_pipeline: PipelineId,
-        subscribers: HashMap<RelationSourceName, Rc<Sender<Arc<Operation>>>>,
+        subscribers: HashMap<RelationSourceName, Arc<Sender<Arc<Operation>>>>,
     ) -> Result<(), SourceError> {
         for e in subscribers {
             let id = self
