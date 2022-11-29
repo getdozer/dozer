@@ -1,6 +1,6 @@
 use std::process::Command;
 use std::{env, path::PathBuf};
-
+#[allow(clippy::all)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -12,14 +12,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(&["protos/api.proto"], &["proto"])
         .unwrap();
     // build dozer-orchestrator
-    //cargo +nightly build -Z unstable-options --manifest-path=../dozer-orchestrator/Cargo.toml --release --bin dozer --out-dir dozer-admin/dozer-bin
+    //cargo +nightly build -Z unstable-options --manifest-path=Cargo.toml --release --bin dozer --out-dir dozer-admin/dozer-bin
     let orchestrator_cli = Command::new("cargo")
         .args([
             "+nightly",
             "build",
             "-Z",
             "unstable-options",
-            "--manifest-path=../dozer-orchestrator/Cargo.toml",
+            "-p",
+            "dozer-orchestrator",
             "--release",
             "--bin",
             "dozer",
