@@ -1,6 +1,6 @@
 use crate::dag::errors::ExecutionError;
 use crate::sources::errors::SourceError;
-use crate::sources::subscriptions::{RelationId, SourceId, SubscriptionsManager};
+use crate::sources::subscriptions::{SourceId, SourceRelationId, SubscriptionsManager};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use std::sync::Arc;
@@ -13,7 +13,7 @@ pub struct SourceForwarder {
 impl SourceForwarder {
     pub fn insert_record(
         &self,
-        rel_id: RelationId,
+        rel_id: SourceRelationId,
         tx_id: u64,
         last_in_tx: bool,
         new: Record,
@@ -27,7 +27,7 @@ impl SourceForwarder {
 
     pub fn delete_record(
         &self,
-        rel_id: RelationId,
+        rel_id: SourceRelationId,
         tx_id: u64,
         last_in_tx: bool,
         old: Record,
@@ -41,7 +41,7 @@ impl SourceForwarder {
 
     fn update_record(
         &self,
-        rel_id: RelationId,
+        rel_id: SourceRelationId,
         tx_id: u64,
         last_in_tx: bool,
         old: Record,
@@ -53,7 +53,11 @@ impl SourceForwarder {
         )?;
         Ok(())
     }
-    pub fn update_schema(&self, rel_id: RelationId, schema: Schema) -> Result<(), ExecutionError> {
+    pub fn update_schema(
+        &self,
+        rel_id: SourceRelationId,
+        schema: Schema,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
     pub fn new(source_id: SourceId, sm: Arc<RwLock<SubscriptionsManager>>) -> Self {

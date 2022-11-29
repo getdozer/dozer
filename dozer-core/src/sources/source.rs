@@ -3,7 +3,7 @@ use crate::dag::executor_local::ExecutorOperation;
 use crate::sources::errors::SourceError;
 use crate::sources::source_forwarder::SourceForwarder;
 use crate::sources::subscriptions::{
-    RelationId, RelationName, SourceId, SourceName, SubscriptionsManager,
+    SourceId, SourceName, SourceRelationId, SourceRelationName, SubscriptionsManager,
 };
 use crate::storage::record_reader::RecordReader;
 use crossbeam::channel::Sender;
@@ -16,46 +16,45 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-pub struct SourceOptions {
+#[derive(Clone, Debug)]
+pub struct SourceSettings {
     id: SourceId,
-    name: SourceName,
-    relations: Vec<RelationOptions>,
+    relations: Vec<RelationSettings>,
     retr_old_record_for_updates: bool,
     retr_old_record_for_deletes: bool,
 }
 
-pub struct RelationOptions {
-    id: RelationId,
-    name: RelationName,
+#[derive(Clone, Debug)]
+pub struct RelationSettings {
+    id: SourceRelationId,
+    name: SourceRelationName,
 }
 
 pub trait SourceIngestor: Send + Sync {
     fn start(
         &self,
-        settings: &SourceOptions,
+        settings: &SourceSettings,
         fw: &SourceForwarder,
         stop_req: Arc<AtomicBool>,
     ) -> Result<(), SourceError>;
 }
 
 pub struct Source {
-    settings: SourceOptions,
+    settings: SourceSettings,
     subscriptions: Arc<RwLock<SubscriptionsManager>>,
-    relation_idx: HashMap<RelationName, RelationId>,
+    relation_idx: HashMap<SourceRelationName, SourceRelationId>,
     stop_req: Arc<AtomicBool>,
     ingest_thread: Option<JoinHandle<Result<(), SourceError>>>,
-    ingest_runner: Box<dyn SourceIngestor>,
+    ingest_runner: Arc<dyn SourceIngestor>,
 }
 
 impl Source {
     pub fn new(
-        id: SourceId,
-        name: SourceName,
-        settings: SourceOptions,
+        settings: SourceSettings,
         subscriptions: Arc<RwLock<SubscriptionsManager>>,
-        ingest_runner: Box<dyn SourceIngestor>,
+        ingest_runner: Arc<dyn SourceIngestor>,
     ) -> Self {
-        let relation_idx: HashMap<RelationName, RelationId> = settings
+        let relation_idx: HashMap<SourceRelationName, SourceRelationId> = settings
             .relations
             .iter()
             .map(|e| (e.name.clone(), e.id.clone()))
@@ -72,10 +71,14 @@ impl Source {
     }
 
     pub fn start(&mut self) {
+        let stop_req = self.stop_req.clone();
+        let subscriptions = self.subscriptions.clone();
+        let settings = self.settings.clone();
+        let runner = self.ingest_runner.clone();
+
         self.ingest_thread = Some(thread::spawn(move || -> Result<(), SourceError> {
-            let fw = SourceForwarder::new(self.id, self.subscriptions.clone());
-            self.ingest_runner
-                .start(&self.settings, &fw, self.stop_req.clone())
+            let fw = SourceForwarder::new(settings.id, subscriptions);
+            runner.start(&settings, &fw, stop_req)
         }));
     }
 }

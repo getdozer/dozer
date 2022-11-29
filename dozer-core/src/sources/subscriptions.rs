@@ -9,14 +9,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 pub type PipelineId = String;
-pub type RelationId = u32;
-pub type RelationName = String;
+pub type SourceRelationId = u32;
+pub type SourceRelationName = String;
+pub type RelationUniqueName = String;
 pub type SourceId = u16;
 pub type SourceName = String;
-pub type RelationSourceName = (SourceName, RelationName);
-pub type RelationSourceId = (SourceId, RelationId);
+pub type RelationSourceName = (SourceName, SourceRelationName);
+pub type RelationSourceId = (SourceId, SourceRelationId);
 
-pub(crate) struct SubscriptionsManager {
+pub struct SubscriptionsManager {
     rel_name_idx: HashMap<RelationSourceName, RelationSourceId>,
     subscribers: HashMap<RelationSourceId, HashMap<PipelineId, Arc<Sender<Arc<Operation>>>>>,
     subscribed_pipelines:

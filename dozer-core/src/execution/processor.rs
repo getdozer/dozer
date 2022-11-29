@@ -1,5 +1,6 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::dag::errors::ExecutionError;
+use crate::execution::schema::ExecutionSchema;
 use crate::storage::common::{Environment, RwTransaction};
 use crate::storage::record_reader::RecordReader;
 use dozer_types::types::{Operation, Schema};
@@ -54,8 +55,8 @@ pub trait ProcessorFactory: Send + Sync {
     fn get_schema(
         &mut self,
         output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError>;
+        input_schemas: &HashMap<PortHandle, ExecutionSchema>,
+    ) -> Result<ExecutionSchema, ExecutionError>;
 }
 
 pub trait Processor {
@@ -77,7 +78,7 @@ pub trait SinkFactory: Send + Sync {
     fn build(&self) -> Box<dyn Sink>;
     fn update_schema(
         &mut self,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        input_schemas: &HashMap<PortHandle, ExecutionSchema>,
     ) -> Result<(), ExecutionError>;
 }
 
