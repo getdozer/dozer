@@ -27,6 +27,7 @@ use std::{fs, thread};
 
 #[cfg(feature = "kafka_test")]
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct DebeziumTestConfig {
     pub source: Source,
     pub postgres_source_authentication: Authentication,
@@ -53,18 +54,6 @@ pub fn get_iterator_and_client(
     let postgres_config = map_connection_config(&config.postgres_source_authentication).unwrap();
 
     let mut client = connect(postgres_config).unwrap();
-
-    let connector_client = reqwest::blocking::Client::new();
-
-    connector_client
-        .delete(format!(
-            "{}{}",
-            config.debezium_connector_url, "dozer-postgres-connector"
-        ))
-        .send()
-        .unwrap()
-        .text()
-        .unwrap();
 
     client
         .query(&format!("DROP TABLE IF EXISTS {}", &table_name), &[])
@@ -93,6 +82,7 @@ pub fn get_iterator_and_client(
     ))
     .unwrap();
 
+    let connector_client = reqwest::blocking::Client::new();
     connector_client
         .post(&config.debezium_connector_url)
         .body(content)
@@ -124,6 +114,7 @@ pub fn get_iterator_and_client(
         if table_name != "products_test" {
             thread::sleep(Duration::from_secs(1));
         }
+
         let mut connector = get_connector(source.connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
         connector.start().unwrap();

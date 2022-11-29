@@ -1321,7 +1321,6 @@ dependencies = [
  "postgres-protocol",
  "postgres-types",
  "reqwest",
- "serde",
  "serde_yaml 0.9.14",
  "serial_test",
  "tokio",

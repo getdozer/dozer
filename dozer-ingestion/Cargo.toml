@@ -24,7 +24,6 @@ kafka = "0.9.0"
 odbc = { version = "0.17.0", optional = true }
 serde_yaml = "0.9.13"
 base64 = "0.13.1"
-serde = { version = "1.0.104", features = ["derive"] }
 reqwest = { version = "0.11.13", features = ["blocking"], optional = true }
 
 [features]
