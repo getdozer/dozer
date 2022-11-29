@@ -72,7 +72,7 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..10 {
+        for n in 0..5 {
             fw.send(
                 n,
                 Operation::Insert {
@@ -81,7 +81,7 @@ impl Source for TestSource {
                         vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
-                            Field::Float(OrderedFloat(5.5)),
+                            Field::Int((n as i64)),
                         ],
                     ),
                 },
@@ -89,6 +89,40 @@ impl Source for TestSource {
             )
             .unwrap();
         }
+        // for n in 0..2 {
+        //     fw.send(
+        //         n,
+        //         Operation::Insert {
+        //             new: Record::new(
+        //                 None,
+        //                 vec![
+        //                     Field::Int(0),
+        //                     Field::String("Italy".to_string()),
+        //                     Field::Float(OrderedFloat(2.0)),
+        //                 ],
+        //             ),
+        //         },
+        //         DEFAULT_PORT_HANDLE,
+        //     )
+        //     .unwrap();
+        // }
+        // for n in 0..1 {
+        //     fw.send(
+        //         n,
+        //         Operation::Delete {
+        //             old: Record::new(
+        //                 None,
+        //                 vec![
+        //                     Field::Int(0),
+        //                     Field::String("Italy".to_string()),
+        //                     Field::Float(OrderedFloat(2.0)),
+        //                 ],
+        //             ),
+        //         },
+        //         DEFAULT_PORT_HANDLE,
+        //     )
+        //         .unwrap();
+        // }
         fw.terminate().unwrap();
         Ok(())
     }
@@ -146,7 +180,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, SUM(Spending) \
+    let sql = "SELECT Country, AVG(Spending) \
                             FROM Users \
                             WHERE Spending >= 1 GROUP BY Country";
 

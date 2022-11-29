@@ -1,3 +1,4 @@
+use dozer_core::storage::common::{Database, RwTransaction};
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_types::ordered_float::OrderedFloat;
@@ -7,7 +8,7 @@ use dozer_types::types::{Field, FieldType};
 pub struct SumAggregator {}
 
 impl SumAggregator {
-    const _AGGREGATOR_ID: u8 = 0x01;
+    const AGGREGATOR_ID: u32 = 0x01;
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
@@ -17,8 +18,8 @@ impl SumAggregator {
         }
     }
 
-    pub(crate) fn _get_type() -> u8 {
-        SumAggregator::_AGGREGATOR_ID
+    pub(crate) fn get_type() -> u32 {
+        SumAggregator::AGGREGATOR_ID
     }
 
     pub(crate) fn insert(curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
