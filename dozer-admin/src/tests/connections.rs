@@ -26,6 +26,7 @@ mod grpc_service {
     }
 
     #[test]
+    #[ignore]
     pub fn create() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
@@ -38,7 +39,7 @@ mod grpc_service {
             authentication: Some(Authentication {
                 authentication: Some(authentication::Authentication::Ethereum(
                     EthereumAuthentication {
-                        wss_url: "wss://skilled-patient-shadow.discover.quiknode.pro/c25accd8a73bb9f42cab0e9815349cc191954b95/".to_owned(),
+                        wss_url: "wss::link".to_owned(),
                         filter: None,
                     },
                 )),
@@ -51,6 +52,7 @@ mod grpc_service {
     }
 
     #[tokio::test]
+    #[ignore]
     pub async fn validate_eth_connection() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
@@ -62,13 +64,14 @@ mod grpc_service {
                 authentication: Some(Authentication {
                     authentication: Some(authentication::Authentication::Ethereum(
                         EthereumAuthentication {
-                            wss_url: "wss://skilled-patient-shadow.discover.quiknode.pro/c25accd8a73bb9f42cab0e9815349cc191954b95/".to_owned(),
+                            wss_url: "wss::link".to_owned(),
                             filter: None,
                         },
                     )),
                 }),
-            }).
-            await.unwrap();
+            })
+            .await
+            .unwrap();
         assert!(result.success);
     }
 }
