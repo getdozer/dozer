@@ -14,9 +14,9 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
 
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::ExpressionBuilder;
@@ -348,7 +348,9 @@ impl AggregationProcessor {
                         // set the value for the old record
                         out_rec_insert.set_value(measure.2, curr_value);
                     }
-                    measure.1.insert(curr_state_slice, field, curr_count, ptx, db)?
+                    measure
+                        .1
+                        .insert(curr_state_slice, field, curr_count, ptx, db)?
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
@@ -359,7 +361,9 @@ impl AggregationProcessor {
                         // set the value for the old record
                         out_rec_delete.set_value(measure.2, curr_value);
                     }
-                    measure.1.delete(curr_state_slice, field, curr_count, ptx, db)?
+                    measure
+                        .1
+                        .delete(curr_state_slice, field, curr_count, ptx, db)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
@@ -371,7 +375,9 @@ impl AggregationProcessor {
                         // set the value for the old record
                         out_rec_delete.set_value(measure.2, curr_value);
                     }
-                    measure.1.update(curr_state_slice, old, new, curr_count, ptx, db)?
+                    measure
+                        .1
+                        .update(curr_state_slice, old, new, curr_count, ptx, db)?
                 }
             };
 

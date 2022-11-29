@@ -1,11 +1,11 @@
-use std::ops::Div;
-use dozer_core::storage::common::Database;
-use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
+use dozer_core::storage::common::Database;
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
+use std::ops::Div;
 
 pub struct AvgAggregator {}
 
@@ -16,7 +16,7 @@ impl AvgAggregator {
         match from {
             FieldType::Int => FieldType::Int,
             FieldType::Float => FieldType::Float,
-            _ => from
+            _ => from,
         }
     }
 
@@ -50,10 +50,14 @@ impl AvgAggregator {
 
                 total_count += 1;
                 total_sum += new_val.0;
-                let avg = if total_sum.div(f64::from(total_count)).is_nan() { 0_f64 } else { total_sum.div(f64::from(total_count)) };
+                let avg = if total_sum.div(f64::from(total_count)).is_nan() {
+                    0_f64
+                } else {
+                    total_sum.div(f64::from(total_count))
+                };
                 Ok(Vec::from(avg.to_ne_bytes()))
-            },
-            _ => Err(InvalidOperandType("AVG".to_string()))
+            }
+            _ => Err(InvalidOperandType("AVG".to_string())),
         }
     }
 
@@ -79,7 +83,7 @@ impl AvgAggregator {
                         return Err(InvalidOperandType("AVG".to_string()));
                     }
                 };
-                        let new_val = match &new {
+                let new_val = match &new {
                     Float(i) => i,
                     _ => {
                         return Err(InvalidOperandType("AVG".to_string()));
@@ -90,10 +94,14 @@ impl AvgAggregator {
 
                 total_sum -= old_val.0;
                 total_sum += new_val.0;
-                let avg = if total_sum.div(f64::from(total_count)).is_nan() { 0_f64 } else { total_sum.div(f64::from(total_count)) };
+                let avg = if total_sum.div(f64::from(total_count)).is_nan() {
+                    0_f64
+                } else {
+                    total_sum.div(f64::from(total_count))
+                };
                 Ok(Vec::from(avg.to_ne_bytes()))
-            },
-            _ => Err(InvalidOperandType("AVG".to_string()))
+            }
+            _ => Err(InvalidOperandType("AVG".to_string())),
         }
     }
 
@@ -123,10 +131,14 @@ impl AvgAggregator {
 
                 total_count -= 1;
                 total_sum -= old_val.0;
-                let avg = if total_sum.div(f64::from(total_count)).is_nan() { 0_f64 } else { total_sum.div(f64::from(total_count)) };
+                let avg = if total_sum.div(f64::from(total_count)).is_nan() {
+                    0_f64
+                } else {
+                    total_sum.div(f64::from(total_count))
+                };
                 Ok(Vec::from(avg.to_ne_bytes()))
-            },
-            _ => Err(InvalidOperandType("AVG".to_string()))
+            }
+            _ => Err(InvalidOperandType("AVG".to_string())),
         }
     }
 
@@ -134,7 +146,7 @@ impl AvgAggregator {
         match from {
             FieldType::Int => Int(i64::from_ne_bytes(f.try_into().unwrap())),
             FieldType::Float => Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap()))),
-            _ => Field::Null
+            _ => Field::Null,
         }
     }
 }
