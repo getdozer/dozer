@@ -298,6 +298,7 @@ impl AggregationProcessor {
         Ok(vec)
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
     fn calc_and_fill_measures(
         &self,
         // This represents the current state for a series of aggregators and it is encoded
