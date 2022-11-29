@@ -1,18 +1,3 @@
-use crate::{
-    errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
-    CacheEndpoint, PipelineDetails,
-};
-use heck::ToUpperCamelCase;
-use std::{
-    collections::HashMap,
-    sync::{atomic::AtomicBool, Arc},
-    thread,
-};
-use tempdir::TempDir;
-use tokio::sync::broadcast;
-use tonic::transport::Server;
-use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
-
 use super::{
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
@@ -20,6 +5,22 @@ use super::{
     internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
     types::SchemaEvent,
 };
+use crate::{
+    errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
+    CacheEndpoint, PipelineDetails,
+};
+use futures_util::FutureExt;
+use heck::ToUpperCamelCase;
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    sync::{atomic::AtomicBool, Arc},
+    thread,
+};
+use tokio::sync::broadcast;
+use tonic::transport::Server;
+use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 
 pub struct ApiServer {
     port: u16,
@@ -65,16 +66,20 @@ impl ApiServer {
         let mut schemas: HashMap<String, SchemaEvent> = HashMap::new();
         // wait until all schemas are initalized
         while schemas.len() < pipeline_map.len() {
-            let event = self.event_notifier.clone().recv();
-            if let Ok(event) = event {
+            if let Ok(event) = self.event_notifier.recv() {
                 let api_event = event.api_event;
                 if let Some(ApiEvent::Schema(schema)) = api_event {
                     schemas.insert(event.endpoint, schema);
                 }
             }
         }
-        let tmp_dir = TempDir::new("proto_generated").unwrap();
-        let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
+        let tmp_dir = Path::new("./.dozer").join("proto_generated");
+        if tmp_dir.exists() {
+            fs::remove_dir_all(&tmp_dir).unwrap();
+        }
+        fs::create_dir_all(&tmp_dir).unwrap();
+
+        let tempdir_path = String::from(tmp_dir.to_str().unwrap());
 
         let proto_generator = ProtoGenerator::new(pipeline_map.to_owned())?;
         let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
@@ -113,11 +118,10 @@ impl ApiServer {
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
+        receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<PipelineRequest>(16);
-        ApiServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
-
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
 
         for ce in cache_endpoints {
@@ -151,14 +155,14 @@ impl ApiServer {
             grpc_router
                 .add_service(inflection_service)
                 // GRPC service to handle typed requests
-                .add_service(tonic_web::enable(grpc_service))
+                .add_service(tonic_web::config().allow_all_origins().enable(grpc_service))
         } else {
             grpc_router
         };
-
+        ApiServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
         let addr = format!("[::0]:{:}", self.port).parse().unwrap();
         grpc_router
-            .serve(addr)
+            .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await
             .map_err(|e| GRPCError::InternalError(Box::new(e)))
     }

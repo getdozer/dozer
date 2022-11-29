@@ -1,3 +1,4 @@
+pub mod application;
 pub mod connection;
 mod constants;
 pub mod endpoint;

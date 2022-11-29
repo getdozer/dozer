@@ -1,8 +1,13 @@
 syntax = "proto3";
 package dozer_admin_grpc;
 import "protos/connection/postgres_authentication.proto";
+import "protos/connection/ethereum_authentication.proto";
+import "protos/connection/snowflake_authentication.proto";
+
 message Authentication {
   oneof authentication {
-    PostgresAuthentication postgres = 2;
+    PostgresAuthentication postgres = 1;
+    EthereumAuthentication ethereum = 2;
+    SnowflakeAuthentication snowflake = 3;
   }
 }

@@ -1,21 +1,21 @@
-use std::path::PathBuf;
-use std::{sync::Arc, thread};
-
-use dozer_api::actix_web::dev::ServerHandle;
-use dozer_api::grpc::{start_internal_client, start_internal_server};
-use dozer_api::CacheEndpoint;
-use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions, LmdbCache};
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-
 use super::executor::{Executor, SinkConfig};
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
+use dozer_api::actix_web::dev::ServerHandle;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_api::grpc::{start_internal_client, start_internal_server};
+use dozer_api::CacheEndpoint;
 use dozer_api::{grpc, rest};
+use dozer_cache::cache::LmdbCache;
+use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions};
+use dozer_ingestion::ingestion::IngestionConfig;
+use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-
+use std::{sync::Arc, thread};
+use tokio::sync::oneshot;
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
@@ -53,7 +53,6 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
-
         let running2 = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
@@ -79,7 +78,7 @@ impl Orchestrator for SimpleOrchestrator {
         let internal_port = self.internal_port;
 
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
-
+        let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
             // Initialize Internal Server
             tokio::spawn(async move {
@@ -98,10 +97,10 @@ impl Orchestrator for SimpleOrchestrator {
             });
 
             // Initialize GRPC Server
-            let grpc_server = grpc::ApiServer::new(receiver, 50051, false);
+            let grpc_server = grpc::ApiServer::new(receiver, 50051, true);
             tokio::spawn(async move {
                 grpc_server
-                    .run(ce2, running2.to_owned())
+                    .run(ce2, running2.to_owned(), receiver_shutdown)
                     .await
                     .expect("Failed to initialize gRPC server")
             });
@@ -111,6 +110,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}
+        sender_shutdown.send(()).unwrap();
         rest::ApiServer::stop(server_handle);
 
         Ok(())

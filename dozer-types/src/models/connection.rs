@@ -1,10 +1,9 @@
+use crate::ingestion_types::EthFilter;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
-
-use crate::ingestion_types::EthFilter;
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Connection {
     pub db_type: DBType,
