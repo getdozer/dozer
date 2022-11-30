@@ -1,4 +1,4 @@
-use crate::pipeline::builder::PipelineBuilder;
+use crate::pipeline::builder::{get_select, PipelineBuilder};
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::{Endpoint, NodeType};
 use dozer_core::dag::errors::ExecutionError;
@@ -12,9 +12,6 @@ use dozer_core::storage::record_reader::RecordReader;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
-use sqlparser::ast::Statement;
-use sqlparser::dialect::GenericDialect;
-use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::fs;
 use tempdir::TempDir;
@@ -59,12 +56,12 @@ impl Source for UserTestSource {
                     false,
                 )
                 .field(
-                    FieldDefinition::new(String::from("DepartmentID"), FieldType::Int, false),
+                    FieldDefinition::new(String::from("salary"), FieldType::Float, false),
                     false,
                     false,
                 )
                 .field(
-                    FieldDefinition::new(String::from("Salary"), FieldType::Float, false),
+                    FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
                     false,
                     false,
                 )
@@ -86,8 +83,8 @@ impl Source for UserTestSource {
                         vec![
                             Field::Int(0),
                             Field::String("Alice".to_string()),
+                            Field::Float(OrderedFloat(1000.0)),
                             Field::Int(0),
-                            Field::Float(OrderedFloat(5.5)),
                         ],
                     ),
                 },
@@ -106,7 +103,7 @@ pub struct DepartmentTestSourceFactory {
 }
 
 impl DepartmentTestSourceFactory {
-    pub fn _new(output_ports: Vec<PortHandle>) -> Self {
+    pub fn new(output_ports: Vec<PortHandle>) -> Self {
         Self { output_ports }
     }
 }
@@ -215,39 +212,41 @@ impl Sink for TestSink {
 
 #[test]
 fn test_single_table_pipeline() {
-    let sql = "SELECT name FROM Users ";
+    let sql = "SELECT u.name, d.name, AVG(salary) \
+    FROM Users u JOIN Departments d ON u.department_id = d.id \
+    WHERE salary >= 100 GROUP BY department_id";
+    let (mut dag, mut in_handle, out_handle) = PipelineBuilder {}
+        .build(sql)
+        .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
-
-    let ast = Parser::parse_sql(&dialect, sql).unwrap();
-
-    let statement: &Statement = &ast[0];
-
-    let builder = PipelineBuilder {};
-    let (mut dag, mut in_handle, out_handle) =
-        builder.statement_to_pipeline(statement.clone()).unwrap();
-
+    let dag_user_input = in_handle.remove("users").unwrap();
     let user_source = UserTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
-
-    let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
-
     dag.add_node(NodeType::Source(Box::new(user_source)), "users".to_string());
-
-    dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
-
-    let input_point = in_handle.remove("users").unwrap();
-
-    let _source_to_users = dag.connect(
+    let _users_source_to_dag = dag.connect(
         Endpoint::new("users".to_string(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(input_point.node, input_point.port),
+        Endpoint::new(dag_user_input.node, dag_user_input.port),
     );
 
-    let _output_to_sink = dag.connect(
+    let dag_department_input = in_handle.remove("departments").unwrap();
+    let department_source = DepartmentTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
+    dag.add_node(
+        NodeType::Source(Box::new(department_source)),
+        "departments".to_string(),
+    );
+    let _departments_source_to_dag = dag.connect(
+        Endpoint::new("departments".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(dag_department_input.node, dag_department_input.port),
+    );
+
+    let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
+    dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
+    let _dag_to_sink = dag.connect(
         Endpoint::new(out_handle.node, out_handle.port),
         Endpoint::new("sink".to_string(), DEFAULT_PORT_HANDLE),
     );
 
-    let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+    let tmp_dir =
+        TempDir::new("test_join").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
     if tmp_dir.path().exists() {
         fs::remove_dir_all(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to remove old dir"));
     }

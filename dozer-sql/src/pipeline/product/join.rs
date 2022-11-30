@@ -54,7 +54,6 @@ pub trait JoinExecutor: Send + Sync {
         record: &Record,
         db: &Database,
         txn: &mut dyn RwTransaction,
-        reader: &RecordReader,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -98,10 +97,12 @@ impl JoinExecutor for JoinOperator {
         readers: &HashMap<PortHandle, RecordReader>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
-        if let Some(reader) = readers.get(&self.right_table) {
-            for record in records.iter() {
-                self.update_index(record, db, txn, reader)?;
-            }
+        for record in records.iter() {
+            self.update_index(record, db, txn)?;
+        }
+
+        if let Some(_reader) = readers.get(&self.right_table) {
+            //reader.get()
         }
         Ok(vec![])
     }
@@ -111,9 +112,8 @@ impl JoinExecutor for JoinOperator {
         record: &Record,
         db: &Database,
         txn: &mut dyn RwTransaction,
-        reader: &RecordReader,
     ) -> Result<(), ExecutionError> {
-        let mut transaction = PrefixTransaction::new(txn, self.prefix.clone());
+        let mut transaction = PrefixTransaction::new(txn, self.prefix);
 
         let key: Vec<u8> = get_join_key(record, &self.join_key_indexes)?;
 
@@ -121,7 +121,7 @@ impl JoinExecutor for JoinOperator {
 
         transaction.put(db, &key, &value)?;
 
-        todo!()
+        Ok(())
     }
 }
 
@@ -166,7 +166,6 @@ impl JoinExecutor for ReverseJoinOperator {
         _record: &Record,
         _db: &Database,
         _txn: &mut dyn RwTransaction,
-        _reader: &RecordReader,
     ) -> Result<(), ExecutionError> {
         todo!()
     }
