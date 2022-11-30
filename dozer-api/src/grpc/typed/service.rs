@@ -229,9 +229,6 @@ async fn query(
 
     let exp = get_query_exp_from_req(req)?;
     let (schema, records) = api_helper.get_records(exp).map_err(from_cache_error)?;
-
-    println!("{:?}", records);
-
     let res = query_response_to_typed_response(records, schema, desc, endpoint_name);
     Ok(Response::new(res))
 }
