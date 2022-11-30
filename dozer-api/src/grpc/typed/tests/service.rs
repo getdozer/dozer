@@ -9,7 +9,6 @@ use crate::{
             },
             TypedService,
         },
-        types_helper::map_schema,
     },
     CacheEndpoint, PipelineDetails,
 };
@@ -40,7 +39,7 @@ fn setup_typed_service() -> TypedService {
         schema_name: schema_name.to_owned(),
         cache_endpoint: CacheEndpoint {
             cache: test_utils::initialize_cache(&schema_name, None),
-            endpoint: endpoint.clone(),
+            endpoint: endpoint,
         },
     };
     let path = out_dir
@@ -57,7 +56,7 @@ fn setup_typed_service() -> TypedService {
     pipeline_map.insert("films".to_string(), pipeline_details);
 
     let mut schema_map = HashMap::new();
-    schema_map.insert("films".to_string(), map_schema(endpoint.name, &schema));
+    schema_map.insert("films".to_string(), schema);
     TypedService::new(desc, pipeline_map, schema_map, rx1)
 }
 

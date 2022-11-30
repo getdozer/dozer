@@ -8,13 +8,11 @@ use super::{
 };
 use crate::{
     api_helper,
-    grpc::{
-        internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
-        types::SchemaEvent,
-    },
+    grpc::internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
     PipelineDetails,
 };
 use actix_web::http::StatusCode;
+use dozer_types::types::Schema;
 use inflector::Inflector;
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
@@ -28,7 +26,7 @@ pub struct TypedService {
     send_compression_encodings: EnabledCompressionEncodings,
     descriptor: DescriptorPool,
     pipeline_map: HashMap<String, PipelineDetails>,
-    schema_map: HashMap<String, SchemaEvent>,
+    schema_map: HashMap<String, Schema>,
     event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 }
 impl Clone for TypedService {
@@ -48,7 +46,7 @@ impl TypedService {
     pub fn new(
         descriptor: DescriptorPool,
         pipeline_map: HashMap<String, PipelineDetails>,
-        schema_map: HashMap<String, SchemaEvent>,
+        schema_map: HashMap<String, Schema>,
         event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
     ) -> Self {
         TypedService {
@@ -128,12 +126,6 @@ where
                     send_compression_encodings,
                 );
 
-                let schema = self
-                    .schema_map
-                    .get(&pipeline_details.cache_endpoint.endpoint.name)
-                    .expect("schema is missing")
-                    .clone();
-
                 match method_name {
                     "query" => {
                         struct QueryService(PipelineDetails, DescriptorPool);
@@ -160,7 +152,6 @@ where
                         struct EventService(
                             PipelineDetails,
                             DescriptorPool,
-                            SchemaEvent,
                             tokio::sync::broadcast::Receiver<PipelineRequest>,
                         );
 
@@ -178,13 +169,11 @@ where
                             ) -> Self::Future {
                                 let pipeline_details = self.0.to_owned();
                                 let desc = self.1.clone();
-                                let schema_event = self.2.clone();
-                                let event_notifier = self.3.resubscribe();
+                                let event_notifier = self.2.resubscribe();
                                 let fut = async move {
                                     on_event(
                                         request,
                                         pipeline_details.to_owned(),
-                                        schema_event,
                                         desc,
                                         event_notifier,
                                     )
@@ -194,8 +183,7 @@ where
                             }
                         }
                         Box::pin(async move {
-                            let method =
-                                EventService(pipeline_details, desc, schema, event_notifier);
+                            let method = EventService(pipeline_details, desc, event_notifier);
                             let res = grpc.server_streaming(method, req).await;
                             Ok(res)
                         })
@@ -236,7 +224,6 @@ async fn query(
 async fn on_event(
     _req: Request<DynamicMessage>,
     pipeline_details: PipelineDetails,
-    schema_event: SchemaEvent,
     desc: DescriptorPool,
     event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
@@ -248,12 +235,8 @@ async fn on_event(
     tokio::spawn(async move {
         while let Ok(event) = broadcast_receiver.recv().await {
             if let Some(ApiEvent::Op(op)) = event.api_event {
-                let event = on_event_to_typed_response(
-                    op,
-                    schema_event.to_owned(),
-                    desc.to_owned(),
-                    endpoint_name.to_owned(),
-                );
+                let event =
+                    on_event_to_typed_response(op, desc.to_owned(), endpoint_name.to_owned());
                 if tx.send(Ok(event)).await.is_err() {
                     // receiver dropped
                     break;

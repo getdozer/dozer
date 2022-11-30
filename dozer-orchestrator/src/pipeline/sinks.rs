@@ -16,7 +16,7 @@ use dozer_types::types::{
     IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
 };
 use indicatif::{ProgressBar, ProgressStyle};
-use log::{debug, info, warn};
+use log::info;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
@@ -119,27 +119,6 @@ impl Sink for CacheSink {
                 })?;
 
             map.insert(*k, (schema.clone(), secondary_indexes));
-
-            if let Some(notifier) = &self.notifier {
-                let schema = types_helper::map_schema(self.api_endpoint.name.to_owned(), &schema);
-                let res = notifier
-                    .try_send(PipelineRequest {
-                        endpoint: self.api_endpoint.name.to_owned(),
-                        api_event: Some(ApiEvent::Schema(schema)),
-                    })
-                    .map_err(|e| {
-                        ExecutionError::SinkError(SinkError::SchemaNotificationFailed(Box::new(e)))
-                    });
-
-                match res {
-                    Ok(_) => {
-                        debug!("Schema notification succeeded.")
-                    }
-                    Err(_) => {
-                        warn!("GRPC Schema notification failed")
-                    }
-                };
-            }
         }
         Ok(())
     }
@@ -165,7 +144,8 @@ impl Sink for CacheSink {
         self.counter += 1;
         if self.counter % 100 == 0 {
             self.pb.set_message(format!(
-                "Count: {}, Elapsed time: {:.2?}",
+                "{}: Count: {}, Elapsed time: {:.2?}",
+                self.api_endpoint.name.to_owned(),
                 self.counter,
                 self.before.elapsed(),
             ));

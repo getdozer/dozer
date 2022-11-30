@@ -1,13 +1,12 @@
 use super::{
-    common::CommonService,
-    common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
-    internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
-    typed::TypedService,
-    types::SchemaEvent,
+    common::CommonService, common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
+    internal_grpc::PipelineRequest, typed::TypedService,
 };
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
+use dozer_cache::cache::Cache;
+use dozer_types::{log::info, types::Schema};
 use futures_util::FutureExt;
 use std::{
     collections::HashMap,
@@ -15,6 +14,7 @@ use std::{
     path::Path,
     sync::{atomic::AtomicBool, Arc},
     thread,
+    time::Duration,
 };
 use tokio::sync::broadcast;
 use tonic::transport::Server;
@@ -55,17 +55,33 @@ impl ApiServer {
         rx1: broadcast::Receiver<PipelineRequest>,
         _running: Arc<AtomicBool>,
     ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
-        let mut schema_map: HashMap<String, SchemaEvent> = HashMap::new();
+        let mut schema_map: HashMap<String, Schema> = HashMap::new();
+
         // wait until all schemas are initalized
-        while schema_map.len() < pipeline_map.len() {
-            let event = self.event_notifier.clone().recv();
-            if let Ok(event) = event {
-                let api_event = event.api_event;
-                if let Some(ApiEvent::Schema(schema)) = api_event {
-                    schema_map.insert(event.endpoint, schema);
+        for (endpoint_name, details) in &pipeline_map {
+            let cache = details.cache_endpoint.cache.clone();
+            let mut idx = 0;
+            loop {
+                let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
+
+                match schema_res {
+                    Ok((schema, _)) => {
+                        schema_map.insert(endpoint_name.clone(), schema);
+                        break;
+                    }
+                    Err(_) => {
+                        info!(
+                            "Schema for endpoint: {} not found. Waiting...({})",
+                            endpoint_name, idx
+                        );
+                        thread::sleep(Duration::from_millis(300));
+                        idx += 1;
+                    }
                 }
             }
         }
+        info!("Schemas initialized. Starting gRPC server.");
+
         let folder_path = Path::new("./.dozer").join("generated");
         if folder_path.exists() {
             fs::remove_dir_all(&folder_path).unwrap();

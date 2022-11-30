@@ -1,4 +1,4 @@
-use crate::grpc::types::{self as GrpcTypes, SchemaEvent};
+use crate::grpc::types::{self as GrpcTypes};
 use dozer_cache::{cache::expression::QueryExpression, errors::CacheError};
 use dozer_types::serde_json;
 use dozer_types::types::{Field, Record, Schema};
@@ -70,7 +70,6 @@ pub fn get_resource_desc(desc: DescriptorPool, endpoint_name: String) -> Message
 
 pub fn on_event_to_typed_response(
     op: GrpcTypes::Operation,
-    schema_event: SchemaEvent,
     desc: DescriptorPool,
     endpoint_name: String,
 ) -> TypedResponse {
@@ -83,7 +82,6 @@ pub fn on_event_to_typed_response(
             "old",
             prost_reflect::Value::Message(internal_record_to_pb(
                 old,
-                schema_event.clone(),
                 desc.clone(),
                 endpoint_name.clone(),
             )),
@@ -93,12 +91,7 @@ pub fn on_event_to_typed_response(
     if let Some(new) = op.new {
         event.set_field_by_name(
             "new",
-            prost_reflect::Value::Message(internal_record_to_pb(
-                new,
-                schema_event,
-                desc,
-                endpoint_name,
-            )),
+            prost_reflect::Value::Message(internal_record_to_pb(new, desc, endpoint_name)),
         );
     }
 
@@ -107,7 +100,6 @@ pub fn on_event_to_typed_response(
 
 pub fn internal_record_to_pb(
     rec: GrpcTypes::Record,
-    schema_event: SchemaEvent,
     desc: DescriptorPool,
     endpoint_name: String,
 ) -> DynamicMessage {
@@ -121,13 +113,7 @@ pub fn internal_record_to_pb(
         .unwrap_or_else(|| panic!("{}: not found", msg_path));
     let mut resource = DynamicMessage::new(resource_desc.to_owned());
 
-    for fd in resource_desc.fields() {
-        let (idx, _) = schema_event
-            .fields
-            .iter()
-            .enumerate()
-            .find(|(_, f)| f.name == fd.name())
-            .expect("field to be present");
+    for (idx, fd) in resource_desc.fields().enumerate() {
         let field = rec.values.get(idx).expect("field to be present in record");
 
         if let Some(value) = field.value.clone() {
