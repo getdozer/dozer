@@ -16,8 +16,6 @@ use dozer_types::parking_lot::RwLock;
 #[cfg(feature = "snowflake")]
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 #[cfg(feature = "snowflake")]
-use dozer_ingestion::ingestion::test_utils::load_config;
-#[cfg(feature = "snowflake")]
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 #[cfg(feature = "snowflake")]
 use std::time::Duration;
@@ -45,7 +43,11 @@ fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
 
 #[cfg(feature = "snowflake")]
 pub fn main() {
-    let source = load_config("./config/dozer-config.test.snowflake.yaml".to_string()).unwrap();
+    use dozer_types::models::source::Source;
+
+    let source =
+        serde_yaml::from_str::<Source>(&include_str!("../../config/test.snowflake.sample.yaml"))
+            .unwrap();
 
     remove_streams(source.connection.clone(), &source.table_name).unwrap();
 
