@@ -1,4 +1,5 @@
 use crate::{
+    generator::protoc::utils::get_proto_descriptor,
     grpc::{
         client_server::ApiServer,
         internal_grpc::PipelineRequest,
@@ -26,7 +27,6 @@ use tonic::{
 use crate::test_utils;
 
 use super::{
-    super::utils::get_proto_descriptor,
     generated::films::{EventType, FilmEventRequest},
     test_utils::mock_event_notifier,
 };
@@ -48,7 +48,7 @@ fn setup_typed_service() -> TypedService {
         .to_string_lossy()
         .to_string();
 
-    let desc = get_proto_descriptor(path).unwrap();
+    let (_, desc) = get_proto_descriptor(path).unwrap();
 
     let event_notifier = mock_event_notifier();
     let (tx, rx1) = broadcast::channel::<PipelineRequest>(16);
@@ -106,12 +106,12 @@ async fn test_typed_streaming() {
     let _jh = tokio::spawn(async move {
         Server::builder()
             .add_service(typed_service)
-            .serve_with_shutdown("127.0.0.1:1402".parse().unwrap(), rx.map(drop))
+            .serve_with_shutdown("127.0.0.1:14032".parse().unwrap(), rx.map(drop))
             .await
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-    let channel = Endpoint::from_static("http://127.0.0.1:1402")
+    let channel = Endpoint::from_static("http://127.0.0.1:14032")
         .connect()
         .await
         .unwrap();

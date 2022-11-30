@@ -111,12 +111,12 @@ where
                     .descriptor
                     .services()
                     .find(|s| s.full_name() == service_name)
-                    .expect(&format!("gRPC Service not defined: {}", service_name));
+                    .unwrap_or_else(|| panic!("gRPC Service not defined: {}", service_name));
 
                 let method_desc = service_desc
                     .methods()
-                    .find(|m| m.name() == method_name.to_string())
-                    .expect(&format!("gRPC method not defined: {}", method_name));
+                    .find(|m| m.name() == method_name)
+                    .unwrap_or_else(|| panic!("gRPC method not defined: {}", method_name));
 
                 let desc = self.descriptor.clone();
                 let accept_compression_encodings = self.accept_compression_encodings;
@@ -225,7 +225,7 @@ async fn query(
 ) -> Result<Response<TypedResponse>, Status> {
     let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
     let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
-    let req = request.into_inner().clone();
+    let req = request.into_inner();
     let exp = convert_grpc_message_to_query_exp(req)?;
     let (schema, records) = api_helper.get_records(exp).map_err(from_cache_error)?;
 
@@ -240,7 +240,7 @@ async fn on_event(
     desc: DescriptorPool,
     event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
-    let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
+    let endpoint_name = pipeline_details.cache_endpoint.endpoint.name;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     // create subscribe

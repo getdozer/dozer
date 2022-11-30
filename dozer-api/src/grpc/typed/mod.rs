@@ -6,7 +6,6 @@ mod codec;
 mod service;
 
 mod helper;
-pub mod utils;
 pub use service::TypedService;
 
 #[cfg(test)]

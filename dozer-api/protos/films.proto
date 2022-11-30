@@ -8,9 +8,6 @@ import "types.proto";
 // This is for the endpoint /films with the schema id, email and phone
 service Films {
 
-  // Endpoint gets a `Get` method based on specified primary key
-  rpc get(GetFilmRequest) returns (FilmResponse);
-
   // query based on dynamic query expression.
   // TODO: Generated QueryRequest that can take types
   rpc query(QueryFilmsRequest) returns (QueryFilmsResponse);
@@ -26,11 +23,7 @@ message Film {
   optional uint64 release_year = 4;
 }
 
-message GetFilmRequest { uint64 film_id = 1; }
-
-message FilmResponse { Film film = 1; }
-
-message QueryFilmsRequest { optional string query = 2; }
+message QueryFilmsRequest { optional string query = 1; }
 
 message QueryFilmsResponse { repeated Film data = 1; }
 

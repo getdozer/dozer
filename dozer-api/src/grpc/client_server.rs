@@ -2,10 +2,7 @@ use super::{
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
     internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
-    typed::{
-        utils::{create_descriptor_set, get_proto_descriptor, read_file_as_byte},
-        TypedService,
-    },
+    typed::TypedService,
     types::SchemaEvent,
 };
 use crate::{
@@ -69,30 +66,27 @@ impl ApiServer {
                 }
             }
         }
-        let tmp_dir = Path::new("./.dozer").join("proto_generated");
-        if tmp_dir.exists() {
-            fs::remove_dir_all(&tmp_dir).unwrap();
+        let folder_path = Path::new("./.dozer").join("generated");
+        if folder_path.exists() {
+            fs::remove_dir_all(&folder_path).unwrap();
         }
-        fs::create_dir_all(&tmp_dir).unwrap();
+        fs::create_dir_all(&folder_path).unwrap();
 
-        let tempdir_path = String::from(tmp_dir.to_str().unwrap());
-
-        let proto_generator = ProtoGenerator::new(pipeline_map.to_owned())?;
-        let _generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
-
-        let descriptor_path = create_descriptor_set(&tempdir_path, "generated.proto")
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
-
-        let vec_byte = read_file_as_byte(descriptor_path.to_owned())
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
+        let proto_res = ProtoGenerator::generate(
+            folder_path.to_string_lossy().to_string(),
+            pipeline_map.to_owned(),
+        )?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(vec_byte.as_slice())
+            .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
             .build()?;
-
-        let desc = get_proto_descriptor(descriptor_path).unwrap();
         // Service handling dynamic gRPC requests.
-        let typed_service = TypedService::new(desc, pipeline_map, schema_map, rx1.resubscribe());
+        let typed_service = TypedService::new(
+            proto_res.descriptor,
+            pipeline_map,
+            schema_map,
+            rx1.resubscribe(),
+        );
         Ok((typed_service, inflection_service))
     }
 

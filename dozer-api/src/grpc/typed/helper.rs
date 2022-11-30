@@ -22,10 +22,9 @@ pub fn get_response_descriptor(
                 endpoint_name.to_lowercase().to_plural(),
                 endpoint_name.to_pascal_case().to_plural(),
             );
-            let msg_desc = desc
-                .get_message_by_name(&query_path)
-                .expect(&format!("{}: not found", query_path));
-            msg_desc
+
+            desc.get_message_by_name(&query_path)
+                .unwrap_or_else(|| panic!("{}: not found", query_path))
         }
         "on_event" => {
             let query_path = format!(
@@ -33,10 +32,9 @@ pub fn get_response_descriptor(
                 endpoint_name.to_lowercase().to_plural(),
                 endpoint_name.to_pascal_case().to_singular(),
             );
-            let msg_desc = desc
-                .get_message_by_name(&query_path)
-                .expect(&format!("{}: not found", query_path));
-            msg_desc
+
+            desc.get_message_by_name(&query_path)
+                .unwrap_or_else(|| panic!("{}: not found", query_path))
         }
         _ => panic!("method not found"),
     }
@@ -48,10 +46,9 @@ pub fn get_resource_desc(desc: DescriptorPool, endpoint_name: String) -> Message
         endpoint_name.to_lowercase().to_plural(),
         endpoint_name.to_pascal_case().to_singular(),
     );
-    let resource_desc = desc
-        .get_message_by_name(&msg_path)
-        .expect(&format!("{}: not found", msg_path));
-    resource_desc
+
+    desc.get_message_by_name(&msg_path)
+        .unwrap_or_else(|| panic!("{}: not found", msg_path))
 }
 
 pub fn on_event_to_typed_response(
@@ -62,7 +59,7 @@ pub fn on_event_to_typed_response(
 ) -> TypedResponse {
     let event_desc = get_response_descriptor(desc.to_owned(), "on_event", endpoint_name.to_owned());
 
-    let mut event = DynamicMessage::new(event_desc.to_owned());
+    let mut event = DynamicMessage::new(event_desc);
     event.set_field_by_name("typ", prost_reflect::Value::EnumNumber(op.typ));
     if let Some(old) = op.old {
         event.set_field_by_name(
@@ -104,7 +101,7 @@ pub fn internal_record_to_pb(
     );
     let resource_desc = desc
         .get_message_by_name(&msg_path)
-        .expect(&format!("{}: not found", msg_path));
+        .unwrap_or_else(|| panic!("{}: not found", msg_path));
     let mut resource = DynamicMessage::new(resource_desc.to_owned());
 
     for fd in resource_desc.fields() {
@@ -173,7 +170,7 @@ pub fn query_response_to_typed_response(
 ) -> TypedResponse {
     let query_desc = get_response_descriptor(desc.to_owned(), "query", endpoint_name.to_owned());
 
-    let mut msg = DynamicMessage::new(query_desc.to_owned());
+    let mut msg = DynamicMessage::new(query_desc);
 
     let mut resources = vec![];
     for record in records {
@@ -191,7 +188,7 @@ fn convert_field_to_reflect_value(field: &Field) -> prost_reflect::Value {
     match field {
         Field::UInt(n) => Value::U64(*n),
         Field::Int(n) => Value::I64(*n),
-        Field::Float(n) => todo!(),
+        Field::Float(_n) => todo!(),
         Field::Boolean(n) => Value::Bool(*n),
         Field::String(n) => Value::String(n.clone()),
         Field::Text(n) => Value::String(n.clone()),

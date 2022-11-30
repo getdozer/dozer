@@ -53,53 +53,6 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     )
 }
 
-pub fn get_schema_with_timestamp() -> (Schema, Vec<IndexDefinition>) {
-    let fields = vec![
-        FieldDefinition {
-            name: "film_id".to_string(),
-            typ: FieldType::Int,
-            nullable: true,
-        },
-        FieldDefinition {
-            name: "description".to_string(),
-            typ: FieldType::String,
-            nullable: true,
-        },
-        FieldDefinition {
-            name: "rental_rate".to_string(),
-            typ: FieldType::Null,
-            nullable: true,
-        },
-        FieldDefinition {
-            name: "release_year".to_string(),
-            typ: FieldType::Int,
-            nullable: true,
-        },
-        FieldDefinition {
-            name: "created_at".to_string(),
-            typ: FieldType::Timestamp,
-            nullable: true,
-        },
-    ];
-    let secondary_indexes = fields
-        .iter()
-        .enumerate()
-        .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
-        .collect();
-    (
-        Schema {
-            identifier: Some(SchemaIdentifier {
-                id: 3003108387,
-                version: 1,
-            }),
-            fields,
-            values: vec![],
-            primary_index: vec![0],
-        },
-        secondary_indexes,
-    )
-}
-
 pub fn get_endpoint() -> ApiEndpoint {
     ApiEndpoint {
         id: None,
