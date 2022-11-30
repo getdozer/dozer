@@ -48,6 +48,12 @@ pub struct EthConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct KafkaConfig {
+    pub broker: String,
+    pub topic: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct SnowflakeConfig {
     pub server: String,
     pub port: String,

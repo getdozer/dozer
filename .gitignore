@@ -23,3 +23,5 @@ log4rs.yaml
 .dozer/
 logs/
 *.log
+register-postgres.test.json
+test.debezium.yaml
