@@ -11,4 +11,5 @@ pub mod stream_consumer;
 pub mod test_utils;
 
 #[cfg(test)]
+#[cfg(feature = "snowflake")]
 mod tests;
