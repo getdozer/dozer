@@ -1,16 +1,14 @@
 use super::{
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
-    dynamic::util::{create_descriptor_set, read_file_as_byte},
     internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
+    typed::TypedService,
     types::SchemaEvent,
 };
 use crate::{
-    errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
-    CacheEndpoint, PipelineDetails,
+    errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
 use futures_util::FutureExt;
-use heck::ToUpperCamelCase;
 use std::{
     collections::HashMap,
     fs,
@@ -56,62 +54,40 @@ impl ApiServer {
         pipeline_map: HashMap<String, PipelineDetails>,
         rx1: broadcast::Receiver<PipelineRequest>,
         _running: Arc<AtomicBool>,
-    ) -> Result<
-        (
-            DynamicService,
-            ServerReflectionServer<impl ServerReflection>,
-        ),
-        GRPCError,
-    > {
-        let mut schemas: HashMap<String, SchemaEvent> = HashMap::new();
+    ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
+        let mut schema_map: HashMap<String, SchemaEvent> = HashMap::new();
         // wait until all schemas are initalized
-        while schemas.len() < pipeline_map.len() {
-            if let Ok(event) = self.event_notifier.recv() {
+        while schema_map.len() < pipeline_map.len() {
+            let event = self.event_notifier.clone().recv();
+            if let Ok(event) = event {
                 let api_event = event.api_event;
                 if let Some(ApiEvent::Schema(schema)) = api_event {
-                    schemas.insert(event.endpoint, schema);
+                    schema_map.insert(event.endpoint, schema);
                 }
             }
         }
-        let tmp_dir = Path::new("./.dozer").join("proto_generated");
-        if tmp_dir.exists() {
-            fs::remove_dir_all(&tmp_dir).unwrap();
+        let folder_path = Path::new("./.dozer").join("generated");
+        if folder_path.exists() {
+            fs::remove_dir_all(&folder_path).unwrap();
         }
-        fs::create_dir_all(&tmp_dir).unwrap();
+        fs::create_dir_all(&folder_path).unwrap();
 
-        let tempdir_path = String::from(tmp_dir.to_str().unwrap());
-
-        let proto_generator = ProtoGenerator::new(pipeline_map.to_owned())?;
-        let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
-
-        let descriptor_path = create_descriptor_set(&tempdir_path, "generated.proto")
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
-
-        let vec_byte = read_file_as_byte(descriptor_path.to_owned())
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
+        let proto_res = ProtoGenerator::generate(
+            folder_path.to_string_lossy().to_string(),
+            pipeline_map.to_owned(),
+        )?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(vec_byte.as_slice())
+            .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
             .build()?;
-        let mut pipeline_hashmap: HashMap<String, PipelineDetails> = HashMap::new();
-        for (_, pipeline_details) in pipeline_map.iter() {
-            pipeline_hashmap.insert(
-                format!(
-                    "Dozer.{}Service",
-                    pipeline_details.schema_name.to_upper_camel_case()
-                ),
-                pipeline_details.to_owned(),
-            );
-        }
-
         // Service handling dynamic gRPC requests.
-        let grpc_service = DynamicService::new(
-            descriptor_path,
-            generated_proto.1,
-            pipeline_hashmap,
+        let typed_service = TypedService::new(
+            proto_res.descriptor,
+            pipeline_map,
+            schema_map,
             rx1.resubscribe(),
         );
-        Ok((grpc_service, inflection_service))
+        Ok((typed_service, inflection_service))
     }
 
     pub async fn run(

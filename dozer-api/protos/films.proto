@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package dozer.generated.films;
+import "types.proto";
+
+// Sample proto file that is similar to the service
+// that is automatically generated.
+// This is for the endpoint /films with the schema id, email and phone
+service Films {
+
+  // query based on dynamic query expression.
+  // TODO: Generated QueryRequest that can take types
+  rpc query(QueryFilmsRequest) returns (QueryFilmsResponse);
+
+  // Subscribe to events on Films
+  rpc on_event(FilmEventRequest) returns (stream FilmEvent);
+}
+
+message Film {
+  uint64 film_id = 1;
+  optional string description = 2;
+  optional string rental_rate = 3;
+  optional uint64 release_year = 4;
+}
+
+message QueryFilmsRequest { optional string query = 1; }
+
+message QueryFilmsResponse { repeated Film data = 1; }
+
+enum EventType {
+  ALL = 0;
+  INSERT_ONLY = 1;
+  UPDATE_ONLY = 2;
+  DELETE_ONLY = 3;
+}
+message FilmEventRequest { EventType type = 1; }
+
+message FilmEvent {
+  dozer.types.OperationType typ = 1;
+  optional Film old = 2;
+  optional Film new = 3;
+}

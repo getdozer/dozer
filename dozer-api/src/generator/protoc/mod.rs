@@ -1,3 +1,5 @@
 pub mod generator;
-pub mod proto_service;
-mod util;
+pub mod utils;
+
+#[cfg(test)]
+mod tests;

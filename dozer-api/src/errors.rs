@@ -9,6 +9,7 @@ use dozer_types::{serde_json, thiserror};
 use dozer_cache::errors::{CacheError, QueryValidationError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
+use prost_reflect::DescriptorError;
 
 #[derive(Error, Debug)]
 pub enum ApiError {
@@ -49,8 +50,7 @@ impl ApiError {
 pub enum GRPCError {
     #[error("Internal GRPC server error: {0}")]
     InternalError(#[from] BoxedError),
-    #[error("Cannot get Proto descriptor: {0}")]
-    ProtoDescriptorError(String),
+
     #[error(transparent)]
     SerizalizeError(#[from] serde_json::Error),
     #[error("Missing primary key to query by id: {0}")]
@@ -94,6 +94,8 @@ pub enum GenerationError {
     DozerToProtoTypeNotSupported(String),
     #[error("Missing primary key to query by id: {0}")]
     MissingPrimaryKeyToQueryById(String),
+    #[error("Cannot read proto descriptor: {0}")]
+    ProtoDescriptorError(#[source] DescriptorError),
 }
 
 #[derive(Error, Debug)]

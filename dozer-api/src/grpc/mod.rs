@@ -1,7 +1,8 @@
 mod client_server;
 pub mod common;
-pub mod dynamic;
+// pub mod dynamic;
 mod internal_server;
+pub mod typed;
 pub mod types_helper;
 pub mod types {
     #![allow(clippy::derive_partial_eq_without_eq)]

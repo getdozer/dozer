@@ -68,7 +68,8 @@ impl ApiHelper {
             .generate_oas3()
             .map_err(ApiError::ApiGenerationError)
     }
-    /// Get a single record
+
+    /// Get a single record by json string as primary key
     pub fn get_record(&self, key: String) -> Result<IndexMap<String, String>, CacheError> {
         let schema = self
             .reader
