@@ -1,22 +1,13 @@
 use criterion::Criterion;
-
-use dozer_ingestion::ingestion::IngestionIterator;
-
-use dozer_types::ingestion_types::IngestionOperation;
-
-use dozer_types::parking_lot::RwLock;
-
-use dozer_types::rust_decimal::Decimal;
-
-use postgres::Client;
-
-use std::fmt::Write;
-
-use std::sync::Arc;
-
-use std::time::{Duration, Instant};
-
 use dozer_ingestion::connectors::kafka::test_utils::get_iterator_and_client;
+use dozer_ingestion::ingestion::IngestionIterator;
+use dozer_types::ingestion_types::IngestionOperation;
+use dozer_types::parking_lot::RwLock;
+use dozer_types::rust_decimal::Decimal;
+use postgres::Client;
+use std::fmt::Write;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 struct DebeziumBench {
     client: Client,
