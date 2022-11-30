@@ -1,36 +1,27 @@
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use criterion::Criterion;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use dozer_ingestion::ingestion::IngestionIterator;
-#[cfg(feature = "kafka_debezium_e2e_tests")]
+
 use dozer_types::ingestion_types::IngestionOperation;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use dozer_types::parking_lot::RwLock;
-#[cfg(feature = "kafka_debezium_e2e_tests")]
+
 use dozer_types::rust_decimal::Decimal;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use postgres::Client;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use std::fmt::Write;
-#[cfg(feature = "kafka_debezium_e2e_tests")]
+
 use std::sync::Arc;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use std::time::{Duration, Instant};
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use dozer_ingestion::connectors::kafka::test_utils::get_iterator_and_client;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 struct DebeziumBench {
     client: Client,
 }
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 impl DebeziumBench {
     pub fn new(client: Client) -> DebeziumBench {
         Self { client }
@@ -87,7 +78,6 @@ impl DebeziumBench {
     }
 }
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 pub fn main() {
     let (iterator, client) = get_iterator_and_client("", "products_test".to_string());
 
@@ -95,6 +85,3 @@ pub fn main() {
     let mut bench = DebeziumBench::new(client);
     bench.run_bench(&mut criterion, iterator);
 }
-
-#[cfg(not(feature = "kafka_debezium_e2e_tests"))]
-fn main() {}

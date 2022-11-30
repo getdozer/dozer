@@ -1,26 +1,26 @@
-#[cfg(feature = "snowflake")]
+
 use criterion::Criterion;
-#[cfg(feature = "snowflake")]
+
 use std::sync::Arc;
-#[cfg(feature = "snowflake")]
+
 use std::thread;
 
-#[cfg(feature = "snowflake")]
+
 use dozer_ingestion::ingestion::IngestionIterator;
 
-#[cfg(feature = "snowflake")]
+
 use dozer_ingestion::connectors::snowflake::test_utils::remove_streams;
-#[cfg(feature = "snowflake")]
+
 use dozer_types::parking_lot::RwLock;
 
-#[cfg(feature = "snowflake")]
+
 use dozer_ingestion::connectors::{get_connector, TableInfo};
-#[cfg(feature = "snowflake")]
+
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-#[cfg(feature = "snowflake")]
+
 use std::time::Duration;
 
-#[cfg(feature = "snowflake")]
+
 fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
     let mut group = c.benchmark_group("Ingestion");
 
@@ -41,12 +41,11 @@ fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
     group.finish();
 }
 
-#[cfg(feature = "snowflake")]
 pub fn main() {
     use dozer_types::models::source::Source;
 
     let source =
-        serde_yaml::from_str::<Source>(&include_str!("../../config/test.snowflake.sample.yaml"))
+        serde_yaml::from_str::<Source>(&include_str!("../../config/test.snowflake.yaml"))
             .unwrap();
 
     remove_streams(source.connection.clone(), &source.table_name).unwrap();
@@ -70,6 +69,3 @@ pub fn main() {
     let mut criterion = Criterion::default().configure_from_args();
     snowflake(&mut criterion, iterator);
 }
-
-#[cfg(not(feature = "snowflake"))]
-pub fn main() {}

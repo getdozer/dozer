@@ -1,27 +1,22 @@
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use crate::connectors::kafka::test_utils::get_iterator_and_client;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use dozer_types::ingestion_types::IngestionOperation;
-#[cfg(feature = "kafka_debezium_e2e_tests")]
+
 use dozer_types::rust_decimal::Decimal;
-#[cfg(feature = "kafka_debezium_e2e_tests")]
+
 use dozer_types::types::Operation;
-#[cfg(feature = "kafka_debezium_e2e_tests")]
+
 use postgres::Client;
-#[cfg(feature = "kafka_debezium_e2e_tests")]
+
 use std::fmt::Write;
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 pub struct KafkaPostgres {
     client: Client,
     table_name: String,
 }
 
-#[cfg(feature = "kafka_debezium_e2e_tests")]
 impl KafkaPostgres {
     pub fn insert_rows(&mut self, count: u64) {
         let mut buf = String::new();
@@ -62,9 +57,9 @@ impl KafkaPostgres {
     }
 }
 
+#[ignore]
 #[test]
-#[cfg(feature = "kafka_debezium_e2e_tests")]
-fn connect_and_use_kafka_stream() {
+fn connector_e2e_connect_and_use_kafka_stream() {
     let start = SystemTime::now();
     let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap();
     let table_name = format!("products_test_{}", since_the_epoch.as_millis());
