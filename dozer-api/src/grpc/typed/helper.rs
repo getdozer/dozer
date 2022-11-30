@@ -3,12 +3,29 @@ use dozer_cache::{cache::expression::QueryExpression, errors::CacheError};
 use dozer_types::serde_json;
 use dozer_types::types::{Field, Record, Schema};
 use inflector::Inflector;
-use prost_reflect::{DescriptorPool, MessageDescriptor, SerializeOptions};
+use prost_reflect::{DescriptorPool, MessageDescriptor};
 use prost_reflect::{DynamicMessage, Value};
 
 use tonic::{Code, Status};
 
 use super::TypedResponse;
+
+pub fn get_query_exp_from_req(req: DynamicMessage) -> Result<QueryExpression, Status> {
+    let query = req.get_field_by_name("query");
+    let query_expression = match query {
+        Some(query) => {
+            let query = query.as_str().expect("failed to parse query").to_owned();
+            if query.is_empty() {
+                QueryExpression::default()
+            } else {
+                serde_json::from_str(&query)
+                    .map_err(|err| Status::new(Code::Internal, err.to_string()))?
+            }
+        }
+        None => QueryExpression::default(),
+    };
+    Ok(query_expression)
+}
 
 pub fn get_response_descriptor(
     desc: DescriptorPool,
@@ -201,36 +218,6 @@ fn convert_field_to_reflect_value(field: &Field) -> prost_reflect::Value {
     }
 }
 
-pub fn from_dynamic_message_to_json(input: DynamicMessage) -> Result<serde_json::Value, Status> {
-    let mut options = SerializeOptions::new();
-    options = options.use_proto_field_name(true);
-    let mut serializer = serde_json::Serializer::new(vec![]);
-    input
-        .serialize_with_options(&mut serializer, &options)
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let string_utf8 = String::from_utf8(serializer.into_inner())
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    let result: serde_json::Value = serde_json::from_str(&string_utf8)
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    Ok(result)
-}
-
 pub fn from_cache_error(error: CacheError) -> Status {
     Status::new(Code::Internal, error.to_string())
-}
-
-pub fn convert_grpc_message_to_query_exp(input: DynamicMessage) -> Result<QueryExpression, Status> {
-    let json_present = from_dynamic_message_to_json(input)?;
-    let mut string_present = json_present.to_string();
-    let key_replace = vec![
-        "filter", "and", "limit", "skip", "order_by", "eq", "lt", "lte", "gt", "gte",
-    ];
-    key_replace.iter().for_each(|&key| {
-        let from = format!("\"{}\"", key);
-        let to = format!("\"${}\"", key);
-        string_present = string_present.replace(&from, &to);
-    });
-    let query_expression: QueryExpression = serde_json::from_str(&string_present)
-        .map_err(|err| Status::new(Code::Internal, err.to_string()))?;
-    Ok(query_expression)
 }

@@ -1,7 +1,7 @@
 use super::{
     codec::TypedCodec,
     helper::{
-        convert_grpc_message_to_query_exp, from_cache_error, on_event_to_typed_response,
+        from_cache_error, get_query_exp_from_req, on_event_to_typed_response,
         query_response_to_typed_response,
     },
     DynamicMessage, TypedResponse,
@@ -226,8 +226,11 @@ async fn query(
     let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
     let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
     let req = request.into_inner();
-    let exp = convert_grpc_message_to_query_exp(req)?;
+
+    let exp = get_query_exp_from_req(req)?;
     let (schema, records) = api_helper.get_records(exp).map_err(from_cache_error)?;
+
+    println!("{:?}", records);
 
     let res = query_response_to_typed_response(records, schema, desc, endpoint_name);
     Ok(Response::new(res))
