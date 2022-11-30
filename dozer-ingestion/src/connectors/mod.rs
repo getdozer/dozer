@@ -20,13 +20,10 @@ use dozer_types::types::Schema;
 use std::sync::Arc;
 use Authentication::KafkaAuthentication;
 
-#[cfg(feature = "snowflake")]
 pub mod snowflake;
 
-#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
-#[cfg(feature = "snowflake")]
 use dozer_types::ingestion_types::SnowflakeConfig;
 
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
@@ -81,7 +78,6 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             Ok(Box::new(EthConnector::new(2, eth_config)))
         }
         Authentication::Events {} => Ok(Box::new(EventsConnector::new(3, connection.name))),
-        #[cfg(feature = "snowflake")]
         Authentication::SnowflakeAuthentication {
             server,
             port,

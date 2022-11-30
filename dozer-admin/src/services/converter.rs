@@ -149,8 +149,6 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                     filter: Some(dozer_admin_grpc::EthereumFilter::try_from(filter).unwrap()),
                 })
             }
-
-            #[cfg(feature = "snowflake")]
             models::connection::Authentication::SnowflakeAuthentication {
                 server,
                 port,
