@@ -5,6 +5,7 @@ use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::errors::StorageError;
 use dozer_core::storage::record_reader::RecordReader;
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
+use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Field, Record};
 use sqlparser::ast::TableFactor;
 
@@ -48,7 +49,13 @@ pub trait JoinExecutor: Send + Sync {
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
 
-    fn update_index(&self, record: &Record, reader: &RecordReader);
+    fn update_index(
+        &self,
+        record: &Record,
+        db: &Database,
+        txn: &mut dyn RwTransaction,
+        reader: &RecordReader,
+    ) -> Result<(), ExecutionError>;
 }
 
 #[derive(Clone)]
@@ -60,10 +67,7 @@ pub struct JoinOperator {
     right_table: PortHandle,
 
     /// key on the left side of the JOIN
-    _foreign_key_index: usize,
-
-    /// key on the right side of the JOIN
-    _primary_key_index: usize,
+    join_key_indexes: Vec<usize>,
 
     /// prefix for the index key
     prefix: u32,
@@ -71,17 +75,15 @@ pub struct JoinOperator {
 
 impl JoinOperator {
     pub fn new(
-        operator: JoinOperatorType,
+        _operator: JoinOperatorType,
         right_table: PortHandle,
-        foreign_key_index: usize,
-        primary_key_index: usize,
+        join_key_indexes: Vec<usize>,
         prefix: u32,
     ) -> Self {
         Self {
-            _operator: operator,
+            _operator,
             right_table,
-            _foreign_key_index: foreign_key_index,
-            _primary_key_index: primary_key_index,
+            join_key_indexes,
             prefix,
         }
     }
@@ -91,27 +93,41 @@ impl JoinExecutor for JoinOperator {
     fn execute(
         &self,
         records: Vec<Record>,
-        _db: &Database,
-        _txn: &mut dyn RwTransaction,
+        db: &Database,
+        txn: &mut dyn RwTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         if let Some(reader) = readers.get(&self.right_table) {
             for record in records.iter() {
-                self.update_index(record, reader);
+                self.update_index(record, db, txn, reader)?;
             }
         }
         Ok(vec![])
     }
 
-    fn update_index(&self, record: &Record, reader: &RecordReader) {
+    fn update_index(
+        &self,
+        record: &Record,
+        db: &Database,
+        txn: &mut dyn RwTransaction,
+        reader: &RecordReader,
+    ) -> Result<(), ExecutionError> {
+        let mut transaction = PrefixTransaction::new(txn, self.prefix.clone());
+
+        let key: Vec<u8> = get_join_key(record, &self.join_key_indexes)?;
+
+        let value: Vec<u8> = vec![0x00_u8]; //self.get_join_value(record);
+
+        transaction.put(db, &key, &value)?;
+
         todo!()
     }
 }
 
 #[derive(Clone)]
 pub struct ReverseJoinOperator {
-    operator: JoinOperatorType,
+    _operator: JoinOperatorType,
 
     /// relation on the left side of the JOIN
     left_table: PortHandle,
@@ -128,14 +144,14 @@ pub struct ReverseJoinOperator {
 
 impl ReverseJoinOperator {
     pub fn new(
-        operator: JoinOperatorType,
+        _operator: JoinOperatorType,
         left_table: PortHandle,
         foreign_key_index: usize,
         primary_key_index: usize,
         prefix: u32,
     ) -> Self {
         Self {
-            operator,
+            _operator,
             left_table,
             _foreign_key_index: foreign_key_index,
             primary_key_index,
@@ -145,7 +161,13 @@ impl ReverseJoinOperator {
 }
 
 impl JoinExecutor for ReverseJoinOperator {
-    fn update_index(&self, record: &Record, reader: &RecordReader) {
+    fn update_index(
+        &self,
+        _record: &Record,
+        _db: &Database,
+        _txn: &mut dyn RwTransaction,
+        _reader: &RecordReader,
+    ) -> Result<(), ExecutionError> {
         todo!()
     }
 
@@ -157,20 +179,20 @@ impl JoinExecutor for ReverseJoinOperator {
         readers: &HashMap<PortHandle, RecordReader>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
-        let mut output_records = vec![];
+        let output_records = vec![];
 
         if let Some(_left_reader) = readers.get(&self.left_table) {
             for right_record in records.into_iter() {
                 let key = right_record.get_value(self.primary_key_index)?.clone();
 
-                let mut left_records = get_left_records(db, txn, &self.prefix, &key)?;
+                let left_records = get_left_records(db, txn, &self.prefix, &key)?;
 
                 let left_relation_join = join_tables.get(&(self.left_table as PortHandle)).ok_or(
                     ExecutionError::InternalDatabaseError(StorageError::InvalidRecord),
                 )?;
 
                 if let Some(left_join_op) = &left_relation_join.left {
-                    let mut left_join_records =
+                    let _left_join_records =
                         left_join_op.execute(left_records, db, txn, readers, join_tables);
                 }
 
@@ -278,3 +300,30 @@ impl IndexUpdater for ReverseJoinOperator {
 // fn get_table_names(item: &TableWithJoins) -> Result<Vec<TableName>, PipelineError> {
 //     Err(InvalidExpression("ERR".to_string()))
 // }
+
+pub fn get_join_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {
+    let mut composite_key = Vec::with_capacity(64);
+
+    // write 2 bytes temporary to store the lenght later
+    composite_key.extend([0x00_u8, 0x00_u8].iter());
+
+    // create the composite key
+    for key_index in key_indexes.iter() {
+        let key_value = record.get_value(*key_index)?;
+        let key_bytes = key_value.to_bytes()?;
+        composite_key.extend(key_bytes.iter());
+    }
+
+    let composite_key_size = ((composite_key.len() - 2) as u16).to_be_bytes();
+
+    composite_key.splice(0..2, composite_key_size);
+
+    composite_key.extend(
+        [
+            0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8,
+        ]
+        .iter(),
+    );
+
+    Ok(composite_key)
+}

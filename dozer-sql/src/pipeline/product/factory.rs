@@ -109,9 +109,8 @@ pub fn build_join_chain(
         let right_join_operator = JoinOperator::new(
             JoinOperatorType::Inner,
             (index + 1) as PortHandle,
+            vec![0, 1],
             0,
-            0,
-            index as u32,
         );
         input_tables.get_mut(&(index as PortHandle)).unwrap().right = Some(right_join_operator);
 
