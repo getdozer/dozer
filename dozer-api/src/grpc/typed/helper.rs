@@ -154,20 +154,13 @@ fn convert_internal_type_to_pb(value: GrpcTypes::value::Value) -> prost_reflect:
 }
 pub fn record_to_pb(
     rec: Record,
-    schema: Schema,
+    _: Schema,
     desc: DescriptorPool,
     endpoint_name: String,
 ) -> DynamicMessage {
     let resource_desc = get_resource_desc(desc, endpoint_name);
     let mut resource = DynamicMessage::new(resource_desc.to_owned());
-
-    for fd in resource_desc.fields() {
-        let (idx, _) = schema
-            .fields
-            .iter()
-            .enumerate()
-            .find(|(_, f)| f.name == fd.name())
-            .expect("field to be present");
+    for (idx, fd) in resource_desc.fields().enumerate() {
         let field = rec.values.get(idx).expect("field to be present in record");
 
         if let Field::Null = field {
