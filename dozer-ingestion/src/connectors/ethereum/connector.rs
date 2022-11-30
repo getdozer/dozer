@@ -77,7 +77,7 @@ impl EthConnector {
 impl Connector for EthConnector {
     fn get_schemas(
         &self,
-        _: Option<Vec<String>>,
+        _: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         Ok(vec![(TABLE_NAME.to_string(), helper::get_eth_schema())])
     }

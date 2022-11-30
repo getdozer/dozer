@@ -21,13 +21,13 @@ pub struct SchemaHelper {
 impl SchemaHelper {
     pub fn get_tables(
         &mut self,
-        table_names: Option<Vec<String>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
-        let result_vec = self.get_schemas(table_names)?;
+        let result_vec = self.get_schemas(tables)?;
 
         let mut arr = vec![];
         for (name, schema) in result_vec.iter() {
-            let columns: Vec<String> = schema.fields.iter().map(|f| f.name.clone()).collect();
+            let columns = schema.fields.iter().map(|f| f.name.clone()).collect();
             arr.push(TableInfo {
                 name: name.clone(),
                 id: schema.identifier.clone().unwrap().id,
@@ -40,15 +40,22 @@ impl SchemaHelper {
 
     pub fn get_schemas(
         &mut self,
-        table_name: Option<Vec<String>>,
+        table_name: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_config.clone())?;
 
         let mut schemas: Vec<(String, Schema)> = Vec::new();
 
-        let query = if let Some(table) = table_name {
+        let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
+        let query = if let Some(tables) = table_name {
+            tables.iter().for_each(|t| {
+                if let Some(columns) = t.columns.clone() {
+                    tables_columns_map.insert(t.name.clone(), columns);
+                }
+            });
+            let table_names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
             let sql = str::replace(SQL, ":tables_condition", "= ANY($1)");
-            client.query(&sql, &[&table])
+            client.query(&sql, &[&table_names])
         } else {
             let sql = str::replace(SQL, ":tables_condition", TABLES_CONDITION);
             client.query(&sql, &[])
@@ -60,8 +67,18 @@ impl SchemaHelper {
         })?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
-        results.iter().map(|r| self.convert_row(r)).try_for_each(
-            |row| -> Result<(), ConnectorError> {
+        results
+            .iter()
+            .filter(|row| {
+                let table_name: String = row.get(0);
+                let column_name: String = row.get(1);
+
+                tables_columns_map
+                    .get(&table_name)
+                    .map_or(true, |table_info| table_info.contains(&column_name))
+            })
+            .map(|r| self.convert_row(r))
+            .try_for_each(|row| -> Result<(), ConnectorError> {
                 match row {
                     Ok((table_name, field_def, is_primary_key, table_id)) => {
                         let vals = map.get(&table_name);
@@ -79,8 +96,7 @@ impl SchemaHelper {
                     }
                     Err(e) => Err(e),
                 }
-            },
-        )?;
+            })?;
 
         for (table_name, (fields, primary_keys, table_id)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys

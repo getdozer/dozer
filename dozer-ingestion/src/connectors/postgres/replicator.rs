@@ -15,8 +15,10 @@ use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
+use std::collections::HashMap;
 use std::str::FromStr;
 
+use crate::connectors::TableInfo;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::replication::LogicalReplicationStream;
@@ -33,7 +35,7 @@ pub struct CDCHandler {
 }
 
 impl CDCHandler {
-    pub async fn start(&mut self) -> Result<(), ConnectorError> {
+    pub async fn start(&mut self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let replication_conn_config = self.replication_conn_config.clone();
         let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;
 
@@ -74,7 +76,11 @@ impl CDCHandler {
             .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
 
         let stream = LogicalReplicationStream::new(copy_stream);
-        let mut mapper = XlogMapper::new();
+        let mut tables_columns: HashMap<u32, Vec<String>> = HashMap::new();
+        tables.iter().for_each(|t| {
+            tables_columns.insert(t.id, t.clone().columns.map_or(vec![], |t| t));
+        });
+        let mut mapper = XlogMapper::new(tables_columns);
 
         tokio::pin!(stream);
         loop {

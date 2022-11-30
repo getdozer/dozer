@@ -1,10 +1,12 @@
 use super::connection::Connection;
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Source {
     pub id: Option<String>,
     pub name: String,
     pub table_name: String,
+    pub columns: Option<Vec<String>>,
     pub connection: Connection,
     pub history_type: Option<HistoryType>,
     pub refresh_config: RefreshConfig,

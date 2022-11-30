@@ -69,7 +69,7 @@ impl Connector for PostgresConnector {
 
     fn get_schemas(
         &self,
-        table_names: Option<Vec<String>>,
+        table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut helper = SchemaHelper {
             conn_config: self.conn_config.clone(),
@@ -88,6 +88,7 @@ impl Connector for PostgresConnector {
         self.ingestor = Some(ingestor);
         Ok(())
     }
+
     fn start(&self) -> Result<(), ConnectorError> {
         let iterator = PostgresIterator::new(
             self.id,

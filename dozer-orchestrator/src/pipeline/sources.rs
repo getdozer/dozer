@@ -18,7 +18,7 @@ use std::thread;
 
 pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
-    connection_map: HashMap<String, Vec<String>>,
+    connection_map: HashMap<String, Vec<TableInfo>>,
     table_map: HashMap<String, u16>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
@@ -27,7 +27,7 @@ pub struct ConnectorSourceFactory {
 impl ConnectorSourceFactory {
     pub fn new(
         connections: Vec<Connection>,
-        connection_map: HashMap<String, Vec<String>>,
+        connection_map: HashMap<String, Vec<TableInfo>>,
         table_map: HashMap<String, u16>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
@@ -65,7 +65,7 @@ pub struct ConnectorSource {
     // Multiple tables per connection
     connections: Vec<Connection>,
     // Connection Index in the array to List of Tables
-    connection_map: HashMap<String, Vec<String>>,
+    connection_map: HashMap<String, Vec<TableInfo>>,
     table_map: HashMap<String, u16>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
@@ -93,18 +93,7 @@ impl Source for ConnectorSource {
                     .get(&id)
                     .map_or(Err(ConnectorError::TableNotFound(idx.to_string())), Ok)?;
 
-                // TODO: Let users choose columns
-                let tables = tables
-                    .iter()
-                    .enumerate()
-                    .map(|(y, t)| TableInfo {
-                        name: t.to_owned(),
-                        id: (idx + y) as u32,
-                        columns: None,
-                    })
-                    .collect();
-
-                connector.initialize(ingestor, Some(tables))?;
+                connector.initialize(ingestor, Some(tables.clone()))?;
                 connector.start()?;
                 Ok(())
             });

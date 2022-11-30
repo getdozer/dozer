@@ -120,6 +120,7 @@ impl PostgresIteratorHandler {
         // - When snapshot replication is not completed
         // - When there is gap between available lsn (in case when slot dropped and new created) and last lsn
         // - When publication tables changes
+        let mut tables = details.tables.clone();
         if self.lsn.clone().into_inner().is_none() {
             debug!("\nCreating Slot....");
             if let Ok(true) = self.replication_slot_exists(client.clone()) {
@@ -151,7 +152,7 @@ impl PostgresIteratorHandler {
                 ingestor: Arc::clone(&self.ingestor),
                 connector_id: self.connector_id,
             };
-            let tables = snapshotter.sync_tables(details.tables.clone())?;
+            tables = Some(snapshotter.sync_tables(details.tables.clone())?);
 
             debug!("\nInitialized with tables: {:?}", tables);
 
@@ -164,7 +165,7 @@ impl PostgresIteratorHandler {
         self.state.clone().replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
-        self.replicate()
+        self.replicate(tables.unwrap())
     }
 
     fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) {
@@ -234,7 +235,7 @@ impl PostgresIteratorHandler {
         }
     }
 
-    fn replicate(&self) -> Result<(), ConnectorError> {
+    fn replicate(&self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let ingestor = self.ingestor.clone();
         let lsn = self.lsn.borrow();
@@ -254,7 +255,7 @@ impl PostgresIteratorHandler {
                 last_commit_lsn: 0,
                 connector_id: self.connector_id,
             };
-            replicator.start().await
+            replicator.start(tables).await
         })
     }
 }
