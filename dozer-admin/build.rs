@@ -35,10 +35,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .args([dozer_bin_path, out_dir])
         .status()
         .unwrap();
-    // run reset db and run migration
-    Command::new("diesel")
-        .args(["database", "reset"])
-        .status()
-        .unwrap();
     Ok(())
 }
