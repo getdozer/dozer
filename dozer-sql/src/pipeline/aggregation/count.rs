@@ -5,13 +5,13 @@ use dozer_types::types::{Field, FieldType};
 pub struct CountAggregator {}
 
 impl CountAggregator {
-    const _AGGREGATOR_ID: u8 = 0x02;
+    const _AGGREGATOR_ID: u32 = 0x02;
 
     pub(crate) fn get_return_type() -> FieldType {
         FieldType::Int
     }
 
-    pub(crate) fn _get_type() -> u8 {
+    pub(crate) fn _get_type() -> u32 {
         CountAggregator::_AGGREGATOR_ID
     }
 
