@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use crate::dag::node::{NodeHandle, PortHandle};
-use crate::execution::dag::Edge;
+use crate::execution::dag::{Edge, Endpoint};
 use crate::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
@@ -16,6 +16,9 @@ pub enum ExecutionError {
 
     #[error("Edge already exists: {0}.{1} -> {2}.{3}", edge.from.node, edge.from.port, edge.to.node, edge.to.port)]
     EdgeAlreadyExists { edge: Edge },
+
+    #[error("Endpoint is not valid: {0}.{1}", e.node, e.port)]
+    InvalidEndpoint { e: Endpoint },
 
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),

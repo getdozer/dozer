@@ -13,7 +13,7 @@ pub trait ProcessorFactory: Send + Sync {
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Processor>;
-    fn get_schema(
+    fn get_output_schema(
         &mut self,
         output_port: PortHandle,
         input_schemas: &HashMap<PortHandle, ExecutionSchema>,

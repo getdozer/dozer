@@ -1,6 +1,7 @@
 use crate::sources::subscriptions::RelationUniqueName;
 use dozer_types::types::{FieldDefinition, Schema};
 
+#[derive(Clone)]
 pub struct ExecutionFieldDef {
     pub relation: RelationUniqueName,
     pub aliases: Vec<String>,
@@ -17,6 +18,7 @@ impl ExecutionFieldDef {
     }
 }
 
+#[derive(Clone)]
 pub struct ExecutionSchema {
     pub fields: Vec<ExecutionFieldDef>,
     pub primary_key: Vec<usize>,
