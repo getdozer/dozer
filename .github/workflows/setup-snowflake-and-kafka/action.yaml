@@ -89,7 +89,7 @@ runs:
         WAREHOUSE: ${{ inputs.SNOWFLAKE_WAREHOUSE }}
       with:
         from_file: "config/test.snowflake.sample.yaml"
-        to_file: "config/dozer-config.test.snowflake.yaml"
+        to_file: "config/test.snowflake.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
