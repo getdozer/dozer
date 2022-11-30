@@ -692,10 +692,6 @@ impl Database {
     }
 }
 
-pub trait Comparator {
-    fn compare(&self);
-}
-
 pub struct CursorPutOptions {
     pub current: bool,
     pub no_duplicate_data: bool,
