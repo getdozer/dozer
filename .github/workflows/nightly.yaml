@@ -5,7 +5,7 @@ on:
     # 9pm SGT
     - cron: "0 13 * * *"
   push:
-    branches: [fix/refactor-test-features]
+    branches: [fix/coverage]
 
 concurrency:
   group: nightly
@@ -92,7 +92,7 @@ jobs:
         continue-on-error: true
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          channel-id: "release-notifications-test"
+          channel-id: "release-notifications"
           slack-message: |
             ```
             Coverage: ${{ job.status }}
@@ -184,7 +184,7 @@ jobs:
         continue-on-error: true
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          channel-id: "release-notifications-test"
+          channel-id: "release-notifications"
           slack-message: |
             ```
             Criterion: ${{ job.status }}
@@ -249,7 +249,7 @@ jobs:
         continue-on-error: true
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          channel-id: "release-notifications-test"
+          channel-id: "release-notifications"
           slack-message: |
             ```
             SQL log: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/sql-tests.txt

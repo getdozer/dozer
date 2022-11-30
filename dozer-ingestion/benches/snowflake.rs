@@ -1,25 +1,12 @@
-
 use criterion::Criterion;
-
-use std::sync::Arc;
-
-use std::thread;
-
-
-use dozer_ingestion::ingestion::IngestionIterator;
-
-
 use dozer_ingestion::connectors::snowflake::test_utils::remove_streams;
-
-use dozer_types::parking_lot::RwLock;
-
-
 use dozer_ingestion::connectors::{get_connector, TableInfo};
-
+use dozer_ingestion::ingestion::IngestionIterator;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-
+use dozer_types::parking_lot::RwLock;
+use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
-
 
 fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
     let mut group = c.benchmark_group("Ingestion");

@@ -1,15 +1,9 @@
 use crate::connectors::kafka::test_utils::get_iterator_and_client;
-
 use dozer_types::ingestion_types::IngestionOperation;
-
 use dozer_types::rust_decimal::Decimal;
-
 use dozer_types::types::Operation;
-
 use postgres::Client;
-
 use std::fmt::Write;
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct KafkaPostgres {

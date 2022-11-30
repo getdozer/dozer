@@ -1,25 +1,14 @@
 use crate::connectors::postgres::connection::helper::{connect, map_connection_config};
-
 use crate::connectors::{get_connector, TableInfo};
-
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
-
 use dozer_types::models::connection::Authentication;
-
 use dozer_types::models::source::Source;
-
 use dozer_types::parking_lot::RwLock;
-
 use dozer_types::serde::{Deserialize, Serialize};
-
 use postgres::Client;
-
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
-
 use std::sync::Arc;
-
 use std::time::Duration;
-
 use std::{fs, thread};
 
 #[derive(Debug, Deserialize, Serialize)]
