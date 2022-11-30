@@ -68,11 +68,7 @@ pub fn postgres_type_to_field(
             }
             &Type::JSONB | &Type::JSON => Ok(Field::Bson(value.to_vec())),
             &Type::BOOL => Ok(Field::Boolean(value.slice(0..1) == "t")),
-            _ => Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
-                    column_type.name().to_string(),
-                )),
-            )),
+            _ => Ok(Field::Null),
         }
     } else {
         Err(ConnectorError::PostgresConnectorError(
@@ -92,11 +88,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Conne
         Type::NUMERIC => Ok(FieldType::Decimal),
         Type::JSONB => Ok(FieldType::Bson),
         Type::DATE => Ok(FieldType::Date),
-        _ => Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
-                column_type.name().to_string(),
-            )),
-        )),
+        _ => Ok(FieldType::String),
     }
 }
 
@@ -147,11 +139,7 @@ pub fn value_to_field(
             value.map_or_else(handle_error, |v| Ok(Field::Bson(v)))
         }
         _ => {
-            if col_type.schema() == "pg_catalog" {
-                Err(ColumnTypeNotSupported(col_type.name().to_string()))
-            } else {
-                Err(CustomTypeNotSupported)
-            }
+            Ok(Field::Null)
         }
     }
 }
@@ -208,7 +196,11 @@ pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, Conne
             typ,
             nullable: true,
         }),
-        Err(e) => Err(e),
+        Err(_e) => Ok(FieldDefinition {
+            name: column.name().to_string(),
+            typ: FieldType::String,
+            nullable: true
+        }),
     }
 }
 

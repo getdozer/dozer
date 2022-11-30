@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
-use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 
 use crate::connectors::TableInfo;
 
@@ -143,9 +143,7 @@ impl SchemaHelper {
         let typ = Type::from_oid(type_oid);
 
         let typ = typ.map_or(
-            Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(PostgresSchemaError::InvalidColumnType),
-            )),
+            Ok(FieldType::String),
             postgres_type_to_dozer_type,
         )?;
         Ok((
