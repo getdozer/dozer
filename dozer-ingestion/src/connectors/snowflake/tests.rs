@@ -4,7 +4,7 @@ use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use std::thread;
 
-#[cfg(feature = "snowflake")]
+#[ignore]
 #[ignore]
 #[test]
 fn connect_and_read_from_snowflake_stream() {
