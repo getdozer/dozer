@@ -9,11 +9,13 @@ use sqlparser::ast::{TableFactor, TableWithJoins};
 use crate::pipeline::{errors::PipelineError, expression::builder::normalize_ident};
 
 use super::{
-    join::{JoinOperator, JoinOperatorType, JoinTable},
+    join::{JoinOperator, JoinOperatorType, JoinTable, ReverseJoinOperator},
     processor::ProductProcessor,
 };
 
 use crate::pipeline::product::factory::PipelineError::InvalidRelation;
+
+const REVERSE_JOIN_FLAG: usize = 0x80000000;
 
 pub struct ProductProcessorFactory {
     from: TableWithJoins,
@@ -102,11 +104,25 @@ pub fn build_join_chain(
     input_tables.insert(0 as PortHandle, left_join_table);
 
     for (index, join) in from.joins.iter().enumerate() {
-        let right_join_table = get_join_table(&join.relation)?;
+        let mut right_join_table = get_join_table(&join.relation)?;
 
-        let right_join_operator =
-            JoinOperator::new(JoinOperatorType::Inner, (index + 1) as PortHandle, 0, 0);
+        let right_join_operator = JoinOperator::new(
+            JoinOperatorType::Inner,
+            (index + 1) as PortHandle,
+            0,
+            0,
+            index as u32,
+        );
         input_tables.get_mut(&(index as PortHandle)).unwrap().right = Some(right_join_operator);
+
+        let reverse_join_operator = ReverseJoinOperator::new(
+            JoinOperatorType::Inner,
+            (index) as PortHandle,
+            0,
+            0,
+            (index | REVERSE_JOIN_FLAG) as u32,
+        );
+        right_join_table.left = Some(reverse_join_operator);
 
         // right_join_table.left = match &join.join_operator {
         //     sqlparser::ast::JoinOperator::Inner(constraint) => {

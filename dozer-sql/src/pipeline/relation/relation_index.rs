@@ -3,12 +3,11 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::node::PortHandle;
 use dozer_core::storage::errors::StorageError::SerializationError;
-use dozer_core::storage::indexed_transaction::IndexedDatabase;
 use dozer_types::types::{Field, Operation, Record};
 
 pub struct RelationIndex {
     id: PortHandle,
-    db: IndexedDatabase,
+    //db: IndexedDatabase,
     pk_index: Vec<usize>,
     fk_indexes: Vec<(u16, Expression)>,
     vals_indexes: Vec<usize>,
@@ -23,14 +22,14 @@ struct FieldData {
 impl RelationIndex {
     pub fn new(
         id: PortHandle,
-        db: IndexedDatabase,
+        //db: IndexedDatabase,
         pk_index: Vec<usize>,
         fk_indexes: Vec<(u16, Expression)>,
         vals_indexes: Vec<usize>,
     ) -> Self {
         Self {
             id,
-            db,
+            //db,
             pk_index,
             fk_indexes,
             vals_indexes,

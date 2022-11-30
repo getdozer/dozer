@@ -70,11 +70,23 @@ impl ProductProcessor {
 
             if let Some(database) = &self.db {
                 if let Some(left_join) = &input_table.left {
-                    output_records = left_join.execute(output_records, database, txn, reader)?;
+                    output_records = left_join.execute(
+                        output_records,
+                        database,
+                        txn,
+                        reader,
+                        &self.join_tables,
+                    )?;
                 }
 
                 if let Some(right_join) = &input_table.right {
-                    output_records = right_join.execute(output_records, database, txn, reader)?;
+                    output_records = right_join.execute(
+                        output_records,
+                        database,
+                        txn,
+                        reader,
+                        &self.join_tables,
+                    )?;
                 }
             }
 
