@@ -25,3 +25,4 @@ logs/
 *.log
 register-postgres.test.json
 test.debezium.yaml
+test.snowflake.yaml

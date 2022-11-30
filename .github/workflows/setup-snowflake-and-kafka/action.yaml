@@ -89,7 +89,7 @@ runs:
         WAREHOUSE: ${{ inputs.SNOWFLAKE_WAREHOUSE }}
       with:
         from_file: "config/test.snowflake.sample.yaml"
-        to_file: "config/dozer-config.test.snowflake.yaml"
+        to_file: "config/test.snowflake.sample.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -106,7 +106,7 @@ runs:
         KAFKA_CONNECTOR_URL: ${{ inputs.KAFKA_CONNECTOR_URL }}
       with:
         from_file: "config/test.debezium.sample.yaml"
-        to_file: "config/test.debezium.yaml"
+        to_file: "config/test.debezium.sample.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1

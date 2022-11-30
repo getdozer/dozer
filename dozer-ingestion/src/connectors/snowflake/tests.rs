@@ -5,9 +5,8 @@ use dozer_types::ingestion_types::IngestionOperation;
 use std::thread;
 
 #[ignore]
-#[ignore]
 #[test]
-fn connect_and_read_from_snowflake_stream() {
+fn connector_e2e_connect_and_read_from_snowflake_stream() {
     use dozer_types::models::source::Source;
 
     let source = serde_yaml::from_str::<Source>(&include_str!(

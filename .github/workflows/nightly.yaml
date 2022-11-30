@@ -56,6 +56,14 @@ jobs:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off  -Cpanic=abort -Zpanic_abort_tests"
 
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: connector_e2e_ --all-features -- --ignored
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off  -Cpanic=abort -Zpanic_abort_tests"
+
       - name: Get current date
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
@@ -155,7 +163,7 @@ jobs:
       - id: bench
         name: Run Bench
         continue-on-error: true
-        run: cargo criterion --features snowflake,kafka_debezium_e2e_tests
+        run: cargo criterion --features snowflake,debezium_bench
 
       - name: Get current date
         id: date
