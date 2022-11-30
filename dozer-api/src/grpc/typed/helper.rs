@@ -194,10 +194,7 @@ pub fn query_response_to_typed_response(
         let resource = record_to_pb(record, schema.clone(), desc.clone(), endpoint_name.clone());
         resources.push(prost_reflect::Value::Message(resource));
     }
-    msg.set_field_by_name(
-        &endpoint_name.to_plural(),
-        prost_reflect::Value::List(resources),
-    );
+    msg.set_field_by_name("data", prost_reflect::Value::List(resources));
     TypedResponse::new(msg)
 }
 
