@@ -1,15 +1,19 @@
 use crate::connectors::snowflake::test_utils::remove_streams;
 use crate::connectors::{get_connector, TableInfo};
-use crate::ingestion::test_utils::load_config;
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use std::thread;
 
 #[cfg(feature = "snowflake")]
+#[ignore]
 #[test]
 fn connect_and_read_from_snowflake_stream() {
-    let source = load_config("../config/dozer-config.test.snowflake.yaml".to_string()).unwrap();
+    use dozer_types::models::source::Source;
 
+    let source = serde_yaml::from_str::<Source>(&include_str!(
+        "../../../../config/test.snowflake.sample.yaml"
+    ))
+    .unwrap();
     remove_streams(source.connection.clone(), &source.table_name).unwrap();
 
     let config = IngestionConfig::default();

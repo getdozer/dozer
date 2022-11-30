@@ -79,4 +79,4 @@ jobs:
           cargo fmt -- --check
 
       - name: Run tests
-        run: cargo test --features snowflake --verbose
+        run: cargo test --verbose
