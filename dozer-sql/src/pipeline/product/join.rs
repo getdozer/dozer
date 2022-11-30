@@ -11,80 +11,20 @@ use sqlparser::ast::TableFactor;
 use super::factory::get_input_name;
 
 #[derive(Clone)]
-pub struct JoinOperator {
-    /// Type of the Join operation
-    _operator: JoinOperatorType,
-
-    /// relation on the right side of the JOIN
-    _table: PortHandle,
-
-    /// key on the left side of the JOIN
-    _foreign_key_index: usize,
-
-    /// key on the right side of the JOIN
-    _primary_key_index: usize,
-
-    /// prefix for the index key
-    _prefix: String,
-}
-
-impl JoinOperator {
-    pub fn new(
-        operator: JoinOperatorType,
-        table: PortHandle,
-        foreign_key_index: usize,
-        primary_key_index: usize,
-    ) -> Self {
-        let mut prefix = table.to_string();
-        prefix.push('r');
-        Self {
-            _operator: operator,
-            _table: table,
-            _foreign_key_index: foreign_key_index,
-            _primary_key_index: primary_key_index,
-            _prefix: prefix,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct ReverseJoinOperator {
-    _operator: JoinOperatorType,
-
-    /// relation on the left side of the JOIN
-    left_relation: PortHandle,
-
-    /// key on the right side of the JOIN
-    primary_key_index: usize,
-
-    /// prefix for the index key
-    prefix: u32,
-}
-
-// impl ReverseJoinOperator {
-//     pub fn new(
-//         operator: JoinOperatorType,
-//         table: PortHandle,
-//         foreign_key_index: usize,
-//         primary_key_index: usize,
-//     ) -> Self {
-//         let mut prefix = table.to_string();
-//         prefix.push('l');
-//         Self {
-//             _operator: operator,
-//             _table: table,
-//             _foreign_key_index: foreign_key_index,
-//             _primary_key_index: primary_key_index,
-//             _prefix: prefix,
-//         }
-//     }
-// }
-
-#[derive(Clone)]
 pub struct JoinTable {
     pub name: String,
     pub left: Option<ReverseJoinOperator>,
     pub right: Option<JoinOperator>,
+}
+
+impl JoinTable {
+    pub fn from(relation: &TableFactor) -> Self {
+        Self {
+            name: get_input_name(relation).unwrap(),
+            left: None,
+            right: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,16 +38,6 @@ pub enum JoinOperatorType {
     // OuterApply,
 }
 
-impl JoinTable {
-    pub fn from(relation: &TableFactor) -> Self {
-        Self {
-            name: get_input_name(relation).unwrap(),
-            left: None,
-            right: None,
-        }
-    }
-}
-
 pub trait JoinExecutor: Send + Sync {
     fn execute(
         &self,
@@ -115,37 +45,136 @@ pub trait JoinExecutor: Send + Sync {
         db: &Database,
         txn: &mut dyn RwTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
+        join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
+
+    fn update_index(&self, record: &Record, reader: &RecordReader);
+}
+
+#[derive(Clone)]
+pub struct JoinOperator {
+    /// Type of the Join operation
+    _operator: JoinOperatorType,
+
+    /// relation on the right side of the JOIN
+    right_table: PortHandle,
+
+    /// key on the left side of the JOIN
+    _foreign_key_index: usize,
+
+    /// key on the right side of the JOIN
+    _primary_key_index: usize,
+
+    /// prefix for the index key
+    prefix: u32,
+}
+
+impl JoinOperator {
+    pub fn new(
+        operator: JoinOperatorType,
+        right_table: PortHandle,
+        foreign_key_index: usize,
+        primary_key_index: usize,
+        prefix: u32,
+    ) -> Self {
+        Self {
+            _operator: operator,
+            right_table,
+            _foreign_key_index: foreign_key_index,
+            _primary_key_index: primary_key_index,
+            prefix,
+        }
+    }
 }
 
 impl JoinExecutor for JoinOperator {
     fn execute(
         &self,
-        _record: Vec<Record>,
+        records: Vec<Record>,
         _db: &Database,
         _txn: &mut dyn RwTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, RecordReader>,
+        _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
+        if let Some(reader) = readers.get(&self.right_table) {
+            for record in records.iter() {
+                self.update_index(record, reader);
+            }
+        }
+        Ok(vec![])
+    }
+
+    fn update_index(&self, record: &Record, reader: &RecordReader) {
         todo!()
     }
 }
 
+#[derive(Clone)]
+pub struct ReverseJoinOperator {
+    operator: JoinOperatorType,
+
+    /// relation on the left side of the JOIN
+    left_table: PortHandle,
+
+    /// key on the left side of the JOIN
+    _foreign_key_index: usize,
+
+    /// key on the right side of the JOIN
+    primary_key_index: usize,
+
+    /// prefix for the index key
+    prefix: u32,
+}
+
+impl ReverseJoinOperator {
+    pub fn new(
+        operator: JoinOperatorType,
+        left_table: PortHandle,
+        foreign_key_index: usize,
+        primary_key_index: usize,
+        prefix: u32,
+    ) -> Self {
+        Self {
+            operator,
+            left_table,
+            _foreign_key_index: foreign_key_index,
+            primary_key_index,
+            prefix,
+        }
+    }
+}
+
 impl JoinExecutor for ReverseJoinOperator {
+    fn update_index(&self, record: &Record, reader: &RecordReader) {
+        todo!()
+    }
+
     fn execute(
         &self,
         records: Vec<Record>,
         db: &Database,
         txn: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        readers: &HashMap<PortHandle, RecordReader>,
+        join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let mut output_records = vec![];
 
-        if let Some(_left_reader) = reader.get(&self.left_relation) {
+        if let Some(_left_reader) = readers.get(&self.left_table) {
             for right_record in records.into_iter() {
                 let key = right_record.get_value(self.primary_key_index)?.clone();
 
                 let mut left_records = get_left_records(db, txn, &self.prefix, &key)?;
-                output_records.append(&mut left_records);
+
+                let left_relation_join = join_tables.get(&(self.left_table as PortHandle)).ok_or(
+                    ExecutionError::InternalDatabaseError(StorageError::InvalidRecord),
+                )?;
+
+                if let Some(left_join_op) = &left_relation_join.left {
+                    let mut left_join_records =
+                        left_join_op.execute(left_records, db, txn, readers, join_tables);
+                }
+
+                //output_records.append(&mut left_records);
             }
         }
 

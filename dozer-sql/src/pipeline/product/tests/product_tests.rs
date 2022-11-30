@@ -49,11 +49,6 @@ fn test_product_three() {
 
 #[test]
 fn test_join_tables_three() {
-    // let mut env_man = LmdbEnvironmentManager::create(Path::new("/tmp"), "tmp_join_test")
-    //     .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    // let env = env_man.as_environment();
-
     let statement = get_select(
         "SELECT c.name, d.name, AVG(salary) \
     FROM Country c JOIN Department d ON c.id = d.country_id JOIN Users u ON d.id=u.department_id \
