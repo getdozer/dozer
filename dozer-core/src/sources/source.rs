@@ -17,17 +17,22 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 #[derive(Clone, Debug)]
+pub enum UpdateDeleteOpMode {
+    FullRecord,
+    PrimaryKeys,
+}
+
+#[derive(Clone, Debug)]
 pub struct SourceSettings {
     id: SourceId,
     relations: Vec<RelationSettings>,
-    retr_old_record_for_updates: bool,
-    retr_old_record_for_deletes: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct RelationSettings {
     id: SourceRelationId,
     name: SourceRelationName,
+    op_mode: UpdateDeleteOpMode,
 }
 
 pub trait SourceIngestor: Send + Sync {

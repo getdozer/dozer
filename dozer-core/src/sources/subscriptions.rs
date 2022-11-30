@@ -18,34 +18,38 @@ pub type RelationSourceName = (SourceName, SourceRelationName);
 pub type RelationSourceId = (SourceId, SourceRelationId);
 
 pub struct SubscriptionsManager {
-    rel_name_idx: HashMap<RelationSourceName, RelationSourceId>,
+    rel_name_idx: HashMap<RelationUniqueName, RelationSourceId>,
     subscribers: HashMap<RelationSourceId, HashMap<PipelineId, Arc<Sender<Arc<Operation>>>>>,
-    subscribed_pipelines:
-        HashMap<PipelineId, HashMap<RelationSourceName, Arc<Sender<Arc<Operation>>>>>,
 }
 
 impl SubscriptionsManager {
-    pub fn subscribe_to_sources(
+    pub fn subscribe(
         &mut self,
         from_pipeline: PipelineId,
-        subscribers: HashMap<RelationSourceName, Arc<Sender<Arc<Operation>>>>,
+        subscribers: HashMap<RelationUniqueName, Arc<Sender<Arc<Operation>>>>,
     ) -> Result<(), SourceError> {
-        for e in subscribers {
+        for (unique_name, sender) in subscribers {
             let id = self
                 .rel_name_idx
-                .get(&e.0)
-                .ok_or(SourceError::InvalidSource(e.0 .0.clone(), e.0 .1.clone()))?;
+                .get(&unique_name)
+                .ok_or(SourceError::InvalidRelation(unique_name))?;
             let mut subs = self.subscribers.entry(id.clone()).or_insert(HashMap::new());
-            subs.insert(from_pipeline.clone(), e.1);
+            subs.insert(from_pipeline.clone(), sender);
         }
         Ok(())
     }
 
-    pub fn forward_to_pipelines(
-        &self,
-        from: &RelationSourceId,
-        op: Arc<Operation>,
-    ) -> Result<(), SourceError> {
+    pub fn unsubscribe(&mut self, from_pipeline: PipelineId) {
+        for (rel_src_id, mut subs) in &mut self.subscribers {
+            subs.remove(&from_pipeline);
+        }
+    }
+
+    pub fn register(&mut self, src_rel: RelationSourceId, unique_name: RelationUniqueName) {
+        self.rel_name_idx.insert(unique_name, src_rel);
+    }
+
+    pub fn forward(&self, from: &RelationSourceId, op: Arc<Operation>) -> Result<(), SourceError> {
         let mut errs = Vec::<PipelineId>::new();
         if let Some(s) = self.subscribers.get(from) {
             for (p_id, sender) in s {

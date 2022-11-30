@@ -18,7 +18,7 @@ impl SourceForwarder {
         last_in_tx: bool,
         new: Record,
     ) -> Result<(), SourceError> {
-        self.sm.read().forward_to_pipelines(
+        self.sm.read().forward(
             &(self.source_id, rel_id),
             Arc::new(Operation::Insert { new }),
         )?;
@@ -32,7 +32,7 @@ impl SourceForwarder {
         last_in_tx: bool,
         old: Record,
     ) -> Result<(), SourceError> {
-        self.sm.read().forward_to_pipelines(
+        self.sm.read().forward(
             &(self.source_id, rel_id),
             Arc::new(Operation::Delete { old }),
         )?;
@@ -47,7 +47,7 @@ impl SourceForwarder {
         old: Record,
         new: Record,
     ) -> Result<(), SourceError> {
-        self.sm.read().forward_to_pipelines(
+        self.sm.read().forward(
             &(self.source_id, rel_id),
             Arc::new(Operation::Update { old, new }),
         )?;

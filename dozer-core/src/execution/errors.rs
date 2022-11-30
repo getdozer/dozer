@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use crate::dag::node::{NodeHandle, PortHandle};
+use crate::execution::dag::Edge;
 use crate::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
@@ -9,26 +10,40 @@ use thiserror::Error;
 pub enum ExecutionError {
     #[error("Invalid port handle: {0}")]
     InvalidPortHandle(PortHandle),
+
     #[error("Invalid node handle: {0}")]
     InvalidNodeHandle(NodeHandle),
+
+    #[error("Edge already exists: {0}.{1} -> {2}.{3}", edge.from.node, edge.from.port, edge.to.node, edge.to.port)]
+    EdgeAlreadyExists { edge: Edge },
+
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),
+
     #[error("Schema not initialized")]
     SchemaNotInitialized,
+
     #[error("The node {0} does not have any input")]
     MissingNodeInput(NodeHandle),
+
     #[error("The node {0} does not have any output")]
     MissingNodeOutput(NodeHandle),
+
     #[error("The node type is invalid")]
     InvalidNodeType,
+
     #[error("The database is invalid")]
     InvalidDatabase,
+
     #[error("Field not found at position {0}")]
     FieldNotFound(String),
+
     #[error("Port not found in source {0}")]
     PortNotFound(String),
+
     #[error("Record not found")]
     RecordNotFound(),
+
     #[error("Invalid checkpoint state for node: {0}")]
     InvalidCheckpointState(NodeHandle),
 
