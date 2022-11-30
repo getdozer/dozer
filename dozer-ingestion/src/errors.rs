@@ -168,6 +168,7 @@ pub enum SnowflakeError {
     #[error("Snowflake connection error")]
     ConnectionError(#[from] Box<DiagnosticRecord>),
 
+    #[cfg(feature = "snowflake")]
     #[error(transparent)]
     SnowflakeSchemaError(#[from] SnowflakeSchemaError),
 
@@ -188,7 +189,6 @@ pub enum SnowflakeSchemaError {
     SchemaConversionError(#[source] TryFromIntError),
 }
 
-#[cfg(feature = "snowflake")]
 #[derive(Error, Debug)]
 pub enum SnowflakeStreamError {
     #[error("Unsupported \"{0}\" action in stream")]
