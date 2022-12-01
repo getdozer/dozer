@@ -63,10 +63,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 if index_scans.len() == 1 {
                     // The fast path, without intersection calculation.
                     let iter = self.query_with_secondary_index(&index_scans[0])?;
-                    iter.skip(self.query.skip)
-                        .take(self.query.limit)
-                        .map(|id| helper::get(self.txn, self.db, id))
-                        .collect()
+                    self.collect_records(iter)
                 } else {
                     // Intersection of multiple index scans.
                     let iterators = index_scans
@@ -78,11 +75,7 @@ impl<'a> LmdbQueryHandler<'a> {
                         })
                         .collect::<Result<Vec<_>, CacheError>>()?;
                     let intersection = intersection(iterators.into_iter());
-                    intersection
-                        .skip(self.query.skip)
-                        .take(self.query.limit)
-                        .map(|id| helper::get(self.txn, self.db, &id.to_be_bytes()))
-                        .collect()
+                    self.collect_records(intersection.map(|id| id.to_be_bytes()))
                 }
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(),
@@ -145,6 +138,16 @@ impl<'a> LmdbQueryHandler<'a> {
                 }
             })
             .map(|(_, id)| id))
+    }
+
+    fn collect_records(
+        &self,
+        ids: impl Iterator<Item = impl AsRef<[u8]>>,
+    ) -> Result<Vec<Record>, CacheError> {
+        ids.skip(self.query.skip)
+            .take(self.query.limit)
+            .map(|id| helper::get(self.txn, self.db, id.as_ref()))
+            .collect()
     }
 }
 
