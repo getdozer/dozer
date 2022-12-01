@@ -136,6 +136,9 @@ pub enum PostgresConnectorError {
 
     #[error(transparent)]
     PostgresSchemaError(#[from] PostgresSchemaError),
+
+    #[error("LSN not stored for replication slot")]
+    LSNNotStoredError,
 }
 
 #[derive(Error, Debug, Eq, PartialEq)]

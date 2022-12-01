@@ -31,6 +31,7 @@ pub struct PostgresConnector {
     ingestor: Option<Arc<RwLock<Ingestor>>>,
     replication_conn_config: Config,
     conn_config: Config,
+    schema_helper: SchemaHelper,
 }
 
 #[derive(Debug)]
@@ -44,6 +45,8 @@ impl PostgresConnector {
         let mut replication_conn_config = config.config.clone();
         replication_conn_config.replication_mode(ReplicationMode::Logical);
 
+        let helper = SchemaHelper::new(config.config.clone(), None);
+
         // conn_str - replication_conn_config
         // conn_str_plain- conn_config
 
@@ -54,27 +57,21 @@ impl PostgresConnector {
             replication_conn_config,
             tables: config.tables,
             ingestor: None,
+            schema_helper: helper,
         }
     }
 }
 
 impl Connector for PostgresConnector {
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        let mut helper = SchemaHelper {
-            conn_config: self.conn_config.clone(),
-        };
-        let result_vec = helper.get_tables(None)?;
-        Ok(result_vec)
+        self.schema_helper.get_tables(None)
     }
 
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
-        let mut helper = SchemaHelper {
-            conn_config: self.conn_config.clone(),
-        };
-        helper.get_schemas(table_names)
+        self.schema_helper.get_schemas(table_names)
     }
 
     fn initialize(

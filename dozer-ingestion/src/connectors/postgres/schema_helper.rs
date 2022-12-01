@@ -15,31 +15,39 @@ use std::hash::{Hash, Hasher};
 use tokio_postgres::Row;
 
 pub struct SchemaHelper {
-    pub conn_config: tokio_postgres::Config,
+    conn_config: tokio_postgres::Config,
+    schema: String,
 }
 
 impl SchemaHelper {
+    pub fn new(conn_config: tokio_postgres::Config, schema: Option<String>) -> SchemaHelper {
+        let schema = schema.map_or("public".to_string(), |s| s);
+        Self {
+            conn_config,
+            schema,
+        }
+    }
+
     pub fn get_tables(
-        &mut self,
+        &self,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
-        let result_vec = self.get_schemas(tables)?;
-
-        let mut arr = vec![];
-        for (name, schema) in result_vec.iter() {
-            let columns = schema.fields.iter().map(|f| f.name.clone()).collect();
-            arr.push(TableInfo {
-                name: name.clone(),
-                id: schema.identifier.clone().unwrap().id,
-                columns: Some(columns),
-            });
-        }
-
-        Ok(arr)
+        Ok(self
+            .get_schemas(tables)?
+            .iter()
+            .map(|(name, schema)| {
+                let columns = Some(schema.fields.iter().map(|f| f.name.clone()).collect());
+                TableInfo {
+                    name: name.clone(),
+                    id: schema.identifier.clone().unwrap().id,
+                    columns,
+                }
+            })
+            .collect())
     }
 
     pub fn get_schemas(
-        &mut self,
+        &self,
         table_name: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_config.clone())?;

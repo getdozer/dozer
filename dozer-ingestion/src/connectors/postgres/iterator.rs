@@ -12,6 +12,7 @@ use std::sync::Arc;
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use crate::errors::PostgresConnectorError::LSNNotStoredError;
 use postgres::Client;
 use tokio::runtime::Runtime;
 use tokio_postgres::SimpleQueryMessage;
@@ -152,7 +153,7 @@ impl PostgresIteratorHandler {
                 ingestor: Arc::clone(&self.ingestor),
                 connector_id: self.connector_id,
             };
-            tables = Some(snapshotter.sync_tables(details.tables.clone())?);
+            tables = snapshotter.sync_tables(details.tables.clone())?;
 
             debug!("\nInitialized with tables: {:?}", tables);
 
@@ -165,7 +166,7 @@ impl PostgresIteratorHandler {
         self.state.clone().replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
-        self.replicate(tables.unwrap())
+        self.replicate(tables)
     }
 
     fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) {
@@ -235,14 +236,14 @@ impl PostgresIteratorHandler {
         }
     }
 
-    fn replicate(&self, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
+    fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let ingestor = self.ingestor.clone();
         let lsn = self.lsn.borrow();
-        let lsn = match lsn.as_ref() {
-            Some(x) => x.to_string(),
-            None => panic!("lsn not stored..."),
-        };
+        let lsn = lsn
+            .as_ref()
+            .map_or(Err(LSNNotStoredError), |x| Ok(x.to_string()))?;
+
         let publication_name = self.details.publication_name.clone();
         let slot_name = self.details.slot_name.clone();
         rt.block_on(async {

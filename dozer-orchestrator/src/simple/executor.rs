@@ -101,12 +101,12 @@ impl Executor {
                 id: table_id,
                 columns: source.columns,
             };
-            table_id = table_id + 1;
+            table_id += 1;
 
             connection_map
                 .entry(id)
                 .and_modify(|v| v.push(table.clone()))
-                .or_insert(vec![table]);
+                .or_insert_with(|| vec![table]);
 
             table_map.insert(table_name, (idx as usize).try_into().unwrap());
         }

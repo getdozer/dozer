@@ -27,9 +27,7 @@ impl PostgresSnapshotter {
         &self,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
-        let mut helper = SchemaHelper {
-            conn_config: self.conn_config.clone(),
-        };
+        let helper = SchemaHelper::new(self.conn_config.clone(), None);
         let arr = helper.get_tables(tables).unwrap();
         match self.tables.as_ref() {
             None => Ok(arr),
@@ -49,7 +47,7 @@ impl PostgresSnapshotter {
     pub fn sync_tables(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<TableInfo>, ConnectorError> {
+    ) -> Result<Option<Vec<TableInfo>>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(connection_helper::connect(
             self.conn_config.clone(),
         )?));
@@ -135,6 +133,6 @@ impl PostgresSnapshotter {
                 .map_err(ConnectorError::IngestorError)?;
         }
 
-        Ok(tables)
+        Ok(Some(tables))
     }
 }
