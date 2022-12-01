@@ -85,6 +85,7 @@ impl BatchedWriter {
                                 self.cache.update_with_txn(
                                     &mut txn,
                                     &key,
+                                    &old,
                                     &new,
                                     &schema,
                                     &secondary_indexes,

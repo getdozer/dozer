@@ -95,16 +95,12 @@ impl LmdbCache {
         let id = helper::lmdb_stat(txn, self.db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?
             .ms_entries as u64;
+        let id = id.to_be_bytes();
         let encoded: Vec<u8> =
             bincode::serialize(&record).map_err(CacheError::map_serialization_error)?;
 
-        txn.put(
-            self.db,
-            &id.to_be_bytes().as_slice(),
-            &encoded.as_slice(),
-            WriteFlags::default(),
-        )
-        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        txn.put(self.db, &id, &encoded.as_slice(), WriteFlags::default())
+            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         let indexer = Indexer {
             primary_index: self.primary_index,
@@ -202,27 +198,13 @@ impl LmdbCache {
         &self,
         txn: &mut RwTransaction,
         key: &[u8],
-    ) -> Result<(), lmdb::Error> {
+    ) -> Result<[u8; 8], lmdb::Error> {
         let id: [u8; 8] = txn.get(self.primary_index, &key)?.try_into().unwrap();
-        txn.del(self.db, &id, None)
+        txn.del(self.db, &id, None)?;
+        Ok(id)
     }
 
     pub fn delete_with_txn(
-        &self,
-        txn: &mut RwTransaction,
-        key: &[u8],
-        _record: &Record,
-        _schema: &Schema,
-        _secondary_indexes: &[IndexDefinition],
-    ) -> Result<(), CacheError> {
-        self.delete_record_with_txn(txn, key)
-            .map_err(QueryError::DeleteValue)?;
-        txn.del(self.primary_index, &key, None)
-            .map_err(QueryError::DeleteValue)?;
-        Ok(())
-    }
-
-    pub fn update_with_txn(
         &self,
         txn: &mut RwTransaction,
         key: &[u8],
@@ -230,9 +212,29 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        self.delete_with_txn(txn, key, record, schema, secondary_indexes)?;
+        let id = self
+            .delete_record_with_txn(txn, key)
+            .map_err(QueryError::DeleteValue)?;
 
-        self.insert_with_txn(txn, record, schema, secondary_indexes)
+        let indexer = Indexer {
+            primary_index: self.primary_index,
+            index_metadata: self.index_metadata.clone(),
+        };
+        indexer.delete_indexes(txn, record, schema, secondary_indexes, key, id)
+    }
+
+    pub fn update_with_txn(
+        &self,
+        txn: &mut RwTransaction,
+        key: &[u8],
+        old: &Record,
+        new: &Record,
+        schema: &Schema,
+        secondary_indexes: &[IndexDefinition],
+    ) -> Result<(), CacheError> {
+        self.delete_with_txn(txn, key, old, schema, secondary_indexes)?;
+
+        self.insert_with_txn(txn, new, schema, secondary_indexes)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
     }
@@ -299,8 +301,17 @@ impl Cache for LmdbCache {
             .env
             .begin_rw_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let (schema, secondary_indexes) = self.get_schema_and_indexes_from_record(&txn, record)?;
-        self.update_with_txn(&mut txn, key, record, &schema, &secondary_indexes)?;
+        let old_record = self.get_with_txn(&txn, key)?;
+        let (schema, secondary_indexes) =
+            self.get_schema_and_indexes_from_record(&txn, &old_record)?;
+        self.update_with_txn(
+            &mut txn,
+            key,
+            &old_record,
+            record,
+            &schema,
+            &secondary_indexes,
+        )?;
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
