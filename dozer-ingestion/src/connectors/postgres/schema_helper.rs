@@ -8,7 +8,7 @@ use crate::connectors::TableInfo;
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
 use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
-use dozer_types::log::error;
+
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -55,6 +55,7 @@ impl SchemaHelper {
         let mut schemas: Vec<(String, Schema)> = Vec::new();
 
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
+        let schema = self.schema.clone();
         let query = if let Some(tables) = table_name {
             tables.iter().for_each(|t| {
                 if let Some(columns) = t.columns.clone() {
@@ -62,17 +63,14 @@ impl SchemaHelper {
                 }
             });
             let table_names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
-            let sql = str::replace(SQL, ":tables_condition", "= ANY($1)");
-            client.query(&sql, &[&table_names])
+            let sql = str::replace(SQL, ":tables_condition", "= ANY($1) AND table_schema = $2");
+            client.query(&sql, &[&table_names, &schema])
         } else {
             let sql = str::replace(SQL, ":tables_condition", TABLES_CONDITION);
-            client.query(&sql, &[])
+            client.query(&sql, &[&schema])
         };
 
-        let results = query.map_err(|e| {
-            error!("{}", e);
-            ConnectorError::InvalidQueryError
-        })?;
+        let results = query.map_err(ConnectorError::InvalidQueryError)?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
         results
@@ -183,7 +181,7 @@ impl SchemaHelper {
 
 const TABLES_CONDITION: &str = "IN (SELECT table_name
                            FROM information_schema.tables
-                           WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                           WHERE table_schema = $1 AND table_type = 'BASE TABLE'
                            ORDER BY table_name)";
 
 const SQL: &str = "
@@ -232,3 +230,85 @@ FROM (SELECT table_schema,
 ORDER BY table_info.table_schema,
          table_info.table_catalog,
          table_info.table_name;";
+
+#[cfg(test)]
+mod tests {
+    use crate::connectors::postgres::schema_helper::SchemaHelper;
+    use crate::connectors::postgres::test_utils::get_client;
+    use crate::connectors::TableInfo;
+    use rand::Rng;
+    use std::collections::HashSet;
+    use std::hash::Hash;
+
+    fn assert_vec_eq<T>(a: Vec<T>, b: Vec<T>) -> bool
+    where
+        T: Eq + Hash,
+    {
+        let a: HashSet<_> = a.iter().collect();
+        let b: HashSet<_> = b.iter().collect();
+
+        a == b
+    }
+
+    #[test]
+    #[ignore]
+    fn connector_e2e_get_tables() {
+        let mut client = get_client();
+
+        let mut rng = rand::thread_rng();
+
+        let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
+        let table_name = format!("products_test_{}", rng.gen::<u32>());
+
+        client.create_schema(schema.clone());
+        client.create_simple_table(schema.clone(), table_name.clone());
+
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let result = schema_helper.get_tables(None).unwrap();
+
+        let table = result.get(0).unwrap();
+        assert_eq!(table_name, table.name.clone());
+        assert!(assert_vec_eq(
+            vec![
+                "name".to_string(),
+                "description".to_string(),
+                "weight".to_string(),
+                "id".to_string()
+            ],
+            table.columns.clone().unwrap()
+        ));
+
+        client.drop_schema(schema);
+    }
+
+    #[test]
+    #[ignore]
+    fn connector_e2e_get_schema_with_selected_columns() {
+        let mut client = get_client();
+
+        let mut rng = rand::thread_rng();
+
+        let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
+        let table_name = format!("products_test_{}", rng.gen::<u32>());
+
+        client.create_schema(schema.clone());
+        client.create_simple_table(schema.clone(), table_name.clone());
+
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let table_info = TableInfo {
+            name: table_name.clone(),
+            id: 0,
+            columns: Some(vec!["name".to_string(), "id".to_string()]),
+        };
+        let result = schema_helper.get_tables(Some(vec![table_info])).unwrap();
+
+        let table = result.get(0).unwrap();
+        assert_eq!(table_name, table.name.clone());
+        assert!(assert_vec_eq(
+            vec!["name".to_string(), "id".to_string()],
+            table.columns.clone().unwrap()
+        ));
+
+        client.drop_schema(schema);
+    }
+}

@@ -30,6 +30,7 @@ fn single_source_sink_impl(schema: Schema) {
         id: Some("1".to_string()),
         name: "events".to_string(),
         table_name: "events".to_string(),
+        columns: None,
         connection: models::connection::Connection {
             db_type: models::connection::DBType::Events,
             authentication: models::connection::Authentication::Events {},

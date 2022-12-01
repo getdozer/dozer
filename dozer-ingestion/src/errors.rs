@@ -36,7 +36,10 @@ pub enum ConnectorError {
     UnsupportedConnectorMethod(String),
 
     #[error("Query failed")]
-    InvalidQueryError,
+    InvalidQueryError(#[source] tokio_postgres::Error),
+
+    #[error("Unexpected query message")]
+    UnexpectedQueryMessageError,
 
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,

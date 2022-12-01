@@ -45,7 +45,7 @@ pub trait Connector: Send + Sync {
     fn validate(&self) -> Result<(), ConnectorError>;
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,

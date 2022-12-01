@@ -12,6 +12,7 @@ use std::sync::Arc;
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use crate::errors::ConnectorError::UnexpectedQueryMessageError;
 use crate::errors::PostgresConnectorError::LSNNotStoredError;
 use postgres::Client;
 use tokio::runtime::Runtime;
@@ -205,8 +206,7 @@ impl PostgresIteratorHandler {
         if let SimpleQueryMessage::Row(row) = &slot_query_row[0] {
             Ok(row.get("consistent_point").map(|lsn| lsn.to_string()))
         } else {
-            debug!("unexpected query message");
-            Err(ConnectorError::InvalidQueryError)
+            Err(UnexpectedQueryMessageError)
         }
     }
 

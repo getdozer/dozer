@@ -39,7 +39,7 @@ fn setup_typed_service() -> TypedService {
         schema_name: schema_name.to_owned(),
         cache_endpoint: CacheEndpoint {
             cache: test_utils::initialize_cache(&schema_name, None),
-            endpoint: endpoint,
+            endpoint,
         },
     };
     let path = out_dir

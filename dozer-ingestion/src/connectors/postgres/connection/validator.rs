@@ -89,7 +89,7 @@ fn validate_tables(client: &mut Client, table_info: Vec<TableInfo>) -> Result<()
         .map_err(|_e| PostgresConnectorError::TableError(table_name_keys))?;
 
     for r in result.iter() {
-        let table_name: String = r.try_get(0).map_err(|_e| InvalidQueryError)?;
+        let table_name: String = r.try_get(0).map_err(InvalidQueryError)?;
         tables_names.remove(&table_name);
     }
 
@@ -114,14 +114,14 @@ fn validate_slot(
         )
         .map_err(|_e| PostgresConnectorError::SlotNotExistError(replication_info.name.clone()))?;
 
-    let is_already_running: bool = result.try_get(0).map_err(|_e| InvalidQueryError)?;
+    let is_already_running: bool = result.try_get(0).map_err(InvalidQueryError)?;
     if is_already_running {
         return Err(ConnectorError::PostgresConnectorError(
             PostgresConnectorError::SlotIsInUseError(replication_info.name.clone()),
         ));
     }
 
-    let flush_lsn: PgLsn = result.try_get(1).map_err(|_e| InvalidQueryError)?;
+    let flush_lsn: PgLsn = result.try_get(1).map_err(InvalidQueryError)?;
 
     if flush_lsn.gt(&replication_info.start_lsn) {
         Err(ConnectorError::PostgresConnectorError(
@@ -140,18 +140,14 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), ConnectorEr
         .query_one("SHOW max_replication_slots", &[])
         .map_err(|e| PostgresConnectorError::ConnectToDatabaseError(e.to_string()))?;
 
-    let slots_limit_str: String = slots_limit_result
-        .try_get(0)
-        .map_err(|_e| InvalidQueryError)?;
+    let slots_limit_str: String = slots_limit_result.try_get(0).map_err(InvalidQueryError)?;
     let slots_limit: i64 = slots_limit_str.parse().unwrap();
 
     let used_slots_result = client
         .query_one("SELECT COUNT(*) FROM pg_replication_slots;", &[])
         .map_err(|e| PostgresConnectorError::ConnectToDatabaseError(e.to_string()))?;
 
-    let used_slots: i64 = used_slots_result
-        .try_get(0)
-        .map_err(|_e| InvalidQueryError)?;
+    let used_slots: i64 = used_slots_result.try_get(0).map_err(InvalidQueryError)?;
 
     if used_slots == slots_limit {
         Err(ConnectorError::PostgresConnectorError(

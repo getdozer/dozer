@@ -1330,6 +1330,7 @@ dependencies = [
  "postgres",
  "postgres-protocol",
  "postgres-types",
+ "rand 0.8.5",
  "reqwest",
  "serde_yaml 0.9.14",
  "serial_test",

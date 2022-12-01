@@ -84,8 +84,7 @@ impl Executor {
         // Initialize Source
         // For every pipeline, there will be one Source implementation
         // that can take multiple Connectors on different ports.
-        let mut table_id = 0;
-        for (idx, source) in self.sources.iter().cloned().enumerate() {
+        for (table_id, (idx, source)) in self.sources.iter().cloned().enumerate().enumerate() {
             validate(source.connection.clone())?;
 
             let table_name = source.table_name.clone();
@@ -98,10 +97,9 @@ impl Executor {
 
             let table = TableInfo {
                 name: source.table_name,
-                id: table_id,
+                id: table_id as u32,
                 columns: source.columns,
             };
-            table_id += 1;
 
             connection_map
                 .entry(id)

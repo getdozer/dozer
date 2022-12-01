@@ -227,6 +227,7 @@ mod tests {
                     type_id: $b.oid() as i32,
                     flags: 0,
                     r#type: Some($b),
+                    idx: 0,
                 },
             );
             assert_eq!(value.unwrap(), $c);

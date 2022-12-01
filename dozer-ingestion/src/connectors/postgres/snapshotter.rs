@@ -70,7 +70,7 @@ impl PostgresSnapshotter {
                 .clone()
                 .borrow_mut()
                 .prepare(&query)
-                .map_err(|_| ConnectorError::InvalidQueryError)?;
+                .map_err(ConnectorError::InvalidQueryError)?;
             let columns = stmt.columns();
 
             // Ingest schema for every table
@@ -88,7 +88,7 @@ impl PostgresSnapshotter {
                 .clone()
                 .borrow_mut()
                 .query_raw(&stmt, empty_vec)
-                .map_err(|_| ConnectorError::InvalidQueryError)?
+                .map_err(ConnectorError::InvalidQueryError)?
                 .iterator()
             {
                 match msg {
