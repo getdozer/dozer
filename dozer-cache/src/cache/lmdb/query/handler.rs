@@ -7,7 +7,10 @@ use super::{
 use crate::cache::{
     expression::{Operator, QueryExpression},
     index::{self},
-    lmdb::{cache::IndexMetaData, query::helper::lmdb_cmp},
+    lmdb::{
+        cache::IndexMetaData,
+        query::{helper::lmdb_cmp, intersection::intersection},
+    },
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
 use crate::errors::{
@@ -51,25 +54,39 @@ impl<'a> LmdbQueryHandler<'a> {
     pub fn query(&self) -> Result<Vec<Record>, CacheError> {
         let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
         let execution = planner.plan()?;
-        let records = match execution {
+        match execution {
             Plan::IndexScans(index_scans) => {
-                if index_scans.len() > 1 {
-                    todo!("Combine results from multiple index scans");
-                }
                 debug_assert!(
                     !index_scans.is_empty(),
                     "Planner should not generate empty index scan"
                 );
-                let iter = self.query_with_secondary_index(&index_scans[0])?;
-                iter.skip(self.query.skip)
-                    .take(self.query.limit)
-                    .map(|id| helper::get(self.txn, self.db, id))
-                    .collect::<Result<Vec<_>, CacheError>>()?
+                if index_scans.len() == 1 {
+                    // The fast path, without intersection calculation.
+                    let iter = self.query_with_secondary_index(&index_scans[0])?;
+                    iter.skip(self.query.skip)
+                        .take(self.query.limit)
+                        .map(|id| helper::get(self.txn, self.db, id))
+                        .collect()
+                } else {
+                    // Intersection of multiple index scans.
+                    let iterators = index_scans
+                        .iter()
+                        .map(|index_scan| {
+                            self.query_with_secondary_index(index_scan).map(|iter| {
+                                iter.map(|id| u64::from_be_bytes(id.try_into().unwrap()))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, CacheError>>()?;
+                    let intersection = intersection(iterators.into_iter());
+                    intersection
+                        .skip(self.query.skip)
+                        .take(self.query.limit)
+                        .map(|id| helper::get(self.txn, self.db, &id.to_be_bytes()))
+                        .collect()
+                }
             }
-            Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize()?,
-        };
-
-        Ok(records)
+            Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(),
+        }
     }
 
     pub fn iterate_and_deserialize(&self) -> Result<Vec<Record>, CacheError> {
@@ -81,7 +98,7 @@ impl<'a> LmdbQueryHandler<'a> {
             .skip(self.query.skip)
             .take(self.query.limit)
             .map(|(_, v)| bincode::deserialize(v).map_err(CacheError::map_deserialization_error))
-            .collect::<Result<Vec<_>, CacheError>>()
+            .collect()
     }
 
     fn query_with_secondary_index(

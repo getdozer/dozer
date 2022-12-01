@@ -154,6 +154,66 @@ fn query_secondary_vars() {
     );
 }
 
+#[test]
+fn query_secondary_multi_indices() {
+    let cache = LmdbCache::new(CacheOptions::default()).unwrap();
+    let (schema, seconary_indexes) = test_utils::schema_multi_indices();
+
+    cache
+        .insert_schema("sample", &schema, &seconary_indexes)
+        .unwrap();
+
+    for (id, text) in [
+        (1, "apple ball cake dance"),
+        (2, "ball cake dance egg"),
+        (3, "cake dance egg fish"),
+        (4, "dance egg fish glove"),
+        (5, "egg fish glove heart"),
+        (6, "fish glove heart igloo"),
+        (7, "glove heart igloo jump"),
+    ] {
+        cache
+            .insert(&Record {
+                schema_id: schema.identifier.clone(),
+                values: vec![Field::Int(id), Field::String(text.into())],
+            })
+            .unwrap();
+    }
+
+    let query = QueryExpression {
+        filter: Some(FilterExpression::And(vec![
+            FilterExpression::Simple(
+                "id".into(),
+                expression::Operator::GT,
+                serde_json::Value::from(2),
+            ),
+            FilterExpression::Simple(
+                "text".into(),
+                expression::Operator::Contains,
+                serde_json::Value::from("dance"),
+            ),
+        ])),
+        order_by: vec![],
+        limit: 10,
+        skip: 0,
+    };
+
+    let records = cache.query("sample", &query).unwrap();
+    assert_eq!(
+        records,
+        vec![
+            Record {
+                schema_id: schema.identifier.clone(),
+                values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
+            },
+            Record {
+                schema_id: schema.identifier.clone(),
+                values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
+            },
+        ]
+    );
+}
+
 fn test_query_err(query: Value, cache: &LmdbCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
     let result = cache.query("sample", &query);

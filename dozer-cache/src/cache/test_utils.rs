@@ -87,3 +87,29 @@ pub fn schema_empty_primary_index() -> (Schema, Vec<IndexDefinition>) {
         vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
     )
 }
+
+pub fn schema_multi_indices() -> (Schema, Vec<IndexDefinition>) {
+    (
+        Schema {
+            identifier: Some(SchemaIdentifier { id: 4, version: 1 }),
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    typ: dozer_types::types::FieldType::Int,
+                    nullable: false,
+                },
+                FieldDefinition {
+                    name: "text".to_string(),
+                    typ: dozer_types::types::FieldType::String,
+                    nullable: false,
+                },
+            ],
+            values: vec![0, 1],
+            primary_index: vec![0],
+        },
+        vec![
+            IndexDefinition::SortedInverted(vec![(0, Ascending)]),
+            IndexDefinition::FullText(1),
+        ],
+    )
+}
