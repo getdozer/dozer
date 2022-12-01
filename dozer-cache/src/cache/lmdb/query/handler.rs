@@ -22,7 +22,7 @@ use dozer_types::{
 use lmdb::{Database, RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
-    db: &'a Database,
+    db: Database,
     index_metadata: Arc<IndexMetaData>,
     txn: &'a RoTransaction<'a>,
     schema: &'a Schema,
@@ -31,7 +31,7 @@ pub struct LmdbQueryHandler<'a> {
 }
 impl<'a> LmdbQueryHandler<'a> {
     pub fn new(
-        db: &'a Database,
+        db: Database,
         index_metadata: Arc<IndexMetaData>,
         txn: &'a RoTransaction,
         schema: &'a Schema,
@@ -60,7 +60,11 @@ impl<'a> LmdbQueryHandler<'a> {
                     !index_scans.is_empty(),
                     "Planner should not generate empty index scan"
                 );
-                self.query_with_secondary_index(&index_scans[0])?
+                let iter = self.query_with_secondary_index(&index_scans[0])?;
+                iter.skip(self.query.skip)
+                    .take(self.query.limit)
+                    .map(|id| helper::get(self.txn, self.db, id))
+                    .collect::<Result<Vec<_>, CacheError>>()?
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize()?,
         };
@@ -71,7 +75,7 @@ impl<'a> LmdbQueryHandler<'a> {
     pub fn iterate_and_deserialize(&self) -> Result<Vec<Record>, CacheError> {
         let cursor = self
             .txn
-            .open_ro_cursor(*self.db)
+            .open_ro_cursor(self.db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         CacheIterator::new(cursor, None, true)
             .skip(self.query.skip)
@@ -81,12 +85,12 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     fn query_with_secondary_index(
-        &self,
+        &'a self,
         index_scan: &IndexScan,
-    ) -> Result<Vec<Record>, CacheError> {
+    ) -> Result<impl Iterator<Item = &'a [u8]> + 'a, CacheError> {
         let index_db = self.index_metadata.get_db(self.schema, index_scan.index_id);
 
-        let comparision_key = self.build_comparision_key(index_scan)?;
+        let comparision_key = build_comparision_key(index_scan)?;
         let last_filter = match &index_scan.kind {
             IndexScanKind::SortedInverted {
                 range_query:
@@ -111,9 +115,7 @@ impl<'a> LmdbQueryHandler<'a> {
             .open_ro_cursor(index_db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
-        CacheIterator::new(cursor, start_key, true)
-            .skip(self.query.skip)
-            .take(self.query.limit)
+        Ok(CacheIterator::new(cursor, start_key, true)
             .take_while(move |(key, _)| {
                 if let Some(end_key) = &end_key {
                     match lmdb_cmp(self.txn, index_db, key, end_key.key()) {
@@ -125,33 +127,32 @@ impl<'a> LmdbQueryHandler<'a> {
                     true
                 }
             })
-            .map(|(_, id)| helper::get(self.txn, *self.db, id))
-            .collect::<Result<Vec<_>, CacheError>>()
+            .map(|(_, id)| id))
     }
+}
 
-    fn build_comparision_key(&self, index_scan: &'a IndexScan) -> Result<Vec<u8>, CacheError> {
-        match &index_scan.kind {
-            IndexScanKind::SortedInverted {
-                eq_filters,
-                range_query,
-            } => {
-                let mut fields = vec![];
-                eq_filters.iter().for_each(|filter| {
-                    fields.push((&filter.2, filter.1));
-                });
-                if let Some(range_query) = range_query {
-                    if let Some((_, val)) = &range_query.operator_and_value {
-                        fields.push((val, range_query.sort_direction));
-                    }
+fn build_comparision_key(index_scan: &IndexScan) -> Result<Vec<u8>, CacheError> {
+    match &index_scan.kind {
+        IndexScanKind::SortedInverted {
+            eq_filters,
+            range_query,
+        } => {
+            let mut fields = vec![];
+            eq_filters.iter().for_each(|filter| {
+                fields.push((&filter.2, filter.1));
+            });
+            if let Some(range_query) = range_query {
+                if let Some((_, val)) = &range_query.operator_and_value {
+                    fields.push((val, range_query.sort_direction));
                 }
-                index::get_secondary_index(&fields)
             }
-            IndexScanKind::FullText { filter } => {
-                if let Field::String(token) = &filter.val {
-                    Ok(index::get_full_text_secondary_index(token))
-                } else {
-                    Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
-                }
+            index::get_secondary_index(&fields)
+        }
+        IndexScanKind::FullText { filter } => {
+            if let Field::String(token) = &filter.val {
+                Ok(index::get_full_text_secondary_index(token))
+            } else {
+                Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
             }
         }
     }
