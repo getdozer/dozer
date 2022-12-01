@@ -86,6 +86,15 @@ impl JoinOperator {
             prefix,
         }
     }
+
+    fn get_right_keys(
+        &self,
+        join_key: Vec<u8>,
+        db: &Database,
+        transaction: &mut dyn RwTransaction,
+    ) -> Result<Vec<u8>, ExecutionError> {
+        todo!()
+    }
 }
 
 impl JoinExecutor for JoinOperator {
@@ -99,11 +108,18 @@ impl JoinExecutor for JoinOperator {
     ) -> Result<Vec<Record>, ExecutionError> {
         for record in records.iter() {
             self.update_index(record, db, txn)?;
+
+            let join_key = get_join_key(record, &self.join_key_indexes)?;
+
+            let right_keys = self.get_right_keys(join_key, db, txn);
+
+            if let Some(reader) = readers.get(&self.right_table) {
+                for lookup_key in right_keys.iter() {
+                    if let Some(record_key_bytes) = reader.get(&lookup_key)? {}
+                }
+            }
         }
 
-        if let Some(_reader) = readers.get(&self.right_table) {
-            //reader.get()
-        }
         Ok(vec![])
     }
 
@@ -115,9 +131,9 @@ impl JoinExecutor for JoinOperator {
     ) -> Result<(), ExecutionError> {
         let mut transaction = PrefixTransaction::new(txn, self.prefix);
 
-        let key: Vec<u8> = get_join_key(record, &self.join_key_indexes)?;
+        let key: Vec<u8> = get_lookup_key(record, &self.join_key_indexes)?;
 
-        let value: Vec<u8> = vec![0x00_u8]; //self.get_join_value(record);
+        let value: Vec<u8> = vec![0x00_u8]; // record.id;
 
         transaction.put(db, &key, &value)?;
 
@@ -301,6 +317,26 @@ impl IndexUpdater for ReverseJoinOperator {
 // }
 
 pub fn get_join_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {
+    let mut join_key = Vec::with_capacity(64);
+
+    // write 2 bytes temporary to store the lenght later
+    join_key.extend([0x00_u8, 0x00_u8].iter());
+
+    // create the composite key
+    for key_index in key_indexes.iter() {
+        let key_value = record.get_value(*key_index)?;
+        let key_bytes = key_value.to_bytes()?;
+        join_key.extend(key_bytes.iter());
+    }
+
+    let composite_key_size = ((join_key.len() - 2) as u16).to_be_bytes();
+
+    join_key.splice(0..2, composite_key_size);
+
+    Ok(join_key)
+}
+
+pub fn get_lookup_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {
     let mut composite_key = Vec::with_capacity(64);
 
     // write 2 bytes temporary to store the lenght later

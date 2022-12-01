@@ -19,12 +19,12 @@ use dozer_types::{
 
 use crate::pipeline::{
     builder::get_select,
-    product::{factory::ProductProcessorFactory, join::get_join_key},
+    product::{factory::ProductProcessorFactory, join::get_lookup_key},
 };
 
 #[test]
 fn test_composite_key() {
-    let join_key = get_join_key(
+    let join_key = get_lookup_key(
         &Record::new(
             None,
             vec![

@@ -1,5 +1,6 @@
 pub mod common;
 pub mod errors;
+mod index_comparator;
 mod indexed_db;
 pub mod lmdb_storage;
 mod lmdb_sys;
