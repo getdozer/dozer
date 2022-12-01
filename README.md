@@ -42,6 +42,7 @@ dozer run -c dozer-config.yaml
 - [`Rust`](https://rustup.rs)
 - [`protoc`](https://github.com/protocolbuffers/protobuf/releases) latest release on your `PATH`
 - `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
+- `openssl` (brew install pkg-config openssl on MacOS)
 
 ### Local development
 
