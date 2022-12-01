@@ -3,6 +3,7 @@ name = "dozer-admin"
 version = "0.0.1"
 authors = ["Karolis Gudiškis <karolis@getdozer.io>"]
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 futures = "0.3.23"
