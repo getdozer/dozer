@@ -16,6 +16,8 @@ use dozer_types::models::{
 };
 use std::thread;
 
+use super::converter::convert_i32_to_dbtype;
+
 pub struct ConnectionService {
     db_pool: DbPool,
 }
@@ -142,12 +144,9 @@ impl ConnectionService {
         &self,
         input: TestConnectionRequest,
     ) -> Result<TestConnectionResponse, ErrorResponse> {
-        let db_type_value = match input.r#type {
-            0 => models::connection::DBType::Postgres,
-            2 => models::connection::DBType::Events,
-            3 => models::connection::DBType::Snowflake,
-            _ => models::connection::DBType::Ethereum,
-        };
+        let db_type_value = convert_i32_to_dbtype(input.r#type).map_err(|err| ErrorResponse {
+            message: err.to_string(),
+        })?;
         let auth_input =
             Authentication::try_from(input.authentication.unwrap()).map_err(|err| {
                 ErrorResponse {
@@ -196,10 +195,9 @@ impl ConnectionService {
         &self,
         input: ValidateConnectionRequest,
     ) -> Result<ValidateConnectionResponse, ErrorResponse> {
-        let db_type_value = match input.r#type {
-            0 => models::connection::DBType::Postgres,
-            _ => models::connection::DBType::Ethereum,
-        };
+        let db_type_value = convert_i32_to_dbtype(input.r#type).map_err(|err| ErrorResponse {
+            message: err.to_string(),
+        })?;
         let connection = Connection {
             db_type: db_type_value,
             authentication: Authentication::try_from(input.authentication.unwrap()).unwrap(),

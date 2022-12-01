@@ -19,6 +19,16 @@ use dozer_types::{
 };
 use std::{convert::From, error::Error};
 
+pub fn convert_i32_to_dbtype(input: i32) -> Result<models::connection::DBType, Box<dyn Error>> {
+    match input {
+        0 => Ok(models::connection::DBType::Postgres),
+        1 => Ok(models::connection::DBType::Snowflake),
+        3 => Ok(models::connection::DBType::Ethereum),
+        2 => Ok(models::connection::DBType::Events),
+        _ => Err("Not match any enum DbType".to_owned())?,
+    }
+}
+
 fn convert_to_source(input: (DBSource, DbConnection)) -> Result<Source, Box<dyn Error>> {
     let db_source = input.0;
     let connection_info = ConnectionInfo::try_from(input.1)?;
@@ -92,15 +102,10 @@ impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
 impl TryFrom<ConnectionInfo> for models::connection::Connection {
     type Error = Box<dyn Error>;
     fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {
-        let db_type_value = match item.r#type {
-            0 => models::connection::DBType::Postgres,
-            1 => models::connection::DBType::Snowflake,
-            3 => models::connection::DBType::Ethereum,
-            _ => models::connection::DBType::Events,
-        };
         if item.authentication.is_none() {
             Err("Missing authentication props when converting ".to_owned())?
         } else {
+            let db_type_value = convert_i32_to_dbtype(item.r#type)?;
             let auth_value =
                 models::connection::Authentication::try_from(item.authentication.unwrap())?;
             Ok(models::connection::Connection {
