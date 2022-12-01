@@ -105,7 +105,24 @@ impl ProtoGenerator<'_> {
     }
 
     pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
-        Ok(vec!["types.proto".to_owned()])
+        let type_need_import_libs = ["google.protobuf.Timestamp"];
+        let mut libs_import: Vec<String> = self
+            .schema
+            .fields
+            .iter()
+            .map(|field| convert_dozer_type_to_proto_type(field.to_owned().typ).unwrap())
+            .filter(|proto_type| -> bool {
+                type_need_import_libs.contains(&proto_type.to_owned().as_str())
+            })
+            .map(|proto_type| match proto_type.as_str() {
+                "google.protobuf.Timestamp" => "google/protobuf/timestamp.proto".to_owned(),
+                _ => "".to_owned(),
+            })
+            .collect();
+        libs_import.push("types.proto".to_owned());
+        libs_import.sort();
+        libs_import.dedup();
+        Ok(libs_import)
     }
 
     pub fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {

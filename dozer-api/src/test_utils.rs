@@ -33,6 +33,11 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
             typ: FieldType::Int,
             nullable: true,
         },
+        FieldDefinition {
+            name: "updated_at".to_string(),
+            typ: FieldType::Timestamp,
+            nullable: true,
+        },
     ];
     let secondary_indexes = fields
         .iter()
@@ -60,7 +65,7 @@ pub fn get_endpoint() -> ApiEndpoint {
         path: "/films".to_string(),
         enable_rest: false,
         enable_grpc: true,
-        sql: "select film_id, description, rental_rate, release_year from film where 1=1;"
+        sql: "select film_id, description, rental_rate, release_year, updated_at from film where 1=1;"
             .to_string(),
         index: ApiIndex {
             primary_key: vec!["film_id".to_string()],
@@ -74,13 +79,15 @@ pub fn get_films() -> Vec<Value> {
           "description": "A Amazing Panorama of a Mad Scientist And a Husband who must Meet a Woman in The Outback",
           "rental_rate": null,
           "release_year": 2006,
-          "film_id": 268
+          "film_id": 268,
+          "updated_at": null
         }),
         json!({
           "film_id": 524,
           "release_year": 2006,
           "rental_rate": null,
-          "description": "A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China"
+          "description": "A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China",
+          "updated_at": null
         }),
     ]
 }
@@ -118,6 +125,7 @@ pub fn get_sample_records(schema: Schema) -> Vec<Record> {
                     Field::String(description.to_string()),
                     Field::Null,
                     Field::UInt(release_year),
+                    Field::Null,
                 ],
             );
             records.push(record);
