@@ -270,7 +270,7 @@ impl Cache for LmdbCache {
         let (schema, secondary_indexes) = self._get_schema_from_reverse_key(name, &txn)?;
 
         let handler = LmdbQueryHandler::new(
-            &self.db,
+            self.db,
             self.index_metadata.clone(),
             &txn,
             &schema,
