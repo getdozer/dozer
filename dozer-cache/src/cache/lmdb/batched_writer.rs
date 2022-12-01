@@ -56,14 +56,24 @@ impl BatchedWriter {
                             Operation::Delete { old } => {
                                 let key =
                                     index::get_primary_key(&schema.primary_index, &old.values);
-                                self.cache._delete(&key, &mut txn)?;
+                                self.cache.delete_with_txn(
+                                    &mut txn,
+                                    &key,
+                                    &old,
+                                    &schema,
+                                    &secondary_indexes,
+                                )?;
                             }
                             Operation::Insert { new } => {
                                 let mut new = new;
                                 new.schema_id = schema.identifier.to_owned();
 
-                                self.cache
-                                    ._insert(&mut txn, &new, &schema, &secondary_indexes)?;
+                                self.cache.insert_with_txn(
+                                    &mut txn,
+                                    &new,
+                                    &schema,
+                                    &secondary_indexes,
+                                )?;
                             }
                             Operation::Update { old, new } => {
                                 let key =
@@ -72,12 +82,13 @@ impl BatchedWriter {
                                 let mut new = new;
                                 new.schema_id = schema.identifier.clone();
 
-                                self.cache._update(
+                                self.cache.update_with_txn(
+                                    &mut txn,
                                     &key,
+                                    &old,
                                     &new,
                                     &schema,
                                     &secondary_indexes,
-                                    &mut txn,
                                 )?;
                             }
                         }

@@ -26,9 +26,9 @@ pub trait Cache {
     ) -> Result<(Schema, Vec<IndexDefinition>), CacheError>;
 
     // Record Operations
-    fn insert(&self, rec: &Record) -> Result<(), CacheError>;
+    fn insert(&self, record: &Record) -> Result<(), CacheError>;
     fn delete(&self, key: &[u8]) -> Result<(), CacheError>;
-    fn update(&self, key: &[u8], rec: &Record, schema: &Schema) -> Result<(), CacheError>;
+    fn update(&self, key: &[u8], record: &Record) -> Result<(), CacheError>;
     fn get(&self, key: &[u8]) -> Result<Record, CacheError>;
     fn query(&self, schema_name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError>;
 }

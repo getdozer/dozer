@@ -326,7 +326,7 @@ mod tests {
         let update_operation = Operation::Update {
             old: Record {
                 schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
-                values: vec![Field::Int(1), Field::Null],
+                values: initial_values.clone(),
             },
             new: Record {
                 schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
