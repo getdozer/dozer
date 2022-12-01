@@ -105,11 +105,7 @@ impl ProtoGenerator<'_> {
     }
 
     pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
-        let type_need_import_libs = [
-            "google.protobuf.Timestamp",
-            "google.protobuf.Value",
-            "google.protobuf.ListValue",
-        ];
+        let type_need_import_libs = ["google.protobuf.Timestamp"];
         let mut libs_import: Vec<String> = self
             .schema
             .fields
@@ -120,9 +116,6 @@ impl ProtoGenerator<'_> {
             })
             .map(|proto_type| match proto_type.as_str() {
                 "google.protobuf.Timestamp" => "google/protobuf/timestamp.proto".to_owned(),
-                "google.protobuf.ListValue" => "google/protobuf/struct.proto".to_owned(),
-                "google.protobuf.Value" => "google/protobuf/struct.proto".to_owned(),
-                "google.protobuf.Any" => "google/protobuf/any.proto".to_owned(),
                 _ => "".to_owned(),
             })
             .collect();
