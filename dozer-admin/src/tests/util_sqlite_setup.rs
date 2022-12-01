@@ -5,6 +5,14 @@ use dozer_types::models::connection::DBType;
 use r2d2::{CustomizeConnection, Pool};
 use std::error::Error;
 type DB = diesel::sqlite::Sqlite;
+
+const DB_Type_Testing: Vec<DBType> = vec![
+    DBType::Postgres,
+    DBType::Ethereum,
+    DBType::Events,
+    DBType::Snowflake,
+    DBType::Kafka,
+];
 #[derive(Debug, Clone)]
 pub struct TestConfigId {
     pub app_id: String,
@@ -40,9 +48,26 @@ fn prepare_test_db(connection: &mut SqliteConnection, config_id: TestConfigId) {
     setup_data(connection, config_id)
 }
 pub fn get_setup_ids() -> TestConfigId {
+    let connections_ids_space: Vec<String> = vec![
+        "9cd38b34-3100-4b61-99fb-ca3626b90f59".to_owned(),
+        "2afd6d1f-f739-4f02-9683-b469011936a4".to_owned(),
+        "dc5d0a89-7b7a-4ab1-88a0-f23ec5c73482".to_owned(),
+        "67df73b7-a322-4ff7-86b4-d7a5b12416d9",
+        "7a82ead6-bfd2-4336-805c-a7058dfac3a6",
+        "ebec89f4-80c7-4519-99d3-94cf55669c2b",
+        "0ea2cb76-1103-476d-935c-fe5f745bad53",
+        "28732cb6-7a68-4e34-99f4-99e356daa06d",
+        "bce87d76-93dc-42af-bffa-d47743f4c7fa",
+        "d0356a18-77f5-479f-a690-536d086707d8",
+    ];
+    let connection_ids: Vec<Str> = DB_Type_Testing
+        .iter()
+        .enumerate()
+        .map(|(idx, dbtype)| connections_ids_space[idx].to_owned())
+        .collect();
     TestConfigId {
         app_id: "a04376da-3af3-4051-a725-ed0073b3b598".to_owned(),
-        connection_ids: vec!["dcd4fc24-d0d8-4f5f-9ec2-dfa74ddbc353".to_owned()],
+        connection_ids: connection_ids,
         source_ids: vec!["eb83ae6d-3bc8-4d10-a804-541f60f551ea".to_owned()],
         api_ids: vec!["de3052fc-affb-46f8-b8c1-0ac69ee91a4f".to_owned()],
     }
