@@ -215,38 +215,3 @@ impl ConnectionService {
             .map_err(|err| ErrorResponse { message: err })
     }
 }
-// #[cfg(test)]
-// mod test {
-//     use super::ConnectionService;
-//     use crate::server::dozer_admin_grpc::{
-//         create_connection_request::Authentication, CreateConnectionRequest,
-//         GetAllConnectionRequest, PostgresAuthentication,
-//     };
-//     #[test]
-//     fn success_save_connection() {
-//         let create_connection_request: CreateConnectionRequest = CreateConnectionRequest {
-//             r#type: 0,
-//             authentication: Some(Authentication::Postgres(PostgresAuthentication {
-//                 database: "pagila".to_owned(),
-//                 user: "postgres".to_owned(),
-//                 host: "localhost".to_owned(),
-//                 port: "5432".to_owned(),
-//                 name: "postgres".to_owned(),
-//                 password: "postgres".to_owned(),
-//             })),
-//         };
-//         let service = ConnectionService::new("db/test_dozer.db".to_owned());
-//         let result = service.create_connection(create_connection_request);
-//         assert!(result.is_ok())
-//     }
-//     #[test]
-//     fn success_get_connections() {
-//         let create_connection_request: GetAllConnectionRequest = GetAllConnectionRequest {
-//             page: 0,
-//             page_size: 3,
-//         };
-//         let service = ConnectionService::new("db/test_dozer.db".to_owned());
-//         let result = service.get_all_connections(create_connection_request);
-//         assert!(result.is_ok())
-//     }
-// }

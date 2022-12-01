@@ -23,8 +23,8 @@ pub fn convert_i32_to_dbtype(input: i32) -> Result<models::connection::DBType, B
     match input {
         0 => Ok(models::connection::DBType::Postgres),
         1 => Ok(models::connection::DBType::Snowflake),
-        3 => Ok(models::connection::DBType::Ethereum),
         2 => Ok(models::connection::DBType::Events),
+        3 => Ok(models::connection::DBType::Ethereum),
         _ => Err("Not match any enum DbType".to_owned())?,
     }
 }
@@ -243,11 +243,12 @@ mod test {
             source::DBSource,
         },
         services::converter::{
-            convert_to_api_endpoint, convert_to_source, dozer_admin_grpc::ConnectionType,
-            ConnectionInfo,
+            convert_i32_to_dbtype, convert_to_api_endpoint, convert_to_source,
+            dozer_admin_grpc::ConnectionType, ConnectionInfo,
         },
     };
     use dozer_types::models::{
+        self,
         api_endpoint::ApiIndex,
         connection::{self, DBType},
     };
@@ -341,6 +342,12 @@ mod test {
         )
     }
 
+    #[test]
+    fn success_from_i32_to_db_type() {
+        let converted = convert_i32_to_dbtype(0);
+        assert!(converted.is_ok());
+        assert_eq!(converted.unwrap(), models::connection::DBType::Postgres);
+    }
     #[test]
     fn success_from_i32_to_connection_type() {
         let converted = ConnectionType::try_from(0);

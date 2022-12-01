@@ -3,7 +3,6 @@ pub mod db;
 pub mod server;
 pub mod services;
 pub mod tests;
-pub mod utils;
 #[macro_use]
 extern crate diesel_migrations;
 #[tokio::main]
