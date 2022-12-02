@@ -289,7 +289,7 @@ impl<'a> DagMetadataManager<'a> {
                 txn.put(&db, &key, &value)?;
             }
 
-            for source in &self.dag.get_sources() {
+            for (source, factory) in &self.dag.get_sources() {
                 let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
                 key.extend(source.as_bytes());
                 txn.put(&db, &key, &0_u64.to_be_bytes())?;

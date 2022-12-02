@@ -4,6 +4,7 @@ use crate::dag::errors::ExecutionError::{InvalidNodeHandle, InvalidNodeType, Inv
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
 
@@ -32,9 +33,9 @@ impl Edge {
 }
 
 pub enum NodeType {
-    Source(Box<dyn SourceFactory>),
-    Processor(Box<dyn ProcessorFactory>),
-    Sink(Box<dyn SinkFactory>),
+    Source(Arc<dyn SourceFactory>),
+    Processor(Arc<dyn ProcessorFactory>),
+    Sink(Arc<dyn SinkFactory>),
 }
 
 pub struct Node {
@@ -144,11 +145,36 @@ impl Dag {
             .collect()
     }
 
-    pub fn get_sources(&self) -> Vec<NodeHandle> {
-        self.nodes
-            .iter()
-            .filter(|source| matches!(source.1, NodeType::Source(_)))
-            .map(|e| e.0.clone())
-            .collect()
+    pub fn get_sources(&self) -> Vec<(NodeHandle, Arc<dyn SourceFactory>)> {
+        let mut r: Vec<(NodeHandle, Arc<dyn SourceFactory>)> = Vec::new();
+        for (handle, typ) in &self.nodes {
+            match typ {
+                NodeType::Source(s) => r.push((handle.clone(), s.clone())),
+                _ => {}
+            }
+        }
+        r
+    }
+
+    pub fn get_processors(&self) -> Vec<(NodeHandle, Arc<dyn ProcessorFactory>)> {
+        let mut r: Vec<(NodeHandle, Arc<dyn ProcessorFactory>)> = Vec::new();
+        for (handle, typ) in &self.nodes {
+            match typ {
+                NodeType::Processor(s) => r.push((handle.clone(), s.clone())),
+                _ => {}
+            }
+        }
+        r
+    }
+
+    pub fn get_sinks(&self) -> Vec<(NodeHandle, Arc<dyn SinkFactory>)> {
+        let mut r: Vec<(NodeHandle, Arc<dyn SinkFactory>)> = Vec::new();
+        for (handle, typ) in &self.nodes {
+            match typ {
+                NodeType::Sink(s) => r.push((handle.clone(), s.clone())),
+                _ => {}
+            }
+        }
+        r
     }
 }

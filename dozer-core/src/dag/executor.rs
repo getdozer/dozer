@@ -1,15 +1,58 @@
-use crate::dag::dag::Dag;
+use crate::dag::dag::{Dag, NodeType};
 use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager};
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InvalidNodeHandle};
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::dag::record_store::RecordReader;
+use crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
+use dozer_types::types::Record;
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
+use std::thread::JoinHandle;
+use std::time::Duration;
+
+pub struct ExecutorOptions {
+    pub commit_sz: u32,
+    pub channel_buffer_sz: usize,
+    pub commit_time_threshold: Duration,
+}
+
+impl ExecutorOptions {
+    pub fn default() -> Self {
+        Self {
+            commit_sz: 10_000,
+            channel_buffer_sz: 20_000,
+            commit_time_threshold: Duration::from_secs(30),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExecutorOperation {
+    Delete { seq: u64, old: Record },
+    Insert { seq: u64, new: Record },
+    Update { seq: u64, old: Record, new: Record },
+    Commit { source: NodeHandle, epoch: u64 },
+    Terminate,
+}
+
+impl Display for ExecutorOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let type_str = match self {
+            ExecutorOperation::Delete { .. } => "Delete",
+            ExecutorOperation::Update { .. } => "Update",
+            ExecutorOperation::Insert { .. } => "Insert",
+            ExecutorOperation::Terminate { .. } => "Terminate",
+            ExecutorOperation::Commit { .. } => "Commit",
+        };
+        f.write_str(type_str)
+    }
+}
 
 pub struct DagExecutor<'a> {
     dag: &'a Dag,
@@ -17,7 +60,9 @@ pub struct DagExecutor<'a> {
     term_barrier: Arc<Barrier>,
     start_latch: Arc<CountDownLatch>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    join_handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>,
     path: PathBuf,
+    options: ExecutorOptions,
 }
 
 impl<'a> DagExecutor<'a> {
@@ -82,7 +127,11 @@ impl<'a> DagExecutor<'a> {
         }
     }
 
-    pub fn new(dag: &'a Dag, path: &Path) -> Result<Self, ExecutionError> {
+    pub fn new(
+        dag: &'a Dag,
+        path: &Path,
+        options: ExecutorOptions,
+    ) -> Result<Self, ExecutionError> {
         //
         let schemas = Self::load_or_init_schema(dag, path)?;
         Ok(Self {
@@ -97,6 +146,80 @@ impl<'a> DagExecutor<'a> {
                     .collect(),
             )),
             path: path.to_path_buf(),
+            join_handles: HashMap::new(),
+            options: options,
         })
+    }
+
+    fn create_channels(
+        &self,
+    ) -> (
+        HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
+        HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
+    ) {
+        let mut senders: HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>> =
+            HashMap::new();
+        let mut receivers: HashMap<
+            NodeHandle,
+            HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+        > = HashMap::new();
+
+        for edge in self.dag.edges.iter() {
+            if !senders.contains_key(&edge.from.node) {
+                senders.insert(edge.from.node.clone(), HashMap::new());
+            }
+            if !receivers.contains_key(&edge.to.node) {
+                receivers.insert(edge.to.node.clone(), HashMap::new());
+            }
+
+            let (tx, rx) = bounded(self.options.channel_buffer_sz);
+
+            let rcv_port: PortHandle = edge.to.port;
+            if receivers
+                .get(&edge.to.node)
+                .unwrap()
+                .contains_key(&rcv_port)
+            {
+                receivers
+                    .get_mut(&edge.to.node)
+                    .unwrap()
+                    .get_mut(&rcv_port)
+                    .unwrap()
+                    .push(rx);
+            } else {
+                receivers
+                    .get_mut(&edge.to.node)
+                    .unwrap()
+                    .insert(rcv_port, vec![rx]);
+            }
+
+            let snd_port: PortHandle = edge.from.port;
+            if senders
+                .get(&edge.from.node)
+                .unwrap()
+                .contains_key(&snd_port)
+            {
+                senders
+                    .get_mut(&edge.from.node)
+                    .unwrap()
+                    .get_mut(&snd_port)
+                    .unwrap()
+                    .push(tx);
+            } else {
+                senders
+                    .get_mut(&edge.from.node)
+                    .unwrap()
+                    .insert(snd_port, vec![tx]);
+            }
+        }
+
+        (senders, receivers)
+    }
+
+    pub fn start(&self) -> Result<(), ExecutionError> {
+        let (mut senders, mut receivers) = self.create_channels();
+
+        for source in self.dag.get_sources() {}
+        Ok(())
     }
 }

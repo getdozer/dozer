@@ -2,13 +2,14 @@ use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::dag_schemas::DagSchemaManager;
 use crate::dag::errors::ExecutionError;
-use crate::dag::executor::DagExecutor;
+use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
     OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory, SinkFactory,
     Source, SourceFactory,
 };
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tempdir::TempDir;
 
 macro_rules! chk {
@@ -142,19 +143,19 @@ fn test_extract_dag_schemas() {
     let mut dag = Dag::new();
 
     dag.add_node(
-        NodeType::Source(Box::new(TestUsersSourceFactory {})),
+        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
         "users".to_string(),
     );
     dag.add_node(
-        NodeType::Source(Box::new(TestCountriesSourceFactory {})),
+        NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
         "countries".to_string(),
     );
     dag.add_node(
-        NodeType::Processor(Box::new(TestJoinProcessorFactory {})),
+        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
         "join".to_string(),
     );
     dag.add_node(
-        NodeType::Sink(Box::new(TestSinkFactory {})),
+        NodeType::Sink(Arc::new(TestSinkFactory {})),
         "sink".to_string(),
     );
 
@@ -210,19 +211,19 @@ fn test_extract_dag_schemas() {
 fn test_init_metadata() {
     let mut dag = Dag::new();
     dag.add_node(
-        NodeType::Source(Box::new(TestUsersSourceFactory {})),
+        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
         "users".to_string(),
     );
     dag.add_node(
-        NodeType::Source(Box::new(TestCountriesSourceFactory {})),
+        NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
         "countries".to_string(),
     );
     dag.add_node(
-        NodeType::Processor(Box::new(TestJoinProcessorFactory {})),
+        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
         "join".to_string(),
     );
     dag.add_node(
-        NodeType::Sink(Box::new(TestSinkFactory {})),
+        NodeType::Sink(Arc::new(TestSinkFactory {})),
         "sink".to_string(),
     );
 
@@ -240,24 +241,32 @@ fn test_init_metadata() {
     ));
 
     let tmp_dir = chk!(TempDir::new("example"));
-    let exec = chk!(DagExecutor::new(&dag, tmp_dir.path()));
-    let exec = chk!(DagExecutor::new(&dag, tmp_dir.path()));
+    let exec = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+    let exec = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
 
     let mut dag = Dag::new();
     dag.add_node(
-        NodeType::Source(Box::new(TestUsersSourceFactory {})),
+        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
         "users".to_string(),
     );
     dag.add_node(
-        NodeType::Source(Box::new(TestUsersSourceFactory {})),
+        NodeType::Source(Arc::new(TestUsersSourceFactory {})),
         "countries".to_string(),
     );
     dag.add_node(
-        NodeType::Processor(Box::new(TestJoinProcessorFactory {})),
+        NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
         "join".to_string(),
     );
     dag.add_node(
-        NodeType::Sink(Box::new(TestSinkFactory {})),
+        NodeType::Sink(Arc::new(TestSinkFactory {})),
         "sink".to_string(),
     );
 
@@ -274,6 +283,6 @@ fn test_init_metadata() {
         Endpoint::new("sink".to_string(), DEFAULT_PORT_HANDLE),
     ));
 
-    let exec = DagExecutor::new(&dag, tmp_dir.path());
+    let exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default());
     assert!(exec.is_err());
 }
