@@ -33,6 +33,8 @@ pub enum ExecutionError {
     InvalidCheckpointState(NodeHandle),
     #[error("Already exists: {0}")]
     MetadataAlreadyExists(NodeHandle),
+    #[error("Incompatible schemas")]
+    IncompatibleSchemas(),
 
     // Error forwarders
     #[error(transparent)]

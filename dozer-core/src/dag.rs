@@ -5,6 +5,7 @@ pub mod dag;
 mod dag_metadata;
 mod dag_schemas;
 pub mod errors;
+pub mod executor;
 pub mod executor_local;
 mod executor_processor;
 mod executor_sink;

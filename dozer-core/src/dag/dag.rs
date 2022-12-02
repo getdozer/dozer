@@ -5,6 +5,8 @@ use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, So
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 
+pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Endpoint {
     pub node: NodeHandle,

@@ -6,6 +6,7 @@ use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+#[derive(Clone)]
 pub(crate) struct NodeSchemas {
     pub input_schemas: HashMap<PortHandle, Schema>,
     pub output_schemas: HashMap<PortHandle, Schema>,
@@ -180,5 +181,7 @@ impl<'a> DagSchemaManager<'a> {
         Ok(&node.output_schemas)
     }
 
-    pub fn validate_schemas(&self, path: &Path) -> Result<(), ExecutionError> {}
+    pub fn get_all_schemas(&self) -> &HashMap<NodeHandle, NodeSchemas> {
+        &self.schemas
+    }
 }

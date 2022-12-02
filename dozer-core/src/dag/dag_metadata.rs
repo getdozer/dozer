@@ -1,15 +1,10 @@
 use crate::dag::dag::{Dag, Edge, NodeType};
+use crate::dag::dag_schemas::NodeSchemas;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     InvalidCheckpointState, InvalidNodeHandle, MetadataAlreadyExists,
 };
-use crate::dag::executor_utils::CHECKPOINT_DB_NAME;
-use crate::dag::forwarder::{
-    INPUT_SCHEMA_IDENTIFIER, OUTPUT_SCHEMA_IDENTIFIER, SOURCE_ID_IDENTIFIER,
-};
 use crate::dag::node::{NodeHandle, PortHandle};
-
-use crate::dag::dag_schemas::NodeSchemas;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
@@ -18,6 +13,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::metadata;
 use std::path::Path;
+
+pub(crate) const METADATA_DB_NAME: &str = "__META__";
+pub(crate) const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
+pub(crate) const OUTPUT_SCHEMA_IDENTIFIER: u8 = 1_u8;
+pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 
 pub(crate) enum Consistency {
     FullyConsistent(u64),
@@ -84,7 +84,7 @@ impl<'a> DagMetadataManager<'a> {
         }
 
         let mut env = LmdbEnvironmentManager::create(path, name)?;
-        let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+        let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
 
         let cur = txn.open_cursor(&db)?;
@@ -234,48 +234,58 @@ impl<'a> DagMetadataManager<'a> {
     }
 
     pub(crate) fn delete_metadata(&self) {
-        for node in self.dag.nodes {
-            LmdbEnvironmentManager::remove(self.path, &node.0)?;
+        for node in &self.dag.nodes {
+            LmdbEnvironmentManager::remove(self.path, &node.0);
         }
     }
 
     pub(crate) fn get_metadata(&self) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
-        let mut metadata = HashMap::<NodeHandle, DagMetadata>::new();
+        let mut all_meta = HashMap::<NodeHandle, DagMetadata>::new();
         for node in &self.dag.nodes {
             let metadata = Self::get_node_checkpoint_metadata(&self.path, node.0)?;
-            schemas.insert(node.0.clone(), metadata);
+            all_meta.insert(node.0.clone(), metadata);
         }
-        Ok(metadata)
+        Ok(all_meta)
     }
 
     pub(crate) fn init_metadata(
         &self,
-        schemas: HashMap<NodeHandle, NodeSchemas>,
+        schemas: &HashMap<NodeHandle, NodeSchemas>,
     ) -> Result<(), ExecutionError> {
         for node in &self.dag.nodes {
             let curr_node_schema = schemas
                 .get(node.0)
                 .ok_or(InvalidNodeHandle(node.0.clone()))?;
 
-            if !LmdbEnvironmentManager::exists(path, name) {
-                Err(MetadataAlreadyExists(node.0.clone()))
+            if LmdbEnvironmentManager::exists(self.path, node.0) {
+                return Err(MetadataAlreadyExists(node.0.clone()));
             }
 
-            let mut env = LmdbEnvironmentManager::create(path, name)?;
-            let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+            let mut env = LmdbEnvironmentManager::create(self.path, node.0)?;
+            let db = env.open_database(METADATA_DB_NAME, false)?;
             let mut txn = env.create_txn()?;
 
             for (handle, schema) in curr_node_schema.output_schemas.iter() {
                 let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];
-                key.extend(*handle.to_be_bytes());
-                let value = bincode::serialize(schema)?;
+                key.extend(handle.to_be_bytes());
+                let value = bincode::serialize(schema).or_else(|e| {
+                    Err(SerializationError {
+                        typ: "Schema".to_string(),
+                        reason: Box::new(e),
+                    })
+                })?;
                 txn.put(&db, &key, &value)?;
             }
 
             for (handle, schema) in curr_node_schema.input_schemas.iter() {
                 let mut key: Vec<u8> = vec![INPUT_SCHEMA_IDENTIFIER];
-                key.extend(*handle.to_be_bytes());
-                let value = bincode::serialize(schema)?;
+                key.extend(handle.to_be_bytes());
+                let value = bincode::serialize(schema).or_else(|e| {
+                    Err(SerializationError {
+                        typ: "Schema".to_string(),
+                        reason: Box::new(e),
+                    })
+                })?;
                 txn.put(&db, &key, &value)?;
             }
 
