@@ -6,8 +6,8 @@ use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::grpc::{start_internal_client, start_internal_server};
 use dozer_api::CacheEndpoint;
 use dozer_api::{grpc, rest};
-use dozer_cache::cache::LmdbCache;
-use dozer_cache::cache::{CacheOptions, CacheReadOptions, CacheWriteOptions};
+use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
+use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
@@ -20,6 +20,7 @@ use tokio::sync::oneshot;
 pub struct SimpleOrchestrator {
     pub sources: Vec<Source>,
     pub api_endpoints: Vec<ApiEndpoint>,
+    pub cache_common_options: CacheCommonOptions,
     pub cache_read_options: CacheReadOptions,
     pub cache_write_options: CacheWriteOptions,
     // Home directory where all files will be located
@@ -61,11 +62,15 @@ impl Orchestrator for SimpleOrchestrator {
             .api_endpoints
             .iter()
             .map(|e| {
-                let mut cache_read_options = self.cache_read_options.clone();
-                cache_read_options.set_path(self.home_dir.join(e.name.clone()));
+                let mut cache_common_options = self.cache_common_options.clone();
+                cache_common_options.set_path(self.home_dir.join(e.name.clone()));
                 CacheEndpoint {
                     cache: Arc::new(
-                        LmdbCache::new(CacheOptions::ReadOnly(cache_read_options)).unwrap(),
+                        LmdbCache::new(CacheOptions {
+                            common: cache_common_options,
+                            kind: CacheOptionsKind::ReadOnly(self.cache_read_options.clone()),
+                        })
+                        .unwrap(),
                     ),
                     endpoint: e.to_owned(),
                 }
@@ -138,11 +143,15 @@ impl Orchestrator for SimpleOrchestrator {
             .api_endpoints
             .iter()
             .map(|e| {
-                let mut cache_write_options = self.cache_write_options.clone();
-                cache_write_options.set_path(self.home_dir.join(e.name.clone()));
+                let mut cache_common_options = self.cache_common_options.clone();
+                cache_common_options.set_path(self.home_dir.join(e.name.clone()));
                 CacheEndpoint {
                     cache: Arc::new(
-                        LmdbCache::new(CacheOptions::Write(cache_write_options)).unwrap(),
+                        LmdbCache::new(CacheOptions {
+                            common: cache_common_options,
+                            kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
+                        })
+                        .unwrap(),
                     ),
                     endpoint: e.to_owned(),
                 }

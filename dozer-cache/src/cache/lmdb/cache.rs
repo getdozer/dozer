@@ -291,6 +291,7 @@ impl Cache for LmdbCache {
             &schema,
             &secondary_indexes,
             query,
+            self.cache_options.common.intersection_chunk_size,
         );
         let records = handler.query()?;
         Ok(records)
