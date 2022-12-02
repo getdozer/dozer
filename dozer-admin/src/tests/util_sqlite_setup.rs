@@ -5,6 +5,7 @@ use dozer_types::models::connection::DBType;
 use r2d2::{CustomizeConnection, Pool};
 use std::error::Error;
 type DB = diesel::sqlite::Sqlite;
+
 #[derive(Debug, Clone)]
 pub struct TestConfigId {
     pub app_id: String,
@@ -39,11 +40,35 @@ fn prepare_test_db(connection: &mut SqliteConnection, config_id: TestConfigId) {
     run_migrations(connection).unwrap();
     setup_data(connection, config_id)
 }
+fn get_db_type_supported() -> Vec<DBType> {
+    vec![
+        DBType::Postgres,
+        DBType::Ethereum,
+        DBType::Events,
+        DBType::Snowflake,
+        DBType::Kafka,
+    ]
+}
 pub fn get_setup_ids() -> TestConfigId {
+    let connection_ids: Vec<String> = vec![
+        "9cd38b34-3100-4b61-99fb-ca3626b90f59".to_owned(),
+        "2afd6d1f-f739-4f02-9683-b469011936a4".to_owned(),
+        "dc5d0a89-7b7a-4ab1-88a0-f23ec5c73482".to_owned(),
+        "67df73b7-a322-4ff7-86b4-d7a5b12416d9".to_owned(),
+        "7a82ead6-bfd2-4336-805c-a7058dfac3a6".to_owned(),
+    ];
+
+    let source_ids: Vec<String> = vec![
+        "ebec89f4-80c7-4519-99d3-94cf55669c2b".to_owned(),
+        "0ea2cb76-1103-476d-935c-fe5f745bad53".to_owned(),
+        "28732cb6-7a68-4e34-99f4-99e356daa06d".to_owned(),
+        "bce87d76-93dc-42af-bffa-d47743f4c7fa".to_owned(),
+        "d0356a18-77f5-479f-a690-536d086707d8".to_owned(),
+    ];
     TestConfigId {
         app_id: "a04376da-3af3-4051-a725-ed0073b3b598".to_owned(),
-        connection_ids: vec!["dcd4fc24-d0d8-4f5f-9ec2-dfa74ddbc353".to_owned()],
-        source_ids: vec!["eb83ae6d-3bc8-4d10-a804-541f60f551ea".to_owned()],
+        connection_ids,
+        source_ids,
         api_ids: vec!["de3052fc-affb-46f8-b8c1-0ac69ee91a4f".to_owned()],
     }
 }
@@ -60,7 +85,7 @@ fn fake_dbconnection(db_type: DBType) -> DbConnection {
             ..Default::default()
         },
         DBType::Ethereum => DbConnection {
-            auth: r#"{"authentication":{"Postgres":{"database":"users","user":"postgres","host":"localhost","port":5432,"password":"postgres"}}}"#.to_owned(),
+            auth: r#"{"authentication":{"Ethereum":{"wss_url":"wss:link","filter":{"from_block":null,"addresses":[],"topics":[]}}}}"#.to_owned(),
             name: "eth_connection".to_owned(),
             db_type: "eth".to_owned(),
             ..Default::default()
@@ -92,25 +117,28 @@ fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
     insert_apps(connection, config_id.app_id.to_owned());
 
     //let generated_postgres_connection_id = uuid::Uuid::new_v4().to_string();
-    let fake_postgres: DbConnection = fake_dbconnection(DBType::Postgres);
-    insert_connections(
-        connection,
-        config_id.connection_ids[0].to_owned(),
-        config_id.app_id.to_owned(),
-        fake_postgres.db_type,
-        fake_postgres.auth,
-        fake_postgres.name,
-    );
-
-    //let generated_source_id = uuid::Uuid::new_v4().to_string();
-    insert_sources(
-        connection,
-        config_id.source_ids[0].to_owned(),
-        config_id.app_id.to_owned(),
-        "source_name".to_owned(),
-        "users".to_owned(),
-        config_id.connection_ids[0].to_owned(),
-    );
+    let db_types = get_db_type_supported();
+    db_types.iter().enumerate().for_each(|(idx, db_type)| {
+        let db_connection = fake_dbconnection(db_type.to_owned());
+        if idx < config_id.connection_ids.len() {
+            insert_connections(
+                connection,
+                config_id.connection_ids[idx].to_owned(),
+                config_id.app_id.to_owned(),
+                db_connection.db_type,
+                db_connection.auth,
+                db_connection.name,
+            );
+            insert_sources(
+                connection,
+                config_id.source_ids[idx].to_owned(),
+                config_id.app_id.to_owned(),
+                format!("source_{:}", db_type.to_owned()),
+                format!("table_source_{:}", db_type.to_owned()),
+                config_id.connection_ids[idx].to_owned(),
+            )
+        }
+    });
 
     //let generated_endpoint_id = uuid::Uuid::new_v4().to_string();
     insert_endpoints(

@@ -13,6 +13,7 @@ use dozer_types::{
     models::{
         self,
         api_endpoint::{ApiEndpoint, ApiIndex},
+        connection::DBType,
         source::Source,
     },
     types::Schema,
@@ -90,23 +91,28 @@ impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
     }
 }
 
+pub fn convert_auth_to_db_type(input: models::connection::Authentication) -> DBType {
+    match input {
+        models::connection::Authentication::PostgresAuthentication { .. } => DBType::Postgres,
+        models::connection::Authentication::EthereumAuthentication { .. } => DBType::Ethereum,
+        models::connection::Authentication::Events {} => DBType::Events,
+        models::connection::Authentication::SnowflakeAuthentication { .. } => DBType::Snowflake,
+        models::connection::Authentication::KafkaAuthentication { .. } => DBType::Kafka,
+    }
+}
 impl TryFrom<ConnectionInfo> for models::connection::Connection {
     type Error = Box<dyn Error>;
     fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {
-        let db_type_value = match item.r#type {
-            0 => models::connection::DBType::Postgres,
-            1 => models::connection::DBType::Snowflake,
-            3 => models::connection::DBType::Ethereum,
-            _ => models::connection::DBType::Events,
-        };
         if item.authentication.is_none() {
             Err("Missing authentication props when converting ".to_owned())?
         } else {
-            let auth_value =
+            let authentication =
                 models::connection::Authentication::try_from(item.authentication.unwrap())?;
+            let db_type_value = convert_auth_to_db_type(authentication.to_owned());
+
             Ok(models::connection::Connection {
                 db_type: db_type_value,
-                authentication: auth_value,
+                authentication,
                 name: item.name,
                 id: None,
             })
@@ -169,7 +175,9 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 driver,
                 warehouse,
             }),
-            models::connection::Authentication::Events {} => todo!(),
+            models::connection::Authentication::Events {} => {
+                todo!()
+            }
             _ => todo!(),
         };
         Ok(dozer_admin_grpc::Authentication {
@@ -224,6 +232,15 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
                         driver: snow_flake.driver,
                     }
                 }
+                authentication::Authentication::Events(_) => {
+                    models::connection::Authentication::Events {}
+                }
+                authentication::Authentication::Kafka(kafka) => {
+                    models::connection::Authentication::KafkaAuthentication {
+                        broker: kafka.broker,
+                        topic: kafka.topic,
+                    }
+                }
             };
             Ok(result)
         }
@@ -239,8 +256,8 @@ mod test {
             source::DBSource,
         },
         services::converter::{
-            convert_to_api_endpoint, convert_to_source, dozer_admin_grpc::ConnectionType,
-            ConnectionInfo,
+            convert_to_api_endpoint, convert_to_source,
+            dozer_admin_grpc::ConnectionType, ConnectionInfo,
         },
     };
     use dozer_types::models::{
