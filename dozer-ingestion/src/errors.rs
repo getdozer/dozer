@@ -3,12 +3,14 @@
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
-use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
+use dozer_types::{rust_decimal, thiserror};
 
+use base64::DecodeError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
+use std::str::Utf8Error;
 
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
@@ -34,7 +36,10 @@ pub enum ConnectorError {
     UnsupportedConnectorMethod(String),
 
     #[error("Query failed")]
-    InvalidQueryError,
+    InvalidQueryError(#[source] tokio_postgres::Error),
+
+    #[error("Unexpected query message")]
+    UnexpectedQueryMessageError,
 
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
@@ -45,6 +50,9 @@ pub enum ConnectorError {
     #[cfg(feature = "snowflake")]
     #[error(transparent)]
     SnowflakeError(#[from] SnowflakeError),
+
+    #[error(transparent)]
+    DebeziumError(#[from] DebeziumError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -131,6 +139,9 @@ pub enum PostgresConnectorError {
 
     #[error(transparent)]
     PostgresSchemaError(#[from] PostgresSchemaError),
+
+    #[error("LSN not stored for replication slot")]
+    LSNNotStoredError,
 }
 
 #[derive(Error, Debug, Eq, PartialEq)]
@@ -163,6 +174,7 @@ pub enum SnowflakeError {
     #[error("Snowflake connection error")]
     ConnectionError(#[from] Box<DiagnosticRecord>),
 
+    #[cfg(feature = "snowflake")]
     #[error(transparent)]
     SnowflakeSchemaError(#[from] SnowflakeSchemaError),
 
@@ -183,7 +195,6 @@ pub enum SnowflakeSchemaError {
     SchemaConversionError(#[source] TryFromIntError),
 }
 
-#[cfg(feature = "snowflake")]
 #[derive(Error, Debug)]
 pub enum SnowflakeStreamError {
     #[error("Unsupported \"{0}\" action in stream")]
@@ -191,4 +202,58 @@ pub enum SnowflakeStreamError {
 
     #[error("Cannot determine action")]
     CannotDetermineAction,
+}
+
+#[derive(Error, Debug)]
+pub enum DebeziumError {
+    #[error(transparent)]
+    DebeziumSchemaError(#[from] DebeziumSchemaError),
+
+    #[error("Connection error")]
+    DebeziumConnectionError(#[source] kafka::Error),
+
+    #[error("JSON decode error")]
+    JsonDecodeError(#[source] serde_json::Error),
+
+    #[error("Bytes convert error")]
+    BytesConvertError(#[source] Utf8Error),
+
+    #[error(transparent)]
+    DebeziumStreamError(#[from] DebeziumStreamError),
+}
+
+#[derive(Error, Debug)]
+pub enum DebeziumStreamError {
+    #[error("Consume commit error")]
+    ConsumeCommitError(#[source] kafka::Error),
+
+    #[error("Message consume error")]
+    MessageConsumeError(#[source] kafka::Error),
+
+    #[error("Polling error")]
+    PollingError(#[source] kafka::Error),
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum DebeziumSchemaError {
+    #[error("Schema definition not found")]
+    SchemaDefinitionNotFound,
+
+    #[error("Unsupported \"{0}\" type")]
+    TypeNotSupported(String),
+
+    #[error("Field \"{0}\" not found")]
+    FieldNotFound(String),
+
+    #[error("Binary decode error")]
+    BinaryDecodeError(#[source] DecodeError),
+
+    #[error("Scale not found")]
+    ScaleNotFound,
+
+    #[error("Scale is invalid")]
+    ScaleIsInvalid,
+
+    #[error("Decimal convert error")]
+    DecimalConvertError(#[source] rust_decimal::Error),
 }

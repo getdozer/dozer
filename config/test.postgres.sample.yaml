@@ -1,0 +1,6 @@
+!PostgresAuthentication
+  user: ${KAFKA_POSTGRES_USER}
+  password: ${KAFKA_POSTGRES_PASSWORD}
+  host: ${KAFKA_POSTGRES_HOST}
+  port: ${KAFKA_POSTGRES_PORT}
+  database: ${KAFKA_POSTGRES_DATABASE}

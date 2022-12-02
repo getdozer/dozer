@@ -1,13 +1,15 @@
 pub mod ethereum;
 pub mod events;
+pub mod kafka;
 pub mod postgres;
 
 use crate::connectors::postgres::connection::helper::map_connection_config;
 
+use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::EthConfig;
+use dozer_types::ingestion_types::{EthConfig, KafkaConfig};
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
@@ -16,14 +18,12 @@ use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::sync::Arc;
+use Authentication::KafkaAuthentication;
 
-#[cfg(feature = "snowflake")]
 pub mod snowflake;
 
-#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 
-#[cfg(feature = "snowflake")]
 use dozer_types::ingestion_types::SnowflakeConfig;
 
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
@@ -31,7 +31,7 @@ use self::{ethereum::connector::EthConnector, events::connector::EventsConnector
 pub trait Connector: Send + Sync {
     fn get_schemas(
         &self,
-        table_names: Option<Vec<String>>,
+        table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError>;
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
     fn test_connection(&self) -> Result<(), ConnectorError>;
@@ -45,7 +45,7 @@ pub trait Connector: Send + Sync {
     fn validate(&self) -> Result<(), ConnectorError>;
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,
@@ -78,7 +78,6 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             Ok(Box::new(EthConnector::new(2, eth_config)))
         }
         Authentication::Events {} => Ok(Box::new(EventsConnector::new(3, connection.name))),
-        #[cfg(feature = "snowflake")]
         Authentication::SnowflakeAuthentication {
             server,
             port,
@@ -101,6 +100,11 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             };
 
             Ok(Box::new(SnowflakeConnector::new(4, snowflake_config)))
+        }
+        KafkaAuthentication { broker, topic } => {
+            let kafka_config = KafkaConfig { broker, topic };
+
+            Ok(Box::new(KafkaConnector::new(5, kafka_config)))
         }
     }
 }

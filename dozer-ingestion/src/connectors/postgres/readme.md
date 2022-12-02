@@ -1,135 +1,50 @@
+# Postgres requirements
 
-# Replica identity and mapped operation
-
+### Version
+At least **v10**.  To verify it, you can run
 ```sql
-CREATE SEQUENCE users_id_seq;
-
-CREATE TABLE users
-(
-    id INTEGER NOT NULL DEFAULT nextval('users_id_seq')
-        CONSTRAINT users_pk
-            PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    phone VARCHAR(255) NOT NULL 
-);
-
-CREATE UNIQUE INDEX email_index
-    ON users (email);
-
-ALTER SEQUENCE users_id_seq
-    OWNED BY users.id;
-
-```
-Main difference between replica identity types is what old record data is sent with `update` and `delete` operations
-
-## DEFAULT
-By default on update and delete events only sending primary key from old record
-
-```sql
--- Change of replication identity
-ALTER TABLE users REPLICA IDENTITY DEFAULT;
+SHOW server_version;
 ```
 
+### WAL Level
+**Logical**. It can be verified with 
 ```sql
--- Example of update
-BEGIN;
-INSERT INTO users (email, phone) VALUES ('test1@email.com', '98765421');
-COMMIT;
-
-BEGIN;
-UPDATE users SET phone = '99339439439' WHERE email = 'test1@email.com';
-COMMIT;
+SHOW wal_level;
 ```
 
-
-#### Example of update replication messages in update transaction
-
-| Replication message                                                                          | Operation                                                                                                                                                                                                                                                                               |
-|----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `BEGIN (transaction id)`                                                                     |                                                                                                                                                                                                                                                                                         |
-| ```UPDATE (old: { id: 1}, new: {id: 1, phone: '99339439439', 'email': 'test1@email.com'})``` | <pre>OperationEvent(<br>  Operation::Update {<br>    new: Record {schema_id: 1,values: vec![Field::Int(1), Field::String('test1@email.com'), Field::String('99339439439')],},<br>    old: Record {schema_id: 1,values: vec![Field::Int(1), Field::Null, Field::Null],<br>  }<br>}</pre> |
-| `COMMIT (commit_lsn)`                                                                        |                                                                                                                                                                                                                                                                                         |
-
-## USING INDEX
-When using index as replica identity only values used in unique key are sent
-
+You can change wal_level with this query. After changing you must restart your server.
 ```sql
--- Change of replication identity
-ALTER TABLE users REPLICA IDENTITY USING INDEX email_index;
+ALTER SYSTEM SET wal_level = logical;
 ```
 
-```sql
--- Example of update
-BEGIN;
-INSERT INTO users (email, phone) VALUES ('test2@email.com', '98765422');
-COMMIT;
-
-BEGIN;
-UPDATE users SET phone = '99339439440' WHERE email = 'test2@email.com';
-COMMIT;
-```
-
-#### Example of update replication messages in update transaction
-
-| Replication message                                                                                             | Operation                                                                                                                                                                                                                                                                                                  |
-|-----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `BEGIN (transaction id)`                                                                                        |                                                                                                                                                                                                                                                                                                            |
-| ```UPDATE (old: { email: 'test2@email.com'}, new: {id: 2, phone: '99339439440', 'email': 'test2@email.com'})``` | <pre>OperationEvent(<br>  Operation::Update {<br>    new: Record {schema_id: 1,values: vec![Field::Int(2), Field::String('test2@email.com'), Field::String('99339439440')],},<br>    old: Record {schema_id: 1,values: vec![Field::Null, Field::String("test2@email.com"), Field::Null],<br>  }<br>}</pre> |
-| `COMMIT (commit_lsn)`                                                                                           |                                                                                                                                                                                                                                                                                                            |
-
-
-## FULL
-When using full mode as replica identity, all row values are sent during update
-```sql
--- Change of replication identity
-ALTER TABLE users REPLICA IDENTITY FULL;
-```
+In AWS RDS you need to use custom parameters group. https://aws.amazon.com/premiumsupport/knowledge-center/rds-postgresql-use-logical-replication/
+> To turn on logical replication in RDS for PostgreSQL, modify a custom parameter group to set rds.logical_replication to 1 and attach rds.logical_replication to the DB instance. Update the parameter group to set rds.logical_replication to 1 if a custom parameter group is attached to a DB instance. The rds.logical_replication parameter is a static parameter that requires a DB instance reboot to take effect. When the DB instance reboots, the wal_level parameter is set to logical.
+>
+> -- <cite>[AWS tutorial][1]<cite>
+ 
+### Replication slots
+Database should have at least one available replication slot.
 
 ```sql
--- Example of update
-BEGIN;
-INSERT INTO users (email, phone) VALUES ('test3@email.com', '98765423');
-COMMIT;
+-- Fetch max replication slots
+SHOW max_replication_slots;
 
-BEGIN;
-UPDATE users SET phone = '99339439441' WHERE email = 'test3@email.com';
-COMMIT;
+--- Get current used replication slots count
+SELECT COUNT(*) FROM pg_replication_slots;
+
+-- If there is no empty slot, you can drop any unused slot with
+SELECT * FROM pg_drop_replication_slot('slot_name');
 ```
 
-#### Example of update replication messages in update transaction
-
-| Replication message                                                                                                                       | Operation                                                                                                                                                                                                                                                                                                                  |
-|-------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `BEGIN (transaction id)`                                                                                                                  |                                                                                                                                                                                                                                                                                                                            |
-| ```UPDATE (old: { email: 'test3@email.com', phone: '98765423', id: 3}, new: {id: 3, phone: '99339439441', 'email': 'test3@email.com'})``` | <pre>OperationEvent(<br>  Operation::Update {<br>    new: Record {schema_id: 1,values: vec![Field::Int(3), Field::String('test3@email.com'), Field::String('99339439441')],},<br>    old: Record {schema_id: 1,values: vec![Field::Int(3), Field::String("test3@email.com"), Field::String("98765423")],<br>  }<br>}</pre> |
-| `COMMIT (commit_lsn)`                                                                                                                     |                                                                                                                                                                                                                                                                                                                            |
-
-
-
-## NOTHING
-Nothing is sent from old row when using this type
-
+### User
+To use replication postgres database user should have replication permission - `userepl`.<br/>
+Permission can be checked with this query
 ```sql
--- Change of replication identity
-ALTER TABLE users REPLICA IDENTITY NOTHING;
+SELECT usename, userepl FROM pg_user WHERE usename = "current_user"()
 ```
-
+If it is not enabled, you can grant permission with this query
 ```sql
--- Example of update
-BEGIN;
-INSERT INTO users (email, phone) VALUES ('test4@email.com', '98765424');
-COMMIT;
-
-BEGIN;
-UPDATE users SET phone = '99339439442' WHERE email = 'test4@email.com';
-COMMIT;
+ALTER USER <user-name> WITH REPLICATION;
 ```
 
-#### Example of update replication messages in update transaction
-
-| Replication message                                                           | Operation                                                                                                                                                                                                                                                                             |
-|-------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `BEGIN (transaction id)`                                                      |                                                                                                                                                                                                                                                                                       |
-| ```UPDATE (new: {id: 4, phone: '99339439442', 'email': 'test4@email.com'})``` | <pre>OperationEvent(<br>  Operation::Update {<br>    new: Record {schema_id: 1,values: vec![Field::Int(4), Field::String('test4@email.com'), Field::String('99339439442')],},<br>    old: Record {schema_id: 1,values: vec![Field::Null, Field::Null, Field::Null],<br>  }<br>}</pre> |
-| `COMMIT (commit_lsn)`                                                         |                                                                                                                                                                                                                                                                                       |
-
+[1]: https://aws.amazon.com/premiumsupport/knowledge-center/rds-postgresql-use-logical-replication/

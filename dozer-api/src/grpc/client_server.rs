@@ -1,25 +1,24 @@
-use crate::{
-    errors::GRPCError, generator::protoc::generator::ProtoGenerator, grpc::dynamic::DynamicService,
-    CacheEndpoint, PipelineDetails,
+use super::{
+    common::CommonService, common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
+    internal_grpc::PipelineRequest, typed::TypedService,
 };
-use heck::ToUpperCamelCase;
+use crate::{
+    errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
+};
+use dozer_cache::cache::Cache;
+use dozer_types::{log::info, types::Schema};
+use futures_util::FutureExt;
 use std::{
     collections::HashMap,
+    fs,
+    path::Path,
     sync::{atomic::AtomicBool, Arc},
     thread,
+    time::Duration,
 };
-use tempdir::TempDir;
 use tokio::sync::broadcast;
 use tonic::transport::Server;
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
-
-use super::{
-    common::CommonService,
-    common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
-    dynamic::util::{create_descriptor_set, read_file_as_byte},
-    internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
-    types::SchemaEvent,
-};
 
 pub struct ApiServer {
     port: u16,
@@ -55,69 +54,66 @@ impl ApiServer {
         pipeline_map: HashMap<String, PipelineDetails>,
         rx1: broadcast::Receiver<PipelineRequest>,
         _running: Arc<AtomicBool>,
-    ) -> Result<
-        (
-            DynamicService,
-            ServerReflectionServer<impl ServerReflection>,
-        ),
-        GRPCError,
-    > {
-        let mut schemas: HashMap<String, SchemaEvent> = HashMap::new();
+    ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
+        let mut schema_map: HashMap<String, Schema> = HashMap::new();
+
         // wait until all schemas are initalized
-        while schemas.len() < pipeline_map.len() {
-            let event = self.event_notifier.clone().recv();
-            if let Ok(event) = event {
-                let api_event = event.api_event;
-                if let Some(ApiEvent::Schema(schema)) = api_event {
-                    schemas.insert(event.endpoint, schema);
+        for (endpoint_name, details) in &pipeline_map {
+            let cache = details.cache_endpoint.cache.clone();
+            let mut idx = 0;
+            loop {
+                let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
+
+                match schema_res {
+                    Ok((schema, _)) => {
+                        schema_map.insert(endpoint_name.clone(), schema);
+                        break;
+                    }
+                    Err(_) => {
+                        info!(
+                            "Schema for endpoint: {} not found. Waiting...({})",
+                            endpoint_name, idx
+                        );
+                        thread::sleep(Duration::from_millis(300));
+                        idx += 1;
+                    }
                 }
             }
         }
-        let tmp_dir = TempDir::new("proto_generated").unwrap();
-        let tempdir_path = String::from(tmp_dir.path().to_str().unwrap());
+        info!("Schemas initialized. Starting gRPC server.");
 
-        let proto_generator = ProtoGenerator::new(pipeline_map.to_owned())?;
-        let generated_proto = proto_generator.generate_proto(tempdir_path.to_owned())?;
+        let folder_path = Path::new("./.dozer").join("generated");
+        if folder_path.exists() {
+            fs::remove_dir_all(&folder_path).unwrap();
+        }
+        fs::create_dir_all(&folder_path).unwrap();
 
-        let descriptor_path = create_descriptor_set(&tempdir_path, "generated.proto")
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
-
-        let vec_byte = read_file_as_byte(descriptor_path.to_owned())
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))?;
+        let proto_res = ProtoGenerator::generate(
+            folder_path.to_string_lossy().to_string(),
+            pipeline_map.to_owned(),
+        )?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(vec_byte.as_slice())
+            .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
             .build()?;
-        let mut pipeline_hashmap: HashMap<String, PipelineDetails> = HashMap::new();
-        for (_, pipeline_details) in pipeline_map.iter() {
-            pipeline_hashmap.insert(
-                format!(
-                    "Dozer.{}Service",
-                    pipeline_details.schema_name.to_upper_camel_case()
-                ),
-                pipeline_details.to_owned(),
-            );
-        }
-
         // Service handling dynamic gRPC requests.
-        let grpc_service = DynamicService::new(
-            descriptor_path,
-            generated_proto.1,
-            pipeline_hashmap,
+        let typed_service = TypedService::new(
+            proto_res.descriptor,
+            pipeline_map,
+            schema_map,
             rx1.resubscribe(),
         );
-        Ok((grpc_service, inflection_service))
+        Ok((typed_service, inflection_service))
     }
 
     pub async fn run(
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
+        receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<PipelineRequest>(16);
-        ApiServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
-
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
 
         for ce in cache_endpoints {
@@ -151,14 +147,14 @@ impl ApiServer {
             grpc_router
                 .add_service(inflection_service)
                 // GRPC service to handle typed requests
-                .add_service(tonic_web::enable(grpc_service))
+                .add_service(tonic_web::config().allow_all_origins().enable(grpc_service))
         } else {
             grpc_router
         };
-
+        ApiServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
         let addr = format!("[::0]:{:}", self.port).parse().unwrap();
         grpc_router
-            .serve(addr)
+            .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await
             .map_err(|e| GRPCError::InternalError(Box::new(e)))
     }

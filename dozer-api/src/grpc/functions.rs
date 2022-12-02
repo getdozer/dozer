@@ -45,7 +45,9 @@ pub async fn grpc_get_by_id(
         .get_field_by_name(&primary_field.name)
         .ok_or_else(|| Status::new(Code::Internal, "Cannot get input id".to_owned()))?;
     let id_input = id_field.to_string();
-    let result = api_helper.get_record(id_input).map_err(from_cache_error)?;
+    let result = api_helper
+        .get_record_map(id_input)
+        .map_err(from_cache_error)?;
     let value_json = serde_json::to_value(result).map_err(GRPCError::SerizalizeError)?;
     // wrap to object
     let mut result_json: Map<String, Value> = Map::new();

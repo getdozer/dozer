@@ -1,4 +1,4 @@
-use crate::cache::lmdb::CacheWriteOptions;
+use crate::cache::lmdb::{CacheCommonOptions, CacheOptionsKind, CacheWriteOptions};
 use crate::cache::CacheReadOptions;
 use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, Cache, CacheOptions, LmdbCache};
 use dozer_types::types::Field;
@@ -9,12 +9,17 @@ fn read_and_write() {
 
     // write and read from cache from two different threads.
 
-    let cache_writer = LmdbCache::new(CacheOptions::Write(CacheWriteOptions {
-        max_size: 1024 * 1024,
-        max_readers: 1,
-        max_db_size: 100,
-        path: Some(path.clone()),
-    }))
+    let cache_writer = LmdbCache::new(CacheOptions {
+        common: CacheCommonOptions {
+            max_readers: 1,
+            max_db_size: 100,
+            path: Some(path.clone()),
+            intersection_chunk_size: 1,
+        },
+        kind: CacheOptionsKind::Write(CacheWriteOptions {
+            max_size: 1024 * 1024,
+        }),
+    })
     .unwrap();
 
     let (schema, secondary_indexes) = test_utils::schema_1();
@@ -32,10 +37,13 @@ fn read_and_write() {
         lmdb_utils::insert_rec_1(&cache_writer, &schema, val.clone());
     }
 
-    let read_options = CacheOptions::ReadOnly(CacheReadOptions {
-        path: Some(path),
-        ..Default::default()
-    });
+    let read_options = CacheOptions {
+        common: CacheCommonOptions {
+            path: Some(path),
+            ..Default::default()
+        },
+        kind: CacheOptionsKind::ReadOnly(CacheReadOptions {}),
+    };
     let cache_reader = LmdbCache::new(read_options).unwrap();
     for (a, b, c) in items {
         let rec = cache_reader.get(a.to_be_bytes().as_ref()).unwrap();

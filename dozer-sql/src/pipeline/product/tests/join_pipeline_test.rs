@@ -102,12 +102,6 @@ pub struct DepartmentTestSourceFactory {
     output_ports: Vec<PortHandle>,
 }
 
-impl DepartmentTestSourceFactory {
-    pub fn new(output_ports: Vec<PortHandle>) -> Self {
-        Self { output_ports }
-    }
-}
-
 impl SourceFactory for DepartmentTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports

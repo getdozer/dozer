@@ -1,28 +1,27 @@
 use crate::{
-    db::{
-        persistable::Persistable,
-        pool::{establish_connection, DbPool},
-    },
+    db::{persistable::Persistable, pool::DbPool},
     server::dozer_admin_grpc::{
         ConnectionDetails, ConnectionInfo, CreateConnectionRequest, CreateConnectionResponse,
         ErrorResponse, GetAllConnectionRequest, GetAllConnectionResponse,
         GetConnectionDetailsRequest, GetConnectionDetailsResponse, GetSchemaRequest,
         GetSchemaResponse, Pagination, TableInfo, TestConnectionRequest, TestConnectionResponse,
-        UpdateConnectionRequest, UpdateConnectionResponse,
+        UpdateConnectionRequest, UpdateConnectionResponse, ValidateConnectionRequest,
+        ValidateConnectionResponse,
     },
 };
 use dozer_orchestrator::get_connector;
-use dozer_types::models::{self, connection::Connection};
+use dozer_types::models::{
+    self,
+    connection::{Authentication, Connection},
+};
 use std::thread;
 
 pub struct ConnectionService {
     db_pool: DbPool,
 }
 impl ConnectionService {
-    pub fn new(database_url: String) -> Self {
-        Self {
-            db_pool: establish_connection(database_url),
-        }
+    pub fn new(db_pool: DbPool) -> Self {
+        Self { db_pool }
     }
 }
 
@@ -42,88 +41,41 @@ impl ConnectionService {
     }
 }
 impl ConnectionService {
-    pub fn update(
-        &self,
-        input: UpdateConnectionRequest,
-    ) -> Result<UpdateConnectionResponse, ErrorResponse> {
-        let mut connection_info = input.info.ok_or(ErrorResponse {
-            message: "Missing connection_info".to_owned(),
-        })?;
-        connection_info
-            .upsert(self.db_pool.clone())
-            .map_err(|err| ErrorResponse {
-                message: err.to_string(),
-            })?;
-        Ok(UpdateConnectionResponse {
-            info: Some(connection_info),
-        })
-    }
     pub fn create_connection(
         &self,
         input: CreateConnectionRequest,
     ) -> Result<CreateConnectionResponse, ErrorResponse> {
-        let mut connection_info = input.info.ok_or(ErrorResponse {
-            message: "Missing connection_info".to_owned(),
-        })?;
-        connection_info
-            .save(self.db_pool.clone())
-            .map_err(|err| ErrorResponse {
-                message: err.to_string(),
-            })?;
-        Ok(CreateConnectionResponse {
-            info: Some(connection_info),
+        if let Some(authentication) = input.authentication {
+            let generated_id = uuid::Uuid::new_v4().to_string();
+            let mut connection_info = ConnectionInfo {
+                id: generated_id,
+                app_id: input.app_id,
+                name: input.name,
+                r#type: input.r#type,
+                authentication: Some(authentication),
+            };
+            connection_info
+                .save(self.db_pool.clone())
+                .map_err(|err| ErrorResponse {
+                    message: err.to_string(),
+                })?;
+            return Ok(CreateConnectionResponse {
+                data: Some(connection_info),
+            });
+        }
+        Err(ErrorResponse {
+            message: "Missing authentication input".to_owned(),
         })
     }
-
-    pub fn get_all_connections(
-        &self,
-        input: GetAllConnectionRequest,
-    ) -> Result<GetAllConnectionResponse, ErrorResponse> {
-        let connection_infos: (Vec<ConnectionInfo>, Pagination) =
-            ConnectionInfo::get_multiple(self.db_pool.clone(), input.limit, input.offset).map_err(
-                |op| ErrorResponse {
-                    message: op.to_string(),
-                },
-            )?;
-        Ok(GetAllConnectionResponse {
-            data: connection_infos.0,
-            pagination: Some(connection_infos.1),
-        })
-    }
-
-    pub async fn get_schema(
-        &self,
-        input: GetSchemaRequest,
-    ) -> Result<GetSchemaResponse, ErrorResponse> {
-        let connection_info =
-            ConnectionInfo::get_by_id(self.db_pool.clone(), input.connection_id.clone()).map_err(
-                |op| ErrorResponse {
-                    message: op.to_string(),
-                },
-            )?;
-        let connection = Connection::try_from(connection_info).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-        })?;
-        let schema = self._get_schema(connection).await?;
-        Ok(GetSchemaResponse {
-            connection_id: input.connection_id,
-            details: Some(ConnectionDetails {
-                table_info: schema
-                    .iter()
-                    .map(|x| TableInfo::try_from(x.clone()).unwrap())
-                    .collect(),
-            }),
-        })
-    }
-
     pub async fn get_connection_details(
         &self,
         input: GetConnectionDetailsRequest,
     ) -> Result<GetConnectionDetailsResponse, ErrorResponse> {
-        let connection_by_id = ConnectionInfo::get_by_id(self.db_pool.clone(), input.connection_id)
-            .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-            })?;
+        let connection_by_id =
+            ConnectionInfo::by_id(self.db_pool.clone(), input.connection_id, input.app_id)
+                .map_err(|op| ErrorResponse {
+                    message: op.to_string(),
+                })?;
         let connection = models::connection::Connection::try_from(connection_by_id.to_owned())
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
@@ -140,17 +92,74 @@ impl ConnectionService {
         })
     }
 
+    pub async fn get_schema(
+        &self,
+        input: GetSchemaRequest,
+    ) -> Result<GetSchemaResponse, ErrorResponse> {
+        let connection_info = ConnectionInfo::by_id(
+            self.db_pool.clone(),
+            input.connection_id.clone(),
+            input.app_id,
+        )
+        .map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
+        let connection = Connection::try_from(connection_info).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
+        let schema = self._get_schema(connection).await?;
+        Ok(GetSchemaResponse {
+            connection_id: input.connection_id,
+            details: Some(ConnectionDetails {
+                table_info: schema
+                    .iter()
+                    .map(|x| TableInfo::try_from(x.clone()).unwrap())
+                    .collect(),
+            }),
+        })
+    }
+
+    pub fn list(
+        &self,
+        input: GetAllConnectionRequest,
+    ) -> Result<GetAllConnectionResponse, ErrorResponse> {
+        let connection_infos: (Vec<ConnectionInfo>, Pagination) = ConnectionInfo::list(
+            self.db_pool.clone(),
+            input.app_id,
+            input.limit,
+            input.offset,
+        )
+        .map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
+        Ok(GetAllConnectionResponse {
+            data: connection_infos.0,
+            pagination: Some(connection_infos.1),
+        })
+    }
+
     pub async fn test_connection(
         &self,
         input: TestConnectionRequest,
     ) -> Result<TestConnectionResponse, ErrorResponse> {
-        let connection_info = input.info.ok_or(ErrorResponse {
-            message: "Missing connection_info".to_owned(),
-        })?;
-        let connection = Connection::try_from(connection_info).map_err(|err| ErrorResponse {
-            message: err.to_string(),
-        })?;
-
+        let db_type_value = match input.r#type {
+            0 => models::connection::DBType::Postgres,
+            2 => models::connection::DBType::Events,
+            3 => models::connection::DBType::Snowflake,
+            _ => models::connection::DBType::Ethereum,
+        };
+        let auth_input =
+            Authentication::try_from(input.authentication.unwrap()).map_err(|err| {
+                ErrorResponse {
+                    message: err.to_string(),
+                }
+            })?;
+        let connection = Connection {
+            db_type: db_type_value,
+            authentication: auth_input,
+            name: input.name,
+            id: None,
+        };
         let connection_test = thread::spawn(|| {
             let connector = get_connector(connection).map_err(|err| err.to_string())?;
             connector.test_connection().map_err(|err| err.to_string())
@@ -159,6 +168,52 @@ impl ConnectionService {
             .join()
             .unwrap()
             .map(|_op| TestConnectionResponse { success: true })
+            .map_err(|err| ErrorResponse { message: err })
+    }
+
+    pub fn update(
+        &self,
+        input: UpdateConnectionRequest,
+    ) -> Result<UpdateConnectionResponse, ErrorResponse> {
+        let mut connection_by_id =
+            ConnectionInfo::by_id(self.db_pool.clone(), input.connection_id, input.app_id)
+                .map_err(|err| ErrorResponse {
+                    message: err.to_string(),
+                })?;
+        connection_by_id.authentication = input.authentication;
+        connection_by_id.name = input.name;
+        connection_by_id.r#type = input.r#type;
+        connection_by_id
+            .upsert(self.db_pool.clone())
+            .map_err(|err| ErrorResponse {
+                message: err.to_string(),
+            })?;
+        Ok(UpdateConnectionResponse {
+            info: Some(connection_by_id),
+        })
+    }
+    pub async fn validate_connection(
+        &self,
+        input: ValidateConnectionRequest,
+    ) -> Result<ValidateConnectionResponse, ErrorResponse> {
+        let db_type_value = match input.r#type {
+            0 => models::connection::DBType::Postgres,
+            _ => models::connection::DBType::Ethereum,
+        };
+        let connection = Connection {
+            db_type: db_type_value,
+            authentication: Authentication::try_from(input.authentication.unwrap()).unwrap(),
+            name: input.name,
+            id: None,
+        };
+        let validate_result = thread::spawn(|| {
+            let connector = get_connector(connection).map_err(|err| err.to_string())?;
+            connector.validate().map_err(|err| err.to_string())
+        });
+        validate_result
+            .join()
+            .unwrap()
+            .map(|_op| ValidateConnectionResponse { success: true })
             .map_err(|err| ErrorResponse { message: err })
     }
 }

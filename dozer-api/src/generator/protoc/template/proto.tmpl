@@ -1,30 +1,48 @@
 syntax = "proto3";
-{{#each import_libs}}
 
-import "{{this}}";
-
-{{~/each}}
-
+// Dozer Generated for {{package_name}}
 package {{package_name}};
-{{#each service_definition}}
 
-service {{service_name}} {
-  {{#each rpc_functions}}
 
-  rpc {{name}}({{argument}}) returns ({{response}});
-  {{~/each}}
-
-}
+{{#each import_libs}}
+import "{{this}}";
 {{~/each}}
+
+// Endpoint /{{plural_lower_name}} 
+service {{plural_pascal_name}} {
+
+  // query based on dynamic query expression.
+  // TODO: Generated QueryRequest that can take types
+  rpc query(Query{{plural_pascal_name}}Request) returns (Query{{plural_pascal_name}}Response);
+
+  // Subscribe to events on {{plural_pascal_name}}
+  rpc on_event({{pascal_name}}EventRequest) returns (stream {{pascal_name}}Event);
+}
+
+message Query{{plural_pascal_name}}Request { optional string query = 1; }
+
+message Query{{plural_pascal_name}}Response { repeated {{pascal_name}} data = 1; }
+
+enum EventType {
+  ALL = 0;
+  INSERT_ONLY = 1;
+  UPDATE_ONLY = 2;
+  DELETE_ONLY = 3;
+}
+
+message {{pascal_name}}EventRequest { EventType type = 1; }
+
+message {{pascal_name}}Event {
+  dozer.types.OperationType typ = 1;
+  optional {{pascal_name}} old = 2;
+  optional {{pascal_name}} new = 3;
+}
 
 {{#each messages}}
-
-
 message {{name}} {
  {{#each props}}
  {{{this}}}
  {{~/each}}
 }
-
-
 {{~/each}}
+

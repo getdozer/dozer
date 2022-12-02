@@ -3,6 +3,7 @@ name = "dozer-admin"
 version = "0.0.1"
 authors = ["Karolis Gudiškis <karolis@getdozer.io>"]
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 futures = "0.3.23"
@@ -15,7 +16,7 @@ diesel = { version = "2.0.0", features = ["sqlite", "serde_json", "r2d2"] }
 log = "0.4.17"
 log4rs = "1.1.1"
 uuid = { version = "1.1.2", features = ["v4", "serde"] }
-tonic = "0.8.1"
+tonic = "0.8.2"
 tokio = "1.21.0"
 prost-types = "0.11.1"
 prost = "0.11.0"
@@ -27,10 +28,14 @@ prost-wkt = "0.3.3"
 prost-wkt-types = "0.3.3"
 mockall = "0.11.2"
 cargo-expand = "1.0.31"
+tonic-reflection = "0.5.0"
+serde_yaml = "0.9.14"
+diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 
 [build-dependencies]
-tonic-build = "0.8"
+tonic-build = "0.8.2"
 prost-wkt-build = "0.3.3"
 
 [features]
-snowflake=[]
+default = []
+snowflake = ["dozer-types/snowflake", "dozer-orchestrator/snowflake"]

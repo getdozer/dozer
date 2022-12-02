@@ -16,24 +16,19 @@ impl Indexer {
     pub fn build_indexes(
         &self,
         parent_txn: &mut RwTransaction,
-        rec: &Record,
+        record: &Record,
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
-        id: u64,
+        id: [u8; 8],
     ) -> Result<(), CacheError> {
         let mut txn = parent_txn
             .begin_nested_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
         if !schema.primary_index.is_empty() {
-            let primary_key = index::get_primary_key(&schema.primary_index, &rec.values);
-            txn.put(
-                self.primary_index,
-                &primary_key.as_slice(),
-                &id.to_be_bytes().as_slice(),
-                WriteFlags::default(),
-            )
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+            let primary_key = index::get_primary_key(&schema.primary_index, &record.values);
+            txn.put(self.primary_index, &primary_key, &id, WriteFlags::default())
+                .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
         }
 
         if secondary_indexes.is_empty() {
@@ -44,31 +39,59 @@ impl Indexer {
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
-                    let secondary_key = self._build_index_sorted_inverted(fields, &rec.values)?;
-                    txn.put(
-                        db,
-                        &secondary_key.as_slice(),
-                        &id.to_be_bytes().as_slice(),
-                        WriteFlags::default(),
-                    )
-                    .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+                    let secondary_key =
+                        self._build_index_sorted_inverted(fields, &record.values)?;
+                    txn.put(db, &secondary_key, &id, WriteFlags::default())
+                        .map_err(QueryError::InsertValue)?;
                 }
                 IndexDefinition::FullText(field_index) => {
-                    for secondary_key in Self::_build_indices_full_text(*field_index, &rec.values)?
+                    for secondary_key in
+                        Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        txn.put(
-                            db,
-                            &secondary_key.as_slice(),
-                            &id.to_be_bytes().as_slice(),
-                            WriteFlags::default(),
-                        )
-                        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+                        txn.put(db, &secondary_key, &id, WriteFlags::default())
+                            .map_err(QueryError::InsertValue)?;
                     }
                 }
             }
         }
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        Ok(())
+    }
+
+    pub fn delete_indexes(
+        &self,
+        txn: &mut RwTransaction,
+        record: &Record,
+        schema: &Schema,
+        secondary_indexes: &[IndexDefinition],
+        primary_key: &[u8],
+        id: [u8; 8],
+    ) -> Result<(), CacheError> {
+        txn.del(self.primary_index, &primary_key, None)
+            .map_err(QueryError::DeleteValue)?;
+
+        for (idx, index) in secondary_indexes.iter().enumerate() {
+            let db = self.index_metadata.get_db(schema, idx);
+
+            match index {
+                IndexDefinition::SortedInverted(fields) => {
+                    let secondary_key =
+                        self._build_index_sorted_inverted(fields, &record.values)?;
+                    txn.del(db, &secondary_key, Some(&id))
+                        .map_err(QueryError::DeleteValue)?;
+                }
+                IndexDefinition::FullText(field_index) => {
+                    for secondary_key in
+                        Self::_build_indices_full_text(*field_index, &record.values)?
+                    {
+                        txn.del(db, &secondary_key, Some(&id))
+                            .map_err(QueryError::DeleteValue)?;
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -150,6 +173,19 @@ mod tests {
             index_count,
             items.len() * expected_count,
             "Must index each field"
+        );
+
+        for a in [1i64, 2, 3] {
+            cache.delete(&a.to_be_bytes()).unwrap();
+        }
+
+        assert_eq!(
+            lmdb_utils::get_indexes(&cache)
+                .into_iter()
+                .flatten()
+                .count(),
+            0,
+            "Must delete every index"
         );
     }
 

@@ -10,7 +10,7 @@ use dozer_core::dag::node::{
     OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
 use dozer_types::internal_err;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_core::storage::record_reader::RecordReader;
@@ -192,8 +192,7 @@ impl AggregationProcessor {
             Expression::AggregateFunction { fun, args } => {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
-                    (AggregateFunctionType::Sum, FieldType::Int) => Ok(Aggregator::IntegerSum),
-                    (AggregateFunctionType::Sum, FieldType::Float) => Ok(Aggregator::FloatSum),
+                    (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                     (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
                     _ => Err(PipelineError::InvalidExpression(format!(
                         "Not implemented Aggreagation function: {:?}",
@@ -329,26 +328,42 @@ impl AggregationProcessor {
                 None => None,
             };
 
-            if let Some(e) = curr_state_slice {
-                // pass the current payload to teh processor to extract the value
-                let curr_value = measure.1.get_value(e);
-                // set the value for the old record
-                out_rec_delete.set_value(measure.2, curr_value);
-            }
+            let agg_type;
 
             // Let the aggregator calculate the new value based on teh performed operation
             let next_state_slice = match op {
                 AggregatorOperation::Insert => {
                     let field = inserted_record.unwrap().get_value(measure.0)?;
+                    agg_type = field.get_type()?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, agg_type);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
                     measure.1.insert(curr_state_slice, field)?
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
+                    agg_type = field.get_type()?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, agg_type);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
                     measure.1.delete(curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
                     let new = inserted_record.unwrap().get_value(measure.0)?;
+                    agg_type = old.get_type()?;
+                    if let Some(e) = curr_state_slice {
+                        // pass the current payload to the processor to extract the value
+                        let curr_value = measure.1.get_value(e, agg_type);
+                        // set the value for the old record
+                        out_rec_delete.set_value(measure.2, curr_value);
+                    }
                     measure.1.update(curr_state_slice, old, new)?
                 }
             };
@@ -358,7 +373,7 @@ impl AggregationProcessor {
             offset += next_state_slice.len() + 2;
 
             if !next_state_slice.is_empty() {
-                let next_value = measure.1.get_value(next_state_slice.as_slice());
+                let next_value = measure.1.get_value(next_state_slice.as_slice(), agg_type);
                 next_state.extend(next_state_slice);
                 out_rec_insert.set_value(measure.2, next_value);
             } else {

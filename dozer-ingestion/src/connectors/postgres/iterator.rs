@@ -12,6 +12,8 @@ use std::sync::Arc;
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
+use crate::errors::ConnectorError::UnexpectedQueryMessageError;
+use crate::errors::PostgresConnectorError::LSNNotStoredError;
 use postgres::Client;
 use tokio::runtime::Runtime;
 use tokio_postgres::SimpleQueryMessage;
@@ -120,6 +122,7 @@ impl PostgresIteratorHandler {
         // - When snapshot replication is not completed
         // - When there is gap between available lsn (in case when slot dropped and new created) and last lsn
         // - When publication tables changes
+        let mut tables = details.tables.clone();
         if self.lsn.clone().into_inner().is_none() {
             debug!("\nCreating Slot....");
             if let Ok(true) = self.replication_slot_exists(client.clone()) {
@@ -151,7 +154,7 @@ impl PostgresIteratorHandler {
                 ingestor: Arc::clone(&self.ingestor),
                 connector_id: self.connector_id,
             };
-            let tables = snapshotter.sync_tables(details.tables.clone())?;
+            tables = snapshotter.sync_tables(details.tables.clone())?;
 
             debug!("\nInitialized with tables: {:?}", tables);
 
@@ -164,7 +167,7 @@ impl PostgresIteratorHandler {
         self.state.clone().replace(ReplicationState::Replicating);
 
         /*  ####################        Replicating         ######################  */
-        self.replicate()
+        self.replicate(tables)
     }
 
     fn drop_replication_slot(&self, client: Arc<RefCell<Client>>) {
@@ -203,8 +206,7 @@ impl PostgresIteratorHandler {
         if let SimpleQueryMessage::Row(row) = &slot_query_row[0] {
             Ok(row.get("consistent_point").map(|lsn| lsn.to_string()))
         } else {
-            debug!("unexpected query message");
-            Err(ConnectorError::InvalidQueryError)
+            Err(UnexpectedQueryMessageError)
         }
     }
 
@@ -234,14 +236,14 @@ impl PostgresIteratorHandler {
         }
     }
 
-    fn replicate(&self) -> Result<(), ConnectorError> {
+    fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         let rt = Runtime::new().unwrap();
         let ingestor = self.ingestor.clone();
         let lsn = self.lsn.borrow();
-        let lsn = match lsn.as_ref() {
-            Some(x) => x.to_string(),
-            None => panic!("lsn not stored..."),
-        };
+        let lsn = lsn
+            .as_ref()
+            .map_or(Err(LSNNotStoredError), |x| Ok(x.to_string()))?;
+
         let publication_name = self.details.publication_name.clone();
         let slot_name = self.details.slot_name.clone();
         rt.block_on(async {
@@ -254,7 +256,7 @@ impl PostgresIteratorHandler {
                 last_commit_lsn: 0,
                 connector_id: self.connector_id,
             };
-            replicator.start().await
+            replicator.start(tables).await
         })
     }
 }

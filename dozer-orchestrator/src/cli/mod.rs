@@ -1,9 +1,10 @@
 pub mod types;
-use dozer_orchestrator::errors::OrchestrationError;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::source::Source;
 use serde::{Deserialize, Serialize};
 use std::fs;
+
+use super::OrchestrationError;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {

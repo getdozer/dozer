@@ -5,8 +5,9 @@ import "protos/connection/connection_type.proto";
 import "protos/connection/authentication.proto";
 
 message ConnectionInfo {
-  optional string id = 1;
-  string name = 2;
-  ConnectionType type = 3;
-  Authentication authentication = 4;
+  string id = 1;
+  string app_id = 2;
+  string name = 3;
+  ConnectionType type = 4;
+  Authentication authentication = 5;
 }

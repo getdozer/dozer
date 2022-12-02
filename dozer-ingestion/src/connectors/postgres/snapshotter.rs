@@ -25,12 +25,10 @@ pub struct PostgresSnapshotter {
 impl PostgresSnapshotter {
     pub fn get_tables(
         &self,
-        table_names: Option<Vec<String>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
-        let mut helper = SchemaHelper {
-            conn_config: self.conn_config.clone(),
-        };
-        let arr = helper.get_tables(table_names)?;
+        let helper = SchemaHelper::new(self.conn_config.clone(), None);
+        let arr = helper.get_tables(tables).unwrap();
         match self.tables.as_ref() {
             None => Ok(arr),
             Some(filtered_tables) => {
@@ -49,12 +47,12 @@ impl PostgresSnapshotter {
     pub fn sync_tables(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<String>, ConnectorError> {
+    ) -> Result<Option<Vec<TableInfo>>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(connection_helper::connect(
             self.conn_config.clone(),
         )?));
 
-        let tables = self.get_tables(tables.map(|t| t.iter().map(|t| t.name.clone()).collect()))?;
+        let tables = self.get_tables(tables)?;
 
         let mut idx: u32 = 0;
         for table_info in tables.iter() {
@@ -72,7 +70,7 @@ impl PostgresSnapshotter {
                 .clone()
                 .borrow_mut()
                 .prepare(&query)
-                .map_err(|_| ConnectorError::InvalidQueryError)?;
+                .map_err(ConnectorError::InvalidQueryError)?;
             let columns = stmt.columns();
 
             // Ingest schema for every table
@@ -90,7 +88,7 @@ impl PostgresSnapshotter {
                 .clone()
                 .borrow_mut()
                 .query_raw(&stmt, empty_vec)
-                .map_err(|_| ConnectorError::InvalidQueryError)?
+                .map_err(ConnectorError::InvalidQueryError)?
                 .iterator()
             {
                 match msg {
@@ -135,8 +133,6 @@ impl PostgresSnapshotter {
                 .map_err(ConnectorError::IngestorError)?;
         }
 
-        let table_names = tables.iter().map(|t| t.name.clone()).collect();
-
-        Ok(table_names)
+        Ok(Some(tables))
     }
 }

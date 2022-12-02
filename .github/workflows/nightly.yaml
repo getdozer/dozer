@@ -28,29 +28,38 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Snowflake ODBC driver
-        run: curl ${SNOWFLAKE_DRIVER_URL} -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
-        env:
-          SNOWFLAKE_DRIVER_URL: https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb
-
-      - uses: franzbischoff/replace_envs@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
-          USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-          PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
-          SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
-          WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      - uses: ./.github/workflows/setup-snowflake-and-kafka
         with:
-          from_file: "config/test.snowflake.sample.yaml"
-          to_file: "config/dozer-config.test.snowflake.yaml"
-          commit: "false"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNOWFLAKE_SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
+          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
+          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
+          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
+          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
+          KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
 
       - uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all-features --no-fail-fast
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off  -Cpanic=abort -Zpanic_abort_tests"
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: connector_e2e_ --all-features -- --ignored
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off  -Cpanic=abort -Zpanic_abort_tests"
@@ -127,24 +136,25 @@ jobs:
             ${{ runner.os }}-cargo-release-bench-
             ${{ runner.os }}-cargo-release-
 
-      - name: Install Snowflake ODBC driver
-        run: curl ${SNOWFLAKE_DRIVER_URL} -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
-        env:
-          SNOWFLAKE_DRIVER_URL: https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb
-
-      - uses: franzbischoff/replace_envs@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
-          USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-          PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
-          SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
-          WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      - uses: ./.github/workflows/setup-snowflake-and-kafka
         with:
-          from_file: "config/test.snowflake.sample.yaml"
-          to_file: "config/dozer-config.test.snowflake.yaml"
-          commit: "false"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNOWFLAKE_SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
+          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
+          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
+          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
+          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
+          KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
 
       - name: Install Criterion
         continue-on-error: true
@@ -153,7 +163,7 @@ jobs:
       - id: bench
         name: Run Bench
         continue-on-error: true
-        run: cargo criterion --features snowflake
+        run: cargo criterion --features snowflake,debezium_bench
 
       - name: Get current date
         id: date
@@ -183,6 +193,7 @@ jobs:
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
   test_long:
     runs-on: ubuntu-latest
     steps:

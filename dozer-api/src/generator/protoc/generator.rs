@@ -1,53 +1,70 @@
-use super::proto_service::{GrpcType, ProtoService, RPCFunction, RPCMessage};
 use crate::{errors::GenerationError, PipelineDetails};
 use dozer_cache::cache::Cache;
 use dozer_types::serde::{self, Deserialize, Serialize};
+use dozer_types::types::FieldType;
 use handlebars::Handlebars;
+use inflector::Inflector;
+use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(crate = "self::serde")]
-pub struct CombineProtoMetadata {
-    package_name: String,
-    service_definition: Vec<ServiceDefinition>,
-    import_libs: Vec<String>,
-    messages: Vec<RPCMessage>,
-    pub functions_with_type: HashMap<String, GrpcType>,
-}
+use super::utils::{create_descriptor_set, get_proto_descriptor};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
-pub struct ServiceDefinition {
-    service_name: String,
-    rpc_functions: Vec<RPCFunction>,
+pub struct ProtoMetadata {
+    import_libs: Vec<String>,
+    messages: Vec<RPCMessage>,
+    package_name: String,
+    plural_lower_name: String,
+    plural_pascal_name: String,
+    pascal_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "self::serde")]
+pub struct RPCMessage {
+    pub(crate) name: String,
+    pub(crate) props: Vec<String>,
+}
+
+pub struct ProtoResponse {
+    pub resources: Vec<String>,
+    pub descriptor: DescriptorPool,
+    pub descriptor_bytes: Vec<u8>,
 }
 
 pub struct ProtoGenerator<'a> {
-    proto_services: Vec<ProtoService>,
     handlebars: Handlebars<'a>,
+    schema: dozer_types::types::Schema,
+    schema_name: String,
+    folder_path: String,
 }
 
+fn safe_name(name: &str) -> String {
+    name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
+}
 impl ProtoGenerator<'_> {
-    pub fn new(pipeline_map: HashMap<String, PipelineDetails>) -> Result<Self, GenerationError> {
-        let vec_proto_svc = pipeline_map
-            .iter()
-            .map(|(_, x)| {
-                let cache = x.to_owned().cache_endpoint.cache;
-                let endpoint = x.to_owned().cache_endpoint.endpoint;
-                let schema_name = endpoint.name.to_owned();
-                let schema = cache
-                    .get_schema_and_indexes_by_name(&schema_name)
-                    .unwrap()
-                    .0;
-                ProtoService::new(schema, schema_name, endpoint)
-            })
-            .collect();
-        let mut proto_generator = Self {
+    pub fn new(
+        pipeline_details: PipelineDetails,
+        folder_path: String,
+    ) -> Result<Self, GenerationError> {
+        let cache = pipeline_details.cache_endpoint.cache.clone();
+        let schema_name = safe_name(&pipeline_details.cache_endpoint.endpoint.name);
+        let schema = cache
+            .get_schema_and_indexes_by_name(&schema_name)
+            .unwrap()
+            .0;
+
+        let mut generator = Self {
             handlebars: Handlebars::new(),
-            proto_services: vec_proto_svc,
+            schema,
+            schema_name,
+            folder_path,
         };
-        proto_generator.register_template()?;
-        Ok(proto_generator)
+        generator.register_template()?;
+        Ok(generator)
     }
 
     fn register_template(&mut self) -> Result<(), GenerationError> {
@@ -58,62 +75,147 @@ impl ProtoGenerator<'_> {
         Ok(())
     }
 
-    pub fn generate_proto(
-        &self,
-        folder_path: String,
-    ) -> Result<(String, HashMap<String, GrpcType>), GenerationError> {
-        if !Path::new(&folder_path).exists() {
+    fn resource_message(&self) -> RPCMessage {
+        let props_message: Vec<String> = self
+            .schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(idx, field)| -> String {
+                let mut result = "".to_owned();
+                if field.nullable {
+                    result.push_str("optional ");
+                }
+                let proto_type = convert_dozer_type_to_proto_type(field.typ.to_owned()).unwrap();
+                let _ = writeln!(
+                    result,
+                    "{} {} = {}; ",
+                    proto_type,
+                    safe_name(&field.name),
+                    idx + 1
+                );
+                result
+            })
+            .collect();
+
+        RPCMessage {
+            name: self.schema_name.to_pascal_case().to_singular(),
+            props: props_message,
+        }
+    }
+
+    pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
+        let type_need_import_libs = ["google.protobuf.Timestamp"];
+        let mut libs_import: Vec<String> = self
+            .schema
+            .fields
+            .iter()
+            .map(|field| convert_dozer_type_to_proto_type(field.to_owned().typ).unwrap())
+            .filter(|proto_type| -> bool {
+                type_need_import_libs.contains(&proto_type.to_owned().as_str())
+            })
+            .map(|proto_type| match proto_type.as_str() {
+                "google.protobuf.Timestamp" => "google/protobuf/timestamp.proto".to_owned(),
+                _ => "".to_owned(),
+            })
+            .collect();
+        libs_import.push("types.proto".to_owned());
+        libs_import.sort();
+        libs_import.dedup();
+        Ok(libs_import)
+    }
+
+    pub fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
+        let package_name = format!("dozer.generated.{}", self.schema_name);
+        let _service_name = self.schema_name.to_pascal_case().to_plural();
+
+        let messages = vec![self.resource_message()];
+
+        let import_libs: Vec<String> = self.libs_by_type()?;
+        let metadata = ProtoMetadata {
+            package_name,
+            messages,
+            import_libs,
+            plural_lower_name: self.schema_name.to_lowercase().to_plural(),
+            plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
+            pascal_name: self.schema_name.to_pascal_case().to_singular(),
+        };
+        Ok(metadata)
+    }
+
+    pub fn _generate_proto(&self) -> Result<(String, String), GenerationError> {
+        if !Path::new(&self.folder_path).exists() {
             return Err(GenerationError::DirPathNotExist);
         }
 
-        let meta_datas: Vec<super::proto_service::ProtoMetadata> = self
-            .proto_services
-            .iter()
-            .map(|svc| svc.get_grpc_metadata().unwrap())
-            .collect();
+        let metadata = self.get_metadata()?;
 
-        let mut combine_meta_data = CombineProtoMetadata::default();
-        for metadata in meta_datas {
-            combine_meta_data.package_name = metadata.package_name;
+        let types_proto = include_str!("../../../protos/types.proto");
 
-            combine_meta_data.import_libs =
-                [combine_meta_data.import_libs, metadata.import_libs].concat();
-            combine_meta_data.import_libs.sort();
-            combine_meta_data.import_libs.dedup();
-
-            combine_meta_data.service_definition = [
-                combine_meta_data.service_definition,
-                vec![ServiceDefinition {
-                    service_name: metadata.service_name,
-                    rpc_functions: metadata.rpc_functions,
-                }],
-            ]
-            .concat();
-
-            let mut messages = [combine_meta_data.messages, metadata.messages].concat();
-            messages.sort_by_key(|k| format!("{} {}", k.name, k.props.join("")));
-            messages.dedup_by_key(|k| format!("{} {}", k.name, k.props.join("")));
-            combine_meta_data.messages = messages;
-
-            combine_meta_data.functions_with_type = combine_meta_data
-                .functions_with_type
-                .into_iter()
-                .chain(metadata.functions_with_type)
-                .collect();
-        }
-        // let meta_data = self.proto_service.get_grpc_metadata()?;
-        let mut output_file = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(format!("{}/generated.proto", folder_path,))
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-        let result = self
+        let resource_proto = self
             .handlebars
-            .render("main", &combine_meta_data)
+            .render("main", &metadata)
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-        self.handlebars
-            .render_to_write("main", &combine_meta_data, &mut output_file)
+
+        // Copy types proto file
+        let mut types_file = std::fs::File::create(format!("{}/types.proto", self.folder_path))
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-        Ok((result, combine_meta_data.functions_with_type))
+
+        let resource_path = format!(
+            "{}/{}.proto",
+            self.folder_path,
+            self.schema_name.to_lowercase().to_plural()
+        );
+        let mut resource_file = std::fs::File::create(resource_path.clone())
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+
+        std::io::Write::write_all(&mut types_file, types_proto.as_bytes())
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+
+        std::io::Write::write_all(&mut resource_file, resource_proto.as_bytes())
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+
+        Ok((resource_proto, resource_path))
+    }
+
+    pub fn generate(
+        folder_path: String,
+        pipeline_map: HashMap<String, PipelineDetails>,
+    ) -> Result<ProtoResponse, GenerationError> {
+        let mut resources = vec![];
+        for (endpoint_name, details) in pipeline_map {
+            let generator = ProtoGenerator::new(details, folder_path.clone())?;
+            generator._generate_proto()?;
+            resources.push(endpoint_name);
+        }
+        let descriptor_path = create_descriptor_set(folder_path, &resources)
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+
+        let (descriptor_bytes, descriptor) = get_proto_descriptor(descriptor_path)?;
+
+        Ok(ProtoResponse {
+            resources,
+            descriptor,
+            descriptor_bytes,
+        })
+    }
+}
+
+fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, GenerationError> {
+    match field_type {
+        FieldType::UInt => Ok("uint64".to_owned()),
+        FieldType::Int => Ok("int64".to_owned()),
+        FieldType::Float => Ok("float".to_owned()),
+        FieldType::Boolean => Ok("bool".to_owned()),
+        FieldType::String => Ok("string".to_owned()),
+        FieldType::Decimal => Ok("float64".to_owned()),
+        FieldType::Timestamp => Ok("google.protobuf.Timestamp".to_owned()),
+        FieldType::Date => Ok("string".to_owned()),
+        FieldType::Bson => Ok("google.protobuf.Any".to_owned()),
+        FieldType::Null => Ok("string".to_owned()),
+        _ => Err(GenerationError::DozerToProtoTypeNotSupported(format!(
+            "{:?}",
+            field_type
+        ))),
     }
 }

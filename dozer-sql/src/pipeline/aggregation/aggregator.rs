@@ -1,5 +1,5 @@
 use crate::pipeline::aggregation::count::CountAggregator;
-use crate::pipeline::aggregation::sum::{FloatSumAggregator, IntegerSumAggregator};
+use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
@@ -7,8 +7,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum Aggregator {
     Count,
-    IntegerSum,
-    FloatSum,
+    Sum,
 }
 
 impl Display for Aggregator {
@@ -21,17 +20,14 @@ impl Aggregator {
     pub(crate) fn get_return_type(&self, from: FieldType) -> FieldType {
         match (&self, from) {
             (Aggregator::Count, _) => CountAggregator::get_return_type(),
-            (Aggregator::IntegerSum, FieldType::Int) => IntegerSumAggregator::get_return_type(),
-            (Aggregator::FloatSum, FieldType::Float) => FloatSumAggregator::get_return_type(),
-            _ => from,
+            (Aggregator::Sum, from) => SumAggregator::get_return_type(from),
         }
     }
 
-    pub(crate) fn _get_type(&self) -> u8 {
+    pub(crate) fn _get_type(&self) -> u32 {
         match &self {
             Aggregator::Count => CountAggregator::_get_type(),
-            Aggregator::IntegerSum => IntegerSumAggregator::_get_type(),
-            Aggregator::FloatSum => FloatSumAggregator::_get_type(),
+            Aggregator::Sum => SumAggregator::_get_type(),
         }
     }
 
@@ -42,8 +38,7 @@ impl Aggregator {
     ) -> Result<Vec<u8>, PipelineError> {
         match &self {
             Aggregator::Count => CountAggregator::insert(curr_state, new),
-            Aggregator::IntegerSum => IntegerSumAggregator::insert(curr_state, new),
-            Aggregator::FloatSum => FloatSumAggregator::insert(curr_state, new),
+            Aggregator::Sum => SumAggregator::insert(curr_state, new),
         }
     }
 
@@ -55,8 +50,7 @@ impl Aggregator {
     ) -> Result<Vec<u8>, PipelineError> {
         match &self {
             Aggregator::Count => CountAggregator::update(curr_state, old, new),
-            Aggregator::IntegerSum => IntegerSumAggregator::update(curr_state, old, new),
-            Aggregator::FloatSum => FloatSumAggregator::update(curr_state, old, new),
+            Aggregator::Sum => SumAggregator::update(curr_state, old, new),
         }
     }
 
@@ -67,16 +61,14 @@ impl Aggregator {
     ) -> Result<Vec<u8>, PipelineError> {
         match &self {
             Aggregator::Count => CountAggregator::delete(curr_state, old),
-            Aggregator::IntegerSum => IntegerSumAggregator::delete(curr_state, old),
-            Aggregator::FloatSum => FloatSumAggregator::delete(curr_state, old),
+            Aggregator::Sum => SumAggregator::delete(curr_state, old),
         }
     }
 
-    pub(crate) fn get_value(&self, f: &[u8]) -> Field {
+    pub(crate) fn get_value(&self, v: &[u8], from: FieldType) -> Field {
         match &self {
-            Aggregator::Count => CountAggregator::get_value(f),
-            Aggregator::IntegerSum => IntegerSumAggregator::get_value(f),
-            Aggregator::FloatSum => FloatSumAggregator::get_value(f),
+            Aggregator::Count => CountAggregator::get_value(v),
+            Aggregator::Sum => SumAggregator::get_value(v, from),
         }
     }
 }

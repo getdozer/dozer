@@ -16,6 +16,7 @@ use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::executor_local::{
     ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE,
 };
+use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
@@ -77,13 +78,13 @@ impl Executor {
         _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connections: Vec<Connection> = vec![];
-        let mut connection_map: HashMap<String, Vec<String>> = HashMap::new();
+        let mut connection_map: HashMap<String, Vec<TableInfo>> = HashMap::new();
         let mut table_map: HashMap<String, u16> = HashMap::new();
 
         // Initialize Source
         // For every pipeline, there will be one Source implementation
         // that can take multiple Connectors on different ports.
-        for (idx, source) in self.sources.iter().cloned().enumerate() {
+        for (table_id, (idx, source)) in self.sources.iter().cloned().enumerate().enumerate() {
             validate(source.connection.clone())?;
 
             let table_name = source.table_name.clone();
@@ -94,15 +95,17 @@ impl Executor {
             };
             connections.push(connection);
 
-            let table_names = match connection_map.get(&id) {
-                Some(v) => {
-                    let mut v = v.clone();
-                    v.push(table_name.clone());
-                    v
-                }
-                None => vec![source.table_name.clone()],
+            let table = TableInfo {
+                name: source.table_name,
+                id: table_id as u32,
+                columns: source.columns,
             };
-            connection_map.insert(id, table_names);
+
+            connection_map
+                .entry(id)
+                .and_modify(|v| v.push(table.clone()))
+                .or_insert_with(|| vec![table]);
+
             table_map.insert(table_name, (idx as usize).try_into().unwrap());
         }
 

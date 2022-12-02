@@ -5,19 +5,19 @@ use crate::errors::CacheError;
 use lmdb::{Cursor, Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor};
 use tempdir::TempDir;
 
-use super::CacheOptions;
+use super::{CacheOptions, CacheOptionsKind};
 
 pub fn init_env(options: &CacheOptions) -> Result<Environment, CacheError> {
-    match options {
-        CacheOptions::Write(options) => {
+    match &options.kind {
+        CacheOptionsKind::Write(write_options) => {
             let mut env = Environment::new();
 
             let env = env
-                .set_max_readers(options.max_readers)
-                .set_map_size(options.max_size)
-                .set_max_dbs(options.max_db_size);
+                .set_max_readers(options.common.max_readers)
+                .set_map_size(write_options.max_size)
+                .set_max_dbs(options.common.max_db_size);
 
-            let env = match options.path.to_owned() {
+            let env = match &options.common.path {
                 None => env
                     .open(
                         TempDir::new("dozer")
@@ -27,22 +27,22 @@ pub fn init_env(options: &CacheOptions) -> Result<Environment, CacheError> {
                     )
                     .map_err(|e| CacheError::InternalError(Box::new(e)))?,
                 Some(path) => {
-                    fs::create_dir_all(&path)
-                        .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+                    fs::create_dir_all(path).map_err(|e| CacheError::InternalError(Box::new(e)))?;
                     env.open(Path::new(&path))
                         .map_err(|e| CacheError::InternalError(Box::new(e)))?
                 }
             };
             Ok(env)
         }
-        CacheOptions::ReadOnly(options) => {
+        CacheOptionsKind::ReadOnly(_) => {
             let mut env = Environment::new();
             let env = env
                 .set_flags(EnvironmentFlags::READ_ONLY)
-                .set_max_dbs(options.max_db_size);
+                .set_max_dbs(options.common.max_db_size);
 
             env.open(Path::new(
                 &options
+                    .common
                     .path
                     .as_ref()
                     .map_or(Err(CacheError::PathNotInitialized), Ok)?,
@@ -59,8 +59,8 @@ pub fn init_db(
     allow_dup: bool,
     fixed_length_key: bool,
 ) -> Result<Database, CacheError> {
-    match options {
-        CacheOptions::Write(_) => {
+    match options.kind {
+        CacheOptionsKind::Write(_) => {
             let mut flags = DatabaseFlags::default();
             if allow_dup {
                 flags.set(DatabaseFlags::DUP_SORT, true);
@@ -77,7 +77,7 @@ pub fn init_db(
 
             Ok(db)
         }
-        CacheOptions::ReadOnly(_) => {
+        CacheOptionsKind::ReadOnly(_) => {
             let db = env
                 .open_db(name)
                 .map_err(|e| CacheError::InternalError(Box::new(e)))?;

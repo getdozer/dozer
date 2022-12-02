@@ -1,4 +1,5 @@
 use std::sync::Arc;
+#[cfg(feature = "snowflake")]
 use std::time::Duration;
 
 #[cfg(feature = "snowflake")]
@@ -6,7 +7,6 @@ use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::Connector;
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
-#[cfg(feature = "snowflake")]
 use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::parking_lot::RwLock;
 
@@ -16,6 +16,7 @@ use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 
 use tokio::runtime::Runtime;
+#[cfg(feature = "snowflake")]
 use tokio::time;
 
 pub struct SnowflakeConnector {
@@ -39,7 +40,7 @@ impl SnowflakeConnector {
 impl Connector for SnowflakeConnector {
     fn get_schemas(
         &self,
-        _table_names: Option<Vec<String>>,
+        _table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         todo!()
     }
@@ -88,6 +89,7 @@ impl Connector for SnowflakeConnector {
     }
 }
 
+#[cfg(feature = "snowflake")]
 async fn run(
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
@@ -135,5 +137,15 @@ async fn run(
         }
     };
 
+    Ok(())
+}
+
+#[cfg(not(feature = "snowflake"))]
+async fn run(
+    _config: SnowflakeConfig,
+    _tables: Option<Vec<TableInfo>>,
+    _ingestor: Arc<RwLock<Ingestor>>,
+    _connector_id: u64,
+) -> Result<(), ConnectorError> {
     Ok(())
 }
