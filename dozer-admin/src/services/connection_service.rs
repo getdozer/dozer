@@ -16,8 +16,7 @@ use dozer_types::models::{
 };
 use std::thread;
 
-use super::converter::convert_i32_to_dbtype;
-
+use super::converter::convert_auth_to_db_type;
 pub struct ConnectionService {
     db_pool: DbPool,
 }
@@ -144,18 +143,17 @@ impl ConnectionService {
         &self,
         input: TestConnectionRequest,
     ) -> Result<TestConnectionResponse, ErrorResponse> {
-        let db_type_value = convert_i32_to_dbtype(input.r#type).map_err(|err| ErrorResponse {
-            message: err.to_string(),
-        })?;
-        let auth_input =
-            Authentication::try_from(input.authentication.unwrap()).map_err(|err| {
+        let input_auth = input.authentication.unwrap();
+        let authentication =
+            Authentication::try_from(input_auth).map_err(|err| {
                 ErrorResponse {
                     message: err.to_string(),
                 }
             })?;
+        let db_type_value = convert_auth_to_db_type(authentication.to_owned());
         let connection = Connection {
             db_type: db_type_value,
-            authentication: auth_input,
+            authentication,
             name: input.name,
             id: None,
         };
@@ -195,12 +193,17 @@ impl ConnectionService {
         &self,
         input: ValidateConnectionRequest,
     ) -> Result<ValidateConnectionResponse, ErrorResponse> {
-        let db_type_value = convert_i32_to_dbtype(input.r#type).map_err(|err| ErrorResponse {
-            message: err.to_string(),
-        })?;
+        let input_auth = input.authentication.unwrap();
+        let authentication =
+            Authentication::try_from(input_auth).map_err(|err| {
+                ErrorResponse {
+                    message: err.to_string(),
+                }
+            })?;
+        let db_type_value = convert_auth_to_db_type(authentication.to_owned());
         let connection = Connection {
             db_type: db_type_value,
-            authentication: Authentication::try_from(input.authentication.unwrap()).unwrap(),
+            authentication,
             name: input.name,
             id: None,
         };

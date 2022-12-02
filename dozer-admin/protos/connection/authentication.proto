@@ -3,11 +3,15 @@ package dozer_admin_grpc;
 import "protos/connection/postgres_authentication.proto";
 import "protos/connection/ethereum_authentication.proto";
 import "protos/connection/snowflake_authentication.proto";
+import "protos/connection/kafka_authentication.proto";
+import "protos/connection/events_authentication.proto";
 
 message Authentication {
   oneof authentication {
     PostgresAuthentication postgres = 1;
     EthereumAuthentication ethereum = 2;
     SnowflakeAuthentication snowflake = 3;
+    EventsAuthentication events = 4;
+    KafkaAuthentication kafka = 5;
   }
 }

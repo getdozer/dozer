@@ -1,0 +1,5 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+message EventsAuthentication {
+  string database = 1;
+}

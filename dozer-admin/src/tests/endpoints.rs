@@ -47,7 +47,7 @@ mod grpc_service {
         let endpoint_service = EndpointService::new(db_pool);
         let setup_ids = get_setup_ids();
         let request = CreateEndpointRequest {
-            app_id: setup_ids.app_id.to_owned(),
+            app_id: setup_ids.app_id,
             name: "new_endpoint".to_owned(),
             path: "/new_endpoint".to_owned(),
             enable_rest: true,
@@ -106,7 +106,7 @@ mod grpc_service {
             sql: None,
         };
         let result = endpoint_service
-            .update_endpoint(request.to_owned());
+            .update_endpoint(request);
         assert!(result.is_err());
     }
 
@@ -121,7 +121,7 @@ mod grpc_service {
             app_id: setup_ids.app_id,
             endpoint_id: setup_ids.api_ids[0].to_owned(),
         };
-        let result: DeleteEndpointResponse = endpoint_service.delete(request.to_owned()).unwrap();
+        let result: DeleteEndpointResponse = endpoint_service.delete(request).unwrap();
         assert!(result.success);
     }
 }

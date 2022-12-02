@@ -61,7 +61,7 @@ mod grpc_service {
             app_id: setup_ids.app_id,
         };
         let result: StartPipelineResponse = application_service
-            .start_pipeline(request.to_owned())
+            .start_pipeline(request)
             .unwrap();
         assert!(result.success);
     }

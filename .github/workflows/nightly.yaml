@@ -1,8 +1,11 @@
 name: Dozer Scheduled
 # Long running tests, Performance benchmarks, Code vulnerability, Code coverage etc
 on:
+  schedule:
+    # 9pm SGT
+    - cron: "0 13 * * *"
   push:
-    branches: [chore/increase-test-coverage]
+    branches: [fix/coverage]
 
 concurrency:
   group: nightly
@@ -53,13 +56,13 @@ jobs:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off  -Cpanic=abort -Zpanic_abort_tests"
 
-      # - uses: actions-rs/cargo@v1
-      #   with:
-      #     command: test
-      #     args: connector_e2e_ --all-features -- --ignored
-      #   env:
-      #     CARGO_INCREMENTAL: "0"
-      #     RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off  -Cpanic=abort -Zpanic_abort_tests"
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: connector_e2e_ --all-features -- --ignored
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off  -Cpanic=abort -Zpanic_abort_tests"
 
       - name: Get current date
         id: date
@@ -102,154 +105,154 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
   # Run benches on stable
-  # bench:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v3
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-  #     - name: Install minimal stable with clippy and rustfmt
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         components: rustfmt, clippy
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
 
-  #     - name: Install Protoc
-  #       uses: arduino/setup-protoc@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
 
-  #     - name: ⚡ Cache
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: |
-  #           ~/.cargo/bin/
-  #           ~/.cargo/.crates.toml
-  #           ~/.cargo/.crates2.json
-  #           ~/.cargo/.package-cache
-  #           ~/.cargo/registry/
-  #           ~/.cargo/git/db/
-  #           target/release
-  #         key: ${{ runner.os }}-cargo-release-bench-
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-release-bench-
-  #           ${{ runner.os }}-cargo-release-
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/release
+          key: ${{ runner.os }}-cargo-release-bench-
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-bench-
+            ${{ runner.os }}-cargo-release-
 
-  #     - uses: ./.github/workflows/setup-snowflake-and-kafka
-  #       with:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         SNOWFLAKE_SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
-  #         SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-  #         SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-  #         SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
-  #         SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
-  #         SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
-  #         DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
-  #         DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
-  #         DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
-  #         KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
-  #         KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
-  #         KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
-  #         KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
-  #         KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
-  #         KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
-  #         KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
+      - uses: ./.github/workflows/setup-snowflake-and-kafka
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNOWFLAKE_SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
+          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
+          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
+          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
+          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
+          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
+          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
+          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
+          KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
 
-  #     - name: Install Criterion
-  #       continue-on-error: true
-  #       run: cargo install cargo-criterion
+      - name: Install Criterion
+        continue-on-error: true
+        run: cargo install cargo-criterion
 
-      # - id: bench
-      #   name: Run Bench
-      #   continue-on-error: true
-      #   run: cargo criterion --features snowflake,debezium_bench
+      - id: bench
+        name: Run Bench
+        continue-on-error: true
+        run: cargo criterion --features snowflake,debezium_bench
 
-  #     - name: Get current date
-  #       id: date
-  #       run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
-  #     - uses: keithweaver/aws-s3-github-action@v1.0.0
-  #       continue-on-error: true
-  #       with:
-  #         command: sync
-  #         source: ./target/criterion
-  #         destination: s3://dozer-ci/${{ steps.date.outputs.date }}/criterion
-  #         aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
-  #         aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
-  #         aws_region: ap-southeast-1
+      - uses: keithweaver/aws-s3-github-action@v1.0.0
+        continue-on-error: true
+        with:
+          command: sync
+          source: ./target/criterion
+          destination: s3://dozer-ci/${{ steps.date.outputs.date }}/criterion
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+          aws_region: ap-southeast-1
 
-  #     - name: Post to a Slack channel
-  #       id: slack
-  #       continue-on-error: true
-  #       uses: slackapi/slack-github-action@v1.23.0
-  #       with:
-  #         channel-id: "release-notifications"
-  #         slack-message: |
-  #           ```
-  #           Criterion: ${{ job.status }}
+      - name: Post to a Slack channel
+        id: slack
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: "release-notifications"
+          slack-message: |
+            ```
+            Criterion: ${{ job.status }}
 
-  #           Criterion Report: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/criterion/reports/index.html
-  #           ```
-  #       env:
-  #         SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+            Criterion Report: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/criterion/reports/index.html
+            ```
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
-  # test_long:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v3
+  test_long:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-  #     - name: Install minimal stable with clippy and rustfmt
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         components: rustfmt, clippy
+      - name: Install minimal stable with clippy and rustfmt
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt, clippy
 
-  #     - name: Install Protoc
-  #       uses: arduino/setup-protoc@v1
-  #       with:
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-  #     - name: ⚡ Cache
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: |
-  #           ~/.cargo/bin/
-  #           ~/.cargo/.crates.toml
-  #           ~/.cargo/.crates2.json
-  #           ~/.cargo/.package-cache
-  #           ~/.cargo/registry/
-  #           ~/.cargo/git/db/
-  #           target/
-  #         key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-  #           ${{ runner.os }}-cargo-
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+            ${{ runner.os }}-cargo-
 
-  #     - name: Run tests
-  #       run: cargo test -- nightly_long_ --ignored
+      - name: Run tests
+        run: cargo test -- nightly_long_ --ignored
 
-  #     - name: Get current date
-  #       id: date
-  #       run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
-  #     - uses: keithweaver/aws-s3-github-action@v1.0.0
-  #       continue-on-error: true
-  #       with:
-  #         command: cp
-  #         source: ./dozer-tests/logs/sql-tests.log
-  #         destination: s3://dozer-ci/${{ steps.date.outputs.date }}/sql-tests.txt
-  #         aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
-  #         aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
-  #         aws_region: ap-southeast-1
+      - uses: keithweaver/aws-s3-github-action@v1.0.0
+        continue-on-error: true
+        with:
+          command: cp
+          source: ./dozer-tests/logs/sql-tests.log
+          destination: s3://dozer-ci/${{ steps.date.outputs.date }}/sql-tests.txt
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
+          aws_region: ap-southeast-1
 
-  #     - name: Post to a Slack channel
-  #       id: slack
-  #       continue-on-error: true
-  #       uses: slackapi/slack-github-action@v1.23.0
-  #       with:
-  #         channel-id: "release-notifications"
-  #         slack-message: |
-  #           ```
-  #           SQL log: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/sql-tests.txt
-  #           ```
-  #       env:
-  #         SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      - name: Post to a Slack channel
+        id: slack
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: "release-notifications"
+          slack-message: |
+            ```
+            SQL log: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/sql-tests.txt
+            ```
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
