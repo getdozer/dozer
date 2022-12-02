@@ -105,8 +105,7 @@ mod grpc_service {
             source_ids: vec![],
             sql: None,
         };
-        let result = endpoint_service
-            .update_endpoint(request);
+        let result = endpoint_service.update_endpoint(request);
         assert!(result.is_err());
     }
 

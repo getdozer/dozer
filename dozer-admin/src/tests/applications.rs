@@ -60,9 +60,7 @@ mod grpc_service {
         let request = StartPipelineRequest {
             app_id: setup_ids.app_id,
         };
-        let result: StartPipelineResponse = application_service
-            .start_pipeline(request)
-            .unwrap();
+        let result: StartPipelineResponse = application_service.start_pipeline(request).unwrap();
         assert!(result.success);
     }
 }

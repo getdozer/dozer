@@ -256,8 +256,8 @@ mod test {
             source::DBSource,
         },
         services::converter::{
-            convert_to_api_endpoint, convert_to_source,
-            dozer_admin_grpc::ConnectionType, ConnectionInfo,
+            convert_to_api_endpoint, convert_to_source, dozer_admin_grpc::ConnectionType,
+            ConnectionInfo,
         },
     };
     use dozer_types::models::{
