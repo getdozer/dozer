@@ -18,6 +18,16 @@ use std::collections::HashMap;
 pub struct PipelineBuilder {}
 
 impl PipelineBuilder {
+    pub fn build(
+        &self,
+        sql: &str,
+    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
+        let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+        let ast = Parser::parse_sql(&dialect, sql).unwrap();
+        let statement: &Statement = &ast[0];
+        self.statement_to_pipeline(statement.clone())
+    }
+
     pub fn statement_to_pipeline(
         &self,
         statement: Statement,
@@ -46,7 +56,7 @@ impl PipelineBuilder {
         }
     }
 
-    fn select_to_pipeline(
+    pub fn select_to_pipeline(
         &self,
         select: Select,
     ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {

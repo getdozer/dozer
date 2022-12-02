@@ -1307,7 +1307,7 @@ dependencies = [
  "dyn-clone",
  "fp_rust",
  "libc",
- "lmdb-sys",
+ "lmdb-rkv-sys",
  "log",
  "log4rs",
  "tempdir",
@@ -2345,17 +2345,6 @@ name = "lmdb-rkv-sys"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61b9ce6b3be08acefa3003c57b7565377432a89ec24476bbe72e11d101f852fe"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
-]
-
-[[package]]
-name = "lmdb-sys"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5b392838cfe8858e86fac37cf97a0e8c55cc60ba0a18365cadc33092f128ce9"
 dependencies = [
  "cc",
  "libc",
