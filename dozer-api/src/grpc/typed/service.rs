@@ -4,10 +4,7 @@ use super::{
     DynamicMessage, TypedResponse,
 };
 use crate::{
-    grpc::{
-        internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
-        shared_impl,
-    },
+    grpc::{internal_grpc::PipelineRequest, shared_impl},
     PipelineDetails,
 };
 use actix_web::http::StatusCode;
@@ -176,7 +173,6 @@ where
                                         desc,
                                         event_notifier,
                                     )
-                                    .await
                                 };
                                 Box::pin(fut)
                             }
@@ -211,8 +207,8 @@ fn query(
     desc: DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
     let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
-    let req = request.into_inner();
-    let query = req.get_field_by_name("query");
+    let request = request.into_inner();
+    let query = request.get_field_by_name("query");
     let query = query
         .as_ref()
         .map(|query| {
@@ -227,25 +223,27 @@ fn query(
     Ok(Response::new(res))
 }
 
-async fn on_event(
-    _req: Request<DynamicMessage>,
+fn on_event(
+    request: Request<DynamicMessage>,
     pipeline_details: PipelineDetails,
     desc: DescriptorPool,
     event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
-    let endpoint_name = pipeline_details.cache_endpoint.endpoint.name;
+    let request = request.into_inner();
+    let filter = request.get_field_by_name("filter");
+    let filter = filter
+        .as_ref()
+        .map(|filter| {
+            filter
+                .as_str()
+                .ok_or_else(|| Status::new(Code::InvalidArgument, "filter must be a string"))
+        })
+        .transpose()?;
 
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
-    tokio::spawn(shared_impl::on_event(event_notifier, tx, move |event| {
-        if let Some(ApiEvent::Op(op)) = event.api_event {
-            Some(Ok(on_event_to_typed_response(
-                op,
-                desc.clone(),
-                endpoint_name.clone(),
-            )))
-        } else {
-            None
-        }
-    }));
-    Ok(Response::new(ReceiverStream::new(rx)))
+    shared_impl::on_event(
+        pipeline_details,
+        filter,
+        event_notifier,
+        move |op, endpoint| Some(Ok(on_event_to_typed_response(op, desc.clone(), endpoint))),
+    )
 }

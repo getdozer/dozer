@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
-use crate::grpc::internal_grpc::{pipeline_request::ApiEvent, PipelineRequest};
+use crate::grpc::internal_grpc::PipelineRequest;
 use crate::grpc::shared_impl;
 use crate::{api_helper, PipelineDetails};
 use tokio_stream::wrappers::ReceiverStream;
@@ -85,7 +85,7 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), None)?;
+        let api_helper = api_helper::ApiHelper::new(pipeline_details.clone(), None)?;
         let schema = api_helper
             .get_schema()
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
@@ -111,23 +111,23 @@ impl CommonGrpcService for CommonService {
 
     async fn on_event(&self, request: Request<OnEventRequest>) -> EventResult<Self::OnEventStream> {
         let request = request.into_inner();
+        let endpoint = &request.endpoint;
+        let pipeline_details = self
+            .pipeline_map
+            .get(endpoint)
+            .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-        // create subscribe
-        let broadcast_receiver = self.event_notifier.resubscribe();
-
-        tokio::spawn(shared_impl::on_event(
-            broadcast_receiver,
-            tx,
-            move |event| {
-                if let Some(ApiEvent::Op(op)) = event.api_event {
-                    if event.endpoint == request.endpoint {
-                        return Some(Ok(op));
-                    }
+        shared_impl::on_event(
+            pipeline_details.clone(),
+            request.filter.as_deref(),
+            self.event_notifier.resubscribe(),
+            move |op, endpoint| {
+                if endpoint == request.endpoint {
+                    Some(Ok(op))
+                } else {
+                    None
                 }
-                None
             },
-        ));
-        Ok(Response::new(ReceiverStream::new(rx)))
+        )
     }
 }
