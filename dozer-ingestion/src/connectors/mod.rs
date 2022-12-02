@@ -31,7 +31,7 @@ use self::{ethereum::connector::EthConnector, events::connector::EventsConnector
 pub trait Connector: Send + Sync {
     fn get_schemas(
         &self,
-        table_names: Option<Vec<String>>,
+        table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError>;
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
     fn test_connection(&self) -> Result<(), ConnectorError>;
@@ -45,7 +45,7 @@ pub trait Connector: Send + Sync {
     fn validate(&self) -> Result<(), ConnectorError>;
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,

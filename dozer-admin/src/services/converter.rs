@@ -27,6 +27,7 @@ fn convert_to_source(input: (DBSource, DbConnection)) -> Result<Source, Box<dyn 
         id: Some(db_source.id),
         name: db_source.name,
         table_name: db_source.table_name,
+        columns: None,
         connection,
         history_type: None,
         refresh_config: models::source::RefreshConfig::RealTime,

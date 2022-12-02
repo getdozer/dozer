@@ -8,60 +8,83 @@ use crate::connectors::TableInfo;
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
 use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
-use dozer_types::log::error;
+
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use tokio_postgres::Row;
 
 pub struct SchemaHelper {
-    pub conn_config: tokio_postgres::Config,
+    conn_config: tokio_postgres::Config,
+    schema: String,
 }
 
 impl SchemaHelper {
-    pub fn get_tables(
-        &mut self,
-        table_names: Option<Vec<String>>,
-    ) -> Result<Vec<TableInfo>, ConnectorError> {
-        let result_vec = self.get_schemas(table_names)?;
-
-        let mut arr = vec![];
-        for (name, schema) in result_vec.iter() {
-            let columns: Vec<String> = schema.fields.iter().map(|f| f.name.clone()).collect();
-            arr.push(TableInfo {
-                name: name.clone(),
-                id: schema.identifier.clone().unwrap().id,
-                columns: Some(columns),
-            });
+    pub fn new(conn_config: tokio_postgres::Config, schema: Option<String>) -> SchemaHelper {
+        let schema = schema.map_or("public".to_string(), |s| s);
+        Self {
+            conn_config,
+            schema,
         }
+    }
 
-        Ok(arr)
+    pub fn get_tables(
+        &self,
+        tables: Option<Vec<TableInfo>>,
+    ) -> Result<Vec<TableInfo>, ConnectorError> {
+        Ok(self
+            .get_schemas(tables)?
+            .iter()
+            .map(|(name, schema)| {
+                let columns = Some(schema.fields.iter().map(|f| f.name.clone()).collect());
+                TableInfo {
+                    name: name.clone(),
+                    id: schema.identifier.clone().unwrap().id,
+                    columns,
+                }
+            })
+            .collect())
     }
 
     pub fn get_schemas(
-        &mut self,
-        table_name: Option<Vec<String>>,
+        &self,
+        table_name: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_config.clone())?;
 
         let mut schemas: Vec<(String, Schema)> = Vec::new();
 
-        let query = if let Some(table) = table_name {
-            let sql = str::replace(SQL, ":tables_condition", "= ANY($1)");
-            client.query(&sql, &[&table])
+        let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
+        let schema = self.schema.clone();
+        let query = if let Some(tables) = table_name {
+            tables.iter().for_each(|t| {
+                if let Some(columns) = t.columns.clone() {
+                    tables_columns_map.insert(t.name.clone(), columns);
+                }
+            });
+            let table_names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
+            let sql = str::replace(SQL, ":tables_condition", "= ANY($1) AND table_schema = $2");
+            client.query(&sql, &[&table_names, &schema])
         } else {
             let sql = str::replace(SQL, ":tables_condition", TABLES_CONDITION);
-            client.query(&sql, &[])
+            client.query(&sql, &[&schema])
         };
 
-        let results = query.map_err(|e| {
-            error!("{}", e);
-            ConnectorError::InvalidQueryError
-        })?;
+        let results = query.map_err(ConnectorError::InvalidQueryError)?;
 
         let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
-        results.iter().map(|r| self.convert_row(r)).try_for_each(
-            |row| -> Result<(), ConnectorError> {
+        results
+            .iter()
+            .filter(|row| {
+                let table_name: String = row.get(0);
+                let column_name: String = row.get(1);
+
+                tables_columns_map
+                    .get(&table_name)
+                    .map_or(true, |table_info| table_info.contains(&column_name))
+            })
+            .map(|r| self.convert_row(r))
+            .try_for_each(|row| -> Result<(), ConnectorError> {
                 match row {
                     Ok((table_name, field_def, is_primary_key, table_id)) => {
                         let vals = map.get(&table_name);
@@ -79,8 +102,7 @@ impl SchemaHelper {
                     }
                     Err(e) => Err(e),
                 }
-            },
-        )?;
+            })?;
 
         for (table_name, (fields, primary_keys, table_id)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys
@@ -159,7 +181,7 @@ impl SchemaHelper {
 
 const TABLES_CONDITION: &str = "IN (SELECT table_name
                            FROM information_schema.tables
-                           WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                           WHERE table_schema = $1 AND table_type = 'BASE TABLE'
                            ORDER BY table_name)";
 
 const SQL: &str = "
@@ -208,3 +230,85 @@ FROM (SELECT table_schema,
 ORDER BY table_info.table_schema,
          table_info.table_catalog,
          table_info.table_name;";
+
+#[cfg(test)]
+mod tests {
+    use crate::connectors::postgres::schema_helper::SchemaHelper;
+    use crate::connectors::postgres::test_utils::get_client;
+    use crate::connectors::TableInfo;
+    use rand::Rng;
+    use std::collections::HashSet;
+    use std::hash::Hash;
+
+    fn assert_vec_eq<T>(a: Vec<T>, b: Vec<T>) -> bool
+    where
+        T: Eq + Hash,
+    {
+        let a: HashSet<_> = a.iter().collect();
+        let b: HashSet<_> = b.iter().collect();
+
+        a == b
+    }
+
+    #[test]
+    #[ignore]
+    fn connector_e2e_get_tables() {
+        let mut client = get_client();
+
+        let mut rng = rand::thread_rng();
+
+        let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
+        let table_name = format!("products_test_{}", rng.gen::<u32>());
+
+        client.create_schema(schema.clone());
+        client.create_simple_table(schema.clone(), table_name.clone());
+
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let result = schema_helper.get_tables(None).unwrap();
+
+        let table = result.get(0).unwrap();
+        assert_eq!(table_name, table.name.clone());
+        assert!(assert_vec_eq(
+            vec![
+                "name".to_string(),
+                "description".to_string(),
+                "weight".to_string(),
+                "id".to_string()
+            ],
+            table.columns.clone().unwrap()
+        ));
+
+        client.drop_schema(schema);
+    }
+
+    #[test]
+    #[ignore]
+    fn connector_e2e_get_schema_with_selected_columns() {
+        let mut client = get_client();
+
+        let mut rng = rand::thread_rng();
+
+        let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
+        let table_name = format!("products_test_{}", rng.gen::<u32>());
+
+        client.create_schema(schema.clone());
+        client.create_simple_table(schema.clone(), table_name.clone());
+
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
+        let table_info = TableInfo {
+            name: table_name.clone(),
+            id: 0,
+            columns: Some(vec!["name".to_string(), "id".to_string()]),
+        };
+        let result = schema_helper.get_tables(Some(vec![table_info])).unwrap();
+
+        let table = result.get(0).unwrap();
+        assert_eq!(table_name, table.name.clone());
+        assert!(assert_vec_eq(
+            vec!["name".to_string(), "id".to_string()],
+            table.columns.clone().unwrap()
+        ));
+
+        client.drop_schema(schema);
+    }
+}

@@ -25,17 +25,20 @@ impl<'a> MessageBody<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Table {
     columns: Vec<TableColumn>,
     hash: u64,
     rel_id: u32,
 }
 
+#[derive(Debug)]
 pub struct TableColumn {
     pub name: String,
     pub type_id: i32,
     pub flags: i8,
     pub r#type: Option<Type>,
+    pub idx: usize,
 }
 
 impl Hash for MessageBody<'_> {
@@ -53,18 +56,20 @@ impl Hash for MessageBody<'_> {
 
 pub struct XlogMapper {
     relations_map: HashMap<u32, Table>,
+    tables_columns: HashMap<u32, Vec<String>>,
 }
 
 impl Default for XlogMapper {
     fn default() -> Self {
-        Self::new()
+        Self::new(HashMap::new())
     }
 }
 
 impl XlogMapper {
-    pub fn new() -> Self {
+    pub fn new(tables_columns: HashMap<u32, Vec<String>>) -> Self {
         XlogMapper {
             relations_map: HashMap::<u32, Table>::new(),
+            tables_columns,
         }
     }
 
@@ -199,14 +204,25 @@ impl XlogMapper {
         hash: u64,
     ) -> Result<Option<IngestionMessage>, ConnectorError> {
         let rel_id = relation.rel_id();
+        let existing_columns = self
+            .tables_columns
+            .get(&rel_id)
+            .map_or(vec![], |t| t.clone());
+
         let columns: Vec<TableColumn> = relation
             .columns()
             .iter()
-            .map(|column| TableColumn {
+            .enumerate()
+            .filter(|(_, column)| {
+                existing_columns.is_empty()
+                    || existing_columns.contains(&column.name().unwrap().to_string())
+            })
+            .map(|(idx, column)| TableColumn {
                 name: String::from(column.name().unwrap()),
                 type_id: column.type_id(),
                 flags: column.flags(),
                 r#type: Type::from_oid(column.type_id() as u32),
+                idx,
             })
             .collect();
 
@@ -261,9 +277,9 @@ impl XlogMapper {
     ) -> Result<Vec<Field>, ConnectorError> {
         let mut values: Vec<Field> = vec![];
 
-        for i in 0..new_values.len() {
-            let value = new_values.get(i).unwrap();
-            let column = table.columns.get(i).unwrap();
+        for column in &table.columns {
+            let value = new_values.get(column.idx).unwrap();
+            let column = table.columns.get(column.idx).unwrap();
             if let TupleData::Text(text) = value {
                 values.push(helper::postgres_type_to_field(text, column)?);
             }
