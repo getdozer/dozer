@@ -16,6 +16,7 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Record, Schema};
 use fp_rust::sync::CountDownLatch;
 
+use crate::dag::dag_schemas::DagSchemaManager;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -35,7 +36,6 @@ pub enum ExecutorOperation {
     Delete { seq: u64, old: Record },
     Insert { seq: u64, new: Record },
     Update { seq: u64, old: Record, new: Record },
-    SchemaUpdate { new: Schema },
     Commit { source: NodeHandle, epoch: u64 },
     Terminate,
 }
@@ -46,7 +46,6 @@ impl Display for ExecutorOperation {
             ExecutorOperation::Delete { .. } => "Delete",
             ExecutorOperation::Update { .. } => "Update",
             ExecutorOperation::Insert { .. } => "Insert",
-            ExecutorOperation::SchemaUpdate { .. } => "SchemaUpdate",
             ExecutorOperation::Terminate { .. } => "Terminate",
             ExecutorOperation::Commit { .. } => "Commit",
         };
@@ -96,6 +95,7 @@ pub struct MultiThreadedDagExecutor {
 
 impl MultiThreadedDagExecutor {
     fn start_sinks(
+        schema_manager: &DagSchemaManager,
         sinks: Vec<(NodeHandle, Box<dyn SinkFactory>)>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
         path: PathBuf,
@@ -111,6 +111,7 @@ impl MultiThreadedDagExecutor {
             handles.insert(
                 holder.0.clone(),
                 start_sink(
+                    schema_manager.get_node_input_schemas(&holder.0)?,
                     holder.0.clone(),
                     holder.1,
                     snk_receivers.map_or(Err(MissingNodeInput(holder.0)), Ok)?,
@@ -126,6 +127,7 @@ impl MultiThreadedDagExecutor {
     }
 
     fn start_sources(
+        schema_manager: &DagSchemaManager,
         stop_req: Arc<AtomicBool>,
         sources: Vec<(NodeHandle, Box<dyn SourceFactory>)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
@@ -143,6 +145,7 @@ impl MultiThreadedDagExecutor {
             handles.insert(
                 holder.0.clone(),
                 start_source(
+                    schema_manager.get_node_output_schemas(&holder.0)?,
                     stop_req.clone(),
                     edges.clone(),
                     holder.0.clone(),
@@ -161,6 +164,7 @@ impl MultiThreadedDagExecutor {
     }
 
     fn start_processors(
+        schema_manager: &DagSchemaManager,
         processors: Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
         senders: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>>,
         receivers: &mut HashMap<NodeHandle, HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>>,
@@ -186,6 +190,8 @@ impl MultiThreadedDagExecutor {
             handles.insert(
                 holder.0.clone(),
                 start_processor(
+                    schema_manager.get_node_input_schemas(&holder.0)?,
+                    schema_manager.get_node_output_schemas(&holder.0)?,
                     edges.clone(),
                     holder.0,
                     holder.1,
@@ -214,6 +220,8 @@ impl MultiThreadedDagExecutor {
         path: &Path,
         options: ExecutorOptions,
     ) -> Result<MultiThreadedDagExecutor, ExecutionError> {
+        let schema_manager = DagSchemaManager::new(&dag)?;
+
         let (mut senders, mut receivers) = index_edges(&dag, options.channel_buffer_sz);
 
         let record_stores = Arc::new(RwLock::new(
@@ -229,6 +237,7 @@ impl MultiThreadedDagExecutor {
         let term_barrier = Arc::new(Barrier::new(sources.len()));
 
         all_handles.extend(Self::start_sinks(
+            &schema_manager,
             sinks,
             &mut receivers,
             PathBuf::from(path),
@@ -237,6 +246,7 @@ impl MultiThreadedDagExecutor {
             &term_barrier,
         )?);
         all_handles.extend(Self::start_processors(
+            &schema_manager,
             processors,
             &mut senders,
             &mut receivers,
@@ -251,6 +261,7 @@ impl MultiThreadedDagExecutor {
 
         let stop_req = Arc::new(AtomicBool::new(false));
         all_handles.extend(Self::start_sources(
+            &schema_manager,
             stop_req.clone(),
             sources,
             &mut senders,

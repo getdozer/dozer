@@ -10,6 +10,8 @@ use crate::storage::transactions::SharedTransaction;
 use crossbeam::channel::Receiver;
 use dozer_types::parking_lot::RwLock;
 
+use crate::dag::dag_schemas::DagSchemaManager;
+use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use log::{error, info};
 use std::collections::HashMap;
@@ -19,6 +21,7 @@ use std::thread;
 use std::thread::JoinHandle;
 
 pub(crate) fn start_sink(
+    input_schemas: &HashMap<PortHandle, Schema>,
     handle: NodeHandle,
     snk_factory: Box<dyn SinkFactory>,
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,

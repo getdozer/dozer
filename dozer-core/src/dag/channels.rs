@@ -6,7 +6,6 @@ use dozer_types::types::{Operation, Schema};
 
 pub trait SourceChannelForwarder: Send + Sync {
     fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError>;
-    fn update_schema(&mut self, schema: Schema, port: PortHandle) -> Result<(), ExecutionError>;
     fn terminate(&mut self) -> Result<(), ExecutionError>;
 }
 

@@ -31,6 +31,8 @@ pub enum ExecutionError {
     RecordNotFound(),
     #[error("Invalid checkpoint state for node: {0}")]
     InvalidCheckpointState(NodeHandle),
+    #[error("Already exists: {0}")]
+    MetadataAlreadyExists(NodeHandle),
 
     // Error forwarders
     #[error(transparent)]

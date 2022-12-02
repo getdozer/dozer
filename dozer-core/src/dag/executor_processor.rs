@@ -19,6 +19,7 @@ use fp_rust::sync::CountDownLatch;
 use log::{error, info, warn};
 use std::collections::HashMap;
 
+use crate::dag::dag_schemas::DagSchemaManager;
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 use std::thread;
@@ -54,6 +55,8 @@ fn update_processor_schema(
 }
 
 pub(crate) fn start_processor(
+    input_schemas: &HashMap<PortHandle, Schema>,
+    output_schemas: &HashMap<PortHandle, Schema>,
     edges: Vec<Edge>,
     handle: NodeHandle,
     proc_factory: Box<dyn ProcessorFactory>,

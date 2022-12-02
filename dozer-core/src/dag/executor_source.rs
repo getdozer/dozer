@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::Edge;
+use crate::dag::dag_schemas::DagSchemaManager;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InternalError;
 use crate::dag::executor_local::ExecutorOperation;
@@ -97,10 +98,6 @@ fn process_message(
             dag_fw.send(seq, Operation::Update { old, new }, port)?;
             Ok(false)
         }
-        Ok(ExecutorOperation::SchemaUpdate { new }) => {
-            dag_fw.update_schema(new, port)?;
-            Ok(false)
-        }
         Ok(ExecutorOperation::Terminate) => {
             dag_fw.terminate()?;
             term_barrier.wait();
@@ -111,6 +108,7 @@ fn process_message(
 }
 
 pub(crate) fn start_source(
+    output_schemas: &HashMap<PortHandle, Schema>,
     stop_req: Arc<AtomicBool>,
     edges: Vec<Edge>,
     handle: NodeHandle,
@@ -123,6 +121,8 @@ pub(crate) fn start_source(
     base_path: PathBuf,
     term_barrier: Arc<Barrier>,
 ) -> JoinHandle<Result<(), ExecutionError>> {
+    //
+    //
     let mut internal_receivers: Vec<Receiver<ExecutorOperation>> = Vec::new();
     let mut internal_senders: HashMap<PortHandle, Sender<ExecutorOperation>> = HashMap::new();
     let output_ports = src_factory.get_output_ports();

@@ -1,5 +1,5 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType};
-use crate::dag::executor_checkpoint::{CheckpointMetadataReader, Consistency};
+use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use crate::dag::executor_local::{ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::processors::DynPortsProcessorFactory;
@@ -80,8 +80,8 @@ fn test_checpoint_consistency() {
 
     let dag_check = build_dag();
 
-    let r = chk!(CheckpointMetadataReader::new(&dag_check, tmp_dir.path()));
-    let c = r.get_dependency_tree_consistency();
+    let r = chk!(DagMetadataManager::new(&dag_check, tmp_dir.path()));
+    let c = r.get_checkpoint_consistency();
 
     match c.get("source1").unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
@@ -94,8 +94,8 @@ fn test_checpoint_consistency() {
     }
 
     LmdbEnvironmentManager::remove(tmp_dir.path(), "proc");
-    let r = chk!(CheckpointMetadataReader::new(&dag_check, tmp_dir.path()));
-    let c = r.get_dependency_tree_consistency();
+    let r = chk!(DagMetadataManager::new(&dag_check, tmp_dir.path()));
+    let c = r.get_checkpoint_consistency();
 
     let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
     expected.insert(24999_u64, vec!["source1".to_string(), "sink".to_string()]);
