@@ -1,18 +1,23 @@
+use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::{Dag, NodeType};
-use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager};
+use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager, METADATA_DB_NAME};
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InvalidNodeHandle};
-use crate::dag::node::{NodeHandle, PortHandle};
+use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InternalError, InvalidNodeHandle};
+use crate::dag::node::{NodeHandle, PortHandle, SourceFactory};
 use crate::dag::record_store::RecordReader;
+use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
+use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use crossbeam::channel::{bounded, Receiver, Sender};
+use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::Record;
+use dozer_types::types::{Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
+use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -41,6 +46,16 @@ pub enum ExecutorOperation {
     Terminate,
 }
 
+impl ExecutorOperation {
+    pub fn from_operation(seq: u64, op: Operation) -> ExecutorOperation {
+        match op {
+            Operation::Update { old, new } => ExecutorOperation::Update { old, new, seq },
+            Operation::Delete { old } => ExecutorOperation::Delete { old, seq },
+            Operation::Insert { new } => ExecutorOperation::Insert { new, seq },
+        }
+    }
+}
+
 impl Display for ExecutorOperation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let type_str = match self {
@@ -51,6 +66,45 @@ impl Display for ExecutorOperation {
             ExecutorOperation::Commit { .. } => "Commit",
         };
         f.write_str(type_str)
+    }
+}
+
+pub(crate) struct StorageMetadata {
+    pub env: Box<dyn EnvironmentManager>,
+    pub meta_db: Database,
+}
+
+impl StorageMetadata {
+    pub fn new(env: Box<dyn EnvironmentManager>, meta_db: Database) -> Self {
+        Self { env, meta_db }
+    }
+}
+
+struct InternalChannelSourceForwarder {
+    senders: HashMap<PortHandle, Sender<ExecutorOperation>>,
+}
+
+impl InternalChannelSourceForwarder {
+    pub fn new(senders: HashMap<PortHandle, Sender<ExecutorOperation>>) -> Self {
+        Self { senders }
+    }
+}
+
+impl SourceChannelForwarder for InternalChannelSourceForwarder {
+    fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
+        let sender = self
+            .senders
+            .get(&port)
+            .ok_or(ExecutionError::InvalidPortHandle(port))?;
+        let exec_op = ExecutorOperation::from_operation(seq, op);
+        internal_err!(sender.send(exec_op))
+    }
+
+    fn terminate(&mut self) -> Result<(), ExecutionError> {
+        for sender in &self.senders {
+            let _ = sender.1.send(ExecutorOperation::Terminate);
+        }
+        Ok(())
     }
 }
 
@@ -214,6 +268,56 @@ impl<'a> DagExecutor<'a> {
         }
 
         (senders, receivers)
+    }
+
+    fn init_node_storage<F>(
+        &self,
+        node_handle: &NodeHandle,
+        mut init_f: F,
+    ) -> Result<StorageMetadata, ExecutionError>
+    where
+        F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
+    {
+        let mut env = LmdbEnvironmentManager::create(self.path.as_path(), node_handle.as_str())?;
+        let db = env.open_database(METADATA_DB_NAME, false)?;
+        init_f(env.as_environment())?;
+        Ok(StorageMetadata::new(env, db))
+    }
+
+    fn start_source(
+        &self,
+        handle: NodeHandle,
+        src_factory: Arc<dyn SourceFactory>,
+    ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
+        let mut internal_receivers: Vec<Receiver<ExecutorOperation>> = Vec::new();
+        let mut internal_senders: HashMap<PortHandle, Sender<ExecutorOperation>> = HashMap::new();
+
+        for port in &src_factory.get_output_ports() {
+            let channels = bounded::<ExecutorOperation>(self.options.channel_buffer_sz);
+            internal_receivers.push(channels.1);
+            internal_senders.insert(port.handle, channels.0);
+        }
+
+        let mut fw = InternalChannelSourceForwarder::new(internal_senders);
+        thread::spawn(move || -> Result<(), ExecutionError> {
+            let src = src_factory.build();
+            src.start(&mut fw, None)
+        });
+
+        let listener_handle = handle.clone();
+        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
+            //  let _output_schemas = HashMap::<PortHandle, Schema>::new();
+            //  let mut state_meta = self.init_node_storage(&handle, |_e| Ok(()))?;
+            //
+            //         let port_databases =
+            //             create_ports_databases(state_meta.env.as_environment(), &output_ports)?;
+            //
+            //         let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+            //             Arc::new(RwLock::new(state_meta.env.create_txn()?));
+            //
+
+            Ok(())
+        }))
     }
 
     pub fn start(&self) -> Result<(), ExecutionError> {
