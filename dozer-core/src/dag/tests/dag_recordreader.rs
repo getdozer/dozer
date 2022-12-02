@@ -38,6 +38,14 @@ impl PassthroughProcessorFactory {
 }
 
 impl ProcessorFactory for PassthroughProcessorFactory {
+    fn get_output_schema(
+        &self,
+        output_port: &PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, ExecutionError> {
+        todo!()
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![PASSTHROUGH_PROCESSOR_INPUT_PORT]
     }
@@ -99,6 +107,14 @@ pub(crate) const RECORD_READER_PROCESSOR_INPUT_PORT: PortHandle = 70;
 pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 
 impl ProcessorFactory for RecordReaderProcessorFactory {
+    fn get_output_schema(
+        &self,
+        output_port: &PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, ExecutionError> {
+        todo!()
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![RECORD_READER_PROCESSOR_INPUT_PORT]
     }

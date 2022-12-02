@@ -18,6 +18,14 @@ impl CountingSinkFactory {
 }
 
 impl SinkFactory for CountingSinkFactory {
+    fn get_output_schema(
+        &self,
+        output_port: &PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, ExecutionError> {
+        todo!()
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }

@@ -18,6 +18,10 @@ impl GeneratorSourceFactory {
 }
 
 impl SourceFactory for GeneratorSourceFactory {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        todo!()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
@@ -91,6 +95,10 @@ impl StatefulGeneratorSourceFactory {
 }
 
 impl SourceFactory for StatefulGeneratorSourceFactory {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        todo!()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
