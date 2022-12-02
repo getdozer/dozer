@@ -21,7 +21,7 @@ mod grpc_service {
                 offset: Some(0),
             })
             .unwrap();
-        assert_eq!(result.data.len(), 1);
+        assert_eq!(result.data.len(), setup_ids.source_ids.len());
         assert_eq!(result.data[0].id, setup_ids.source_ids[0]);
     }
     #[test]

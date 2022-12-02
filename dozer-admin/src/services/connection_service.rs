@@ -16,6 +16,7 @@ use dozer_types::models::{
 };
 use std::thread;
 
+use super::converter::convert_auth_to_db_type;
 pub struct ConnectionService {
     db_pool: DbPool,
 }
@@ -142,21 +143,17 @@ impl ConnectionService {
         &self,
         input: TestConnectionRequest,
     ) -> Result<TestConnectionResponse, ErrorResponse> {
-        let db_type_value = match input.r#type {
-            0 => models::connection::DBType::Postgres,
-            2 => models::connection::DBType::Events,
-            3 => models::connection::DBType::Snowflake,
-            _ => models::connection::DBType::Ethereum,
-        };
-        let auth_input =
-            Authentication::try_from(input.authentication.unwrap()).map_err(|err| {
+        let input_auth = input.authentication.unwrap();
+        let authentication =
+            Authentication::try_from(input_auth).map_err(|err| {
                 ErrorResponse {
                     message: err.to_string(),
                 }
             })?;
+        let db_type_value = convert_auth_to_db_type(authentication.to_owned());
         let connection = Connection {
             db_type: db_type_value,
-            authentication: auth_input,
+            authentication,
             name: input.name,
             id: None,
         };
@@ -196,13 +193,17 @@ impl ConnectionService {
         &self,
         input: ValidateConnectionRequest,
     ) -> Result<ValidateConnectionResponse, ErrorResponse> {
-        let db_type_value = match input.r#type {
-            0 => models::connection::DBType::Postgres,
-            _ => models::connection::DBType::Ethereum,
-        };
+        let input_auth = input.authentication.unwrap();
+        let authentication =
+            Authentication::try_from(input_auth).map_err(|err| {
+                ErrorResponse {
+                    message: err.to_string(),
+                }
+            })?;
+        let db_type_value = convert_auth_to_db_type(authentication.to_owned());
         let connection = Connection {
             db_type: db_type_value,
-            authentication: Authentication::try_from(input.authentication.unwrap()).unwrap(),
+            authentication,
             name: input.name,
             id: None,
         };
@@ -217,38 +218,3 @@ impl ConnectionService {
             .map_err(|err| ErrorResponse { message: err })
     }
 }
-// #[cfg(test)]
-// mod test {
-//     use super::ConnectionService;
-//     use crate::server::dozer_admin_grpc::{
-//         create_connection_request::Authentication, CreateConnectionRequest,
-//         GetAllConnectionRequest, PostgresAuthentication,
-//     };
-//     #[test]
-//     fn success_save_connection() {
-//         let create_connection_request: CreateConnectionRequest = CreateConnectionRequest {
-//             r#type: 0,
-//             authentication: Some(Authentication::Postgres(PostgresAuthentication {
-//                 database: "pagila".to_owned(),
-//                 user: "postgres".to_owned(),
-//                 host: "localhost".to_owned(),
-//                 port: "5432".to_owned(),
-//                 name: "postgres".to_owned(),
-//                 password: "postgres".to_owned(),
-//             })),
-//         };
-//         let service = ConnectionService::new("db/test_dozer.db".to_owned());
-//         let result = service.create_connection(create_connection_request);
-//         assert!(result.is_ok())
-//     }
-//     #[test]
-//     fn success_get_connections() {
-//         let create_connection_request: GetAllConnectionRequest = GetAllConnectionRequest {
-//             page: 0,
-//             page_size: 3,
-//         };
-//         let service = ConnectionService::new("db/test_dozer.db".to_owned());
-//         let result = service.get_all_connections(create_connection_request);
-//         assert!(result.is_ok())
-//     }
-// }

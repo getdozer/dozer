@@ -207,7 +207,7 @@ fn query_secondary_multi_indices() {
                 values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
             },
             Record {
-                schema_id: schema.identifier.clone(),
+                schema_id: schema.identifier,
                 values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
             },
         ]
