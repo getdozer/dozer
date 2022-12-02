@@ -3,7 +3,7 @@ use self::expression::QueryExpression;
 pub use self::lmdb::{
     batched_writer::{BatchedCacheMsg, BatchedWriter},
     cache::LmdbCache,
-    CacheOptions, CacheReadOptions, CacheWriteOptions,
+    CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
 };
 use crate::errors::CacheError;
 use dozer_types::types::{IndexDefinition, Record, Schema, SchemaIdentifier};

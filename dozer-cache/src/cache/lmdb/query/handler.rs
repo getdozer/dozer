@@ -31,6 +31,7 @@ pub struct LmdbQueryHandler<'a> {
     schema: &'a Schema,
     secondary_indexes: &'a [IndexDefinition],
     query: &'a QueryExpression,
+    intersection_chunk_size: usize,
 }
 impl<'a> LmdbQueryHandler<'a> {
     pub fn new(
@@ -40,6 +41,7 @@ impl<'a> LmdbQueryHandler<'a> {
         schema: &'a Schema,
         secondary_indexes: &'a [IndexDefinition],
         query: &'a QueryExpression,
+        intersection_chunk_size: usize,
     ) -> Self {
         Self {
             db,
@@ -48,6 +50,7 @@ impl<'a> LmdbQueryHandler<'a> {
             schema,
             secondary_indexes,
             query,
+            intersection_chunk_size,
         }
     }
 
@@ -74,7 +77,7 @@ impl<'a> LmdbQueryHandler<'a> {
                             })
                         })
                         .collect::<Result<Vec<_>, CacheError>>()?;
-                    let intersection = intersection(iterators.into_iter());
+                    let intersection = intersection(iterators, self.intersection_chunk_size);
                     self.collect_records(intersection.map(|id| id.to_be_bytes()))
                 }
             }
