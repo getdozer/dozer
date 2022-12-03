@@ -488,14 +488,9 @@ impl AggregationProcessor {
         for measure in &self.out_measures {
             let curr_state_slice = match curr_state {
                 Some(ref e) => {
-                    // Read the 2-byte len header
-                    let len = u16::from_ne_bytes(e[offset..offset + 2].try_into().unwrap());
-                    if len == 0 {
-                        None
-                    } else {
-                        // Read the payload of len size
-                        Some(&e[offset + 2..offset + 2 + len as usize])
-                    }
+                    let (len, res) = Self::decode_buffer(&e[offset..])?;
+                    offset += len;
+                    Some(res)
                 }
                 None => None,
             };
@@ -505,47 +500,80 @@ impl AggregationProcessor {
                 AggregatorOperation::Insert => {
                     let field = inserted_record.unwrap().get_value(measure.0)?;
                     if let Some(e) = curr_state_slice {
-                        // pass the current payload to the processor to extract the value
-                        let curr_value = measure.1.get_value(e, field.get_type()?);
-                        // set the value for the old record
-                        out_rec_delete.set_value(measure.2, curr_value);
+                        match e {
+                            AggregationData::EmbeddedState {
+                                curr_state,
+                                curr_value,
+                            } => {
+                                out_rec_delete.set_value(measure.2, curr_value);
+                                measure
+                                    .1
+                                    .insert(Some(curr_state), field, field.get_type()?)?
+                            }
+                            AggregationData::KeyValueState { .. } => {
+                                measure.1.insert(None, field, field.get_type()?)?
+                            }
+                        }
+                    } else {
+                        measure.1.insert(None, field, field.get_type()?)?
                     }
-                    measure
-                        .1
-                        .insert(curr_state_slice, field, field.get_type()?)?
                 }
                 AggregatorOperation::Delete => {
                     let field = deleted_record.unwrap().get_value(measure.0)?;
                     if let Some(e) = curr_state_slice {
-                        // pass the current payload to the processor to extract the value
-                        let curr_value = measure.1.get_value(e, field.get_type()?);
-                        // set the value for the old record
-                        out_rec_delete.set_value(measure.2, curr_value);
+                        match e {
+                            AggregationData::EmbeddedState {
+                                curr_state,
+                                curr_value,
+                            } => {
+                                out_rec_delete.set_value(measure.2, curr_value);
+                                measure
+                                    .1
+                                    .delete(Some(curr_state), field, field.get_type()?)?
+                            }
+                            AggregationData::KeyValueState { .. } => {
+                                measure.1.delete(None, field, field.get_type()?)?
+                            }
+                        }
+                    } else {
+                        measure.1.delete(None, field, field.get_type()?)?
                     }
-                    measure
-                        .1
-                        .delete(curr_state_slice, field, field.get_type()?)?
                 }
                 AggregatorOperation::Update => {
                     let old = deleted_record.unwrap().get_value(measure.0)?;
                     let new = inserted_record.unwrap().get_value(measure.0)?;
                     if let Some(e) = curr_state_slice {
-                        // pass the current payload to the processor to extract the value
-                        let curr_value = measure.1.get_value(e, old.get_type()?);
-                        // set the value for the old record
-                        out_rec_delete.set_value(measure.2, curr_value);
+                        match e {
+                            AggregationData::EmbeddedState {
+                                curr_state,
+                                curr_value,
+                            } => {
+                                out_rec_delete.set_value(measure.2, curr_value);
+                                measure
+                                    .1
+                                    .update(Some(curr_state), old, new, old.get_type()?)?
+                            }
+                            AggregationData::KeyValueState { .. } => {
+                                measure.1.update(None, old, new, old.get_type()?)?
+                            }
+                        }
+                    } else {
+                        measure.1.update(None, old, new, old.get_type()?)?
                     }
-                    measure
-                        .1
-                        .update(curr_state_slice, old, new, old.get_type()?)?
                 }
             };
 
             // append the new state to array
-            next_state.extend((next_state_slice.state.len() as u16).to_ne_bytes());
-            offset += next_state_slice.state.len() + 2;
+            // next_state.extend((next_state_slice.state.len() as u16).to_ne_bytes());
+            // offset += next_state_slice.state.len() + 2;
+            //
+            // next_state.extend(next_state_slice.state);
 
-            next_state.extend(next_state_slice.state);
+            next_state.extend(
+                &Self::encode_embedded_state(&next_state_slice.new_value, &next_state_slice.state)?
+                    .1,
+            );
+
             out_rec_insert.set_value(measure.2, next_state_slice.new_value);
 
             // if !next_state_slice.is_empty() {
