@@ -40,7 +40,7 @@ where
     F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
 {
     let mut env = LmdbEnvironmentManager::create(base_path, node_handle.as_str())?;
-    let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+    let db = env.open_database(CHECKPOINT_DB_NAME, false, None)?;
     init_f(env.as_environment())?;
     Ok(StorageMetadata::new(env, db))
 }
@@ -212,6 +212,7 @@ pub(crate) fn create_ports_databases(
             let db = env.open_database(
                 format!("{}_{}", PORT_STATE_KEY, out_port.handle).as_str(),
                 false,
+                None,
             )?;
             port_databases.insert(
                 out_port.handle,

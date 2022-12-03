@@ -88,13 +88,13 @@ impl ProcessorFactory for AggregationProcessorFactory {
 }
 
 pub struct AggregationProcessor {
-    select: Vec<SelectItem>,
-    groupby: Vec<SqlExpr>,
-    output_field_rules: Vec<FieldRule>,
-    out_dimensions: Vec<(usize, Box<Expression>, usize)>,
-    out_measures: Vec<(usize, Box<Aggregator>, usize)>,
-    builder: ExpressionBuilder,
-    db: Option<Database>,
+    pub select: Vec<SelectItem>,
+    pub groupby: Vec<SqlExpr>,
+    pub output_field_rules: Vec<FieldRule>,
+    pub out_dimensions: Vec<(usize, Box<Expression>, usize)>,
+    pub out_measures: Vec<(usize, Box<Aggregator>, usize)>,
+    pub builder: ExpressionBuilder,
+    pub db: Option<Database>,
 }
 
 enum AggregatorOperation {
@@ -277,7 +277,7 @@ impl AggregationProcessor {
     }
 
     fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
-        self.db = Some(txn.open_database("aggr", false)?);
+        self.db = Some(txn.open_database("aggr", false, None)?);
         Ok(())
     }
 

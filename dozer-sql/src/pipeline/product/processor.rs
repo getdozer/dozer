@@ -42,7 +42,7 @@ impl ProductProcessor {
     }
 
     fn init_store(&mut self, env: &mut dyn Environment) -> Result<(), PipelineError> {
-        self.db = Some(env.open_database("product", true)?);
+        self.db = Some(env.open_database("product", true, None)?); // Some(compare_join_keys))?);
         Ok(())
     }
 

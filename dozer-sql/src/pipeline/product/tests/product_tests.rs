@@ -10,7 +10,7 @@ fn test_product_one() {
     let statement = get_select(
         "SELECT department_id, AVG(salary) \
     FROM Users \
-    WHERE salary >= 1000 GROUP BY department_id",
+    WHERE salary >= 1 GROUP BY department_id",
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 

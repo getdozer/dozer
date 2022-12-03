@@ -194,7 +194,7 @@ impl Processor for DynPortsProcessor {
 
     fn init(&mut self, tx: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("PROC {}: Initialising TestProcessor", self.id);
-        self.db = Some(tx.open_database("test", false)?);
+        self.db = Some(tx.open_database("test", false, None)?);
         Ok(())
     }
 

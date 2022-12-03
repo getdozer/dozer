@@ -82,7 +82,7 @@ impl<'a> CheckpointMetadataReader<'a> {
         }
 
         let mut env = LmdbEnvironmentManager::create(path, name)?;
-        let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+        let db = env.open_database(CHECKPOINT_DB_NAME, false, None)?;
         let txn = env.create_txn()?;
 
         let cur = txn.open_cursor(&db)?;
