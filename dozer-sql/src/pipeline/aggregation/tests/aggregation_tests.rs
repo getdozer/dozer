@@ -1,10 +1,7 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use dozer_core::{
-    dag::{
-        channels::ProcessorChannelForwarder, executor_local::DEFAULT_PORT_HANDLE,
-        node::ProcessorFactory,
-    },
+    dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
     storage::{lmdb_storage::LmdbEnvironmentManager, transactions::SharedTransaction},
 };
 use dozer_types::{
@@ -13,35 +10,22 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 
-use crate::pipeline::{aggregation::processor::AggregationProcessorFactory, builder::get_select};
-
-struct TestChannelForwarder {
-    operations: Vec<Operation>,
-}
-
-impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(
-        &mut self,
-        op: dozer_types::types::Operation,
-        _port: dozer_core::dag::node::PortHandle,
-    ) -> Result<(), dozer_core::dag::errors::ExecutionError> {
-        self.operations.push(op);
-        Ok(())
-    }
-}
+use crate::pipeline::{
+    aggregation::processor::AggregationProcessor, builder::get_select,
+    expression::builder::ExpressionBuilder,
+};
 
 #[test]
 fn test_simple_aggregation() {
     let select = get_select(
-        "SELECT department_id, SUM(salary) \
+        "SELECT Country, SUM(Salary) \
         FROM Users \
-        WHERE salary >= 1000 GROUP BY department_id",
+        WHERE Salary >= 1 GROUP BY Country",
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let aggregation = AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
-
-    let mut processor = aggregation.build();
+    let mut processor =
+        AggregationProcessor::new(select.projection.clone(), select.group_by.clone());
 
     let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
@@ -50,9 +34,10 @@ fn test_simple_aggregation() {
         .init(storage.as_environment())
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
-    let mut tx = SharedTransaction::new(&binding);
-    let mut fw = TestChannelForwarder { operations: vec![] };
+    // let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
+    // let mut tx = SharedTransaction::new(&binding);
+
+    let mut tx = Arc::new(RwLock::new(storage.create_txn().unwrap()));
 
     let schema = Schema::empty()
         .field(
@@ -70,23 +55,48 @@ fn test_simple_aggregation() {
             false,
             false,
         )
+        .field(
+            FieldDefinition::new(String::from("SUM(Salary)"), FieldType::Float, false),
+            false,
+            false,
+        )
         .clone();
 
-    _ = processor.update_schema(
-        DEFAULT_PORT_HANDLE,
-        &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-    );
+    let _output_schema = processor
+        .update_schema(
+            DEFAULT_PORT_HANDLE,
+            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+        )
+        .unwrap();
 
-    let op = Operation::Insert {
+    let inp = Operation::Insert {
         new: Record::new(
             None,
             vec![
                 Field::Int(0),
                 Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.5)),
+                Field::Float(OrderedFloat(100.0)),
+                Field::Float(OrderedFloat(100.0)),
             ],
         ),
     };
 
-    _ = processor.process(DEFAULT_PORT_HANDLE, op, &mut fw, &mut tx, &HashMap::new());
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
 }
