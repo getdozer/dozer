@@ -134,6 +134,19 @@ runs:
         KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
         KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
       with:
+        from_file: "config/test.postgres.auth.sample.yaml"
+        to_file: "config/test.postgres.auth.sample.yaml"
+        commit: "false"
+
+    - uses: franzbischoff/replace_envs@v1
+      env:
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        KAFKA_POSTGRES_USER: ${{ inputs.KAFKA_POSTGRES_USER }}
+        KAFKA_POSTGRES_PASSWORD: ${{ inputs.KAFKA_POSTGRES_PASSWORD }}
+        KAFKA_POSTGRES_HOST: ${{ inputs.KAFKA_POSTGRES_HOST }}
+        KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
+        KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
+      with:
         from_file: "config/test.postgres.sample.yaml"
         to_file: "config/test.postgres.sample.yaml"
         commit: "false"

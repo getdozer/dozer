@@ -1,6 +1,8 @@
 use crate::connectors::postgres::connection::helper::{connect, map_connection_config};
 use dozer_types::models::connection::Authentication;
+use dozer_types::rust_decimal::Decimal;
 use postgres::Client;
+use std::fmt::Write;
 
 pub struct TestPostgresClient {
     client: Client,
@@ -19,12 +21,12 @@ impl TestPostgresClient {
         }
     }
 
-    pub fn execute_query(&mut self, query: String) {
-        self.client.query(&query, &[]).unwrap();
+    pub fn execute_query(&mut self, query: &str) {
+        self.client.query(query, &[]).unwrap();
     }
 
-    pub fn create_simple_table(&mut self, schema: String, table_name: String) {
-        self.execute_query(format!(
+    pub fn create_simple_table(&mut self, schema: &str, table_name: &str) {
+        self.execute_query(&format!(
             "CREATE TABLE {}.{}
 (
     id          SERIAL
@@ -33,16 +35,43 @@ impl TestPostgresClient {
     description VARCHAR(512),
     weight      DOUBLE PRECISION
 );",
-            &schema, &table_name
+            schema, table_name
         ));
     }
 
-    pub fn drop_schema(&mut self, schema: String) {
-        self.execute_query(format!("DROP SCHEMA IF EXISTS {} CASCADE", &schema));
+    pub fn drop_schema(&mut self, schema: &str) {
+        self.execute_query(&format!("DROP SCHEMA IF EXISTS {} CASCADE", schema));
     }
 
-    pub fn create_schema(&mut self, schema: String) {
-        self.drop_schema(schema.clone());
-        self.execute_query(format!("CREATE SCHEMA {}", &schema));
+    pub fn drop_table(&mut self, schema: &str, table_name: &str) {
+        self.execute_query(&format!("DROP TABLE IF EXISTS {}.{}", schema, table_name));
+    }
+
+    pub fn create_schema(&mut self, schema: &str) {
+        self.drop_schema(schema);
+        self.execute_query(&format!("CREATE SCHEMA {}", schema));
+    }
+
+    pub fn insert_rows(&mut self, table_name: &str, count: u64) {
+        let mut buf = String::new();
+        for i in 0..count {
+            if i > 0 {
+                buf.write_str(",").unwrap();
+            }
+            buf.write_fmt(format_args!(
+                "(\'Product {}\',\'Product {} description\',{})",
+                i,
+                i,
+                Decimal::new((i * 41) as i64, 2)
+            ))
+            .unwrap();
+        }
+
+        let query = format!(
+            "insert into {}(name, description, weight) values {}",
+            table_name, buf,
+        );
+
+        self.execute_query(&query);
     }
 }

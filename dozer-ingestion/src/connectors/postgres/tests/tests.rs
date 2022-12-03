@@ -1,0 +1,81 @@
+use crate::connectors::postgres::tests::client::TestPostgresClient;
+use crate::connectors::{get_connector, TableInfo};
+use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+use dozer_types::ingestion_types::IngestionOperation;
+use dozer_types::models::connection::Connection;
+use dozer_types::models::source::Source;
+use dozer_types::parking_lot::RwLock;
+use dozer_types::types::{Field, Operation};
+use rand::Rng;
+use std::sync::Arc;
+use std::thread;
+
+fn get_iterator(config: Connection, table_name: &String) -> Arc<RwLock<IngestionIterator>> {
+    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
+    let table_name = table_name.clone();
+    thread::spawn(move || {
+        let tables: Vec<TableInfo> = vec![TableInfo {
+            name: table_name,
+            id: 0,
+            columns: None,
+        }];
+
+        let mut connector = get_connector(config).unwrap();
+        connector.initialize(ingestor, Some(tables)).unwrap();
+        connector.start().unwrap();
+    });
+
+    iterator
+}
+
+#[ignore]
+#[test]
+fn connector_e2e_connect_postgres_stream() {
+    let source = serde_yaml::from_str::<Source>(include_str!(
+        "../../../../../config/test.postgres.sample.yaml"
+    ))
+    .unwrap();
+    let mut client = TestPostgresClient::new(&source.connection.authentication);
+
+    let mut rng = rand::thread_rng();
+    let table_name = format!("products_test_{}", rng.gen::<u32>());
+
+    client.create_simple_table("public", &table_name);
+
+    let iterator = get_iterator(source.connection, &table_name);
+
+    client.insert_rows(&table_name, 10);
+
+    let mut i = 1;
+    while i < 10 {
+        let op = iterator.write().next();
+        if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
+            match ev.operation {
+                Operation::Insert { new } => {
+                    assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
+                    i += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    client.insert_rows(&table_name, 10);
+
+    while i < 20 {
+        let op = iterator.write().next();
+
+        if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
+            match ev.operation {
+                Operation::Insert { new } => {
+                    assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
+                    i += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    client.drop_table("public", &table_name);
+    assert_eq!(i, 20);
+}
