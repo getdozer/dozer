@@ -53,7 +53,7 @@ pub enum FieldRule {
 
 const COUNTER_KEY: u8 = 01_u8;
 
-enum AggregationData<'a> {
+pub enum AggregationData<'a> {
     EmbeddedState {
         curr_state: &'a [u8],
         curr_value: Field,
@@ -420,7 +420,51 @@ impl AggregationProcessor {
     //     Ok(next_state)
     // }
 
-    //  fn decode_buffer(buf: &[u8]) -> AggregationData {}
+    pub(crate) fn decode_buffer<'a>(
+        buf: &'a [u8],
+    ) -> Result<(usize, AggregationData<'a>), PipelineError> {
+        let typ = u8::from_be_bytes(buf[0..1].try_into().unwrap());
+        let mut offset: usize = 1;
+
+        let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
+        offset += 2;
+        let val: Field = internal_err!(bincode::deserialize(
+            &buf[offset..offset + val_len as usize]
+        ))?;
+        offset += val_len as usize;
+        let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
+        offset += 2;
+        let state = &buf[offset..offset + state_len as usize];
+        offset += state_len as usize;
+
+        Ok((
+            offset,
+            AggregationData::EmbeddedState {
+                curr_state: state,
+                curr_value: val,
+            },
+        ))
+    }
+
+    pub(crate) fn encode_embedded_state(
+        value: &Field,
+        state: &[u8],
+    ) -> Result<(usize, Vec<u8>), PipelineError> {
+        let mut r = Vec::with_capacity(512);
+        r.extend(0_u8.to_be_bytes());
+
+        let sz_val = internal_err!(bincode::serialize(&value))?;
+        r.extend((sz_val.len() as u16).to_be_bytes());
+        r.extend(&sz_val);
+
+        r.extend((state.len() as u16).to_be_bytes());
+        r.extend(state);
+
+        Ok((
+            5 + sz_val.len().clone() as usize + state.len().clone() as usize,
+            r,
+        ))
+    }
 
     fn calc_and_fill_measures(
         &self,
