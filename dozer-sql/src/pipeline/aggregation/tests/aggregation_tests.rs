@@ -1,40 +1,24 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::collections::HashMap;
 
 use dozer_core::{
     dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
-    storage::{lmdb_storage::LmdbEnvironmentManager, transactions::SharedTransaction},
+    storage::transactions::SharedTransaction,
 };
 use dozer_types::{
     ordered_float::OrderedFloat,
-    parking_lot::RwLock,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 
-use crate::pipeline::{aggregation::processor::AggregationProcessor, builder::get_select};
+use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 
 #[test]
 fn test_simple_aggregation() {
-    let select = get_select(
+    let (mut processor, tx) = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
     )
-    .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let mut processor =
-        AggregationProcessor::new(select.projection.clone(), select.group_by.clone());
-
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    processor
-        .init(storage.as_environment())
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    // let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
-    // let mut tx = SharedTransaction::new(&binding);
-
-    let tx = Arc::new(RwLock::new(storage.create_txn().unwrap()));
+    .unwrap();
 
     let schema = Schema::empty()
         .field(
