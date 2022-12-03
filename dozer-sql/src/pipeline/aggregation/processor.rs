@@ -75,15 +75,10 @@ impl ProcessorFactory for AggregationProcessorFactory {
     }
 
     fn build(&self) -> Box<dyn Processor> {
-        Box::new(AggregationProcessor {
-            select: self.select.clone(),
-            groupby: self.groupby.clone(),
-            output_field_rules: vec![],
-            out_dimensions: vec![],
-            out_measures: vec![],
-            builder: ExpressionBuilder {},
-            db: None,
-        })
+        Box::new(AggregationProcessor::new(
+            self.select.clone(),
+            self.groupby.clone(),
+        ))
     }
 }
 
@@ -94,7 +89,7 @@ pub struct AggregationProcessor {
     out_dimensions: Vec<(usize, Box<Expression>, usize)>,
     out_measures: Vec<(usize, Box<Aggregator>, usize)>,
     builder: ExpressionBuilder,
-    db: Option<Database>,
+    pub db: Option<Database>,
 }
 
 enum AggregatorOperation {
@@ -109,6 +104,18 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
+    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>) -> Self {
+        Self {
+            select,
+            groupby,
+            output_field_rules: vec![],
+            out_dimensions: vec![],
+            out_measures: vec![],
+            builder: ExpressionBuilder {},
+            db: None,
+        }
+    }
+
     fn build(
         &self,
         select: &[SelectItem],
