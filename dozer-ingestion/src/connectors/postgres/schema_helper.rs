@@ -260,8 +260,8 @@ mod tests {
         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
         let table_name = format!("products_test_{}", rng.gen::<u32>());
 
-        client.create_schema(schema.clone());
-        client.create_simple_table(schema.clone(), table_name.clone());
+        client.create_schema(&schema);
+        client.create_simple_table(&schema, &table_name);
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let result = schema_helper.get_tables(None).unwrap();
@@ -278,7 +278,7 @@ mod tests {
             table.columns.clone().unwrap()
         ));
 
-        client.drop_schema(schema);
+        client.drop_schema(&schema);
     }
 
     #[test]
@@ -291,8 +291,8 @@ mod tests {
         let schema = format!("schema_helper_test_{}", rng.gen::<u32>());
         let table_name = format!("products_test_{}", rng.gen::<u32>());
 
-        client.create_schema(schema.clone());
-        client.create_simple_table(schema.clone(), table_name.clone());
+        client.create_schema(&schema);
+        client.create_simple_table(&schema, &table_name);
 
         let schema_helper = SchemaHelper::new(client.postgres_config.clone(), Some(schema.clone()));
         let table_info = TableInfo {
@@ -309,6 +309,6 @@ mod tests {
             table.columns.clone().unwrap()
         ));
 
-        client.drop_schema(schema);
+        client.drop_schema(&schema);
     }
 }
