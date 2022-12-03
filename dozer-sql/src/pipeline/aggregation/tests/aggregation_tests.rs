@@ -10,10 +10,7 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 
-use crate::pipeline::{
-    aggregation::processor::AggregationProcessor, builder::get_select,
-    expression::builder::ExpressionBuilder,
-};
+use crate::pipeline::{aggregation::processor::AggregationProcessor, builder::get_select};
 
 #[test]
 fn test_simple_aggregation() {
@@ -37,7 +34,7 @@ fn test_simple_aggregation() {
     // let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
     // let mut tx = SharedTransaction::new(&binding);
 
-    let mut tx = Arc::new(RwLock::new(storage.create_txn().unwrap()));
+    let tx = Arc::new(RwLock::new(storage.create_txn().unwrap()));
 
     let schema = Schema::empty()
         .field(
