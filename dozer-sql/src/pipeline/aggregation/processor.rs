@@ -14,6 +14,7 @@ use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::errors::StorageError::InvalidDatabase;
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
@@ -49,6 +50,8 @@ pub enum FieldRule {
         Option<String>,
     ),
 }
+
+const COUNTER_KEY: u8 = 01_u8;
 
 pub struct AggregationProcessorFactory {
     select: Vec<SelectItem>,
@@ -90,6 +93,8 @@ pub struct AggregationProcessor {
     out_measures: Vec<(usize, Box<Aggregator>, usize)>,
     builder: ExpressionBuilder,
     pub db: Option<Database>,
+    meta_db: Option<Database>,
+    aggregators_db: Option<Database>,
 }
 
 enum AggregatorOperation {
@@ -113,6 +118,8 @@ impl AggregationProcessor {
             out_measures: vec![],
             builder: ExpressionBuilder {},
             db: None,
+            meta_db: None,
+            aggregators_db: None,
         }
     }
 
@@ -285,6 +292,8 @@ impl AggregationProcessor {
 
     fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
         self.db = Some(txn.open_database("aggr", false)?);
+        self.aggregators_db = Some(txn.open_database("aggr_data", false)?);
+        self.meta_db = Some(txn.open_database("meta", false)?);
         Ok(())
     }
 
@@ -300,6 +309,23 @@ impl AggregationProcessor {
         vec.extend_from_slice(&database_id.to_ne_bytes());
         vec.extend(hash);
         Ok(vec)
+    }
+
+    fn get_counter(&self, txn: &mut dyn RwTransaction) -> Result<u16, PipelineError> {
+        let meta_db = self
+            .meta_db
+            .as_ref()
+            .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
+        let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_be_bytes())? {
+            Some(v) => u16::from_be_bytes(v.try_into().unwrap()),
+            None => 1_u16,
+        };
+        txn.put(
+            meta_db,
+            &COUNTER_KEY.to_be_bytes(),
+            &(curr_ctr + 1).to_be_bytes(),
+        )?;
+        Ok(curr_ctr + 1)
     }
 
     fn calc_and_fill_measures(
