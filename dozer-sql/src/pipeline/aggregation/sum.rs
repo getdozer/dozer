@@ -1,3 +1,4 @@
+use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_types::ordered_float::OrderedFloat;
@@ -21,7 +22,11 @@ impl SumAggregator {
         SumAggregator::_AGGREGATOR_ID
     }
 
-    pub(crate) fn insert(curr_state: Option<&[u8]>, new: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn insert(
+        curr_state: Option<&[u8]>,
+        new: &Field,
+        return_type: FieldType,
+    ) -> Result<AggregationResult, PipelineError> {
         match *new {
             Int(_i) => {
                 let prev = match curr_state {
@@ -36,7 +41,11 @@ impl SumAggregator {
                     }
                 };
 
-                Ok(Vec::from((prev + *curr).to_ne_bytes()))
+                let r_bytes = (prev + *curr).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type),
+                    Vec::from(r_bytes),
+                ))
             }
             Float(_f) => {
                 let prev = OrderedFloat(match curr_state {
@@ -51,7 +60,11 @@ impl SumAggregator {
                     }
                 };
 
-                Ok(Vec::from((prev + *curr).to_ne_bytes()))
+                let r_bytes = (prev + *curr).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type),
+                    Vec::from(r_bytes),
+                ))
             }
             _ => Err(InvalidOperandType("SUM".to_string())),
         }
@@ -61,7 +74,8 @@ impl SumAggregator {
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+        return_type: FieldType,
+    ) -> Result<AggregationResult, PipelineError> {
         match *old {
             Int(_i) => {
                 let prev = match curr_state {
@@ -82,7 +96,11 @@ impl SumAggregator {
                     }
                 };
 
-                Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
+                let r_bytes = (prev - *curr_del + *curr_added).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type),
+                    Vec::from(r_bytes),
+                ))
             }
             Float(_f) => {
                 let prev = OrderedFloat(match curr_state {
@@ -103,13 +121,21 @@ impl SumAggregator {
                     }
                 };
 
-                Ok(Vec::from((prev - *curr_del + *curr_added).to_ne_bytes()))
+                let r_bytes = (prev - *curr_del + *curr_added).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type),
+                    Vec::from(r_bytes),
+                ))
             }
             _ => Err(InvalidOperandType("SUM".to_string())),
         }
     }
 
-    pub(crate) fn delete(curr_state: Option<&[u8]>, old: &Field) -> Result<Vec<u8>, PipelineError> {
+    pub(crate) fn delete(
+        curr_state: Option<&[u8]>,
+        old: &Field,
+        return_type: FieldType,
+    ) -> Result<AggregationResult, PipelineError> {
         match *old {
             Int(_i) => {
                 let prev = match curr_state {
@@ -124,7 +150,11 @@ impl SumAggregator {
                     }
                 };
 
-                Ok(Vec::from((prev - *curr).to_ne_bytes()))
+                let r_bytes = (prev - *curr).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type),
+                    Vec::from(r_bytes),
+                ))
             }
             Float(_f) => {
                 let prev = OrderedFloat(match curr_state {
@@ -139,7 +169,11 @@ impl SumAggregator {
                     }
                 };
 
-                Ok(Vec::from((prev - *curr).to_ne_bytes()))
+                let r_bytes = (prev - *curr).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type),
+                    Vec::from(r_bytes),
+                ))
             }
             _ => Err(InvalidOperandType("SUM".to_string())),
         }
