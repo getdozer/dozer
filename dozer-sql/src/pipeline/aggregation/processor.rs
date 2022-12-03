@@ -12,7 +12,7 @@ use dozer_core::dag::node::{
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 
-use crate::pipeline::aggregation::aggregator::AggregatorStoreType;
+use crate::pipeline::aggregation::aggregator::{AggregationResult, AggregatorStoreType};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
@@ -591,12 +591,13 @@ impl AggregationProcessor {
             //
             // next_state.extend(next_state_slice.state);
 
-            next_state.extend(
-                &Self::encode_embedded_state(&next_state_slice.new_value, &next_state_slice.state)?
-                    .1,
-            );
-
-            out_rec_insert.set_value(measure.2, next_state_slice.new_value);
+            match next_state_slice {
+                AggregationResult::ByteArray(new_value, state) => {
+                    next_state.extend(&Self::encode_embedded_state(&new_value, &state)?.1);
+                    out_rec_insert.set_value(measure.2, new_value);
+                }
+                AggregationResult::Database(_) => {}
+            }
 
             // if !next_state_slice.is_empty() {
             //     let next_value = measure.1.get_value(next_state_slice.as_slice(), agg_type);

@@ -46,7 +46,7 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev + *curr).to_ne_bytes();
-                Ok(AggregationResult::new(
+                Ok(AggregationResult::ByteArray(
                     Self::get_value(&r_bytes, return_type),
                     Vec::from(r_bytes),
                 ))
@@ -65,7 +65,7 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev + *curr).to_ne_bytes();
-                Ok(AggregationResult::new(
+                Ok(AggregationResult::ByteArray(
                     Self::get_value(&r_bytes, return_type),
                     Vec::from(r_bytes),
                 ))
@@ -101,7 +101,7 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr_del + *curr_added).to_ne_bytes();
-                Ok(AggregationResult::new(
+                Ok(AggregationResult::ByteArray(
                     Self::get_value(&r_bytes, return_type),
                     Vec::from(r_bytes),
                 ))
@@ -126,7 +126,7 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr_del + *curr_added).to_ne_bytes();
-                Ok(AggregationResult::new(
+                Ok(AggregationResult::ByteArray(
                     Self::get_value(&r_bytes, return_type),
                     Vec::from(r_bytes),
                 ))
@@ -155,7 +155,7 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr).to_ne_bytes();
-                Ok(AggregationResult::new(
+                Ok(AggregationResult::ByteArray(
                     Self::get_value(&r_bytes, return_type),
                     Vec::from(r_bytes),
                 ))
@@ -174,7 +174,7 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr).to_ne_bytes();
-                Ok(AggregationResult::new(
+                Ok(AggregationResult::ByteArray(
                     Self::get_value(&r_bytes, return_type),
                     Vec::from(r_bytes),
                 ))

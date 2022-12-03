@@ -14,15 +14,9 @@ pub enum AggregatorStoreType {
     Database,
 }
 
-pub struct AggregationResult {
-    pub new_value: Field,
-    pub state: Vec<u8>,
-}
-
-impl AggregationResult {
-    pub fn new(new_value: Field, state: Vec<u8>) -> Self {
-        Self { new_value, state }
-    }
+pub enum AggregationResult {
+    ByteArray(Field, Vec<u8>),
+    Database(Field),
 }
 
 impl Display for Aggregator {
