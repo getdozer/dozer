@@ -9,7 +9,12 @@ pub enum Aggregator {
     Sum,
 }
 
-pub(crate) struct AggregationResult {
+pub enum AggregatorStoreType {
+    ByteArray,
+    Database,
+}
+
+pub struct AggregationResult {
     pub new_value: Field,
     pub state: Vec<u8>,
 }
@@ -27,6 +32,13 @@ impl Display for Aggregator {
 }
 
 impl Aggregator {
+    pub(crate) fn get_store_type(&self) -> AggregatorStoreType {
+        match &self {
+            //   Aggregator::Count => CountAggregator::_get_type(),
+            Aggregator::Sum => SumAggregator::get_store_type(),
+        }
+    }
+
     pub(crate) fn get_return_type(&self, from: FieldType) -> FieldType {
         match (&self, from) {
             //   (Aggregator::Count, _) => CountAggregator::get_return_type(),

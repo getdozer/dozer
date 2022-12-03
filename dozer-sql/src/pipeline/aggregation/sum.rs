@@ -1,4 +1,4 @@
-use crate::pipeline::aggregation::aggregator::AggregationResult;
+use crate::pipeline::aggregation::aggregator::{AggregationResult, AggregatorStoreType};
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_types::ordered_float::OrderedFloat;
@@ -16,6 +16,10 @@ impl SumAggregator {
             FieldType::Float => FieldType::Float,
             _ => from,
         }
+    }
+
+    pub(crate) fn get_store_type() -> AggregatorStoreType {
+        AggregatorStoreType::ByteArray
     }
 
     pub(crate) fn _get_type() -> u32 {

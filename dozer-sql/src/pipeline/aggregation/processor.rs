@@ -12,6 +12,7 @@ use dozer_core::dag::node::{
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 
+use crate::pipeline::aggregation::aggregator::AggregatorStoreType;
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
@@ -515,7 +516,14 @@ impl AggregationProcessor {
                             }
                         }
                     } else {
-                        measure.1.insert(None, field, field.get_type()?)?
+                        match &measure.1.get_store_type() {
+                            AggregatorStoreType::ByteArray => {
+                                measure.1.insert(None, field, field.get_type()?)?
+                            }
+                            AggregatorStoreType::Database => {
+                                measure.1.insert(None, field, field.get_type()?)?
+                            }
+                        }
                     }
                 }
                 AggregatorOperation::Delete => {
@@ -536,7 +544,14 @@ impl AggregationProcessor {
                             }
                         }
                     } else {
-                        measure.1.delete(None, field, field.get_type()?)?
+                        match &measure.1.get_store_type() {
+                            AggregatorStoreType::ByteArray => {
+                                measure.1.delete(None, field, field.get_type()?)?
+                            }
+                            AggregatorStoreType::Database => {
+                                measure.1.delete(None, field, field.get_type()?)?
+                            }
+                        }
                     }
                 }
                 AggregatorOperation::Update => {
@@ -558,7 +573,14 @@ impl AggregationProcessor {
                             }
                         }
                     } else {
-                        measure.1.update(None, old, new, old.get_type()?)?
+                        match &measure.1.get_store_type() {
+                            AggregatorStoreType::ByteArray => {
+                                measure.1.update(None, old, new, old.get_type()?)?
+                            }
+                            AggregatorStoreType::Database => {
+                                measure.1.update(None, old, new, old.get_type()?)?
+                            }
+                        }
                     }
                 }
             };
