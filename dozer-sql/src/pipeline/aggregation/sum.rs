@@ -25,14 +25,14 @@ impl SumAggregator {
     }
 
     pub(crate) fn insert(
-        curr_state: Option<&[u8]>,
+        cur_state: Option<&[u8]>,
         new: &Field,
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match *new {
             Int(_i) => {
-                let prev = match curr_state {
+                let prev = match cur_state {
                     Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
                     None => 0_i64,
                 };
@@ -51,7 +51,7 @@ impl SumAggregator {
                 ))
             }
             Float(_f) => {
-                let prev = OrderedFloat(match curr_state {
+                let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
                     None => 0_f64,
                 });
@@ -74,7 +74,7 @@ impl SumAggregator {
     }
 
     pub(crate) fn update(
-        curr_state: Option<&[u8]>,
+        cur_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
         return_type: FieldType,
@@ -82,7 +82,7 @@ impl SumAggregator {
     ) -> Result<AggregationResult, PipelineError> {
         match *old {
             Int(_i) => {
-                let prev = match curr_state {
+                let prev = match cur_state {
                     Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
                     None => 0_i64,
                 };
@@ -107,7 +107,7 @@ impl SumAggregator {
                 ))
             }
             Float(_f) => {
-                let prev = OrderedFloat(match curr_state {
+                let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
                     None => 0_f64,
                 });
@@ -136,14 +136,14 @@ impl SumAggregator {
     }
 
     pub(crate) fn delete(
-        curr_state: Option<&[u8]>,
+        cur_state: Option<&[u8]>,
         old: &Field,
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match *old {
             Int(_i) => {
-                let prev = match curr_state {
+                let prev = match cur_state {
                     Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
                     None => 0_i64,
                 };
@@ -162,7 +162,7 @@ impl SumAggregator {
                 ))
             }
             Float(_f) => {
-                let prev = OrderedFloat(match curr_state {
+                let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_ne_bytes(v.try_into().unwrap()),
                     None => 0_f64,
                 });

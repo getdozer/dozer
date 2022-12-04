@@ -9,8 +9,6 @@ macro_rules! chk {
 
 #[test]
 fn encode_decode_buffer() {
-    //
-    //
     let prefix_0 = 100_u32;
     let field_0 = Field::Int(100);
     let state_0: Option<Vec<u8>> = Some(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);

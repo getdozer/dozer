@@ -1,11 +1,16 @@
+use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
+use crate::{
+    check_nan_f64, deserialize_u8, field_extract_f64, field_extract_i64, to_bytes, try_unwrap,
+};
+
+use dozer_core::storage::common::{Database, RwTransaction};
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
-use std::ops::Div;
 use std::string::ToString;
-use crate::{check_nan_f64, deserialize_f64, field_extract_f64};
 
 pub struct AvgAggregator {}
 const AGGREGATOR_NAME: &str = "AVG";
@@ -26,72 +31,115 @@ impl AvgAggregator {
     }
 
     pub(crate) fn insert(
-        curr_state: Option<&[u8]>,
+        _cur_state: Option<&[u8]>,
         new: &Field,
-        curr_count: u64,
-    ) -> Result<Vec<u8>, PipelineError> {
+        return_type: FieldType,
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) -> Result<AggregationResult, PipelineError> {
         match *new {
-            Float(_f) => {
-                println!("[ FLOAT AVG ]");
-                let prev_avg = deserialize_f64!(curr_state);
-                let prev_sum = prev_avg * curr_count as f64;
-                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
-                let mut total_count = curr_count as u8;
-                let mut total_sum = prev_sum;
+            Int(_i) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
-                total_count += 1;
-                total_sum += new_val.0;
-                let avg = check_nan_f64!(total_sum.div(f64::from(total_count)));
-                Ok(Vec::from(avg.to_ne_bytes()))
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
             }
-            _ => Err(InvalidOperandType("AVG".to_string())),
+            Float(_f) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
+            }
+            _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
 
     pub(crate) fn update(
-        curr_state: Option<&[u8]>,
+        _cur_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
-        curr_count: u64,
-    ) -> Result<Vec<u8>, PipelineError> {
+        return_type: FieldType,
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) -> Result<AggregationResult, PipelineError> {
         match *old {
-            Float(_f) => {
-                let prev_avg = deserialize_f64!(curr_state);
-                let prev_sum = prev_avg * curr_count as f64;
-                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
-                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
-                let total_count = curr_count as u8;
-                let mut total_sum = prev_sum;
+            Int(_i) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
-                total_sum -= old_val.0;
-                total_sum += new_val.0;
-                let avg = check_nan_f64!(total_sum.div(f64::from(total_count)));
-                Ok(Vec::from(avg.to_ne_bytes()))
+                // Calculate average
+                let avg = (try_unwrap!(Self::calc_i64_average(ptx, aggregators_db))).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
             }
-            _ => Err(InvalidOperandType("AVG".to_string())),
+            Float(_f) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
+            }
+            _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
 
     pub(crate) fn delete(
-        curr_state: Option<&[u8]>,
+        _cur_state: Option<&[u8]>,
         old: &Field,
-        curr_count: u64,
-    ) -> Result<Vec<u8>, PipelineError> {
+        return_type: FieldType,
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) -> Result<AggregationResult, PipelineError> {
         match *old {
-            Float(_f) => {
-                let prev_avg = deserialize_f64!(curr_state);
-                let prev_count = curr_count;
-                let prev_sum = prev_avg * prev_count as f64;
-                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
-                let mut total_count = prev_count as u8;
-                let mut total_sum = prev_sum;
+            Int(_i) => {
+                // Update aggregators_db with new val and its occurrence
+                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
-                total_count -= 1;
-                total_sum -= old_val.0;
-                let avg = check_nan_f64!(total_sum.div(f64::from(total_count)));
-                Ok(Vec::from(avg.to_ne_bytes()))
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
             }
-            _ => Err(InvalidOperandType("AVG".to_string())),
+            Float(_f) => {
+                // Update aggregators_db with new val and its occurrence
+                let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+
+                // Calculate average
+                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&avg, return_type),
+                    Some(Vec::from(avg)),
+                ))
+            }
+            _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
 
@@ -101,5 +149,73 @@ impl AvgAggregator {
             FieldType::Float => Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap()))),
             _ => Field::Null,
         }
+    }
+
+    fn update_aggregator_db(
+        key: &[u8],
+        val_delta: u8,
+        decr: bool,
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) {
+        let get_prev_count = try_unwrap!(ptx.get(aggregators_db, key));
+        let prev_count = deserialize_u8!(get_prev_count);
+        try_unwrap!(ptx.put(
+            aggregators_db,
+            key,
+            to_bytes!(if decr {
+                prev_count - val_delta
+            } else {
+                prev_count + val_delta
+            })
+        ));
+    }
+
+    fn calc_f64_average(
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) -> Result<f64, PipelineError> {
+        let ptx_cur = ptx.open_cursor(aggregators_db)?;
+        let mut total_count = 0_u8;
+        let mut total_sum = 0_f64;
+        let mut exist = ptx_cur.first()?;
+
+        // Loop through aggregators_db to calculate average
+        while exist {
+            let cur = try_unwrap!(ptx_cur.read()).unwrap();
+            let val = f64::from_ne_bytes((cur.0).try_into().unwrap());
+            let get_count = ptx.get(aggregators_db, cur.0);
+            if get_count.is_ok() {
+                let count = deserialize_u8!(try_unwrap!(get_count));
+                total_count += count;
+                total_sum += val * f64::from(count);
+            }
+            exist = ptx_cur.next()?;
+        }
+        Ok(check_nan_f64!(total_sum / f64::from(total_count)))
+    }
+
+    fn calc_i64_average(
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) -> Result<i64, PipelineError> {
+        let ptx_cur = ptx.open_cursor(aggregators_db)?;
+        let mut total_count = 0_u8;
+        let mut total_sum = 0_i64;
+        let mut exist = ptx_cur.first()?;
+
+        // Loop through aggregators_db to calculate average
+        while exist {
+            let cur = try_unwrap!(ptx_cur.read()).unwrap();
+            let val = i64::from_ne_bytes((cur.0).try_into().unwrap());
+            let get_count = ptx.get(aggregators_db, cur.0);
+            if get_count.is_ok() {
+                let count = deserialize_u8!(try_unwrap!(get_count));
+                total_count += count;
+                total_sum += val * i64::from(count);
+            }
+            exist = ptx_cur.next()?;
+        }
+        Ok(check_nan_f64!(total_sum as f64 / total_count as f64) as i64)
     }
 }
