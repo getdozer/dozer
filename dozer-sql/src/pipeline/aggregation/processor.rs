@@ -15,6 +15,7 @@ use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
@@ -327,14 +328,14 @@ impl AggregationProcessor {
         Ok(vec)
     }
 
-    fn get_counter(&self, txn: &mut dyn RwTransaction) -> Result<u16, PipelineError> {
+    fn get_counter(&self, txn: &mut dyn RwTransaction) -> Result<u32, PipelineError> {
         let meta_db = self
             .meta_db
             .as_ref()
             .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
         let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_be_bytes())? {
-            Some(v) => u16::from_be_bytes(v.try_into().unwrap()),
-            None => 1_u16,
+            Some(v) => u32::from_be_bytes(v.try_into().unwrap()),
+            None => 1_u32,
         };
         txn.put(
             meta_db,
@@ -423,35 +424,48 @@ impl AggregationProcessor {
                     let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
+                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.insert(
                             curr.state,
                             inserted_field,
                             inserted_field.get_type()?,
+                            &mut p_tx,
                         )?;
                         (curr.prefix, r)
                     } else {
-                        let r =
-                            measure
-                                .1
-                                .insert(None, inserted_field, inserted_field.get_type()?)?;
-                        (0, r)
+                        let prefix = self.get_counter(txn)?;
+                        let mut p_tx = PrefixTransaction::new(txn, prefix);
+                        let r = measure.1.insert(
+                            None,
+                            inserted_field,
+                            inserted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (prefix, r)
                     }
                 }
                 AggregatorOperation::Delete => {
                     let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
+                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.delete(
                             curr.state,
                             deleted_field,
                             deleted_field.get_type()?,
+                            &mut p_tx,
                         )?;
                         (curr.prefix, r)
                     } else {
-                        let r = measure
-                            .1
-                            .delete(None, deleted_field, deleted_field.get_type()?)?;
-                        (0, r)
+                        let prefix = self.get_counter(txn)?;
+                        let mut p_tx = PrefixTransaction::new(txn, prefix);
+                        let r = measure.1.delete(
+                            None,
+                            deleted_field,
+                            deleted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (prefix, r)
                     }
                 }
                 AggregatorOperation::Update => {
@@ -460,21 +474,26 @@ impl AggregationProcessor {
 
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
+                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.update(
                             curr.state,
                             deleted_field,
                             updated_field,
                             deleted_field.get_type()?,
+                            &mut p_tx,
                         )?;
                         (curr.prefix, r)
                     } else {
+                        let prefix = self.get_counter(txn)?;
+                        let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.update(
                             None,
                             deleted_field,
                             updated_field,
                             deleted_field.get_type()?,
+                            &mut p_tx,
                         )?;
-                        (0, r)
+                        (prefix, r)
                     }
                 }
             };

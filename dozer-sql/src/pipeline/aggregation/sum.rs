@@ -1,6 +1,8 @@
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
+use dozer_core::storage::common::RwTransaction;
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
@@ -26,6 +28,7 @@ impl SumAggregator {
         curr_state: Option<&[u8]>,
         new: &Field,
         return_type: FieldType,
+        txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match *new {
             Int(_i) => {
@@ -75,6 +78,7 @@ impl SumAggregator {
         old: &Field,
         new: &Field,
         return_type: FieldType,
+        txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match *old {
             Int(_i) => {
@@ -135,6 +139,7 @@ impl SumAggregator {
         curr_state: Option<&[u8]>,
         old: &Field,
         return_type: FieldType,
+        txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match *old {
             Int(_i) => {

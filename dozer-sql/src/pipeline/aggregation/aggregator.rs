@@ -1,5 +1,7 @@
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
+use dozer_core::storage::common::RwTransaction;
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
 
@@ -46,10 +48,11 @@ impl Aggregator {
         curr_state: Option<&[u8]>,
         new: &Field,
         return_type: FieldType,
+        txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match &self {
             //  Aggregator::Count => CountAggregator::insert(curr_state, new, return_type),
-            Aggregator::Sum => SumAggregator::insert(curr_state, new, return_type),
+            Aggregator::Sum => SumAggregator::insert(curr_state, new, return_type, txn),
         }
     }
 
@@ -59,10 +62,11 @@ impl Aggregator {
         old: &Field,
         new: &Field,
         return_type: FieldType,
+        txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match &self {
             //  Aggregator::Count => CountAggregator::update(curr_state, old, new, return_type),
-            Aggregator::Sum => SumAggregator::update(curr_state, old, new, return_type),
+            Aggregator::Sum => SumAggregator::update(curr_state, old, new, return_type, txn),
         }
     }
 
@@ -71,10 +75,11 @@ impl Aggregator {
         curr_state: Option<&[u8]>,
         old: &Field,
         return_type: FieldType,
+        txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         match &self {
             //   Aggregator::Count => CountAggregator::delete(curr_state, old, return_type),
-            Aggregator::Sum => SumAggregator::delete(curr_state, old, return_type),
+            Aggregator::Sum => SumAggregator::delete(curr_state, old, return_type, txn),
         }
     }
 }
