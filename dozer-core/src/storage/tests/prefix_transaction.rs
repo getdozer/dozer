@@ -53,6 +53,20 @@ fn test_prefix_tx() {
     chk!(ptx2.put(&db, "c1".as_bytes(), "c1".as_bytes()));
     chk!(ptx2.put(&db, "c2".as_bytes(), "c2".as_bytes()));
 
+    let cur = ptx1.open_cursor(&db).unwrap();
+    let r = cur.seek_gte("b0".as_bytes());
+    let mut ctr = 0;
+    loop {
+        if let Some(kv) = cur.read().unwrap() {
+            ctr +=1;
+        }
+        if !cur.next().unwrap() {
+            break;
+        }
+    }
+    assert_eq!(ctr, 3);
+
+
     assert_eq!(
         chk!(ptx0.get(&db, "a0".as_bytes())).unwrap(),
         "a0".as_bytes()
@@ -128,4 +142,7 @@ fn test_prefix_tx() {
 
     assert!(chk!(ptx3_cur.last()));
     assert_eq!(chk!(ptx3_cur.read()).unwrap().0, "d2".as_bytes());
+
+
+
 }
