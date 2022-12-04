@@ -1,58 +1,24 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::collections::HashMap;
 
 use dozer_core::{
-    dag::{
-        channels::ProcessorChannelForwarder, executor_local::DEFAULT_PORT_HANDLE,
-        node::ProcessorFactory,
-    },
-    storage::{lmdb_storage::LmdbEnvironmentManager, transactions::SharedTransaction},
+    dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
+    storage::transactions::SharedTransaction,
 };
 use dozer_types::{
     ordered_float::OrderedFloat,
-    parking_lot::RwLock,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 
-use crate::pipeline::{aggregation::processor::AggregationProcessorFactory, builder::get_select};
-
-struct TestChannelForwarder {
-    operations: Vec<Operation>,
-}
-
-impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(
-        &mut self,
-        op: dozer_types::types::Operation,
-        _port: dozer_core::dag::node::PortHandle,
-    ) -> Result<(), dozer_core::dag::errors::ExecutionError> {
-        self.operations.push(op);
-        Ok(())
-    }
-}
+use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 
 #[test]
 fn test_simple_aggregation() {
-    let select = get_select(
-        "SELECT department_id, SUM(salary) \
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, SUM(Salary) \
         FROM Users \
-        WHERE salary >= 1000 GROUP BY department_id",
+        WHERE Salary >= 1 GROUP BY Country",
     )
-    .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let aggregation = AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
-
-    let mut processor = aggregation.build();
-
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    processor
-        .init(storage.as_environment())
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
-    let mut tx = SharedTransaction::new(&binding);
-    let mut fw = TestChannelForwarder { operations: vec![] };
+    .unwrap();
 
     let schema = Schema::empty()
         .field(
@@ -70,23 +36,336 @@ fn test_simple_aggregation() {
             false,
             false,
         )
+        .field(
+            FieldDefinition::new(String::from("SUM(Salary)"), FieldType::Float, false),
+            false,
+            false,
+        )
         .clone();
 
-    _ = processor.update_schema(
-        DEFAULT_PORT_HANDLE,
-        &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-    );
+    let _output_schema = processor
+        .update_schema(
+            DEFAULT_PORT_HANDLE,
+            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+        )
+        .unwrap();
 
-    let op = Operation::Insert {
+    // Insert 100 for segment Italy
+    let inp = Operation::Insert {
         new: Record::new(
             None,
             vec![
                 Field::Int(0),
                 Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.5)),
+                Field::Float(OrderedFloat(100.0)),
+                Field::Float(OrderedFloat(100.0)),
             ],
         ),
     };
 
-    _ = processor.process(DEFAULT_PORT_HANDLE, op, &mut fw, &mut tx, &HashMap::new());
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Insert another 100 for segment Italy
+    let inp = Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+    };
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(200.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Insert 50 for segment Singapore
+    let inp = Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Singapore".to_string()),
+                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(50.0)),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Singapore".to_string()),
+                Field::Float(OrderedFloat(50.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Update Singapore segment to Italy
+    let inp = Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Singapore".to_string()),
+                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(50.0)),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(50.0)),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![
+        Operation::Delete {
+            old: Record::new(
+                None,
+                vec![
+                    Field::String("Singapore".to_string()),
+                    Field::Float(OrderedFloat(50.0)),
+                ],
+            ),
+        },
+        Operation::Update {
+            old: Record::new(
+                None,
+                vec![
+                    Field::String("Italy".to_string()),
+                    Field::Float(OrderedFloat(200.0)),
+                ],
+            ),
+            new: Record::new(
+                None,
+                vec![
+                    Field::String("Italy".to_string()),
+                    Field::Float(OrderedFloat(250.0)),
+                ],
+            ),
+        },
+    ];
+    assert_eq!(out, exp);
+
+    // Update Italy value 100 -> 200
+    let inp = Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(200.0)),
+                Field::Float(OrderedFloat(200.0)),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(250.0)),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(350.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Delete 1 record (200)
+    let inp = Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(200.0)),
+                Field::Float(OrderedFloat(200.0)),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(350.0)),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(150.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Delete another record
+    let inp = Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(50.0)),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(150.0)),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    let inp = Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Float(OrderedFloat(100.0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
 }
