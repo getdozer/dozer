@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
@@ -14,6 +15,8 @@ use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::errors::StorageError::InvalidDatabase;
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
 
@@ -48,6 +51,24 @@ pub enum FieldRule {
         /// Name of the field, if renaming is required. If `None` the original name is retained
         Option<String>,
     ),
+}
+
+const COUNTER_KEY: u8 = 1_u8;
+
+pub(crate) struct AggregationData<'a> {
+    pub value: Field,
+    pub state: Option<&'a [u8]>,
+    pub prefix: u32,
+}
+
+impl<'a> AggregationData<'a> {
+    pub fn new(value: Field, state: Option<&'a [u8]>, prefix: u32) -> Self {
+        Self {
+            value,
+            state,
+            prefix,
+        }
+    }
 }
 
 pub struct AggregationProcessorFactory {
@@ -90,6 +111,8 @@ pub struct AggregationProcessor {
     out_measures: Vec<(usize, Box<Aggregator>, usize)>,
     builder: ExpressionBuilder,
     pub db: Option<Database>,
+    meta_db: Option<Database>,
+    aggregators_db: Option<Database>,
 }
 
 enum AggregatorOperation {
@@ -113,6 +136,8 @@ impl AggregationProcessor {
             out_measures: vec![],
             builder: ExpressionBuilder {},
             db: None,
+            meta_db: None,
+            aggregators_db: None,
         }
     }
 
@@ -285,6 +310,8 @@ impl AggregationProcessor {
 
     fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
         self.db = Some(txn.open_database("aggr", false)?);
+        self.aggregators_db = Some(txn.open_database("aggr_data", false)?);
+        self.meta_db = Some(txn.open_database("meta", false)?);
         Ok(())
     }
 
@@ -302,13 +329,73 @@ impl AggregationProcessor {
         Ok(vec)
     }
 
+    fn get_counter(&self, txn: &mut dyn RwTransaction) -> Result<u32, PipelineError> {
+        let meta_db = self
+            .meta_db
+            .as_ref()
+            .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
+        let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_be_bytes())? {
+            Some(v) => u32::from_be_bytes(v.try_into().unwrap()),
+            None => 1_u32,
+        };
+        txn.put(
+            meta_db,
+            &COUNTER_KEY.to_be_bytes(),
+            &(curr_ctr + 1).to_be_bytes(),
+        )?;
+        Ok(curr_ctr + 1)
+    }
+
+    pub(crate) fn decode_buffer(buf: &[u8]) -> Result<(usize, AggregationData), PipelineError> {
+        let prefix = u32::from_be_bytes(buf[0..4].try_into().unwrap());
+        let mut offset: usize = 4;
+
+        let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
+        offset += 2;
+        let val: Field = internal_err!(bincode::deserialize(
+            &buf[offset..offset + val_len as usize]
+        ))?;
+        offset += val_len as usize;
+        let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
+        offset += 2;
+        let state: Option<&[u8]> = if state_len > 0 {
+            Some(&buf[offset..offset + state_len as usize])
+        } else {
+            None
+        };
+        offset += state_len as usize;
+
+        let r = AggregationData::new(val, state, prefix);
+        Ok((offset, r))
+    }
+
+    pub(crate) fn encode_buffer(
+        prefix: u32,
+        value: &Field,
+        state: &Option<Vec<u8>>,
+    ) -> Result<(usize, Vec<u8>), PipelineError> {
+        let mut r = Vec::with_capacity(512);
+        r.extend(prefix.to_be_bytes());
+
+        let sz_val = internal_err!(bincode::serialize(&value))?;
+        r.extend((sz_val.len() as u16).to_be_bytes());
+        r.extend(&sz_val);
+
+        let len = if let Some(state) = state.as_ref() {
+            r.extend((state.len() as u16).to_be_bytes());
+            r.extend(state);
+            state.len()
+        } else {
+            r.extend(0_u16.to_be_bytes());
+            0_usize
+        };
+
+        Ok((5 + sz_val.len() as usize + len, r))
+    }
+
     fn calc_and_fill_measures(
         &self,
-        // This represents the current state for a series of aggregators and it is encoded
-        // with a leading uint16 representing the payload length, followe by the actual payload.
-        // For example, let's say we want to encode teh state of SUM(a), SUM(b). Sum's state is
-        // represented as a uint64. The byte buffer will be 20-bytes long and look like this:
-        // uint16(SUM(a) payload len), uint64(=SUM(a) state), uint16(SUM(b) payload len), uint64(=SUM(b) state)
+        txn: &mut dyn RwTransaction,
         curr_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
@@ -321,71 +408,99 @@ impl AggregationProcessor {
         let mut offset: usize = 0;
 
         for measure in &self.out_measures {
-            let curr_state_slice = match curr_state {
+            let curr_agg_data = match curr_state {
                 Some(ref e) => {
-                    // Read the 2-byte len header
-                    let len = u16::from_ne_bytes(e[offset..offset + 2].try_into().unwrap());
-                    if len == 0 {
-                        None
-                    } else {
-                        // Read the payload of len size
-                        Some(&e[offset + 2..offset + 2 + len as usize])
-                    }
+                    let (len, res) = Self::decode_buffer(&e[offset..])?;
+                    offset += len;
+                    Some(res)
                 }
                 None => None,
             };
 
-            let agg_type;
-
             // Let the aggregator calculate the new value based on teh performed operation
-            let next_state_slice = match op {
+            let (prefix, next_state_slice) = match op {
                 AggregatorOperation::Insert => {
-                    let field = inserted_record.unwrap().get_value(measure.0)?;
-                    agg_type = field.get_type()?;
-                    if let Some(e) = curr_state_slice {
-                        // pass the current payload to the processor to extract the value
-                        let curr_value = measure.1.get_value(e, agg_type);
-                        // set the value for the old record
-                        out_rec_delete.set_value(measure.2, curr_value);
+                    let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
+                    if let Some(curr) = curr_agg_data {
+                        out_rec_delete.set_value(measure.2, curr.value);
+                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
+                        let r = measure.1.insert(
+                            curr.state,
+                            inserted_field,
+                            inserted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (curr.prefix, r)
+                    } else {
+                        let prefix = self.get_counter(txn)?;
+                        let mut p_tx = PrefixTransaction::new(txn, prefix);
+                        let r = measure.1.insert(
+                            None,
+                            inserted_field,
+                            inserted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (prefix, r)
                     }
-                    measure.1.insert(curr_state_slice, field)?
                 }
                 AggregatorOperation::Delete => {
-                    let field = deleted_record.unwrap().get_value(measure.0)?;
-                    agg_type = field.get_type()?;
-                    if let Some(e) = curr_state_slice {
-                        // pass the current payload to the processor to extract the value
-                        let curr_value = measure.1.get_value(e, agg_type);
-                        // set the value for the old record
-                        out_rec_delete.set_value(measure.2, curr_value);
+                    let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
+                    if let Some(curr) = curr_agg_data {
+                        out_rec_delete.set_value(measure.2, curr.value);
+                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
+                        let r = measure.1.delete(
+                            curr.state,
+                            deleted_field,
+                            deleted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (curr.prefix, r)
+                    } else {
+                        let prefix = self.get_counter(txn)?;
+                        let mut p_tx = PrefixTransaction::new(txn, prefix);
+                        let r = measure.1.delete(
+                            None,
+                            deleted_field,
+                            deleted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (prefix, r)
                     }
-                    measure.1.delete(curr_state_slice, field)?
                 }
                 AggregatorOperation::Update => {
-                    let old = deleted_record.unwrap().get_value(measure.0)?;
-                    let new = inserted_record.unwrap().get_value(measure.0)?;
-                    agg_type = old.get_type()?;
-                    if let Some(e) = curr_state_slice {
-                        // pass the current payload to the processor to extract the value
-                        let curr_value = measure.1.get_value(e, agg_type);
-                        // set the value for the old record
-                        out_rec_delete.set_value(measure.2, curr_value);
+                    let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
+                    let updated_field = inserted_record.unwrap().get_value(measure.0)?;
+
+                    if let Some(curr) = curr_agg_data {
+                        out_rec_delete.set_value(measure.2, curr.value);
+                        let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
+                        let r = measure.1.update(
+                            curr.state,
+                            deleted_field,
+                            updated_field,
+                            deleted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (curr.prefix, r)
+                    } else {
+                        let prefix = self.get_counter(txn)?;
+                        let mut p_tx = PrefixTransaction::new(txn, prefix);
+                        let r = measure.1.update(
+                            None,
+                            deleted_field,
+                            updated_field,
+                            deleted_field.get_type()?,
+                            &mut p_tx,
+                        )?;
+                        (prefix, r)
                     }
-                    measure.1.update(curr_state_slice, old, new)?
                 }
             };
 
-            // append the new state to array
-            next_state.extend((next_state_slice.len() as u16).to_ne_bytes());
-            offset += next_state_slice.len() + 2;
-
-            if !next_state_slice.is_empty() {
-                let next_value = measure.1.get_value(next_state_slice.as_slice(), agg_type);
-                next_state.extend(next_state_slice);
-                out_rec_insert.set_value(measure.2, next_value);
-            } else {
-                out_rec_insert.set_value(measure.2, Field::Null);
-            }
+            next_state.extend(
+                &Self::encode_buffer(prefix, &next_state_slice.value, &next_state_slice.state)?.1,
+            );
+            out_rec_insert.set_value(measure.2, next_state_slice.value);
         }
 
         Ok(next_state)
@@ -442,6 +557,7 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
+            txn,
             &curr_state,
             Some(old),
             None,
@@ -494,6 +610,7 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
+            txn,
             &curr_state,
             None,
             Some(new),
@@ -535,6 +652,7 @@ impl AggregationProcessor {
 
         let curr_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
+            txn,
             &curr_state,
             Some(old),
             Some(new),

@@ -1,6 +1,8 @@
 use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
+
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
 
@@ -8,6 +10,17 @@ use std::fmt::{Display, Formatter};
 pub enum Aggregator {
     Count,
     Sum,
+}
+
+pub(crate) struct AggregationResult {
+    pub value: Field,
+    pub state: Option<Vec<u8>>,
+}
+
+impl AggregationResult {
+    pub fn new(value: Field, state: Option<Vec<u8>>) -> Self {
+        Self { value, state }
+    }
 }
 
 impl Display for Aggregator {
@@ -35,10 +48,12 @@ impl Aggregator {
         &self,
         curr_state: Option<&[u8]>,
         new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+        return_type: FieldType,
+        txn: &mut PrefixTransaction,
+    ) -> Result<AggregationResult, PipelineError> {
         match &self {
-            Aggregator::Count => CountAggregator::insert(curr_state, new),
-            Aggregator::Sum => SumAggregator::insert(curr_state, new),
+            Aggregator::Count => CountAggregator::insert(curr_state, new, return_type, txn),
+            Aggregator::Sum => SumAggregator::insert(curr_state, new, return_type, txn),
         }
     }
 
@@ -47,10 +62,12 @@ impl Aggregator {
         curr_state: Option<&[u8]>,
         old: &Field,
         new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+        return_type: FieldType,
+        txn: &mut PrefixTransaction,
+    ) -> Result<AggregationResult, PipelineError> {
         match &self {
-            Aggregator::Count => CountAggregator::update(curr_state, old, new),
-            Aggregator::Sum => SumAggregator::update(curr_state, old, new),
+            Aggregator::Count => CountAggregator::update(curr_state, old, new, return_type, txn),
+            Aggregator::Sum => SumAggregator::update(curr_state, old, new, return_type, txn),
         }
     }
 
@@ -58,17 +75,12 @@ impl Aggregator {
         &self,
         curr_state: Option<&[u8]>,
         old: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+        return_type: FieldType,
+        txn: &mut PrefixTransaction,
+    ) -> Result<AggregationResult, PipelineError> {
         match &self {
-            Aggregator::Count => CountAggregator::delete(curr_state, old),
-            Aggregator::Sum => SumAggregator::delete(curr_state, old),
-        }
-    }
-
-    pub(crate) fn get_value(&self, v: &[u8], from: FieldType) -> Field {
-        match &self {
-            Aggregator::Count => CountAggregator::get_value(v),
-            Aggregator::Sum => SumAggregator::get_value(v, from),
+            Aggregator::Count => CountAggregator::delete(curr_state, old, return_type, txn),
+            Aggregator::Sum => SumAggregator::delete(curr_state, old, return_type, txn),
         }
     }
 }

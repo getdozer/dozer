@@ -1,4 +1,6 @@
+use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
+use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::Field::Int;
 use dozer_types::types::{Field, FieldType};
 
@@ -18,38 +20,56 @@ impl CountAggregator {
     pub(crate) fn insert(
         curr_state: Option<&[u8]>,
         _new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+        _return_type: FieldType,
+        _txn: &mut PrefixTransaction,
+    ) -> Result<AggregationResult, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
         };
 
-        Ok(Vec::from((prev + 1).to_ne_bytes()))
+        let buf = (prev + 1).to_ne_bytes();
+        Ok(AggregationResult::new(
+            Self::get_value(&buf),
+            Some(Vec::from(buf)),
+        ))
     }
 
     pub(crate) fn update(
         curr_state: Option<&[u8]>,
         _old: &Field,
         _new: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+        _return_type: FieldType,
+        _txn: &mut PrefixTransaction,
+    ) -> Result<AggregationResult, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
         };
 
-        Ok(Vec::from((prev).to_ne_bytes()))
+        let buf = (prev).to_ne_bytes();
+        Ok(AggregationResult::new(
+            Self::get_value(&buf),
+            Some(Vec::from(buf)),
+        ))
     }
 
     pub(crate) fn delete(
         curr_state: Option<&[u8]>,
         _old: &Field,
-    ) -> Result<Vec<u8>, PipelineError> {
+        _return_type: FieldType,
+        _txn: &mut PrefixTransaction,
+    ) -> Result<AggregationResult, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
             None => 0_i64,
         };
 
-        Ok(Vec::from((prev - 1).to_ne_bytes()))
+        let buf = (prev - 1).to_ne_bytes();
+        Ok(AggregationResult::new(
+            Self::get_value(&buf),
+            Some(Vec::from(buf)),
+        ))
     }
 
     pub(crate) fn get_value(f: &[u8]) -> Field {
