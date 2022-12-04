@@ -18,7 +18,7 @@ fn test_avg_aggregation_float() {
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
     )
-        .unwrap();
+    .unwrap();
 
     let schema = Schema::empty()
         .field(
@@ -428,7 +428,7 @@ fn test_avg_aggregation_int() {
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
     )
-        .unwrap();
+    .unwrap();
 
     let schema = Schema::empty()
         .field(
@@ -489,10 +489,7 @@ fn test_avg_aggregation_int() {
     let exp = vec![Operation::Insert {
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);
@@ -526,17 +523,11 @@ fn test_avg_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);
@@ -575,10 +566,7 @@ fn test_avg_aggregation_int() {
     let exp = vec![Operation::Insert {
         new: Record::new(
             None,
-            vec![
-                Field::String("Singapore".to_string()),
-                Field::Int(50),
-            ],
+            vec![Field::String("Singapore".to_string()), Field::Int(50)],
         ),
     }];
     assert_eq!(out, exp);

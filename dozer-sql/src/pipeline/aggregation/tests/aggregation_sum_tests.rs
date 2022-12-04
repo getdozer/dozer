@@ -428,7 +428,7 @@ fn test_sum_aggregation_int() {
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
     )
-        .unwrap();
+    .unwrap();
 
     let schema = Schema::empty()
         .field(
@@ -489,10 +489,7 @@ fn test_sum_aggregation_int() {
     let exp = vec![Operation::Insert {
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);
@@ -527,17 +524,11 @@ fn test_sum_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(200),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(200)],
         ),
     }];
     assert_eq!(out, exp);
@@ -576,10 +567,7 @@ fn test_sum_aggregation_int() {
     let exp = vec![Operation::Insert {
         new: Record::new(
             None,
-            vec![
-                Field::String("Singapore".to_string()),
-                Field::Int(50),
-            ],
+            vec![Field::String("Singapore".to_string()), Field::Int(50)],
         ),
     }];
     assert_eq!(out, exp);
@@ -625,26 +613,17 @@ fn test_sum_aggregation_int() {
         Operation::Delete {
             old: Record::new(
                 None,
-                vec![
-                    Field::String("Singapore".to_string()),
-                    Field::Int(50),
-                ],
+                vec![Field::String("Singapore".to_string()), Field::Int(50)],
             ),
         },
         Operation::Update {
             old: Record::new(
                 None,
-                vec![
-                    Field::String("Italy".to_string()),
-                    Field::Int(200),
-                ],
+                vec![Field::String("Italy".to_string()), Field::Int(200)],
             ),
             new: Record::new(
                 None,
-                vec![
-                    Field::String("Italy".to_string()),
-                    Field::Int(250),
-                ],
+                vec![Field::String("Italy".to_string()), Field::Int(250)],
             ),
         },
     ];
@@ -690,17 +669,11 @@ fn test_sum_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(250),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(250)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(350),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(350)],
         ),
     }];
     assert_eq!(out, exp);
@@ -735,17 +708,11 @@ fn test_sum_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(350),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(350)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(150),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(150)],
         ),
     }];
     assert_eq!(out, exp);
@@ -779,17 +746,11 @@ fn test_sum_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(150),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(150)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);
@@ -822,12 +783,8 @@ fn test_sum_aggregation_int() {
     let exp = vec![Operation::Delete {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);
 }
-
