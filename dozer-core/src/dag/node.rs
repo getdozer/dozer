@@ -54,7 +54,6 @@ pub trait SourceFactory: Send + Sync {
 }
 
 pub trait Source {
-    fn get_output_schema(&self, port: PortHandle) -> Option<Schema>;
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -75,11 +74,6 @@ pub trait ProcessorFactory: Send + Sync {
 
 pub trait Processor {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
-    fn update_schema(
-        &mut self,
-        output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError>;
     fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
@@ -102,10 +96,6 @@ pub trait SinkFactory: Send + Sync {
 }
 
 pub trait Sink {
-    fn update_schema(
-        &mut self,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<(), ExecutionError>;
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
     fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError>;
     fn process(

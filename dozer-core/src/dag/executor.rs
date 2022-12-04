@@ -4,23 +4,35 @@ use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager, METADATA_DB_NAME
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InternalError, InvalidNodeHandle};
-use crate::dag::node::{NodeHandle, PortHandle, SourceFactory};
+use crate::dag::executor_utils::{
+    build_receivers_lists, create_ports_databases, fill_ports_record_readers, index_edges,
+    init_component, init_select, map_to_op,
+};
+use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
+use crate::dag::node::{
+    NodeHandle, OutputPortDef, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
+};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-use crossbeam::channel::{bounded, Receiver, Sender};
+use crate::storage::transactions::SharedTransaction;
+use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
+use log::{info, warn};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::ops::Add;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+#[derive(Clone)]
 pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
@@ -35,6 +47,12 @@ impl ExecutorOptions {
             commit_time_threshold: Duration::from_secs(30),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum InputPortState {
+    Open,
+    Terminated,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,9 +135,35 @@ pub struct DagExecutor<'a> {
     join_handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>,
     path: PathBuf,
     options: ExecutorOptions,
+    stop_req: Arc<AtomicBool>,
 }
 
 impl<'a> DagExecutor<'a> {
+    pub fn new(
+        dag: &'a Dag,
+        path: &Path,
+        options: ExecutorOptions,
+    ) -> Result<Self, ExecutionError> {
+        //
+        let schemas = Self::load_or_init_schema(dag, path)?;
+        Ok(Self {
+            dag,
+            schemas,
+            term_barrier: Arc::new(Barrier::new(0)),
+            start_latch: Arc::new(CountDownLatch::new(0)),
+            record_stores: Arc::new(RwLock::new(
+                dag.nodes
+                    .iter()
+                    .map(|e| (e.0.clone(), HashMap::<PortHandle, RecordReader>::new()))
+                    .collect(),
+            )),
+            path: path.to_path_buf(),
+            join_handles: HashMap::new(),
+            options: options,
+            stop_req: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
     fn validate_schemas(
         current: &NodeSchemas,
         existing: &DagMetadata,
@@ -179,30 +223,6 @@ impl<'a> DagExecutor<'a> {
                 Ok(schema_manager.get_all_schemas().clone())
             }
         }
-    }
-
-    pub fn new(
-        dag: &'a Dag,
-        path: &Path,
-        options: ExecutorOptions,
-    ) -> Result<Self, ExecutionError> {
-        //
-        let schemas = Self::load_or_init_schema(dag, path)?;
-        Ok(Self {
-            dag,
-            schemas,
-            term_barrier: Arc::new(Barrier::new(0)),
-            start_latch: Arc::new(CountDownLatch::new(0)),
-            record_stores: Arc::new(RwLock::new(
-                dag.nodes
-                    .iter()
-                    .map(|e| (e.0.clone(), HashMap::<PortHandle, RecordReader>::new()))
-                    .collect(),
-            )),
-            path: path.to_path_buf(),
-            join_handles: HashMap::new(),
-            options: options,
-        })
     }
 
     fn create_channels(
@@ -270,25 +290,14 @@ impl<'a> DagExecutor<'a> {
         (senders, receivers)
     }
 
-    fn init_node_storage<F>(
-        &self,
-        node_handle: &NodeHandle,
-        mut init_f: F,
-    ) -> Result<StorageMetadata, ExecutionError>
-    where
-        F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
-    {
-        let mut env = LmdbEnvironmentManager::create(self.path.as_path(), node_handle.as_str())?;
-        let db = env.open_database(METADATA_DB_NAME, false)?;
-        init_f(env.as_environment())?;
-        Ok(StorageMetadata::new(env, db))
-    }
-
     fn start_source(
         &self,
         handle: NodeHandle,
         src_factory: Arc<dyn SourceFactory>,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
+        //
+        //
         let mut internal_receivers: Vec<Receiver<ExecutorOperation>> = Vec::new();
         let mut internal_senders: HashMap<PortHandle, Sender<ExecutorOperation>> = HashMap::new();
 
@@ -298,32 +307,318 @@ impl<'a> DagExecutor<'a> {
             internal_senders.insert(port.handle, channels.0);
         }
 
+        let st_src_factory = src_factory.clone();
         let mut fw = InternalChannelSourceForwarder::new(internal_senders);
         thread::spawn(move || -> Result<(), ExecutionError> {
-            let src = src_factory.build();
+            let src = st_src_factory.build();
             src.start(&mut fw, None)
         });
 
-        let listener_handle = handle.clone();
-        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
-            //  let _output_schemas = HashMap::<PortHandle, Schema>::new();
-            //  let mut state_meta = self.init_node_storage(&handle, |_e| Ok(()))?;
-            //
-            //         let port_databases =
-            //             create_ports_databases(state_meta.env.as_environment(), &output_ports)?;
-            //
-            //         let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-            //             Arc::new(RwLock::new(state_meta.env.create_txn()?));
-            //
+        let lt_handle = handle.clone();
+        let lt_path = self.path.clone();
+        let lt_output_ports = src_factory.get_output_ports();
+        let lt_edges = self.dag.edges.clone();
+        let lt_record_stores = self.record_stores.clone();
+        let lt_executor_options = self.options.clone();
+        let lt_stop_req = self.stop_req.clone();
+        let lt_term_barrier = self.term_barrier.clone();
 
+        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
+            let _output_schemas = HashMap::<PortHandle, Schema>::new();
+            let mut state_meta = init_component(&handle, lt_path.as_path(), |_e| Ok(()))?;
+
+            let port_databases =
+                create_ports_databases(state_meta.env.as_environment(), &lt_output_ports)?;
+
+            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+
+            fill_ports_record_readers(
+                &handle,
+                &lt_edges,
+                &port_databases,
+                &master_tx,
+                &lt_record_stores,
+                &lt_output_ports,
+            );
+
+            let mut dag_fw = LocalChannelForwarder::new_source_forwarder(
+                handle,
+                senders,
+                lt_executor_options.commit_sz,
+                lt_executor_options.commit_time_threshold,
+                StateWriter::new(state_meta.meta_db, port_databases, master_tx.clone(), None),
+                true,
+            );
+            let mut sel = init_select(&internal_receivers);
+            loop {
+                let port_index = sel.ready();
+                let r = internal_receivers[port_index]
+                    .recv_deadline(Instant::now().add(Duration::from_millis(500)));
+
+                if lt_stop_req.load(Ordering::Relaxed) {
+                    info!("[{}] Stop requested...", lt_handle);
+                    dag_fw.terminate()?;
+                }
+
+                match r {
+                    Err(RecvTimeoutError::Timeout) => dag_fw.trigger_commit_if_needed()?,
+                    Err(RecvTimeoutError::Disconnected) => {
+                        warn!("[{}] Source exited. Shutting down...", lt_handle);
+                        break;
+                    }
+                    Ok(ExecutorOperation::Insert { seq, new }) => dag_fw.send(
+                        seq,
+                        Operation::Insert { new },
+                        lt_output_ports[port_index].handle,
+                    )?,
+                    Ok(ExecutorOperation::Delete { seq, old }) => dag_fw.send(
+                        seq,
+                        Operation::Delete { old },
+                        lt_output_ports[port_index].handle,
+                    )?,
+                    Ok(ExecutorOperation::Update { seq, old, new }) => dag_fw.send(
+                        seq,
+                        Operation::Update { old, new },
+                        lt_output_ports[port_index].handle,
+                    )?,
+                    Ok(ExecutorOperation::Terminate) => {
+                        dag_fw.terminate()?;
+                        lt_term_barrier.wait();
+                        break;
+                    }
+                    _ => {}
+                }
+            }
             Ok(())
         }))
     }
 
-    pub fn start(&self) -> Result<(), ExecutionError> {
-        let (mut senders, mut receivers) = self.create_channels();
+    pub fn start_processor(
+        &self,
+        handle: NodeHandle,
+        proc_factory: Arc<dyn ProcessorFactory>,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+    ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
+        //
+        let lt_path = self.path.clone();
+        let lt_output_ports = proc_factory.get_output_ports();
+        let lt_edges = self.dag.edges.clone();
+        let lt_record_stores = self.record_stores.clone();
+        let lt_start_latch = self.start_latch.clone();
 
-        for source in self.dag.get_sources() {}
+        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
+            let mut proc = proc_factory.build();
+            let mut state_meta = init_component(&handle, lt_path.as_path(), |e| proc.init(e))?;
+
+            let port_databases = create_ports_databases(
+                state_meta.env.as_environment(),
+                &proc_factory.get_output_ports(),
+            )?;
+
+            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+
+            fill_ports_record_readers(
+                &handle,
+                &lt_edges,
+                &port_databases,
+                &master_tx,
+                &lt_record_stores,
+                &lt_output_ports,
+            );
+
+            let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
+            let mut fw = LocalChannelForwarder::new_processor_forwarder(
+                handle.clone(),
+                senders,
+                StateWriter::new(
+                    state_meta.meta_db,
+                    port_databases,
+                    master_tx.clone(),
+                    Some(proc_factory.get_input_ports()),
+                ),
+                true,
+            );
+
+            lt_start_latch.countdown();
+
+            let mut port_states: Vec<InputPortState> =
+                handles_ls.iter().map(|_h| InputPortState::Open).collect();
+
+            let mut sel = init_select(&receivers_ls);
+            loop {
+                let index = sel.ready();
+                let op = receivers_ls[index]
+                    .recv()
+                    .map_err(|e| ExecutionError::ProcessorReceiverError(index, Box::new(e)))?;
+
+                match op {
+                    ExecutorOperation::Terminate => {
+                        port_states[index] = InputPortState::Terminated;
+                        info!(
+                            "[{}] Received Terminate request on port {}",
+                            handle, &handles_ls[index]
+                        );
+                        if port_states.iter().all(|v| v == &InputPortState::Terminated) {
+                            fw.send_term_and_wait()?;
+                            return Ok(());
+                        }
+                    }
+
+                    ExecutorOperation::Commit { epoch, source } => {
+                        proc.commit(&mut SharedTransaction::new(&master_tx))?;
+                        fw.store_and_send_commit(source, epoch)?;
+                    }
+
+                    _ => {
+                        let guard = lt_record_stores.read();
+                        let reader = guard
+                            .get(&handle)
+                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+
+                        let data_op = map_to_op(op)?;
+                        fw.update_seq_no(data_op.0);
+
+                        proc.process(
+                            handles_ls[index],
+                            data_op.1,
+                            &mut fw,
+                            &mut SharedTransaction::new(&master_tx),
+                            reader,
+                        )?;
+                    }
+                }
+            }
+        }))
+    }
+
+    pub fn start_sink(
+        &self,
+        handle: NodeHandle,
+        snk_factory: Arc<dyn SinkFactory>,
+        receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+    ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
+        //
+
+        let lt_path = self.path.clone();
+        let lt_record_stores = self.record_stores.clone();
+        let lt_start_latch = self.start_latch.clone();
+
+        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
+            let mut snk = snk_factory.build();
+            let mut state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
+
+            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
+                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+
+            let mut state_writer = StateWriter::new(
+                state_meta.meta_db,
+                HashMap::new(),
+                master_tx.clone(),
+                Some(snk_factory.get_input_ports()),
+            );
+
+            let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
+            lt_start_latch.countdown();
+
+            let mut sel = init_select(&receivers_ls);
+            loop {
+                let index = sel.ready();
+                let op = receivers_ls[index]
+                    .recv()
+                    .map_err(|e| ExecutionError::SinkReceiverError(index, Box::new(e)))?;
+
+                match op {
+                    ExecutorOperation::Terminate => {
+                        info!("[{}] Terminating: Exiting message loop", handle);
+                        return Ok(());
+                    }
+                    ExecutorOperation::Commit { epoch, source } => {
+                        snk.commit(&mut SharedTransaction::new(&master_tx))?;
+                        state_writer.store_commit_info(&source, epoch)?
+                    }
+
+                    _ => {
+                        let data_op = map_to_op(op)?;
+
+                        let guard = lt_record_stores.read();
+                        let reader = guard
+                            .get(&handle)
+                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+
+                        snk.process(
+                            handles_ls[index],
+                            data_op.0,
+                            data_op.1,
+                            &mut SharedTransaction::new(&master_tx),
+                            reader,
+                        )?;
+                    }
+                }
+            }
+        }))
+    }
+
+    pub fn start(&mut self) -> Result<(), ExecutionError> {
+        let (mut senders, mut receivers) = index_edges(&dag, self.options.channel_buffer_sz);
+
+        for (handle, factory) in self.dag.get_sinks() {
+            let join_handle = self.start_sink(
+                handle,
+                factory.clone(),
+                receivers
+                    .remove(&handle)
+                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+            )?;
+            self.join_handles.insert(handle.clone(), join_handle);
+        }
+
+        for (handle, factory) in self.dag.get_processors() {
+            let join_handle = self.start_processor(
+                handle,
+                factory.clone(),
+                senders
+                    .remove(&handle)
+                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                receivers
+                    .remove(&handle)
+                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+            )?;
+            self.join_handles.insert(handle.clone(), join_handle);
+        }
+
+        self.start_latch.wait();
+
+        for (handle, factory) in self.dag.get_sources() {
+            let join_handle = self.start_source(
+                handle,
+                factory.clone(),
+                senders
+                    .remove(&handle)
+                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+            )?;
+            self.join_handles.insert(handle.clone(), join_handle);
+        }
         Ok(())
+    }
+
+    pub fn stop(&self) {
+        self.stop_req.store(true, Ordering::Relaxed);
+    }
+
+    pub fn join(&self) -> Result<(), HashMap<NodeHandle, ExecutionError>> {
+        let mut results: HashMap<NodeHandle, ExecutionError> = HashMap::new();
+        for (handle, thread) in self.join_handles {
+            let r = t.1.join().unwrap();
+            if let Err(e) = r {
+                results.insert(t.0, e);
+            }
+        }
+        match results.is_empty() {
+            true => Ok(()),
+            false => Err(results),
+        }
     }
 }

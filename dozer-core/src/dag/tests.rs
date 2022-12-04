@@ -1,6 +1,10 @@
 #[cfg(test)]
 mod checkpoint;
 #[cfg(test)]
+mod common;
+#[cfg(test)]
+mod dag_base_run;
+#[cfg(test)]
 mod dag_ports;
 #[cfg(test)]
 mod dag_recordreader;
