@@ -1,4 +1,4 @@
-use crate::pipeline::aggregation::processor::{AggregationProcessor};
+use crate::pipeline::aggregation::processor::AggregationProcessor;
 use dozer_types::types::Field;
 
 macro_rules! chk {
