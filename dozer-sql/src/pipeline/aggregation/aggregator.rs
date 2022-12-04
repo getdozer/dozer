@@ -1,7 +1,7 @@
 use crate::pipeline::aggregation::count::CountAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
-use dozer_core::storage::common::RwTransaction;
+
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};

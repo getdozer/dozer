@@ -20,8 +20,8 @@ impl CountAggregator {
     pub(crate) fn insert(
         curr_state: Option<&[u8]>,
         _new: &Field,
-        return_type: FieldType,
-        txn: &mut PrefixTransaction,
+        _return_type: FieldType,
+        _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
@@ -39,8 +39,8 @@ impl CountAggregator {
         curr_state: Option<&[u8]>,
         _old: &Field,
         _new: &Field,
-        return_type: FieldType,
-        txn: &mut PrefixTransaction,
+        _return_type: FieldType,
+        _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),
@@ -57,8 +57,8 @@ impl CountAggregator {
     pub(crate) fn delete(
         curr_state: Option<&[u8]>,
         _old: &Field,
-        return_type: FieldType,
-        txn: &mut PrefixTransaction,
+        _return_type: FieldType,
+        _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         let prev = match curr_state {
             Some(v) => i64::from_ne_bytes(v.try_into().unwrap()),

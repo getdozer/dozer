@@ -98,7 +98,7 @@ fn test_simple_aggregation() {
         .aggregate(
             &mut SharedTransaction::new(&tx),
             &processor.db.clone().unwrap(),
-            inp.clone(),
+            inp,
         )
         .unwrap_or_else(|_e| panic!("Error executing aggregate"));
 

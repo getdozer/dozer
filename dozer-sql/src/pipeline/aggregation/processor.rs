@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
@@ -52,7 +53,7 @@ pub enum FieldRule {
     ),
 }
 
-const COUNTER_KEY: u8 = 01_u8;
+const COUNTER_KEY: u8 = 1_u8;
 
 pub(crate) struct AggregationData<'a> {
     pub value: Field,
@@ -345,9 +346,7 @@ impl AggregationProcessor {
         Ok(curr_ctr + 1)
     }
 
-    pub(crate) fn decode_buffer<'a>(
-        buf: &'a [u8],
-    ) -> Result<(usize, AggregationData<'a>), PipelineError> {
+    pub(crate) fn decode_buffer(buf: &[u8]) -> Result<(usize, AggregationData), PipelineError> {
         let prefix = u32::from_be_bytes(buf[0..4].try_into().unwrap());
         let mut offset: usize = 4;
 
@@ -385,13 +384,13 @@ impl AggregationProcessor {
         let len = if let Some(state) = state.as_ref() {
             r.extend((state.len() as u16).to_be_bytes());
             r.extend(state);
-            (state.len()).clone()
+            state.len()
         } else {
             r.extend(0_u16.to_be_bytes());
-            0 as usize
+            0_usize
         };
 
-        Ok((5 + sz_val.len().clone() as usize + len, r))
+        Ok((5 + sz_val.len() as usize + len, r))
     }
 
     fn calc_and_fill_measures(

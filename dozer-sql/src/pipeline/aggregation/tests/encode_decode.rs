@@ -1,4 +1,4 @@
-use crate::pipeline::aggregation::processor::{AggregationData, AggregationProcessor};
+use crate::pipeline::aggregation::processor::{AggregationProcessor};
 use dozer_types::types::Field;
 
 macro_rules! chk {
@@ -14,7 +14,7 @@ fn encode_decode_buffer() {
     let prefix_0 = 100_u32;
     let field_0 = Field::Int(100);
     let state_0: Option<Vec<u8>> = Some(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    let (mut sz, mut buf) = chk!(AggregationProcessor::encode_buffer(
+    let (_sz, mut buf) = chk!(AggregationProcessor::encode_buffer(
         prefix_0, &field_0, &state_0
     ));
 
@@ -33,7 +33,7 @@ fn encode_decode_buffer() {
     assert_eq!(data.value, field_0);
     assert_eq!(data.prefix, prefix_0);
 
-    let (sz, data) = chk!(AggregationProcessor::decode_buffer(&buf[sz..]));
+    let (_sz, data) = chk!(AggregationProcessor::decode_buffer(&buf[sz..]));
 
     assert_eq!(&data.state.unwrap(), &state_1.unwrap().as_slice());
     assert_eq!(data.value, field_1);
