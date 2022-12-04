@@ -715,8 +715,8 @@ impl AggregationProcessor {
                     Ok(vec![self.agg_update(txn, db, old, new, old_record_hash)?])
                 } else {
                     Ok(vec![
-                        self.agg_delete(txn, db, old)?,
                         self.agg_insert(txn, db, new)?,
+                        self.agg_delete(txn, db, old)?,
                     ])
                 }
             }
