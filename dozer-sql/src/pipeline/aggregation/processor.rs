@@ -225,8 +225,10 @@ impl AggregationProcessor {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
                     (AggregateFunctionType::Avg, _) => Ok(Aggregator::Avg),
-                    (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                     (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
+                    (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
+                    (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
+                    (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                     _ => Err(PipelineError::InvalidExpression(format!(
                         "Not implemented Aggregation function: {:?}",
                         fun
@@ -418,12 +420,121 @@ impl AggregationProcessor {
                 None => None,
             };
 
-            // Let the aggregator calculate the new value based on the performed operation
+            // // Let the aggregator calculate the new value based on the performed operation
+            // let prefix = self.get_counter(txn)?;
+            // if let Some(curr) = curr_agg_data {
+            //     let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
+            //     let (prefix, next_state_slice) = match op {
+            //
+            //     };
+            // } else {
+            //     let (prefix, next_state_slice) = match op {
+            //
+            //     };
+            // }
+            //
+            //
+            // let (prefix, next_state_slice) = match op {
+            //     AggregatorOperation::Insert => {
+            //         println!("\nINSERT");
+            //         let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
+            //         if let Some(curr) = curr_agg_data {
+            //             out_rec_delete.set_value(measure.2, curr.value);
+            //             println!("\ncurr.prefix {}", curr.prefix);
+            //             let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
+            //             let r = measure.1.insert(
+            //                 curr.state,
+            //                 inserted_field,
+            //                 inserted_field.get_type()?,
+            //                 &mut p_tx,
+            //                 self.aggregators_db.as_ref().unwrap(),
+            //             )?;
+            //             (curr.prefix, r)
+            //         } else {
+            //             let prefix = self.get_counter(txn)?;
+            //             println!("\nprefix {}", prefix);
+            //             let mut p_tx = PrefixTransaction::new(txn, prefix);
+            //             let r = measure.1.insert(
+            //                 None,
+            //                 inserted_field,
+            //                 inserted_field.get_type()?,
+            //                 &mut p_tx,
+            //                 self.aggregators_db.as_ref().unwrap(),
+            //             )?;
+            //             (prefix, r)
+            //         }
+            //     }
+            //     AggregatorOperation::Delete => {
+            //         println!("\nDELETE");
+            //         let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
+            //         if let Some(curr) = curr_agg_data {
+            //             out_rec_delete.set_value(measure.2, curr.value);
+            //             println!("\ncurr.prefix {}", curr.prefix);
+            //             let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
+            //             let r = measure.1.delete(
+            //                 curr.state,
+            //                 deleted_field,
+            //                 deleted_field.get_type()?,
+            //                 &mut p_tx,
+            //                 self.aggregators_db.as_ref().unwrap(),
+            //             )?;
+            //             (curr.prefix, r)
+            //         } else {
+            //             let prefix = self.get_counter(txn)?;
+            //             println!("\nprefix {}", prefix);
+            //             let mut p_tx = PrefixTransaction::new(txn, prefix);
+            //             let r = measure.1.delete(
+            //                 None,
+            //                 deleted_field,
+            //                 deleted_field.get_type()?,
+            //                 &mut p_tx,
+            //                 self.aggregators_db.as_ref().unwrap(),
+            //             )?;
+            //             (prefix, r)
+            //         }
+            //     }
+            //     AggregatorOperation::Update => {
+            //         println!("\nUPDATE");
+            //         let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
+            //         let updated_field = inserted_record.unwrap().get_value(measure.0)?;
+            //
+            //         if let Some(curr) = curr_agg_data {
+            //             out_rec_delete.set_value(measure.2, curr.value);
+            //             println!("\ncurr.prefix {}", curr.prefix);
+            //             let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
+            //             let r = measure.1.update(
+            //                 curr.state,
+            //                 deleted_field,
+            //                 updated_field,
+            //                 deleted_field.get_type()?,
+            //                 &mut p_tx,
+            //                 self.aggregators_db.as_ref().unwrap(),
+            //             )?;
+            //             (curr.prefix, r)
+            //         } else {
+            //             let prefix = self.get_counter(txn)?;
+            //             println!("\nprefix {}", prefix);
+            //             let mut p_tx = PrefixTransaction::new(txn, prefix);
+            //             let r = measure.1.update(
+            //                 None,
+            //                 deleted_field,
+            //                 updated_field,
+            //                 deleted_field.get_type()?,
+            //                 &mut p_tx,
+            //                 self.aggregators_db.as_ref().unwrap(),
+            //             )?;
+            //             (prefix, r)
+            //         }
+            //     }
+            // };
+
             let (prefix, next_state_slice) = match op {
                 AggregatorOperation::Insert => {
+                    println!("\nINSERT");
                     let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
+                        println!("\ncurr.prefix {}", curr.prefix);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.insert(
                             curr.state,
@@ -435,6 +546,7 @@ impl AggregationProcessor {
                         (curr.prefix, r)
                     } else {
                         let prefix = self.get_counter(txn)?;
+                        println!("\nprefix {}", prefix);
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.insert(
                             None,
@@ -447,9 +559,11 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Delete => {
+                    println!("\nDELETE");
                     let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
+                        println!("\ncurr.prefix {}", curr.prefix);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.delete(
                             curr.state,
@@ -461,6 +575,7 @@ impl AggregationProcessor {
                         (curr.prefix, r)
                     } else {
                         let prefix = self.get_counter(txn)?;
+                        println!("\nprefix {}", prefix);
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.delete(
                             None,
@@ -473,11 +588,13 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Update => {
+                    println!("\nUPDATE");
                     let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
                     let updated_field = inserted_record.unwrap().get_value(measure.0)?;
 
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
+                        println!("\ncurr.prefix {}", curr.prefix);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.update(
                             curr.state,
@@ -490,6 +607,7 @@ impl AggregationProcessor {
                         (curr.prefix, r)
                     } else {
                         let prefix = self.get_counter(txn)?;
+                        println!("\nprefix {}", prefix);
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.update(
                             None,

@@ -1,9 +1,8 @@
+use std::cmp::max;
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use crate::{
-    check_nan_f64, deserialize_u8, field_extract_f64, field_extract_i64, to_bytes, try_unwrap,
-};
+use crate::{deserialize_u8, field_extract_f64, field_extract_i64, to_bytes, try_unwrap};
 
 use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
@@ -12,22 +11,22 @@ use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
 use std::string::ToString;
 
-pub struct AvgAggregator {}
-const AGGREGATOR_NAME: &str = "AVG";
+pub struct MaxAggregator {}
+const AGGREGATOR_NAME: &str = "MAX";
 
-impl AvgAggregator {
+impl MaxAggregator {
     const _AGGREGATOR_ID: u32 = 0x03;
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
-            FieldType::Int => FieldType::Int,
-            FieldType::Float => FieldType::Float,
+            FieldType::Int => FieldType::Decimal,
+            FieldType::Float => FieldType::Decimal,
             _ => from,
         }
     }
 
     pub(crate) fn _get_type() -> u32 {
-        AvgAggregator::_AGGREGATOR_ID
+        MaxAggregator::_AGGREGATOR_ID
     }
 
     pub(crate) fn insert(
@@ -44,10 +43,10 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_i64_max(ptx, aggregators_db)).to_ne_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
-                    Some(Vec::from(avg)),
+                    Self::get_value(&maximum, return_type),
+                    Some(Vec::from(maximum)),
                 ))
             }
             Float(_f) => {
@@ -57,10 +56,10 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_ne_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
-                    Some(Vec::from(avg)),
+                    Self::get_value(&maximum, return_type),
+                    Some(Vec::from(maximum)),
                 ))
             }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
@@ -84,10 +83,10 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = (try_unwrap!(Self::calc_i64_average(ptx, aggregators_db))).to_ne_bytes();
+                let maximum = (try_unwrap!(Self::calc_i64_max(ptx, aggregators_db))).to_ne_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
-                    Some(Vec::from(avg)),
+                    Self::get_value(&maximum, return_type),
+                    Some(Vec::from(maximum)),
                 ))
             }
             Float(_f) => {
@@ -100,10 +99,10 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_ne_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
-                    Some(Vec::from(avg)),
+                    Self::get_value(&maximum, return_type),
+                    Some(Vec::from(maximum)),
                 ))
             }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
@@ -124,10 +123,10 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_i64_max(ptx, aggregators_db)).to_ne_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
-                    Some(Vec::from(avg)),
+                    Self::get_value(&maximum, return_type),
+                    Some(Vec::from(maximum)),
                 ))
             }
             Float(_f) => {
@@ -137,10 +136,10 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_ne_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
-                    Some(Vec::from(avg)),
+                    Self::get_value(&maximum, return_type),
+                    Some(Vec::from(maximum)),
                 ))
             }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
@@ -175,53 +174,41 @@ impl AvgAggregator {
         ));
     }
 
-    fn calc_f64_average(
+    fn calc_f64_max(
         ptx: &mut PrefixTransaction,
         aggregators_db: &Database,
     ) -> Result<f64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
-        let mut total_count = 0_u8;
-        let mut total_sum = 0_f64;
+        let mut maximum = f64::MIN;
         let mut exist = ptx_cur.first()?;
 
         // Loop through aggregators_db to calculate average
         while exist {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
             let val = f64::from_ne_bytes((cur.0).try_into().unwrap());
-            let get_count = ptx.get(aggregators_db, cur.0);
-            if get_count.is_ok() {
-                let count = deserialize_u8!(try_unwrap!(get_count));
-                total_count += count;
-                println!("total_count {}", total_count);
-                total_sum += val * f64::from(count);
-                println!("total_sum {}", val * f64::from(count));
+            if maximum < val {
+                maximum = val
             }
             exist = ptx_cur.next()?;
         }
-        Ok(check_nan_f64!(total_sum / f64::from(total_count)))
+        Ok(maximum)
     }
 
-    fn calc_i64_average(
+    fn calc_i64_max(
         ptx: &mut PrefixTransaction,
         aggregators_db: &Database,
     ) -> Result<i64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
-        let mut total_count = 0_u8;
-        let mut total_sum = 0_i64;
+        let mut maximum = i64::MIN;
         let mut exist = ptx_cur.first()?;
 
         // Loop through aggregators_db to calculate average
         while exist {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
             let val = i64::from_ne_bytes((cur.0).try_into().unwrap());
-            let get_count = ptx.get(aggregators_db, cur.0);
-            if get_count.is_ok() {
-                let count = deserialize_u8!(try_unwrap!(get_count));
-                total_count += count;
-                total_sum += val * i64::from(count);
-            }
+            maximum = max(maximum, val);
             exist = ptx_cur.next()?;
         }
-        Ok(check_nan_f64!(total_sum as f64 / total_count as f64) as i64)
+        Ok(maximum)
     }
 }

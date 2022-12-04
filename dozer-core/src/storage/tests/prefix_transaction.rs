@@ -76,6 +76,17 @@ fn test_prefix_tx() {
     assert!(chk!(ptx1_cur.last()));
     assert_eq!(chk!(ptx1_cur.read()).unwrap().0, "b2".as_bytes());
 
+    let ptx1_cur_1 = chk!(ptx1.open_cursor(&db));
+
+    assert!(chk!(ptx1_cur_1.seek_gte("b1".as_bytes())));
+    assert_eq!(chk!(ptx1_cur_1.read()).unwrap().0, "b1".as_bytes());
+
+    assert!(chk!(ptx1_cur_1.first()));
+    assert_eq!(chk!(ptx1_cur_1.read()).unwrap().0, "b0".as_bytes());
+
+    assert!(chk!(ptx1_cur_1.last()));
+    assert_eq!(chk!(ptx1_cur_1.read()).unwrap().0, "b2".as_bytes());
+
     let ptx2_cur = chk!(ptx2.open_cursor(&db));
 
     assert!(chk!(ptx2_cur.seek_gte("c1".as_bytes())));

@@ -1,5 +1,7 @@
 use crate::pipeline::aggregation::avg::AvgAggregator;
 use crate::pipeline::aggregation::count::CountAggregator;
+use crate::pipeline::aggregation::max::MaxAggregator;
+use crate::pipeline::aggregation::min::MinAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
 
@@ -12,6 +14,8 @@ use std::fmt::{Display, Formatter};
 pub enum Aggregator {
     Avg,
     Count,
+    Max,
+    Min,
     Sum,
 }
 
@@ -37,6 +41,8 @@ impl Aggregator {
         match (&self, from) {
             (Aggregator::Avg, _) => AvgAggregator::get_return_type(from),
             (Aggregator::Count, _) => CountAggregator::get_return_type(),
+            (Aggregator::Max, from) => MaxAggregator::get_return_type(from),
+            (Aggregator::Min, from) => MinAggregator::get_return_type(from),
             (Aggregator::Sum, from) => SumAggregator::get_return_type(from),
         }
     }
@@ -45,6 +51,8 @@ impl Aggregator {
         match &self {
             Aggregator::Avg => AvgAggregator::_get_type(),
             Aggregator::Count => CountAggregator::_get_type(),
+            Aggregator::Max => MaxAggregator::_get_type(),
+            Aggregator::Min => MinAggregator::_get_type(),
             Aggregator::Sum => SumAggregator::_get_type(),
         }
     }
@@ -60,6 +68,8 @@ impl Aggregator {
         match &self {
             Aggregator::Avg => AvgAggregator::insert(cur_state, new, return_type, txn, agg_db),
             Aggregator::Count => CountAggregator::insert(cur_state, new, return_type, txn),
+            Aggregator::Max => MaxAggregator::insert(cur_state, new, return_type, txn, agg_db),
+            Aggregator::Min => MinAggregator::insert(cur_state, new, return_type, txn, agg_db),
             Aggregator::Sum => SumAggregator::insert(cur_state, new, return_type, txn),
         }
     }
@@ -76,6 +86,8 @@ impl Aggregator {
         match &self {
             Aggregator::Avg => AvgAggregator::update(cur_state, old, new, return_type, txn, agg_db),
             Aggregator::Count => CountAggregator::update(cur_state, old, new, return_type, txn),
+            Aggregator::Max => MaxAggregator::update(cur_state, old, new, return_type, txn, agg_db),
+            Aggregator::Min => MinAggregator::update(cur_state, old, new, return_type, txn, agg_db),
             Aggregator::Sum => SumAggregator::update(cur_state, old, new, return_type, txn),
         }
     }
@@ -91,6 +103,8 @@ impl Aggregator {
         match &self {
             Aggregator::Avg => AvgAggregator::delete(cur_state, old, return_type, txn, agg_db),
             Aggregator::Count => CountAggregator::delete(cur_state, old, return_type, txn),
+            Aggregator::Max => MaxAggregator::delete(cur_state, old, return_type, txn, agg_db),
+            Aggregator::Min => MinAggregator::delete(cur_state, old, return_type, txn, agg_db),
             Aggregator::Sum => SumAggregator::delete(cur_state, old, return_type, txn),
         }
     }
