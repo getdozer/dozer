@@ -224,7 +224,7 @@ impl AggregationProcessor {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
                     (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
-                    // (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
+                    (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
                     _ => Err(PipelineError::InvalidExpression(format!(
                         "Not implemented Aggreagation function: {:?}",
                         fun
