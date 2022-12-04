@@ -9,35 +9,33 @@ macro_rules! chk {
 
 #[test]
 fn encode_decode_buffer() {
-    let field = Field::Int(100);
-    let state: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+    //
+    //
+    let prefix_0 = 100_u32;
+    let field_0 = Field::Int(100);
+    let state_0: Option<Vec<u8>> = Some(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    let (mut sz, mut buf) = chk!(AggregationProcessor::encode_buffer(
+        prefix_0, &field_0, &state_0
+    ));
 
-    let (mut sz, mut buf) = chk!(AggregationProcessor::encode_embedded_state(&field, &state));
-    buf.extend(chk!(AggregationProcessor::encode_embedded_state(&field, &state)).1);
+    let prefix_1 = 200_u32;
+    let field_1 = Field::Int(200);
+    let state_1: Option<Vec<u8>> = Some(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    buf.extend(
+        chk!(AggregationProcessor::encode_buffer(
+            prefix_1, &field_1, &state_1
+        ))
+        .1,
+    );
+    let (sz, data) = chk!(AggregationProcessor::decode_buffer(&buf));
 
-    let decoded = chk!(AggregationProcessor::decode_buffer(&buf));
+    assert_eq!(&data.state.unwrap(), &state_0.unwrap().as_slice());
+    assert_eq!(data.value, field_0);
+    assert_eq!(data.prefix, prefix_0);
 
-    match decoded.1 {
-        AggregationData::EmbeddedState {
-            curr_value,
-            curr_state,
-        } => {
-            assert_eq!(curr_state, state);
-            assert_eq!(curr_value, field);
-        }
-        AggregationData::KeyValueState { .. } => {}
-    }
+    let (sz, data) = chk!(AggregationProcessor::decode_buffer(&buf[sz..]));
 
-    let decoded = chk!(AggregationProcessor::decode_buffer(&buf[decoded.0..]));
-
-    match decoded.1 {
-        AggregationData::EmbeddedState {
-            curr_value,
-            curr_state,
-        } => {
-            assert_eq!(curr_state, state);
-            assert_eq!(curr_value, field);
-        }
-        AggregationData::KeyValueState { .. } => {}
-    }
+    assert_eq!(&data.state.unwrap(), &state_1.unwrap().as_slice());
+    assert_eq!(data.value, field_1);
+    assert_eq!(data.prefix, prefix_1);
 }

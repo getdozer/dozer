@@ -9,14 +9,15 @@ pub enum Aggregator {
     Sum,
 }
 
-pub enum AggregatorStoreType {
-    ByteArray,
-    Database,
+pub(crate) struct AggregationResult {
+    pub value: Field,
+    pub state: Option<Vec<u8>>,
 }
 
-pub enum AggregationResult {
-    ByteArray(Field, Vec<u8>),
-    Database(Field),
+impl AggregationResult {
+    pub fn new(value: Field, state: Option<Vec<u8>>) -> Self {
+        Self { value, state }
+    }
 }
 
 impl Display for Aggregator {
@@ -26,13 +27,6 @@ impl Display for Aggregator {
 }
 
 impl Aggregator {
-    pub(crate) fn get_store_type(&self) -> AggregatorStoreType {
-        match &self {
-            //   Aggregator::Count => CountAggregator::_get_type(),
-            Aggregator::Sum => SumAggregator::get_store_type(),
-        }
-    }
-
     pub(crate) fn get_return_type(&self, from: FieldType) -> FieldType {
         match (&self, from) {
             //   (Aggregator::Count, _) => CountAggregator::get_return_type(),
@@ -81,13 +75,6 @@ impl Aggregator {
         match &self {
             //   Aggregator::Count => CountAggregator::delete(curr_state, old, return_type),
             Aggregator::Sum => SumAggregator::delete(curr_state, old, return_type),
-        }
-    }
-
-    pub(crate) fn get_value(&self, v: &[u8], from: FieldType) -> Field {
-        match &self {
-            //   Aggregator::Count => CountAggregator::get_value(v),
-            Aggregator::Sum => SumAggregator::get_value(v, from),
         }
     }
 }

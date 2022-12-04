@@ -12,7 +12,6 @@ use dozer_core::dag::node::{
 use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
 
-use crate::pipeline::aggregation::aggregator::{AggregationResult, AggregatorStoreType};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
@@ -54,15 +53,20 @@ pub enum FieldRule {
 
 const COUNTER_KEY: u8 = 01_u8;
 
-pub enum AggregationData<'a> {
-    EmbeddedState {
-        curr_state: &'a [u8],
-        curr_value: Field,
-    },
-    KeyValueState {
-        id: u16,
-        curr_value: Field,
-    },
+pub(crate) struct AggregationData<'a> {
+    pub value: Field,
+    pub state: Option<&'a [u8]>,
+    pub prefix: u32,
+}
+
+impl<'a> AggregationData<'a> {
+    pub fn new(value: Field, state: Option<&'a [u8]>, prefix: u32) -> Self {
+        Self {
+            value,
+            state,
+            prefix,
+        }
+    }
 }
 
 pub struct AggregationProcessorFactory {
@@ -340,92 +344,11 @@ impl AggregationProcessor {
         Ok(curr_ctr + 1)
     }
 
-    // fn calc_and_fill_measures(
-    //     &self,
-    //     // This represents the current state for a series of aggregators and it is encoded
-    //     // with a leading uint16 representing the payload length, followe by the actual payload.
-    //     // For example, let's say we want to encode teh state of SUM(a), SUM(b). Sum's state is
-    //     // represented as a uint64. The byte buffer will be 20-bytes long and look like this:
-    //     // uint16(SUM(a) payload len), uint64(=SUM(a) state), uint16(SUM(b) payload len), uint64(=SUM(b) state)
-    //     txn: &mut dyn RwTransaction,
-    //     curr_state: &Option<Vec<u8>>,
-    //     deleted_record: Option<&Record>,
-    //     inserted_record: Option<&Record>,
-    //     out_rec_delete: &mut Record,
-    //     out_rec_insert: &mut Record,
-    //     op: AggregatorOperation,
-    // ) -> Result<Vec<u8>, PipelineError> {
-    //     // array holding the list of states for all measures
-    //     let mut next_state = Vec::<u8>::new();
-    //     let mut offset: usize = 0;
-    //
-    //     for measure in &self.out_measures {
-    //         let curr_id = match curr_state {
-    //             Some(ref e) => u16::from_ne_bytes(e[offset..offset + 2].try_into().unwrap()),
-    //             None => self.get_counter(txn),
-    //         };
-    //
-    //         let agg_type;
-    //
-    //         // Let the aggregator calculate the new value based on teh performed operation
-    //         let next_state_slice = match op {
-    //             AggregatorOperation::Insert => {
-    //                 let field = inserted_record.unwrap().get_value(measure.0)?;
-    //                 agg_type = field.get_type()?;
-    //                 if let Some(e) = curr_state_slice {
-    //                     // pass the current payload to the processor to extract the value
-    //                     let curr_value = measure.1.get_value(e, agg_type);
-    //                     // set the value for the old record
-    //                     out_rec_delete.set_value(measure.2, curr_value);
-    //                 }
-    //                 measure.1.insert(curr_state_slice, field)?
-    //             }
-    //             AggregatorOperation::Delete => {
-    //                 let field = deleted_record.unwrap().get_value(measure.0)?;
-    //                 agg_type = field.get_type()?;
-    //                 if let Some(e) = curr_state_slice {
-    //                     // pass the current payload to the processor to extract the value
-    //                     let curr_value = measure.1.get_value(e, agg_type);
-    //                     // set the value for the old record
-    //                     out_rec_delete.set_value(measure.2, curr_value);
-    //                 }
-    //                 measure.1.delete(curr_state_slice, field)?
-    //             }
-    //             AggregatorOperation::Update => {
-    //                 let old = deleted_record.unwrap().get_value(measure.0)?;
-    //                 let new = inserted_record.unwrap().get_value(measure.0)?;
-    //                 agg_type = old.get_type()?;
-    //                 if let Some(e) = curr_state_slice {
-    //                     // pass the current payload to the processor to extract the value
-    //                     let curr_value = measure.1.get_value(e, agg_type);
-    //                     // set the value for the old record
-    //                     out_rec_delete.set_value(measure.2, curr_value);
-    //                 }
-    //                 measure.1.update(curr_state_slice, old, new)?
-    //             }
-    //         };
-    //
-    //         // append the new state to array
-    //         next_state.extend((next_state_slice.len() as u16).to_ne_bytes());
-    //         offset += 2;
-    //
-    //         if !next_state_slice.is_empty() {
-    //             let next_value = measure.1.get_value(next_state_slice.as_slice(), agg_type);
-    //             next_state.extend(next_state_slice);
-    //             out_rec_insert.set_value(measure.2, next_value);
-    //         } else {
-    //             out_rec_insert.set_value(measure.2, Field::Null);
-    //         }
-    //     }
-    //
-    //     Ok(next_state)
-    // }
-
     pub(crate) fn decode_buffer<'a>(
         buf: &'a [u8],
     ) -> Result<(usize, AggregationData<'a>), PipelineError> {
-        let typ = u8::from_be_bytes(buf[0..1].try_into().unwrap());
-        let mut offset: usize = 1;
+        let prefix = u32::from_be_bytes(buf[0..4].try_into().unwrap());
+        let mut offset: usize = 4;
 
         let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
@@ -435,45 +358,43 @@ impl AggregationProcessor {
         offset += val_len as usize;
         let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
-        let state = &buf[offset..offset + state_len as usize];
+        let state: Option<&[u8]> = if state_len > 0 {
+            Some(&buf[offset..offset + state_len as usize])
+        } else {
+            None
+        };
         offset += state_len as usize;
 
-        Ok((
-            offset,
-            AggregationData::EmbeddedState {
-                curr_state: state,
-                curr_value: val,
-            },
-        ))
+        let r = AggregationData::new(val, state, prefix);
+        Ok((offset, r))
     }
 
-    pub(crate) fn encode_embedded_state(
+    pub(crate) fn encode_buffer(
+        prefix: u32,
         value: &Field,
-        state: &[u8],
+        state: &Option<Vec<u8>>,
     ) -> Result<(usize, Vec<u8>), PipelineError> {
         let mut r = Vec::with_capacity(512);
-        r.extend(0_u8.to_be_bytes());
+        r.extend(prefix.to_be_bytes());
 
         let sz_val = internal_err!(bincode::serialize(&value))?;
         r.extend((sz_val.len() as u16).to_be_bytes());
         r.extend(&sz_val);
 
-        r.extend((state.len() as u16).to_be_bytes());
-        r.extend(state);
+        let len = if let Some(state) = state.as_ref() {
+            r.extend((state.len() as u16).to_be_bytes());
+            r.extend(state);
+            (state.len()).clone()
+        } else {
+            r.extend(0_u16.to_be_bytes());
+            0 as usize
+        };
 
-        Ok((
-            5 + sz_val.len().clone() as usize + state.len().clone() as usize,
-            r,
-        ))
+        Ok((5 + sz_val.len().clone() as usize + len, r))
     }
 
     fn calc_and_fill_measures(
         &self,
-        // This represents the current state for a series of aggregators and it is encoded
-        // with a leading uint16 representing the payload length, followe by the actual payload.
-        // For example, let's say we want to encode teh state of SUM(a), SUM(b). Sum's state is
-        // represented as a uint64. The byte buffer will be 20-bytes long and look like this:
-        // uint16(SUM(a) payload len), uint64(=SUM(a) state), uint16(SUM(b) payload len), uint64(=SUM(b) state)
         txn: &mut dyn RwTransaction,
         curr_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
@@ -487,7 +408,7 @@ impl AggregationProcessor {
         let mut offset: usize = 0;
 
         for measure in &self.out_measures {
-            let curr_state_slice = match curr_state {
+            let curr_agg_data = match curr_state {
                 Some(ref e) => {
                     let (len, res) = Self::decode_buffer(&e[offset..])?;
                     offset += len;
@@ -497,115 +418,71 @@ impl AggregationProcessor {
             };
 
             // Let the aggregator calculate the new value based on teh performed operation
-            let next_state_slice = match op {
+            let (prefix, next_state_slice) = match op {
                 AggregatorOperation::Insert => {
-                    let field = inserted_record.unwrap().get_value(measure.0)?;
-                    if let Some(e) = curr_state_slice {
-                        match e {
-                            AggregationData::EmbeddedState {
-                                curr_state,
-                                curr_value,
-                            } => {
-                                out_rec_delete.set_value(measure.2, curr_value);
-                                measure
-                                    .1
-                                    .insert(Some(curr_state), field, field.get_type()?)?
-                            }
-                            AggregationData::KeyValueState { .. } => {
-                                measure.1.insert(None, field, field.get_type()?)?
-                            }
-                        }
+                    let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
+                    if let Some(curr) = curr_agg_data {
+                        out_rec_delete.set_value(measure.2, curr.value);
+                        let r = measure.1.insert(
+                            curr.state,
+                            inserted_field,
+                            inserted_field.get_type()?,
+                        )?;
+                        (curr.prefix, r)
                     } else {
-                        match &measure.1.get_store_type() {
-                            AggregatorStoreType::ByteArray => {
-                                measure.1.insert(None, field, field.get_type()?)?
-                            }
-                            AggregatorStoreType::Database => {
-                                measure.1.insert(None, field, field.get_type()?)?
-                            }
-                        }
+                        let r =
+                            measure
+                                .1
+                                .insert(None, inserted_field, inserted_field.get_type()?)?;
+                        (0, r)
                     }
                 }
                 AggregatorOperation::Delete => {
-                    let field = deleted_record.unwrap().get_value(measure.0)?;
-                    if let Some(e) = curr_state_slice {
-                        match e {
-                            AggregationData::EmbeddedState {
-                                curr_state,
-                                curr_value,
-                            } => {
-                                out_rec_delete.set_value(measure.2, curr_value);
-                                measure
-                                    .1
-                                    .delete(Some(curr_state), field, field.get_type()?)?
-                            }
-                            AggregationData::KeyValueState { .. } => {
-                                measure.1.delete(None, field, field.get_type()?)?
-                            }
-                        }
+                    let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
+                    if let Some(curr) = curr_agg_data {
+                        out_rec_delete.set_value(measure.2, curr.value);
+                        let r = measure.1.delete(
+                            curr.state,
+                            deleted_field,
+                            deleted_field.get_type()?,
+                        )?;
+                        (curr.prefix, r)
                     } else {
-                        match &measure.1.get_store_type() {
-                            AggregatorStoreType::ByteArray => {
-                                measure.1.delete(None, field, field.get_type()?)?
-                            }
-                            AggregatorStoreType::Database => {
-                                measure.1.delete(None, field, field.get_type()?)?
-                            }
-                        }
+                        let r = measure
+                            .1
+                            .delete(None, deleted_field, deleted_field.get_type()?)?;
+                        (0, r)
                     }
                 }
                 AggregatorOperation::Update => {
-                    let old = deleted_record.unwrap().get_value(measure.0)?;
-                    let new = inserted_record.unwrap().get_value(measure.0)?;
-                    if let Some(e) = curr_state_slice {
-                        match e {
-                            AggregationData::EmbeddedState {
-                                curr_state,
-                                curr_value,
-                            } => {
-                                out_rec_delete.set_value(measure.2, curr_value);
-                                measure
-                                    .1
-                                    .update(Some(curr_state), old, new, old.get_type()?)?
-                            }
-                            AggregationData::KeyValueState { .. } => {
-                                measure.1.update(None, old, new, old.get_type()?)?
-                            }
-                        }
+                    let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
+                    let updated_field = inserted_record.unwrap().get_value(measure.0)?;
+
+                    if let Some(curr) = curr_agg_data {
+                        out_rec_delete.set_value(measure.2, curr.value);
+                        let r = measure.1.update(
+                            curr.state,
+                            deleted_field,
+                            updated_field,
+                            deleted_field.get_type()?,
+                        )?;
+                        (curr.prefix, r)
                     } else {
-                        match &measure.1.get_store_type() {
-                            AggregatorStoreType::ByteArray => {
-                                measure.1.update(None, old, new, old.get_type()?)?
-                            }
-                            AggregatorStoreType::Database => {
-                                measure.1.update(None, old, new, old.get_type()?)?
-                            }
-                        }
+                        let r = measure.1.update(
+                            None,
+                            deleted_field,
+                            updated_field,
+                            deleted_field.get_type()?,
+                        )?;
+                        (0, r)
                     }
                 }
             };
 
-            // append the new state to array
-            // next_state.extend((next_state_slice.state.len() as u16).to_ne_bytes());
-            // offset += next_state_slice.state.len() + 2;
-            //
-            // next_state.extend(next_state_slice.state);
-
-            match next_state_slice {
-                AggregationResult::ByteArray(new_value, state) => {
-                    next_state.extend(&Self::encode_embedded_state(&new_value, &state)?.1);
-                    out_rec_insert.set_value(measure.2, new_value);
-                }
-                AggregationResult::Database(_) => {}
-            }
-
-            // if !next_state_slice.is_empty() {
-            //     let next_value = measure.1.get_value(next_state_slice.as_slice(), agg_type);
-            //     next_state.extend(next_state_slice);
-            //     out_rec_insert.set_value(measure.2, next_value);
-            // } else {
-            //     out_rec_insert.set_value(measure.2, Field::Null);
-            // }
+            next_state.extend(
+                &Self::encode_buffer(prefix, &next_state_slice.value, &next_state_slice.state)?.1,
+            );
+            out_rec_insert.set_value(measure.2, next_state_slice.value);
         }
 
         Ok(next_state)

@@ -1,4 +1,4 @@
-use crate::pipeline::aggregation::aggregator::{AggregationResult, AggregatorStoreType};
+use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use dozer_types::ordered_float::OrderedFloat;
@@ -16,10 +16,6 @@ impl SumAggregator {
             FieldType::Float => FieldType::Float,
             _ => from,
         }
-    }
-
-    pub(crate) fn get_store_type() -> AggregatorStoreType {
-        AggregatorStoreType::ByteArray
     }
 
     pub(crate) fn _get_type() -> u32 {
@@ -46,9 +42,9 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev + *curr).to_ne_bytes();
-                Ok(AggregationResult::ByteArray(
+                Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
-                    Vec::from(r_bytes),
+                    Some(Vec::from(r_bytes)),
                 ))
             }
             Float(_f) => {
@@ -65,9 +61,9 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev + *curr).to_ne_bytes();
-                Ok(AggregationResult::ByteArray(
+                Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
-                    Vec::from(r_bytes),
+                    Some(Vec::from(r_bytes)),
                 ))
             }
             _ => Err(InvalidOperandType("SUM".to_string())),
@@ -101,9 +97,9 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr_del + *curr_added).to_ne_bytes();
-                Ok(AggregationResult::ByteArray(
+                Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
-                    Vec::from(r_bytes),
+                    Some(Vec::from(r_bytes)),
                 ))
             }
             Float(_f) => {
@@ -126,9 +122,9 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr_del + *curr_added).to_ne_bytes();
-                Ok(AggregationResult::ByteArray(
+                Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
-                    Vec::from(r_bytes),
+                    Some(Vec::from(r_bytes)),
                 ))
             }
             _ => Err(InvalidOperandType("SUM".to_string())),
@@ -155,9 +151,9 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr).to_ne_bytes();
-                Ok(AggregationResult::ByteArray(
+                Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
-                    Vec::from(r_bytes),
+                    Some(Vec::from(r_bytes)),
                 ))
             }
             Float(_f) => {
@@ -174,9 +170,9 @@ impl SumAggregator {
                 };
 
                 let r_bytes = (prev - *curr).to_ne_bytes();
-                Ok(AggregationResult::ByteArray(
+                Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
-                    Vec::from(r_bytes),
+                    Some(Vec::from(r_bytes)),
                 ))
             }
             _ => Err(InvalidOperandType("SUM".to_string())),
