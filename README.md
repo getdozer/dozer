@@ -1,6 +1,8 @@
-<h3 align="center">
-    <br><img src="https://getdozer.io/assets/logo-green.svg" width=50% href="https://https://getdozer.io/" target="_"><br><br>
-</h3>
+<div align="center">
+    <a target="_blank" href="https://getdozer.io/">
+        <img src="https://getdozer.io/assets/logo-green.svg" width=30%>
+    </a>
+</div>
 
 <h3 align="center">
      Data APIs, done right!
@@ -20,22 +22,41 @@
 
 [//]: # (Badges for html)
 <p align="center">
-  <a href="https://gitHub.com/getdozer/dozer/stargazers/" target="_"><img src="https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000" alt="stars"></a>
-  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>
-  <a href="https://coveralls.io/github/getdozer/dozer?branch=main" target="_"><img src="https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV" alt="Coverage Status"></a>
+  <a href="https://gitHub.com/getdozer/dozer/stargazers/" target="_blank"><img src="https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000" alt="stars"></a>
+  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>
+  <a href="https://coveralls.io/github/getdozer/dozer?branch=main" target="_blank"><img src="https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV" alt="Coverage Status"></a>
   <a><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a>
   <a><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>
-  <a href="https://github.com/meilisearch/meilisearch/blob/main/LICENSE" target="_"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
+  <a href="https://github.com/meilisearch/meilisearch/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
 </p><br>
 
 
 ## Quick Start
 
-Using binary MacOS
+Using binary
 ```
 
 ```
-Using binary Linux
+
+Using docker
 ```
 
 ```
+
+
+[//]: # (## Architecture)
+
+### Features
+
+- Bullet Points
+- Screenshots
+
+### Screenshots
+
+
+### Examples / Samples
+
+### Contributing
+
+- User
+- Contributor / Developer
