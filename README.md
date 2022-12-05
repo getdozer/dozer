@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://raw.githubusercontent.com/getdozer/getdozer.io/main/public_html/assets/logo-green.svg?token=GHSAT0AAAAAAB3QJIFZH2VQV4ZBURMWPTDIY4NOYUA" width=60% href="https://https://getdozer.io/" target="_">
+    <img src="https://getdozer.io/assets/logo-green.svg" width=60% href="https://https://getdozer.io/" target="_">
 </p>
 
 <h3 align="center">
