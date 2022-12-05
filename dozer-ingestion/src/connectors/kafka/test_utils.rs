@@ -21,7 +21,7 @@ pub struct DebeziumTestConfig {
 }
 
 pub fn get_iterator_and_client(
-    prefix: &str,
+    _prefix: &str,
     table_name: String,
 ) -> (Arc<RwLock<IngestionIterator>>, Client) {
     let mut config =
@@ -55,11 +55,7 @@ pub fn get_iterator_and_client(
         )
         .unwrap();
 
-    let content = std::fs::read_to_string(format!(
-        "{}tests/connectors/debezium/register-postgres.test.json",
-        prefix
-    ))
-    .unwrap();
+    let content = load_config("test.register-postgres.json");
 
     let connector_client = reqwest::blocking::Client::new();
     connector_client
