@@ -153,6 +153,18 @@ macro_rules! field_extract_f64 {
 }
 
 #[macro_export]
+macro_rules! field_extract_decimal {
+    ($stmt:expr, $agg:expr) => {
+        match $stmt {
+            Decimal(d) => d,
+            _ => {
+                return Err(InvalidOperandType($agg.to_string()));
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! field_extract_i64 {
     ($stmt:expr, $agg:expr) => {
         match $stmt {

@@ -52,6 +52,29 @@ impl Field {
         }
     }
 
+    pub fn from_bytes(&self) -> Result<Vec<u8>, TypeError> {
+        // must prefix each type with 1 byte in front -> saying the return type
+        // e.g. Int 0, UInt 1,
+        match self {
+            Field::Int(i) => Ok(Vec::from(i.to_be_bytes())),
+            Field::UInt(i) => Ok(Vec::from(i.to_be_bytes())),
+            Field::Float(f) => Ok(Vec::from(f.to_be_bytes())),
+            Field::Boolean(b) => Ok(Vec::from(if *b {
+                1_u8.to_be_bytes()
+            } else {
+                0_u8.to_be_bytes()
+            })),
+            Field::String(s) => Ok(Vec::from(s.as_bytes())),
+            Field::Text(s) => Ok(Vec::from(s.as_bytes())),
+            Field::Binary(b) => Ok(Vec::from(b.as_slice())),
+            Field::Decimal(d) => Ok(Vec::from(d.serialize())),
+            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
+            Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
+            Field::Bson(b) => Ok(b.clone()),
+            Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
+        }
+    }
+
     pub fn get_type(&self) -> Result<FieldType, TypeError> {
         match self {
             Field::Int(_i) => Ok(FieldType::Int),
