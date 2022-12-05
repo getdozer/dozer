@@ -1,6 +1,6 @@
-<p align="center" style="padding-top: 10%; padding-bottom: 10%;">
-    <img src="https://getdozer.io/assets/logo-green.svg" width=55% href="https://https://getdozer.io/" target="_">
-</p>
+<h2 align="center">
+    <img src="https://getdozer.io/assets/logo-green.svg" width=50% href="https://https://getdozer.io/" target="_">
+</h2>
 
 <h3 align="center">
      Data APIs, done right!
