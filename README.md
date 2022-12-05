@@ -67,6 +67,13 @@ Using docker
   - TypeSafe APIs
   - Realtime Streaming
 
+## Why use Dozer?
+
+- Create blazing fast end to end APIs in minutes with a simple configuration.
+- Build and rapidly iterate on customer facing data apps. 
+- Extend Dozer with custom connectors, operators and Api transformations using WASM. 
+- Built in Rust with performance and extensibility in mind.
+
 ## What can you build with Dozer?
 
 1. Hypercharge your Postgres by offloading read APIs to Dozer
