@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
-use crate::grpc::internal_grpc::{pipeline_request::ApiEvent, PipelineRequest};
+use crate::grpc::internal_grpc::PipelineRequest;
+use crate::grpc::shared_impl;
 use crate::{api_helper, PipelineDetails};
-use dozer_cache::cache::expression::QueryExpression;
-use dozer_types::log::warn;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -37,15 +36,8 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), None)?;
-
-        let query: QueryExpression =
-            dozer_types::serde_json::from_str(&request.query.map_or("{}".to_string(), |f| f))
-                .map_err(|e| Status::from_error(Box::new(e)))?;
-
-        let (schema, records) = api_helper
-            .get_records(query)
-            .map_err(|e| Status::from_error(Box::new(e)))?;
+        let (schema, records) =
+            shared_impl::query(pipeline_details.clone(), request.query.as_deref())?;
 
         let fields = schema
             .fields
@@ -93,7 +85,7 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), None)?;
+        let api_helper = api_helper::ApiHelper::new(pipeline_details.clone(), None)?;
         let schema = api_helper
             .get_schema()
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
@@ -119,38 +111,23 @@ impl CommonGrpcService for CommonService {
 
     async fn on_event(&self, request: Request<OnEventRequest>) -> EventResult<Self::OnEventStream> {
         let request = request.into_inner();
+        let endpoint = &request.endpoint;
+        let pipeline_details = self
+            .pipeline_map
+            .get(endpoint)
+            .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-        // create subscribe
-        let mut broadcast_receiver = self.event_notifier.resubscribe();
-
-        tokio::spawn(async move {
-            loop {
-                let receiver_event = broadcast_receiver.recv().await;
-                match receiver_event {
-                    Ok(event) => {
-                        if let Some(ApiEvent::Op(op)) = event.api_event {
-                            if event.endpoint == request.endpoint {
-                                if (tx.send(Ok(op)).await).is_err() {
-                                    warn!("on_insert_grpc_server_stream receiver drop");
-                                    // receiver drop
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        warn!("on_insert_grpc_server_stream receiv Error: {:?}", error);
-                        match error {
-                            tokio::sync::broadcast::error::RecvError::Closed => {
-                                break;
-                            }
-                            tokio::sync::broadcast::error::RecvError::Lagged(_) => {}
-                        }
-                    }
+        shared_impl::on_event(
+            pipeline_details.clone(),
+            request.filter.as_deref(),
+            self.event_notifier.resubscribe(),
+            move |op, endpoint| {
+                if endpoint == request.endpoint {
+                    Some(Ok(op))
+                } else {
+                    None
                 }
-            }
-        });
-        Ok(Response::new(ReceiverStream::new(rx)))
+            },
+        )
     }
 }
