@@ -1,4 +1,4 @@
-<h2 align="center">
+<h2 align="center" style="border-bottom: none;">
     <img src="https://getdozer.io/assets/logo-green.svg" width=50% href="https://https://getdozer.io/" target="_">
 </h2>
 
