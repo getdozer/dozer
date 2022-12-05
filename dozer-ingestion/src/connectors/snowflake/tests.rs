@@ -4,6 +4,8 @@ use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use std::thread;
 
+use load_file::load_str;
+
 #[ignore]
 #[test]
 fn connector_e2e_connect_snowflake_and_read_from_stream() {
