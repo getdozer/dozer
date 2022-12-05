@@ -613,26 +613,17 @@ fn test_avg_aggregation_int() {
         Operation::Update {
             old: Record::new(
                 None,
-                vec![
-                    Field::String("Italy".to_string()),
-                    Field::Int(100),
-                ],
+                vec![Field::String("Italy".to_string()), Field::Int(100)],
             ),
             new: Record::new(
                 None,
-                vec![
-                    Field::String("Italy".to_string()),
-                    Field::Int(250 / 3),
-                ],
+                vec![Field::String("Italy".to_string()), Field::Int(250 / 3)],
             ),
         },
         Operation::Delete {
             old: Record::new(
                 None,
-                vec![
-                    Field::String("Singapore".to_string()),
-                    Field::Int(50),
-                ],
+                vec![Field::String("Singapore".to_string()), Field::Int(50)],
             ),
         },
     ];
@@ -678,17 +669,11 @@ fn test_avg_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(250 / 3),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(250 / 3)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(350 / 3),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(350 / 3)],
         ),
     }];
     assert_eq!(out, exp);
@@ -723,17 +708,11 @@ fn test_avg_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(350 / 3),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(350 / 3)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(75),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(75)],
         ),
     }];
     assert_eq!(out, exp);
@@ -767,17 +746,11 @@ fn test_avg_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(75),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(75)],
         ),
         new: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);
@@ -810,10 +783,7 @@ fn test_avg_aggregation_int() {
     let exp = vec![Operation::Delete {
         old: Record::new(
             None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-            ],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);

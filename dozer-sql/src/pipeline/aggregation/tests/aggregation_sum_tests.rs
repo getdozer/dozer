@@ -212,15 +212,6 @@ fn test_sum_aggregation_float() {
         .unwrap_or_else(|_e| panic!("Error executing aggregate"));
 
     let exp = vec![
-        Operation::Delete {
-            old: Record::new(
-                None,
-                vec![
-                    Field::String("Singapore".to_string()),
-                    Field::Float(OrderedFloat(50.0)),
-                ],
-            ),
-        },
         Operation::Update {
             old: Record::new(
                 None,
@@ -234,6 +225,15 @@ fn test_sum_aggregation_float() {
                 vec![
                     Field::String("Italy".to_string()),
                     Field::Float(OrderedFloat(250.0)),
+                ],
+            ),
+        },
+        Operation::Delete {
+            old: Record::new(
+                None,
+                vec![
+                    Field::String("Singapore".to_string()),
+                    Field::Float(OrderedFloat(50.0)),
                 ],
             ),
         },
@@ -610,12 +610,6 @@ fn test_sum_aggregation_int() {
         .unwrap_or_else(|_e| panic!("Error executing aggregate"));
 
     let exp = vec![
-        Operation::Delete {
-            old: Record::new(
-                None,
-                vec![Field::String("Singapore".to_string()), Field::Int(50)],
-            ),
-        },
         Operation::Update {
             old: Record::new(
                 None,
@@ -624,6 +618,12 @@ fn test_sum_aggregation_int() {
             new: Record::new(
                 None,
                 vec![Field::String("Italy".to_string()), Field::Int(250)],
+            ),
+        },
+        Operation::Delete {
+            old: Record::new(
+                None,
+                vec![Field::String("Singapore".to_string()), Field::Int(50)],
             ),
         },
     ];

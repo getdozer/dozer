@@ -60,7 +60,6 @@ impl MinAggregator {
             Float(_f) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
-                println!("\nnew_val {}", new_val);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
@@ -114,10 +113,8 @@ impl MinAggregator {
             Float(_f) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
-                println!("\nnew_val {}", new_val);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
                 let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
-                println!("\nold_val {}", old_val);
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -156,7 +153,7 @@ impl MinAggregator {
                 if minimum == i64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        None,
                     ))
                 } else {
                     Ok(AggregationResult::new(
@@ -168,7 +165,6 @@ impl MinAggregator {
             Float(_f) => {
                 // Update aggregators_db with new val and its occurrence
                 let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
-                println!("\nold_val {}", old_val);
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -206,15 +202,17 @@ impl MinAggregator {
     ) {
         let get_prev_count = try_unwrap!(ptx.get(aggregators_db, key));
         let prev_count = deserialize_u8!(get_prev_count);
-        try_unwrap!(ptx.put(
-            aggregators_db,
-            key,
-            to_bytes!(if decr {
-                prev_count - val_delta
-            } else {
-                prev_count + val_delta
-            })
-        ));
+        let mut new_count = prev_count;
+        if decr {
+            new_count -= val_delta;
+        } else {
+            new_count += val_delta;
+        }
+        if new_count < 1 {
+            try_unwrap!(ptx.del(aggregators_db, key, Option::from(to_bytes!(new_count))));
+        } else {
+            try_unwrap!(ptx.put(aggregators_db, key, to_bytes!(new_count)));
+        }
     }
 
     fn calc_f64_min(

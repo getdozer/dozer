@@ -422,11 +422,9 @@ impl AggregationProcessor {
 
             let (prefix, next_state_slice) = match op {
                 AggregatorOperation::Insert => {
-                    println!("\nINSERT");
                     let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
-                        println!("\ncurr.prefix {}", curr.prefix);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.insert(
                             curr.state,
@@ -438,7 +436,6 @@ impl AggregationProcessor {
                         (curr.prefix, r)
                     } else {
                         let prefix = self.get_counter(txn)?;
-                        println!("\nprefix {}", prefix);
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.insert(
                             None,
@@ -451,11 +448,9 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Delete => {
-                    println!("\nDELETE");
                     let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
-                        println!("\ncurr.prefix {}", curr.prefix);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.delete(
                             curr.state,
@@ -467,7 +462,6 @@ impl AggregationProcessor {
                         (curr.prefix, r)
                     } else {
                         let prefix = self.get_counter(txn)?;
-                        println!("\nprefix {}", prefix);
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.delete(
                             None,
@@ -480,13 +474,11 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Update => {
-                    println!("\nUPDATE");
                     let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
                     let updated_field = inserted_record.unwrap().get_value(measure.0)?;
 
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
-                        println!("\ncurr.prefix {}", curr.prefix);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.update(
                             curr.state,
@@ -499,7 +491,6 @@ impl AggregationProcessor {
                         (curr.prefix, r)
                     } else {
                         let prefix = self.get_counter(txn)?;
-                        println!("\nprefix {}", prefix);
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.update(
                             None,

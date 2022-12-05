@@ -12,9 +12,9 @@ use dozer_types::{
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 
 #[test]
-fn test_min_aggregation_float() {
+fn test_max_aggregation_float() {
     let (mut processor, tx) = init_processor(
-        "SELECT Country, MIN(Salary) \
+        "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
     )
@@ -37,7 +37,7 @@ fn test_min_aggregation_float() {
             false,
         )
         .field(
-            FieldDefinition::new(String::from("MIN(Salary)"), FieldType::Float, false),
+            FieldDefinition::new(String::from("MAX(Salary)"), FieldType::Float, false),
             false,
             false,
         )
@@ -54,7 +54,7 @@ fn test_min_aggregation_float() {
     /*
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
     */
     let inp = Operation::Insert {
         new: Record::new(
@@ -92,7 +92,7 @@ fn test_min_aggregation_float() {
         Italy, 100.0
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
     */
     let inp = Operation::Insert {
         new: Record::new(
@@ -137,11 +137,11 @@ fn test_min_aggregation_float() {
         Italy, 100.0
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
 
         Singapore, 50.0
         ---------------
-        MIN = 50.0
+        MAX = 50.0
     */
     let inp = Operation::Insert {
         new: Record::new(
@@ -180,7 +180,7 @@ fn test_min_aggregation_float() {
         Italy, 100.0
         Italy, 50.0
         -------------
-        MIN = 50.0
+        MAX = 100.0
     */
     let inp = Operation::Update {
         old: Record::new(
@@ -224,7 +224,7 @@ fn test_min_aggregation_float() {
                 None,
                 vec![
                     Field::String("Italy".to_string()),
-                    Field::Float(OrderedFloat(50.0)),
+                    Field::Float(OrderedFloat(100.0)),
                 ],
             ),
         },
@@ -246,7 +246,7 @@ fn test_min_aggregation_float() {
         Italy, 100.0
         Italy, 50.0
         -------------
-        MIN = 50.0
+        MAX = 200.0
     */
     let inp = Operation::Update {
         old: Record::new(
@@ -282,14 +282,14 @@ fn test_min_aggregation_float() {
             None,
             vec![
                 Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(100.0)),
             ],
         ),
         new: Record::new(
             None,
             vec![
                 Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(200.0)),
             ],
         ),
     }];
@@ -300,7 +300,7 @@ fn test_min_aggregation_float() {
         Italy, 100.0
         Italy, 50.0
         -------------
-        MIN = 50.0
+        MAX = 100.0
     */
     let inp = Operation::Delete {
         old: Record::new(
@@ -327,14 +327,14 @@ fn test_min_aggregation_float() {
             None,
             vec![
                 Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(200.0)),
             ],
         ),
         new: Record::new(
             None,
             vec![
                 Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(100.0)),
             ],
         ),
     }];
@@ -344,7 +344,7 @@ fn test_min_aggregation_float() {
     /*
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
     */
     let inp = Operation::Delete {
         old: Record::new(
@@ -371,7 +371,7 @@ fn test_min_aggregation_float() {
             None,
             vec![
                 Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(50.0)),
+                Field::Float(OrderedFloat(100.0)),
             ],
         ),
         new: Record::new(
@@ -387,7 +387,7 @@ fn test_min_aggregation_float() {
     // Delete last record
     /*
         -------------
-        MIN = Null
+        MAX = Null
     */
     let inp = Operation::Delete {
         old: Record::new(
@@ -422,9 +422,9 @@ fn test_min_aggregation_float() {
 }
 
 #[test]
-fn test_min_aggregation_int() {
+fn test_max_aggregation_int() {
     let (mut processor, tx) = init_processor(
-        "SELECT Country, MIN(Salary) \
+        "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
     )
@@ -447,7 +447,7 @@ fn test_min_aggregation_int() {
             false,
         )
         .field(
-            FieldDefinition::new(String::from("MIN(Salary)"), FieldType::Int, false),
+            FieldDefinition::new(String::from("MAX(Salary)"), FieldType::Int, false),
             false,
             false,
         )
@@ -464,7 +464,7 @@ fn test_min_aggregation_int() {
     /*
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
     */
     let inp = Operation::Insert {
         new: Record::new(
@@ -499,7 +499,7 @@ fn test_min_aggregation_int() {
         Italy, 100.0
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
     */
     let inp = Operation::Insert {
         new: Record::new(
@@ -538,11 +538,11 @@ fn test_min_aggregation_int() {
         Italy, 100.0
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
 
         Singapore, 50.0
         ---------------
-        MIN = 50.0
+        MAX = 50.0
     */
     let inp = Operation::Insert {
         new: Record::new(
@@ -578,7 +578,7 @@ fn test_min_aggregation_int() {
         Italy, 100.0
         Italy, 50.0
         -------------
-        MIN = 50.0
+        MAX = 100.0
     */
     let inp = Operation::Update {
         old: Record::new(
@@ -617,7 +617,7 @@ fn test_min_aggregation_int() {
             ),
             new: Record::new(
                 None,
-                vec![Field::String("Italy".to_string()), Field::Int(50)],
+                vec![Field::String("Italy".to_string()), Field::Int(100)],
             ),
         },
         Operation::Delete {
@@ -635,7 +635,7 @@ fn test_min_aggregation_int() {
         Italy, 100.0
         Italy, 50.0
         -------------
-        MIN = 50.0
+        MAX = 200.0
     */
     let inp = Operation::Update {
         old: Record::new(
@@ -669,11 +669,11 @@ fn test_min_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![Field::String("Italy".to_string()), Field::Int(50)],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
         new: Record::new(
             None,
-            vec![Field::String("Italy".to_string()), Field::Int(50)],
+            vec![Field::String("Italy".to_string()), Field::Int(200)],
         ),
     }];
     assert_eq!(out, exp);
@@ -683,7 +683,7 @@ fn test_min_aggregation_int() {
         Italy, 100.0
         Italy, 50.0
         -------------
-        MIN = 50.0
+        MAX = 50.0
     */
     let inp = Operation::Delete {
         old: Record::new(
@@ -708,11 +708,11 @@ fn test_min_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![Field::String("Italy".to_string()), Field::Int(50)],
+            vec![Field::String("Italy".to_string()), Field::Int(200)],
         ),
         new: Record::new(
             None,
-            vec![Field::String("Italy".to_string()), Field::Int(50)],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
     }];
     assert_eq!(out, exp);
@@ -721,7 +721,7 @@ fn test_min_aggregation_int() {
     /*
         Italy, 100.0
         -------------
-        MIN = 100.0
+        MAX = 100.0
     */
     let inp = Operation::Delete {
         old: Record::new(
@@ -746,7 +746,7 @@ fn test_min_aggregation_int() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![Field::String("Italy".to_string()), Field::Int(50)],
+            vec![Field::String("Italy".to_string()), Field::Int(100)],
         ),
         new: Record::new(
             None,
@@ -758,7 +758,7 @@ fn test_min_aggregation_int() {
     // Delete last record
     /*
         -------------
-        MIN = Null
+        MAX = Null
     */
     let inp = Operation::Delete {
         old: Record::new(
