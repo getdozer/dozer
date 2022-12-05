@@ -46,7 +46,7 @@ Using docker
 
 [//]: # (## Architecture)
 
-### Features
+## Features
 
 - Connect your sources
   - Import real time data from Postgres as CDC, Snowflake Table Stream etc.
@@ -67,7 +67,7 @@ Using docker
   - TypeSafe APIs
   - Realtime Streaming
 
-### What can you build with Dozer?
+## What can you build with Dozer?
 
 1. Hypercharge your Postgres by offloading read APIs to Dozer
 2. Real time ML predictions deployed as APIs from Snowflake
@@ -76,9 +76,9 @@ Using docker
 ### Screenshots
 
 
-### Examples / Samples
+## Examples / Samples
 
-### Contributing
+## Contributing
 
 - User
 - Contributor / Developer
