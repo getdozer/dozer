@@ -15,6 +15,8 @@ pub enum OrchestrationError {
     FailedToLoadFile(#[source] std::io::Error),
     #[error("Failed to parse dozer config..")]
     FailedToParseYaml(#[source] BoxedError),
+    #[error("Failed to validate dozer config..")]
+    FailedToParseValidateYaml(#[source] BoxedError),
     #[error("Failed to initialize dozer config..")]
     InitializationFailed,
     #[error("Failed to initialize api server..")]

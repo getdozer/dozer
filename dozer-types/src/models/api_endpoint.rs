@@ -10,8 +10,6 @@ pub struct ApiEndpoint {
     pub id: Option<String>,
     pub name: String,
     pub path: String,
-    pub enable_rest: bool,
-    pub enable_grpc: bool,
     pub sql: String,
     pub index: ApiIndex,
 }
