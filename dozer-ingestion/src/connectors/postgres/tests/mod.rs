@@ -1,3 +1,3 @@
 pub mod client;
 #[cfg(test)]
-mod tests;
+mod e2e;

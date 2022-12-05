@@ -10,13 +10,12 @@ use rand::Rng;
 use std::sync::Arc;
 use std::thread;
 
-fn get_iterator(config: Connection, table_name: &String) -> Arc<RwLock<IngestionIterator>> {
+fn get_iterator(config: Connection, table_name: String) -> Arc<RwLock<IngestionIterator>> {
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
-    let table_name = table_name.clone();
     thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![TableInfo {
-            name: table_name,
+            name: table_name.clone(),
             id: 0,
             columns: None,
         }];
@@ -43,7 +42,7 @@ fn connector_e2e_connect_postgres_stream() {
 
     client.create_simple_table("public", &table_name);
 
-    let iterator = get_iterator(source.connection, &table_name);
+    let iterator = get_iterator(source.connection, table_name.clone());
 
     client.insert_rows(&table_name, 10);
 
@@ -51,12 +50,9 @@ fn connector_e2e_connect_postgres_stream() {
     while i < 10 {
         let op = iterator.write().next();
         if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
-            match ev.operation {
-                Operation::Insert { new } => {
-                    assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
-                    i += 1;
-                }
-                _ => {}
+            if let Operation::Insert { new } = ev.operation {
+                assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
+                i += 1;
             }
         }
     }
@@ -66,12 +62,9 @@ fn connector_e2e_connect_postgres_stream() {
         let op = iterator.write().next();
 
         if let Some((_, IngestionOperation::OperationEvent(ev))) = op {
-            match ev.operation {
-                Operation::Insert { new } => {
-                    assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
-                    i += 1;
-                }
-                _ => {}
+            if let Operation::Insert { new } = ev.operation {
+                assert_eq!(new.values.get(0).unwrap(), &Field::Int(i));
+                i += 1;
             }
         }
     }

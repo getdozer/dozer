@@ -54,10 +54,10 @@ fn test_prefix_tx() {
     chk!(ptx2.put(&db, "c2".as_bytes(), "c2".as_bytes()));
 
     let cur = ptx1.open_cursor(&db).unwrap();
-    let r = cur.seek_gte("b0".as_bytes());
+    let _r = cur.seek_gte("b0".as_bytes());
     let mut ctr = 0;
     loop {
-        if let Some(kv) = cur.read().unwrap() {
+        if let Some(_kv) = cur.read().unwrap() {
             ctr += 1;
         }
         if !cur.next().unwrap() {
