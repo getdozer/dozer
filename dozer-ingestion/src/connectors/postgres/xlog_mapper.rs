@@ -77,6 +77,7 @@ impl XlogMapper {
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
     ) -> Result<Option<IngestionMessage>, ConnectorError> {
+        debug!("MSG: {:?}", message.data());
         match &message.data() {
             Relation(relation) => {
                 debug!("relation:");
@@ -148,6 +149,7 @@ impl XlogMapper {
                     vec![]
                 };
 
+                debug!("VALUES: {:?}", values);
                 let event = OperationEvent {
                     operation: Operation::Update {
                         old: Record::new(
@@ -279,9 +281,12 @@ impl XlogMapper {
 
         for column in &table.columns {
             let value = new_values.get(column.idx).unwrap();
-            let column = table.columns.get(column.idx).unwrap();
-            if let TupleData::Text(text) = value {
-                values.push(helper::postgres_type_to_field(text, column)?);
+            match value {
+                TupleData::Null => values.push(helper::postgres_type_to_field(None, column)?),
+                TupleData::UnchangedToast => {}
+                TupleData::Text(text) => {
+                    values.push(helper::postgres_type_to_field(Some(text), column)?)
+                }
             }
         }
 
