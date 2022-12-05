@@ -33,7 +33,7 @@ fn get_iterator(config: Connection, table_name: &String) -> Arc<RwLock<Ingestion
 #[test]
 fn connector_e2e_connect_postgres_stream() {
     let source = serde_yaml::from_str::<Source>(include_str!(
-        "../../../../../config/test.postgres.sample.yaml"
+        "../../../../../config/tests/test.postgres.yaml"
     ))
     .unwrap();
     let mut client = TestPostgresClient::new(&source.connection.authentication);

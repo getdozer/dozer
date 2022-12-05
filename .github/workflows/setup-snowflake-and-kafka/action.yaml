@@ -88,8 +88,8 @@ runs:
         SCHEMA: ${{ inputs.SNOWFLAKE_SCHEMA }}
         WAREHOUSE: ${{ inputs.SNOWFLAKE_WAREHOUSE }}
       with:
-        from_file: "config/test.snowflake.sample.yaml"
-        to_file: "config/test.snowflake.sample.yaml"
+        from_file: "config/tests/test.snowflake.yaml"
+        to_file: "config/tests/test.snowflake.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -105,8 +105,8 @@ runs:
         KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
         KAFKA_CONNECTOR_URL: ${{ inputs.KAFKA_CONNECTOR_URL }}
       with:
-        from_file: "config/test.debezium.sample.yaml"
-        to_file: "config/test.debezium.sample.yaml"
+        from_file: "config/tests/test.debezium.yaml"
+        to_file: "config/tests/test.debezium.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -134,8 +134,8 @@ runs:
         KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
         KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
       with:
-        from_file: "config/test.postgres.auth.sample.yaml"
-        to_file: "config/test.postgres.auth.sample.yaml"
+        from_file: "config/tests/test.postgres.auth.yaml"
+        to_file: "config/tests/test.postgres.auth.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -147,6 +147,6 @@ runs:
         KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
         KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
       with:
-        from_file: "config/test.postgres.sample.yaml"
-        to_file: "config/test.postgres.sample.yaml"
+        from_file: "config/tests/test.postgres.yaml"
+        to_file: "config/tests/test.postgres.yaml"
         commit: "false"

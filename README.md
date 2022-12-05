@@ -49,7 +49,7 @@ dozer run -c dozer-config.yaml
 By default `config` file is loaded from `dozer-config.yaml`
 ```
 # Initialize config
-cp config/dozer-config.sample.yaml dozer-config.yaml
+cp config/sample/dozer-config.sample.yaml dozer-config.yaml
 
 # Run
 cargo run 
