@@ -111,18 +111,18 @@ pub struct SchemaIdentifier {
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Schema {
-    /// Unique identifier and version for this schema. This value is required only if teh schema
-    /// is represented by a valid entry in teh schema registry. For nested schemas, this field
+    /// Unique identifier and version for this schema. This value is required only if the schema
+    /// is represented by a valid entry in the schema registry. For nested schemas, this field
     /// is not applicable
     pub identifier: Option<SchemaIdentifier>,
 
-    /// fields contains a list of FieldDefinition for all teh fields that appear in a record.
-    /// Not necessarily all these fields will end up in teh final object structure stored in
+    /// fields contains a list of FieldDefinition for all the fields that appear in a record.
+    /// Not necessarily all these fields will end up in the final object structure stored in
     /// the cache. Some fields might only be used for indexing purposes only.
     pub fields: Vec<FieldDefinition>,
 
-    /// Indexes of the fields representing values that will appear in teh final object stored
-    /// in teh cache
+    /// Indexes of the fields representing values that will appear in the final object stored
+    /// in the cache
     pub values: Vec<usize>,
 
     /// Indexes of the fields forming the primary key for this schema. If the value is empty

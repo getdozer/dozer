@@ -224,16 +224,19 @@ impl AggregationProcessor {
             Expression::AggregateFunction { fun, args } => {
                 let arg_type = args[0].get_type(schema);
                 match (&fun, arg_type) {
-                    (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
+                    (AggregateFunctionType::Avg, _) => Ok(Aggregator::Avg),
                     (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
+                    (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
+                    (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
+                    (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                     _ => Err(PipelineError::InvalidExpression(format!(
-                        "Not implemented Aggreagation function: {:?}",
+                        "Not implemented Aggregation function: {:?}",
                         fun
                     ))),
                 }
             }
             _ => Err(PipelineError::InvalidExpression(format!(
-                "Not an Aggreagation function: {:?}",
+                "Not an Aggregation function: {:?}",
                 expression
             ))),
         }
@@ -396,7 +399,7 @@ impl AggregationProcessor {
     fn calc_and_fill_measures(
         &self,
         txn: &mut dyn RwTransaction,
-        curr_state: &Option<Vec<u8>>,
+        cur_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
         out_rec_delete: &mut Record,
@@ -408,7 +411,7 @@ impl AggregationProcessor {
         let mut offset: usize = 0;
 
         for measure in &self.out_measures {
-            let curr_agg_data = match curr_state {
+            let curr_agg_data = match cur_state {
                 Some(ref e) => {
                     let (len, res) = Self::decode_buffer(&e[offset..])?;
                     offset += len;
@@ -417,7 +420,6 @@ impl AggregationProcessor {
                 None => None,
             };
 
-            // Let the aggregator calculate the new value based on teh performed operation
             let (prefix, next_state_slice) = match op {
                 AggregatorOperation::Insert => {
                     let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
@@ -429,6 +431,7 @@ impl AggregationProcessor {
                             inserted_field,
                             inserted_field.get_type()?,
                             &mut p_tx,
+                            self.aggregators_db.as_ref().unwrap(),
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -439,6 +442,7 @@ impl AggregationProcessor {
                             inserted_field,
                             inserted_field.get_type()?,
                             &mut p_tx,
+                            self.aggregators_db.as_ref().unwrap(),
                         )?;
                         (prefix, r)
                     }
@@ -453,6 +457,7 @@ impl AggregationProcessor {
                             deleted_field,
                             deleted_field.get_type()?,
                             &mut p_tx,
+                            self.aggregators_db.as_ref().unwrap(),
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -463,6 +468,7 @@ impl AggregationProcessor {
                             deleted_field,
                             deleted_field.get_type()?,
                             &mut p_tx,
+                            self.aggregators_db.as_ref().unwrap(),
                         )?;
                         (prefix, r)
                     }
@@ -480,6 +486,7 @@ impl AggregationProcessor {
                             updated_field,
                             deleted_field.get_type()?,
                             &mut p_tx,
+                            self.aggregators_db.as_ref().unwrap(),
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -491,6 +498,7 @@ impl AggregationProcessor {
                             updated_field,
                             deleted_field.get_type()?,
                             &mut p_tx,
+                            self.aggregators_db.as_ref().unwrap(),
                         )?;
                         (prefix, r)
                     }
@@ -555,10 +563,10 @@ impl AggregationProcessor {
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
         let prev_count = self.update_segment_count(txn, db, record_count_key, 1, true)?;
 
-        let curr_state = txn.get(db, record_key.as_slice())?;
+        let cur_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             txn,
-            &curr_state,
+            &cur_state,
             Some(old),
             None,
             &mut out_rec_delete,
@@ -608,10 +616,10 @@ impl AggregationProcessor {
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
         self.update_segment_count(txn, db, record_count_key, 1, false)?;
 
-        let curr_state = txn.get(db, record_key.as_slice())?;
+        let cur_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             txn,
-            &curr_state,
+            &cur_state,
             None,
             Some(new),
             &mut out_rec_delete,
@@ -619,7 +627,7 @@ impl AggregationProcessor {
             AggregatorOperation::Insert,
         )?;
 
-        let res = if curr_state.is_none() {
+        let res = if cur_state.is_none() {
             self.fill_dimensions(new, &mut out_rec_insert)?;
             Operation::Insert {
                 new: out_rec_insert,
@@ -650,10 +658,10 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
-        let curr_state = txn.get(db, record_key.as_slice())?;
+        let cur_state = txn.get(db, record_key.as_slice())?;
         let new_state = self.calc_and_fill_measures(
             txn,
-            &curr_state,
+            &cur_state,
             Some(old),
             Some(new),
             &mut out_rec_delete,
@@ -698,8 +706,8 @@ impl AggregationProcessor {
                     Ok(vec![self.agg_update(txn, db, old, new, old_record_hash)?])
                 } else {
                     Ok(vec![
-                        self.agg_delete(txn, db, old)?,
                         self.agg_insert(txn, db, new)?,
+                        self.agg_delete(txn, db, old)?,
                     ])
                 }
             }
@@ -708,6 +716,10 @@ impl AggregationProcessor {
 }
 
 impl Processor for AggregationProcessor {
+    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
+        internal_err!(self.init_store(state))
+    }
+
     fn update_schema(
         &mut self,
         output_port: PortHandle,
@@ -725,10 +737,6 @@ impl Processor for AggregationProcessor {
             .map_err(|e| InternalError(Box::new(e)))?;
 
         self.build_output_schema(input_schema)
-    }
-
-    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
-        internal_err!(self.init_store(state))
     }
 
     fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
