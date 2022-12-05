@@ -150,11 +150,16 @@ impl<'a> DagExecutor<'a> {
     ) -> Result<Self, ExecutionError> {
         //
         let schemas = Self::load_or_init_schema(dag, path)?;
+
         Ok(Self {
             dag,
             schemas,
-            term_barrier: Arc::new(Barrier::new(0)),
-            start_latch: Arc::new(CountDownLatch::new(0)),
+            term_barrier: Arc::new(Barrier::new(
+                dag.get_sinks().len() + dag.get_processors().len() + dag.get_sources().len(),
+            )),
+            start_latch: Arc::new(CountDownLatch::new(
+                dag.get_sinks().len() as u64 + dag.get_processors().len() as u64,
+            )),
             record_stores: Arc::new(RwLock::new(
                 dag.nodes
                     .iter()
@@ -498,6 +503,7 @@ impl<'a> DagExecutor<'a> {
                             );
                             if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                                 term_on_err!(fw.send_term_and_wait(), lt_stop_req, lt_term_barrier);
+                                lt_term_barrier.wait();
                                 return Ok(());
                             }
                         }
@@ -579,6 +585,7 @@ impl<'a> DagExecutor<'a> {
                         }
                         Ok(ExecutorOperation::Terminate) => {
                             info!("[{}] Terminating: Exiting message loop", handle);
+                            lt_term_barrier.wait();
                             return Ok(());
                         }
                         Ok(ExecutorOperation::Commit { epoch, source }) => {
@@ -586,8 +593,16 @@ impl<'a> DagExecutor<'a> {
                                 "[{}] Checkpointing (source: {}, epoch: {})",
                                 handle, source, epoch
                             );
-                            snk.commit(&mut SharedTransaction::new(&master_tx))?;
-                            state_writer.store_commit_info(&source, epoch)?
+                            term_on_err!(
+                                snk.commit(&mut SharedTransaction::new(&master_tx)),
+                                lt_stop_req,
+                                lt_term_barrier
+                            );
+                            term_on_err!(
+                                state_writer.store_commit_info(&source, epoch),
+                                lt_stop_req,
+                                lt_term_barrier
+                            );
                         }
                         Ok(op) => {
                             let data_op = map_to_op(op)?;
