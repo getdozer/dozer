@@ -58,14 +58,13 @@ fn test_prefix_tx() {
     let mut ctr = 0;
     loop {
         if let Some(kv) = cur.read().unwrap() {
-            ctr +=1;
+            ctr += 1;
         }
         if !cur.next().unwrap() {
             break;
         }
     }
     assert_eq!(ctr, 3);
-
 
     assert_eq!(
         chk!(ptx0.get(&db, "a0".as_bytes())).unwrap(),
@@ -142,7 +141,4 @@ fn test_prefix_tx() {
 
     assert!(chk!(ptx3_cur.last()));
     assert_eq!(chk!(ptx3_cur.read()).unwrap().0, "d2".as_bytes());
-
-
-
 }
