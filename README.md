@@ -12,7 +12,6 @@
 [//]: # (Badges for md)
 [//]: # (Reference: https://shields.io/)
 [![GitHub stars](https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000)](https://gitHub.com/getdozer/dozer/stargazers/)
-
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat)](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml)
 [![Coverage Status](https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV)](https://coveralls.io/github/getdozer/dozer?branch=main)
 [![Doc reference](https://img.shields.io/badge/doc-reference-green?style=flat)]()
