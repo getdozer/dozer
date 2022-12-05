@@ -4,7 +4,6 @@ use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
 use crate::grpc::internal_grpc::{pipeline_request::ApiEvent, PipelineRequest};
 use crate::grpc::shared_impl;
 use crate::{api_helper, PipelineDetails};
-use dozer_types::log::warn;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -115,35 +114,20 @@ impl CommonGrpcService for CommonService {
 
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         // create subscribe
-        let mut broadcast_receiver = self.event_notifier.resubscribe();
+        let broadcast_receiver = self.event_notifier.resubscribe();
 
-        tokio::spawn(async move {
-            loop {
-                let receiver_event = broadcast_receiver.recv().await;
-                match receiver_event {
-                    Ok(event) => {
-                        if let Some(ApiEvent::Op(op)) = event.api_event {
-                            if event.endpoint == request.endpoint {
-                                if (tx.send(Ok(op)).await).is_err() {
-                                    warn!("on_insert_grpc_server_stream receiver drop");
-                                    // receiver drop
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        warn!("on_insert_grpc_server_stream receiv Error: {:?}", error);
-                        match error {
-                            tokio::sync::broadcast::error::RecvError::Closed => {
-                                break;
-                            }
-                            tokio::sync::broadcast::error::RecvError::Lagged(_) => {}
-                        }
+        tokio::spawn(shared_impl::on_event(
+            broadcast_receiver,
+            tx,
+            move |event| {
+                if let Some(ApiEvent::Op(op)) = event.api_event {
+                    if event.endpoint == request.endpoint {
+                        return Some(Ok(op));
                     }
                 }
-            }
-        });
+                None
+            },
+        ));
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }

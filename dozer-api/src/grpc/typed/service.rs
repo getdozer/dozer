@@ -236,19 +236,16 @@ async fn on_event(
     let endpoint_name = pipeline_details.cache_endpoint.endpoint.name;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
-    // create subscribe
-    let mut broadcast_receiver = event_notifier.resubscribe();
-    tokio::spawn(async move {
-        while let Ok(event) = broadcast_receiver.recv().await {
-            if let Some(ApiEvent::Op(op)) = event.api_event {
-                let event =
-                    on_event_to_typed_response(op, desc.to_owned(), endpoint_name.to_owned());
-                if tx.send(Ok(event)).await.is_err() {
-                    // receiver dropped
-                    break;
-                }
-            }
+    tokio::spawn(shared_impl::on_event(event_notifier, tx, move |event| {
+        if let Some(ApiEvent::Op(op)) = event.api_event {
+            Some(Ok(on_event_to_typed_response(
+                op,
+                desc.clone(),
+                endpoint_name.clone(),
+            )))
+        } else {
+            None
         }
-    });
+    }));
     Ok(Response::new(ReceiverStream::new(rx)))
 }
