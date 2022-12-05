@@ -203,7 +203,7 @@ impl MinAggregator {
             new_count += val_delta;
         }
         if new_count < 1 {
-            try_unwrap!(ptx.del(aggregators_db, key, Option::from(to_bytes!(new_count))));
+            try_unwrap!(ptx.del(aggregators_db, key, Option::from(to_bytes!(prev_count))));
         } else {
             try_unwrap!(ptx.put(aggregators_db, key, to_bytes!(new_count)));
         }
