@@ -5,6 +5,7 @@ use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::index_comparator::compare_join_keys;
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record, Schema};
 use sqlparser::ast::TableWithJoins;

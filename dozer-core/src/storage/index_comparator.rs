@@ -4,7 +4,10 @@ use lmdb_sys::MDB_val;
 
 use super::errors::StorageError;
 
-unsafe extern "C" fn compare_join_keys(a: *const MDB_val, b: *const MDB_val) -> std::ffi::c_int {
+pub unsafe extern "C" fn compare_join_keys(
+    a: *const MDB_val,
+    b: *const MDB_val,
+) -> std::ffi::c_int {
     match compare_join_index(mdb_val_to_slice(&*a), mdb_val_to_slice(&*b)) {
         Ok(ordering) => ordering as std::ffi::c_int,
         Err(e) => {

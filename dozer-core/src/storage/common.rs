@@ -32,7 +32,7 @@ pub trait Environment {
         &mut self,
         name: &str,
         dup_keys: bool,
-        comparator: Option<MDB_cmp_func>,
+        comparator: MDB_cmp_func,
     ) -> Result<Database, StorageError>;
 }
 

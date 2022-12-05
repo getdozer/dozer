@@ -78,7 +78,7 @@ impl Environment for LmdbEnvironmentManager {
         &mut self,
         name: &str,
         dup_keys: bool,
-        comparator: Option<MDB_cmp_func>,
+        comparator: MDB_cmp_func,
     ) -> Result<Database, StorageError> {
         let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
         let mut db_opts = LmdbDatabaseOptions::default();
@@ -88,7 +88,7 @@ impl Environment for LmdbEnvironmentManager {
             .open_database(name.to_string(), db_opts)
             .map_err(InternalDbError)?;
         if let Some(comparator) = comparator {
-            db.set_compare(&tx, comparator)?;
+            db.set_compare(&tx, Some(comparator))?;
         }
 
         tx.commit().map_err(InternalDbError)?;
