@@ -145,8 +145,8 @@ impl AvgAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_ne_bytes(f.try_into().unwrap())),
-            FieldType::Float => Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap()))),
+            FieldType::Int => Int(i64::from_le_bytes(f.try_into().unwrap())),
+            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(f.try_into().unwrap()))),
             _ => Field::Null,
         }
     }
@@ -185,7 +185,7 @@ impl AvgAggregator {
         // Loop through aggregators_db to calculate average
         while exist {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            let val = f64::from_ne_bytes((cur.0).try_into().unwrap());
+            let val = f64::from_le_bytes((cur.0).try_into().unwrap());
             let get_count = ptx.get(aggregators_db, cur.0);
             if get_count.is_ok() {
                 let count = deserialize_u8!(try_unwrap!(get_count));
@@ -209,7 +209,7 @@ impl AvgAggregator {
         // Loop through aggregators_db to calculate average
         while exist {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            let val = i64::from_ne_bytes((cur.0).try_into().unwrap());
+            let val = i64::from_le_bytes((cur.0).try_into().unwrap());
             let get_count = ptx.get(aggregators_db, cur.0);
             if get_count.is_ok() {
                 let count = deserialize_u8!(try_unwrap!(get_count));

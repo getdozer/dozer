@@ -180,8 +180,8 @@ impl MinAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_ne_bytes(f.try_into().unwrap())),
-            FieldType::Float => Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap()))),
+            FieldType::Int => Int(i64::from_le_bytes(f.try_into().unwrap())),
+            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(f.try_into().unwrap()))),
             _ => Field::Null,
         }
     }
@@ -218,7 +218,7 @@ impl MinAggregator {
         // get first to get the minimum
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            minimum = f64::from_ne_bytes((cur.0).try_into().unwrap());
+            minimum = f64::from_le_bytes((cur.0).try_into().unwrap());
         }
         Ok(minimum)
     }
@@ -233,7 +233,7 @@ impl MinAggregator {
         // get first to get the minimum
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            minimum = i64::from_ne_bytes((cur.0).try_into().unwrap());
+            minimum = i64::from_le_bytes((cur.0).try_into().unwrap());
         }
         Ok(minimum)
     }

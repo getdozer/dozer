@@ -152,8 +152,8 @@ impl MaxAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_ne_bytes(f.try_into().unwrap())),
-            FieldType::Float => Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap()))),
+            FieldType::Int => Int(i64::from_le_bytes(f.try_into().unwrap())),
+            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(f.try_into().unwrap()))),
             _ => Field::Null,
         }
     }
@@ -190,7 +190,7 @@ impl MaxAggregator {
         // get first to get the maximum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = f64::from_ne_bytes((cur.0).try_into().unwrap());
+            maximum = f64::from_le_bytes((cur.0).try_into().unwrap());
         }
         Ok(maximum)
     }
@@ -205,7 +205,7 @@ impl MaxAggregator {
         // get first to get the maximum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = i64::from_ne_bytes((cur.0).try_into().unwrap());
+            maximum = i64::from_le_bytes((cur.0).try_into().unwrap());
         }
         Ok(maximum)
     }
