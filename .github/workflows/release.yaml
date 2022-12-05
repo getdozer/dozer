@@ -16,6 +16,7 @@ jobs:
   prepare:
     name: Prepare
     runs-on: ubuntu-20.04
+    timeout-minutes: 60
     outputs:
       release_body: ${{ steps.release.outputs.release_body }}
       version: ${{ steps.version.outputs.version }}
@@ -61,6 +62,7 @@ jobs:
     name: Release
     runs-on: ${{ matrix.os }}
     needs: prepare
+    timeout-minutes: 60
     strategy:
       matrix:
         os: [ubuntu-20.04, macos-12]
