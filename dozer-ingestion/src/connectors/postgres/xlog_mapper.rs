@@ -77,7 +77,6 @@ impl XlogMapper {
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
     ) -> Result<Option<IngestionMessage>, ConnectorError> {
-        debug!("MSG: {:?}", message.data());
         match &message.data() {
             Relation(relation) => {
                 debug!("relation:");
@@ -149,7 +148,6 @@ impl XlogMapper {
                     vec![]
                 };
 
-                debug!("VALUES: {:?}", values);
                 let event = OperationEvent {
                     operation: Operation::Update {
                         old: Record::new(
