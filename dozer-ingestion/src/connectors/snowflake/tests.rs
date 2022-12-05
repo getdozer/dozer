@@ -9,8 +9,8 @@ use std::thread;
 fn connector_e2e_connect_snowflake_and_read_from_stream() {
     use dozer_types::models::source::Source;
 
-    let source = serde_yaml::from_str::<Source>(&include_str!(
-        "../../../../config/tests/test.snowflake.yaml"
+    let source = serde_yaml::from_str::<Source>(&load_str!(
+        "../../../../config/tests/local/test.snowflake.yaml"
     ))
     .unwrap();
     remove_streams(source.connection.clone(), &source.table_name).unwrap();

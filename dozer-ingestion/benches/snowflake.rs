@@ -32,7 +32,7 @@ pub fn main() {
     use dozer_types::models::source::Source;
 
     let source =
-        serde_yaml::from_str::<Source>(&include_str!("../../config/tests/test.snowflake.yaml"))
+        serde_yaml::from_str::<Source>(&include_str!("../../config/tests/local/test.snowflake.yaml"))
             .unwrap();
 
     remove_streams(source.connection.clone(), &source.table_name).unwrap();

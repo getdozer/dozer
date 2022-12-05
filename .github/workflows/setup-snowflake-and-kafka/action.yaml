@@ -89,7 +89,7 @@ runs:
         WAREHOUSE: ${{ inputs.SNOWFLAKE_WAREHOUSE }}
       with:
         from_file: "config/tests/test.snowflake.yaml"
-        to_file: "config/tests/test.snowflake.yaml"
+        to_file: "config/tests/local/test.snowflake.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -106,7 +106,7 @@ runs:
         KAFKA_CONNECTOR_URL: ${{ inputs.KAFKA_CONNECTOR_URL }}
       with:
         from_file: "config/tests/test.debezium.yaml"
-        to_file: "config/tests/test.debezium.yaml"
+        to_file: "config/tests/local/test.debezium.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -121,8 +121,8 @@ runs:
         POSTGRES_SCHEMA: ${{ inputs.POSTGRES_SCHEMA }}
         POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
       with:
-        from_file: "tests/connectors/debezium/test.register-postgres.json"
-        to_file: "tests/connectors/debezium/register-postgres.test.json"
+        from_file: "config/tests/test.register-postgres.json"
+        to_file: "config/tests/local/test.register-postgres.json"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -135,7 +135,7 @@ runs:
         POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
       with:
         from_file: "config/tests/test.postgres.auth.yaml"
-        to_file: "config/tests/test.postgres.auth.yaml"
+        to_file: "config/tests/local/test.postgres.auth.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -148,5 +148,5 @@ runs:
         POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
       with:
         from_file: "config/tests/test.postgres.yaml"
-        to_file: "config/tests/test.postgres.yaml"
+        to_file: "config/tests/local/test.postgres.yaml"
         commit: "false"
