@@ -61,7 +61,7 @@ impl Source for GeneratorSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..self.count {
+        for n in 1..(self.count + 1) {
             fw.send(
                 n,
                 Operation::Insert {

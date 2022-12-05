@@ -361,7 +361,6 @@ impl<'a> DagExecutor<'a> {
                         break;
                     }
                     STOP_REQ_SHUTDOWN => {
-                        lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
                         lt_term_barrier.wait();
                         return Ok(());
                     }
@@ -419,6 +418,8 @@ impl<'a> DagExecutor<'a> {
         let lt_edges = self.dag.edges.clone();
         let lt_record_stores = self.record_stores.clone();
         let lt_start_latch = self.start_latch.clone();
+        let lt_stop_req = self.stop_req.clone();
+        let lt_term_barrier = self.term_barrier.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
             let mut proc = proc_factory.build();
@@ -462,47 +463,66 @@ impl<'a> DagExecutor<'a> {
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
-                let op = receivers_ls[index]
-                    .recv_deadline(Instant::now().add(Duration::from_millis(50)))
-                    .map_err(|e| ExecutionError::ProcessorReceiverError(index, Box::new(e)))?;
+                let r = receivers_ls[index]
+                    .recv_deadline(Instant::now().add(Duration::from_millis(50)));
 
-                let curr_port = handles_ls[index];
-
-                match op {
-                    ExecutorOperation::Terminate => {
-                        port_states[index] = InputPortState::Terminated;
-                        info!(
-                            "[{}] Received Terminate request on port {}",
-                            handle, &handles_ls[index]
-                        );
-                        if port_states.iter().all(|v| v == &InputPortState::Terminated) {
-                            fw.send_term_and_wait()?;
-                            return Ok(());
+                match lt_stop_req.load(Ordering::Relaxed) {
+                    STOP_REQ_SHUTDOWN => {
+                        lt_term_barrier.wait();
+                        return Ok(());
+                    }
+                    _ => match r {
+                        Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => {
+                            lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
+                            lt_term_barrier.wait();
+                            return Err(ChannelDisconnected);
                         }
-                    }
+                        Ok(ExecutorOperation::Commit { epoch, source }) => {
+                            term_on_err!(
+                                proc.commit(&mut SharedTransaction::new(&master_tx)),
+                                lt_stop_req,
+                                lt_term_barrier
+                            );
+                            term_on_err!(
+                                fw.store_and_send_commit(source, epoch),
+                                lt_stop_req,
+                                lt_term_barrier
+                            );
+                        }
+                        Ok(ExecutorOperation::Terminate) => {
+                            port_states[index] = InputPortState::Terminated;
+                            info!(
+                                "[{}] Received Terminate request on port {}",
+                                handle, &handles_ls[index]
+                            );
+                            if port_states.iter().all(|v| v == &InputPortState::Terminated) {
+                                term_on_err!(fw.send_term_and_wait(), lt_stop_req, lt_term_barrier);
+                                return Ok(());
+                            }
+                        }
+                        Ok(op) => {
+                            let guard = lt_record_stores.read();
+                            let reader = guard
+                                .get(&handle)
+                                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
-                    ExecutorOperation::Commit { epoch, source } => {
-                        proc.commit(&mut SharedTransaction::new(&master_tx))?;
-                        fw.store_and_send_commit(source, epoch)?;
-                    }
+                            let data_op = map_to_op(op)?;
+                            fw.update_seq_no(data_op.0);
 
-                    _ => {
-                        let guard = lt_record_stores.read();
-                        let reader = guard
-                            .get(&handle)
-                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-
-                        let data_op = map_to_op(op)?;
-                        fw.update_seq_no(data_op.0);
-
-                        proc.process(
-                            handles_ls[index],
-                            data_op.1,
-                            &mut fw,
-                            &mut SharedTransaction::new(&master_tx),
-                            reader,
-                        )?;
-                    }
+                            term_on_err!(
+                                proc.process(
+                                    handles_ls[index],
+                                    data_op.1,
+                                    &mut fw,
+                                    &mut SharedTransaction::new(&master_tx),
+                                    reader,
+                                ),
+                                lt_stop_req,
+                                lt_term_barrier
+                            );
+                        }
+                    },
                 }
             }
         }))
@@ -519,6 +539,8 @@ impl<'a> DagExecutor<'a> {
         let lt_path = self.path.clone();
         let lt_record_stores = self.record_stores.clone();
         let lt_start_latch = self.start_latch.clone();
+        let lt_stop_req = self.stop_req.clone();
+        let lt_term_barrier = self.term_barrier.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build();
@@ -540,36 +562,54 @@ impl<'a> DagExecutor<'a> {
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
-                let op = receivers_ls[index]
-                    .recv()
-                    .map_err(|e| ExecutionError::SinkReceiverError(index, Box::new(e)))?;
+                let r = receivers_ls[index]
+                    .recv_deadline(Instant::now().add(Duration::from_millis(50)));
 
-                match op {
-                    ExecutorOperation::Terminate => {
-                        info!("[{}] Terminating: Exiting message loop", handle);
+                match lt_stop_req.load(Ordering::Relaxed) {
+                    STOP_REQ_SHUTDOWN => {
+                        lt_term_barrier.wait();
                         return Ok(());
                     }
-                    ExecutorOperation::Commit { epoch, source } => {
-                        snk.commit(&mut SharedTransaction::new(&master_tx))?;
-                        state_writer.store_commit_info(&source, epoch)?
-                    }
+                    _ => match r {
+                        Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => {
+                            lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
+                            lt_term_barrier.wait();
+                            return Err(ChannelDisconnected);
+                        }
+                        Ok(ExecutorOperation::Terminate) => {
+                            info!("[{}] Terminating: Exiting message loop", handle);
+                            return Ok(());
+                        }
+                        Ok(ExecutorOperation::Commit { epoch, source }) => {
+                            info!(
+                                "[{}] Checkpointing (source: {}, epoch: {})",
+                                handle, source, epoch
+                            );
+                            snk.commit(&mut SharedTransaction::new(&master_tx))?;
+                            state_writer.store_commit_info(&source, epoch)?
+                        }
+                        Ok(op) => {
+                            let data_op = map_to_op(op)?;
 
-                    _ => {
-                        let data_op = map_to_op(op)?;
+                            let guard = lt_record_stores.read();
+                            let reader = guard
+                                .get(&handle)
+                                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
-                        let guard = lt_record_stores.read();
-                        let reader = guard
-                            .get(&handle)
-                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-
-                        snk.process(
-                            handles_ls[index],
-                            data_op.0,
-                            data_op.1,
-                            &mut SharedTransaction::new(&master_tx),
-                            reader,
-                        )?;
-                    }
+                            term_on_err!(
+                                snk.process(
+                                    handles_ls[index],
+                                    data_op.0,
+                                    data_op.1,
+                                    &mut SharedTransaction::new(&master_tx),
+                                    reader,
+                                ),
+                                lt_stop_req,
+                                lt_term_barrier
+                            );
+                        }
+                    },
                 }
             }
         }))
