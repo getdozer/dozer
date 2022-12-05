@@ -40,34 +40,34 @@ inputs:
     description: DEBEZIUM_KAFKA_TOPIC
     required: true
     default: DEBEZIUM_KAFKA_TOPIC
-  KAFKA_POSTGRES_USER:
-    description: KAFKA_POSTGRES_USER
+  POSTGRES_USER:
+    description: POSTGRES_USER
     required: true
-    default: KAFKA_POSTGRES_USER
-  KAFKA_POSTGRES_PASSWORD:
-    description: KAFKA_POSTGRES_PASSWORD
+    default: POSTGRES_USER
+  POSTGRES_PASSWORD:
+    description: POSTGRES_PASSWORD
     required: true
-    default: KAFKA_POSTGRES_PASSWORD
-  KAFKA_POSTGRES_HOST:
-    description: KAFKA_POSTGRES_HOST
+    default: POSTGRES_PASSWORD
+  POSTGRES_HOST:
+    description: POSTGRES_HOST
     required: true
-    default: KAFKA_POSTGRES_HOST
-  KAFKA_POSTGRES_PORT:
-    description: KAFKA_POSTGRES_PORT
+    default: POSTGRES_HOST
+  POSTGRES_PORT:
+    description: POSTGRES_PORT
     required: true
-    default: KAFKA_POSTGRES_PORT
-  KAFKA_POSTGRES_DATABASE:
-    description: KAFKA_POSTGRES_DATABASE
+    default: POSTGRES_PORT
+  POSTGRES_DATABASE:
+    description: POSTGRES_DATABASE
     required: true
-    default: KAFKA_POSTGRES_DATABASE
+    default: POSTGRES_DATABASE
   KAFKA_CONNECTOR_URL:
     description: KAFKA_CONNECTOR_URL
     required: true
     default: KAFKA_CONNECTOR_URL
-  KAFKA_POSTGRES_SCHEMA:
-    description: KAFKA_POSTGRES_SCHEMA
+  POSTGRES_SCHEMA:
+    description: POSTGRES_SCHEMA
     required: true
-    default: KAFKA_POSTGRES_SCHEMA
+    default: POSTGRES_SCHEMA
 
 runs:
   using: "composite"
@@ -98,11 +98,11 @@ runs:
         DEBEZIUM_TABLE_NAME: ${{ inputs.DEBEZIUM_TABLE_NAME }}
         DEBEZIUM_KAFKA_BROKER: ${{ inputs.DEBEZIUM_KAFKA_BROKER }}
         DEBEZIUM_KAFKA_TOPIC: ${{ inputs.DEBEZIUM_KAFKA_TOPIC }}
-        KAFKA_POSTGRES_USER: ${{ inputs.KAFKA_POSTGRES_USER }}
-        KAFKA_POSTGRES_PASSWORD: ${{ inputs.KAFKA_POSTGRES_PASSWORD }}
-        KAFKA_POSTGRES_HOST: ${{ inputs.KAFKA_POSTGRES_HOST }}
-        KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
-        KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
+        POSTGRES_USER: ${{ inputs.POSTGRES_USER }}
+        POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
+        POSTGRES_HOST: ${{ inputs.POSTGRES_HOST }}
+        POSTGRES_PORT: ${{ inputs.POSTGRES_PORT }}
+        POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
         KAFKA_CONNECTOR_URL: ${{ inputs.KAFKA_CONNECTOR_URL }}
       with:
         from_file: "config/tests/test.debezium.yaml"
@@ -114,12 +114,12 @@ runs:
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
         DEBEZIUM_TABLE_NAME: ${{ inputs.DEBEZIUM_TABLE_NAME }}
         DEBEZIUM_KAFKA_TOPIC: ${{ inputs.DEBEZIUM_KAFKA_TOPIC }}
-        KAFKA_POSTGRES_USER: ${{ inputs.KAFKA_POSTGRES_USER }}
-        KAFKA_POSTGRES_HOST: ${{ inputs.KAFKA_POSTGRES_HOST }}
-        KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
-        KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
-        KAFKA_POSTGRES_SCHEMA: ${{ inputs.KAFKA_POSTGRES_SCHEMA }}
-        KAFKA_POSTGRES_PASSWORD: ${{ inputs.KAFKA_POSTGRES_PASSWORD }}
+        POSTGRES_USER: ${{ inputs.POSTGRES_USER }}
+        POSTGRES_HOST: ${{ inputs.POSTGRES_HOST }}
+        POSTGRES_PORT: ${{ inputs.POSTGRES_PORT }}
+        POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
+        POSTGRES_SCHEMA: ${{ inputs.POSTGRES_SCHEMA }}
+        POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
       with:
         from_file: "tests/connectors/debezium/register-postgres.test.sample.json"
         to_file: "tests/connectors/debezium/register-postgres.test.json"
@@ -128,11 +128,11 @@ runs:
     - uses: franzbischoff/replace_envs@v1
       env:
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
-        KAFKA_POSTGRES_USER: ${{ inputs.KAFKA_POSTGRES_USER }}
-        KAFKA_POSTGRES_PASSWORD: ${{ inputs.KAFKA_POSTGRES_PASSWORD }}
-        KAFKA_POSTGRES_HOST: ${{ inputs.KAFKA_POSTGRES_HOST }}
-        KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
-        KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
+        POSTGRES_USER: ${{ inputs.POSTGRES_USER }}
+        POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
+        POSTGRES_HOST: ${{ inputs.POSTGRES_HOST }}
+        POSTGRES_PORT: ${{ inputs.POSTGRES_PORT }}
+        POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
       with:
         from_file: "config/tests/test.postgres.auth.yaml"
         to_file: "config/tests/test.postgres.auth.yaml"
@@ -141,11 +141,11 @@ runs:
     - uses: franzbischoff/replace_envs@v1
       env:
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
-        KAFKA_POSTGRES_USER: ${{ inputs.KAFKA_POSTGRES_USER }}
-        KAFKA_POSTGRES_PASSWORD: ${{ inputs.KAFKA_POSTGRES_PASSWORD }}
-        KAFKA_POSTGRES_HOST: ${{ inputs.KAFKA_POSTGRES_HOST }}
-        KAFKA_POSTGRES_PORT: ${{ inputs.KAFKA_POSTGRES_PORT }}
-        KAFKA_POSTGRES_DATABASE: ${{ inputs.KAFKA_POSTGRES_DATABASE }}
+        POSTGRES_USER: ${{ inputs.POSTGRES_USER }}
+        POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
+        POSTGRES_HOST: ${{ inputs.POSTGRES_HOST }}
+        POSTGRES_PORT: ${{ inputs.POSTGRES_PORT }}
+        POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
       with:
         from_file: "config/tests/test.postgres.yaml"
         to_file: "config/tests/test.postgres.yaml"
