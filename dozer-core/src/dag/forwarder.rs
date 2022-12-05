@@ -356,6 +356,11 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
+    pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
+        self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
+        self.send_term_and_wait()
+    }
+
     fn timeout_commit_needed(&self) -> bool {
         !self.max_commit_time.is_zero() && self.last_commit_time.elapsed().gt(&self.max_commit_time)
     }
@@ -381,11 +386,6 @@ impl SourceChannelForwarder for LocalChannelForwarder {
         self.send_op(seq, op, port)?;
         self.commit_counter += 1;
         Ok(())
-    }
-
-    fn terminate(&mut self) -> Result<(), ExecutionError> {
-        self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
-        self.send_term_and_wait()
     }
 }
 

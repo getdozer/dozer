@@ -2,6 +2,8 @@ use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use fp_rust::sync::CountDownLatch;
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
@@ -9,11 +11,12 @@ pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
 pub(crate) struct GeneratorSourceFactory {
     count: u64,
+    term_latch: Arc<CountDownLatch>,
 }
 
 impl GeneratorSourceFactory {
-    pub fn new(count: u64) -> Self {
-        Self { count }
+    pub fn new(count: u64, term_latch: Arc<CountDownLatch>) -> Self {
+        Self { count, term_latch }
     }
 }
 
@@ -40,12 +43,16 @@ impl SourceFactory for GeneratorSourceFactory {
         )]
     }
     fn build(&self) -> Box<dyn Source> {
-        Box::new(GeneratorSource { count: self.count })
+        Box::new(GeneratorSource {
+            count: self.count,
+            term_latch: self.term_latch.clone(),
+        })
     }
 }
 
 pub(crate) struct GeneratorSource {
     count: u64,
+    term_latch: Arc<CountDownLatch>,
 }
 
 impl Source for GeneratorSource {
@@ -69,11 +76,8 @@ impl Source for GeneratorSource {
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }
-        fw.terminate()?;
-
-        loop {
-            thread::sleep(Duration::from_millis(1000));
-        }
+        self.term_latch.wait();
+        Ok(())
     }
 }
 //

@@ -3,7 +3,9 @@ use crate::dag::dag::{Dag, NodeType};
 use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager, METADATA_DB_NAME};
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{IncompatibleSchemas, InternalError, InvalidNodeHandle};
+use crate::dag::errors::ExecutionError::{
+    ChannelDisconnected, IncompatibleSchemas, InternalError, InvalidNodeHandle,
+};
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, index_edges,
     init_component, init_select, map_to_op,
@@ -26,11 +28,25 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Add;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+
+macro_rules! term_on_err {
+    ($e: expr, $stop_req: expr, $barrier: expr) => {
+        if let Err(e) = $e {
+            $stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
+            $barrier.wait();
+            return Err(e);
+        }
+    };
+}
+
+const STOP_REQ_SHUTDOWN: u8 = 0xff_u8;
+const STOP_REQ_TERM_AND_SHUTDOWN: u8 = 0xfe_u8;
+const STOP_REQ_NO_ACTION: u8 = 0x00_u8;
 
 #[derive(Clone)]
 pub struct ExecutorOptions {
@@ -99,30 +115,18 @@ impl StorageMetadata {
 }
 
 struct InternalChannelSourceForwarder {
-    senders: HashMap<PortHandle, Sender<ExecutorOperation>>,
+    sender: Sender<(PortHandle, u64, Operation)>,
 }
 
 impl InternalChannelSourceForwarder {
-    pub fn new(senders: HashMap<PortHandle, Sender<ExecutorOperation>>) -> Self {
-        Self { senders }
+    pub fn new(sender: Sender<(PortHandle, u64, Operation)>) -> Self {
+        Self { sender }
     }
 }
 
 impl SourceChannelForwarder for InternalChannelSourceForwarder {
     fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        let sender = self
-            .senders
-            .get(&port)
-            .ok_or(ExecutionError::InvalidPortHandle(port))?;
-        let exec_op = ExecutorOperation::from_operation(seq, op);
-        internal_err!(sender.send(exec_op))
-    }
-
-    fn terminate(&mut self) -> Result<(), ExecutionError> {
-        for sender in &self.senders {
-            let _ = sender.1.send(ExecutorOperation::Terminate);
-        }
-        Ok(())
+        internal_err!(self.sender.send((port, seq, op)))
     }
 }
 
@@ -135,7 +139,7 @@ pub struct DagExecutor<'a> {
     join_handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>,
     path: PathBuf,
     options: ExecutorOptions,
-    stop_req: Arc<AtomicBool>,
+    stop_req: Arc<AtomicU8>,
 }
 
 impl<'a> DagExecutor<'a> {
@@ -160,7 +164,7 @@ impl<'a> DagExecutor<'a> {
             path: path.to_path_buf(),
             join_handles: HashMap::new(),
             options: options,
-            stop_req: Arc::new(AtomicBool::new(false)),
+            stop_req: Arc::new(AtomicU8::new(STOP_REQ_NO_ACTION)),
         })
     }
 
@@ -298,20 +302,18 @@ impl<'a> DagExecutor<'a> {
     ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
         //
         //
-        let mut internal_receivers: Vec<Receiver<ExecutorOperation>> = Vec::new();
-        let mut internal_senders: HashMap<PortHandle, Sender<ExecutorOperation>> = HashMap::new();
 
-        for port in &src_factory.get_output_ports() {
-            let channels = bounded::<ExecutorOperation>(self.options.channel_buffer_sz);
-            internal_receivers.push(channels.1);
-            internal_senders.insert(port.handle, channels.0);
-        }
-
+        let (st_sender, st_receiver) =
+            bounded::<(PortHandle, u64, Operation)>(self.options.channel_buffer_sz);
         let st_src_factory = src_factory.clone();
-        let mut fw = InternalChannelSourceForwarder::new(internal_senders);
-        thread::spawn(move || -> Result<(), ExecutionError> {
+        let st_stop_req = self.stop_req.clone();
+        let mut fw = InternalChannelSourceForwarder::new(st_sender);
+
+        let st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
             let src = st_src_factory.build();
-            src.start(&mut fw, None)
+            let r = src.start(&mut fw, None);
+            st_stop_req.store(STOP_REQ_TERM_AND_SHUTDOWN, Ordering::Relaxed);
+            r
         });
 
         let lt_handle = handle.clone();
@@ -350,44 +352,54 @@ impl<'a> DagExecutor<'a> {
                 StateWriter::new(state_meta.meta_db, port_databases, master_tx.clone(), None),
                 true,
             );
-            let mut sel = init_select(&internal_receivers);
             loop {
-                let port_index = sel.ready();
-                let r = internal_receivers[port_index]
-                    .recv_deadline(Instant::now().add(Duration::from_millis(500)));
-
-                if lt_stop_req.load(Ordering::Relaxed) {
-                    info!("[{}] Stop requested...", lt_handle);
-                    dag_fw.terminate()?;
-                }
-
-                match r {
-                    Err(RecvTimeoutError::Timeout) => dag_fw.trigger_commit_if_needed()?,
-                    Err(RecvTimeoutError::Disconnected) => {
-                        warn!("[{}] Source exited. Shutting down...", lt_handle);
-                        break;
-                    }
-                    Ok(ExecutorOperation::Insert { seq, new }) => dag_fw.send(
-                        seq,
-                        Operation::Insert { new },
-                        lt_output_ports[port_index].handle,
-                    )?,
-                    Ok(ExecutorOperation::Delete { seq, old }) => dag_fw.send(
-                        seq,
-                        Operation::Delete { old },
-                        lt_output_ports[port_index].handle,
-                    )?,
-                    Ok(ExecutorOperation::Update { seq, old, new }) => dag_fw.send(
-                        seq,
-                        Operation::Update { old, new },
-                        lt_output_ports[port_index].handle,
-                    )?,
-                    Ok(ExecutorOperation::Terminate) => {
-                        dag_fw.terminate()?;
+                let r = st_receiver.recv_deadline(Instant::now().add(Duration::from_millis(500)));
+                match lt_stop_req.load(Ordering::Relaxed) {
+                    STOP_REQ_TERM_AND_SHUTDOWN => {
+                        term_on_err!(dag_fw.commit_and_terminate(), lt_stop_req, lt_term_barrier);
                         lt_term_barrier.wait();
                         break;
                     }
-                    _ => {}
+                    STOP_REQ_SHUTDOWN => {
+                        lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
+                        lt_term_barrier.wait();
+                        return Ok(());
+                    }
+                    _ => match r {
+                        Err(RecvTimeoutError::Timeout) => {
+                            term_on_err!(
+                                dag_fw.trigger_commit_if_needed(),
+                                lt_stop_req,
+                                lt_term_barrier
+                            )
+                        }
+                        Err(RecvTimeoutError::Disconnected) => {
+                            lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
+                            lt_term_barrier.wait();
+                            return Err(ChannelDisconnected);
+                        }
+                        Ok((port, seq, Operation::Insert { new })) => {
+                            term_on_err!(
+                                dag_fw.send(seq, Operation::Insert { new }, port),
+                                lt_stop_req,
+                                lt_term_barrier
+                            )
+                        }
+                        Ok((port, seq, Operation::Delete { old })) => {
+                            term_on_err!(
+                                dag_fw.send(seq, Operation::Delete { old }, port),
+                                lt_stop_req,
+                                lt_term_barrier
+                            )
+                        }
+                        Ok((port, seq, Operation::Update { old, new })) => {
+                            term_on_err!(
+                                dag_fw.send(seq, Operation::Update { old, new }, port),
+                                lt_stop_req,
+                                lt_term_barrier
+                            )
+                        }
+                    },
                 }
             }
             Ok(())
@@ -451,8 +463,10 @@ impl<'a> DagExecutor<'a> {
             loop {
                 let index = sel.ready();
                 let op = receivers_ls[index]
-                    .recv()
+                    .recv_deadline(Instant::now().add(Duration::from_millis(50)))
                     .map_err(|e| ExecutionError::ProcessorReceiverError(index, Box::new(e)))?;
+
+                let curr_port = handles_ls[index];
 
                 match op {
                     ExecutorOperation::Terminate => {
@@ -562,11 +576,11 @@ impl<'a> DagExecutor<'a> {
     }
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
-        let (mut senders, mut receivers) = index_edges(&dag, self.options.channel_buffer_sz);
+        let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
 
         for (handle, factory) in self.dag.get_sinks() {
             let join_handle = self.start_sink(
-                handle,
+                handle.clone(),
                 factory.clone(),
                 receivers
                     .remove(&handle)
@@ -577,7 +591,7 @@ impl<'a> DagExecutor<'a> {
 
         for (handle, factory) in self.dag.get_processors() {
             let join_handle = self.start_processor(
-                handle,
+                handle.clone(),
                 factory.clone(),
                 senders
                     .remove(&handle)
@@ -593,7 +607,7 @@ impl<'a> DagExecutor<'a> {
 
         for (handle, factory) in self.dag.get_sources() {
             let join_handle = self.start_source(
-                handle,
+                handle.clone(),
                 factory.clone(),
                 senders
                     .remove(&handle)
@@ -605,15 +619,16 @@ impl<'a> DagExecutor<'a> {
     }
 
     pub fn stop(&self) {
-        self.stop_req.store(true, Ordering::Relaxed);
+        self.stop_req
+            .store(STOP_REQ_TERM_AND_SHUTDOWN, Ordering::Relaxed);
     }
 
-    pub fn join(&self) -> Result<(), HashMap<NodeHandle, ExecutionError>> {
+    pub fn join(self) -> Result<(), HashMap<NodeHandle, ExecutionError>> {
         let mut results: HashMap<NodeHandle, ExecutionError> = HashMap::new();
         for (handle, thread) in self.join_handles {
-            let r = t.1.join().unwrap();
+            let r = thread.join().unwrap();
             if let Err(e) = r {
-                results.insert(t.0, e);
+                results.insert(handle.clone(), e);
             }
         }
         match results.is_empty() {

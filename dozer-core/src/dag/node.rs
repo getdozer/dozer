@@ -86,11 +86,11 @@ pub trait Processor {
 }
 
 pub trait SinkFactory: Send + Sync {
-    fn get_output_schema(
+    fn set_input_schema(
         &self,
         output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError>;
+    ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn build(&self) -> Box<dyn Sink>;
 }

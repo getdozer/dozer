@@ -35,6 +35,8 @@ pub enum ExecutionError {
     MetadataAlreadyExists(NodeHandle),
     #[error("Incompatible schemas")]
     IncompatibleSchemas(),
+    #[error("Channel disconnected")]
+    ChannelDisconnected,
 
     // Error forwarders
     #[error(transparent)]

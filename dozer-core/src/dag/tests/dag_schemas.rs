@@ -121,12 +121,12 @@ impl ProcessorFactory for TestJoinProcessorFactory {
 struct TestSinkFactory {}
 
 impl SinkFactory for TestSinkFactory {
-    fn get_output_schema(
+    fn set_input_schema(
         &self,
         output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {

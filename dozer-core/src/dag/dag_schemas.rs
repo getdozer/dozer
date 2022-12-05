@@ -40,12 +40,15 @@ impl<'a> DagSchemaManager<'a> {
         node: &NodeType,
         output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        match node {
-            NodeType::Source(src) => src.get_output_schema(output_port),
-            NodeType::Processor(proc) => proc.get_output_schema(output_port, input_schemas),
-            NodeType::Sink(proc) => proc.get_output_schema(output_port, input_schemas),
-        }
+    ) -> Result<Option<Schema>, ExecutionError> {
+        Ok(match node {
+            NodeType::Source(src) => Some(src.get_output_schema(output_port)?),
+            NodeType::Processor(proc) => Some(proc.get_output_schema(output_port, input_schemas)?),
+            NodeType::Sink(proc) => {
+                proc.set_input_schema(output_port, input_schemas)?;
+                None
+            }
+        })
     }
 
     fn get_node_input_ports(node: &NodeType) -> Vec<PortHandle> {
@@ -99,9 +102,11 @@ impl<'a> DagSchemaManager<'a> {
                         .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
                     let schema =
                         Self::get_port_output_schema(node, port, &node_schemas.input_schemas)?;
-                    node_schemas
-                        .output_schemas
-                        .insert(port.clone(), schema.clone());
+                    if let Some(schema) = &schema {
+                        node_schemas
+                            .output_schemas
+                            .insert(port.clone(), schema.clone());
+                    }
                     schema
                 };
 
@@ -116,9 +121,11 @@ impl<'a> DagSchemaManager<'a> {
                     let next_node_schemas = all_schemas
                         .get_mut(&next_node_port_input.node)
                         .ok_or(InvalidNodeHandle(next_node_port_input.node.clone()))?;
-                    next_node_schemas
-                        .input_schemas
-                        .insert(next_node_port_input.port, schema.clone());
+                    if let Some(schema) = &schema {
+                        next_node_schemas
+                            .input_schemas
+                            .insert(next_node_port_input.port, schema.clone());
+                    }
                 }
             }
 
