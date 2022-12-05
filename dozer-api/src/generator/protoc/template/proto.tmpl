@@ -30,7 +30,10 @@ enum EventType {
   DELETE_ONLY = 3;
 }
 
-message {{pascal_name}}EventRequest { EventType type = 1; }
+message {{pascal_name}}EventRequest {
+  EventType type = 1;
+  optional string filter = 2;
+}
 
 message {{pascal_name}}Event {
   dozer.types.OperationType typ = 1;
