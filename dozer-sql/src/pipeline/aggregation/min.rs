@@ -9,7 +9,6 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
 
-use std::cmp::min;
 use std::string::ToString;
 
 pub struct MinAggregator {}
@@ -215,16 +214,11 @@ impl MinAggregator {
     ) -> Result<f64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = f64::MAX;
-        let mut exist = ptx_cur.first()?;
 
-        // Loop through aggregators_db to calculate average
-        while exist {
+        // get first to get the minimum
+        if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            let val = f64::from_ne_bytes((cur.0).try_into().unwrap());
-            if minimum > val {
-                minimum = val
-            }
-            exist = ptx_cur.next()?;
+            minimum = f64::from_ne_bytes((cur.0).try_into().unwrap());
         }
         Ok(minimum)
     }
@@ -235,14 +229,11 @@ impl MinAggregator {
     ) -> Result<i64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = i64::MAX;
-        let mut exist = ptx_cur.first()?;
 
-        // Loop through aggregators_db to calculate average
-        while exist {
+        // get first to get the minimum
+        if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            let val = i64::from_ne_bytes((cur.0).try_into().unwrap());
-            minimum = min(minimum, val);
-            exist = ptx_cur.next()?;
+            minimum = i64::from_ne_bytes((cur.0).try_into().unwrap());
         }
         Ok(minimum)
     }
