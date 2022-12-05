@@ -1,10 +1,9 @@
 use crate::errors::types::TypeError;
-use chrono::{DateTime, FixedOffset, NaiveDate};
-use std::fmt::{Display, Formatter};
-
+use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -30,48 +29,76 @@ impl Display for Field {
     }
 }
 
+#[macro_export]
+macro_rules! serialize {
+    ($self:ident, $stmt:expr) => {
+        Ok([
+            Self::get_type_prefix($self.get_type().unwrap()),
+            Vec::from($stmt),
+        ]
+        .concat())
+    };
+}
+
 impl Field {
     pub fn to_bytes(&self) -> Result<Vec<u8>, TypeError> {
+        // prefix representing return type is added using get_type_prefix
         match self {
-            Field::Int(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::UInt(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::Float(f) => Ok(Vec::from(f.to_be_bytes())),
-            Field::Boolean(b) => Ok(Vec::from(if *b {
-                1_u8.to_be_bytes()
-            } else {
-                0_u8.to_be_bytes()
-            })),
-            Field::String(s) => Ok(Vec::from(s.as_bytes())),
-            Field::Text(s) => Ok(Vec::from(s.as_bytes())),
-            Field::Binary(b) => Ok(Vec::from(b.as_slice())),
-            Field::Decimal(d) => Ok(Vec::from(d.serialize())),
-            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
-            Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
-            Field::Bson(b) => Ok(b.clone()),
-            Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
+            Field::Int(i) => serialize!(self, i.to_be_bytes()),
+            Field::UInt(i) => serialize!(self, i.to_be_bytes()),
+            Field::Float(f) => serialize!(self, f.to_be_bytes()),
+            Field::Boolean(b) => serialize!(
+                self,
+                if *b {
+                    1_u8.to_be_bytes()
+                } else {
+                    0_u8.to_be_bytes()
+                }
+            ),
+            Field::String(s) => serialize!(self, s.as_bytes()),
+            Field::Text(t) => serialize!(self, t.as_bytes()),
+            Field::Binary(b) => serialize!(self, b.as_slice()),
+            Field::Decimal(d) => serialize!(self, d.serialize()),
+            Field::Timestamp(t) => serialize!(self, t.timestamp_millis().to_be_bytes()),
+            Field::Date(d) => serialize!(self, d.to_string().as_bytes()),
+            Field::Bson(b) => serialize!(self, b.clone()),
+            Field::Null => serialize!(self, 0_u8.to_be_bytes()),
         }
     }
 
-    pub fn from_bytes(&self) -> Result<Vec<u8>, TypeError> {
-        // must prefix each type with 1 byte in front -> saying the return type
-        // e.g. Int 0, UInt 1,
-        match self {
-            Field::Int(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::UInt(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::Float(f) => Ok(Vec::from(f.to_be_bytes())),
-            Field::Boolean(b) => Ok(Vec::from(if *b {
-                1_u8.to_be_bytes()
-            } else {
-                0_u8.to_be_bytes()
-            })),
-            Field::String(s) => Ok(Vec::from(s.as_bytes())),
-            Field::Text(s) => Ok(Vec::from(s.as_bytes())),
-            Field::Binary(b) => Ok(Vec::from(b.as_slice())),
-            Field::Decimal(d) => Ok(Vec::from(d.serialize())),
-            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
-            Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
-            Field::Bson(b) => Ok(b.clone()),
-            Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
+    pub fn from_bytes(buf: Vec<u8>) -> Result<Field, TypeError> {
+        let offset: usize = 1;
+        let return_type = Self::from_type_prefix(Box::from(buf[0..offset].to_vec()));
+        let val = buf[1..buf.len()].as_ref();
+        match return_type {
+            FieldType::Int => Ok(Field::Int(i64::from_be_bytes(val.try_into().unwrap()))),
+            FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(val.try_into().unwrap()))),
+            FieldType::Float => Ok(Field::Float(OrderedFloat::from(f64::from_be_bytes(
+                val.try_into().unwrap(),
+            )))),
+            FieldType::Boolean => Ok(Field::Boolean(*val == [1_u8])),
+            FieldType::String => Ok(Field::String(
+                String::from_utf8(val.try_into().unwrap()).unwrap(),
+            )),
+            FieldType::Text => Ok(Field::Text(
+                String::from_utf8(val.try_into().unwrap()).unwrap(),
+            )),
+            FieldType::Binary => Ok(Field::Binary(val.try_into().unwrap())),
+            FieldType::Decimal => Ok(Field::Decimal(Decimal::deserialize(
+                val.try_into().unwrap(),
+            ))),
+            FieldType::Timestamp => Ok(Field::Timestamp(DateTime::from(
+                Utc.timestamp_millis(i64::from_be_bytes(val.try_into().unwrap())),
+            ))),
+            FieldType::Date => Ok(Field::Date(
+                NaiveDate::parse_from_str(
+                    String::from_utf8(val.try_into().unwrap()).unwrap().as_ref(),
+                    DATE_FORMAT,
+                )
+                .unwrap(),
+            )),
+            FieldType::Bson => Ok(Field::Bson(val.try_into().unwrap())),
+            FieldType::Null => Ok(Field::Null),
         }
     }
 
@@ -90,6 +117,47 @@ impl Field {
             Field::Bson(_b) => Ok(FieldType::Bson),
             Field::Null => Ok(FieldType::Null),
         }
+    }
+
+    pub fn get_type_prefix(f: FieldType) -> Vec<u8> {
+        match f {
+            FieldType::Int => vec![0_u8],
+            FieldType::UInt => vec![1_u8],
+            FieldType::Float => vec![2_u8],
+            FieldType::Boolean => vec![3_u8],
+            FieldType::String => vec![4_u8],
+            FieldType::Text => vec![5_u8],
+            FieldType::Binary => vec![6_u8],
+            FieldType::Decimal => vec![7_u8],
+            FieldType::Timestamp => vec![8_u8],
+            FieldType::Date => vec![9_u8],
+            FieldType::Bson => vec![10_u8],
+            FieldType::Null => vec![11_u8],
+        }
+    }
+
+    pub fn from_type_prefix(prefix: Box<[u8]>) -> FieldType {
+        match prefix.as_ref() {
+            [0_u8] => FieldType::Int,
+            [1_u8] => FieldType::UInt,
+            [2_u8] => FieldType::Float,
+            [3_u8] => FieldType::Boolean,
+            [4_u8] => FieldType::String,
+            [5_u8] => FieldType::Text,
+            [6_u8] => FieldType::Binary,
+            [7_u8] => FieldType::Decimal,
+            [8_u8] => FieldType::Timestamp,
+            [9_u8] => FieldType::Date,
+            [10_u8] => FieldType::Bson,
+            [11_u8] => FieldType::Null,
+            _ => FieldType::Null,
+        }
+    }
+}
+
+impl Display for FieldType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
