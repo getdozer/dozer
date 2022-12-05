@@ -121,11 +121,15 @@ impl MaxAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let maximum = try_unwrap!(Self::calc_i64_max(ptx, aggregators_db)).to_ne_bytes();
-                Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
-                    Some(Vec::from(maximum)),
-                ))
+                let maximum = try_unwrap!(Self::calc_i64_max(ptx, aggregators_db));
+                if maximum == i64::MIN {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(&maximum.to_ne_bytes(), return_type),
+                        Some(Vec::from(maximum.to_ne_bytes())),
+                    ))
+                }
             }
             Float(_f) => {
                 // Update aggregators_db with new val and its occurrence
@@ -133,11 +137,15 @@ impl MaxAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_ne_bytes();
-                Ok(AggregationResult::new(
-                    Self::get_value(&maximum, return_type),
-                    Some(Vec::from(maximum)),
-                ))
+                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db));
+                if maximum == f64::MIN {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(&maximum.to_ne_bytes(), return_type),
+                        Some(Vec::from(maximum.to_ne_bytes())),
+                    ))
+                }
             }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }

@@ -151,10 +151,7 @@ impl MinAggregator {
                 // Calculate minimum
                 let minimum = try_unwrap!(Self::calc_i64_min(ptx, aggregators_db));
                 if minimum == i64::MAX {
-                    Ok(AggregationResult::new(
-                        Field::Null,
-                        None,
-                    ))
+                    Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
                         Self::get_value(&minimum.to_ne_bytes(), return_type),
@@ -170,10 +167,7 @@ impl MinAggregator {
                 // Calculate minimum
                 let minimum = try_unwrap!(Self::calc_f64_min(ptx, aggregators_db));
                 if minimum == f64::MAX {
-                    Ok(AggregationResult::new(
-                        Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
-                    ))
+                    Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
                         Self::get_value(&minimum.to_ne_bytes(), return_type),
