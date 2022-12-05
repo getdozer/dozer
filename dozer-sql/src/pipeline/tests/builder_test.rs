@@ -72,16 +72,16 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..5 {
+        for n in 0..10000 {
             fw.send(
                 n,
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(n as i64),
+                            Field::Int(0),
                             Field::String("Italy".to_string()),
-                            Field::Float(OrderedFloat(n as f64)),
+                            Field::Float(OrderedFloat(5.5)),
                         ],
                     ),
                 },
@@ -146,7 +146,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, AVG(Spending) \
+    let sql = "SELECT Country, SUM(Spending) \
                             FROM Users \
                             WHERE Spending >= 1 GROUP BY Country";
 
