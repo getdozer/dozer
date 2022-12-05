@@ -1,76 +1,41 @@
-### Dozer [![CI](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg)](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml) [![Coverage Status](https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV)](https://coveralls.io/github/getdozer/dozer?branch=main)
+<p align="center">
+    <img src="https://raw.githubusercontent.com/getdozer/getdozer.io/main/public_html/assets/logo-green.svg?token=GHSAT0AAAAAAB3QJIFZH2VQV4ZBURMWPTDIY4NOYUA" width=60% href="https://https://getdozer.io/" target="_">
+</p>
 
-This repository follows a `cargo workspace` structure with several packages. 
-```
-dozer
-|
-|-- dozer-admin           # gRPC APIs for Dozer Admin UI
-|-- dozer-ingestion       # Ingestion & Connectors
-|-- dozer-api             # Data APIs in REST & gRPC
-|-- dozer-cache           # Cache Implementation
-|-- dozer-core            # Dozer Libaries such as dag, state_store
-|-- dozer-orchestrator    # Dozer Orchestrator & Cli
-|-- dozer-types           # Dozer Types
-|-- tests                 # End to end test cases & Samples
-```
+<h3 align="center">
+     Data APIs, done right!
+</h3>
+<p align="center">
+     ⚡️ Open-source platform to build, publish and manage blazing-fast real-time data APIs in minutes ⚡️
+</p>
 
+[//]: # (Badges for md)
+[//]: # (Reference: https://shields.io/)
+[![GitHub stars](https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000)](https://gitHub.com/getdozer/dozer/stargazers/)
 
-### Samples
-[Samples](./tests/README.md) can be found under tests folder. 
-[End to End Dozer Sample](./tests/simple_e2e_example/README.md)
-[Postgres as an Iterator](./tests/connectors/postgres_as_iterator/README.md)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat)](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml)
+[![Coverage Status](https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV)](https://coveralls.io/github/getdozer/dozer?branch=main)
+[![Doc reference](https://img.shields.io/badge/doc-reference-green?style=flat)]()
+[![Join on Discord](https://img.shields.io/badge/join-on%20discord-primary?style=flat)]()
+[![License](https://img.shields.io/badge/license-ELv2-informational?style=flat)](https://github.com/getdozer/dozer/blob/main/LICENSE.txt)
 
-#### Running a sample
-Each of the samples have a `docker-compose.yaml` file. 
+[//]: # (Badges for html)
+[//]: # (<p align="center">)
+[//]: # (  <a href="https://gitHub.com/getdozer/dozer/stargazers/" target="_"><img src="https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000" alt="stars"></a>)
+[//]: # (  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>)
+[//]: # (  <a href="https://coveralls.io/github/getdozer/dozer?branch=main" target="_"><img src="https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV" alt="Coverage Status"></a>)
+[//]: # (  <a><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a>)
+[//]: # (  <a><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>)
+[//]: # (  <a href="https://github.com/meilisearch/meilisearch/blob/main/LICENSE" target="_"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>)
+[//]: # (</p>)
 
-Using docker
-```
-docker-compose up
-```
+## Quick Start
 
-Using binary
-```
-dozer run
-dozer run -c dozer-config.yaml
-```
-
-
-## Local development
-
-### Build Dependencies
-
-- [`Rust`](https://rustup.rs)
-- [`protoc`](https://github.com/protocolbuffers/protobuf/releases) latest release on your `PATH`
-- `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
-- `openssl` (brew install pkg-config openssl on MacOS)
-
-### Local development
-
-By default `config` file is loaded from `dozer-config.yaml`
-```
-# Initialize config
-cp config/dozer-config.sample.yaml dozer-config.yaml
-
-# Run
-cargo run 
-```
-or with a config file
-```
-cargo run -c dozer-config.sample.yaml
+Using binary MacOS
 ```
 
-#### Logging
-Initialize `log4rs.yaml`
 ```
-cp config/log4rs.sample.yaml log4rs.yaml
+Using binary Linux
 ```
 
-### Running individual modules
-dozer-api are instantiated part of `dozer` (short for `dozer-orchestrator`).
-
-They can be run separately for local testing using `--bin` flags.
-Individual 
-```
-cargo run --bin dozer
-cargo run --bin dozer-api
 ```
