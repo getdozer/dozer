@@ -14,6 +14,7 @@ concurrency:
 jobs:
   # Run coverage on nightly
   coverage:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -106,6 +107,7 @@ jobs:
 
   # Run benches on stable
   bench:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -195,6 +197,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
   test_long:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

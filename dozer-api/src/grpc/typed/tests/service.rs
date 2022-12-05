@@ -16,7 +16,10 @@ use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
 use futures_util::FutureExt;
 use std::{collections::HashMap, env, path::PathBuf, time::Duration};
 
-use tokio::sync::{broadcast, oneshot};
+use tokio::{
+    sync::{broadcast, oneshot},
+    time::timeout,
+};
 use tokio_stream::StreamExt;
 use tonic::{
     transport::{Endpoint, Server},
@@ -118,6 +121,7 @@ async fn test_typed_streaming() {
 
     let request = FilmEventRequest {
         r#type: EventType::All as i32,
+        filter: None,
     };
     let stream = client
         .on_event(Request::new(request))
@@ -129,4 +133,32 @@ async fn test_typed_streaming() {
         let response: FilmEvent = item.unwrap();
         assert!(response.new.is_some());
     }
+    drop(stream);
+
+    let request = FilmEventRequest {
+        r#type: EventType::All as i32,
+        filter: Some(r#"{ "film_id": 32 }"#.into()),
+    };
+    let mut stream = client
+        .on_event(Request::new(request))
+        .await
+        .unwrap()
+        .into_inner();
+    let response = stream.next().await.unwrap().unwrap();
+    assert!(response.new.is_some());
+    drop(stream);
+
+    let request = FilmEventRequest {
+        r#type: EventType::All as i32,
+        filter: Some(r#"{ "film_id": 0 }"#.into()),
+    };
+    let mut stream = client
+        .on_event(Request::new(request))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(timeout(Duration::from_secs(1), stream.next())
+        .await
+        .is_err());
+    drop(stream);
 }

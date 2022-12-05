@@ -23,6 +23,7 @@ enum EventType {
 message OnEventRequest {
   EventType type = 1;
   string endpoint = 2;
+  optional string filter = 3;
 }
 
 message GetFieldsRequest { string endpoint = 1; }

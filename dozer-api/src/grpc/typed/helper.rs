@@ -1,31 +1,10 @@
 use crate::grpc::types::{self as GrpcTypes};
-use dozer_cache::{cache::expression::QueryExpression, errors::CacheError};
-use dozer_types::serde_json;
 use dozer_types::types::{Field, Record, Schema};
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, MessageDescriptor};
 use prost_reflect::{DynamicMessage, Value};
 
-use tonic::{Code, Status};
-
 use super::TypedResponse;
-
-pub fn get_query_exp_from_req(req: DynamicMessage) -> Result<QueryExpression, Status> {
-    let query = req.get_field_by_name("query");
-    let query_expression = match query {
-        Some(query) => {
-            let query = query.as_str().expect("failed to parse query").to_owned();
-            if query.is_empty() {
-                QueryExpression::default()
-            } else {
-                serde_json::from_str(&query)
-                    .map_err(|err| Status::new(Code::Internal, err.to_string()))?
-            }
-        }
-        None => QueryExpression::default(),
-    };
-    Ok(query_expression)
-}
 
 pub fn get_response_descriptor(
     desc: DescriptorPool,
@@ -192,8 +171,4 @@ fn convert_field_to_reflect_value(field: &Field) -> prost_reflect::Value {
         Field::Bson(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n.to_vec())),
         Field::Null => todo!(),
     }
-}
-
-pub fn from_cache_error(error: CacheError) -> Status {
-    Status::new(Code::Internal, error.to_string())
 }

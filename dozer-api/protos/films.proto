@@ -33,7 +33,10 @@ enum EventType {
   UPDATE_ONLY = 2;
   DELETE_ONLY = 3;
 }
-message FilmEventRequest { EventType type = 1; }
+message FilmEventRequest {
+  EventType type = 1;
+  optional string filter = 2;
+}
 
 message FilmEvent {
   dozer.types.OperationType typ = 1;
