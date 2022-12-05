@@ -9,7 +9,6 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
 
-use std::cmp::min;
 use std::string::ToString;
 
 pub struct MinAggregator {}
@@ -48,12 +47,12 @@ impl MinAggregator {
                 if minimum == i64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -67,12 +66,12 @@ impl MinAggregator {
                 if minimum == f64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -101,12 +100,12 @@ impl MinAggregator {
                 if minimum == i64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -122,12 +121,12 @@ impl MinAggregator {
                 if minimum == f64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -154,8 +153,8 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -170,8 +169,8 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -181,8 +180,8 @@ impl MinAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_ne_bytes(f.try_into().unwrap())),
-            FieldType::Float => Float(OrderedFloat(f64::from_ne_bytes(f.try_into().unwrap()))),
+            FieldType::Int => Int(i64::from_le_bytes(f.try_into().unwrap())),
+            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(f.try_into().unwrap()))),
             _ => Field::Null,
         }
     }
@@ -215,16 +214,11 @@ impl MinAggregator {
     ) -> Result<f64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = f64::MAX;
-        let mut exist = ptx_cur.first()?;
 
-        // Loop through aggregators_db to calculate average
-        while exist {
+        // get first to get the minimum
+        if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            let val = f64::from_ne_bytes((cur.0).try_into().unwrap());
-            if minimum > val {
-                minimum = val
-            }
-            exist = ptx_cur.next()?;
+            minimum = f64::from_le_bytes((cur.0).try_into().unwrap());
         }
         Ok(minimum)
     }
@@ -235,14 +229,11 @@ impl MinAggregator {
     ) -> Result<i64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = i64::MAX;
-        let mut exist = ptx_cur.first()?;
 
-        // Loop through aggregators_db to calculate average
-        while exist {
+        // get first to get the minimum
+        if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            let val = i64::from_ne_bytes((cur.0).try_into().unwrap());
-            minimum = min(minimum, val);
-            exist = ptx_cur.next()?;
+            minimum = i64::from_le_bytes((cur.0).try_into().unwrap());
         }
         Ok(minimum)
     }

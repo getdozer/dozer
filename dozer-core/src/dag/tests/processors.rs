@@ -210,10 +210,10 @@ impl Processor for DynPortsProcessor {
 
         tx.put(
             self.db.as_ref().unwrap(),
-            &self.ctr.to_ne_bytes(),
-            &self.id.to_ne_bytes(),
+            &self.ctr.to_le_bytes(),
+            &self.id.to_le_bytes(),
         )?;
-        let v = tx.get(self.db.as_ref().unwrap(), &self.ctr.to_ne_bytes())?;
+        let v = tx.get(self.db.as_ref().unwrap(), &self.ctr.to_le_bytes())?;
         assert!(v.is_some());
         fw.send(op, DEFAULT_PORT_HANDLE)?;
         Ok(())

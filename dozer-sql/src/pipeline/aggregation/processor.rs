@@ -327,7 +327,7 @@ impl AggregationProcessor {
 
     fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
         let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
-        vec.extend_from_slice(&database_id.to_ne_bytes());
+        vec.extend_from_slice(&database_id.to_le_bytes());
         vec.extend(hash);
         Ok(vec)
     }
@@ -525,7 +525,7 @@ impl AggregationProcessor {
         let bytes = txn.get(db, key.as_slice())?;
 
         let curr_count = match bytes {
-            Some(b) => u64::from_ne_bytes(b.try_into().unwrap()),
+            Some(b) => u64::from_le_bytes(b.try_into().unwrap()),
             None => 0_u64,
         };
 
@@ -537,7 +537,7 @@ impl AggregationProcessor {
             } else {
                 curr_count + delta
             })
-            .to_ne_bytes()
+            .to_le_bytes()
             .as_slice(),
         )?;
         Ok(curr_count)
