@@ -1310,6 +1310,7 @@ dependencies = [
  "dozer-types",
  "futures",
  "kafka",
+ "load_file",
  "odbc",
  "postgres",
  "postgres-protocol",
@@ -2314,6 +2315,12 @@ dependencies = [
  "libc",
  "pkg-config",
 ]
+
+[[package]]
+name = "load_file"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31da4bce62428941030036a44d0d4b123f031b04080f8aeb44248b41de3e79cd"
 
 [[package]]
 name = "local-channel"

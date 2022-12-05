@@ -29,7 +29,8 @@ pub fn get_iterator_and_client(
     prefix: &str,
     table_name: String,
 ) -> (Arc<RwLock<IngestionIterator>>, Client) {
-    let mut config = load_config(format!("{}config/tests/local/test.debezium.yaml", prefix)).unwrap();
+    let mut config =
+        load_config(format!("{}config/tests/local/test.debezium.yaml", prefix)).unwrap();
 
     config.source.table_name = table_name.clone();
 
