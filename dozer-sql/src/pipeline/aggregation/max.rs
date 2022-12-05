@@ -43,7 +43,7 @@ impl MaxAggregator {
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let maximum = try_unwrap!(Self::calc_i64_max(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_i64_max(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&maximum, return_type),
                     Some(Vec::from(maximum)),
@@ -55,7 +55,7 @@ impl MaxAggregator {
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&maximum, return_type),
                     Some(Vec::from(maximum)),
@@ -82,7 +82,7 @@ impl MaxAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let maximum = (try_unwrap!(Self::calc_i64_max(ptx, aggregators_db))).to_ne_bytes();
+                let maximum = (try_unwrap!(Self::calc_i64_max(ptx, aggregators_db))).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&maximum, return_type),
                     Some(Vec::from(maximum)),
@@ -96,7 +96,7 @@ impl MaxAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_ne_bytes();
+                let maximum = try_unwrap!(Self::calc_f64_max(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&maximum, return_type),
                     Some(Vec::from(maximum)),
@@ -125,8 +125,8 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&maximum.to_ne_bytes(), return_type),
-                        Some(Vec::from(maximum.to_ne_bytes())),
+                        Self::get_value(&maximum.to_le_bytes(), return_type),
+                        Some(Vec::from(maximum.to_le_bytes())),
                     ))
                 }
             }
@@ -141,8 +141,8 @@ impl MaxAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&maximum.to_ne_bytes(), return_type),
-                        Some(Vec::from(maximum.to_ne_bytes())),
+                        Self::get_value(&maximum.to_le_bytes(), return_type),
+                        Some(Vec::from(maximum.to_le_bytes())),
                     ))
                 }
             }

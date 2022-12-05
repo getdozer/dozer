@@ -44,7 +44,7 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_ne_bytes();
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -56,7 +56,7 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -83,7 +83,7 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = (try_unwrap!(Self::calc_i64_average(ptx, aggregators_db))).to_ne_bytes();
+                let avg = (try_unwrap!(Self::calc_i64_average(ptx, aggregators_db))).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -97,7 +97,7 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -121,7 +121,7 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_ne_bytes();
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
@@ -133,7 +133,7 @@ impl AvgAggregator {
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_ne_bytes();
+                let avg = try_unwrap!(Self::calc_f64_average(ptx, aggregators_db)).to_le_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),

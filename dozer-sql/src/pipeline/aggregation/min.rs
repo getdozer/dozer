@@ -47,12 +47,12 @@ impl MinAggregator {
                 if minimum == i64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -66,12 +66,12 @@ impl MinAggregator {
                 if minimum == f64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -100,12 +100,12 @@ impl MinAggregator {
                 if minimum == i64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -121,12 +121,12 @@ impl MinAggregator {
                 if minimum == f64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -153,8 +153,8 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
@@ -169,8 +169,8 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_ne_bytes(), return_type),
-                        Some(Vec::from(minimum.to_ne_bytes())),
+                        Self::get_value(&minimum.to_le_bytes(), return_type),
+                        Some(Vec::from(minimum.to_le_bytes())),
                     ))
                 }
             }
