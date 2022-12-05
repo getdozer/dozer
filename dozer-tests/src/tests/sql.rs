@@ -1,20 +1,14 @@
-use dozer_types::{log::info, log4rs};
-
 use crate::{
     sql_tests::{download, get_inserts_from_csv},
     TestFramework,
 };
+use dozer_types::tracing::info;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
 fn init() {
     INIT.call_once(|| {
-        let path = std::env::current_dir()
-            .unwrap()
-            // .join("dozer-tests/log4rs.tests.yaml");
-            .join("log4rs.tests.yaml");
-        log4rs::init_file(path, Default::default())
-            .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
+        dozer_tracing::init_telemetry().unwrap();
         download("actor");
     });
 }

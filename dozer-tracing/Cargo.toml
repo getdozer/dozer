@@ -1,0 +1,13 @@
+[package]
+name = "dozer-tracing"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dozer-types = { version = "0.1.0", path = "../dozer-types" }
+tracing-subscriber = {version = "0.3.11", features=["env-filter", "tracing-log"]}
+opentelemetry = {version = "0.18.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
+opentelemetry-jaeger = {version = "0.17.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
+tracing-opentelemetry = "0.18.0"
