@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
 use crate::grpc::internal_grpc::{pipeline_request::ApiEvent, PipelineRequest};
+use crate::grpc::shared_impl;
 use crate::{api_helper, PipelineDetails};
-use dozer_cache::cache::expression::QueryExpression;
 use dozer_types::log::warn;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -37,15 +37,8 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(pipeline_details.to_owned(), None)?;
-
-        let query: QueryExpression =
-            dozer_types::serde_json::from_str(&request.query.map_or("{}".to_string(), |f| f))
-                .map_err(|e| Status::from_error(Box::new(e)))?;
-
-        let (schema, records) = api_helper
-            .get_records(query)
-            .map_err(|e| Status::from_error(Box::new(e)))?;
+        let (schema, records) =
+            shared_impl::query(pipeline_details.clone(), request.query.as_deref())?;
 
         let fields = schema
             .fields

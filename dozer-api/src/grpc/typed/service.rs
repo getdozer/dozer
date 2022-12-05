@@ -1,25 +1,25 @@
 use super::{
     codec::TypedCodec,
-    helper::{
-        from_cache_error, get_query_exp_from_req, on_event_to_typed_response,
-        query_response_to_typed_response,
-    },
+    helper::{on_event_to_typed_response, query_response_to_typed_response},
     DynamicMessage, TypedResponse,
 };
 use crate::{
-    api_helper,
-    grpc::internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
+    grpc::{
+        internal_grpc::{pipeline_request::ApiEvent, PipelineRequest},
+        shared_impl,
+    },
     PipelineDetails,
 };
 use actix_web::http::StatusCode;
 use dozer_types::types::Schema;
+use futures_util::future;
 use inflector::Inflector;
 use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
     codegen::{self, *},
-    Request, Response, Status,
+    Code, Request, Response, Status,
 };
 pub struct TypedService {
     accept_compression_encodings: EnabledCompressionEncodings,
@@ -132,13 +132,12 @@ where
 
                         impl tonic::server::UnaryService<DynamicMessage> for QueryService {
                             type Response = TypedResponse;
-                            type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                            type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
                             fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
                                 let pipeline_details = self.0.clone();
                                 let desc = self.1.clone();
-                                let fut =
-                                    async move { query(request, pipeline_details, desc).await };
-                                Box::pin(fut)
+                                let response = query(request, pipeline_details, desc);
+                                future::ready(response)
                             }
                         }
                         Box::pin(async move {
@@ -206,17 +205,24 @@ impl tonic::server::NamedService for TypedService {
     const NAME: &'static str = ":dozer.generated";
 }
 
-async fn query(
+fn query(
     request: Request<DynamicMessage>,
     pipeline_details: PipelineDetails,
     desc: DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
     let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
-    let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
     let req = request.into_inner();
+    let query = req.get_field_by_name("query");
+    let query = query
+        .as_ref()
+        .map(|query| {
+            query
+                .as_str()
+                .ok_or_else(|| Status::new(Code::InvalidArgument, "query must be a string"))
+        })
+        .transpose()?;
 
-    let exp = get_query_exp_from_req(req)?;
-    let (schema, records) = api_helper.get_records(exp).map_err(from_cache_error)?;
+    let (schema, records) = shared_impl::query(pipeline_details, query)?;
     let res = query_response_to_typed_response(records, schema, desc, endpoint_name);
     Ok(Response::new(res))
 }
