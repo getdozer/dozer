@@ -1,12 +1,12 @@
 use crate::connectors::postgres::tests::client::TestPostgresClient;
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+use crate::test_util::load_config;
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Field, Operation};
-use load_file::load_str;
 use rand::Rng;
 use std::sync::Arc;
 use std::thread;
@@ -32,10 +32,7 @@ fn get_iterator(config: Connection, table_name: String) -> Arc<RwLock<IngestionI
 #[ignore]
 #[test]
 fn connector_e2e_connect_postgres_stream() {
-    let source = serde_yaml::from_str::<Source>(load_str!(
-        "../../../../../config/tests/local/test.postgres.yaml"
-    ))
-    .unwrap();
+    let source = serde_yaml::from_str::<Source>(load_config("test.postgres.yaml")).unwrap();
     let mut client = TestPostgresClient::new(&source.connection.authentication);
 
     let mut rng = rand::thread_rng();

@@ -4,17 +4,14 @@ use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use std::thread;
 
-use load_file::load_str;
+use crate::test_util::load_config;
 
 #[ignore]
 #[test]
 fn connector_e2e_connect_snowflake_and_read_from_stream() {
     use dozer_types::models::source::Source;
 
-    let source = serde_yaml::from_str::<Source>(&load_str!(
-        "../../../../config/tests/local/test.snowflake.yaml"
-    ))
-    .unwrap();
+    let source = serde_yaml::from_str::<Source>(load_config("test.snowflake.yaml")).unwrap();
     remove_streams(source.connection.clone(), &source.table_name).unwrap();
 
     let config = IngestionConfig::default();
