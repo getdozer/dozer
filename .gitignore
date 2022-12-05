@@ -27,4 +27,5 @@ register-postgres.test.json
 dozer-admin/dozer.db
 *.db
 
-config/tests/local/
+config/tests/local/*.json
+config/tests/local/*.yaml
