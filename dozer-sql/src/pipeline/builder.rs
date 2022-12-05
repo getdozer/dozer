@@ -53,7 +53,6 @@ impl PipelineBuilder {
         let mut dag = Dag::new();
 
         let first_node_name = String::from("product");
-        let mut last_node_name = String::from("preaggregation");
 
         // FROM clause
         if select.from.len() != 1 {
@@ -70,12 +69,13 @@ impl PipelineBuilder {
             String::from("product"),
         );
 
-        // Select clause
-        let preaggregation = PreAggregationProcessorFactory::new(select.projection.clone());
+        // Group by clause and Function execution
+        let aggregation =
+            AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
 
         dag.add_node(
-            NodeType::Processor(Box::new(preaggregation)),
-            String::from("preaggregation"),
+            NodeType::Processor(Box::new(aggregation)),
+            String::from("aggregation"),
         );
 
         // Where clause
@@ -95,29 +95,11 @@ impl PipelineBuilder {
 
             let _ = dag.connect(
                 Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
             );
         } else {
             let _ = dag.connect(
                 Endpoint::new(String::from("product"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
-            );
-        }
-
-        // Group by clause
-        if !select.group_by.is_empty() {
-            let aggregation =
-                AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
-
-            last_node_name = String::from("aggregation");
-
-            dag.add_node(
-                NodeType::Processor(Box::new(aggregation)),
-                String::from("aggregation"),
-            );
-
-            let _ = dag.connect(
-                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
                 Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
             );
         }
@@ -125,7 +107,7 @@ impl PipelineBuilder {
         Ok((
             dag,
             input_endpoints,
-            Endpoint::new(last_node_name, DEFAULT_PORT_HANDLE),
+            Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
         ))
     }
 
