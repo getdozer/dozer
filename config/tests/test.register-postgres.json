@@ -1,0 +1,17 @@
+{
+  "name": "dozer-postgres-connector",
+  "config": {
+    "name": "dozer-postgres-connector",
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "${POSTGRES_HOST}",
+    "database.port": "${POSTGRES_PORT}",
+    "database.user": "${POSTGRES_USER}",
+    "database.password": "${POSTGRES_PASSWORD}",
+    "database.dbname": "${POSTGRES_DATABASE}",
+    "database.server.name": "dbserver1",
+    "topic.prefix": "dbserver1",
+    "schema.include.list": "${POSTGRES_SCHEMA}",
+    "plugin.name": "pgoutput"
+  }
+}

@@ -121,7 +121,7 @@ runs:
         POSTGRES_SCHEMA: ${{ inputs.POSTGRES_SCHEMA }}
         POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
       with:
-        from_file: "tests/connectors/debezium/register-postgres.test.sample.json"
+        from_file: "tests/connectors/debezium/test.register-postgres.json"
         to_file: "tests/connectors/debezium/register-postgres.test.json"
         commit: "false"
 
