@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
 use crate::grpc::internal_grpc::PipelineRequest;
 use crate::grpc::shared_impl;
+use crate::grpc::types_helper::map_record;
 use crate::{api_helper, PipelineDetails};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -12,7 +13,7 @@ use crate::grpc::common_grpc::{
     GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, OnEventRequest,
     QueryRequest, QueryResponse,
 };
-use crate::grpc::types::{FieldDefinition, Operation, Record, Value};
+use crate::grpc::types::{FieldDefinition, Operation, Record};
 
 type EventResult<T> = Result<Response<T>, Status>;
 type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
@@ -41,26 +42,14 @@ impl CommonGrpcService for CommonService {
 
         let fields = schema
             .fields
-            .iter()
+            .into_iter()
             .map(|f| FieldDefinition {
-                typ: types_helper::map_field_type_to_pb(&f.typ) as i32,
-                name: f.name.to_owned(),
+                typ: types_helper::map_field_type_to_pb(f.typ) as i32,
+                name: f.name,
                 nullable: f.nullable,
             })
             .collect();
-        let records: Vec<Record> = records
-            .iter()
-            .map(|r| {
-                let values: Vec<Value> = r
-                    .to_owned()
-                    .values
-                    .iter()
-                    .map(types_helper::field_to_prost_value)
-                    .collect();
-
-                Record { values }
-            })
-            .collect();
+        let records: Vec<Record> = records.into_iter().map(map_record).collect();
         let reply = QueryResponse { fields, records };
 
         Ok(Response::new(reply))
@@ -94,7 +83,7 @@ impl CommonGrpcService for CommonService {
             .fields
             .iter()
             .map(|f| FieldDefinition {
-                typ: types_helper::map_field_type_to_pb(&f.typ) as i32,
+                typ: types_helper::map_field_type_to_pb(f.typ) as i32,
                 name: f.name.to_owned(),
                 nullable: f.nullable,
             })
