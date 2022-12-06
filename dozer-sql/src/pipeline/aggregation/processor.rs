@@ -355,10 +355,7 @@ impl AggregationProcessor {
 
         let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
-        // add Decimal support deserialization
-        let val: Field = internal_err!(bincode::deserialize(
-            &buf[offset..offset + val_len as usize]
-        ))?;
+        let val: Field = Field::from_bytes(&buf[offset..offset + val_len as usize])?;
         offset += val_len as usize;
         let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;

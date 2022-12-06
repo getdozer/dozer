@@ -40,6 +40,13 @@ macro_rules! serialize {
     };
 }
 
+#[macro_export]
+macro_rules! deserialize {
+    ($stmt:expr) => {
+       $stmt.try_into().unwrap()
+    };
+}
+
 impl Field {
     pub fn to_bytes(&self) -> Result<Vec<u8>, TypeError> {
         // prefix representing return type is added using get_type_prefix
@@ -66,38 +73,39 @@ impl Field {
         }
     }
 
-    pub fn from_bytes(buf: Vec<u8>) -> Result<Field, TypeError> {
+    pub fn from_bytes(buf: &[u8]) -> Result<Field, TypeError> {
+        println!("buf {:?}", buf);
         let offset: usize = 1;
         let return_type = Self::from_type_prefix(Box::from(buf[0..offset].to_vec()));
         let val = buf[1..buf.len()].as_ref();
         match return_type {
-            FieldType::Int => Ok(Field::Int(i64::from_be_bytes(val.try_into().unwrap()))),
-            FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(val.try_into().unwrap()))),
+            FieldType::Int => Ok(Field::Int(i64::from_be_bytes(deserialize!(val)))),
+            FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(deserialize!(val)))),
             FieldType::Float => Ok(Field::Float(OrderedFloat::from(f64::from_be_bytes(
-                val.try_into().unwrap(),
+                deserialize!(val),
             )))),
             FieldType::Boolean => Ok(Field::Boolean(*val == [1_u8])),
             FieldType::String => Ok(Field::String(
-                String::from_utf8(val.try_into().unwrap()).unwrap(),
+                String::from_utf8(deserialize!(val)).unwrap(),
             )),
             FieldType::Text => Ok(Field::Text(
-                String::from_utf8(val.try_into().unwrap()).unwrap(),
+                String::from_utf8(deserialize!(val)).unwrap(),
             )),
             FieldType::Binary => Ok(Field::Binary(val.try_into().unwrap())),
             FieldType::Decimal => Ok(Field::Decimal(Decimal::deserialize(
-                val.try_into().unwrap(),
+                deserialize!(val),
             ))),
             FieldType::Timestamp => Ok(Field::Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_be_bytes(val.try_into().unwrap())),
+                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(val))),
             ))),
             FieldType::Date => Ok(Field::Date(
                 NaiveDate::parse_from_str(
-                    String::from_utf8(val.try_into().unwrap()).unwrap().as_ref(),
+                    String::from_utf8(deserialize!(val)).unwrap().as_ref(),
                     DATE_FORMAT,
                 )
                 .unwrap(),
             )),
-            FieldType::Bson => Ok(Field::Bson(val.try_into().unwrap())),
+            FieldType::Bson => Ok(Field::Bson(deserialize!(val))),
             FieldType::Null => Ok(Field::Null),
         }
     }
