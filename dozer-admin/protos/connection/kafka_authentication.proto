@@ -1,6 +1,0 @@
-syntax = "proto3";
-package dozer_admin_grpc;
-message KafkaAuthentication {
-  string broker = 1;
-  string topic = 2;
-}
