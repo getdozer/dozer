@@ -6,6 +6,7 @@ use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
+use dozer_types::serde_yaml;
 use dozer_types::types::{Field, Operation};
 use rand::Rng;
 use std::sync::Arc;

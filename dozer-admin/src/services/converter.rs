@@ -14,6 +14,7 @@ use dozer_types::{
         self,
         api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
         api_endpoint::{ApiEndpoint, ApiIndex},
+        app_config::Config,
         source::Source,
     },
     types::Schema,
@@ -74,7 +75,7 @@ fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Err
     })
 }
 
-impl TryFrom<ApplicationDetail> for dozer_orchestrator::cli::Config {
+impl TryFrom<ApplicationDetail> for Config {
     type Error = Box<dyn Error>;
     fn try_from(input: ApplicationDetail) -> Result<Self, Self::Error> {
         let sources_connections: Vec<(Source, models::connection::Connection)> = input
@@ -100,7 +101,7 @@ impl TryFrom<ApplicationDetail> for dozer_orchestrator::cli::Config {
             .map(|sc| sc.1.to_owned())
             .collect();
 
-        Ok(dozer_orchestrator::cli::Config {
+        Ok(Config {
             sources,
             endpoints,
             app_name: input.app.name,
@@ -292,6 +293,7 @@ mod test {
     };
     use dozer_types::models::{
         api_endpoint::ApiIndex,
+        app_config::Config,
         connection::{self, DBType},
     };
 
@@ -376,7 +378,7 @@ mod test {
             sources_connections,
             endpoints: vec![fake_db_endpoint()],
         };
-        let converted = dozer_orchestrator::cli::Config::try_from(application_detail.to_owned());
+        let converted = Config::try_from(application_detail.to_owned());
         assert!(converted.is_ok());
         assert_eq!(
             converted.unwrap().sources.len(),

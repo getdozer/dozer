@@ -1,3 +1,5 @@
+use dozer_types::{models::app_config::Config, serde_yaml};
+
 use crate::{
     db::{application::AppDbService, pool::DbPool},
     server::dozer_admin_grpc::{
@@ -70,12 +72,9 @@ impl AppService {
             fs::remove_dir_all(&path).unwrap();
         }
         fs::create_dir_all(&path).unwrap();
-        let config =
-            dozer_orchestrator::cli::Config::try_from(app_detail.to_owned()).map_err(|op| {
-                ErrorResponse {
-                    message: op.to_string(),
-                }
-            })?;
+        let config = Config::try_from(app_detail.to_owned()).map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
         let yaml_path = path.join(format!(
             "dozer-config-{:}-{:}.yaml",
             app_detail.app.name, app_detail.app.id
