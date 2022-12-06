@@ -38,9 +38,8 @@ use std::time::{Duration, Instant};
 macro_rules! term_on_err {
     ($e: expr, $stop_req: expr, $barrier: expr) => {
         if let Err(e) = $e {
-            error!("Error while executing operation");
             $stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
-            //   $barrier.wait();
+            $barrier.wait();
             return Err(e);
         }
     };
@@ -498,7 +497,6 @@ impl<'a> DagExecutor<'a> {
                     Err(e) => {
                         if lt_stop_req.load(Ordering::Relaxed) == STOP_REQ_SHUTDOWN {
                             debug!("[{}] STOP_REQ_SHUTDOWN", handle);
-                            //       lt_term_barrier.wait();
                             return Ok(());
                         }
                     }
@@ -506,13 +504,11 @@ impl<'a> DagExecutor<'a> {
                         let r = receivers_ls[index].recv();
                         match lt_stop_req.load(Ordering::Relaxed) {
                             STOP_REQ_SHUTDOWN => {
-                                //    lt_term_barrier.wait();
                                 return Ok(());
                             }
                             _ => match r {
                                 Err(RecvTimeoutError) => {
                                     lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
-                                    //      lt_term_barrier.wait();
                                     return Err(ChannelDisconnected);
                                 }
                                 Ok(ExecutorOperation::Commit { epoch, source }) => {
@@ -554,7 +550,6 @@ impl<'a> DagExecutor<'a> {
                                                 return Err(e);
                                             }
                                             Ok(_) => {
-                                                //        lt_term_barrier.wait();
                                                 return Ok(());
                                             }
                                         }
@@ -647,7 +642,6 @@ impl<'a> DagExecutor<'a> {
                     Err(e) => {
                         if lt_stop_req.load(Ordering::Relaxed) == STOP_REQ_SHUTDOWN {
                             debug!("[{}] STOP_REQ_SHUTDOWN", handle);
-                            //       lt_term_barrier.wait();
                             return Ok(());
                         }
                     }
@@ -656,19 +650,16 @@ impl<'a> DagExecutor<'a> {
                         match lt_stop_req.load(Ordering::Relaxed) {
                             STOP_REQ_SHUTDOWN => {
                                 debug!("[{}] STOP_REQ_SHUTDOWN", handle);
-                                //      lt_term_barrier.wait();
                                 return Ok(());
                             }
                             _ => match r {
                                 Err(e) => {
                                     debug!("[{}] RecvError", handle);
                                     lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
-                                    //        lt_term_barrier.wait();
                                     return Err(ChannelDisconnected);
                                 }
                                 Ok(ExecutorOperation::Terminate) => {
                                     info!("[{}] Terminating: Exiting message loop", handle);
-                                    //        lt_term_barrier.wait();
                                     return Ok(());
                                 }
                                 Ok(ExecutorOperation::Commit { epoch, source }) => {
