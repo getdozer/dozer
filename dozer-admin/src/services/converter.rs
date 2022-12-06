@@ -12,6 +12,7 @@ use dozer_types::{
     ingestion_types::EthFilter,
     models::{
         self,
+        api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
         api_endpoint::{ApiEndpoint, ApiIndex},
         source::Source,
     },
@@ -19,6 +20,27 @@ use dozer_types::{
 };
 use std::{convert::From, error::Error};
 
+//TODO: Add grpc method to create ApiConfig
+fn fake_api_config() -> ApiConfig {
+    ApiConfig {
+        rest: ApiRest {
+            port: 8080,
+            url: "[::0]".to_owned(),
+            cors: true,
+        },
+        grpc: ApiGrpc {
+            port: 50051,
+            url: "[::0]".to_owned(),
+            cors: true,
+            web: true,
+        },
+        auth: false,
+        internal: ApiInternal {
+            port: 50052,
+            host: "[::1]".to_owned(),
+        },
+    }
+}
 fn convert_to_source(input: (DBSource, DbConnection)) -> Result<Source, Box<dyn Error>> {
     let db_source = input.0;
     let connection_info = ConnectionInfo::try_from(input.1)?;
@@ -45,8 +67,6 @@ fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Err
         id: Some(input.id),
         name: input.name,
         path: input.path,
-        enable_rest: input.enable_rest,
-        enable_grpc: input.enable_grpc,
         sql: input.sql,
         index: ApiIndex {
             primary_key: primary_keys_arr,
@@ -57,17 +77,36 @@ fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Err
 impl TryFrom<ApplicationDetail> for dozer_orchestrator::cli::Config {
     type Error = Box<dyn Error>;
     fn try_from(input: ApplicationDetail) -> Result<Self, Self::Error> {
-        let sources = input
+        let sources_connections: Vec<(Source, models::connection::Connection)> = input
             .sources_connections
             .iter()
-            .map(|sc| convert_to_source(sc.to_owned()).unwrap())
+            .map(|sc| {
+                let source = convert_to_source(sc.to_owned()).unwrap();
+                let connection = models::connection::Connection::try_from(sc.to_owned().1).unwrap();
+                (source, connection)
+            })
             .collect();
         let endpoints = input
             .endpoints
             .iter()
             .map(|sc| convert_to_api_endpoint(sc.to_owned()).unwrap())
             .collect();
-        Ok(dozer_orchestrator::cli::Config { sources, endpoints })
+        let sources = sources_connections
+            .iter()
+            .map(|sc| sc.0.to_owned())
+            .collect();
+        let connections = sources_connections
+            .iter()
+            .map(|sc| sc.1.to_owned())
+            .collect();
+
+        Ok(dozer_orchestrator::cli::Config {
+            sources,
+            endpoints,
+            app_name: input.app.name,
+            api: fake_api_config(),
+            connections,
+        })
     }
 }
 
@@ -126,6 +165,14 @@ impl TryFrom<EthFilter> for dozer_admin_grpc::EthereumFilter {
     }
 }
 
+impl TryFrom<DbConnection> for dozer_orchestrator::Connection {
+    type Error = Box<dyn Error>;
+
+    fn try_from(input: DbConnection) -> Result<Self, Self::Error> {
+        let connection_info: ConnectionInfo = ConnectionInfo::try_from(input)?;
+        dozer_orchestrator::Connection::try_from(connection_info)
+    }
+}
 impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authentication {
     type Error = Box<dyn Error>;
     fn try_from(item: models::connection::Connection) -> Result<Self, Self::Error> {

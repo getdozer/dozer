@@ -1,10 +1,11 @@
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::{CacheOptions, LmdbCache};
 use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_types::models::api_config::{ApiConfig, ApiRest, ApiGrpc, ApiInternal};
-use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
-use dozer_types::parking_lot::Mutex;
-use dozer_types::types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier};
+use dozer_types::{
+    models::api_endpoint::{ApiEndpoint, ApiIndex},
+    parking_lot::Mutex,
+    types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -47,7 +48,6 @@ pub fn init_sink(
     );
     (cache, sink)
 }
-
 pub fn init_endpoint() -> ApiEndpoint {
     ApiEndpoint {
         id: None,
@@ -58,23 +58,4 @@ pub fn init_endpoint() -> ApiEndpoint {
             primary_key: vec!["film_id".to_string()],
         },
     }
-}
-
-pub fn init_config() -> ApiConfig {
-    let rest_config = ApiRest {
-        port: 8080,
-        url: "[::0]".to_owned(),
-        cors: true,
-    };
-    let grpc_config = ApiGrpc {
-        port: 50051,
-        url: "[::0]".to_owned(),
-        cors: true,
-        web: true,
-    };
-    let internal_config = ApiInternal {
-        port: 50052,
-        host: "[::0]".to_owned(),
-    };
-    ApiConfig { rest: rest_config, grpc: grpc_config, auth: true, internal: internal_config }
 }

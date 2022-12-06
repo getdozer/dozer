@@ -1,23 +1,43 @@
+app_name: dozer-config-sample
+api:
+  rest:
+    port: 8080
+    url: '[::0]'
+    cors: true
+  grpc:
+    port: 50051
+    url: '[::0]'
+    cors: true
+    web: true
+  auth: false
+  internal:
+    port: 50052
+    host: '[::1]'
+connections:
+- db_type: Postgres
+  authentication: !PostgresAuthentication
+    user: postgres
+    password: postgres
+    host: localhost
+    port: 5432
+    database: users
+  name: users
+  id: null
 sources:
-  - name: users
-    table_name: users
-    connection:
-      db_type: Postgres
-      authentication: !PostgresAuthentication
-        user: postgres
-        password: postgres
-        host: localhost
-        port: 5432
-        database: users
-      name: users
-    history_type: null
-    refresh_config: RealTime
+- name: users
+  table_name: users
+  columns:
+  - id
+  - email
+  - phone
+  connection: !Ref users
+  history_type: null
+  refresh_config: RealTime
 endpoints:
-  - name: users
-    path: /users
-    enable_rest: false
-    enable_grpc: true
-    sql: select id, email, phone from users where 1=1;
-    index:
-      primary_key:
-        - id
+- id: null
+  name: users
+  path: /users
+  sql: select id, email, phone from users where 1=1;
+  index:
+    primary_key:
+    - id

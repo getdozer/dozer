@@ -63,8 +63,6 @@ pub fn get_endpoint() -> ApiEndpoint {
         id: None,
         name: "films".to_string(),
         path: "/films".to_string(),
-        enable_rest: false,
-        enable_grpc: true,
         sql: "select film_id, description, rental_rate, release_year, updated_at from film where 1=1;"
             .to_string(),
         index: ApiIndex {
