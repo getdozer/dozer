@@ -4,6 +4,7 @@ use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::ingestion::IngestionIterator;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::parking_lot::RwLock;
+use load_file::load_str;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -32,7 +33,7 @@ pub fn main() {
     use dozer_types::models::source::Source;
 
     let source =
-        serde_yaml::from_str::<Source>(&include_str!("../../config/test.snowflake.sample.yaml"))
+        serde_yaml::from_str::<Source>(&load_str!("../../config/tests/local/test.snowflake.yaml"))
             .unwrap();
 
     remove_streams(source.connection.clone(), &source.table_name).unwrap();

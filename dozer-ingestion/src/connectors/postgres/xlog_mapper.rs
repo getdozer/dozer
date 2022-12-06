@@ -279,9 +279,12 @@ impl XlogMapper {
 
         for column in &table.columns {
             let value = new_values.get(column.idx).unwrap();
-            let column = table.columns.get(column.idx).unwrap();
-            if let TupleData::Text(text) = value {
-                values.push(helper::postgres_type_to_field(text, column)?);
+            match value {
+                TupleData::Null => values.push(helper::postgres_type_to_field(None, column)?),
+                TupleData::UnchangedToast => {}
+                TupleData::Text(text) => {
+                    values.push(helper::postgres_type_to_field(Some(text), column)?)
+                }
             }
         }
 

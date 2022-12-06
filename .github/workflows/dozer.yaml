@@ -45,13 +45,13 @@ jobs:
           DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
           DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
           DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
-          KAFKA_POSTGRES_USER: ${{ secrets.KAFKA_POSTGRES_USER }}
-          KAFKA_POSTGRES_PASSWORD: ${{ secrets.KAFKA_POSTGRES_PASSWORD }}
-          KAFKA_POSTGRES_HOST: ${{ secrets.KAFKA_POSTGRES_HOST }}
-          KAFKA_POSTGRES_PORT: ${{ secrets.KAFKA_POSTGRES_PORT }}
-          KAFKA_POSTGRES_DATABASE: ${{ secrets.KAFKA_POSTGRES_DATABASE }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
           KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
-          KAFKA_POSTGRES_SCHEMA: ${{ secrets.KAFKA_POSTGRES_SCHEMA }}
+          POSTGRES_SCHEMA: ${{ secrets.POSTGRES_SCHEMA }}
 
       - name: ⚡ Cache
         uses: actions/cache@v3

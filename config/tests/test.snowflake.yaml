@@ -1,5 +1,5 @@
 name: customer
-table_name: customer
+table_name: customer_test_1000
 connection:
   db_type: Snowflake
   authentication: !SnowflakeAuthentication

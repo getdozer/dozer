@@ -1,0 +1,13 @@
+name: users
+table_name: users
+connection:
+  name: products_test
+  db_type: Postgres
+  authentication: !PostgresAuthentication
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    host: ${POSTGRES_HOST}
+    port: ${POSTGRES_PORT}
+    database: ${POSTGRES_DATABASE}
+history_type: null
+refresh_config: RealTime

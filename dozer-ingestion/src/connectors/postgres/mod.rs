@@ -6,7 +6,7 @@ pub mod replicator;
 mod schema_helper;
 pub mod snapshotter;
 #[cfg(test)]
-mod test_utils;
+pub mod test_utils;
 #[cfg(test)]
 pub mod tests;
 pub mod xlog_mapper;
