@@ -1,4 +1,5 @@
 use crate::connectors::snowflake::connection::client::Client;
+use std::collections::HashMap;
 
 use crate::errors::{ConnectorError, SnowflakeError};
 use crate::ingestion::Ingestor;
@@ -9,18 +10,28 @@ use dozer_types::parking_lot::RwLock;
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
-use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema, SchemaIdentifier};
 use odbc::create_environment_v3;
 use std::sync::Arc;
 
-pub struct StreamConsumer {}
+pub struct StreamConsumer {
+    connector_id: u64,
+    schemas: HashMap<String, Schema>,
+}
 
 impl StreamConsumer {
-    pub fn get_stream_table_name(table_name: &String) -> String {
+    pub fn new(connector_id: u64) -> Self {
+        Self {
+            connector_id,
+            schemas: HashMap::new(),
+        }
+    }
+
+    pub fn get_stream_table_name(table_name: &str) -> String {
         format!("dozer_{}_stream", table_name)
     }
 
-    pub fn get_stream_temp_table_name(table_name: &String) -> String {
+    pub fn get_stream_temp_table_name(table_name: &str) -> String {
         format!("dozer_{}_stream_temp", table_name)
     }
 
@@ -113,9 +124,9 @@ impl StreamConsumer {
     }
 
     pub fn consume_stream(
+        &mut self,
         client: &Client,
-        connector_id: u64,
-        table_name: &String,
+        table_name: &str,
         ingestor: &Arc<RwLock<Ingestor>>,
     ) -> Result<(), ConnectorError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
@@ -141,16 +152,24 @@ impl StreamConsumer {
         if let Some((schema, iterator)) = result {
             let mut truncated_schema = schema.clone();
             truncated_schema.truncate(schema.len() - 3);
-            ingestor
-                .write()
-                .handle_message((
-                    connector_id,
-                    IngestionMessage::Schema(
-                        table_name.clone(),
-                        SchemaHelper::map_schema(truncated_schema)?,
-                    ),
-                ))
-                .map_err(ConnectorError::IngestorError)?;
+            let converted_schema = SchemaHelper::map_schema(truncated_schema)?;
+
+            let did_schema_change = self
+                .schemas
+                .get(table_name)
+                .map_or(true, |s| s.clone() != converted_schema);
+            if did_schema_change {
+                ingestor
+                    .write()
+                    .handle_message((
+                        self.connector_id,
+                        IngestionMessage::Schema(table_name.to_string(), converted_schema.clone()),
+                    ))
+                    .map_err(ConnectorError::IngestorError)?;
+
+                self.schemas
+                    .insert(table_name.to_string(), converted_schema);
+            }
 
             let columns_length = schema.len();
             let used_columns_for_schema = columns_length - 3;
@@ -161,7 +180,7 @@ impl StreamConsumer {
                     Self::get_ingestion_message(row, action_idx, used_columns_for_schema)?;
                 ingestor
                     .write()
-                    .handle_message((connector_id, ingestion_message))
+                    .handle_message((self.connector_id, ingestion_message))
                     .map_err(ConnectorError::IngestorError)?;
             }
         }

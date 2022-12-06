@@ -3,8 +3,8 @@ use dozer_ingestion::connectors::snowflake::test_utils::remove_streams;
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::ingestion::IngestionIterator;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
+use dozer_ingestion::test_util::load_config;
 use dozer_types::parking_lot::RwLock;
-use load_file::load_str;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -32,9 +32,7 @@ fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
 pub fn main() {
     use dozer_types::models::source::Source;
 
-    let source =
-        serde_yaml::from_str::<Source>(&load_str!("../../config/tests/local/test.snowflake.yaml"))
-            .unwrap();
+    let source = serde_yaml::from_str::<Source>(load_config("test.snowflake.yaml")).unwrap();
 
     remove_streams(source.connection.clone(), &source.table_name).unwrap();
 
