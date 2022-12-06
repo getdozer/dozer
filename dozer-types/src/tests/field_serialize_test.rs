@@ -5,7 +5,7 @@ use serde_json::json;
 use crate::types::Field;
 
 #[test]
-fn test_field_serialize() {
+fn test_field_serialize_roundtrip() {
     let int_v = Field::Int(1_i64);
     let int_b = int_v.to_bytes().unwrap();
     assert_eq!(int_v, Field::from_bytes(int_b.as_ref()).unwrap());
@@ -34,7 +34,7 @@ fn test_field_serialize() {
     let bin_b = bin_v.to_bytes().unwrap();
     assert_eq!(bin_v, Field::from_bytes(bin_b.as_ref()).unwrap());
 
-    let dec_v = Field::Decimal(Decimal::new(1, 0));
+    let dec_v = Field::Decimal(Decimal::new(100, 0));
     let dec_b = dec_v.to_bytes().unwrap();
     assert_eq!(dec_v, Field::from_bytes(dec_b.as_ref()).unwrap());
 
