@@ -497,16 +497,23 @@ impl<'a> DagExecutor<'a> {
                             return Err(ChannelDisconnected);
                         }
                         Ok(ExecutorOperation::Commit { epoch, source }) => {
-                            term_on_err!(
-                                proc.commit(&mut SharedTransaction::new(&master_tx)),
-                                lt_stop_req,
-                                lt_term_barrier
-                            );
-                            term_on_err!(
-                                fw.store_and_send_commit(source, epoch),
-                                lt_stop_req,
-                                lt_term_barrier
-                            );
+                            if let Err(e) = proc.commit(&mut SharedTransaction::new(&master_tx)) {
+                                Self::shutdown_and_wait(
+                                    &lt_stop_req,
+                                    &lt_term_barrier,
+                                    receivers_ls,
+                                );
+                                return Err(e);
+                            }
+
+                            if let Err(e) = fw.store_and_send_commit(source, epoch) {
+                                Self::shutdown_and_wait(
+                                    &lt_stop_req,
+                                    &lt_term_barrier,
+                                    receivers_ls,
+                                );
+                                return Err(e);
+                            }
                         }
                         Ok(ExecutorOperation::Terminate) => {
                             port_states[index] = InputPortState::Terminated;
@@ -515,9 +522,20 @@ impl<'a> DagExecutor<'a> {
                                 handle, &handles_ls[index]
                             );
                             if port_states.iter().all(|v| v == &InputPortState::Terminated) {
-                                term_on_err!(fw.send_term_and_wait(), lt_stop_req, lt_term_barrier);
-                                lt_term_barrier.wait();
-                                return Ok(());
+                                match fw.send_term_and_wait() {
+                                    Err(e) => {
+                                        Self::shutdown_and_wait(
+                                            &lt_stop_req,
+                                            &lt_term_barrier,
+                                            receivers_ls,
+                                        );
+                                        return Err(e);
+                                    }
+                                    Ok(_) => {
+                                        lt_term_barrier.wait();
+                                        return Ok(());
+                                    }
+                                }
                             }
                         }
                         Ok(op) => {
@@ -630,16 +648,26 @@ impl<'a> DagExecutor<'a> {
                                         "[{}] Checkpointing (source: {}, epoch: {})",
                                         handle, source, epoch
                                     );
-                                    term_on_err!(
-                                        snk.commit(&mut SharedTransaction::new(&master_tx)),
-                                        lt_stop_req,
-                                        lt_term_barrier
-                                    );
-                                    term_on_err!(
-                                        state_writer.store_commit_info(&source, epoch),
-                                        lt_stop_req,
-                                        lt_term_barrier
-                                    );
+
+                                    if let Err(e) =
+                                        snk.commit(&mut SharedTransaction::new(&master_tx))
+                                    {
+                                        Self::shutdown_and_wait(
+                                            &lt_stop_req,
+                                            &lt_term_barrier,
+                                            receivers_ls,
+                                        );
+                                        return Err(e);
+                                    }
+
+                                    if let Err(e) = state_writer.store_commit_info(&source, epoch) {
+                                        Self::shutdown_and_wait(
+                                            &lt_stop_req,
+                                            &lt_term_barrier,
+                                            receivers_ls,
+                                        );
+                                        return Err(e);
+                                    }
                                 }
                                 Ok(op) => {
                                     let data_op = map_to_op(op)?;
