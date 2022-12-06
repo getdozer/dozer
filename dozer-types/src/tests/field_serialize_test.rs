@@ -1,8 +1,8 @@
+use crate::types::Field;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde_json::json;
-use crate::types::Field;
 
 #[test]
 fn test_field_serialize_roundtrip() {

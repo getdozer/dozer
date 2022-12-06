@@ -4,11 +4,11 @@ use dozer_core::{
     dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
     storage::transactions::SharedTransaction,
 };
+use dozer_types::rust_decimal::Decimal;
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
-use dozer_types::rust_decimal::Decimal;
 
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 

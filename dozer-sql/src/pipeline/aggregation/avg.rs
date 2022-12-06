@@ -1,4 +1,3 @@
-use std::ops::Div;
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
@@ -6,13 +5,13 @@ use crate::{
     check_nan_f64, deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64,
     to_bytes, try_unwrap,
 };
-
 use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Decimal, Float, Int};
 use dozer_types::types::{Field, FieldType};
 use num_traits::Zero;
+use std::ops::Div;
 use std::string::ToString;
 
 pub struct AvgAggregator {}

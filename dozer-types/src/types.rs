@@ -43,7 +43,7 @@ macro_rules! serialize {
 #[macro_export]
 macro_rules! deserialize {
     ($stmt:expr) => {
-       $stmt.try_into().unwrap()
+        $stmt.try_into().unwrap()
     };
 }
 
@@ -84,16 +84,10 @@ impl Field {
                 deserialize!(val),
             )))),
             FieldType::Boolean => Ok(Field::Boolean(*val == [1_u8])),
-            FieldType::String => Ok(Field::String(
-                String::from_utf8(deserialize!(val)).unwrap(),
-            )),
-            FieldType::Text => Ok(Field::Text(
-                String::from_utf8(deserialize!(val)).unwrap(),
-            )),
+            FieldType::String => Ok(Field::String(String::from_utf8(deserialize!(val)).unwrap())),
+            FieldType::Text => Ok(Field::Text(String::from_utf8(deserialize!(val)).unwrap())),
             FieldType::Binary => Ok(Field::Binary(val.try_into().unwrap())),
-            FieldType::Decimal => Ok(Field::Decimal(Decimal::deserialize(
-                deserialize!(val),
-            ))),
+            FieldType::Decimal => Ok(Field::Decimal(Decimal::deserialize(deserialize!(val)))),
             FieldType::Timestamp => Ok(Field::Timestamp(DateTime::from(
                 Utc.timestamp_millis(i64::from_be_bytes(deserialize!(val))),
             ))),

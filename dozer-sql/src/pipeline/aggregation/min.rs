@@ -1,7 +1,10 @@
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use crate::{deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64, to_bytes, try_unwrap};
+use crate::{
+    deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64, to_bytes,
+    try_unwrap,
+};
 
 use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
