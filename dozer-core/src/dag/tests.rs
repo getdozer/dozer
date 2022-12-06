@@ -5,6 +5,8 @@ mod common;
 #[cfg(test)]
 mod dag_base_run;
 #[cfg(test)]
+mod dag_base_run_errors;
+#[cfg(test)]
 mod dag_ports;
 #[cfg(test)]
 mod dag_recordreader;
@@ -14,6 +16,8 @@ mod dag_run;
 mod dag_schemas;
 #[cfg(test)]
 mod processors;
+#[cfg(test)]
+mod processors_old;
 #[cfg(test)]
 mod sinks;
 #[cfg(test)]

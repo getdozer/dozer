@@ -23,7 +23,7 @@ use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
-use log::{info, warn};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Add;
@@ -37,6 +37,7 @@ use std::time::{Duration, Instant};
 macro_rules! term_on_err {
     ($e: expr, $stop_req: expr, $barrier: expr) => {
         if let Err(e) = $e {
+            error!("Error while executing operation");
             $stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
             $barrier.wait();
             return Err(e);
@@ -361,16 +362,19 @@ impl<'a> DagExecutor<'a> {
                 let r = st_receiver.recv_deadline(Instant::now().add(Duration::from_millis(500)));
                 match lt_stop_req.load(Ordering::Relaxed) {
                     STOP_REQ_TERM_AND_SHUTDOWN => {
+                        debug!("[{}] STOP_REQ_SHUTDOWN", lt_handle.as_str());
                         term_on_err!(dag_fw.commit_and_terminate(), lt_stop_req, lt_term_barrier);
                         lt_term_barrier.wait();
                         break;
                     }
                     STOP_REQ_SHUTDOWN => {
+                        debug!("[{}] STOP_REQ_SHUTDOWN", &lt_handle.as_str());
                         lt_term_barrier.wait();
                         return Ok(());
                     }
                     _ => match r {
                         Err(RecvTimeoutError::Timeout) => {
+                            debug!("[{}] RecvTimeoutError::Timeout", &lt_handle.as_str());
                             term_on_err!(
                                 dag_fw.trigger_commit_if_needed(),
                                 lt_stop_req,
@@ -378,6 +382,7 @@ impl<'a> DagExecutor<'a> {
                             )
                         }
                         Err(RecvTimeoutError::Disconnected) => {
+                            debug!("[{}] RecvTimeoutError::Disconnected", &lt_handle.as_str());
                             lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
                             lt_term_barrier.wait();
                             return Err(ChannelDisconnected);
@@ -408,6 +413,14 @@ impl<'a> DagExecutor<'a> {
             }
             Ok(())
         }))
+    }
+
+    fn close_senders(senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>) {
+        for (port, port_senders) in senders {
+            for sender in port_senders {
+                drop(sender);
+            }
+        }
     }
 
     pub fn start_processor(
@@ -516,22 +529,38 @@ impl<'a> DagExecutor<'a> {
                             let data_op = map_to_op(op)?;
                             fw.update_seq_no(data_op.0);
 
-                            term_on_err!(
-                                proc.process(
-                                    handles_ls[index],
-                                    data_op.1,
-                                    &mut fw,
-                                    &mut SharedTransaction::new(&master_tx),
-                                    reader,
-                                ),
-                                lt_stop_req,
-                                lt_term_barrier
-                            );
+                            if let Err(e) = proc.process(
+                                handles_ls[index],
+                                data_op.1,
+                                &mut fw,
+                                &mut SharedTransaction::new(&master_tx),
+                                reader,
+                            ) {
+                                Self::shutdown_and_wait(
+                                    &lt_stop_req,
+                                    &lt_term_barrier,
+                                    receivers_ls,
+                                );
+                                return Err(e);
+                            }
                         }
                     },
                 }
             }
         }))
+    }
+
+    fn shutdown_and_wait(
+        stop_req: &Arc<AtomicU8>,
+        stop_barrier: &Arc<Barrier>,
+        receivers: Vec<Receiver<ExecutorOperation>>,
+    ) {
+        for receiver in receivers {
+            drop(receiver);
+        }
+
+        stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
+        stop_barrier.wait();
     }
 
     pub fn start_sink(
@@ -567,64 +596,77 @@ impl<'a> DagExecutor<'a> {
 
             let mut sel = init_select(&receivers_ls);
             loop {
-                let index = sel.ready();
-                let r = receivers_ls[index]
-                    .recv_deadline(Instant::now().add(Duration::from_millis(50)));
-
-                match lt_stop_req.load(Ordering::Relaxed) {
-                    STOP_REQ_SHUTDOWN => {
-                        lt_term_barrier.wait();
-                        return Ok(());
-                    }
-                    _ => match r {
-                        Err(RecvTimeoutError::Timeout) => {}
-                        Err(RecvTimeoutError::Disconnected) => {
-                            lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
-                            lt_term_barrier.wait();
-                            return Err(ChannelDisconnected);
-                        }
-                        Ok(ExecutorOperation::Terminate) => {
-                            info!("[{}] Terminating: Exiting message loop", handle);
+                let ready = sel.ready_deadline(Instant::now().add(Duration::from_millis(50)));
+                match ready {
+                    Err(e) => {
+                        if lt_stop_req.load(Ordering::Relaxed) == STOP_REQ_SHUTDOWN {
+                            debug!("[{}] STOP_REQ_SHUTDOWN", handle);
                             lt_term_barrier.wait();
                             return Ok(());
                         }
-                        Ok(ExecutorOperation::Commit { epoch, source }) => {
-                            info!(
-                                "[{}] Checkpointing (source: {}, epoch: {})",
-                                handle, source, epoch
-                            );
-                            term_on_err!(
-                                snk.commit(&mut SharedTransaction::new(&master_tx)),
-                                lt_stop_req,
-                                lt_term_barrier
-                            );
-                            term_on_err!(
-                                state_writer.store_commit_info(&source, epoch),
-                                lt_stop_req,
-                                lt_term_barrier
-                            );
-                        }
-                        Ok(op) => {
-                            let data_op = map_to_op(op)?;
+                    }
+                    Ok(index) => {
+                        let r = receivers_ls[index].recv();
+                        match lt_stop_req.load(Ordering::Relaxed) {
+                            STOP_REQ_SHUTDOWN => {
+                                debug!("[{}] STOP_REQ_SHUTDOWN", handle);
+                                lt_term_barrier.wait();
+                                return Ok(());
+                            }
+                            _ => match r {
+                                Err(e) => {
+                                    debug!("[{}] RecvError", handle);
+                                    lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
+                                    lt_term_barrier.wait();
+                                    return Err(ChannelDisconnected);
+                                }
+                                Ok(ExecutorOperation::Terminate) => {
+                                    info!("[{}] Terminating: Exiting message loop", handle);
+                                    lt_term_barrier.wait();
+                                    return Ok(());
+                                }
+                                Ok(ExecutorOperation::Commit { epoch, source }) => {
+                                    info!(
+                                        "[{}] Checkpointing (source: {}, epoch: {})",
+                                        handle, source, epoch
+                                    );
+                                    term_on_err!(
+                                        snk.commit(&mut SharedTransaction::new(&master_tx)),
+                                        lt_stop_req,
+                                        lt_term_barrier
+                                    );
+                                    term_on_err!(
+                                        state_writer.store_commit_info(&source, epoch),
+                                        lt_stop_req,
+                                        lt_term_barrier
+                                    );
+                                }
+                                Ok(op) => {
+                                    let data_op = map_to_op(op)?;
 
-                            let guard = lt_record_stores.read();
-                            let reader = guard
-                                .get(&handle)
-                                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                                    let guard = lt_record_stores.read();
+                                    let reader = guard.get(&handle).ok_or_else(|| {
+                                        ExecutionError::InvalidNodeHandle(handle.clone())
+                                    })?;
 
-                            term_on_err!(
-                                snk.process(
-                                    handles_ls[index],
-                                    data_op.0,
-                                    data_op.1,
-                                    &mut SharedTransaction::new(&master_tx),
-                                    reader,
-                                ),
-                                lt_stop_req,
-                                lt_term_barrier
-                            );
+                                    if let Err(e) = snk.process(
+                                        handles_ls[index],
+                                        data_op.0,
+                                        data_op.1,
+                                        &mut SharedTransaction::new(&master_tx),
+                                        reader,
+                                    ) {
+                                        Self::shutdown_and_wait(
+                                            &lt_stop_req,
+                                            &lt_term_barrier,
+                                            receivers_ls,
+                                        );
+                                        return Err(e);
+                                    }
+                                }
+                            },
                         }
-                    },
+                    }
                 }
             }
         }))
