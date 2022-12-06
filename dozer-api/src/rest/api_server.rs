@@ -140,7 +140,7 @@ impl ApiServer {
                 cache_endpoints.clone(),
             )
         })
-        .bind((self.url.to_owned(), self.port.to_owned()))?
+        .bind(format!("{}:{}", self.url.to_owned(), self.port.to_owned()))?
         .shutdown_timeout(self.shutdown_timeout.to_owned())
         .run();
 
