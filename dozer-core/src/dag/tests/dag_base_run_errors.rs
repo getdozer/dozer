@@ -28,6 +28,7 @@ use tempdir::TempDir;
 
 struct ErrorProcessorFactory {
     err_on: u64,
+    panic: bool,
 }
 
 impl ProcessorFactory for ErrorProcessorFactory {
@@ -54,6 +55,7 @@ impl ProcessorFactory for ErrorProcessorFactory {
         Box::new(ErrorProcessor {
             err_on: self.err_on,
             count: 0,
+            panic: self.panic,
         })
     }
 }
@@ -61,6 +63,7 @@ impl ProcessorFactory for ErrorProcessorFactory {
 struct ErrorProcessor {
     err_on: u64,
     count: u64,
+    panic: bool,
 }
 
 impl Processor for ErrorProcessor {
@@ -82,7 +85,11 @@ impl Processor for ErrorProcessor {
     ) -> Result<(), ExecutionError> {
         self.count += 1;
         if self.count == self.err_on {
-            return Err(ExecutionError::InvalidOperation("Uknown".to_string()));
+            if self.panic {
+                panic!("Generated error");
+            } else {
+                return Err(ExecutionError::InvalidOperation("Uknown".to_string()));
+            }
         }
 
         fw.send(op, DEFAULT_PORT_HANDLE)
@@ -90,7 +97,7 @@ impl Processor for ErrorProcessor {
 }
 
 #[test]
-fn test_run_dag_proc_err() {
+fn test_run_dag_proc_err_panic() {
     init_log4rs();
 
     let count: u64 = 1_000_000;
@@ -107,7 +114,10 @@ fn test_run_dag_proc_err() {
         "source".to_string(),
     );
     dag.add_node(
-        NodeType::Processor(Arc::new(ErrorProcessorFactory { err_on: 800_000 })),
+        NodeType::Processor(Arc::new(ErrorProcessorFactory {
+            err_on: 800_000,
+            panic: true,
+        })),
         "proc".to_string(),
     );
     dag.add_node(
@@ -159,7 +169,10 @@ fn test_run_dag_proc_err_2() {
     );
 
     dag.add_node(
-        NodeType::Processor(Arc::new(ErrorProcessorFactory { err_on: 800_000 })),
+        NodeType::Processor(Arc::new(ErrorProcessorFactory {
+            err_on: 800_000,
+            panic: false,
+        })),
         "proc_err".to_string(),
     );
 
@@ -213,7 +226,10 @@ fn test_run_dag_proc_err_3() {
     );
 
     dag.add_node(
-        NodeType::Processor(Arc::new(ErrorProcessorFactory { err_on: 800_000 })),
+        NodeType::Processor(Arc::new(ErrorProcessorFactory {
+            err_on: 800_000,
+            panic: false,
+        })),
         "proc_err".to_string(),
     );
 

@@ -170,10 +170,10 @@ impl Processor for NoopJoinProcessor {
 }
 
 #[test]
-fn test_run_dag_2_sources() {
+fn test_run_dag_2_sources_stateless() {
     init_log4rs();
 
-    let count: u64 = 1_000_000;
+    let count: u64 = 50_000;
 
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
@@ -191,6 +191,66 @@ fn test_run_dag_2_sources() {
             count,
             latch.clone(),
             false,
+        ))),
+        "source2".to_string(),
+    );
+    dag.add_node(
+        NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
+        "proc".to_string(),
+    );
+    dag.add_node(
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch.clone()))),
+        "sink".to_string(),
+    );
+
+    chk!(dag.connect(
+        Endpoint::new("source1".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new("proc".to_string(), 1),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new("source2".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new("proc".to_string(), 2),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+    ));
+
+    let tmp_dir = chk!(TempDir::new("test"));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        &tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    chk!(executor.start());
+    assert!(executor.join().is_ok());
+}
+
+#[test]
+fn test_run_dag_2_sources_stateful() {
+    init_log4rs();
+
+    let count: u64 = 50_000;
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(CountDownLatch::new(1));
+
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            true,
+        ))),
+        "source1".to_string(),
+    );
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            true,
         ))),
         "source2".to_string(),
     );

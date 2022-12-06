@@ -37,6 +37,8 @@ pub enum ExecutionError {
     IncompatibleSchemas(),
     #[error("Channel disconnected")]
     ChannelDisconnected,
+    #[error("Internal thread panicked")]
+    InternalThreadPanic,
 
     // Error forwarders
     #[error(transparent)]

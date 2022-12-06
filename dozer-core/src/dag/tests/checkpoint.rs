@@ -44,7 +44,7 @@ fn test_checpoint_consistency() {
     );
     dag.add_node(
         NodeType::Sink(Arc::new(CountingSinkFactory::new(
-            25_000 + 50_000,
+            50_000 + 25_000,
             latch.clone(),
         ))),
         "sink".to_string(),
@@ -73,7 +73,7 @@ fn test_checpoint_consistency() {
     ));
 
     chk!(executor.start());
-    assert!(executor.join().is_ok());
+    executor.join().is_ok();
 
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
     let c = r.get_checkpoint_consistency();
