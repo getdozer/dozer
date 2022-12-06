@@ -48,7 +48,11 @@ impl ProcessorFactory for ErrorProcessorFactory {
         )]
     }
 
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor> {
         Box::new(ErrorProcessor {
             err_on: self.err_on,
             count: 0,
@@ -306,7 +310,7 @@ impl SourceFactory for ErrGeneratorSourceFactory {
             OutputPortDefOptions::default(),
         )]
     }
-    fn build(&self) -> Box<dyn Source> {
+    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
         Box::new(ErrGeneratorSource {
             count: self.count,
             err_at: self.err_at,
@@ -425,7 +429,7 @@ impl SinkFactory for ErrSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }
-    fn build(&self) -> Box<dyn Sink> {
+    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink> {
         Box::new(ErrSink {
             err_at: self.err_at,
             current: 0,

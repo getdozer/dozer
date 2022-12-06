@@ -45,7 +45,11 @@ impl ProcessorFactory for NoopProcessorFactory {
         )]
     }
 
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor> {
         Box::new(NoopProcessor {})
     }
 }
@@ -199,7 +203,11 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         )]
     }
 
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor> {
         Box::new(NoopJoinProcessor {})
     }
 }

@@ -50,7 +50,7 @@ impl OutputPortDef {
 pub trait SourceFactory: Send + Sync {
     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
-    fn build(&self) -> Box<dyn Source>;
+    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source>;
 }
 
 pub trait Source {
@@ -69,7 +69,11 @@ pub trait ProcessorFactory: Send + Sync {
     ) -> Result<Schema, ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
-    fn build(&self) -> Box<dyn Processor>;
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor>;
 }
 
 pub trait Processor {
@@ -92,7 +96,7 @@ pub trait SinkFactory: Send + Sync {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn build(&self) -> Box<dyn Sink>;
+    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink>;
 }
 
 pub trait Sink {

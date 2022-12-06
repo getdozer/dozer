@@ -30,7 +30,7 @@ impl SourceFactory for DynPortsSourceFactory {
             .collect()
     }
 
-    fn build(&self) -> Box<dyn Source> {
+    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
         todo!()
     }
 }
@@ -69,7 +69,11 @@ impl ProcessorFactory for DynPortsProcessorFactory {
             .collect()
     }
 
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor> {
         todo!()
     }
 }

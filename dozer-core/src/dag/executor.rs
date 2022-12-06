@@ -312,10 +312,11 @@ impl<'a> DagExecutor<'a> {
             bounded::<(PortHandle, u64, Operation)>(self.options.channel_buffer_sz);
         let st_src_factory = src_factory.clone();
         let st_stop_req = self.stop_req.clone();
+        let st_output_schemas = schemas.output_schemas.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
 
         let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
-            let src = st_src_factory.build();
+            let src = st_src_factory.build(st_output_schemas);
             let r = src.start(&mut fw, None);
             st_stop_req.store(STOP_REQ_TERM_AND_SHUTDOWN, Ordering::Relaxed);
             r
@@ -450,7 +451,7 @@ impl<'a> DagExecutor<'a> {
         let lt_input_schemas = schemas.input_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
-            let mut proc = proc_factory.build();
+            let mut proc = proc_factory.build(lt_input_schemas.clone(), lt_output_schemas.clone());
             let mut state_meta = init_component(&handle, lt_path.as_path(), |e| proc.init(e))?;
 
             let port_databases = create_ports_databases(
@@ -615,7 +616,7 @@ impl<'a> DagExecutor<'a> {
         let lt_input_schemas = schemas.input_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
-            let mut snk = snk_factory.build();
+            let mut snk = snk_factory.build(lt_input_schemas.clone());
             let mut state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
 
             let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =

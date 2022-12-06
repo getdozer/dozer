@@ -57,7 +57,11 @@ impl ProcessorFactory for PassthroughProcessorFactory {
             OutputPortDefOptions::new(true, true, true),
         )]
     }
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor> {
         Box::new(PassthroughProcessor {})
     }
 }
@@ -117,7 +121,11 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
             OutputPortDefOptions::default(),
         )]
     }
-    fn build(&self) -> Box<dyn Processor> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor> {
         Box::new(RecordReaderProcessor { ctr: 1 })
     }
 }

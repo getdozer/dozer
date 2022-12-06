@@ -3,6 +3,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
@@ -45,7 +46,7 @@ impl SourceFactory for GeneratorSourceFactory {
             OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
         )]
     }
-    fn build(&self) -> Box<dyn Source> {
+    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
         Box::new(GeneratorSource {
             count: self.count,
             term_latch: self.term_latch.clone(),
