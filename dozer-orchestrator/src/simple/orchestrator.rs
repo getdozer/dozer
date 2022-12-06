@@ -136,10 +136,10 @@ impl Orchestrator for SimpleOrchestrator {
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
-        let internal_port = self.api_config.internal.port;
+        let internal_config = self.api_config.internal.to_owned();
         // Initialize Internal Server Client
         let _internal_thread = thread::spawn(move || {
-            start_internal_client(internal_port, receiver);
+            start_internal_client(internal_config, receiver);
         });
 
         // Ingestion Channe;

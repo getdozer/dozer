@@ -67,13 +67,13 @@ pub async fn start_internal_server(
         .await
 }
 
-pub fn start_internal_client(port: u16, receiver: Receiver<PipelineRequest>) {
+pub fn start_internal_client(internal_config: ApiInternal, receiver: Receiver<PipelineRequest>) {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let mut connected = false;
         let mut idx = 0;
         while !connected {
-            let addr = format!("http://[::1]:{}", port);
+            let addr = format!("http://{}:{}", internal_config.host, internal_config.port);
             if let Ok(mut client) = InternalPipelineServiceClient::connect(addr).await {
                 connected = true;
                 let iterator = InternalIterator {
