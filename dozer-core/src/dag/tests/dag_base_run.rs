@@ -119,7 +119,7 @@ fn test_run_dag() {
     assert!(executor.join().is_ok());
 }
 
-struct NoopJoinProcessorFactory {}
+pub(crate) struct NoopJoinProcessorFactory {}
 
 impl ProcessorFactory for NoopJoinProcessorFactory {
     fn get_output_schema(
@@ -146,7 +146,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
     }
 }
 
-struct NoopJoinProcessor {}
+pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {

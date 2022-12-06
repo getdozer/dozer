@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod checkpoint;
 #[cfg(test)]
+mod checkpoint_old;
+#[cfg(test)]
 mod common;
 #[cfg(test)]
 mod dag_base_run;
