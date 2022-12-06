@@ -15,70 +15,71 @@ use std::error::Error;
 use std::vec;
 
 pub fn postgres_type_to_field(
-    value: &Bytes,
+    value: Option<&Bytes>,
     column: &TableColumn,
 ) -> Result<Field, ConnectorError> {
-    if let Some(column_type) = &column.r#type {
-        match column_type {
-            &Type::INT2 | &Type::INT4 | &Type::INT8 => Ok(Field::Int(
-                String::from_utf8(value.to_vec()).unwrap().parse().unwrap(),
+    value.map_or(Ok(Field::Null), |v| {
+        column.r#type.clone().map_or(
+            Err(ConnectorError::PostgresConnectorError(
+                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotFound),
             )),
-            &Type::FLOAT4 | &Type::FLOAT8 => Ok(Field::Float(OrderedFloat(
-                String::from_utf8(value.to_vec())
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap(),
-            ))),
-            &Type::TEXT | &Type::VARCHAR => {
-                Ok(Field::String(String::from_utf8(value.to_vec()).unwrap()))
-            }
-            &Type::BYTEA => Ok(Field::Binary(value.to_vec())),
-            &Type::NUMERIC => Ok(Field::Decimal(
-                Decimal::from_f64(
-                    String::from_utf8(value.to_vec())
+            |column_type| match column_type {
+                Type::INT2 | Type::INT4 | Type::INT8 => Ok(Field::Int(
+                    String::from_utf8(v.to_vec()).unwrap().parse().unwrap(),
+                )),
+                Type::FLOAT4 | Type::FLOAT8 => Ok(Field::Float(OrderedFloat(
+                    String::from_utf8(v.to_vec())
                         .unwrap()
                         .parse::<f64>()
                         .unwrap(),
-                )
-                .unwrap(),
-            )),
-            &Type::TIMESTAMP => {
-                let date = NaiveDateTime::parse_from_str(
-                    String::from_utf8(value.to_vec()).unwrap().as_str(),
-                    "%Y-%m-%d %H:%M:%S",
-                )
-                .unwrap();
-                Ok(Field::Timestamp(DateTime::from_utc(date, Utc.fix())))
-            }
-            &Type::TIMESTAMPTZ => {
-                let date: DateTime<FixedOffset> = DateTime::parse_from_str(
-                    String::from_utf8(value.to_vec()).unwrap().as_str(),
-                    "%Y-%m-%d %H:%M:%S%.f%#z",
-                )
-                .unwrap();
-                Ok(Field::Timestamp(date))
-            }
-            &Type::DATE => {
-                let date: NaiveDate = NaiveDate::parse_from_str(
-                    String::from_utf8(value.to_vec()).unwrap().as_str(),
-                    DATE_FORMAT,
-                )
-                .unwrap();
-                Ok(Field::from(date))
-            }
-            &Type::JSONB | &Type::JSON => Ok(Field::Bson(value.to_vec())),
-            &Type::BOOL => Ok(Field::Boolean(value.slice(0..1) == "t")),
-            _ => Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
-                    column_type.name().to_string(),
+                ))),
+                Type::TEXT | Type::VARCHAR => {
+                    Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
+                }
+                Type::BYTEA => Ok(Field::Binary(v.to_vec())),
+                Type::NUMERIC => Ok(Field::Decimal(
+                    Decimal::from_f64(
+                        String::from_utf8(v.to_vec())
+                            .unwrap()
+                            .parse::<f64>()
+                            .unwrap(),
+                    )
+                    .unwrap(),
                 )),
-            )),
-        }
-    } else {
-        Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::PostgresSchemaError(ColumnTypeNotFound),
-        ))
-    }
+                Type::TIMESTAMP => {
+                    let date = NaiveDateTime::parse_from_str(
+                        String::from_utf8(v.to_vec()).unwrap().as_str(),
+                        "%Y-%m-%d %H:%M:%S",
+                    )
+                    .unwrap();
+                    Ok(Field::Timestamp(DateTime::from_utc(date, Utc.fix())))
+                }
+                Type::TIMESTAMPTZ => {
+                    let date: DateTime<FixedOffset> = DateTime::parse_from_str(
+                        String::from_utf8(v.to_vec()).unwrap().as_str(),
+                        "%Y-%m-%d %H:%M:%S%.f%#z",
+                    )
+                    .unwrap();
+                    Ok(Field::Timestamp(date))
+                }
+                Type::DATE => {
+                    let date: NaiveDate = NaiveDate::parse_from_str(
+                        String::from_utf8(v.to_vec()).unwrap().as_str(),
+                        DATE_FORMAT,
+                    )
+                    .unwrap();
+                    Ok(Field::from(date))
+                }
+                Type::JSONB | Type::JSON => Ok(Field::Bson(v.to_vec())),
+                Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
+                _ => Err(ConnectorError::PostgresConnectorError(
+                    PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
+                        column_type.name().to_string(),
+                    )),
+                )),
+            },
+        )
+    })
 }
 
 pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, ConnectorError> {
@@ -221,7 +222,7 @@ mod tests {
     macro_rules! test_conversion {
         ($a:expr,$b:expr,$c:expr) => {
             let value = postgres_type_to_field(
-                &Bytes::from($a),
+                Some(&Bytes::from($a)),
                 &TableColumn {
                     name: "column".to_string(),
                     type_id: $b.oid() as i32,
@@ -274,5 +275,20 @@ mod tests {
 
         test_conversion!("t", Type::BOOL, Field::Boolean(true));
         test_conversion!("f", Type::BOOL, Field::Boolean(false));
+    }
+
+    #[test]
+    fn test_none_value() {
+        let value = postgres_type_to_field(
+            None,
+            &TableColumn {
+                name: "column".to_string(),
+                type_id: Type::VARCHAR.oid() as i32,
+                flags: 0,
+                r#type: Some(Type::VARCHAR),
+                idx: 0,
+            },
+        );
+        assert_eq!(value.unwrap(), Field::Null);
     }
 }

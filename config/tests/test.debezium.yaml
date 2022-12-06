@@ -11,10 +11,10 @@ source:
   refresh_config: RealTime
 
 postgres_source_authentication: !PostgresAuthentication
-  user: ${KAFKA_POSTGRES_USER}
-  password: ${KAFKA_POSTGRES_PASSWORD}
-  host: ${KAFKA_POSTGRES_HOST}
-  port: ${KAFKA_POSTGRES_PORT}
-  database: ${KAFKA_POSTGRES_DATABASE}
+  user: ${POSTGRES_USER}
+  password: ${POSTGRES_PASSWORD}
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  database: ${POSTGRES_DATABASE}
 
 debezium_connector_url: ${KAFKA_CONNECTOR_URL}

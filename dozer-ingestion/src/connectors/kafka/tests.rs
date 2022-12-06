@@ -53,7 +53,7 @@ impl KafkaPostgres {
 
 #[ignore]
 #[test]
-fn connector_e2e_connect_and_use_kafka_stream() {
+fn connector_e2e_connect_debezium_and_use_kafka_stream() {
     let start = SystemTime::now();
     let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap();
     let table_name = format!("products_test_{}", since_the_epoch.as_millis());
