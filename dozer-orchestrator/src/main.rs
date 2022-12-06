@@ -50,7 +50,7 @@ fn main() -> Result<(), OrchestrationError> {
     let mut dozer = Dozer::new(path);
     dozer.add_sources(configuration.sources);
     dozer.add_endpoints(configuration.endpoints);
-
+    dozer.add_api_config(configuration.api);
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {

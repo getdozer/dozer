@@ -6,6 +6,7 @@ use crossbeam::channel::Receiver;
 use dozer_types::{
     crossbeam::channel::Sender,
     log::{self, debug},
+    models::api_config::ApiInternal,
 };
 use log::warn;
 use std::{net::ToSocketAddrs, thread, time::Duration};
@@ -49,12 +50,13 @@ impl InternalPipelineService for InternalServer {
 }
 
 pub async fn start_internal_server(
-    port: u16,
+    internal_config: ApiInternal,
     sender: Sender<PipelineRequest>,
 ) -> Result<(), tonic::transport::Error> {
     let server = InternalServer { sender };
-
-    let mut addr = format!("[::1]:{}", port).to_socket_addrs().unwrap();
+    let mut addr = format!("{}:{}", internal_config.host, internal_config.port)
+        .to_socket_addrs()
+        .unwrap();
     Server::builder()
         .add_service(
             internal_grpc::internal_pipeline_service_server::InternalPipelineServiceServer::new(
