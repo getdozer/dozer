@@ -136,36 +136,6 @@ impl StateWriter {
         Ok(())
     }
 
-    // fn store_schema(
-    //     &mut self,
-    //     port: PortHandle,
-    //     schema: Schema,
-    //     direction: PortDirection,
-    // ) -> Result<(), ExecutionError> {
-    //     let mut full_key = vec![if direction == PortDirection::Input {
-    //         INPUT_SCHEMA_IDENTIFIER
-    //     } else {
-    //         OUTPUT_SCHEMA_IDENTIFIER
-    //     }];
-    //     full_key.extend(port.to_be_bytes());
-    //
-    //     let schema_val = bincode::serialize(&schema).map_err(|e| SerializationError {
-    //         typ: "Schema".to_string(),
-    //         reason: Box::new(e),
-    //     })?;
-    //
-    //     match direction {
-    //         Output => self.output_schemas.insert(port, schema),
-    //         Input => self.input_schemas.insert(port, schema),
-    //     };
-    //
-    //     self.tx
-    //         .write()
-    //         .put(&self.meta_db, &full_key, schema_val.as_slice())?;
-    //
-    //     Ok(())
-    // }
-
     pub(crate) fn get_all_input_schemas(&self) -> Option<HashMap<PortHandle, Schema>> {
         match &self.input_ports {
             Some(input_ports) => {
@@ -182,15 +152,6 @@ impl StateWriter {
             _ => None,
         }
     }
-
-    // pub fn update_input_schema(
-    //     &mut self,
-    //     port: PortHandle,
-    //     schema: Schema,
-    // ) -> Result<Option<HashMap<PortHandle, Schema>>, ExecutionError> {
-    //     self.store_schema(port, schema, Input)?;
-    //     Ok(self.get_all_input_schemas())
-    // }
 }
 
 pub struct LocalChannelForwarder {
@@ -245,24 +206,6 @@ impl LocalChannelForwarder {
             stateful,
         }
     }
-
-    // fn update_output_schema(
-    //     &mut self,
-    //     port: PortHandle,
-    //     schema: Schema,
-    // ) -> Result<(), ExecutionError> {
-    //     self.state_writer.store_schema(port, schema, Output)?;
-    //     Ok(())
-    // }
-    //
-    // pub fn update_input_schema(
-    //     &mut self,
-    //     port: PortHandle,
-    //     schema: Schema,
-    // ) -> Result<Option<HashMap<PortHandle, Schema>>, ExecutionError> {
-    //     self.state_writer.store_schema(port, schema, Input)?;
-    //     Ok(self.state_writer.get_all_input_schemas())
-    // }
 
     pub fn update_seq_no(&mut self, seq: u64) {
         self.curr_seq_no = seq;
