@@ -14,9 +14,13 @@ use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 
+use libc::thread_info;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
+use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use tempdir::TempDir;
 
 pub(crate) struct NoopProcessorFactory {}
@@ -114,6 +118,63 @@ fn test_run_dag() {
 
     chk!(executor.start());
     assert!(executor.join().is_ok());
+}
+
+#[test]
+fn test_run_dag_and_stop() {
+    init_log4rs();
+
+    let count: u64 = 1_000_000;
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(CountDownLatch::new(1));
+
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
+        "source".to_string(),
+    );
+    dag.add_node(
+        NodeType::Processor(Arc::new(NoopProcessorFactory {})),
+        "proc".to_string(),
+    );
+    dag.add_node(
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
+        "sink".to_string(),
+    );
+
+    chk!(dag.connect(
+        Endpoint::new("source".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+    ));
+
+    let tmp_dir = chk!(TempDir::new("test"));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    chk!(executor.start());
+
+    thread::sleep(Duration::from_millis(1000));
+    executor.stop();
+    assert!(executor.join().is_ok());
+
+    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
+    let c = r.get_checkpoint_consistency();
+    assert!(matches!(
+        c.get("source").unwrap(),
+        Consistency::FullyConsistent(_)
+    ));
 }
 
 pub(crate) struct NoopJoinProcessorFactory {}

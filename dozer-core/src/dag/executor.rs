@@ -595,9 +595,7 @@ impl<'a> DagExecutor<'a> {
         for receiver in receivers {
             drop(receiver);
         }
-
         stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
-        //   stop_barrier.wait();
     }
 
     pub fn start_sink(
@@ -775,20 +773,6 @@ impl<'a> DagExecutor<'a> {
         self.stop_req
             .store(STOP_REQ_TERM_AND_SHUTDOWN, Ordering::Relaxed);
     }
-
-    // pub fn join(self) -> Result<(), HashMap<NodeHandle, ExecutionError>> {
-    //     let mut results: HashMap<NodeHandle, ExecutionError> = HashMap::new();
-    //     for (handle, thread) in self.join_handles {
-    //         let r = thread.join().unwrap();
-    //         if let Err(e) = r {
-    //             results.insert(handle.clone(), e);
-    //         }
-    //     }
-    //     match results.is_empty() {
-    //         true => Ok(()),
-    //         false => Err(results),
-    //     }
-    // }
 
     pub fn join(self) -> Result<(), HashMap<NodeHandle, ExecutionError>> {
         loop {
