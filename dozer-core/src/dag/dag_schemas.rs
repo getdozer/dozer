@@ -4,12 +4,17 @@ use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 use crate::dag::node::{NodeHandle, PortHandle};
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 
 #[derive(Clone)]
 pub struct NodeSchemas {
     pub input_schemas: HashMap<PortHandle, Schema>,
     pub output_schemas: HashMap<PortHandle, Schema>,
+}
+
+impl Default for NodeSchemas {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NodeSchemas {
@@ -53,7 +58,7 @@ impl<'a> DagSchemaManager<'a> {
 
     fn get_node_input_ports(node: &NodeType) -> Vec<PortHandle> {
         match node {
-            NodeType::Source(src) => vec![],
+            NodeType::Source(_src) => vec![],
             NodeType::Processor(proc) => proc.get_input_ports(),
             NodeType::Sink(proc) => proc.get_input_ports(),
         }
@@ -63,7 +68,7 @@ impl<'a> DagSchemaManager<'a> {
         match node {
             NodeType::Source(src) => src.get_output_ports().iter().map(|p| p.handle).collect(),
             NodeType::Processor(proc) => proc.get_output_ports().iter().map(|p| p.handle).collect(),
-            NodeType::Sink(proc) => vec![],
+            NodeType::Sink(_proc) => vec![],
         }
     }
 
@@ -76,13 +81,13 @@ impl<'a> DagSchemaManager<'a> {
         let node = dag
             .nodes
             .get(handle)
-            .ok_or(InvalidNodeHandle(handle.clone()))?;
+            .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
 
         // Get all input schemas available for this node
         let node_input_schemas_available = HashSet::<&PortHandle>::from_iter(
             all_schemas
                 .get(handle)
-                .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?
+                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?
                 .input_schemas
                 .iter()
                 .map(|e| e.0),
@@ -99,13 +104,11 @@ impl<'a> DagSchemaManager<'a> {
                 let schema = {
                     let node_schemas = all_schemas
                         .get_mut(handle)
-                        .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
                     let schema =
                         Self::get_port_output_schema(node, port, &node_schemas.input_schemas)?;
                     if let Some(schema) = &schema {
-                        node_schemas
-                            .output_schemas
-                            .insert(port.clone(), schema.clone());
+                        node_schemas.output_schemas.insert(*port, schema.clone());
                     }
                     schema
                 };
@@ -120,7 +123,7 @@ impl<'a> DagSchemaManager<'a> {
                 for next_node_port_input in next_in_chain {
                     let next_node_schemas = all_schemas
                         .get_mut(&next_node_port_input.node)
-                        .ok_or(InvalidNodeHandle(next_node_port_input.node.clone()))?;
+                        .ok_or_else(|| InvalidNodeHandle(next_node_port_input.node.clone()))?;
                     if let Some(schema) = &schema {
                         next_node_schemas
                             .input_schemas
@@ -146,7 +149,7 @@ impl<'a> DagSchemaManager<'a> {
         let sources: Vec<&NodeHandle> = dag
             .nodes
             .iter()
-            .filter(|(h, n)| matches!(n, NodeType::Source(_)))
+            .filter(|(_h, n)| matches!(n, NodeType::Source(_)))
             .map(|e| e.0)
             .collect();
 
@@ -160,10 +163,7 @@ impl<'a> DagSchemaManager<'a> {
             Self::fill_node_output_schemas(dag, source, &mut schemas)?;
         }
 
-        Ok(Self {
-            dag,
-            schemas: schemas,
-        })
+        Ok(Self { dag, schemas })
     }
 
     pub fn get_node_input_schemas(
@@ -173,7 +173,7 @@ impl<'a> DagSchemaManager<'a> {
         let node = self
             .schemas
             .get(handle)
-            .ok_or(InvalidNodeHandle(handle.clone()))?;
+            .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
         Ok(&node.input_schemas)
     }
 
@@ -184,7 +184,7 @@ impl<'a> DagSchemaManager<'a> {
         let node = self
             .schemas
             .get(handle)
-            .ok_or(InvalidNodeHandle(handle.clone()))?;
+            .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
         Ok(&node.output_schemas)
     }
 

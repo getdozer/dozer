@@ -2,7 +2,7 @@ use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InvalidNodeHandle, InvalidNodeType, InvalidPortHandle};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
-use dozer_types::types::Schema;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -148,9 +148,8 @@ impl Dag {
     pub fn get_sources(&self) -> Vec<(NodeHandle, &Arc<dyn SourceFactory>)> {
         let mut r: Vec<(NodeHandle, &Arc<dyn SourceFactory>)> = Vec::new();
         for (handle, typ) in &self.nodes {
-            match typ {
-                NodeType::Source(s) => r.push((handle.clone(), &s)),
-                _ => {}
+            if let NodeType::Source(s) = typ {
+                r.push((handle.clone(), s))
             }
         }
         r
@@ -159,9 +158,8 @@ impl Dag {
     pub fn get_processors(&self) -> Vec<(NodeHandle, &Arc<dyn ProcessorFactory>)> {
         let mut r: Vec<(NodeHandle, &Arc<dyn ProcessorFactory>)> = Vec::new();
         for (handle, typ) in &self.nodes {
-            match typ {
-                NodeType::Processor(s) => r.push((handle.clone(), &s)),
-                _ => {}
+            if let NodeType::Processor(s) = typ {
+                r.push((handle.clone(), s));
             }
         }
         r
@@ -170,9 +168,8 @@ impl Dag {
     pub fn get_sinks(&self) -> Vec<(NodeHandle, &Arc<dyn SinkFactory>)> {
         let mut r: Vec<(NodeHandle, &Arc<dyn SinkFactory>)> = Vec::new();
         for (handle, typ) in &self.nodes {
-            match typ {
-                NodeType::Sink(s) => r.push((handle.clone(), &s)),
-                _ => {}
+            if let NodeType::Sink(s) = typ {
+                r.push((handle.clone(), s));
             }
         }
         r

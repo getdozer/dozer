@@ -1,6 +1,5 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::dag::dag::PortDirection;
-use crate::dag::dag::PortDirection::{Input, Output};
+
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;

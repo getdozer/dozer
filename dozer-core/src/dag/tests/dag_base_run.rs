@@ -9,17 +9,14 @@ use crate::dag::node::{
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
-use crate::dag::tests::sources::{
-    GeneratorSource, GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT,
-};
+use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
-use log::info;
+
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
+
 use tempdir::TempDir;
 
 pub(crate) struct NoopProcessorFactory {}
@@ -27,7 +24,7 @@ pub(crate) struct NoopProcessorFactory {}
 impl ProcessorFactory for NoopProcessorFactory {
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
@@ -52,21 +49,21 @@ impl ProcessorFactory for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
     fn process(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        _tx: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }
@@ -94,7 +91,7 @@ fn test_run_dag() {
         "proc".to_string(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch.clone()))),
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
         "sink".to_string(),
     );
 
@@ -111,7 +108,7 @@ fn test_run_dag() {
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
         &dag,
-        &tmp_dir.path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 
@@ -124,7 +121,7 @@ pub(crate) struct NoopJoinProcessorFactory {}
 impl ProcessorFactory for NoopJoinProcessorFactory {
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(input_schemas.get(&1).unwrap().clone())
@@ -149,21 +146,21 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
     fn process(
         &mut self,
-        from_port: PortHandle,
+        _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        tx: &mut dyn RwTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        _tx: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
     }
@@ -199,7 +196,7 @@ fn test_run_dag_2_sources_stateless() {
         "proc".to_string(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch.clone()))),
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch))),
         "sink".to_string(),
     );
 
@@ -221,7 +218,7 @@ fn test_run_dag_2_sources_stateless() {
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
         &dag,
-        &tmp_dir.path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 
@@ -259,7 +256,7 @@ fn test_run_dag_2_sources_stateful() {
         "proc".to_string(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch.clone()))),
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch))),
         "sink".to_string(),
     );
 
@@ -281,7 +278,7 @@ fn test_run_dag_2_sources_stateful() {
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
         &dag,
-        &tmp_dir.path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 

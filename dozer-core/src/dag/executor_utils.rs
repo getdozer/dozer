@@ -1,12 +1,9 @@
 #![allow(clippy::type_complexity)]
-use crate::dag::dag::{Dag, Edge, Endpoint, NodeType};
+use crate::dag::dag::{Dag, Edge, Endpoint};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor::ExecutorOperation;
-use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, ProcessorFactory, SinkFactory,
-    SourceFactory,
-};
+use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
 use crate::storage::errors::StorageError;

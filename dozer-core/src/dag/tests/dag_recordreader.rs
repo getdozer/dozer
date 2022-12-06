@@ -14,9 +14,9 @@ use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
-use std::fs;
-use std::sync::{Arc, Barrier};
-use std::time::Duration;
+
+use std::sync::Arc;
+
 use tempdir::TempDir;
 
 macro_rules! chk {
@@ -39,7 +39,7 @@ impl PassthroughProcessorFactory {
 impl ProcessorFactory for PassthroughProcessorFactory {
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(input_schemas
@@ -69,7 +69,7 @@ impl Processor for PassthroughProcessor {
         Ok(())
     }
 
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -99,7 +99,7 @@ pub(crate) const RECORD_READER_PROCESSOR_OUTPUT_PORT: PortHandle = 80;
 impl ProcessorFactory for RecordReaderProcessorFactory {
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(input_schemas
@@ -131,7 +131,7 @@ impl Processor for RecordReaderProcessor {
         Ok(())
     }
 
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -169,7 +169,7 @@ fn test_run_dag_reacord_reader() {
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), false);
     let passthrough = PassthroughProcessorFactory::new();
     let record_reader = RecordReaderProcessorFactory::new();
-    let sink = CountingSinkFactory::new(TOT, sync.clone());
+    let sink = CountingSinkFactory::new(TOT, sync);
 
     let mut dag = Dag::new();
 
@@ -213,7 +213,7 @@ fn test_run_dag_reacord_reader() {
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
         &dag,
-        &tmp_dir.path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 
@@ -231,7 +231,7 @@ fn test_run_dag_reacord_reader_from_src() {
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), true);
     let record_reader = RecordReaderProcessorFactory::new();
-    let sink = CountingSinkFactory::new(TOT, sync.clone());
+    let sink = CountingSinkFactory::new(TOT, sync);
 
     let mut dag = Dag::new();
 
@@ -263,7 +263,7 @@ fn test_run_dag_reacord_reader_from_src() {
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(
         &dag,
-        &tmp_dir.path(),
+        tmp_dir.path(),
         ExecutorOptions::default()
     ));
 

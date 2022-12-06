@@ -1,6 +1,8 @@
+#![allow(clippy::type_complexity)]
+
 use crate::dag::channels::SourceChannelForwarder;
-use crate::dag::dag::{Dag, NodeType};
-use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager, METADATA_DB_NAME};
+use crate::dag::dag::Dag;
+use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager};
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
@@ -11,25 +13,23 @@ use crate::dag::executor_utils::{
     init_component, init_select, map_to_op,
 };
 use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
-use crate::dag::node::{
-    NodeHandle, OutputPortDef, PortHandle, ProcessorFactory, SinkFactory, SourceFactory,
-};
+use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
+use crate::storage::common::{Database, EnvironmentManager, RenewableRwTransaction};
+
 use crate::storage::transactions::SharedTransaction;
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
-use log::{debug, error, info, warn};
+use log::{debug, info};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Add;
-use std::panic::set_hook;
+
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
@@ -167,7 +167,7 @@ impl<'a> DagExecutor<'a> {
             )),
             path: path.to_path_buf(),
             join_handles: HashMap::new(),
-            options: options,
+            options,
             stop_req: Arc::new(AtomicU8::new(STOP_REQ_NO_ACTION)),
         })
     }
@@ -182,7 +182,7 @@ impl<'a> DagExecutor<'a> {
         for (port, schema) in &current.output_schemas {
             let other_schema = existing
                 .output_schemas
-                .get(&port)
+                .get(port)
                 .ok_or(IncompatibleSchemas())?;
             if schema != other_schema {
                 return Err(IncompatibleSchemas());
@@ -194,7 +194,7 @@ impl<'a> DagExecutor<'a> {
         for (port, schema) in &current.output_schemas {
             let other_schema = existing
                 .output_schemas
-                .get(&port)
+                .get(port)
                 .ok_or(IncompatibleSchemas())?;
             if schema != other_schema {
                 return Err(IncompatibleSchemas());
@@ -215,7 +215,7 @@ impl<'a> DagExecutor<'a> {
                 for (handle, current) in schema_manager.get_all_schemas() {
                     let existing = existing_schemas
                         .get(handle)
-                        .ok_or(InvalidNodeHandle(handle.clone()))?;
+                        .ok_or_else(|| InvalidNodeHandle(handle.clone()))?;
                     Self::validate_schemas(current, existing)?;
                 }
                 Ok(schema_manager.get_all_schemas().clone())
@@ -314,7 +314,7 @@ impl<'a> DagExecutor<'a> {
         let st_stop_req = self.stop_req.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
 
-        let st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
+        let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
             let src = st_src_factory.build();
             let r = src.start(&mut fw, None);
             st_stop_req.store(STOP_REQ_TERM_AND_SHUTDOWN, Ordering::Relaxed);
@@ -423,7 +423,7 @@ impl<'a> DagExecutor<'a> {
     }
 
     fn close_senders(senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>) {
-        for (port, port_senders) in senders {
+        for (_port, port_senders) in senders {
             for sender in port_senders {
                 drop(sender);
             }
@@ -494,7 +494,7 @@ impl<'a> DagExecutor<'a> {
             loop {
                 let ready = sel.ready_timeout(Duration::from_millis(50));
                 match ready {
-                    Err(e) => {
+                    Err(_e) => {
                         if lt_stop_req.load(Ordering::Relaxed) == STOP_REQ_SHUTDOWN {
                             debug!("[{}] STOP_REQ_SHUTDOWN", handle);
                             return Ok(());
@@ -507,7 +507,7 @@ impl<'a> DagExecutor<'a> {
                                 return Ok(());
                             }
                             _ => match r {
-                                Err(RecvTimeoutError) => {
+                                Err(_) => {
                                     lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
                                     return Err(ChannelDisconnected);
                                 }
@@ -589,7 +589,7 @@ impl<'a> DagExecutor<'a> {
 
     fn shutdown_and_wait(
         stop_req: &Arc<AtomicU8>,
-        stop_barrier: &Arc<Barrier>,
+        _stop_barrier: &Arc<Barrier>,
         receivers: Vec<Receiver<ExecutorOperation>>,
     ) {
         for receiver in receivers {
@@ -639,7 +639,7 @@ impl<'a> DagExecutor<'a> {
             loop {
                 let ready = sel.ready_deadline(Instant::now().add(Duration::from_millis(50)));
                 match ready {
-                    Err(e) => {
+                    Err(_e) => {
                         if lt_stop_req.load(Ordering::Relaxed) == STOP_REQ_SHUTDOWN {
                             debug!("[{}] STOP_REQ_SHUTDOWN", handle);
                             return Ok(());
@@ -653,7 +653,7 @@ impl<'a> DagExecutor<'a> {
                                 return Ok(());
                             }
                             _ => match r {
-                                Err(e) => {
+                                Err(_e) => {
                                     debug!("[{}] RecvError", handle);
                                     lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
                                     return Err(ChannelDisconnected);
@@ -728,10 +728,10 @@ impl<'a> DagExecutor<'a> {
                 factory.clone(),
                 receivers
                     .remove(&handle)
-                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                 self.schemas
                     .get(&handle)
-                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
@@ -742,13 +742,13 @@ impl<'a> DagExecutor<'a> {
                 factory.clone(),
                 senders
                     .remove(&handle)
-                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                 receivers
                     .remove(&handle)
-                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                 self.schemas
                     .get(&handle)
-                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
@@ -761,10 +761,10 @@ impl<'a> DagExecutor<'a> {
                 factory.clone(),
                 senders
                     .remove(&handle)
-                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                 self.schemas
                     .get(&handle)
-                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
@@ -793,9 +793,9 @@ impl<'a> DagExecutor<'a> {
     pub fn join(self) -> Result<(), HashMap<NodeHandle, ExecutionError>> {
         loop {
             let mut finished: usize = 0;
-            for (handle, thread) in self.join_handles.iter() {
+            for (_handle, thread) in self.join_handles.iter() {
                 if thread.is_finished() {
-                    self.stop_req.compare_exchange(
+                    let _ = self.stop_req.compare_exchange(
                         STOP_REQ_NO_ACTION,
                         STOP_REQ_SHUTDOWN,
                         Ordering::Relaxed,
@@ -818,7 +818,7 @@ impl<'a> DagExecutor<'a> {
                 Ok(Err(e)) => {
                     results.insert(handle.clone(), e);
                 }
-                Err(e) => {
+                Err(_e) => {
                     results.insert(handle.clone(), InternalThreadPanic);
                 }
                 _ => {}

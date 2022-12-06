@@ -10,8 +10,7 @@ use crate::storage::errors::StorageError::{DeserializationError, SerializationEr
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
-use std::fs;
-use std::fs::metadata;
+
 use std::path::Path;
 
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
@@ -235,14 +234,14 @@ impl<'a> DagMetadataManager<'a> {
 
     pub(crate) fn delete_metadata(&self) {
         for node in &self.dag.nodes {
-            LmdbEnvironmentManager::remove(self.path, &node.0);
+            LmdbEnvironmentManager::remove(self.path, node.0);
         }
     }
 
     pub(crate) fn get_metadata(&self) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
         let mut all_meta = HashMap::<NodeHandle, DagMetadata>::new();
         for node in &self.dag.nodes {
-            let metadata = Self::get_node_checkpoint_metadata(&self.path, node.0)?;
+            let metadata = Self::get_node_checkpoint_metadata(self.path, node.0)?;
             all_meta.insert(node.0.clone(), metadata);
         }
         Ok(all_meta)
@@ -255,7 +254,7 @@ impl<'a> DagMetadataManager<'a> {
         for node in &self.dag.nodes {
             let curr_node_schema = schemas
                 .get(node.0)
-                .ok_or(InvalidNodeHandle(node.0.clone()))?;
+                .ok_or_else(|| InvalidNodeHandle(node.0.clone()))?;
 
             if LmdbEnvironmentManager::exists(self.path, node.0) {
                 return Err(MetadataAlreadyExists(node.0.clone()));
@@ -268,11 +267,9 @@ impl<'a> DagMetadataManager<'a> {
             for (handle, schema) in curr_node_schema.output_schemas.iter() {
                 let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];
                 key.extend(handle.to_be_bytes());
-                let value = bincode::serialize(schema).or_else(|e| {
-                    Err(SerializationError {
-                        typ: "Schema".to_string(),
-                        reason: Box::new(e),
-                    })
+                let value = bincode::serialize(schema).map_err(|e| SerializationError {
+                    typ: "Schema".to_string(),
+                    reason: Box::new(e),
                 })?;
                 txn.put(&db, &key, &value)?;
             }
@@ -280,16 +277,14 @@ impl<'a> DagMetadataManager<'a> {
             for (handle, schema) in curr_node_schema.input_schemas.iter() {
                 let mut key: Vec<u8> = vec![INPUT_SCHEMA_IDENTIFIER];
                 key.extend(handle.to_be_bytes());
-                let value = bincode::serialize(schema).or_else(|e| {
-                    Err(SerializationError {
-                        typ: "Schema".to_string(),
-                        reason: Box::new(e),
-                    })
+                let value = bincode::serialize(schema).map_err(|e| SerializationError {
+                    typ: "Schema".to_string(),
+                    reason: Box::new(e),
                 })?;
                 txn.put(&db, &key, &value)?;
             }
 
-            for (source, factory) in &self.dag.get_sources() {
+            for (source, _factory) in &self.dag.get_sources() {
                 let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
                 key.extend(source.as_bytes());
                 txn.put(&db, &key, &0_u64.to_be_bytes())?;

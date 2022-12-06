@@ -19,14 +19,14 @@ impl DynPortsSourceFactory {
 }
 
 impl SourceFactory for DynPortsSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         todo!()
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
-            .map(|p| OutputPortDef::new(p.clone(), OutputPortDefOptions::default()))
+            .map(|p| OutputPortDef::new(*p, OutputPortDefOptions::default()))
             .collect()
     }
 
@@ -52,8 +52,8 @@ impl DynPortsProcessorFactory {
 impl ProcessorFactory for DynPortsProcessorFactory {
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        _output_port: &PortHandle,
+        _input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         todo!()
     }
@@ -65,7 +65,7 @@ impl ProcessorFactory for DynPortsProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
-            .map(|p| OutputPortDef::new(p.clone(), OutputPortDefOptions::default()))
+            .map(|p| OutputPortDef::new(*p, OutputPortDefOptions::default()))
             .collect()
     }
 

@@ -1,4 +1,3 @@
-use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::dag_schemas::DagSchemaManager;
 use crate::dag::errors::ExecutionError;
@@ -21,7 +20,7 @@ macro_rules! chk {
 struct TestUsersSourceFactory {}
 
 impl SourceFactory for TestUsersSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new("user_id".to_string(), FieldType::String, false),
@@ -56,7 +55,7 @@ impl SourceFactory for TestUsersSourceFactory {
 struct TestCountriesSourceFactory {}
 
 impl SourceFactory for TestCountriesSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new("country_id".to_string(), FieldType::String, false),
@@ -88,7 +87,7 @@ struct TestJoinProcessorFactory {}
 impl ProcessorFactory for TestJoinProcessorFactory {
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let mut joined: Vec<FieldDefinition> = Vec::new();
@@ -123,8 +122,8 @@ struct TestSinkFactory {}
 impl SinkFactory for TestSinkFactory {
     fn set_input_schema(
         &self,
-        output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        _output_port: &PortHandle,
+        _input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -241,12 +240,12 @@ fn test_init_metadata() {
     ));
 
     let tmp_dir = chk!(TempDir::new("example"));
-    let exec = chk!(DagExecutor::new(
+    let _exec = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
         ExecutorOptions::default()
     ));
-    let exec = chk!(DagExecutor::new(
+    let _exec = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
         ExecutorOptions::default()
