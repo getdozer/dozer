@@ -69,7 +69,7 @@ impl Field {
             Field::Timestamp(t) => serialize!(self, t.timestamp_millis().to_be_bytes()),
             Field::Date(d) => serialize!(self, d.to_string().as_bytes()),
             Field::Bson(b) => serialize!(self, b.clone()),
-            Field::Null => serialize!(self, 0_u8.to_be_bytes()),
+            Field::Null => Ok(Self::get_type_prefix(self.get_type().unwrap())),
         }
     }
 
