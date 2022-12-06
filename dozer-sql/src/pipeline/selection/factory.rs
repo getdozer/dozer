@@ -1,0 +1,59 @@
+use std::collections::HashMap;
+
+use dozer_core::dag::{
+    dag::DEFAULT_PORT_HANDLE,
+    errors::ExecutionError,
+    node::{OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory},
+};
+use dozer_types::types::Schema;
+use sqlparser::ast::Expr as SqlExpr;
+
+use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
+
+use super::processor::SelectionProcessor;
+
+pub struct SelectionProcessorFactory {
+    statement: SqlExpr,
+}
+
+impl SelectionProcessorFactory {
+    /// Creates a new [`SelectionProcessorFactory`].
+    pub fn new(statement: SqlExpr) -> Self {
+        Self { statement }
+    }
+}
+
+impl ProcessorFactory for SelectionProcessorFactory {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
+    }
+
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortDefOptions::default(),
+        )]
+    }
+
+    fn get_output_schema(
+        &self,
+        output_port: &PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, ExecutionError> {
+        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        Ok(schema.clone())
+    }
+
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Box<dyn Processor> {
+        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        let expression = ExpressionBuilder {}
+            .build(&ExpressionType::FullExpression, &self.statement, schema)
+            .unwrap();
+
+        Box::new(SelectionProcessor::new(expression))
+    }
+}
