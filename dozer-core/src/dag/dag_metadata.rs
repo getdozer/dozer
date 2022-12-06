@@ -299,29 +299,4 @@ impl<'a> DagMetadataManager<'a> {
         }
         Ok(())
     }
-
-    // fn get_state_schema_for_node(
-    //     &self,
-    //     node: &NodeHandle,
-    // ) -> Result<HashMap<PortHandle, Schema>, ExecutionError> {
-    //     let node_meta = self
-    //         .metadata
-    //         .get(node)
-    //         .ok_or_else(|| ExecutionError::InvalidCheckpointState(node.clone()))?;
-    //     Ok(node_meta.schemas.clone())
-    // }
-
-    // pub fn get_source_checkpointing_consistency(
-    //     &self,
-    //     source_handle: &NodeHandle,
-    // ) -> Result<CheckpointConsistency, ExecutionError> {
-    //     let curr_node = source_handle;
-    //     let all_seqs = Vec::<u64>::new();
-    //     loop {
-    //         if self.dag.is_stateful(curr_node)? {
-    //             let seq = self.get_state_seq_for_node(source_handle, curr_node);
-    //         }
-    //     }
-    //     Ok(true)
-    // }
 }
