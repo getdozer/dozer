@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Div;
 
 use dozer_core::{
     dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
@@ -1002,7 +1003,7 @@ fn test_avg_aggregation_decimal() {
                 None,
                 vec![
                     Field::String("Italy".to_string()),
-                    Field::Decimal(Decimal::from_f64_retain(250.0 / 3.0).unwrap()),
+                    Field::Decimal(Decimal::new(250, 0).div(Decimal::new(3, 0))),
                 ],
             ),
         },
@@ -1060,14 +1061,14 @@ fn test_avg_aggregation_decimal() {
             None,
             vec![
                 Field::String("Italy".to_string()),
-                Field::Decimal(Decimal::from_f64_retain(250.0 / 3.0).unwrap()),
+                Field::Decimal(Decimal::new(250, 0).div(Decimal::new(3, 0))),
             ],
         ),
         new: Record::new(
             None,
             vec![
                 Field::String("Italy".to_string()),
-                Field::Decimal(Decimal::from_f64_retain(350.0 / 3.0).unwrap()),
+                Field::Decimal(Decimal::new(350, 0).div(Decimal::new(3, 0))),
             ],
         ),
     }];
@@ -1086,8 +1087,8 @@ fn test_avg_aggregation_decimal() {
             vec![
                 Field::Int(0),
                 Field::String("Italy".to_string()),
-                Field::Decimal(Decimal::new(100, 0)),
-                Field::Decimal(Decimal::new(100, 0)),
+                Field::Decimal(Decimal::new(200, 0)),
+                Field::Decimal(Decimal::new(200, 0)),
             ],
         ),
     };
@@ -1103,11 +1104,17 @@ fn test_avg_aggregation_decimal() {
     let exp = vec![Operation::Update {
         old: Record::new(
             None,
-            vec![Field::String("Italy".to_string()), Field::Int(350 / 3)],
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Decimal(Decimal::new(350, 0).div(Decimal::new(3, 0))),
+            ],
         ),
         new: Record::new(
             None,
-            vec![Field::String("Italy".to_string()), Field::Int(75)],
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Decimal(Decimal::new(75, 0)),
+            ],
         ),
     }];
     assert_eq!(out, exp);

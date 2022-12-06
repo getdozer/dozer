@@ -74,7 +74,6 @@ impl Field {
     }
 
     pub fn from_bytes(buf: &[u8]) -> Result<Field, TypeError> {
-        println!("buf {:?}", buf);
         let offset: usize = 1;
         let return_type = Self::from_type_prefix(Box::from(buf[0..offset].to_vec()));
         let val = buf[1..buf.len()].as_ref();
