@@ -82,7 +82,11 @@ fn test_run_dag() {
     let latch = Arc::new(CountDownLatch::new(1));
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch.clone()))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
         "source".to_string(),
     );
     dag.add_node(
@@ -175,11 +179,19 @@ fn test_run_dag_2_sources() {
     let latch = Arc::new(CountDownLatch::new(1));
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch.clone()))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
         "source1".to_string(),
     );
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch.clone()))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
         "source2".to_string(),
     );
     dag.add_node(

@@ -37,12 +37,14 @@ impl StateWriter {
         dbs: HashMap<PortHandle, StateOptions>,
         tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
         input_ports: Option<Vec<PortHandle>>,
+        output_schemas: HashMap<PortHandle, Schema>,
+        input_schemas: HashMap<PortHandle, Schema>,
     ) -> Self {
         Self {
             meta_db,
             dbs,
-            output_schemas: HashMap::new(),
-            input_schemas: HashMap::new(),
+            output_schemas,
+            input_schemas,
             tx,
             input_ports,
         }

@@ -11,6 +11,8 @@ mod dag_ports;
 #[cfg(test)]
 mod dag_recordreader;
 #[cfg(test)]
+mod dag_recordreader_old;
+#[cfg(test)]
 mod dag_run;
 #[cfg(test)]
 mod dag_schemas;

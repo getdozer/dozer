@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 #[derive(Clone)]
-pub(crate) struct NodeSchemas {
+pub struct NodeSchemas {
     pub input_schemas: HashMap<PortHandle, Schema>,
     pub output_schemas: HashMap<PortHandle, Schema>,
 }

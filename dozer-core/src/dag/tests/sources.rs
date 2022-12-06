@@ -12,11 +12,16 @@ pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 pub(crate) struct GeneratorSourceFactory {
     count: u64,
     term_latch: Arc<CountDownLatch>,
+    stateful: bool,
 }
 
 impl GeneratorSourceFactory {
-    pub fn new(count: u64, term_latch: Arc<CountDownLatch>) -> Self {
-        Self { count, term_latch }
+    pub fn new(count: u64, term_latch: Arc<CountDownLatch>, stateful: bool) -> Self {
+        Self {
+            count,
+            term_latch,
+            stateful,
+        }
     }
 }
 
@@ -39,7 +44,7 @@ impl SourceFactory for GeneratorSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
-            OutputPortDefOptions::default(),
+            OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
         )]
     }
     fn build(&self) -> Box<dyn Source> {

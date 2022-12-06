@@ -99,7 +99,11 @@ fn test_run_dag_proc_err() {
     let latch = Arc::new(CountDownLatch::new(0));
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch.clone()))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
         "source".to_string(),
     );
     dag.add_node(
@@ -142,7 +146,11 @@ fn test_run_dag_proc_err_2() {
     let latch = Arc::new(CountDownLatch::new(1));
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch.clone()))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
         "source".to_string(),
     );
     dag.add_node(
@@ -172,6 +180,65 @@ fn test_run_dag_proc_err_2() {
 
     chk!(dag.connect(
         Endpoint::new("proc_err".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+    ));
+
+    let tmp_dir = chk!(TempDir::new("test"));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        &tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    chk!(executor.start());
+    assert!(executor.join().is_err());
+}
+
+#[test]
+fn test_run_dag_proc_err_3() {
+    init_log4rs();
+
+    let count: u64 = 1_000_000;
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(CountDownLatch::new(1));
+
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
+        "source".to_string(),
+    );
+
+    dag.add_node(
+        NodeType::Processor(Arc::new(ErrorProcessorFactory { err_on: 800_000 })),
+        "proc_err".to_string(),
+    );
+
+    dag.add_node(
+        NodeType::Processor(Arc::new(NoopProcessorFactory {})),
+        "proc".to_string(),
+    );
+
+    dag.add_node(
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch.clone()))),
+        "sink".to_string(),
+    );
+
+    chk!(dag.connect(
+        Endpoint::new("source".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new("proc_err".to_string(), DEFAULT_PORT_HANDLE),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new("proc_err".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
         Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
     ));
 
@@ -402,7 +469,11 @@ fn test_run_dag_sink_err() {
     let latch = Arc::new(CountDownLatch::new(1));
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch.clone()))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
         "source".to_string(),
     );
     dag.add_node(

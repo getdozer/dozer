@@ -305,6 +305,7 @@ impl<'a> DagExecutor<'a> {
         handle: NodeHandle,
         src_factory: Arc<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        schemas: &NodeSchemas,
     ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
         //
         //
@@ -330,6 +331,7 @@ impl<'a> DagExecutor<'a> {
         let lt_executor_options = self.options.clone();
         let lt_stop_req = self.stop_req.clone();
         let lt_term_barrier = self.term_barrier.clone();
+        let lt_output_schemas = schemas.output_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
             let _output_schemas = HashMap::<PortHandle, Schema>::new();
@@ -355,7 +357,14 @@ impl<'a> DagExecutor<'a> {
                 senders,
                 lt_executor_options.commit_sz,
                 lt_executor_options.commit_time_threshold,
-                StateWriter::new(state_meta.meta_db, port_databases, master_tx.clone(), None),
+                StateWriter::new(
+                    state_meta.meta_db,
+                    port_databases,
+                    master_tx.clone(),
+                    None,
+                    lt_output_schemas,
+                    HashMap::new(),
+                ),
                 true,
             );
             loop {
@@ -429,6 +438,7 @@ impl<'a> DagExecutor<'a> {
         proc_factory: Arc<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+        schemas: &NodeSchemas,
     ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
         //
         let lt_path = self.path.clone();
@@ -438,6 +448,8 @@ impl<'a> DagExecutor<'a> {
         let lt_start_latch = self.start_latch.clone();
         let lt_stop_req = self.stop_req.clone();
         let lt_term_barrier = self.term_barrier.clone();
+        let lt_output_schemas = schemas.output_schemas.clone();
+        let lt_input_schemas = schemas.input_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
             let mut proc = proc_factory.build();
@@ -469,6 +481,8 @@ impl<'a> DagExecutor<'a> {
                     port_databases,
                     master_tx.clone(),
                     Some(proc_factory.get_input_ports()),
+                    lt_output_schemas,
+                    lt_input_schemas,
                 ),
                 true,
             );
@@ -586,6 +600,7 @@ impl<'a> DagExecutor<'a> {
         handle: NodeHandle,
         snk_factory: Arc<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
+        schemas: &NodeSchemas,
     ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
         //
 
@@ -594,6 +609,7 @@ impl<'a> DagExecutor<'a> {
         let lt_start_latch = self.start_latch.clone();
         let lt_stop_req = self.stop_req.clone();
         let lt_term_barrier = self.term_barrier.clone();
+        let lt_input_schemas = schemas.input_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build();
@@ -607,6 +623,8 @@ impl<'a> DagExecutor<'a> {
                 HashMap::new(),
                 master_tx.clone(),
                 Some(snk_factory.get_input_ports()),
+                HashMap::new(),
+                lt_input_schemas,
             );
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
@@ -710,6 +728,9 @@ impl<'a> DagExecutor<'a> {
                 receivers
                     .remove(&handle)
                     .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                self.schemas
+                    .get(&handle)
+                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
@@ -724,6 +745,9 @@ impl<'a> DagExecutor<'a> {
                 receivers
                     .remove(&handle)
                     .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                self.schemas
+                    .get(&handle)
+                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
@@ -736,6 +760,9 @@ impl<'a> DagExecutor<'a> {
                 factory.clone(),
                 senders
                     .remove(&handle)
+                    .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                self.schemas
+                    .get(&handle)
                     .ok_or(ExecutionError::InvalidNodeHandle(handle.clone()))?,
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
