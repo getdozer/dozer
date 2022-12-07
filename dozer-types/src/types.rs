@@ -62,7 +62,7 @@ impl Field {
             Field::Text(s) => Ok(Vec::from(s.as_bytes())),
             Field::Binary(b) => Ok(Vec::from(b.as_slice())),
             Field::Decimal(d) => Ok(Vec::from(d.serialize())),
-            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
+            Field::Timestamp(t) => Ok(Vec::from(t.timestamp_millis().to_be_bytes())),
             Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
             Field::Bson(b) => Ok(b.clone()),
             Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),

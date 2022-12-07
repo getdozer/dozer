@@ -10,8 +10,8 @@ use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{
     OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
-use dozer_types::internal_err;
 use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
+use dozer_types::{deserialize, internal_err};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
@@ -327,7 +327,7 @@ impl AggregationProcessor {
 
     fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
         let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
-        vec.extend_from_slice(&database_id.to_le_bytes());
+        vec.extend_from_slice(&database_id.to_be_bytes());
         vec.extend(hash);
         Ok(vec)
     }
@@ -338,7 +338,7 @@ impl AggregationProcessor {
             .as_ref()
             .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
         let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_be_bytes())? {
-            Some(v) => u32::from_be_bytes(v.try_into().unwrap()),
+            Some(v) => u32::from_be_bytes(deserialize!(v)),
             None => 1_u32,
         };
         txn.put(
@@ -523,7 +523,7 @@ impl AggregationProcessor {
         let bytes = txn.get(db, key.as_slice())?;
 
         let curr_count = match bytes {
-            Some(b) => u64::from_le_bytes(b.try_into().unwrap()),
+            Some(b) => u64::from_be_bytes(deserialize!(b)),
             None => 0_u64,
         };
 
@@ -535,7 +535,7 @@ impl AggregationProcessor {
             } else {
                 curr_count + delta
             })
-            .to_le_bytes()
+            .to_be_bytes()
             .as_slice(),
         )?;
         Ok(curr_count)
