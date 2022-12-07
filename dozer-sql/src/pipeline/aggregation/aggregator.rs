@@ -114,7 +114,7 @@ impl Aggregator {
 macro_rules! deserialize_f64 {
     ($stmt:expr) => {
         match $stmt {
-            Some(v) => f64::from_le_bytes(v.try_into().unwrap()),
+            Some(v) => f64::from_le_bytes(deserialize!(v)),
             None => 0_f64,
         }
     };
@@ -124,7 +124,7 @@ macro_rules! deserialize_f64 {
 macro_rules! deserialize_i64 {
     ($stmt:expr) => {
         match $stmt {
-            Some(v) => i64::from_le_bytes(v.try_into().unwrap()),
+            Some(v) => i64::from_le_bytes(deserialize!(v)),
             None => 0_i64,
         }
     };
@@ -134,7 +134,7 @@ macro_rules! deserialize_i64 {
 macro_rules! deserialize_u8 {
     ($stmt:expr) => {
         match $stmt {
-            Some(v) => u8::from_le_bytes(v.try_into().unwrap()),
+            Some(v) => u8::from_le_bytes(deserialize!(v)),
             None => 0_u8,
         }
     };
@@ -169,6 +169,18 @@ macro_rules! field_extract_timestamp {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
             Timestamp(t) => t,
+            _ => {
+                return Err(InvalidOperandType($agg.to_string()));
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! field_extract_date {
+    ($stmt:expr, $agg:expr) => {
+        match $stmt {
+            Date(d) => d,
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }

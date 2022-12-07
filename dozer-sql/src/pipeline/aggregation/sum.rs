@@ -3,6 +3,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
+use dozer_types::deserialize;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};
@@ -33,7 +34,7 @@ impl SumAggregator {
         match *new {
             Int(_i) => {
                 let prev = match cur_state {
-                    Some(v) => i64::from_le_bytes(v.try_into().unwrap()),
+                    Some(v) => i64::from_le_bytes(deserialize!(v)),
                     None => 0_i64,
                 };
 
@@ -52,7 +53,7 @@ impl SumAggregator {
             }
             Float(_f) => {
                 let prev = OrderedFloat(match cur_state {
-                    Some(v) => f64::from_le_bytes(v.try_into().unwrap()),
+                    Some(v) => f64::from_le_bytes(deserialize!(v)),
                     None => 0_f64,
                 });
 
@@ -83,7 +84,7 @@ impl SumAggregator {
         match *old {
             Int(_i) => {
                 let prev = match cur_state {
-                    Some(v) => i64::from_le_bytes(v.try_into().unwrap()),
+                    Some(v) => i64::from_le_bytes(deserialize!(v)),
                     None => 0_i64,
                 };
 
@@ -108,7 +109,7 @@ impl SumAggregator {
             }
             Float(_f) => {
                 let prev = OrderedFloat(match cur_state {
-                    Some(v) => f64::from_le_bytes(v.try_into().unwrap()),
+                    Some(v) => f64::from_le_bytes(deserialize!(v)),
                     None => 0_f64,
                 });
 
@@ -144,7 +145,7 @@ impl SumAggregator {
         match *old {
             Int(_i) => {
                 let prev = match cur_state {
-                    Some(v) => i64::from_le_bytes(v.try_into().unwrap()),
+                    Some(v) => i64::from_le_bytes(deserialize!(v)),
                     None => 0_i64,
                 };
 
@@ -163,7 +164,7 @@ impl SumAggregator {
             }
             Float(_f) => {
                 let prev = OrderedFloat(match cur_state {
-                    Some(v) => f64::from_le_bytes(v.try_into().unwrap()),
+                    Some(v) => f64::from_le_bytes(deserialize!(v)),
                     None => 0_f64,
                 });
 
@@ -186,8 +187,8 @@ impl SumAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_le_bytes(f.try_into().unwrap())),
-            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(f.try_into().unwrap()))),
+            FieldType::Int => Int(i64::from_le_bytes(deserialize!(f))),
+            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(deserialize!(f)))),
             _ => Field::Null,
         }
     }

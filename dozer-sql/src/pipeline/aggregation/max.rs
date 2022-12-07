@@ -2,17 +2,18 @@ use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use crate::{
-    deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64,
-    field_extract_timestamp, to_bytes, try_unwrap,
+    deserialize_u8, field_extract_date, field_extract_decimal, field_extract_f64,
+    field_extract_i64, field_extract_timestamp, to_bytes, try_unwrap,
 };
 
 use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::Field::{Decimal, Float, Int, Timestamp};
-use dozer_types::types::{Field, FieldType};
+use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp};
+use dozer_types::types::{Field, FieldType, DATE_FORMAT};
 
-use chrono::{DateTime, FixedOffset, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
+use dozer_types::deserialize;
 use std::string::ToString;
 
 pub struct MaxAggregator {}
@@ -27,6 +28,7 @@ impl MaxAggregator {
             FieldType::Float => FieldType::Float,
             FieldType::Decimal => FieldType::Decimal,
             FieldType::Timestamp => FieldType::Timestamp,
+            FieldType::Date => FieldType::Date,
             _ => from,
         }
     }
@@ -103,6 +105,23 @@ impl MaxAggregator {
                             return_type,
                         ),
                         Some(Vec::from(maximum.timestamp_millis().to_le_bytes())),
+                    ))
+                }
+            }
+            Date(_d) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_date!(&new, AGGREGATOR_NAME).to_string();
+                Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);
+
+                // Calculate minimum
+                let maximum = try_unwrap!(Self::calc_date_max(ptx, aggregators_db));
+                let min_date = NaiveDate::MIN;
+                if maximum == min_date {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(maximum.to_string().as_bytes(), return_type),
+                        Some(Vec::from(maximum.to_string().as_bytes())),
                     ))
                 }
             }
@@ -192,6 +211,25 @@ impl MaxAggregator {
                     ))
                 }
             }
+            Date(_d) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_date!(&new, AGGREGATOR_NAME).to_string();
+                Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);
+                let old_val = field_extract_date!(&old, AGGREGATOR_NAME).to_string();
+                Self::update_aggregator_db(old_val.as_bytes(), 1, true, ptx, aggregators_db);
+
+                // Calculate minimum
+                let maximum = try_unwrap!(Self::calc_date_max(ptx, aggregators_db));
+                let min_date = NaiveDate::MIN;
+                if maximum == min_date {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(maximum.to_string().as_bytes(), return_type),
+                        Some(Vec::from(maximum.to_string().as_bytes())),
+                    ))
+                }
+            }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
@@ -275,20 +313,44 @@ impl MaxAggregator {
                     ))
                 }
             }
+            Date(_d) => {
+                // Update aggregators_db with new val and its occurrence
+                let old_val = field_extract_date!(&old, AGGREGATOR_NAME).to_string();
+                Self::update_aggregator_db(old_val.as_bytes(), 1, true, ptx, aggregators_db);
+
+                // Calculate minimum
+                let maximum = try_unwrap!(Self::calc_date_max(ptx, aggregators_db));
+                let min_date = NaiveDate::MIN;
+                if maximum == min_date {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(maximum.to_string().as_bytes(), return_type),
+                        Some(Vec::from(maximum.to_string().as_bytes())),
+                    ))
+                }
+            }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_le_bytes(f.try_into().unwrap())),
-            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(f.try_into().unwrap()))),
+            FieldType::Int => Int(i64::from_le_bytes(deserialize!(f))),
+            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(deserialize!(f)))),
             FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
-                f.try_into().unwrap(),
+                deserialize!(f),
             )),
             FieldType::Timestamp => Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_le_bytes(f.try_into().unwrap())),
+                Utc.timestamp_millis(i64::from_le_bytes(deserialize!(f))),
             )),
+            FieldType::Date => Date(
+                NaiveDate::parse_from_str(
+                    String::from_utf8(deserialize!(f)).unwrap().as_ref(),
+                    DATE_FORMAT,
+                )
+                .unwrap(),
+            ),
             _ => Field::Null,
         }
     }
@@ -325,7 +387,7 @@ impl MaxAggregator {
         // get first to get the maximum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = f64::from_le_bytes((cur.0).try_into().unwrap());
+            maximum = f64::from_le_bytes(deserialize!(cur.0));
         }
         Ok(maximum)
     }
@@ -340,7 +402,7 @@ impl MaxAggregator {
         // get first to get the minimum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = dozer_types::rust_decimal::Decimal::deserialize((cur.0).try_into().unwrap());
+            maximum = dozer_types::rust_decimal::Decimal::deserialize(deserialize!(cur.0));
         }
         Ok(maximum)
     }
@@ -355,9 +417,28 @@ impl MaxAggregator {
         // get first to get the minimum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = Utc.timestamp_millis(i64::from_le_bytes(cur.0.try_into().unwrap()));
+            maximum = Utc.timestamp_millis(i64::from_le_bytes(deserialize!(cur.0)));
         }
         Ok(DateTime::from(maximum))
+    }
+
+    fn calc_date_max(
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) -> Result<NaiveDate, PipelineError> {
+        let ptx_cur = ptx.open_cursor(aggregators_db)?;
+        let mut maximum = NaiveDate::MIN;
+
+        // get first to get the minimum
+        if ptx_cur.last()? {
+            let cur = try_unwrap!(ptx_cur.read()).unwrap();
+            maximum = NaiveDate::parse_from_str(
+                String::from_utf8(deserialize!(cur.0)).unwrap().as_ref(),
+                DATE_FORMAT,
+            )
+            .unwrap();
+        }
+        Ok(maximum)
     }
 
     fn calc_i64_max(
@@ -370,7 +451,7 @@ impl MaxAggregator {
         // get first to get the maximum
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            maximum = i64::from_le_bytes((cur.0).try_into().unwrap());
+            maximum = i64::from_le_bytes(deserialize!(cur.0));
         }
         Ok(maximum)
     }
