@@ -3,7 +3,6 @@ use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -21,12 +20,6 @@ pub enum Field {
     Date(NaiveDate),
     Bson(Vec<u8>),
     Null,
-}
-
-impl Display for Field {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
 }
 
 #[macro_export]
@@ -173,12 +166,6 @@ impl Field {
     }
 }
 
-impl Display for FieldType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum FieldType {
     UInt,
@@ -309,20 +296,14 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the asscoiated schema
     pub values: Vec<Field>,
 }
-impl std::fmt::Debug for Record {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Record")
-            .field("values", &self.values)
-            .finish()
-    }
-}
+
 impl Record {
     pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
         Record { schema_id, values }
