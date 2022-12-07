@@ -1,7 +1,10 @@
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use crate::{deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64, field_extract_timestamp, to_bytes, try_unwrap};
+use crate::{
+    deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64,
+    field_extract_timestamp, to_bytes, try_unwrap,
+};
 
 use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
@@ -9,8 +12,8 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Decimal, Float, Int, Timestamp};
 use dozer_types::types::{Field, FieldType};
 
-use std::string::ToString;
 use chrono::{DateTime, FixedOffset, TimeZone, Utc};
+use std::string::ToString;
 
 pub struct MaxAggregator {}
 const AGGREGATOR_NAME: &str = "MAX";
