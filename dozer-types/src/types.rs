@@ -68,7 +68,7 @@ impl Field {
             Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
         }
     }
-    
+
     pub fn to_bytes_sql(&self) -> Result<Vec<u8>, TypeError> {
         // prefix representing return type is added using get_type_prefix
         match self {
