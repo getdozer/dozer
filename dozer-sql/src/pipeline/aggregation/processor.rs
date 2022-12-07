@@ -355,9 +355,7 @@ impl AggregationProcessor {
 
         let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
-        let val: Field = internal_err!(bincode::deserialize(
-            &buf[offset..offset + val_len as usize]
-        ))?;
+        let val: Field = Field::from_bytes(&buf[offset..offset + val_len as usize])?;
         offset += val_len as usize;
         let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
@@ -380,7 +378,7 @@ impl AggregationProcessor {
         let mut r = Vec::with_capacity(512);
         r.extend(prefix.to_be_bytes());
 
-        let sz_val = internal_err!(bincode::serialize(&value))?;
+        let sz_val = value.to_bytes_sql()?;
         r.extend((sz_val.len() as u16).to_be_bytes());
         r.extend(&sz_val);
 

@@ -112,7 +112,7 @@ fn query_secondary_vars() {
     test_query(
         json!({
             "$filter":{ "c": {"$eq": 521}},
-            "$order_by": [{"field_name": "c", "direction": "asc"}]
+            "$order_by": { "c": "asc" }
         }),
         2,
         &cache,
@@ -136,7 +136,7 @@ fn query_secondary_vars() {
     test_query_record(
         json!({
             "$filter":{ "c": {"$gt": 526}},
-            "$order_by": [{"field_name": "c", "direction": "asc"}]
+            "$order_by": { "c": "asc" }
         }),
         vec![(6, "mega".to_string(), 527), (7, "james".to_string(), 528)],
         &schema,
@@ -146,7 +146,7 @@ fn query_secondary_vars() {
     test_query_record(
         json!({
             "$filter":{ "c": {"$gt": 526}},
-            "$order_by": [{"field_name": "c", "direction": "desc"}]
+            "$order_by": { "c": "desc" }
         }),
         vec![(7, "james".to_string(), 528), (6, "mega".to_string(), 527)],
         &schema,
@@ -180,8 +180,8 @@ fn query_secondary_multi_indices() {
             .unwrap();
     }
 
-    let query = QueryExpression {
-        filter: Some(FilterExpression::And(vec![
+    let query = QueryExpression::new(
+        Some(FilterExpression::And(vec![
             FilterExpression::Simple(
                 "id".into(),
                 expression::Operator::GT,
@@ -193,10 +193,10 @@ fn query_secondary_multi_indices() {
                 serde_json::Value::from("dance"),
             ),
         ])),
-        order_by: vec![],
-        limit: 10,
-        skip: 0,
-    };
+        vec![],
+        10,
+        0,
+    );
 
     let records = cache.query("sample", &query).unwrap();
     assert_eq!(

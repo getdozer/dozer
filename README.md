@@ -49,29 +49,29 @@ Using docker
 ## Features
 
 - Connect your sources
-  - Import real time data from Postgres as CDC, Snowflake Table Stream etc.
-  - Create your own connector using Rust
-  - Automatic schema evolution and validation
+    - Import real time data from Postgres as CDC, Snowflake Table Stream etc.
+    - Create your own connector using Rust
+    - Automatic schema evolution and validation
 - Transform in REAL-TIME
-  - Use SQL to perform joins, aggregations and filer operations in real time across sources.
-  - Use it like an ORM; Map relational data to object entities using Dozer SQL extensions
-  - Build custom functions for aggregation, selection etc. using WASM
+    - Use SQL to perform joins, aggregations and filer operations in real time across sources.
+    - Use it like an ORM; Map relational data to object entities using Dozer SQL extensions
+    - Build custom functions for aggregation, selection etc. using WASM
 - Optimize for serving
-  - Define indices with a simple configuration
-  - Support for multiple indices such as Inverted, Full Test, Compound, Geo (Coming soon!) etc.
-  - Apply filter and sort operations on cached data
-  - Support for Push and Pull queries
+    - Define indices with a simple configuration
+    - Support for multiple indices such as Inverted, Full Test, Compound, Geo (Coming soon!) etc.
+    - Apply filter and sort operations on cached data
+    - Support for Push and Pull queries
 - Publish blazing fast APIs
-  - gRPC and REST APIs automatically generated
-  - Protobuf an Open API documentation
-  - TypeSafe APIs
-  - Realtime Streaming
+    - gRPC and REST APIs automatically generated
+    - Protobuf an Open API documentation
+    - TypeSafe APIs
+    - Realtime Streaming
 
 ## Why use Dozer?
 
 - Create blazing fast end to end APIs in minutes with a simple configuration.
-- Build and rapidly iterate on customer facing data apps. 
-- Extend Dozer with custom connectors, operators and Api transformations using WASM. 
+- Build and rapidly iterate on customer facing data apps.
+- Extend Dozer with custom connectors, operators and Api transformations using WASM.
 - Built in Rust with performance and extensibility in mind.
 
 ## What can you build with Dozer?

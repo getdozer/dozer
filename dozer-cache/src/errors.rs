@@ -78,7 +78,7 @@ pub enum IndexError {
 
 #[derive(Error, Debug)]
 pub enum QueryValidationError {
-    #[error("Scalar value cannot contain special character")]
+    #[error("String cannot contain special character")]
     SpecialCharacterError,
     #[error("empty object passed as value")]
     EmptyObjectAsValue,
@@ -102,6 +102,12 @@ pub enum QueryValidationError {
 
     #[error("Invalid Expression")]
     InvalidAndExpression,
+
+    #[error("order value not a string")]
+    OrderValueNotString,
+
+    #[error("unidentified order {0}")]
+    UnidentifiedOrder(String),
 }
 
 #[derive(Error, Debug)]

@@ -1,6 +1,7 @@
 use crate::connectors::postgres::connection::helper::{connect, map_connection_config};
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+use crate::test_util::load_config;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
@@ -8,8 +9,8 @@ use dozer_types::serde::{Deserialize, Serialize};
 use postgres::Client;
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
-use std::{fs, thread};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -19,17 +20,12 @@ pub struct DebeziumTestConfig {
     pub debezium_connector_url: String,
 }
 
-pub fn load_config(config_path: String) -> Result<DebeziumTestConfig, serde_yaml::Error> {
-    let contents = fs::read_to_string(config_path).unwrap();
-
-    serde_yaml::from_str::<DebeziumTestConfig>(&contents)
-}
-
 pub fn get_iterator_and_client(
-    prefix: &str,
+    _prefix: &str,
     table_name: String,
 ) -> (Arc<RwLock<IngestionIterator>>, Client) {
-    let mut config = load_config(format!("{}config/test.debezium.sample.yaml", prefix)).unwrap();
+    let mut config =
+        serde_yaml::from_str::<DebeziumTestConfig>(load_config("test.debezium.yaml")).unwrap();
 
     config.source.table_name = table_name.clone();
 
@@ -59,11 +55,7 @@ pub fn get_iterator_and_client(
         )
         .unwrap();
 
-    let content = std::fs::read_to_string(format!(
-        "{}tests/connectors/debezium/register-postgres.test.json",
-        prefix
-    ))
-    .unwrap();
+    let content = load_config("test.register-postgres.json");
 
     let connector_client = reqwest::blocking::Client::new();
     connector_client

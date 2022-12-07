@@ -1,18 +1,18 @@
-use crate::connectors::snowflake::test_utils::remove_streams;
+use crate::connectors::snowflake::stream_consumer::StreamConsumer;
+use crate::connectors::snowflake::test_utils::{get_client, remove_streams};
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
+use dozer_types::models::source::Source;
+use odbc::create_environment_v3;
+use rand::Rng;
 use std::thread;
 
+use crate::test_util::load_config;
 #[ignore]
 #[test]
-fn connector_e2e_connect_and_read_from_snowflake_stream() {
-    use dozer_types::models::source::Source;
-
-    let source = serde_yaml::from_str::<Source>(&include_str!(
-        "../../../../config/test.snowflake.sample.yaml"
-    ))
-    .unwrap();
+fn connector_e2e_connect_snowflake_and_read_from_stream() {
+    let source = serde_yaml::from_str::<Source>(load_config("test.snowflake.yaml")).unwrap();
     remove_streams(source.connection.clone(), &source.table_name).unwrap();
 
     let config = IngestionConfig::default();
@@ -52,4 +52,83 @@ fn connector_e2e_connect_and_read_from_snowflake_stream() {
     }
 
     assert_eq!(1000, i);
+}
+
+// #[ignore]
+#[test]
+fn connector_e2e_connect_snowflake_schema_changes_test() {
+    let source = serde_yaml::from_str::<Source>(load_config("test.snowflake.yaml")).unwrap();
+    let client = get_client(&source.connection);
+
+    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
+    let mut rng = rand::thread_rng();
+    let table_name = format!("schema_change_test_{}", rng.gen::<u32>());
+    let stream_name = StreamConsumer::get_stream_table_name(&table_name);
+
+    let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
+    let conn = env
+        .connect_with_connection_string(&client.get_conn_string())
+        .unwrap();
+
+    client
+        .execute_query(
+            &conn,
+            &format!(
+                "CREATE TABLE {} LIKE SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.NATION;",
+                table_name
+            ),
+        )
+        .unwrap();
+    client
+        .execute_query(
+            &conn,
+            &format!("CREATE STREAM {} ON TABLE {}", stream_name, table_name),
+        )
+        .unwrap();
+
+    // Create new stream
+    let mut consumer = StreamConsumer::new(0);
+    consumer
+        .consume_stream(&client, &table_name, &ingestor)
+        .unwrap();
+    assert!(matches!(
+        iterator.write().next().unwrap().1,
+        IngestionOperation::SchemaUpdate(_, _)
+    ));
+
+    // Insert single record
+    client.execute_query(&conn, &format!("INSERT INTO {} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME) VALUES (1, 'TEST Country 1', 0, 'country name 1');", table_name)).unwrap();
+    consumer
+        .consume_stream(&client, &table_name, &ingestor)
+        .unwrap();
+    assert!(matches!(
+        iterator.write().next().unwrap().1,
+        IngestionOperation::OperationEvent(_)
+    ));
+
+    // Update table and insert record
+    client
+        .execute_query(
+            &conn,
+            &format!("ALTER TABLE {} ADD TEST_COLUMN INTEGER;", table_name),
+        )
+        .unwrap();
+    client.execute_query(&conn, &format!("INSERT INTO {} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME, TEST_COLUMN) VALUES (2, 'TEST Country 2', 0, 'country name 2', null);", table_name)).unwrap();
+
+    consumer
+        .consume_stream(&client, &table_name, &ingestor)
+        .unwrap();
+    assert!(matches!(
+        iterator.write().next().unwrap().1,
+        IngestionOperation::SchemaUpdate(_, _)
+    ));
+    assert!(matches!(
+        iterator.write().next().unwrap().1,
+        IngestionOperation::OperationEvent(_)
+    ));
+
+    client
+        .execute_query(&conn, &format!("DROP TABLE {};", table_name))
+        .unwrap();
 }

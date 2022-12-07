@@ -267,4 +267,15 @@ impl Client {
             NoData(_) => Ok(None),
         }
     }
+
+    pub fn execute_query(
+        &self,
+        conn: &Connection<AutocommitOn>,
+        query: &str,
+    ) -> Result<(), SnowflakeError> {
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
+        stmt.exec_direct(query)
+            .map_err(|e| QueryError(Box::new(e)))?;
+        Ok(())
+    }
 }
