@@ -3,6 +3,8 @@ mod checkpoint;
 #[cfg(test)]
 mod common;
 #[cfg(test)]
+mod dag_base_create_errors;
+#[cfg(test)]
 mod dag_base_run;
 #[cfg(test)]
 mod dag_base_run_errors;

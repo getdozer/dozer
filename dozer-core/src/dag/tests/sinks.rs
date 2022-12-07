@@ -36,12 +36,15 @@ impl SinkFactory for CountingSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink> {
-        Box::new(CountingSink {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        Ok(Box::new(CountingSink {
             expected: self.expected,
             current: 0,
             term_latch: self.term_latch.clone(),
-        })
+        }))
     }
 }
 

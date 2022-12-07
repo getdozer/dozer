@@ -9,7 +9,7 @@ use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::Schema;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use std::path::Path;
 
@@ -197,6 +197,24 @@ impl<'a> DagMetadataManager<'a> {
         }
     }
 
+    fn get_sources_for_namespace(&self, ns: u16) -> HashSet<NodeHandle> {
+        let mut handles = HashSet::<NodeHandle>::new();
+        for (src_handle, src_node) in self.deps_trees.iter() {
+            if src_node
+                .children
+                .iter()
+                .find(|e| match e.handle.ns {
+                    Some(node_ns) => ns == node_ns,
+                    _ => false,
+                })
+                .is_some()
+            {
+                handles.insert(src_handle.clone());
+            }
+        }
+        handles
+    }
+
     fn get_dependency_tree_consistency_rec(
         &self,
         source_handle: &NodeHandle,
@@ -207,7 +225,6 @@ impl<'a> DagMetadataManager<'a> {
             Some(v) => *v.commits.get(source_handle).unwrap_or(&0),
             None => 0,
         };
-
         res.entry(seq).or_insert_with(Vec::new);
         res.get_mut(&seq).unwrap().push(tree_node.handle.clone());
 

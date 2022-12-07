@@ -49,8 +49,8 @@ impl ProcessorFactory for NoopProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
-        Box::new(NoopProcessor {})
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        Ok(Box::new(NoopProcessor {}))
     }
 }
 
@@ -215,8 +215,8 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
-        Box::new(NoopJoinProcessor {})
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        Ok(Box::new(NoopJoinProcessor {}))
     }
 }
 

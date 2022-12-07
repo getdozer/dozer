@@ -52,12 +52,12 @@ impl ProcessorFactory for ErrorProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
-        Box::new(ErrorProcessor {
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
             count: 0,
             panic: self.panic,
-        })
+        }))
     }
 }
 
@@ -324,12 +324,15 @@ impl SourceFactory for ErrGeneratorSourceFactory {
             OutputPortDefOptions::default(),
         )]
     }
-    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
-        Box::new(ErrGeneratorSource {
+    fn build(
+        &self,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(ErrGeneratorSource {
             count: self.count,
             err_at: self.err_at,
             term_latch: self.term_latch.as_ref().map(|latch| latch.clone()),
-        })
+        }))
     }
 }
 
@@ -452,13 +455,16 @@ impl SinkFactory for ErrSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink> {
-        Box::new(ErrSink {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        Ok(Box::new(ErrSink {
             err_at: self.err_at,
             current: 0,
             latch: self.latch.clone(),
             panic: self.panic,
-        })
+        }))
     }
 }
 

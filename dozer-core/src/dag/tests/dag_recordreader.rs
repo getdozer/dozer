@@ -61,8 +61,8 @@ impl ProcessorFactory for PassthroughProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
-        Box::new(PassthroughProcessor {})
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        Ok(Box::new(PassthroughProcessor {}))
     }
 }
 
@@ -125,8 +125,8 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
-        Box::new(RecordReaderProcessor { ctr: 1 })
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        Ok(Box::new(RecordReaderProcessor { ctr: 1 }))
     }
 }
 

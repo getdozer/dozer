@@ -47,7 +47,10 @@ impl SourceFactory for TestUsersSourceFactory {
         )]
     }
 
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
         todo!()
     }
 }
@@ -77,7 +80,10 @@ impl SourceFactory for TestCountriesSourceFactory {
         )]
     }
 
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
         todo!()
     }
 }
@@ -116,7 +122,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
         todo!()
     }
 }
@@ -136,7 +142,10 @@ impl SinkFactory for TestSinkFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn crate::dag::node::Sink> {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn crate::dag::node::Sink>, ExecutionError> {
         todo!()
     }
 }

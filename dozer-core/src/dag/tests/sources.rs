@@ -46,11 +46,14 @@ impl SourceFactory for GeneratorSourceFactory {
             OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
         )]
     }
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
-        Box::new(GeneratorSource {
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(GeneratorSource {
             count: self.count,
             term_latch: self.term_latch.clone(),
-        })
+        }))
     }
 }
 

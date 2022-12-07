@@ -10,8 +10,8 @@ use std::str::from_utf8;
 //pub type NodeHandle = String;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NodeHandle {
-    ns: Option<u16>,
-    id: String,
+    pub(crate) ns: Option<u16>,
+    pub(crate) id: String,
 }
 
 impl NodeHandle {
@@ -107,7 +107,10 @@ impl OutputPortDef {
 pub trait SourceFactory: Send + Sync {
     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
-    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source>;
+    fn build(
+        &self,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError>;
 }
 
 pub trait Source {
@@ -130,7 +133,7 @@ pub trait ProcessorFactory: Send + Sync {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor>;
+    ) -> Result<Box<dyn Processor>, ExecutionError>;
 }
 
 pub trait Processor {
@@ -153,7 +156,10 @@ pub trait SinkFactory: Send + Sync {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink>;
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError>;
 }
 
 pub trait Sink {

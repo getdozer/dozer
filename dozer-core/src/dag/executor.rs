@@ -29,11 +29,12 @@ use std::fmt::{Display, Formatter};
 use std::ops::Add;
 
 use std::path::{Path, PathBuf};
+use std::process::exit;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Barrier};
-use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+use std::{panic, thread};
 
 macro_rules! term_on_err {
     ($e: expr, $stop_req: expr, $barrier: expr) => {
@@ -135,7 +136,6 @@ pub struct DagExecutor<'a> {
     dag: &'a Dag,
     schemas: HashMap<NodeHandle, NodeSchemas>,
     term_barrier: Arc<Barrier>,
-    start_latch: Arc<CountDownLatch>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     join_handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>,
     path: PathBuf,
@@ -156,9 +156,6 @@ impl<'a> DagExecutor<'a> {
             dag,
             schemas,
             term_barrier: Arc::new(Barrier::new(dag.get_sources().len())),
-            start_latch: Arc::new(CountDownLatch::new(
-                dag.get_sinks().len() as u64 + dag.get_processors().len() as u64,
-            )),
             record_stores: Arc::new(RwLock::new(
                 dag.nodes
                     .iter()
@@ -316,7 +313,7 @@ impl<'a> DagExecutor<'a> {
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
 
         let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
-            let src = st_src_factory.build(st_output_schemas);
+            let src = st_src_factory.build(st_output_schemas)?;
             let r = src.start(&mut fw, None);
             st_stop_req.store(STOP_REQ_TERM_AND_SHUTDOWN, Ordering::Relaxed);
             r
@@ -440,14 +437,14 @@ impl<'a> DagExecutor<'a> {
         let lt_output_ports = proc_factory.get_output_ports();
         let lt_edges = self.dag.edges.clone();
         let lt_record_stores = self.record_stores.clone();
-        let lt_start_latch = self.start_latch.clone();
         let lt_stop_req = self.stop_req.clone();
         let lt_term_barrier = self.term_barrier.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
-            let mut proc = proc_factory.build(lt_input_schemas.clone(), lt_output_schemas.clone());
+            let mut proc =
+                proc_factory.build(lt_input_schemas.clone(), lt_output_schemas.clone())?;
             let mut state_meta = init_component(&handle, lt_path.as_path(), |e| proc.init(e))?;
 
             let port_databases = create_ports_databases(
@@ -481,8 +478,6 @@ impl<'a> DagExecutor<'a> {
                 ),
                 true,
             );
-
-            lt_start_latch.countdown();
 
             let mut port_states: Vec<InputPortState> =
                 handles_ls.iter().map(|_h| InputPortState::Open).collect();
@@ -606,13 +601,12 @@ impl<'a> DagExecutor<'a> {
 
         let lt_path = self.path.clone();
         let lt_record_stores = self.record_stores.clone();
-        let lt_start_latch = self.start_latch.clone();
         let lt_stop_req = self.stop_req.clone();
         let lt_term_barrier = self.term_barrier.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
-            let mut snk = snk_factory.build(lt_input_schemas.clone());
+            let mut snk = snk_factory.build(lt_input_schemas.clone())?;
             let mut state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
 
             let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
@@ -628,7 +622,6 @@ impl<'a> DagExecutor<'a> {
             );
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
-            lt_start_latch.countdown();
 
             let mut sel = init_select(&receivers_ls);
             loop {
@@ -747,8 +740,6 @@ impl<'a> DagExecutor<'a> {
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
-
-        self.start_latch.wait();
 
         for (handle, factory) in self.dag.get_sources() {
             let join_handle = self.start_source(
