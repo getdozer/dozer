@@ -34,7 +34,7 @@ impl SumAggregator {
         match *new {
             Int(_i) => {
                 let prev = match cur_state {
-                    Some(v) => i64::from_le_bytes(deserialize!(v)),
+                    Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
                 };
 
@@ -45,7 +45,7 @@ impl SumAggregator {
                     }
                 };
 
-                let r_bytes = (prev + *curr).to_le_bytes();
+                let r_bytes = (prev + *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
                     Some(Vec::from(r_bytes)),
@@ -53,7 +53,7 @@ impl SumAggregator {
             }
             Float(_f) => {
                 let prev = OrderedFloat(match cur_state {
-                    Some(v) => f64::from_le_bytes(deserialize!(v)),
+                    Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
                 });
 
@@ -64,7 +64,7 @@ impl SumAggregator {
                     }
                 };
 
-                let r_bytes = (prev + *curr).to_le_bytes();
+                let r_bytes = (prev + *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
                     Some(Vec::from(r_bytes)),
@@ -84,7 +84,7 @@ impl SumAggregator {
         match *old {
             Int(_i) => {
                 let prev = match cur_state {
-                    Some(v) => i64::from_le_bytes(deserialize!(v)),
+                    Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
                 };
 
@@ -101,7 +101,7 @@ impl SumAggregator {
                     }
                 };
 
-                let r_bytes = (prev - *curr_del + *curr_added).to_le_bytes();
+                let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
                     Some(Vec::from(r_bytes)),
@@ -109,7 +109,7 @@ impl SumAggregator {
             }
             Float(_f) => {
                 let prev = OrderedFloat(match cur_state {
-                    Some(v) => f64::from_le_bytes(deserialize!(v)),
+                    Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
                 });
 
@@ -126,7 +126,7 @@ impl SumAggregator {
                     }
                 };
 
-                let r_bytes = (prev - *curr_del + *curr_added).to_le_bytes();
+                let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
                     Some(Vec::from(r_bytes)),
@@ -145,7 +145,7 @@ impl SumAggregator {
         match *old {
             Int(_i) => {
                 let prev = match cur_state {
-                    Some(v) => i64::from_le_bytes(deserialize!(v)),
+                    Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
                 };
 
@@ -156,7 +156,7 @@ impl SumAggregator {
                     }
                 };
 
-                let r_bytes = (prev - *curr).to_le_bytes();
+                let r_bytes = (prev - *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
                     Some(Vec::from(r_bytes)),
@@ -164,7 +164,7 @@ impl SumAggregator {
             }
             Float(_f) => {
                 let prev = OrderedFloat(match cur_state {
-                    Some(v) => f64::from_le_bytes(deserialize!(v)),
+                    Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
                 });
 
@@ -175,7 +175,7 @@ impl SumAggregator {
                     }
                 };
 
-                let r_bytes = (prev - *curr).to_le_bytes();
+                let r_bytes = (prev - *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type),
                     Some(Vec::from(r_bytes)),
@@ -187,8 +187,8 @@ impl SumAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_le_bytes(deserialize!(f))),
-            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(deserialize!(f)))),
+            FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
+            FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
             _ => Field::Null,
         }
     }

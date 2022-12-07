@@ -25,11 +25,11 @@ impl CountAggregator {
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         let prev = match cur_state {
-            Some(v) => i64::from_le_bytes(deserialize!(v)),
+            Some(v) => i64::from_be_bytes(deserialize!(v)),
             None => 0_i64,
         };
 
-        let buf = (prev + 1).to_le_bytes();
+        let buf = (prev + 1).to_be_bytes();
         Ok(AggregationResult::new(
             Self::get_value(&buf),
             Some(Vec::from(buf)),
@@ -44,11 +44,11 @@ impl CountAggregator {
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         let prev = match cur_state {
-            Some(v) => i64::from_le_bytes(deserialize!(v)),
+            Some(v) => i64::from_be_bytes(deserialize!(v)),
             None => 0_i64,
         };
 
-        let buf = (prev).to_le_bytes();
+        let buf = (prev).to_be_bytes();
         Ok(AggregationResult::new(
             Self::get_value(&buf),
             Some(Vec::from(buf)),
@@ -62,11 +62,11 @@ impl CountAggregator {
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
         let prev = match cur_state {
-            Some(v) => i64::from_le_bytes(deserialize!(v)),
+            Some(v) => i64::from_be_bytes(deserialize!(v)),
             None => 0_i64,
         };
 
-        let buf = (prev - 1).to_le_bytes();
+        let buf = (prev - 1).to_be_bytes();
         Ok(AggregationResult::new(
             Self::get_value(&buf),
             Some(Vec::from(buf)),
@@ -74,6 +74,6 @@ impl CountAggregator {
     }
 
     pub(crate) fn get_value(f: &[u8]) -> Field {
-        Int(i64::from_le_bytes(deserialize!(f)))
+        Int(i64::from_be_bytes(deserialize!(f)))
     }
 }

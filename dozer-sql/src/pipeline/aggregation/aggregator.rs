@@ -114,7 +114,7 @@ impl Aggregator {
 macro_rules! deserialize_f64 {
     ($stmt:expr) => {
         match $stmt {
-            Some(v) => f64::from_le_bytes(deserialize!(v)),
+            Some(v) => f64::from_be_bytes(deserialize!(v)),
             None => 0_f64,
         }
     };
@@ -124,7 +124,7 @@ macro_rules! deserialize_f64 {
 macro_rules! deserialize_i64 {
     ($stmt:expr) => {
         match $stmt {
-            Some(v) => i64::from_le_bytes(deserialize!(v)),
+            Some(v) => i64::from_be_bytes(deserialize!(v)),
             None => 0_i64,
         }
     };
@@ -134,7 +134,7 @@ macro_rules! deserialize_i64 {
 macro_rules! deserialize_u8 {
     ($stmt:expr) => {
         match $stmt {
-            Some(v) => u8::from_le_bytes(deserialize!(v)),
+            Some(v) => u8::from_be_bytes(deserialize!(v)),
             None => 0_u8,
         }
     };
@@ -221,6 +221,6 @@ macro_rules! try_unwrap {
 #[macro_export]
 macro_rules! to_bytes {
     ($stmt:expr) => {
-        $stmt.to_le_bytes().as_slice()
+        $stmt.to_be_bytes().as_slice()
     };
 }

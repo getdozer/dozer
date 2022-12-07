@@ -327,7 +327,7 @@ impl AggregationProcessor {
 
     fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
         let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
-        vec.extend_from_slice(&database_id.to_le_bytes());
+        vec.extend_from_slice(&database_id.to_be_bytes());
         vec.extend(hash);
         Ok(vec)
     }
@@ -337,27 +337,27 @@ impl AggregationProcessor {
             .meta_db
             .as_ref()
             .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
-        let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_le_bytes())? {
-            Some(v) => u32::from_le_bytes(deserialize!(v)),
+        let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_be_bytes())? {
+            Some(v) => u32::from_be_bytes(deserialize!(v)),
             None => 1_u32,
         };
         txn.put(
             meta_db,
-            &COUNTER_KEY.to_le_bytes(),
-            &(curr_ctr + 1).to_le_bytes(),
+            &COUNTER_KEY.to_be_bytes(),
+            &(curr_ctr + 1).to_be_bytes(),
         )?;
         Ok(curr_ctr + 1)
     }
 
     pub(crate) fn decode_buffer(buf: &[u8]) -> Result<(usize, AggregationData), PipelineError> {
-        let prefix = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+        let prefix = u32::from_be_bytes(buf[0..4].try_into().unwrap());
         let mut offset: usize = 4;
 
-        let val_len = u16::from_le_bytes(buf[offset..offset + 2].try_into().unwrap());
+        let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
         let val: Field = Field::from_bytes(&buf[offset..offset + val_len as usize])?;
         offset += val_len as usize;
-        let state_len = u16::from_le_bytes(buf[offset..offset + 2].try_into().unwrap());
+        let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
         let state: Option<&[u8]> = if state_len > 0 {
             Some(&buf[offset..offset + state_len as usize])
@@ -376,18 +376,18 @@ impl AggregationProcessor {
         state: &Option<Vec<u8>>,
     ) -> Result<(usize, Vec<u8>), PipelineError> {
         let mut r = Vec::with_capacity(512);
-        r.extend(prefix.to_le_bytes());
+        r.extend(prefix.to_be_bytes());
 
         let sz_val = value.to_bytes_sql()?;
-        r.extend((sz_val.len() as u16).to_le_bytes());
+        r.extend((sz_val.len() as u16).to_be_bytes());
         r.extend(&sz_val);
 
         let len = if let Some(state) = state.as_ref() {
-            r.extend((state.len() as u16).to_le_bytes());
+            r.extend((state.len() as u16).to_be_bytes());
             r.extend(state);
             state.len()
         } else {
-            r.extend(0_u16.to_le_bytes());
+            r.extend(0_u16.to_be_bytes());
             0_usize
         };
 
@@ -523,7 +523,7 @@ impl AggregationProcessor {
         let bytes = txn.get(db, key.as_slice())?;
 
         let curr_count = match bytes {
-            Some(b) => u64::from_le_bytes(deserialize!(b)),
+            Some(b) => u64::from_be_bytes(deserialize!(b)),
             None => 0_u64,
         };
 
@@ -535,7 +535,7 @@ impl AggregationProcessor {
             } else {
                 curr_count + delta
             })
-            .to_le_bytes()
+            .to_be_bytes()
             .as_slice(),
         )?;
         Ok(curr_count)

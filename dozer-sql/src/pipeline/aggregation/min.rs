@@ -55,12 +55,12 @@ impl MinAggregator {
                 if minimum == i64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_le_bytes(), return_type),
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
@@ -74,12 +74,12 @@ impl MinAggregator {
                 if minimum == f64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_le_bytes(), return_type),
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
@@ -103,7 +103,7 @@ impl MinAggregator {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_timestamp!(&new, AGGREGATOR_NAME)
                     .timestamp_millis()
-                    .to_le_bytes();
+                    .to_be_bytes();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -115,10 +115,10 @@ impl MinAggregator {
                 } else {
                     Ok(AggregationResult::new(
                         Self::get_value(
-                            minimum.timestamp_millis().to_le_bytes().as_slice(),
+                            minimum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
                         ),
-                        Some(Vec::from(minimum.timestamp_millis().to_le_bytes())),
+                        Some(Vec::from(minimum.timestamp_millis().to_be_bytes())),
                     ))
                 }
             }
@@ -164,12 +164,12 @@ impl MinAggregator {
                 if minimum == i64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_le_bytes(), return_type),
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
@@ -185,12 +185,12 @@ impl MinAggregator {
                 if minimum == f64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_le_bytes(), return_type),
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
@@ -216,11 +216,11 @@ impl MinAggregator {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_timestamp!(&new, AGGREGATOR_NAME)
                     .timestamp_millis()
-                    .to_le_bytes();
+                    .to_be_bytes();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
                 let old_val = field_extract_timestamp!(&old, AGGREGATOR_NAME)
                     .timestamp_millis()
-                    .to_le_bytes();
+                    .to_be_bytes();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -232,10 +232,10 @@ impl MinAggregator {
                 } else {
                     Ok(AggregationResult::new(
                         Self::get_value(
-                            minimum.timestamp_millis().to_le_bytes().as_slice(),
+                            minimum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
                         ),
-                        Some(Vec::from(minimum.timestamp_millis().to_le_bytes())),
+                        Some(Vec::from(minimum.timestamp_millis().to_be_bytes())),
                     ))
                 }
             }
@@ -281,8 +281,8 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_le_bytes(), return_type),
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
@@ -297,8 +297,8 @@ impl MinAggregator {
                     Ok(AggregationResult::new(Field::Null, None))
                 } else {
                     Ok(AggregationResult::new(
-                        Self::get_value(&minimum.to_le_bytes(), return_type),
-                        Some(Vec::from(minimum.to_le_bytes())),
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
                     ))
                 }
             }
@@ -322,7 +322,7 @@ impl MinAggregator {
                 // Update aggregators_db with new val and its occurrence
                 let old_val = field_extract_timestamp!(&old, AGGREGATOR_NAME)
                     .timestamp_millis()
-                    .to_le_bytes();
+                    .to_be_bytes();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate minimum
@@ -334,10 +334,10 @@ impl MinAggregator {
                 } else {
                     Ok(AggregationResult::new(
                         Self::get_value(
-                            minimum.timestamp_millis().to_le_bytes().as_slice(),
+                            minimum.timestamp_millis().to_be_bytes().as_slice(),
                             return_type,
                         ),
-                        Some(Vec::from(minimum.timestamp_millis().to_le_bytes())),
+                        Some(Vec::from(minimum.timestamp_millis().to_be_bytes())),
                     ))
                 }
             }
@@ -364,13 +364,13 @@ impl MinAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_le_bytes(deserialize!(f))),
-            FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(deserialize!(f)))),
+            FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
+            FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
             FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
                 deserialize!(f),
             )),
             FieldType::Timestamp => Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_le_bytes(deserialize!(f))),
+                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(f))),
             )),
             FieldType::Date => Date(
                 NaiveDate::parse_from_str(
@@ -415,7 +415,7 @@ impl MinAggregator {
         // get first to get the minimum
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            minimum = f64::from_le_bytes(deserialize!(cur.0));
+            minimum = f64::from_be_bytes(deserialize!(cur.0));
         }
         Ok(minimum)
     }
@@ -445,7 +445,7 @@ impl MinAggregator {
         // get first to get the minimum
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            minimum = Utc.timestamp_millis(i64::from_le_bytes(deserialize!(cur.0)));
+            minimum = Utc.timestamp_millis(i64::from_be_bytes(deserialize!(cur.0)));
         }
         Ok(DateTime::from(minimum))
     }
@@ -479,7 +479,7 @@ impl MinAggregator {
         // get first to get the minimum
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
-            minimum = i64::from_le_bytes(deserialize!(cur.0));
+            minimum = i64::from_be_bytes(deserialize!(cur.0));
         }
         Ok(minimum)
     }
