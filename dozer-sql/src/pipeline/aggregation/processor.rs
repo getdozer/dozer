@@ -211,7 +211,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             curr.state,
                             inserted_field,
-                            inserted_field.get_type()?,
+                            inserted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -222,7 +222,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             None,
                             inserted_field,
-                            inserted_field.get_type()?,
+                            inserted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -237,7 +237,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             curr.state,
                             deleted_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -248,7 +248,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             None,
                             deleted_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -266,7 +266,7 @@ impl AggregationProcessor {
                             curr.state,
                             deleted_field,
                             updated_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -278,7 +278,7 @@ impl AggregationProcessor {
                             None,
                             deleted_field,
                             updated_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;

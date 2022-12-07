@@ -32,11 +32,7 @@ impl Display for Field {
 #[macro_export]
 macro_rules! serialize {
     ($self:ident, $stmt:expr) => {
-        Ok([
-            Self::get_type_prefix($self.get_type().unwrap()),
-            Vec::from($stmt),
-        ]
-        .concat())
+        Ok([Self::get_type_prefix($self.get_type()), Vec::from($stmt)].concat())
     };
 }
 
@@ -90,7 +86,7 @@ impl Field {
             Field::Timestamp(t) => serialize!(self, t.timestamp_millis().to_be_bytes()),
             Field::Date(d) => serialize!(self, d.to_string().as_bytes()),
             Field::Bson(b) => serialize!(self, b.clone()),
-            Field::Null => Ok(Self::get_type_prefix(self.get_type().unwrap())),
+            Field::Null => Ok(Self::get_type_prefix(self.get_type())),
         }
     }
 
@@ -124,20 +120,20 @@ impl Field {
         }
     }
 
-    pub fn get_type(&self) -> Result<FieldType, TypeError> {
+    pub fn get_type(&self) -> FieldType {
         match self {
-            Field::Int(_i) => Ok(FieldType::Int),
-            Field::UInt(_i) => Ok(FieldType::UInt),
-            Field::Float(_f) => Ok(FieldType::Float),
-            Field::Boolean(_b) => Ok(FieldType::Boolean),
-            Field::String(_s) => Ok(FieldType::String),
-            Field::Text(_s) => Ok(FieldType::Text),
-            Field::Binary(_b) => Ok(FieldType::Binary),
-            Field::Decimal(_d) => Ok(FieldType::Decimal),
-            Field::Timestamp(_t) => Ok(FieldType::Timestamp),
-            Field::Date(_t) => Ok(FieldType::Date),
-            Field::Bson(_b) => Ok(FieldType::Bson),
-            Field::Null => Ok(FieldType::Null),
+            Field::Int(_i) => FieldType::Int,
+            Field::UInt(_i) => FieldType::UInt,
+            Field::Float(_f) => FieldType::Float,
+            Field::Boolean(_b) => FieldType::Boolean,
+            Field::String(_s) => FieldType::String,
+            Field::Text(_s) => FieldType::Text,
+            Field::Binary(_b) => FieldType::Binary,
+            Field::Decimal(_d) => FieldType::Decimal,
+            Field::Timestamp(_t) => FieldType::Timestamp,
+            Field::Date(_t) => FieldType::Date,
+            Field::Bson(_b) => FieldType::Bson,
+            Field::Null => FieldType::Null,
         }
     }
 
