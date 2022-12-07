@@ -378,7 +378,7 @@ impl AggregationProcessor {
         let mut r = Vec::with_capacity(512);
         r.extend(prefix.to_be_bytes());
 
-        let sz_val = value.to_bytes()?;
+        let sz_val = value.to_bytes_sql()?;
         r.extend((sz_val.len() as u16).to_be_bytes());
         r.extend(&sz_val);
 
