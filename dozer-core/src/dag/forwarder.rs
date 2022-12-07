@@ -1,5 +1,6 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 
+use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
@@ -16,10 +17,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-
-pub(crate) const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
-pub(crate) const OUTPUT_SCHEMA_IDENTIFIER: u8 = 1_u8;
-pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 
 pub(crate) struct StateWriter {
     meta_db: Database,

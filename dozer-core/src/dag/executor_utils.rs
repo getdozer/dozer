@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 use crate::dag::dag::{Dag, Edge, Endpoint};
+use crate::dag::dag_metadata::METADATA_DB_NAME;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor::ExecutorOperation;
@@ -14,8 +15,6 @@ use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-
-pub(crate) const CHECKPOINT_DB_NAME: &str = "__META__";
 
 pub(crate) struct StorageMetadata {
     pub env: Box<dyn EnvironmentManager>,
@@ -37,7 +36,7 @@ where
     F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
 {
     let mut env = LmdbEnvironmentManager::create(base_path, format!("{}", node_handle).as_str())?;
-    let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+    let db = env.open_database(METADATA_DB_NAME, false)?;
     init_f(env.as_environment())?;
     Ok(StorageMetadata::new(env, db))
 }
