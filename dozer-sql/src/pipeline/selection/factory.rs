@@ -50,12 +50,16 @@ impl ProcessorFactory for SelectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
-        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        let expression = ExpressionBuilder {}
-            .build(&ExpressionType::FullExpression, &self.statement, schema)
-            .unwrap();
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        let schema = input_schemas
+            .get(&DEFAULT_PORT_HANDLE)
+            .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        Box::new(SelectionProcessor::new(expression))
+        let builder = ExpressionBuilder {};
+
+        match builder.build(&ExpressionType::FullExpression, &self.statement, schema) {
+            Ok(expression) => Ok(Box::new(SelectionProcessor::new(expression))),
+            Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
+        }
     }
 }

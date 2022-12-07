@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use dozer_core::{
-    dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
-    storage::transactions::SharedTransaction,
-};
+use dozer_core::{dag::dag::DEFAULT_PORT_HANDLE, storage::transactions::SharedTransaction};
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
@@ -13,13 +10,6 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor
 
 #[test]
 fn test_sum_aggregation_float() {
-    let (mut processor, tx) = init_processor(
-        "SELECT Country, SUM(Salary) \
-        FROM Users \
-        WHERE Salary >= 1 GROUP BY Country",
-    )
-    .unwrap();
-
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
@@ -43,12 +33,13 @@ fn test_sum_aggregation_float() {
         )
         .clone();
 
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, SUM(Salary) \
+            FROM Users \
+            WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
 
     // Insert 100 for segment Italy
     /*
@@ -423,13 +414,6 @@ fn test_sum_aggregation_float() {
 
 #[test]
 fn test_sum_aggregation_int() {
-    let (mut processor, tx) = init_processor(
-        "SELECT Country, SUM(Salary) \
-        FROM Users \
-        WHERE Salary >= 1 GROUP BY Country",
-    )
-    .unwrap();
-
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
@@ -453,12 +437,13 @@ fn test_sum_aggregation_int() {
         )
         .clone();
 
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, SUM(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
 
     // Insert 100 for segment Italy
     /*

@@ -1,6 +1,7 @@
 use super::aggregation::factory::AggregationProcessorFactory;
 use super::product::factory::get_input_tables;
 use super::product::factory::ProductProcessorFactory;
+use super::projection::factory::ProjectionProcessorFactory;
 use super::selection::factory::SelectionProcessorFactory;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidQuery;
@@ -52,6 +53,9 @@ impl PipelineBuilder {
     ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         let mut dag = Dag::new();
 
+        let first_node_name = String::from("product");
+        let mut last_node_name = String::from("preaggregation");
+
         // FROM clause
         if select.from.len() != 1 {
             return Err(InvalidQuery(
@@ -60,20 +64,19 @@ impl PipelineBuilder {
         }
         let product = ProductProcessorFactory::new(select.from[0].clone());
         let input_tables = get_input_tables(&select.from[0])?;
-        let input_endpoints =
-            self.get_input_endpoints(Some(1), String::from("product"), &input_tables)?;
+        let input_endpoints = self.get_input_endpoints(Some(1), first_node_name, &input_tables)?;
 
         dag.add_node(
             NodeType::Processor(Arc::new(product)),
             NodeHandle::new(Some(1), String::from("product")),
         );
 
-        let aggregation =
-            AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
+        // Select clause
+        let preaggregation = ProjectionProcessorFactory::new(select.projection.clone());
 
         dag.add_node(
-            NodeType::Processor(Arc::new(aggregation)),
-            NodeHandle::new(Some(1), String::from("aggregation")),
+            NodeType::Processor(Arc::new(preaggregation)),
+            NodeHandle::new(Some(1), String::from("preaggregation")),
         );
 
         // Where clause
@@ -103,7 +106,7 @@ impl PipelineBuilder {
                     DEFAULT_PORT_HANDLE,
                 ),
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("aggregatiion")),
+                    NodeHandle::new(Some(1), String::from("preaggregation")),
                     DEFAULT_PORT_HANDLE,
                 ),
             );
@@ -114,17 +117,39 @@ impl PipelineBuilder {
                     DEFAULT_PORT_HANDLE,
                 ),
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("aggregation")),
+                    NodeHandle::new(Some(1), String::from("preaggregation")),
                     DEFAULT_PORT_HANDLE,
                 ),
             );
         }
 
+        if !select.group_by.is_empty() {
+            last_node_name = String::from("aggregation");
+
+            let aggregation =
+                AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
+
+            dag.add_node(
+                NodeType::Processor(Arc::new(aggregation)),
+                NodeHandle::new(Some(1), String::from("aggregation")),
+            );
+
+            let _ = dag.connect(
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("preaggregation")),
+                    DEFAULT_PORT_HANDLE,
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("aggregation")),
+                    DEFAULT_PORT_HANDLE,
+                ),
+            );
+        }
         Ok((
             dag,
             input_endpoints,
             Endpoint::new(
-                NodeHandle::new(Some(1), String::from("aggregation")),
+                NodeHandle::new(Some(1), last_node_name),
                 DEFAULT_PORT_HANDLE,
             ),
         ))

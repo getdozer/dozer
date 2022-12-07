@@ -1,10 +1,8 @@
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use dozer_core::{
-    dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
-    storage::transactions::SharedTransaction,
-};
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::storage::transactions::SharedTransaction;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::DATE_FORMAT;
 use dozer_types::{
@@ -15,13 +13,6 @@ use std::collections::HashMap;
 
 #[test]
 fn test_max_aggregation_float() {
-    let (mut processor, tx) = init_processor(
-        "SELECT Country, MAX(Salary) \
-        FROM Users \
-        WHERE Salary >= 1 GROUP BY Country",
-    )
-    .unwrap();
-
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
@@ -45,12 +36,13 @@ fn test_max_aggregation_float() {
         )
         .clone();
 
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, MAX(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
 
     // Insert 100 for segment Italy
     /*
@@ -425,13 +417,6 @@ fn test_max_aggregation_float() {
 
 #[test]
 fn test_max_aggregation_int() {
-    let (mut processor, tx) = init_processor(
-        "SELECT Country, MAX(Salary) \
-        FROM Users \
-        WHERE Salary >= 1 GROUP BY Country",
-    )
-    .unwrap();
-
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
@@ -455,12 +440,13 @@ fn test_max_aggregation_int() {
         )
         .clone();
 
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, MAX(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
 
     // Insert 100 for segment Italy
     /*
@@ -793,13 +779,6 @@ fn test_max_aggregation_int() {
 
 #[test]
 fn test_max_aggregation_decimal() {
-    let (mut processor, tx) = init_processor(
-        "SELECT Country, MAX(Salary) \
-        FROM Users \
-        WHERE Salary >= 1 GROUP BY Country",
-    )
-    .unwrap();
-
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
@@ -823,12 +802,13 @@ fn test_max_aggregation_decimal() {
         )
         .clone();
 
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, MAX(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
 
     // Insert 100 for segment Italy
     /*
@@ -1202,13 +1182,6 @@ fn test_max_aggregation_decimal() {
 
 #[test]
 fn test_max_aggregation_timestamp() {
-    let (mut processor, tx) = init_processor(
-        "SELECT Country, MAX(StartTime) \
-        FROM Users \
-        WHERE StartTime <= timestamp(CURRENT_DATE()) GROUP BY Country",
-    )
-    .unwrap();
-
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
@@ -1232,12 +1205,13 @@ fn test_max_aggregation_timestamp() {
         )
         .clone();
 
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, MAX(StartTime) \
+        FROM Users \
+        WHERE StartTime <= timestamp(CURRENT_DATE()) GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
 
     // Insert 100 for segment Italy
     /*
@@ -1611,13 +1585,6 @@ fn test_max_aggregation_timestamp() {
 
 #[test]
 fn test_max_aggregation_date() {
-    let (mut processor, tx) = init_processor(
-        "SELECT Country, MAX(StartDate) \
-        FROM Users \
-        WHERE StartDate <= CURRENT_DATE() GROUP BY Country",
-    )
-    .unwrap();
-
     let schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
@@ -1640,13 +1607,13 @@ fn test_max_aggregation_date() {
             false,
         )
         .clone();
-
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, MAX(StartDate) \
+        FROM Users \
+        WHERE StartDate <= CURRENT_DATE() GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
 
     // Insert 2015-10-08 for segment Italy
     /*

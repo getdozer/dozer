@@ -39,7 +39,7 @@ impl SourceFactory for TestSourceFactory {
             .collect()
     }
 
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
@@ -56,11 +56,19 @@ impl SourceFactory for TestSourceFactory {
                 false,
                 false,
             )
+            .field(
+                FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
+                false,
+                false,
+            )
             .clone())
     }
 
-    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
-        Box::new(TestSource {})
+    fn build(
+        &self,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(TestSource {}))
     }
 }
 
@@ -110,14 +118,17 @@ impl SinkFactory for TestSinkFactory {
 
     fn set_input_schema(
         &self,
-        output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        _output_port: &PortHandle,
+        _input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink> {
-        Box::new(TestSink {})
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        Ok(Box::new(TestSink {}))
     }
 }
 
@@ -154,7 +165,6 @@ fn test_pipeline_builder() {
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
-    debug!("AST: {:?}", ast);
 
     let statement: &Statement = &ast[0];
 
@@ -204,7 +214,9 @@ fn test_pipeline_builder() {
     let tmp_dir = TempDir::new("test").unwrap();
     let mut executor = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default()).unwrap();
 
-    executor.start();
+    executor
+        .start()
+        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
     assert!(executor.join().is_ok());
 
     let elapsed = now.elapsed();

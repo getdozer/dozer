@@ -39,7 +39,7 @@ impl SourceFactory for UserTestSourceFactory {
             .collect()
     }
 
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new(String::from("id"), FieldType::Int, false),
@@ -64,8 +64,11 @@ impl SourceFactory for UserTestSourceFactory {
             .clone())
     }
 
-    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
-        Box::new(UserTestSource {})
+    fn build(
+        &self,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(UserTestSource {}))
     }
 }
 
@@ -112,11 +115,14 @@ impl SourceFactory for DepartmentTestSourceFactory {
             .collect()
     }
 
-    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
-        Box::new(DepartmentTestSource {})
+    fn build(
+        &self,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(DepartmentTestSource {}))
     }
 
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new(String::from("id"), FieldType::Int, false),
@@ -171,14 +177,17 @@ impl SinkFactory for TestSinkFactory {
 
     fn set_input_schema(
         &self,
-        output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        _output_port: &PortHandle,
+        _input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
-    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink> {
-        Box::new(TestSink {})
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        Ok(Box::new(TestSink {}))
     }
 }
 
@@ -208,7 +217,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_single_table_pipeline() {
-    let sql = "SELECT name FROM Users ";
+    let sql = "SELECT name FROM Users WHERE Salary>1 GROUP BY name";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
@@ -264,7 +273,9 @@ fn test_single_table_pipeline() {
     let tmp_dir = TempDir::new("test").unwrap();
     let mut executor = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default()).unwrap();
 
-    executor.start();
+    executor
+        .start()
+        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
     assert!(executor.join().is_ok());
 
     let elapsed = now.elapsed();

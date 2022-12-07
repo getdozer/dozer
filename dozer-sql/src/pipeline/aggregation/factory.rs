@@ -63,18 +63,20 @@ impl ProcessorFactory for AggregationProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Box<dyn Processor> {
-        if let Some(input_schema) = input_schemas.get(&DEFAULT_PORT_HANDLE) {
-            let output_field_rules =
-                get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
-            Box::new(AggregationProcessor::new(output_field_rules, input_schema))
-        } else {
-            panic!("What to do here?");
-        }
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        let input_schema = input_schemas
+            .get(&DEFAULT_PORT_HANDLE)
+            .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
+        let output_field_rules =
+            get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
+        Ok(Box::new(AggregationProcessor::new(
+            output_field_rules,
+            input_schema,
+        )))
     }
 }
 
-fn get_aggregation_rules(
+pub(crate) fn get_aggregation_rules(
     select: &[SelectItem],
     groupby: &[SqlExpr],
     schema: &Schema,
@@ -147,16 +149,19 @@ fn get_aggregator(
         Expression::AggregateFunction { fun, args } => {
             let arg_type = args[0].get_type(schema);
             match (&fun, arg_type) {
-                (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
+                (AggregateFunctionType::Avg, _) => Ok(Aggregator::Avg),
                 (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
+                (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
+                (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
+                (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
                 _ => Err(PipelineError::InvalidExpression(format!(
-                    "Not implemented Aggreagation function: {:?}",
+                    "Not implemented Aggregation function: {:?}",
                     fun
                 ))),
             }
         }
         _ => Err(PipelineError::InvalidExpression(format!(
-            "Not an Aggreagation function: {:?}",
+            "Not an Aggregation function: {:?}",
             expression
         ))),
     }

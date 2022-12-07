@@ -66,11 +66,10 @@ impl ProcessorFactory for ProductProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-    ) -> Box<dyn Processor> {
-        if let Ok(join_tables) = build_join_chain(&self.from) {
-            Box::new(ProductProcessor::new(join_tables))
-        } else {
-            panic!("What to do here?");
+    ) -> Result<Box<dyn Processor>, ExecutionError> {
+        match build_join_chain(&self.from) {
+            Ok(join_tables) => Ok(Box::new(ProductProcessor::new(join_tables))),
+            Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
     }
 }
