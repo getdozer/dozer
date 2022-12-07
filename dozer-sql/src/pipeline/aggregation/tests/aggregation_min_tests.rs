@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use chrono::{DateTime, TimeZone, Utc};
 use dozer_core::{
     dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
     storage::transactions::SharedTransaction,
@@ -9,6 +8,7 @@ use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
+use std::collections::HashMap;
 
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 
@@ -1193,6 +1193,415 @@ fn test_min_aggregation_decimal() {
             vec![
                 Field::String("Italy".to_string()),
                 Field::Decimal(Decimal::new(100, 0)),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_min_aggregation_timestamp() {
+    let (mut processor, tx) = init_processor(
+        "SELECT Country, MIN(StartTime) \
+        FROM Users \
+        WHERE StartTime <= timestamp(CURRENT_DATE()) GROUP BY Country",
+    )
+    .unwrap();
+
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
+            false,
+            false,
+        )
+        .field(
+            FieldDefinition::new(String::from("Country"), FieldType::String, false),
+            false,
+            false,
+        )
+        .field(
+            FieldDefinition::new(String::from("StartTime"), FieldType::Timestamp, false),
+            false,
+            false,
+        )
+        .field(
+            FieldDefinition::new(String::from("MIN(StartTime)"), FieldType::Timestamp, false),
+            false,
+            false,
+        )
+        .clone();
+
+    let _output_schema = processor
+        .update_schema(
+            DEFAULT_PORT_HANDLE,
+            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+        )
+        .unwrap();
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, 100
+        -------------
+        MIN = 100
+    */
+    let inp = Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Insert another 100 for segment Italy
+    /*
+        Italy, 100
+        Italy, 100
+        -------------
+        MIN = 100
+    */
+    let inp = Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+    };
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Insert 50 for segment Singapore
+    /*
+        Italy, 100
+        Italy, 100
+        -------------
+        MIN = 100
+
+        Singapore, 50
+        -------------
+        MIN = 50
+    */
+    let inp = Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Singapore".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Insert {
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Singapore".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Update Singapore segment to Italy
+    /*
+        Italy, 100
+        Italy, 100
+        Italy, 50
+        -------------
+        MIN = 50
+    */
+    let inp = Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Singapore".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![
+        Operation::Update {
+            old: Record::new(
+                None,
+                vec![
+                    Field::String("Italy".to_string()),
+                    Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+                ],
+            ),
+            new: Record::new(
+                None,
+                vec![
+                    Field::String("Italy".to_string()),
+                    Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+                ],
+            ),
+        },
+        Operation::Delete {
+            old: Record::new(
+                None,
+                vec![
+                    Field::String("Singapore".to_string()),
+                    Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+                ],
+            ),
+        },
+    ];
+    assert_eq!(out, exp);
+
+    // Update Italy value 100 -> 200
+    /*
+        Italy, 200
+        Italy, 100
+        Italy, 50
+        -------------
+        MIN = 50
+    */
+    let inp = Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(200))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(200))),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Delete 1 record (200)
+    /*
+        Italy, 100
+        Italy, 50
+        -------------
+        MIN = 50
+    */
+    let inp = Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(200))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(200))),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Delete another record (50)
+    /*
+        Italy, 100
+        -------------
+        MIN = 100
+    */
+    let inp = Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Update {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(50))),
+            ],
+        ),
+        new: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+    }];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        MIN = 0
+    */
+    let inp = Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::Int(0),
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
+            ],
+        ),
+    };
+
+    let out = processor
+        .aggregate(
+            &mut SharedTransaction::new(&tx),
+            &processor.db.clone().unwrap(),
+            inp,
+        )
+        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
+
+    let exp = vec![Operation::Delete {
+        old: Record::new(
+            None,
+            vec![
+                Field::String("Italy".to_string()),
+                Field::Timestamp(DateTime::from(Utc.timestamp_millis(100))),
             ],
         ),
     }];

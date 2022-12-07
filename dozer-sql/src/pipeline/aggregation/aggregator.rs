@@ -165,6 +165,18 @@ macro_rules! field_extract_decimal {
 }
 
 #[macro_export]
+macro_rules! field_extract_timestamp {
+    ($stmt:expr, $agg:expr) => {
+        match $stmt {
+            Timestamp(t) => t,
+            _ => {
+                return Err(InvalidOperandType($agg.to_string()));
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! field_extract_i64 {
     ($stmt:expr, $agg:expr) => {
         match $stmt {

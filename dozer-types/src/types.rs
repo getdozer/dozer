@@ -50,44 +50,44 @@ macro_rules! deserialize {
 impl Field {
     pub fn to_bytes(&self) -> Result<Vec<u8>, TypeError> {
         match self {
-            Field::Int(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::UInt(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::Float(f) => Ok(Vec::from(f.to_be_bytes())),
+            Field::Int(i) => Ok(Vec::from(i.to_le_bytes())),
+            Field::UInt(i) => Ok(Vec::from(i.to_le_bytes())),
+            Field::Float(f) => Ok(Vec::from(f.to_le_bytes())),
             Field::Boolean(b) => Ok(Vec::from(if *b {
-                1_u8.to_be_bytes()
+                1_u8.to_le_bytes()
             } else {
-                0_u8.to_be_bytes()
+                0_u8.to_le_bytes()
             })),
             Field::String(s) => Ok(Vec::from(s.as_bytes())),
             Field::Text(s) => Ok(Vec::from(s.as_bytes())),
             Field::Binary(b) => Ok(Vec::from(b.as_slice())),
             Field::Decimal(d) => Ok(Vec::from(d.serialize())),
-            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
+            Field::Timestamp(t) => Ok(Vec::from(t.timestamp_millis().to_le_bytes())),
             Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
             Field::Bson(b) => Ok(b.clone()),
-            Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
+            Field::Null => Ok(Vec::from(0_u8.to_le_bytes())),
         }
     }
 
     pub fn to_bytes_sql(&self) -> Result<Vec<u8>, TypeError> {
         // prefix representing return type is added using get_type_prefix
         match self {
-            Field::Int(i) => serialize!(self, i.to_be_bytes()),
-            Field::UInt(i) => serialize!(self, i.to_be_bytes()),
-            Field::Float(f) => serialize!(self, f.to_be_bytes()),
+            Field::Int(i) => serialize!(self, i.to_le_bytes()),
+            Field::UInt(i) => serialize!(self, i.to_le_bytes()),
+            Field::Float(f) => serialize!(self, f.to_le_bytes()),
             Field::Boolean(b) => serialize!(
                 self,
                 if *b {
-                    1_u8.to_be_bytes()
+                    1_u8.to_le_bytes()
                 } else {
-                    0_u8.to_be_bytes()
+                    0_u8.to_le_bytes()
                 }
             ),
             Field::String(s) => serialize!(self, s.as_bytes()),
             Field::Text(t) => serialize!(self, t.as_bytes()),
             Field::Binary(b) => serialize!(self, b.as_slice()),
             Field::Decimal(d) => serialize!(self, d.serialize()),
-            Field::Timestamp(t) => serialize!(self, t.timestamp_millis().to_be_bytes()),
+            Field::Timestamp(t) => serialize!(self, t.timestamp_millis().to_le_bytes()),
             Field::Date(d) => serialize!(self, d.to_string().as_bytes()),
             Field::Bson(b) => serialize!(self, b.clone()),
             Field::Null => Ok(Self::get_type_prefix(self.get_type().unwrap())),
@@ -99,9 +99,9 @@ impl Field {
         let return_type = Self::from_type_prefix(Box::from(buf[0..offset].to_vec()));
         let val = buf[1..buf.len()].as_ref();
         match return_type {
-            FieldType::Int => Ok(Field::Int(i64::from_be_bytes(deserialize!(val)))),
-            FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(deserialize!(val)))),
-            FieldType::Float => Ok(Field::Float(OrderedFloat::from(f64::from_be_bytes(
+            FieldType::Int => Ok(Field::Int(i64::from_le_bytes(deserialize!(val)))),
+            FieldType::UInt => Ok(Field::UInt(u64::from_le_bytes(deserialize!(val)))),
+            FieldType::Float => Ok(Field::Float(OrderedFloat::from(f64::from_le_bytes(
                 deserialize!(val),
             )))),
             FieldType::Boolean => Ok(Field::Boolean(*val == [1_u8])),
@@ -110,7 +110,7 @@ impl Field {
             FieldType::Binary => Ok(Field::Binary(val.try_into().unwrap())),
             FieldType::Decimal => Ok(Field::Decimal(Decimal::deserialize(deserialize!(val)))),
             FieldType::Timestamp => Ok(Field::Timestamp(DateTime::from(
-                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(val))),
+                Utc.timestamp_millis(i64::from_le_bytes(deserialize!(val))),
             ))),
             FieldType::Date => Ok(Field::Date(
                 NaiveDate::parse_from_str(
