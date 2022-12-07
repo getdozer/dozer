@@ -11,7 +11,6 @@ use dozer_types::types::Schema;
 use odbc::create_environment_v3;
 use rand::Rng;
 use std::thread;
-use std::time::Duration;
 
 use crate::test_util::load_config;
 
@@ -176,8 +175,6 @@ fn connector_e2e_connect_snowflake_get_schemas_test() {
             ),
         )
         .unwrap();
-
-    thread::sleep(Duration::from_secs(1));
 
     let schemas = connector
         .as_ref()
