@@ -36,7 +36,7 @@ pub(crate) fn init_component<F>(
 where
     F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
 {
-    let mut env = LmdbEnvironmentManager::create(base_path, node_handle.as_str())?;
+    let mut env = LmdbEnvironmentManager::create(base_path, format!("{}", node_handle).as_str())?;
     let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
     init_f(env.as_environment())?;
     Ok(StorageMetadata::new(env, db))
@@ -143,28 +143,6 @@ pub(crate) fn index_edges(
 
     (senders, receivers)
 }
-
-// pub(crate) fn get_node_types_and_edges(
-//     dag: Dag,
-// ) -> (
-//     Vec<(NodeHandle, Box<dyn SourceFactory>)>,
-//     Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
-//     Vec<(NodeHandle, Box<dyn SinkFactory>)>,
-//     Vec<Edge>,
-// ) {
-//     let mut sources = Vec::new();
-//     let mut processors = Vec::new();
-//     let mut sinks = Vec::new();
-//
-//     for node in dag.nodes.into_iter() {
-//         match node.1 {
-//             NodeType::Source(s) => sources.push((node.0, s)),
-//             NodeType::Processor(s) => processors.push((node.0, s)),
-//             NodeType::Sink(s) => sinks.push((node.0, s)),
-//         }
-//     }
-//     (sources, processors, sinks, dag.edges)
-// }
 
 pub(crate) fn build_receivers_lists(
     receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,

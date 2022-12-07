@@ -370,19 +370,16 @@ impl<'a> DagExecutor<'a> {
                 let r = st_receiver.recv_deadline(Instant::now().add(Duration::from_millis(500)));
                 match lt_stop_req.load(Ordering::Relaxed) {
                     STOP_REQ_TERM_AND_SHUTDOWN => {
-                        debug!("[{}] STOP_REQ_SHUTDOWN", lt_handle.as_str());
                         term_on_err!(dag_fw.commit_and_terminate(), lt_stop_req, lt_term_barrier);
                         lt_term_barrier.wait();
                         break;
                     }
                     STOP_REQ_SHUTDOWN => {
-                        debug!("[{}] STOP_REQ_SHUTDOWN", &lt_handle.as_str());
                         lt_term_barrier.wait();
                         return Ok(());
                     }
                     _ => match r {
                         Err(RecvTimeoutError::Timeout) => {
-                            debug!("[{}] RecvTimeoutError::Timeout", &lt_handle.as_str());
                             term_on_err!(
                                 dag_fw.trigger_commit_if_needed(),
                                 lt_stop_req,
@@ -390,7 +387,6 @@ impl<'a> DagExecutor<'a> {
                             )
                         }
                         Err(RecvTimeoutError::Disconnected) => {
-                            debug!("[{}] RecvTimeoutError::Disconnected", &lt_handle.as_str());
                             lt_stop_req.store(STOP_REQ_SHUTDOWN, Ordering::Relaxed);
                             lt_term_barrier.wait();
                             return Err(ChannelDisconnected);

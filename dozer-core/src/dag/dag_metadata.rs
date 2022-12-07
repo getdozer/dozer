@@ -78,11 +78,11 @@ impl<'a> DagMetadataManager<'a> {
         path: &Path,
         name: &NodeHandle,
     ) -> Result<DagMetadata, ExecutionError> {
-        if !LmdbEnvironmentManager::exists(path, name) {
+        if !LmdbEnvironmentManager::exists(path, format!("{}", name).as_str()) {
             return Err(InvalidCheckpointState(name.clone()));
         }
 
-        let mut env = LmdbEnvironmentManager::create(path, name)?;
+        let mut env = LmdbEnvironmentManager::create(path, format!("{}", name).as_str())?;
         let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
 
@@ -103,7 +103,7 @@ impl<'a> DagMetadataManager<'a> {
             ))?;
             match value.0[0] {
                 SOURCE_ID_IDENTIFIER => {
-                    let handle: NodeHandle = String::from_utf8_lossy(&value.0[1..]).to_string();
+                    let handle: NodeHandle = NodeHandle::from_bytes(&value.0[1..]);
                     let seq: u64 = u64::from_be_bytes(value.1.try_into().unwrap());
                     map.insert(handle, seq);
                 }
@@ -161,7 +161,7 @@ impl<'a> DagMetadataManager<'a> {
                 Ok(r) => {
                     all.insert(node.0.clone(), r);
                 }
-                Err(_e) => LmdbEnvironmentManager::remove(path, node.0),
+                Err(_e) => LmdbEnvironmentManager::remove(path, format!("{}", node.0).as_str()),
             }
         }
         Ok(all)
@@ -234,7 +234,7 @@ impl<'a> DagMetadataManager<'a> {
 
     pub(crate) fn delete_metadata(&self) {
         for node in &self.dag.nodes {
-            LmdbEnvironmentManager::remove(self.path, node.0);
+            LmdbEnvironmentManager::remove(self.path, format!("{}", node.0).as_str());
         }
     }
 
@@ -256,11 +256,12 @@ impl<'a> DagMetadataManager<'a> {
                 .get(node.0)
                 .ok_or_else(|| InvalidNodeHandle(node.0.clone()))?;
 
-            if LmdbEnvironmentManager::exists(self.path, node.0) {
+            if LmdbEnvironmentManager::exists(self.path, format!("{}", node.0).as_str()) {
                 return Err(MetadataAlreadyExists(node.0.clone()));
             }
 
-            let mut env = LmdbEnvironmentManager::create(self.path, node.0)?;
+            let mut env =
+                LmdbEnvironmentManager::create(self.path, format!("{}", node.0).as_str())?;
             let db = env.open_database(METADATA_DB_NAME, false)?;
             let mut txn = env.create_txn()?;
 
@@ -286,7 +287,7 @@ impl<'a> DagMetadataManager<'a> {
 
             for (source, _factory) in &self.dag.get_sources() {
                 let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
-                key.extend(source.as_bytes());
+                key.extend(source.to_bytes());
                 txn.put(&db, &key, &0_u64.to_be_bytes())?;
             }
 

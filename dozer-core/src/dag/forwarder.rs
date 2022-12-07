@@ -126,7 +126,7 @@ impl StateWriter {
         seq: u64,
     ) -> Result<(), ExecutionError> {
         let mut full_key = vec![SOURCE_ID_IDENTIFIER];
-        full_key.extend(source.as_bytes());
+        full_key.extend(source.to_bytes());
 
         self.tx
             .write()

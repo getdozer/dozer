@@ -21,13 +21,18 @@ fn test_checpoint_consistency() {
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
 
+    let source1_handle = NodeHandle::new(Some(1), 1);
+    let source2_handle = NodeHandle::new(Some(1), 2);
+    let proc_handle = NodeHandle::new(Some(1), 3);
+    let sink_handle = NodeHandle::new(Some(1), 4);
+
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
             25_000,
             latch.clone(),
             true,
         ))),
-        "source1".to_string(),
+        source1_handle,
     );
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
@@ -35,30 +40,30 @@ fn test_checpoint_consistency() {
             latch.clone(),
             true,
         ))),
-        "source2".to_string(),
+        source2_handle,
     );
     dag.add_node(
         NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
-        "proc".to_string(),
+        proc_handle,
     );
     dag.add_node(
         NodeType::Sink(Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch))),
-        "sink".to_string(),
+        sink_handle,
     );
 
     chk!(dag.connect(
-        Endpoint::new("source1".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), 1),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle, 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("source2".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), 2),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle, 2),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
-        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -74,32 +79,32 @@ fn test_checpoint_consistency() {
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
     let c = r.get_checkpoint_consistency();
 
-    match c.get("source1").unwrap() {
+    match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
         Consistency::FullyConsistent(r) => assert_eq!(r, &25_000),
     }
 
-    match c.get("source2").unwrap() {
+    match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
         Consistency::FullyConsistent(r) => assert_eq!(r, &50_000),
     }
 
-    LmdbEnvironmentManager::remove(tmp_dir.path(), "proc");
+    LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{}", proc_handle).as_str());
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
     let c = r.get_checkpoint_consistency();
 
     let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
-    expected.insert(25000_u64, vec!["source1".to_string(), "sink".to_string()]);
-    expected.insert(0_u64, vec!["proc".to_string()]);
-    match c.get("source1").unwrap() {
+    expected.insert(25000_u64, vec![source1_handle, sink_handle]);
+    expected.insert(0_u64, vec![proc_handle]);
+    match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
     }
 
     let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
-    expected.insert(50000_u64, vec!["source2".to_string(), "sink".to_string()]);
-    expected.insert(0_u64, vec!["proc".to_string()]);
-    match c.get("source2").unwrap() {
+    expected.insert(50000_u64, vec![source2_handle, sink_handle]);
+    expected.insert(0_u64, vec![proc_handle]);
+    match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
     }

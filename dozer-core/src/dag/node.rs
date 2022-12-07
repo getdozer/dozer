@@ -4,8 +4,60 @@ use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
-pub type NodeHandle = String;
+//pub type NodeHandle = String;
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Copy)]
+pub struct NodeHandle {
+    ns: Option<u16>,
+    id: u16,
+}
+
+impl NodeHandle {
+    pub fn new(ns: Option<u16>, id: u16) -> Self {
+        Self { ns, id }
+    }
+}
+
+impl NodeHandle {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut r = Vec::<u8>::with_capacity(5);
+        match self.ns {
+            Some(ns) => {
+                r.push(1_u8);
+                r.extend(ns.to_le_bytes());
+            }
+            None => r.push(0_u8),
+        }
+        r.extend(self.id.to_le_bytes());
+        r
+    }
+
+    pub(crate) fn from_bytes(buffer: &[u8]) -> NodeHandle {
+        match buffer[0] {
+            1_u8 => {
+                let ns = u16::from_le_bytes(buffer[1..3].try_into().unwrap());
+                let id: u16 = u16::from_le_bytes(buffer[3..5].try_into().unwrap());
+                NodeHandle::new(Some(ns), id)
+            }
+            _ => {
+                let id: u16 = u16::from_le_bytes(buffer[1..3].try_into().unwrap());
+                NodeHandle::new(None, id)
+            }
+        }
+    }
+}
+
+impl Display for NodeHandle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let ns_str = match self.ns {
+            Some(ns) => ns.to_string(),
+            None => "r".to_string(),
+        };
+        f.write_str(&*format!("{}_{}", ns_str, self.id))
+    }
+}
+
 pub type PortHandle = u16;
 
 #[derive(Debug, Clone)]

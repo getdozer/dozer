@@ -13,6 +13,8 @@ mod dag_recordreader;
 #[cfg(test)]
 mod dag_schemas;
 #[cfg(test)]
+mod node;
+#[cfg(test)]
 mod sinks;
 #[cfg(test)]
 mod sources;

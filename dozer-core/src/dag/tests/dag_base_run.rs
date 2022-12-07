@@ -4,7 +4,7 @@ use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::common::init_log4rs;
@@ -86,31 +86,35 @@ fn test_run_dag() {
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
 
+    let source_handle = NodeHandle::new(Some(1), 1);
+    let proc_handle = NodeHandle::new(Some(1), 2);
+    let sink_handle = NodeHandle::new(Some(1), 3);
+
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
             count,
             latch.clone(),
             false,
         ))),
-        "source".to_string(),
+        source_handle.clone(),
     );
     dag.add_node(
         NodeType::Processor(Arc::new(NoopProcessorFactory {})),
-        "proc".to_string(),
+        proc_handle.clone(),
     );
     dag.add_node(
         NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
-        "sink".to_string(),
+        sink_handle.clone(),
     );
 
     chk!(dag.connect(
-        Endpoint::new("source".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
-        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -133,31 +137,35 @@ fn test_run_dag_and_stop() {
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
 
+    let source_handle = NodeHandle::new(None, 1);
+    let proc_handle = NodeHandle::new(Some(1), 2);
+    let sink_handle = NodeHandle::new(Some(1), 3);
+
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
             count,
             latch.clone(),
             false,
         ))),
-        "source".to_string(),
+        source_handle,
     );
     dag.add_node(
         NodeType::Processor(Arc::new(NoopProcessorFactory {})),
-        "proc".to_string(),
+        proc_handle,
     );
     dag.add_node(
         NodeType::Sink(Arc::new(CountingSinkFactory::new(count, latch))),
-        "sink".to_string(),
+        sink_handle,
     );
 
     chk!(dag.connect(
-        Endpoint::new("source".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
-        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -176,7 +184,7 @@ fn test_run_dag_and_stop() {
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
     let c = r.get_checkpoint_consistency();
     assert!(matches!(
-        c.get("source").unwrap(),
+        c.get(&source_handle).unwrap(),
         Consistency::FullyConsistent(_)
     ));
 }
@@ -244,13 +252,19 @@ fn test_run_dag_2_sources_stateless() {
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
 
+    let source1_handle = NodeHandle::new(None, 1);
+    let source2_handle = NodeHandle::new(None, 2);
+
+    let proc_handle = NodeHandle::new(Some(1), 1);
+    let sink_handle = NodeHandle::new(Some(1), 2);
+
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
             count,
             latch.clone(),
             false,
         ))),
-        "source1".to_string(),
+        source1_handle,
     );
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
@@ -258,30 +272,30 @@ fn test_run_dag_2_sources_stateless() {
             latch.clone(),
             false,
         ))),
-        "source2".to_string(),
+        source2_handle,
     );
     dag.add_node(
         NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
-        "proc".to_string(),
+        proc_handle,
     );
     dag.add_node(
         NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch))),
-        "sink".to_string(),
+        sink_handle,
     );
 
     chk!(dag.connect(
-        Endpoint::new("source1".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), 1),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle, 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("source2".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), 2),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle, 2),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
-        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -304,13 +318,19 @@ fn test_run_dag_2_sources_stateful() {
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
 
+    let source1_handle = NodeHandle::new(None, 1);
+    let source2_handle = NodeHandle::new(None, 2);
+
+    let proc_handle = NodeHandle::new(Some(1), 1);
+    let sink_handle = NodeHandle::new(Some(1), 2);
+
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
             count,
             latch.clone(),
             true,
         ))),
-        "source1".to_string(),
+        source1_handle,
     );
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
@@ -318,30 +338,30 @@ fn test_run_dag_2_sources_stateful() {
             latch.clone(),
             true,
         ))),
-        "source2".to_string(),
+        source2_handle,
     );
     dag.add_node(
         NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
-        "proc".to_string(),
+        proc_handle,
     );
     dag.add_node(
         NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch))),
-        "sink".to_string(),
+        sink_handle,
     );
 
     chk!(dag.connect(
-        Endpoint::new("source1".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), 1),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle, 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("source2".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
-        Endpoint::new("proc".to_string(), 2),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle, 2),
     ));
 
     chk!(dag.connect(
-        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
-        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));

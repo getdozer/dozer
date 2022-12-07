@@ -124,17 +124,8 @@ impl Dag {
     }
 
     pub fn merge(&mut self, namespace: String, other: Dag) {
-        for node in other.nodes {
-            self.nodes
-                .insert(format!("{}_{}", namespace, node.0), node.1);
-        }
-
-        for edge in other.edges {
-            self.edges.push(Edge::new(
-                Endpoint::new(format!("{}_{}", namespace, edge.from.node), edge.from.port),
-                Endpoint::new(format!("{}_{}", namespace, edge.to.node), edge.to.port),
-            ));
-        }
+        self.edges.extend(other.edges);
+        self.nodes.extend(other.nodes);
     }
 
     fn get_node_children(&self, handle: &NodeHandle) -> Vec<NodeHandle> {
