@@ -1,12 +1,15 @@
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
-use crate::{deserialize_u8, field_extract_f64, field_extract_i64, to_bytes, try_unwrap};
+use crate::{
+    deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64, to_bytes,
+    try_unwrap,
+};
 
 use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::Field::{Float, Int};
+use dozer_types::types::Field::{Decimal, Float, Int};
 use dozer_types::types::{Field, FieldType};
 
 use std::string::ToString;
@@ -19,8 +22,9 @@ impl MaxAggregator {
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
-            FieldType::Int => FieldType::Decimal,
-            FieldType::Float => FieldType::Decimal,
+            FieldType::Int => FieldType::Int,
+            FieldType::Float => FieldType::Float,
+            FieldType::Decimal => FieldType::Decimal,
             _ => from,
         }
     }
@@ -60,6 +64,22 @@ impl MaxAggregator {
                     Self::get_value(&maximum, return_type),
                     Some(Vec::from(maximum)),
                 ))
+            }
+            Decimal(_d) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
+
+                // Calculate minimum
+                let maximum = try_unwrap!(Self::calc_decimal_max(ptx, aggregators_db));
+                if maximum == dozer_types::rust_decimal::Decimal::MIN {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(maximum.serialize().as_slice(), return_type),
+                        Some(Vec::from(maximum.serialize())),
+                    ))
+                }
             }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
@@ -101,6 +121,24 @@ impl MaxAggregator {
                     Self::get_value(&maximum, return_type),
                     Some(Vec::from(maximum)),
                 ))
+            }
+            Decimal(_d) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
+                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
+
+                // Calculate minimum
+                let maximum = try_unwrap!(Self::calc_decimal_max(ptx, aggregators_db));
+                if maximum == dozer_types::rust_decimal::Decimal::MIN {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(maximum.serialize().as_slice(), return_type),
+                        Some(Vec::from(maximum.serialize())),
+                    ))
+                }
             }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
@@ -146,6 +184,22 @@ impl MaxAggregator {
                     ))
                 }
             }
+            Decimal(_d) => {
+                // Update aggregators_db with new val and its occurrence
+                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
+
+                // Calculate minimum
+                let maximum = try_unwrap!(Self::calc_decimal_max(ptx, aggregators_db));
+                if maximum == dozer_types::rust_decimal::Decimal::MIN {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(maximum.serialize().as_slice(), return_type),
+                        Some(Vec::from(maximum.serialize())),
+                    ))
+                }
+            }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
@@ -154,6 +208,9 @@ impl MaxAggregator {
         match from {
             FieldType::Int => Int(i64::from_le_bytes(f.try_into().unwrap())),
             FieldType::Float => Float(OrderedFloat(f64::from_le_bytes(f.try_into().unwrap()))),
+            FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
+                f.try_into().unwrap(),
+            )),
             _ => Field::Null,
         }
     }
@@ -191,6 +248,21 @@ impl MaxAggregator {
         if ptx_cur.last()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
             maximum = f64::from_le_bytes((cur.0).try_into().unwrap());
+        }
+        Ok(maximum)
+    }
+
+    fn calc_decimal_max(
+        ptx: &mut PrefixTransaction,
+        aggregators_db: &Database,
+    ) -> Result<dozer_types::rust_decimal::Decimal, PipelineError> {
+        let ptx_cur = ptx.open_cursor(aggregators_db)?;
+        let mut maximum = dozer_types::rust_decimal::Decimal::MIN;
+
+        // get first to get the minimum
+        if ptx_cur.last()? {
+            let cur = try_unwrap!(ptx_cur.read()).unwrap();
+            maximum = dozer_types::rust_decimal::Decimal::deserialize((cur.0).try_into().unwrap());
         }
         Ok(maximum)
     }
