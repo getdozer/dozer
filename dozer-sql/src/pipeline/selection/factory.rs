@@ -37,17 +37,19 @@ impl ProcessorFactory for SelectionProcessorFactory {
 
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
-        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        let schema = input_schemas
+            .get(&DEFAULT_PORT_HANDLE)
+            .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         Ok(schema.clone())
     }
 
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Box<dyn Processor> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
         let expression = ExpressionBuilder {}

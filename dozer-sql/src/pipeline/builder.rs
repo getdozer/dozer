@@ -1,19 +1,19 @@
-use super::aggregation::processor::AggregationProcessorFactory;
-use super::processor::preaggregation::PreAggregationProcessorFactory;
-use super::processor::selection::SelectionProcessorFactory;
+use super::aggregation::factory::AggregationProcessorFactory;
 use super::product::factory::get_input_tables;
 use super::product::factory::ProductProcessorFactory;
+use super::selection::factory::SelectionProcessorFactory;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidQuery;
 use dozer_core::dag::dag::Dag;
 use dozer_core::dag::dag::Endpoint;
 use dozer_core::dag::dag::NodeType;
-use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{NodeHandle, PortHandle};
 use sqlparser::ast::{Query, Select, SetExpr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct PipelineBuilder {}
 
@@ -52,9 +52,6 @@ impl PipelineBuilder {
     ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
         let mut dag = Dag::new();
 
-        let first_node_name = String::from("product");
-        let mut last_node_name = String::from("preaggregation");
-
         // FROM clause
         if select.from.len() != 1 {
             return Err(InvalidQuery(
@@ -63,19 +60,20 @@ impl PipelineBuilder {
         }
         let product = ProductProcessorFactory::new(select.from[0].clone());
         let input_tables = get_input_tables(&select.from[0])?;
-        let input_endpoints = self.get_input_endpoints(&first_node_name, &input_tables)?;
+        let input_endpoints =
+            self.get_input_endpoints(Some(1), String::from("product"), &input_tables)?;
 
         dag.add_node(
-            NodeType::Processor(Box::new(product)),
-            String::from("product"),
+            NodeType::Processor(Arc::new(product)),
+            NodeHandle::new(Some(1), String::from("product")),
         );
 
-        // Select clause
-        let preaggregation = PreAggregationProcessorFactory::new(select.projection.clone());
+        let aggregation =
+            AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
 
         dag.add_node(
-            NodeType::Processor(Box::new(preaggregation)),
-            String::from("preaggregation"),
+            NodeType::Processor(Arc::new(aggregation)),
+            NodeHandle::new(Some(1), String::from("aggregation")),
         );
 
         // Where clause
@@ -84,54 +82,58 @@ impl PipelineBuilder {
             // first_node_name = String::from("selection");
 
             dag.add_node(
-                NodeType::Processor(Box::new(selection)),
-                String::from("selection"),
+                NodeType::Processor(Arc::new(selection)),
+                NodeHandle::new(Some(1), String::from("selection")),
             );
 
             let _ = dag.connect(
-                Endpoint::new(String::from("product"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("product")),
+                    DEFAULT_PORT_HANDLE,
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("selection")),
+                    DEFAULT_PORT_HANDLE,
+                ),
             );
 
             let _ = dag.connect(
-                Endpoint::new(String::from("selection"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("selection")),
+                    DEFAULT_PORT_HANDLE,
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("aggregatiion")),
+                    DEFAULT_PORT_HANDLE,
+                ),
             );
         } else {
             let _ = dag.connect(
-                Endpoint::new(String::from("product"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
-            );
-        }
-
-        // Group by clause
-        if !select.group_by.is_empty() {
-            let aggregation =
-                AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
-
-            last_node_name = String::from("aggregation");
-
-            dag.add_node(
-                NodeType::Processor(Box::new(aggregation)),
-                String::from("aggregation"),
-            );
-
-            let _ = dag.connect(
-                Endpoint::new(String::from("preaggregation"), DEFAULT_PORT_HANDLE),
-                Endpoint::new(String::from("aggregation"), DEFAULT_PORT_HANDLE),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("product")),
+                    DEFAULT_PORT_HANDLE,
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), String::from("aggregation")),
+                    DEFAULT_PORT_HANDLE,
+                ),
             );
         }
 
         Ok((
             dag,
             input_endpoints,
-            Endpoint::new(last_node_name, DEFAULT_PORT_HANDLE),
+            Endpoint::new(
+                NodeHandle::new(Some(1), String::from("aggregation")),
+                DEFAULT_PORT_HANDLE,
+            ),
         ))
     }
 
     fn get_input_endpoints(
         &self,
-        node_name: &String,
+        namespace: Option<u16>,
+        node_name: String,
         input_tables: &[String],
     ) -> Result<HashMap<String, Endpoint>, PipelineError> {
         let mut endpoints = HashMap::new();
@@ -139,7 +141,10 @@ impl PipelineBuilder {
         for (input_port, table) in input_tables.iter().enumerate() {
             endpoints.insert(
                 table.clone(),
-                Endpoint::new(NodeHandle::from(node_name), input_port as PortHandle),
+                Endpoint::new(
+                    NodeHandle::new(namespace, node_name.clone()),
+                    input_port as PortHandle,
+                ),
             );
         }
 
