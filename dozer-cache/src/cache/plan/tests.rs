@@ -1,6 +1,6 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression, SortOptions},
+    expression::{self, FilterExpression, QueryExpression, SortOption},
     plan::{IndexScanKind, SortedInvertedRangeQuery},
     test_utils,
 };
@@ -99,7 +99,7 @@ fn test_generate_plan_range_query_and_order_by() {
     let filter = FilterExpression::Simple("c".into(), expression::Operator::GT, 1.into());
     let query = QueryExpression::new(
         Some(filter),
-        vec![SortOptions {
+        vec![SortOption {
             field_name: "c".into(),
             direction: SortDirection::Descending,
         }],

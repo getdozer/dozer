@@ -37,7 +37,7 @@ impl<'a> QueryPlanner<'a> {
         // Filter the sort options.
         // TODO: Handle duplicate fields.
         let mut order_by = vec![];
-        for order in &self.query.order_by {
+        for order in &self.query.order_by.0 {
             // Find the field index.
             let (field_index, _) = get_field_index_and_type(&order.field_name, &self.schema.fields)
                 .ok_or(PlanError::FieldNotFound)?;
