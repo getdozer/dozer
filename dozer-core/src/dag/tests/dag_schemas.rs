@@ -145,36 +145,39 @@ impl SinkFactory for TestSinkFactory {
 fn test_extract_dag_schemas() {
     let mut dag = Dag::new();
 
-    let users_handle = NodeHandle::new(Some(1), 1);
-    let countries_handle = NodeHandle::new(Some(1), 2);
-    let join_handle = NodeHandle::new(Some(1), 3);
-    let sink_handle = NodeHandle::new(Some(1), 4);
+    let users_handle = NodeHandle::new(Some(1), 1.to_string());
+    let countries_handle = NodeHandle::new(Some(1), 2.to_string());
+    let join_handle = NodeHandle::new(Some(1), 3.to_string());
+    let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
     dag.add_node(
         NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle,
+        users_handle.clone(),
     );
     dag.add_node(
         NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
-        countries_handle,
+        countries_handle.clone(),
     );
     dag.add_node(
         NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle,
+        join_handle.clone(),
     );
-    dag.add_node(NodeType::Sink(Arc::new(TestSinkFactory {})), sink_handle);
+    dag.add_node(
+        NodeType::Sink(Arc::new(TestSinkFactory {})),
+        sink_handle.clone(),
+    );
 
     chk!(dag.connect(
-        Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle, 1),
+        Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), 1),
     ));
     chk!(dag.connect(
-        Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle, 2),
+        Endpoint::new(countries_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), 2),
     ));
     chk!(dag.connect(
-        Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     let sm = chk!(DagSchemaManager::new(&dag));
@@ -214,37 +217,40 @@ fn test_extract_dag_schemas() {
 
 #[test]
 fn test_init_metadata() {
-    let users_handle = NodeHandle::new(Some(1), 1);
-    let countries_handle = NodeHandle::new(Some(1), 2);
-    let join_handle = NodeHandle::new(Some(1), 3);
-    let sink_handle = NodeHandle::new(Some(1), 4);
+    let users_handle = NodeHandle::new(Some(1), 1.to_string());
+    let countries_handle = NodeHandle::new(Some(1), 2.to_string());
+    let join_handle = NodeHandle::new(Some(1), 3.to_string());
+    let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
     let mut dag = Dag::new();
     dag.add_node(
         NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle,
+        users_handle.clone(),
     );
     dag.add_node(
         NodeType::Source(Arc::new(TestCountriesSourceFactory {})),
-        countries_handle,
+        countries_handle.clone(),
     );
     dag.add_node(
         NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle,
+        join_handle.clone(),
     );
-    dag.add_node(NodeType::Sink(Arc::new(TestSinkFactory {})), sink_handle);
+    dag.add_node(
+        NodeType::Sink(Arc::new(TestSinkFactory {})),
+        sink_handle.clone(),
+    );
 
     chk!(dag.connect(
-        Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle, 1),
+        Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), 1),
     ));
     chk!(dag.connect(
-        Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle, 2),
+        Endpoint::new(countries_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), 2),
     ));
     chk!(dag.connect(
-        Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     let tmp_dir = chk!(TempDir::new("example"));
@@ -262,29 +268,32 @@ fn test_init_metadata() {
     let mut dag = Dag::new();
     dag.add_node(
         NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        users_handle,
+        users_handle.clone(),
     );
     dag.add_node(
         NodeType::Source(Arc::new(TestUsersSourceFactory {})),
-        countries_handle,
+        countries_handle.clone(),
     );
     dag.add_node(
         NodeType::Processor(Arc::new(TestJoinProcessorFactory {})),
-        join_handle,
+        join_handle.clone(),
     );
-    dag.add_node(NodeType::Sink(Arc::new(TestSinkFactory {})), sink_handle);
+    dag.add_node(
+        NodeType::Sink(Arc::new(TestSinkFactory {})),
+        sink_handle.clone(),
+    );
 
     chk!(dag.connect(
-        Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle, 1),
+        Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), 1),
     ));
     chk!(dag.connect(
-        Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(join_handle, 2),
+        Endpoint::new(countries_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), 2),
     ));
     chk!(dag.connect(
-        Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     let exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default());

@@ -85,13 +85,13 @@ macro_rules! test_ports {
             let src = DynPortsSourceFactory::new($out_ports);
             let proc = DynPortsProcessorFactory::new($in_ports, vec![DEFAULT_PORT_HANDLE]);
 
-            let source_handle = NodeHandle::new(None, 1);
-            let proc_handle = NodeHandle::new(Some(1), 1);
+            let source_handle = NodeHandle::new(None, 1.to_string());
+            let proc_handle = NodeHandle::new(Some(1), 1.to_string());
 
             let mut dag = Dag::new();
 
-            dag.add_node(NodeType::Source(Arc::new(src)), source_handle);
-            dag.add_node(NodeType::Processor(Arc::new(proc)), proc_handle);
+            dag.add_node(NodeType::Source(Arc::new(src)), source_handle.clone());
+            dag.add_node(NodeType::Processor(Arc::new(proc)), proc_handle.clone());
 
             let res = dag.connect(
                 Endpoint::new(source_handle, $from_port),
@@ -139,32 +139,3 @@ test_ports!(
     2,
     false
 );
-
-// #[test]
-// fn test_dag_merge() {
-//     let src = DynPortsSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
-//     let proc = DynPortsProcessorFactory::new(vec![DEFAULT_PORT_HANDLE], vec![DEFAULT_PORT_HANDLE]);
-//
-//     let mut dag = Dag::new();
-//
-//     let source_handle = NodeHandle::new(None, 1);
-//     let proc_handle = NodeHandle::new(Some(1), 1);
-//
-//     dag.add_node(NodeType::Source(Arc::new(src)), source_handle);
-//     dag.add_node(NodeType::Processor(Arc::new(proc)), proc_handle);
-//
-//     let mut new_dag: Dag = Dag::new();
-//     new_dag.merge("test".to_string(), dag);
-//
-//     let res = new_dag.connect(
-//         Endpoint::new(source_handle, DEFAULT_PORT_HANDLE),
-//         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
-//     );
-//     assert!(res.is_err());
-//
-//     let res = new_dag.connect(
-//         Endpoint::new("test_1".to_string(), DEFAULT_PORT_HANDLE),
-//         Endpoint::new("test_2".to_string(), DEFAULT_PORT_HANDLE),
-//     );
-//     assert!(res.is_ok())
-// }

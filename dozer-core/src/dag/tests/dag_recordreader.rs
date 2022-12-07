@@ -181,10 +181,10 @@ fn test_run_dag_reacord_reader() {
 
     let mut dag = Dag::new();
 
-    let SOURCE_ID: NodeHandle = NodeHandle::new(None, 1);
-    let PASSTHROUGH_ID: NodeHandle = NodeHandle::new(Some(1), 1);
-    let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 2);
-    let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 3);
+    let SOURCE_ID: NodeHandle = NodeHandle::new(None, 1.to_string());
+    let PASSTHROUGH_ID: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
+    let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
+    let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 3.to_string());
 
     dag.add_node(NodeType::Source(Arc::new(src)), SOURCE_ID.clone());
     dag.add_node(
@@ -243,9 +243,9 @@ fn test_run_dag_reacord_reader_from_src() {
 
     let mut dag = Dag::new();
 
-    let SOURCE_ID: NodeHandle = NodeHandle::new(None, 1);
-    let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 1);
-    let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 2);
+    let SOURCE_ID: NodeHandle = NodeHandle::new(None, 1.to_string());
+    let RECORD_READER_ID: NodeHandle = NodeHandle::new(Some(1), 1.to_string());
+    let SINK_ID: NodeHandle = NodeHandle::new(Some(1), 2.to_string());
 
     dag.add_node(NodeType::Source(Arc::new(src)), SOURCE_ID.clone());
     dag.add_node(

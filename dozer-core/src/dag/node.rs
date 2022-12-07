@@ -5,16 +5,17 @@ use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::str::from_utf8;
 
 //pub type NodeHandle = String;
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NodeHandle {
     ns: Option<u16>,
-    id: u16,
+    id: String,
 }
 
 impl NodeHandle {
-    pub fn new(ns: Option<u16>, id: u16) -> Self {
+    pub fn new(ns: Option<u16>, id: String) -> Self {
         Self { ns, id }
     }
 }
@@ -29,7 +30,9 @@ impl NodeHandle {
             }
             None => r.push(0_u8),
         }
-        r.extend(self.id.to_le_bytes());
+        let id_buf = self.id.as_bytes();
+        r.extend((id_buf.len() as u16).to_le_bytes());
+        r.extend(id_buf);
         r
     }
 
@@ -37,12 +40,14 @@ impl NodeHandle {
         match buffer[0] {
             1_u8 => {
                 let ns = u16::from_le_bytes(buffer[1..3].try_into().unwrap());
-                let id: u16 = u16::from_le_bytes(buffer[3..5].try_into().unwrap());
-                NodeHandle::new(Some(ns), id)
+                let id_len: u16 = u16::from_le_bytes(buffer[3..5].try_into().unwrap());
+                let id = from_utf8(&buffer[5..5 + id_len as usize]).unwrap();
+                NodeHandle::new(Some(ns), id.to_string())
             }
             _ => {
-                let id: u16 = u16::from_le_bytes(buffer[1..3].try_into().unwrap());
-                NodeHandle::new(None, id)
+                let id_len: u16 = u16::from_le_bytes(buffer[1..3].try_into().unwrap());
+                let id = from_utf8(&buffer[3..3 + id_len as usize]).unwrap();
+                NodeHandle::new(None, id.to_string())
             }
         }
     }
