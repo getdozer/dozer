@@ -1,3 +1,5 @@
+#[cfg(feature = "snowflake")]
+use odbc::create_environment_v3;
 use std::sync::Arc;
 #[cfg(feature = "snowflake")]
 use std::time::Duration;
@@ -14,7 +16,8 @@ use dozer_types::parking_lot::RwLock;
 use crate::connectors::snowflake::snapshotter::Snapshotter;
 #[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
-
+#[cfg(feature = "snowflake")]
+use crate::errors::SnowflakeError::ConnectionError;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
@@ -38,6 +41,23 @@ impl SnowflakeConnector {
 }
 
 impl Connector for SnowflakeConnector {
+    #[cfg(feature = "snowflake")]
+    fn get_schemas(
+        &self,
+        table_names: Option<Vec<TableInfo>>,
+    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
+        let client = Client::new(&self.config);
+        let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
+        let conn = env
+            .connect_with_connection_string(&client.get_conn_string())
+            .map_err(|e| ConnectionError(Box::new(e)))?;
+
+        client
+            .fetch_tables(table_names, &self.config, &conn)
+            .map_err(ConnectorError::SnowflakeError)
+    }
+
+    #[cfg(not(feature = "snowflake"))]
     fn get_schemas(
         &self,
         _table_names: Option<Vec<TableInfo>>,

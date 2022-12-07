@@ -3,6 +3,8 @@ use dozer_types::log::debug;
 
 use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
+use crate::connectors::snowflake::schema_helper::SchemaHelper;
+use crate::connectors::TableInfo;
 use crate::errors::SnowflakeError::QueryError;
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
@@ -14,6 +16,7 @@ use odbc::{
     ResultSetState, Statement,
 };
 use std::collections::HashMap;
+use std::fmt::Write;
 
 pub fn convert_data(
     cursor: &mut Cursor<Executed, AutocommitOn>,
@@ -277,5 +280,118 @@ impl Client {
         stmt.exec_direct(query)
             .map_err(|e| QueryError(Box::new(e)))?;
         Ok(())
+    }
+
+    pub fn fetch_tables(
+        &self,
+        tables: Option<Vec<TableInfo>>,
+        _config: &SnowflakeConfig,
+        conn: &Connection<AutocommitOn>,
+    ) -> Result<Vec<(String, Schema)>, SnowflakeError> {
+        let tables_condition = tables.map_or("".to_string(), |tables| {
+            let mut buf = String::new();
+            buf.write_str(" AND TABLE_NAME IN(").unwrap();
+            for (idx, table_info) in tables.iter().enumerate() {
+                if idx > 0 {
+                    buf.write_char(',').unwrap();
+                }
+                buf.write_str(&format!("\'{}\'", table_info.name)).unwrap();
+            }
+            buf.write_char(')').unwrap();
+            buf
+        });
+
+        let query = format!(
+            "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, NUMERIC_SCALE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'PUBLIC' {}
+            ORDER BY TABLE_NAME, ORDINAL_POSITION",
+            tables_condition
+        );
+
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
+        match stmt
+            .exec_direct(&query)
+            .map_err(|e| QueryError(Box::new(e)))?
+        {
+            Data(data) => {
+                let cols = data
+                    .num_result_cols()
+                    .map_err(|e| QueryError(Box::new(e)))?;
+
+                let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
+                    .map(|i| {
+                        let value = i.try_into();
+                        match value {
+                            Ok(v) => {
+                                Ok(data.describe_col(v).map_err(|e| QueryError(Box::new(e)))?)
+                            }
+                            Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
+                                SchemaConversionError(e),
+                            )),
+                        }
+                    })
+                    .collect();
+
+                let schema = schema_result?;
+
+                let mut schemas: HashMap<String, Schema> = HashMap::new();
+                let iterator = ResultIterator {
+                    cols,
+                    stmt: data,
+                    schema,
+                };
+
+                for row_data in iterator {
+                    let empty = "".to_string();
+                    let table_name =
+                        if let Some(Field::String(table_name)) = &row_data.get(1).unwrap() {
+                            table_name
+                        } else {
+                            &empty
+                        };
+                    let field_name =
+                        if let Some(Field::String(field_name)) = &row_data.get(2).unwrap() {
+                            field_name
+                        } else {
+                            &empty
+                        };
+                    let type_name =
+                        if let Some(Field::String(type_name)) = &row_data.get(3).unwrap() {
+                            type_name
+                        } else {
+                            &empty
+                        };
+                    let nullable = if let Some(Field::Boolean(b)) = &row_data.get(4).unwrap() {
+                        b
+                    } else {
+                        &false
+                    };
+                    let scale = if let Some(Field::Int(scale)) = &row_data.get(5).unwrap() {
+                        Some(*scale)
+                    } else {
+                        None
+                    };
+
+                    schemas
+                        .entry(table_name.clone())
+                        .or_insert(Schema {
+                            identifier: Some(SchemaIdentifier { id: 0, version: 0 }),
+                            fields: vec![],
+                            values: vec![],
+                            primary_index: vec![],
+                        })
+                        .fields
+                        .push(FieldDefinition {
+                            name: field_name.clone(),
+                            typ: SchemaHelper::map_schema_type(type_name, scale)?,
+                            nullable: *nullable,
+                        })
+                }
+
+                Ok(schemas.into_iter().collect())
+            }
+            NoData(_) => Ok(vec![]),
+        }
     }
 }
