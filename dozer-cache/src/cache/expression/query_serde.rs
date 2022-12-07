@@ -6,10 +6,10 @@ use dozer_types::serde::ser::{self, Serialize, SerializeMap, Serializer};
 use dozer_types::serde_json::Value;
 use dozer_types::{serde, serde_json};
 
-use crate::cache::expression::query_helper::{and_expression, simple_expression};
+use crate::cache::expression::query_helper::{and_expression, simple_expression, sort_option};
 
 use super::super::expression::FilterExpression;
-use super::Operator;
+use super::{Operator, SortOptions};
 
 impl<'de> Deserialize<'de> for Operator {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -44,7 +44,7 @@ impl<'de> Deserialize<'de> for FilterExpression {
             type Value = FilterExpression;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("Could not deserialize FilterExpression")
+                formatter.write_str("map from field name to value or operator value map")
             }
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where
@@ -59,7 +59,7 @@ impl<'de> Deserialize<'de> for FilterExpression {
                             .map_err(|err| de::Error::custom(err.to_string()))?;
                         expressions.push(expression);
                     } else {
-                        let expression = simple_expression(&key, value)
+                        let expression = simple_expression(key, value)
                             .map_err(|err| de::Error::custom(err.to_string()))?;
                         expressions.push(expression);
                     }
@@ -110,5 +110,49 @@ impl Serialize for FilterExpression {
                 state.end()
             }
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for SortOptions {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SortOptionsVisitor {}
+        impl<'de> Visitor<'de> for SortOptionsVisitor {
+            type Value = SortOptions;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("map from field name to sort direction")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut sort_options = vec![];
+                while let Some(key) = map.next_key::<String>()? {
+                    let value: Value = map.next_value()?;
+                    let sort_option = sort_option(key, value)
+                        .map_err(|err| de::Error::custom(err.to_string()))?;
+                    sort_options.push(sort_option);
+                }
+                Ok(SortOptions(sort_options))
+            }
+        }
+        deserializer.deserialize_map(SortOptionsVisitor {})
+    }
+}
+
+impl Serialize for SortOptions {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_map(Some(self.0.len()))?;
+        for sort_option in &self.0 {
+            state.serialize_entry(&sort_option.field_name, sort_option.direction.to_str())?;
+        }
+        state.end()
     }
 }

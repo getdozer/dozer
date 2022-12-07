@@ -1,8 +1,11 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
+use crate::cache::expression::SortOption;
+use crate::cache::expression::SortOptions;
 use dozer_types::serde_json;
 use dozer_types::serde_json::json;
 use dozer_types::serde_json::Value;
+use dozer_types::types::SortDirection::{Ascending, Descending};
 
 #[test]
 fn test_serialize_filter_simple() {
@@ -75,7 +78,41 @@ fn test_serialize_filter_complex() {
     );
 }
 
+#[test]
+fn test_serialize_sort_options() {
+    test_serialize_sort_options_impl(vec![], json!({}));
+    test_serialize_sort_options_impl(
+        vec![SortOption::new("a".into(), Ascending)],
+        json!({"a": "asc"}),
+    );
+    test_serialize_sort_options_impl(
+        vec![SortOption::new("b".into(), Descending)],
+        json!({"b": "desc"}),
+    );
+    test_serialize_sort_options_impl(
+        vec![
+            SortOption::new("a".into(), Ascending),
+            SortOption::new("b".into(), Descending),
+        ],
+        json!({"a": "asc", "b": "desc"}),
+    );
+    test_serialize_sort_options_impl(
+        vec![
+            SortOption::new("b".into(), Ascending),
+            SortOption::new("a".into(), Descending),
+        ],
+        json!({"b": "asc", "a": "desc"}),
+    );
+}
+
 fn test_serialize_filter(a: Value, b: FilterExpression) {
-    let serialized = serde_json::to_string(&b).unwrap();
-    assert_eq!(a.to_string(), serialized, "must be equal");
+    let serialized = serde_json::to_value(b).unwrap();
+    assert_eq!(a, serialized, "must be equal");
+}
+
+fn test_serialize_sort_options_impl(sort_options: Vec<SortOption>, json: Value) {
+    assert_eq!(
+        serde_json::to_value(SortOptions(sort_options)).unwrap(),
+        json,
+    );
 }
