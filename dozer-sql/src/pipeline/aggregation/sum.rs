@@ -1,9 +1,9 @@
+use crate::deserialize;
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use dozer_types::deserialize;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Float, Int};
 use dozer_types::types::{Field, FieldType};

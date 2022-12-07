@@ -176,7 +176,7 @@ mod tests {
         );
 
         for a in [1i64, 2, 3] {
-            cache.delete(&a.to_be_bytes()).unwrap();
+            cache.delete(&Field::Int(a).to_bytes()).unwrap();
         }
 
         assert_eq!(
