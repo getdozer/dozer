@@ -1,10 +1,12 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
-use crate::cache::expression::{QueryExpression, SortOptions};
+use crate::cache::expression::SortOptions;
+use crate::cache::expression::{QueryExpression, SortOption};
 use crate::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::json;
 use dozer_types::serde_json::Value;
+use dozer_types::types::SortDirection::{Ascending, Descending};
 
 #[test]
 fn test_operators() -> Result<(), CacheError> {
@@ -142,27 +144,64 @@ fn test_filter_query_deserialize_complex() {
 }
 
 #[test]
+fn test_sort_options_query_deserialize() {
+    test_deserialize_sort_options(json!({}), vec![]);
+    test_deserialize_sort_options(
+        json!({"a": "asc", "b": "desc"}),
+        vec![
+            SortOption::new("a".into(), Ascending),
+            SortOption::new("b".into(), Descending),
+        ],
+    );
+    // Fields get sorted.
+    test_deserialize_sort_options(
+        json!({"b": "asc", "a": "desc"}),
+        vec![
+            SortOption::new("a".into(), Descending),
+            SortOption::new("b".into(), Ascending),
+        ],
+    );
+
+    test_deserialize_sort_options_error(json!(""));
+    test_deserialize_sort_options_error(json!(1));
+    test_deserialize_sort_options_error(json!(1.2));
+    test_deserialize_sort_options_error(json!(true));
+    test_deserialize_sort_options_error(json!(false));
+    test_deserialize_sort_options_error(json!(null));
+    test_deserialize_filter_error(json!([]));
+    test_deserialize_sort_options_error(json!({"a": "string"}));
+    test_deserialize_sort_options_error(json!({"a": 1}));
+    test_deserialize_sort_options_error(json!({"a": 1.2}));
+    test_deserialize_sort_options_error(json!({"a": true}));
+    test_deserialize_sort_options_error(json!({"a": false}));
+    test_deserialize_sort_options_error(json!({ "a": null }));
+    test_deserialize_sort_options_error(json!({"a": []}));
+    test_deserialize_sort_options_error(json!({"a": {}}));
+    test_deserialize_sort_options_error(json!({"-": "asc"}));
+}
+
+#[test]
 fn test_query_expression_deserialize() {
     test_deserialize_query(json!({}), QueryExpression::new(None, vec![], 50, 0));
     test_deserialize_query(
-        json!({"$order_by": [{"field_name": "abc", "direction": "asc"}]}),
+        json!({"$order_by": {"abc": "asc"}}),
         QueryExpression::new(
             None,
-            vec![SortOptions {
+            vec![SortOption {
                 field_name: "abc".to_owned(),
-                direction: crate::cache::expression::SortDirection::Ascending,
+                direction: Ascending,
             }],
             50,
             0,
         ),
     );
     test_deserialize_query(
-        json!({"$order_by": [{"field_name": "abc", "direction": "asc"}], "$limit": 100, "$skip": 20}),
+        json!({"$order_by": {"abc": "asc"}, "$limit": 100, "$skip": 20}),
         QueryExpression::new(
             None,
-            vec![SortOptions {
+            vec![SortOption {
                 field_name: "abc".to_owned(),
-                direction: crate::cache::expression::SortDirection::Ascending,
+                direction: Ascending,
             }],
             100,
             20,
@@ -196,4 +235,15 @@ fn test_deserialize_filter_error(a: Value) {
     let parsed_result = serde_json::from_value::<FilterExpression>(a);
 
     assert!(parsed_result.is_err());
+}
+
+fn test_deserialize_sort_options(json: Value, expected: Vec<SortOption>) {
+    assert_eq!(
+        serde_json::from_value::<SortOptions>(json).unwrap(),
+        SortOptions(expected)
+    );
+}
+
+fn test_deserialize_sort_options_error(json: Value) {
+    assert!(serde_json::from_value::<SortOptions>(json).is_err());
 }
