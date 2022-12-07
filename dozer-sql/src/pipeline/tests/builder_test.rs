@@ -1,11 +1,11 @@
 use crate::pipeline::builder::PipelineBuilder;
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::{Endpoint, NodeType};
+use dozer_core::dag::dag::{Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::executor_local::ExecutorOptions;
-use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source,
+    SourceFactory,
 };
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
@@ -17,6 +17,7 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::fs;
+use std::sync::Arc;
 use tempdir::TempDir;
 
 /// Test Source
@@ -37,7 +38,28 @@ impl SourceFactory for TestSourceFactory {
             .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
             .collect()
     }
-    fn build(&self) -> Box<dyn Source> {
+
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        Ok(Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
+                false,
+                false,
+            )
+            .field(
+                FieldDefinition::new(String::from("Country"), FieldType::String, false),
+                false,
+                false,
+            )
+            .field(
+                FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
+                false,
+                false,
+            )
+            .clone())
+    }
+
+    fn build(&self, output_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Source> {
         Box::new(TestSource {})
     }
 }
@@ -45,28 +67,6 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
-        Some(
-            Schema::empty()
-                .field(
-                    FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
-                    false,
-                    false,
-                )
-                .field(
-                    FieldDefinition::new(String::from("Country"), FieldType::String, false),
-                    false,
-                    false,
-                )
-                .field(
-                    FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
-                    false,
-                    false,
-                )
-                .clone(),
-        )
-    }
-
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -89,7 +89,6 @@ impl Source for TestSource {
             )
             .unwrap();
         }
-        fw.terminate().unwrap();
         Ok(())
     }
 }
@@ -108,7 +107,16 @@ impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn Sink> {
+
+    fn set_input_schema(
+        &self,
+        output_port: &PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn build(&self, input_schemas: HashMap<PortHandle, Schema>) -> Box<dyn Sink> {
         Box::new(TestSink {})
     }
 }
@@ -116,13 +124,6 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn update_schema(
-        &mut self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
     fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
@@ -164,19 +165,31 @@ fn test_pipeline_builder() {
     let source = TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
     let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
-    dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
-    dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
+    dag.add_node(
+        NodeType::Source(Arc::new(source)),
+        NodeHandle::new(Some(1), String::from("source")),
+    );
+    dag.add_node(
+        NodeType::Sink(Arc::new(sink)),
+        NodeHandle::new(Some(1), String::from("sink")),
+    );
 
     let input_point = in_handle.remove("users").unwrap();
 
     let _source_to_input = dag.connect(
-        Endpoint::new("source".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(
+            NodeHandle::new(Some(1), String::from("source")),
+            DEFAULT_PORT_HANDLE,
+        ),
         Endpoint::new(input_point.node, input_point.port),
     );
 
     let _output_to_sink = dag.connect(
         Endpoint::new(out_handle.node, out_handle.port),
-        Endpoint::new("sink".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(
+            NodeHandle::new(Some(1), String::from("sink")),
+            DEFAULT_PORT_HANDLE,
+        ),
     );
 
     let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
@@ -188,10 +201,12 @@ fn test_pipeline_builder() {
     use std::time::Instant;
     let now = Instant::now();
 
-    let exec =
-        MultiThreadedDagExecutor::start(dag, tmp_dir.path(), ExecutorOptions::default()).unwrap();
+    let tmp_dir = TempDir::new("test").unwrap();
+    let mut executor = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default()).unwrap();
 
-    exec.join().unwrap();
+    executor.start();
+    assert!(executor.join().is_ok());
+
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }

@@ -1,10 +1,7 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use dozer_core::{
-    dag::{
-        channels::ProcessorChannelForwarder, executor_local::DEFAULT_PORT_HANDLE,
-        node::ProcessorFactory,
-    },
+    dag::{channels::ProcessorChannelForwarder, dag::DEFAULT_PORT_HANDLE, node::ProcessorFactory},
     storage::{lmdb_storage::LmdbEnvironmentManager, transactions::SharedTransaction},
 };
 use dozer_types::{
@@ -13,7 +10,7 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 
-use crate::pipeline::{aggregation::processor::AggregationProcessorFactory, builder::get_select};
+use crate::pipeline::{aggregation::factory::AggregationProcessorFactory, builder::get_select};
 
 struct TestChannelForwarder {
     operations: Vec<Operation>,
@@ -33,26 +30,11 @@ impl ProcessorChannelForwarder for TestChannelForwarder {
 #[test]
 fn test_simple_aggregation() {
     let select = get_select(
-        "SELECT department_id, SUM(salary) \
+        "SELECT Country, SUM(Salary) \
         FROM Users \
-        WHERE salary >= 1000 GROUP BY department_id",
+        WHERE Salary >= 1000 GROUP BY Country",
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let aggregation = AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
-
-    let mut processor = aggregation.build();
-
-    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    processor
-        .init(storage.as_environment())
-        .unwrap_or_else(|e| panic!("{}", e.to_string()));
-
-    let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
-    let mut tx = SharedTransaction::new(&binding);
-    let mut fw = TestChannelForwarder { operations: vec![] };
 
     let schema = Schema::empty()
         .field(
@@ -72,10 +54,24 @@ fn test_simple_aggregation() {
         )
         .clone();
 
-    _ = processor.update_schema(
-        DEFAULT_PORT_HANDLE,
-        &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    let processor_factory =
+        AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
+
+    let mut processor = processor_factory.build(
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+        HashMap::new(),
     );
+
+    let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
+        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+
+    processor
+        .init(storage.as_environment())
+        .unwrap_or_else(|e| panic!("{}", e.to_string()));
+
+    let binding = Arc::new(RwLock::new(storage.create_txn().unwrap()));
+    let mut tx = SharedTransaction::new(&binding);
+    let mut fw = TestChannelForwarder { operations: vec![] };
 
     let op = Operation::Insert {
         new: Record::new(

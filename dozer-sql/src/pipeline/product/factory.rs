@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use dozer_core::dag::{
-    executor_local::DEFAULT_PORT_HANDLE,
+    dag::DEFAULT_PORT_HANDLE,
+    errors::ExecutionError,
     node::{OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory},
 };
+use dozer_types::types::Schema;
 use sqlparser::ast::{TableFactor, TableWithJoins};
 
 use crate::pipeline::{errors::PipelineError, expression::builder::normalize_ident};
@@ -12,8 +14,6 @@ use super::{
     join::{JoinOperator, JoinOperatorType, JoinTable},
     processor::ProductProcessor,
 };
-
-use crate::pipeline::product::factory::PipelineError::InvalidRelation;
 
 pub struct ProductProcessorFactory {
     from: TableWithJoins,
@@ -43,8 +43,35 @@ impl ProcessorFactory for ProductProcessorFactory {
         )]
     }
 
-    fn build(&self) -> Box<dyn Processor> {
-        Box::new(ProductProcessor::new(self.from.clone()))
+    fn get_output_schema(
+        &self,
+        _output_port: &PortHandle,
+        input_schemas: &HashMap<PortHandle, dozer_types::types::Schema>,
+    ) -> Result<Schema, ExecutionError> {
+        let mut output_schema = Schema::empty();
+
+        let input_tables = get_input_tables(&self.from)?;
+        for (port, table) in input_tables.iter().enumerate() {
+            if let Some(current_schema) = input_schemas.get(&(port as PortHandle)) {
+                output_schema = append_schema(output_schema, table, current_schema);
+            } else {
+                return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
+            }
+        }
+
+        Ok(output_schema)
+    }
+
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+    ) -> Box<dyn Processor> {
+        if let Ok(join_tables) = build_join_chain(&self.from) {
+            Box::new(ProductProcessor::new(join_tables))
+        } else {
+            panic!("What to do here?");
+        }
     }
 }
 
@@ -53,7 +80,7 @@ impl ProcessorFactory for ProductProcessorFactory {
 /// # Errors
 ///
 /// This function will return an error if it's not possible to get an input name.
-pub fn get_input_tables(from: &TableWithJoins) -> Result<Vec<String>, PipelineError> {
+pub fn get_input_tables(from: &TableWithJoins) -> Result<Vec<String>, ExecutionError> {
     let mut input_tables = vec![];
 
     input_tables.insert(0, get_input_name(&from.relation)?);
@@ -71,7 +98,7 @@ pub fn get_input_tables(from: &TableWithJoins) -> Result<Vec<String>, PipelineEr
 /// # Errors
 ///
 /// This function will return an error if the input argument is not a Table.
-pub fn get_input_name(relation: &TableFactor) -> Result<String, PipelineError> {
+pub fn get_input_name(relation: &TableFactor) -> Result<String, ExecutionError> {
     match relation {
         TableFactor::Table { name, alias: _, .. } => {
             let input_name = name
@@ -83,7 +110,9 @@ pub fn get_input_name(relation: &TableFactor) -> Result<String, PipelineError> {
 
             Ok(input_name)
         }
-        _ => Err(InvalidRelation),
+        _ => Err(ExecutionError::InternalStringError(
+            "Invalid Input table".to_string(),
+        )),
     }
 }
 
@@ -204,4 +233,16 @@ pub fn build_join_chain(
 
 fn get_join_table(relation: &TableFactor) -> Result<JoinTable, PipelineError> {
     Ok(JoinTable::from(relation))
+}
+
+fn append_schema(mut output_schema: Schema, _table: &str, current_schema: &Schema) -> Schema {
+    for mut field in current_schema.clone().fields.into_iter() {
+        let mut name = String::from(""); //String::from(table);
+                                         //name.push('.');
+        name.push_str(&field.name);
+        field.name = name;
+        output_schema.fields.push(field);
+    }
+
+    output_schema
 }

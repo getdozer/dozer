@@ -1,28 +1,20 @@
 use crate::pipeline::errors::PipelineError;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_types::internal_err;
-use dozer_types::types::{Operation, Record, Schema};
-use sqlparser::ast::TableWithJoins;
+use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
 
 use dozer_core::dag::errors::ExecutionError::InternalError;
 
-use super::factory::{build_join_chain, get_input_tables};
 use super::join::JoinTable;
 
 /// Cartesian Product Processor
 pub struct ProductProcessor {
-    /// Parsed FROM Statement
-    statement: TableWithJoins,
-
-    /// List of input ports by table name
-    input_tables: Vec<String>,
-
     /// Join operations
     join_tables: HashMap<PortHandle, JoinTable>,
 
@@ -32,11 +24,9 @@ pub struct ProductProcessor {
 
 impl ProductProcessor {
     /// Creates a new [`ProductProcessor`].
-    pub fn new(statement: TableWithJoins) -> Self {
+    pub fn new(join_tables: HashMap<PortHandle, JoinTable>) -> Self {
         Self {
-            statement: statement.clone(),
-            input_tables: get_input_tables(&statement).unwrap(),
-            join_tables: HashMap::new(),
+            join_tables,
             db: None,
         }
     }
@@ -78,10 +68,7 @@ impl ProductProcessor {
             return Ok(output_records);
         }
 
-        Err(ExecutionError::MissingNodeInput(format!(
-            "Cannot load data from Port {}",
-            from_port
-        )))
+        Err(ExecutionError::InvalidPortHandle(from_port))
     }
 
     fn update(
@@ -98,57 +85,12 @@ impl ProductProcessor {
         }
     }
 
-    fn get_output_schema(
-        &mut self,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let mut output_schema = Schema::empty();
-        for (port, table) in self.input_tables.iter().enumerate() {
-            if let Some(current_schema) = input_schemas.get(&(port as PortHandle)) {
-                output_schema = append_schema(output_schema, table, current_schema);
-            } else {
-                return Err(ExecutionError::InvalidPortHandle(port as PortHandle));
-            }
-        }
-
-        if let Ok(join_tables) = build_join_chain(&self.statement) {
-            self.join_tables = join_tables;
-        } else {
-            return Err(ExecutionError::InvalidOperation(
-                "Unable to build Join".to_string(),
-            ));
-        }
-
-        Ok(output_schema)
-    }
-
     // fn merge(&self, _left_records: &[Record], _right_records: &[Record]) -> Vec<Record> {
     //     todo!()
     // }
 }
 
-fn append_schema(mut output_schema: Schema, _table: &str, current_schema: &Schema) -> Schema {
-    for mut field in current_schema.clone().fields.into_iter() {
-        let mut name = String::from(""); //String::from(table);
-                                         //name.push('.');
-        name.push_str(&field.name);
-        field.name = name;
-        output_schema.fields.push(field);
-    }
-
-    output_schema
-}
-
 impl Processor for ProductProcessor {
-    fn update_schema(
-        &mut self,
-        _output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let output_schema = self.get_output_schema(input_schemas)?;
-        Ok(output_schema)
-    }
-
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
         internal_err!(self.init_store(state))
     }
