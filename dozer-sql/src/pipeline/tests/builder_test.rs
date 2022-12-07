@@ -56,11 +56,6 @@ impl SourceFactory for TestSourceFactory {
                 false,
                 false,
             )
-            .field(
-                FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
-                false,
-                false,
-            )
             .clone())
     }
 
