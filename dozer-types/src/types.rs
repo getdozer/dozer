@@ -1,10 +1,9 @@
 use crate::errors::types::TypeError;
-use chrono::{DateTime, FixedOffset, NaiveDate};
-use std::fmt::{Display, Formatter};
-
+use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -30,6 +29,24 @@ impl Display for Field {
     }
 }
 
+#[macro_export]
+macro_rules! serialize {
+    ($self:ident, $stmt:expr) => {
+        Ok([
+            Self::get_type_prefix($self.get_type().unwrap()),
+            Vec::from($stmt),
+        ]
+        .concat())
+    };
+}
+
+#[macro_export]
+macro_rules! deserialize {
+    ($stmt:expr) => {
+        $stmt.try_into().unwrap()
+    };
+}
+
 impl Field {
     pub fn to_bytes(&self) -> Result<Vec<u8>, TypeError> {
         match self {
@@ -45,10 +62,65 @@ impl Field {
             Field::Text(s) => Ok(Vec::from(s.as_bytes())),
             Field::Binary(b) => Ok(Vec::from(b.as_slice())),
             Field::Decimal(d) => Ok(Vec::from(d.serialize())),
-            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
+            Field::Timestamp(t) => Ok(Vec::from(t.timestamp_millis().to_be_bytes())),
             Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
             Field::Bson(b) => Ok(b.clone()),
             Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
+        }
+    }
+
+    pub fn to_bytes_sql(&self) -> Result<Vec<u8>, TypeError> {
+        // prefix representing return type is added using get_type_prefix
+        match self {
+            Field::Int(i) => serialize!(self, i.to_be_bytes()),
+            Field::UInt(i) => serialize!(self, i.to_be_bytes()),
+            Field::Float(f) => serialize!(self, f.to_be_bytes()),
+            Field::Boolean(b) => serialize!(
+                self,
+                if *b {
+                    1_u8.to_be_bytes()
+                } else {
+                    0_u8.to_be_bytes()
+                }
+            ),
+            Field::String(s) => serialize!(self, s.as_bytes()),
+            Field::Text(t) => serialize!(self, t.as_bytes()),
+            Field::Binary(b) => serialize!(self, b.as_slice()),
+            Field::Decimal(d) => serialize!(self, d.serialize()),
+            Field::Timestamp(t) => serialize!(self, t.timestamp_millis().to_be_bytes()),
+            Field::Date(d) => serialize!(self, d.to_string().as_bytes()),
+            Field::Bson(b) => serialize!(self, b.clone()),
+            Field::Null => Ok(Self::get_type_prefix(self.get_type().unwrap())),
+        }
+    }
+
+    pub fn from_bytes(buf: &[u8]) -> Result<Field, TypeError> {
+        let offset: usize = 1;
+        let return_type = Self::from_type_prefix(Box::from(buf[0..offset].to_vec()));
+        let val = buf[1..buf.len()].as_ref();
+        match return_type {
+            FieldType::Int => Ok(Field::Int(i64::from_be_bytes(deserialize!(val)))),
+            FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(deserialize!(val)))),
+            FieldType::Float => Ok(Field::Float(OrderedFloat::from(f64::from_be_bytes(
+                deserialize!(val),
+            )))),
+            FieldType::Boolean => Ok(Field::Boolean(*val == [1_u8])),
+            FieldType::String => Ok(Field::String(String::from_utf8(deserialize!(val)).unwrap())),
+            FieldType::Text => Ok(Field::Text(String::from_utf8(deserialize!(val)).unwrap())),
+            FieldType::Binary => Ok(Field::Binary(val.try_into().unwrap())),
+            FieldType::Decimal => Ok(Field::Decimal(Decimal::deserialize(deserialize!(val)))),
+            FieldType::Timestamp => Ok(Field::Timestamp(DateTime::from(
+                Utc.timestamp_millis(i64::from_be_bytes(deserialize!(val))),
+            ))),
+            FieldType::Date => Ok(Field::Date(
+                NaiveDate::parse_from_str(
+                    String::from_utf8(deserialize!(val)).unwrap().as_ref(),
+                    DATE_FORMAT,
+                )
+                .unwrap(),
+            )),
+            FieldType::Bson => Ok(Field::Bson(deserialize!(val))),
+            FieldType::Null => Ok(Field::Null),
         }
     }
 
@@ -67,6 +139,47 @@ impl Field {
             Field::Bson(_b) => Ok(FieldType::Bson),
             Field::Null => Ok(FieldType::Null),
         }
+    }
+
+    pub fn get_type_prefix(f: FieldType) -> Vec<u8> {
+        match f {
+            FieldType::Int => vec![0_u8],
+            FieldType::UInt => vec![1_u8],
+            FieldType::Float => vec![2_u8],
+            FieldType::Boolean => vec![3_u8],
+            FieldType::String => vec![4_u8],
+            FieldType::Text => vec![5_u8],
+            FieldType::Binary => vec![6_u8],
+            FieldType::Decimal => vec![7_u8],
+            FieldType::Timestamp => vec![8_u8],
+            FieldType::Date => vec![9_u8],
+            FieldType::Bson => vec![10_u8],
+            FieldType::Null => vec![11_u8],
+        }
+    }
+
+    pub fn from_type_prefix(prefix: Box<[u8]>) -> FieldType {
+        match prefix.as_ref() {
+            [0_u8] => FieldType::Int,
+            [1_u8] => FieldType::UInt,
+            [2_u8] => FieldType::Float,
+            [3_u8] => FieldType::Boolean,
+            [4_u8] => FieldType::String,
+            [5_u8] => FieldType::Text,
+            [6_u8] => FieldType::Binary,
+            [7_u8] => FieldType::Decimal,
+            [8_u8] => FieldType::Timestamp,
+            [9_u8] => FieldType::Date,
+            [10_u8] => FieldType::Bson,
+            [11_u8] => FieldType::Null,
+            _ => FieldType::Null,
+        }
+    }
+}
+
+impl Display for FieldType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -111,18 +224,18 @@ pub struct SchemaIdentifier {
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Schema {
-    /// Unique identifier and version for this schema. This value is required only if teh schema
-    /// is represented by a valid entry in teh schema registry. For nested schemas, this field
+    /// Unique identifier and version for this schema. This value is required only if the schema
+    /// is represented by a valid entry in the schema registry. For nested schemas, this field
     /// is not applicable
     pub identifier: Option<SchemaIdentifier>,
 
-    /// fields contains a list of FieldDefinition for all teh fields that appear in a record.
-    /// Not necessarily all these fields will end up in teh final object structure stored in
+    /// fields contains a list of FieldDefinition for all the fields that appear in a record.
+    /// Not necessarily all these fields will end up in the final object structure stored in
     /// the cache. Some fields might only be used for indexing purposes only.
     pub fields: Vec<FieldDefinition>,
 
-    /// Indexes of the fields representing values that will appear in teh final object stored
-    /// in teh cache
+    /// Indexes of the fields representing values that will appear in the final object stored
+    /// in the cache
     pub values: Vec<usize>,
 
     /// Indexes of the fields forming the primary key for this schema. If the value is empty
@@ -170,12 +283,26 @@ impl Schema {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(crate = "self::serde")]
 pub enum SortDirection {
-    #[serde(rename = "asc")]
     Ascending,
-    #[serde(rename = "desc")]
     Descending,
+}
+
+impl SortDirection {
+    pub fn convert_str(s: &str) -> Option<Self> {
+        match s {
+            "asc" => Some(SortDirection::Ascending),
+            "desc" => Some(SortDirection::Descending),
+            _ => None,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            SortDirection::Ascending => "asc",
+            SortDirection::Descending => "desc",
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]

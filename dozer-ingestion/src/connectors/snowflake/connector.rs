@@ -121,15 +121,12 @@ async fn run(
             let ingestor_stream = Arc::clone(&ingestor);
             let mut interval = time::interval(Duration::from_secs(5));
 
+            let mut consumer = StreamConsumer::new(connector_id);
             loop {
                 for table in tables.iter() {
-                    StreamConsumer::consume_stream(
-                        &stream_client,
-                        connector_id,
-                        &table.name,
-                        &ingestor_stream,
-                    )
-                    .unwrap();
+                    consumer
+                        .consume_stream(&stream_client, &table.name, &ingestor_stream)
+                        .unwrap();
 
                     interval.tick().await;
                 }

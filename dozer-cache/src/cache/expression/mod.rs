@@ -13,7 +13,7 @@ pub struct QueryExpression {
     #[serde(rename = "$filter", default)]
     pub filter: Option<FilterExpression>,
     #[serde(rename = "$order_by", default)]
-    pub order_by: Vec<SortOptions>,
+    pub order_by: SortOptions,
     #[serde(rename = "$limit", default = "default_limit")]
     pub limit: usize,
     #[serde(rename = "$skip", default)]
@@ -26,9 +26,9 @@ impl Default for QueryExpression {
     fn default() -> Self {
         Self {
             filter: None,
-            order_by: vec![],
-            limit: 50,
-            skip: 0,
+            order_by: Default::default(),
+            limit: default_limit(),
+            skip: Default::default(),
         }
     }
 }
@@ -36,13 +36,13 @@ impl Default for QueryExpression {
 impl QueryExpression {
     pub fn new(
         filter: Option<FilterExpression>,
-        order_by: Vec<SortOptions>,
+        order_by: Vec<SortOption>,
         limit: usize,
         skip: usize,
     ) -> Self {
         Self {
             filter,
-            order_by,
+            order_by: SortOptions(order_by),
             limit,
             skip,
         }
@@ -119,9 +119,21 @@ impl Operator {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(crate = "self::serde")]
-pub struct SortOptions {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SortOption {
     pub field_name: String,
     pub direction: SortDirection,
 }
+
+impl SortOption {
+    pub fn new(field_name: String, direction: SortDirection) -> Self {
+        Self {
+            field_name,
+            direction,
+        }
+    }
+}
+
+/// A wrapper of `Vec<SortOption>`, for customizing the `Serialize` and `Deserialize` implementation.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SortOptions(pub Vec<SortOption>);

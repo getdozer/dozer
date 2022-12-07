@@ -6,8 +6,8 @@ use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::models::connection::{Authentication, Connection};
 use odbc::create_environment_v3;
 
-pub fn remove_streams(connection: Connection, table_name: &String) -> Result<bool, SnowflakeError> {
-    let config = match connection.authentication {
+pub fn get_client(connection: &Connection) -> Client {
+    let config = match connection.authentication.clone() {
         Authentication::SnowflakeAuthentication {
             server,
             port,
@@ -30,7 +30,11 @@ pub fn remove_streams(connection: Connection, table_name: &String) -> Result<boo
         _ => None,
     };
 
-    let client = Client::new(&config.unwrap());
+    Client::new(&config.unwrap())
+}
+
+pub fn remove_streams(connection: Connection, table_name: &String) -> Result<bool, SnowflakeError> {
+    let client = get_client(&connection);
 
     let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
     let conn = env

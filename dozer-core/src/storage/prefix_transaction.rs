@@ -100,8 +100,8 @@ impl RoCursor for PrefixReaderWriterCursor {
         if !self.inner.next()? {
             return Ok(false);
         }
-        match self.read()? {
-            Some((key, _val)) => Ok(key[0..3] == self.prefix),
+        match self.inner.read()? {
+            Some((key, _val)) => Ok(key[0..4] == self.prefix),
             None => Ok(false),
         }
     }
@@ -111,8 +111,8 @@ impl RoCursor for PrefixReaderWriterCursor {
         if !self.inner.prev()? {
             return Ok(false);
         }
-        match self.read()? {
-            Some((key, _val)) => Ok(key[0..3] == self.prefix),
+        match self.inner.read()? {
+            Some((key, _val)) => Ok(key[0..4] == self.prefix),
             None => Ok(false),
         }
     }
