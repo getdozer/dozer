@@ -409,11 +409,16 @@ fn test_run_dag_src_err() {
 pub(crate) struct ErrSinkFactory {
     err_at: u64,
     latch: Arc<CountDownLatch>,
+    panic: bool,
 }
 
 impl ErrSinkFactory {
-    pub fn new(err_at: u64, latch: Arc<CountDownLatch>) -> Self {
-        Self { err_at, latch }
+    pub fn new(err_at: u64, latch: Arc<CountDownLatch>, panic: bool) -> Self {
+        Self {
+            err_at,
+            latch,
+            panic,
+        }
     }
 }
 
@@ -434,6 +439,7 @@ impl SinkFactory for ErrSinkFactory {
             err_at: self.err_at,
             current: 0,
             latch: self.latch.clone(),
+            panic: self.panic,
         })
     }
 }
@@ -442,6 +448,7 @@ pub(crate) struct ErrSink {
     err_at: u64,
     current: u64,
     latch: Arc<CountDownLatch>,
+    panic: bool,
 }
 impl Sink for ErrSink {
     fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
@@ -463,9 +470,13 @@ impl Sink for ErrSink {
         self.current += 1;
         if self.current == self.err_at {
             self.latch.countdown();
-            return Err(ExecutionError::InvalidOperation(
-                "Generated error".to_string(),
-            ));
+            if self.panic {
+                panic!("Generated error");
+            } else {
+                return Err(ExecutionError::InvalidOperation(
+                    "Generated error".to_string(),
+                ));
+            }
         }
         self.latch.countdown();
         Ok(())
@@ -494,7 +505,54 @@ fn test_run_dag_sink_err() {
         "proc".to_string(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(ErrSinkFactory::new(200_000, latch))),
+        NodeType::Sink(Arc::new(ErrSinkFactory::new(200_000, latch, false))),
+        "sink".to_string(),
+    );
+
+    chk!(dag.connect(
+        Endpoint::new("source".to_string(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new("proc".to_string(), DEFAULT_PORT_HANDLE),
+        Endpoint::new("sink".to_string(), COUNTING_SINK_INPUT_PORT),
+    ));
+
+    let tmp_dir = chk!(TempDir::new("test"));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    chk!(executor.start());
+    assert!(executor.join().is_err());
+}
+
+#[test]
+fn test_run_dag_sink_err_panic() {
+    init_log4rs();
+
+    let count: u64 = 1_000_000;
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(CountDownLatch::new(1));
+
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
+        "source".to_string(),
+    );
+    dag.add_node(
+        NodeType::Processor(Arc::new(NoopProcessorFactory {})),
+        "proc".to_string(),
+    );
+    dag.add_node(
+        NodeType::Sink(Arc::new(ErrSinkFactory::new(200_000, latch, true))),
         "sink".to_string(),
     );
 
