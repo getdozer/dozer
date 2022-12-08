@@ -326,7 +326,7 @@ impl AggregationProcessor {
     }
 
     fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
-        let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
+        let mut vec = Vec::with_capacity(hash.len().wrapping_add(size_of_val(&database_id)));
         vec.extend_from_slice(&database_id.to_be_bytes());
         vec.extend(hash);
         Ok(vec)
@@ -531,9 +531,9 @@ impl AggregationProcessor {
             db,
             key.as_slice(),
             (if decr {
-                curr_count - delta
+                curr_count.wrapping_sub(delta)
             } else {
-                curr_count + delta
+                curr_count.wrapping_add(delta)
             })
             .to_be_bytes()
             .as_slice(),
