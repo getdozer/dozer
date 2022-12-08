@@ -125,7 +125,6 @@ impl TestSinkFactory {
 impl SinkFactory for TestSinkFactory {
     fn set_input_schema(
         &self,
-        output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
