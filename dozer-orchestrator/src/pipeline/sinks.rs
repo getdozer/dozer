@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::grpc::types_helper;
