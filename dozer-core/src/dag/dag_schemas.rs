@@ -1,4 +1,4 @@
-use crate::dag::dag::{Dag, NodeType, DEFAULT_PORT_HANDLE};
+use crate::dag::dag::{Dag, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 use crate::dag::node::{NodeHandle, PortHandle};

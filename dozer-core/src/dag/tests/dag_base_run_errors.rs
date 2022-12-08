@@ -446,7 +446,7 @@ impl ErrSinkFactory {
 impl SinkFactory for ErrSinkFactory {
     fn set_input_schema(
         &self,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        _input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
