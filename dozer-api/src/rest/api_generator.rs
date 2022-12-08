@@ -34,7 +34,7 @@ pub async fn get(
         pipeline_details.into_inner(),
         access.map(|a| a.into_inner()),
     )?;
-    let key = path.into_inner();
+    let key = path.as_str();
     helper
         .get_record(key)
         .map(|map| HttpResponse::Ok().json(map))
