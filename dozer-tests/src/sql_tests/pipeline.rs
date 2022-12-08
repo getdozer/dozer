@@ -11,7 +11,7 @@ use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
-use dozer_types::crossbeam::channel::{unbounded};
+use dozer_types::crossbeam::channel::unbounded;
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
@@ -22,8 +22,8 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
-use std::{thread};
 use tempdir::TempDir;
 
 use super::helper::get_table_create_sql;
@@ -132,10 +132,7 @@ impl SinkFactory for TestSinkFactory {
         self.mapper
             .lock()
             .unwrap()
-            .create_tables(vec![(
-                "results",
-                &get_table_create_sql("results", schema),
-            )])
+            .create_tables(vec![("results", &get_table_create_sql("results", schema))])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
         Ok(())
@@ -266,12 +263,8 @@ impl TestPipeline {
 
         let source =
             TestSourceFactory::new(self.schema.clone(), self.ops.to_owned(), latch.clone());
-        let sink = TestSinkFactory::new(
-            self.mapper.clone(),
-            schema_holder.clone(),
-            latch,
-            ops_count,
-        );
+        let sink =
+            TestSinkFactory::new(self.mapper.clone(), schema_holder.clone(), latch, ops_count);
 
         dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
         dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
