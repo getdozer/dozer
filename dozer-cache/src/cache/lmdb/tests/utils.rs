@@ -3,10 +3,18 @@ use lmdb::{Cursor, RoTransaction, Transaction};
 
 use crate::cache::{Cache, LmdbCache};
 
-pub fn insert_rec_1(cache: &LmdbCache, schema: &Schema, (a, b, c): (i64, String, i64)) {
+pub fn insert_rec_1(
+    cache: &LmdbCache,
+    schema: &Schema,
+    (a, b, c): (i64, Option<String>, Option<i64>),
+) {
     let record = Record::new(
         schema.identifier.clone(),
-        vec![Field::Int(a), Field::String(b), Field::Int(c)],
+        vec![
+            Field::Int(a),
+            b.map_or(Field::Null, Field::String),
+            c.map_or(Field::Null, Field::Int),
+        ],
     );
     cache.insert(&record).unwrap();
 }

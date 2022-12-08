@@ -80,14 +80,14 @@ fn query_secondary_vars() {
         .insert_schema("sample", &schema, &seconary_indexes)
         .unwrap();
 
-    let items: Vec<(i64, String, i64)> = vec![
-        (1, "yuri".to_string(), 521),
-        (2, "mega".to_string(), 521),
-        (3, "james".to_string(), 523),
-        (4, "james".to_string(), 524),
-        (5, "steff".to_string(), 526),
-        (6, "mega".to_string(), 527),
-        (7, "james".to_string(), 528),
+    let items = vec![
+        (1, Some("yuri".to_string()), Some(521)),
+        (2, Some("mega".to_string()), Some(521)),
+        (3, Some("james".to_string()), Some(523)),
+        (4, Some("james".to_string()), Some(524)),
+        (5, Some("steff".to_string()), Some(526)),
+        (6, Some("mega".to_string()), Some(527)),
+        (7, Some("james".to_string()), Some(528)),
     ];
     // 26 alphabets
     for val in items {
