@@ -36,7 +36,7 @@ fn test_max_aggregation_float() {
         )
         .clone();
 
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -440,7 +440,7 @@ fn test_max_aggregation_int() {
         )
         .clone();
 
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -802,7 +802,7 @@ fn test_max_aggregation_decimal() {
         )
         .clone();
 
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, MAX(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -1205,7 +1205,7 @@ fn test_max_aggregation_timestamp() {
         )
         .clone();
 
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, MAX(StartTime) \
         FROM Users \
         WHERE StartTime <= timestamp(CURRENT_DATE()) GROUP BY Country",
@@ -1607,7 +1607,7 @@ fn test_max_aggregation_date() {
             false,
         )
         .clone();
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, MAX(StartDate) \
         FROM Users \
         WHERE StartDate <= CURRENT_DATE() GROUP BY Country",

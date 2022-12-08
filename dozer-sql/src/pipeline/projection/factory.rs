@@ -60,7 +60,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
     fn get_output_schema(
         &self,
-        output_port: &PortHandle,
+        _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         let input_schema = input_schemas

@@ -33,7 +33,7 @@ fn test_sum_aggregation_float() {
         )
         .clone();
 
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, SUM(Salary) \
             FROM Users \
             WHERE Salary >= 1 GROUP BY Country",
@@ -437,7 +437,7 @@ fn test_sum_aggregation_int() {
         )
         .clone();
 
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",

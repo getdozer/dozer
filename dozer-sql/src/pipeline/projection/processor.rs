@@ -197,7 +197,7 @@ impl Processor for ProjectionProcessor {
         Ok(())
     }
 
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

@@ -36,7 +36,7 @@ fn test_avg_aggregation_float() {
         )
         .clone();
 
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, AVG(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -440,7 +440,7 @@ fn test_avg_aggregation_int() {
             false,
         )
         .clone();
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, AVG(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
@@ -800,7 +800,7 @@ fn test_avg_aggregation_decimal() {
             false,
         )
         .clone();
-    let (mut processor, tx) = init_processor(
+    let (processor, tx) = init_processor(
         "SELECT Country, AVG(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
