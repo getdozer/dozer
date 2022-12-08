@@ -1,4 +1,4 @@
-use crate::dag::dag::{Dag, NodeType};
+use crate::dag::dag::{Dag, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 use crate::dag::node::{NodeHandle, PortHandle};
@@ -99,35 +99,49 @@ impl<'a> DagSchemaManager<'a> {
 
         // If we have all input schemas required
         if node_input_schemas_available == node_input_schemas_required {
-            // Calculate the output schema for each port and insert it in the global schemas map
-            for port in &Self::get_node_output_ports(node) {
-                let schema = {
+            match node {
+                NodeType::Sink(s) => {
                     let node_schemas = all_schemas
                         .get_mut(handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-                    let schema =
-                        Self::get_port_output_schema(node, port, &node_schemas.input_schemas)?;
-                    if let Some(schema) = &schema {
-                        node_schemas.output_schemas.insert(*port, schema.clone());
-                    }
-                    schema
-                };
+                    let _ = s.set_input_schema(&DEFAULT_PORT_HANDLE, &node_schemas.input_schemas);
+                }
+                _ => {
+                    // Calculate the output schema for each port and insert it in the global schemas map
+                    for port in &Self::get_node_output_ports(node) {
+                        let schema = {
+                            let node_schemas = all_schemas
+                                .get_mut(handle)
+                                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                            let schema = Self::get_port_output_schema(
+                                node,
+                                port,
+                                &node_schemas.input_schemas,
+                            )?;
+                            if let Some(schema) = &schema {
+                                node_schemas.output_schemas.insert(*port, schema.clone());
+                            }
+                            schema
+                        };
 
-                // Retrieve all next nodes connected to this port
-                let next_in_chain = dag
-                    .edges
-                    .iter()
-                    .filter(|e| &e.from.node == handle && &e.from.port == port)
-                    .map(|e| e.to.clone());
+                        // Retrieve all next nodes connected to this port
+                        let next_in_chain = dag
+                            .edges
+                            .iter()
+                            .filter(|e| &e.from.node == handle && &e.from.port == port)
+                            .map(|e| e.to.clone());
 
-                for next_node_port_input in next_in_chain {
-                    let next_node_schemas = all_schemas
-                        .get_mut(&next_node_port_input.node)
-                        .ok_or_else(|| InvalidNodeHandle(next_node_port_input.node.clone()))?;
-                    if let Some(schema) = &schema {
-                        next_node_schemas
-                            .input_schemas
-                            .insert(next_node_port_input.port, schema.clone());
+                        for next_node_port_input in next_in_chain {
+                            let next_node_schemas =
+                                all_schemas.get_mut(&next_node_port_input.node).ok_or_else(
+                                    || InvalidNodeHandle(next_node_port_input.node.clone()),
+                                )?;
+                            if let Some(schema) = &schema {
+                                next_node_schemas
+                                    .input_schemas
+                                    .insert(next_node_port_input.port, schema.clone());
+                            }
+                        }
                     }
                 }
             }

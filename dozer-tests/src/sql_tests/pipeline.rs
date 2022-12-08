@@ -13,7 +13,9 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::{unbounded, Sender};
 use dozer_types::log::debug;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
+use fp_rust::sync::CountDownLatch;
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -31,14 +33,16 @@ pub struct TestSourceFactory {
     output_ports: Vec<PortHandle>,
     ops: Vec<Operation>,
     schema: Schema,
+    term_latch: Arc<CountDownLatch>,
 }
 
 impl TestSourceFactory {
-    pub fn new(schema: Schema, ops: Vec<Operation>) -> Self {
+    pub fn new(schema: Schema, ops: Vec<Operation>, term_latch: Arc<CountDownLatch>) -> Self {
         Self {
             output_ports: vec![DEFAULT_PORT_HANDLE],
             schema,
             ops,
+            term_latch,
         }
     }
 }
@@ -61,6 +65,7 @@ impl SourceFactory for TestSourceFactory {
         Ok(Box::new(TestSource {
             schema: self.schema.to_owned(),
             ops: self.ops.to_owned(),
+            term_latch: self.term_latch.clone(),
         }))
     }
 }
@@ -68,6 +73,7 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {
     schema: Schema,
     ops: Vec<Operation>,
+    term_latch: Arc<CountDownLatch>,
 }
 
 impl Source for TestSource {
@@ -81,20 +87,37 @@ impl Source for TestSource {
             idx += 1;
             fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
         }
+
+        thread::sleep(Duration::from_millis(1000));
         Ok(())
     }
+}
+
+pub struct SchemaHolder {
+    pub schema: Option<Schema>,
 }
 
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
     mapper: Arc<Mutex<SqlMapper>>,
+    schema: Arc<RwLock<SchemaHolder>>,
+    term_latch: Arc<CountDownLatch>,
+    ops: usize,
 }
 
 impl TestSinkFactory {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>) -> Self {
+    pub fn new(
+        mapper: Arc<Mutex<SqlMapper>>,
+        schema: Arc<RwLock<SchemaHolder>>,
+        term_latch: Arc<CountDownLatch>,
+        ops: usize,
+    ) -> Self {
         Self {
             input_ports: vec![DEFAULT_PORT_HANDLE],
             mapper,
+            schema,
+            term_latch,
+            ops,
         }
     }
 }
@@ -105,17 +128,17 @@ impl SinkFactory for TestSinkFactory {
         output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
-        for (_port, schema) in input_schemas.iter() {
-            self.tx.send(schema.clone()).unwrap();
-            self.mapper
-                .lock()
-                .unwrap()
-                .create_tables(vec![(
-                    "results",
-                    &get_table_create_sql("results", schema.to_owned()),
-                )])
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
+        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
+        self.schema.write().schema = Some(schema.clone());
+        self.mapper
+            .lock()
+            .unwrap()
+            .create_tables(vec![(
+                "results",
+                &get_table_create_sql("results", schema.to_owned()),
+            )])
+            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
         Ok(())
     }
 
@@ -128,8 +151,9 @@ impl SinkFactory for TestSinkFactory {
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink::new(
             self.mapper.clone(),
-            self.tx.clone(),
             input_schemas,
+            self.term_latch.clone(),
+            self.ops,
         )))
     }
 }
@@ -137,19 +161,24 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
     input_schemas: HashMap<PortHandle, Schema>,
-    tx: Sender<Schema>,
+    term_latch: Arc<CountDownLatch>,
+    ops: usize,
+    curr: usize,
 }
 
 impl TestSink {
     pub fn new(
         mapper: Arc<Mutex<SqlMapper>>,
-        tx: Sender<Schema>,
         input_schemas: HashMap<PortHandle, Schema>,
+        term_latch: Arc<CountDownLatch>,
+        ops: usize,
     ) -> Self {
         Self {
             mapper,
-            input_schemas: HashMap::new(),
-            tx,
+            input_schemas,
+            term_latch,
+            ops,
+            curr: 0,
         }
     }
 }
@@ -179,6 +208,12 @@ impl Sink for TestSink {
             .unwrap()
             .execute_list(vec![("results".to_string(), sql)])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
+        self.curr += 1;
+        if self.curr == self.ops {
+            self.term_latch.countdown();
+        }
+
         Ok(())
     }
 
@@ -216,6 +251,7 @@ impl TestPipeline {
         let ast = Parser::parse_sql(&dialect, &self.sql).unwrap();
 
         let statement: &Statement = &ast[0];
+        let latch = Arc::new(CountDownLatch::new(1));
 
         let builder = PipelineBuilder::new(None);
         let (mut dag, in_handle, out_handle) =
@@ -224,8 +260,19 @@ impl TestPipeline {
         let source_handle = NodeHandle::new(None, "source".to_string());
         let sink_handle = NodeHandle::new(None, "sink".to_string());
 
-        let source = TestSourceFactory::new(self.schema.clone(), self.ops.to_owned());
-        let sink = TestSinkFactory::new(self.mapper.clone(), tx);
+        let schema_holder: Arc<RwLock<SchemaHolder>> =
+            Arc::new(RwLock::new(SchemaHolder { schema: None }));
+
+        let ops_count = self.ops.len();
+
+        let source =
+            TestSourceFactory::new(self.schema.clone(), self.ops.to_owned(), latch.clone());
+        let sink = TestSinkFactory::new(
+            self.mapper.clone(),
+            schema_holder.clone(),
+            latch.clone(),
+            ops_count,
+        );
 
         dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
         dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
@@ -246,16 +293,20 @@ impl TestPipeline {
 
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-        if tmp_dir.path().exists() {
-            fs::remove_dir_all(tmp_dir.path())
-                .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-        }
-        fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
+        // if tmp_dir.path().exists() {
+        //     fs::remove_dir_all(tmp_dir.path())
+        //         .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
+        // }
+        // fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
         let mut exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default())
             .unwrap_or_else(|_e| panic!("Unable to create exec"));
         exec.start()?;
-        exec.join()
+        exec.join()?;
+
+        let r_schema = schema_holder.read().schema.as_ref().unwrap().clone();
+
+        Ok(r_schema)
 
         // match rx.recv() {
         //     Ok(schema) => {
