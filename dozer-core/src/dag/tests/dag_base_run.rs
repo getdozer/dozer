@@ -14,7 +14,6 @@ use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;

@@ -1,7 +1,3 @@
-
-
-
-
 #[macro_export]
 macro_rules! chk {
     ($stmt:expr) => {
