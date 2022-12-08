@@ -38,7 +38,7 @@ impl SinkFactory for CountingSinkFactory {
     }
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(CountingSink {
             expected: self.expected,

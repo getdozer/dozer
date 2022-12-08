@@ -59,8 +59,8 @@ impl ProcessorFactory for PassthroughProcessorFactory {
     }
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(PassthroughProcessor {}))
     }
@@ -123,8 +123,8 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
     }
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(RecordReaderProcessor { ctr: 1 }))
     }

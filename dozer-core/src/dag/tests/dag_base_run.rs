@@ -14,7 +14,7 @@ use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 
-use libc::thread_info;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
@@ -47,8 +47,8 @@ impl ProcessorFactory for NoopProcessorFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopProcessor {}))
     }
@@ -108,13 +108,13 @@ fn test_run_dag() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -164,8 +164,8 @@ fn test_run_dag_and_stop() {
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -213,8 +213,8 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
@@ -284,18 +284,18 @@ fn test_run_dag_2_sources_stateless() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -350,18 +350,18 @@ fn test_run_dag_2_sources_stateful() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source1_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 1),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source2_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));

@@ -50,8 +50,8 @@ impl ProcessorFactory for ErrorProcessorFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
@@ -131,13 +131,13 @@ fn test_run_dag_proc_err_panic() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -192,18 +192,18 @@ fn test_run_dag_proc_err_2() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_err_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -259,18 +259,18 @@ fn test_run_dag_proc_err_3() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(proc_err_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -326,12 +326,12 @@ impl SourceFactory for ErrGeneratorSourceFactory {
     }
     fn build(
         &self,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(ErrGeneratorSource {
             count: self.count,
             err_at: self.err_at,
-            term_latch: self.term_latch.as_ref().map(|latch| latch.clone()),
+            term_latch: self.term_latch.as_ref().cloned(),
         }))
     }
 }
@@ -407,7 +407,7 @@ fn test_run_dag_src_err() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
@@ -457,7 +457,7 @@ impl SinkFactory for ErrSinkFactory {
     }
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(ErrSink {
             err_at: self.err_at,
@@ -538,13 +538,13 @@ fn test_run_dag_sink_err() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -589,7 +589,7 @@ fn test_run_dag_sink_err_panic() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 

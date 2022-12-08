@@ -49,7 +49,7 @@ impl SourceFactory for TestUsersSourceFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         todo!()
     }
@@ -82,7 +82,7 @@ impl SourceFactory for TestCountriesSourceFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         todo!()
     }
@@ -120,8 +120,8 @@ impl ProcessorFactory for TestJoinProcessorFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         todo!()
     }
@@ -144,7 +144,7 @@ impl SinkFactory for TestSinkFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn crate::dag::node::Sink>, ExecutionError> {
         todo!()
     }
@@ -293,16 +293,16 @@ fn test_init_metadata() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(users_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 1),
     ));
     chk!(dag.connect(
-        Endpoint::new(countries_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 2),
     ));
     chk!(dag.connect(
-        Endpoint::new(join_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
     ));
 
     let exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default());

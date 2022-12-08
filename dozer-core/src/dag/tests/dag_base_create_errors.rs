@@ -1,19 +1,18 @@
 use crate::chk;
-use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
+
 use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory, Sink,
-    SinkFactory, Source, SourceFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
-use crate::dag::record_store::RecordReader;
+
 use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use crate::storage::common::{Environment, RwTransaction};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+
+use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use fp_rust::sync::CountDownLatch;
 
 use std::collections::HashMap;
@@ -32,7 +31,7 @@ impl CreateErrSourceFactory {
 }
 
 impl SourceFactory for CreateErrSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new("id".to_string(), FieldType::Int, false),
@@ -51,7 +50,7 @@ impl SourceFactory for CreateErrSourceFactory {
 
     fn build(
         &self,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         if self.panic {
             panic!("Generated error");
@@ -90,13 +89,13 @@ fn test_create_src_err() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(source_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -137,13 +136,13 @@ fn test_create_src_panic() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(source_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -170,8 +169,8 @@ impl CreateErrProcessorFactory {
 impl ProcessorFactory for CreateErrProcessorFactory {
     fn get_output_schema(
         &self,
-        port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
+        _port: &PortHandle,
+        _input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
@@ -195,8 +194,8 @@ impl ProcessorFactory for CreateErrProcessorFactory {
 
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
         if self.panic {
             panic!("Generated error");
@@ -239,13 +238,13 @@ fn test_create_proc_err() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));
@@ -290,13 +289,13 @@ fn test_create_proc_panic() {
     );
 
     chk!(dag.connect(
-        Endpoint::new(source_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
     ));
 
     chk!(dag.connect(
-        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
     ));
 
     let tmp_dir = chk!(TempDir::new("test"));

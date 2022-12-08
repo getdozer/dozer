@@ -48,7 +48,7 @@ impl SourceFactory for GeneratorSourceFactory {
     }
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(GeneratorSource {
             count: self.count,

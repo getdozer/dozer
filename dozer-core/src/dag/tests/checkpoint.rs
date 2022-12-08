@@ -102,8 +102,8 @@ fn test_checpoint_consistency() {
     }
 
     let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
-    expected.insert(50000_u64, vec![source2_handle.clone(), sink_handle.clone()]);
-    expected.insert(0_u64, vec![proc_handle.clone()]);
+    expected.insert(50000_u64, vec![source2_handle.clone(), sink_handle]);
+    expected.insert(0_u64, vec![proc_handle]);
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),

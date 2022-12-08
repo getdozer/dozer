@@ -59,7 +59,7 @@ impl Display for NodeHandle {
             Some(ns) => ns.to_string(),
             None => "r".to_string(),
         };
-        f.write_str(&*format!("{}_{}", ns_str, self.id))
+        f.write_str(&format!("{}_{}", ns_str, self.id))
     }
 }
 

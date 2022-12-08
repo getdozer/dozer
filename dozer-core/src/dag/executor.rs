@@ -22,19 +22,19 @@ use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
-use fp_rust::sync::CountDownLatch;
-use log::{debug, info};
+
+use log::{info};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Add;
 
 use std::path::{Path, PathBuf};
-use std::process::exit;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
-use std::{panic, thread};
+use std::{thread};
 
 #[derive(Clone)]
 pub struct ExecutorOptions {
@@ -305,7 +305,7 @@ impl<'a> DagExecutor<'a> {
             r
         });
 
-        let lt_handle = handle.clone();
+        let _lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_output_ports = src_factory.get_output_ports();
         let lt_edges = self.dag.edges.clone();
@@ -393,7 +393,7 @@ impl<'a> DagExecutor<'a> {
         let lt_output_ports = proc_factory.get_output_ports();
         let lt_edges = self.dag.edges.clone();
         let lt_record_stores = self.record_stores.clone();
-        let lt_term_barrier = self.term_barrier.clone();
+        let _lt_term_barrier = self.term_barrier.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
@@ -489,7 +489,7 @@ impl<'a> DagExecutor<'a> {
 
         let lt_path = self.path.clone();
         let lt_record_stores = self.record_stores.clone();
-        let lt_term_barrier = self.term_barrier.clone();
+        let _lt_term_barrier = self.term_barrier.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
@@ -605,9 +605,9 @@ impl<'a> DagExecutor<'a> {
         loop {
             let mut finished: usize = 0;
             for handle in &handles {
-                if let Some(j) = self.join_handles.get(&handle) {
+                if let Some(j) = self.join_handles.get(handle) {
                     if j.is_finished() {
-                        let r = self.join_handles.remove(&handle).unwrap().join();
+                        let r = self.join_handles.remove(handle).unwrap().join();
                         match r {
                             Ok(Err(e)) => return Err(e),
                             Err(_e) => return Err(InternalThreadPanic),
