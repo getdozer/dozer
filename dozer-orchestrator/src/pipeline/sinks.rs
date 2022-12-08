@@ -1,7 +1,7 @@
 use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::grpc::types_helper;
-use dozer_cache::cache::{BatchedCacheMsg, Cache};
+use dozer_cache::cache::BatchedCacheMsg;
 use dozer_cache::cache::{BatchedWriter, LmdbCache};
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
