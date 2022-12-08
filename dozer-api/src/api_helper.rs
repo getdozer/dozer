@@ -6,8 +6,9 @@ use dozer_cache::cache::{expression::QueryExpression, index};
 use dozer_cache::errors::CacheError;
 use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::indexmap::IndexMap;
-use dozer_types::json_value_to_field;
-use dozer_types::record_to_json;
+use dozer_types::json_str_to_field;
+use dozer_types::record_to_map;
+use dozer_types::serde_json::Value;
 use dozer_types::types::{FieldType, Record, Schema};
 use openapiv3::OpenAPI;
 
@@ -70,7 +71,7 @@ impl ApiHelper {
     }
 
     /// Get a single record by json string as primary key
-    pub fn get_record(&self, key: String) -> Result<IndexMap<String, String>, CacheError> {
+    pub fn get_record(&self, key: &str) -> Result<IndexMap<String, Value>, CacheError> {
         let schema = self
             .reader
             .get_schema_and_indexes_by_name(&self.details.schema_name)?
@@ -81,23 +82,23 @@ impl ApiHelper {
             .iter()
             .map(|idx| schema.fields[*idx].typ)
             .collect();
-        let key = json_value_to_field(&key, &field_types[0]).map_err(CacheError::TypeError)?;
+        let key = json_str_to_field(key, field_types[0]).map_err(CacheError::TypeError)?;
 
         let key = index::get_primary_key(&[0], &[key]);
         let rec = self.reader.get(&key)?;
 
-        record_to_json(&rec, &schema).map_err(CacheError::TypeError)
+        record_to_map(&rec, &schema).map_err(CacheError::TypeError)
     }
 
     /// Get multiple records
     pub fn get_records_map(
         &self,
         exp: QueryExpression,
-    ) -> Result<Vec<IndexMap<String, String>>, CacheError> {
+    ) -> Result<Vec<IndexMap<String, Value>>, CacheError> {
         let mut maps = vec![];
         let (schema, records) = self.get_records(exp)?;
         for rec in records.iter() {
-            let map = record_to_json(rec, &schema)?;
+            let map = record_to_map(rec, &schema)?;
             maps.push(map);
         }
         Ok(maps)
