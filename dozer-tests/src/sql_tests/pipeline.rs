@@ -1,14 +1,14 @@
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::{Endpoint, NodeType};
+use dozer_core::dag::dag::{Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::executor_local::ExecutorOptions;
-use dozer_core::dag::executor_local::{MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source,
+    SourceFactory,
 };
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 
+use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::{unbounded, Sender};
@@ -44,17 +44,24 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        Ok(self.schema.clone())
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
             .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
             .collect()
     }
-    fn build(&self) -> Box<dyn Source> {
-        Box::new(TestSource {
+    fn build(
+        &self,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(TestSource {
             schema: self.schema.to_owned(),
             ops: self.ops.to_owned(),
-        })
+        }))
     }
 }
 
@@ -64,10 +71,6 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
-        Some(self.schema.to_owned())
-    }
-
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -78,7 +81,6 @@ impl Source for TestSource {
             idx += 1;
             fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
         }
-        fw.terminate().unwrap();
         Ok(())
     }
 }
@@ -86,7 +88,6 @@ impl Source for TestSource {
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
     mapper: Arc<Mutex<SqlMapper>>,
-    tx: Sender<Schema>,
 }
 
 impl TestSinkFactory {
@@ -94,43 +95,16 @@ impl TestSinkFactory {
         Self {
             input_ports: vec![DEFAULT_PORT_HANDLE],
             mapper,
-            tx,
         }
     }
 }
 
 impl SinkFactory for TestSinkFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
-    }
-    fn build(&self) -> Box<dyn Sink> {
-        Box::new(TestSink::new(self.mapper.clone(), self.tx.clone()))
-    }
-}
-
-pub struct TestSink {
-    mapper: Arc<Mutex<SqlMapper>>,
-    input_schemas: HashMap<PortHandle, Schema>,
-    tx: Sender<Schema>,
-}
-
-impl TestSink {
-    pub fn new(mapper: Arc<Mutex<SqlMapper>>, tx: Sender<Schema>) -> Self {
-        Self {
-            mapper,
-            input_schemas: HashMap::new(),
-            tx,
-        }
-    }
-}
-
-impl Sink for TestSink {
-    fn update_schema(
-        &mut self,
+    fn set_input_schema(
+        &self,
+        output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
-        self.input_schemas = input_schemas.to_owned();
-
         for (_port, schema) in input_schemas.iter() {
             self.tx.send(schema.clone()).unwrap();
             self.mapper
@@ -145,6 +119,42 @@ impl Sink for TestSink {
         Ok(())
     }
 
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        self.input_ports.clone()
+    }
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        Ok(Box::new(TestSink::new(
+            self.mapper.clone(),
+            self.tx.clone(),
+            input_schemas,
+        )))
+    }
+}
+
+pub struct TestSink {
+    mapper: Arc<Mutex<SqlMapper>>,
+    input_schemas: HashMap<PortHandle, Schema>,
+    tx: Sender<Schema>,
+}
+
+impl TestSink {
+    pub fn new(
+        mapper: Arc<Mutex<SqlMapper>>,
+        tx: Sender<Schema>,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Self {
+        Self {
+            mapper,
+            input_schemas: HashMap::new(),
+            tx,
+        }
+    }
+}
+
+impl Sink for TestSink {
     fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
@@ -207,19 +217,22 @@ impl TestPipeline {
 
         let statement: &Statement = &ast[0];
 
-        let builder = PipelineBuilder {};
+        let builder = PipelineBuilder::new(None);
         let (mut dag, in_handle, out_handle) =
             builder.statement_to_pipeline(statement.clone()).unwrap();
+
+        let source_handle = NodeHandle::new(None, "source".to_string());
+        let sink_handle = NodeHandle::new(None, "sink".to_string());
 
         let source = TestSourceFactory::new(self.schema.clone(), self.ops.to_owned());
         let sink = TestSinkFactory::new(self.mapper.clone(), tx);
 
-        dag.add_node(NodeType::Source(Box::new(source)), "source".to_string());
-        dag.add_node(NodeType::Sink(Box::new(sink)), "sink".to_string());
+        dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
+        dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
 
         for (_table_name, endpoint) in in_handle.into_iter() {
             dag.connect(
-                Endpoint::new("source".to_string(), DEFAULT_PORT_HANDLE),
+                Endpoint::new(source_handle.clone(), DEFAULT_PORT_HANDLE),
                 Endpoint::new(endpoint.node, endpoint.port),
             )
             .unwrap();
@@ -227,7 +240,7 @@ impl TestPipeline {
 
         dag.connect(
             Endpoint::new(out_handle.node, out_handle.port),
-            Endpoint::new("sink".to_string(), DEFAULT_PORT_HANDLE),
+            Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
         )
         .unwrap();
 
@@ -239,40 +252,35 @@ impl TestPipeline {
         }
         fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-        let exec =
-            MultiThreadedDagExecutor::start(dag, tmp_dir.path(), ExecutorOptions::default())?;
+        let mut exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default())
+            .unwrap_or_else(|_e| panic!("Unable to create exec"));
+        exec.start()?;
+        exec.join()
 
-        match rx.recv() {
-            Ok(schema) => {
-                let (tx, rx) = mpsc::channel();
-                let _ = thread::spawn(move || -> Result<(), ExecutionError> {
-                    let result = exec.join().map_err(|errors| {
-                        let str = errors
-                            .iter()
-                            .map(|e| e.1.to_string())
-                            .collect::<Vec<String>>()
-                            .join(",");
-                        ExecutionError::InternalStringError(str)
-                    });
-                    match tx.send(result) {
-                        Ok(()) => Ok(()),
-                        Err(_) => Err(ExecutionError::InternalStringError(
-                            "Disconnected".to_string(),
-                        )),
-                    }
-                });
-
-                match rx.recv_timeout(Duration::from_millis(2000)) {
-                    Ok(_) => Ok(schema),
-                    Err(RecvTimeoutError::Timeout) => Err(ExecutionError::InternalStringError(
-                        "Pipeline timed out".to_string(),
-                    )),
-                    Err(RecvTimeoutError::Disconnected) => unreachable!(),
-                }
-            }
-            Err(_e) => Err(ExecutionError::InternalStringError(
-                "Schema not sent in the pipeline".to_string(),
-            )),
-        }
+        // match rx.recv() {
+        //     Ok(schema) => {
+        //         let (tx, rx) = mpsc::channel();
+        //         let _ = thread::spawn(move || -> Result<(), ExecutionError> {
+        //             let result = exec.join();
+        //             match tx.send(result) {
+        //                 Ok(()) => Ok(()),
+        //                 Err(_) => Err(ExecutionError::InternalStringError(
+        //                     "Disconnected".to_string(),
+        //                 )),
+        //             }
+        //         });
+        //
+        //         match rx.recv_timeout(Duration::from_millis(2000)) {
+        //             Ok(_) => Ok(schema),
+        //             Err(RecvTimeoutError::Timeout) => Err(ExecutionError::InternalStringError(
+        //                 "Pipeline timed out".to_string(),
+        //             )),
+        //             Err(RecvTimeoutError::Disconnected) => unreachable!(),
+        //         }
+        //     }
+        //     Err(_e) => Err(ExecutionError::InternalStringError(
+        //         "Schema not sent in the pipeline".to_string(),
+        //     )),
+        // }
     }
 }
