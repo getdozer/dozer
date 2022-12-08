@@ -44,7 +44,17 @@ fn field_to_json_value(field: Field) -> Result<Value, FromUtf8Error> {
 }
 
 /// Used in REST APIs for converting raw value back and forth
-pub fn json_value_to_field(value: Value, typ: FieldType) -> Result<Field, TypeError> {
+pub fn json_value_to_field(
+    value: Value,
+    typ: FieldType,
+    nullable: bool,
+) -> Result<Field, TypeError> {
+    if nullable {
+        if let Value::Null = value {
+            return Ok(Field::Null);
+        }
+    }
+
     match (typ, &value) {
         (FieldType::UInt, _) => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
@@ -89,16 +99,17 @@ pub fn json_value_to_field(value: Value, typ: FieldType) -> Result<Field, TypeEr
     .map_err(TypeError::DeserializationError)
 }
 
-pub fn json_str_to_field(value: &str, typ: FieldType) -> Result<Field, TypeError> {
+pub fn json_str_to_field(value: &str, typ: FieldType, nullable: bool) -> Result<Field, TypeError> {
     let value = serde_json::from_str(value)
         .map_err(|e| TypeError::DeserializationError(DeserializationError::Json(e)))?;
-    json_value_to_field(value, typ)
+    json_value_to_field(value, typ, nullable)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         helper::{field_to_json_value, json_value_to_field},
+        json_str_to_field,
         types::{Field, FieldType},
     };
     use chrono::{NaiveDate, Offset, TimeZone, Utc};
@@ -109,13 +120,13 @@ mod tests {
         let value = field_to_json_value(field.clone()).unwrap();
 
         // Convert the JSON value back to a Field.
-        let deserialized = json_value_to_field(value, field_type).unwrap();
+        let deserialized = json_value_to_field(value, field_type, true).unwrap();
 
         assert_eq!(deserialized, field, "must be equal");
     }
 
     #[test]
-    fn test_field_types_str_conversion() {
+    fn test_field_types_json_conversion() {
         let fields = vec![
             (FieldType::Int, Field::Int(-1)),
             (FieldType::UInt, Field::UInt(1)),
@@ -144,5 +155,14 @@ mod tests {
         for (field_type, field) in fields {
             test_field_conversion(field_type, field);
         }
+    }
+
+    #[test]
+    fn test_nullable_field_conversion() {
+        assert_eq!(
+            json_str_to_field("null", FieldType::Int, true).unwrap(),
+            Field::Null
+        );
+        assert!(json_str_to_field("null", FieldType::Int, false).is_err());
     }
 }
