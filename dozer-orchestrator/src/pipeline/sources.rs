@@ -43,7 +43,7 @@ impl ConnectorSourceFactory {
 }
 
 impl SourceFactory for ConnectorSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         todo!()
     }
 
@@ -56,7 +56,7 @@ impl SourceFactory for ConnectorSourceFactory {
 
     fn build(
         &self,
-        schemas: HashMap<PortHandle, Schema>,
+        _schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
