@@ -1,8 +1,4 @@
 use serde::{Deserialize, Serialize};
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct ApiIndex {
-    pub primary_key: Vec<String>,
-}
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiConfig {
     #[prost(message, tag = "1")]

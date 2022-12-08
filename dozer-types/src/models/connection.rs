@@ -1,6 +1,7 @@
 use crate::ingestion_types::EthFilter;
 use serde::{Deserialize, Serialize};
 use std::{
+    error::Error,
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
@@ -19,6 +20,19 @@ pub enum DBType {
     Ethereum = 2,
     Events = 3,
     Kafka = 4,
+}
+impl TryFrom<i32> for DBType {
+    type Error = Box<dyn Error>;
+    fn try_from(item: i32) -> Result<Self, Self::Error> {
+        match item {
+            0 => Ok(DBType::Postgres),
+            1 => Ok(DBType::Snowflake),
+            2 => Ok(DBType::Ethereum),
+            3 => Ok(DBType::Events),
+            4 => Ok(DBType::Kafka),
+            _ => Err("DBType enum not match".to_owned())?,
+        }
+    }
 }
 impl DBType {
     pub fn as_str_name(&self) -> &'static str {

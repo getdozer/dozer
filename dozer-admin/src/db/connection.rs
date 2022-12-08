@@ -8,10 +8,10 @@ use super::{
 use crate::db::schema::apps::dsl::apps;
 use crate::server::dozer_admin_grpc::{self, ConnectionInfo, Pagination};
 use diesel::{insert_into, prelude::*, query_dsl::methods::FilterDsl, ExpressionMethods};
-use dozer_types::{serde, models::connection::DBType};
+use dozer_types::{models::connection::DBType, serde};
 use schema::connections::dsl::*;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
+use std::{error::Error, str::FromStr};
 #[derive(Queryable, PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Default)]
 #[diesel(table_name = connections)]
 pub struct DbConnection {
@@ -36,7 +36,7 @@ struct NewConnection {
 impl TryFrom<DbConnection> for ConnectionInfo {
     type Error = Box<dyn Error>;
     fn try_from(item: DbConnection) -> Result<Self, Self::Error> {
-        let db_type_value: DBType = DBType::try_from(item.db_type.clone())?;
+        let db_type_value: DBType = DBType::from_str(&item.db_type)?;
         let auth_value: dozer_admin_grpc::Authentication = serde_json::from_str(&item.auth)?;
         Ok(ConnectionInfo {
             id: item.id,
@@ -47,35 +47,11 @@ impl TryFrom<DbConnection> for ConnectionInfo {
         })
     }
 }
-// impl TryFrom<i32> for ConnectionType {
-//     type Error = Box<dyn Error>;
-//     fn try_from(item: i32) -> Result<Self, Self::Error> {
-//         match item {
-//             0 => Ok(ConnectionType::Postgres),
-//             1 => Ok(ConnectionType::Snowflake),
-//             2 => Ok(ConnectionType::Databricks),
-//             3 => Ok(ConnectionType::Eth),
-//             _ => Err("ConnectionType enum not match".to_owned())?,
-//         }
-//     }
-// }
-// impl TryFrom<String> for ConnectionType {
-//     type Error = Box<dyn Error>;
-//     fn try_from(item: String) -> Result<Self, Self::Error> {
-//         match item.to_lowercase().as_str() {
-//             "postgres" => Ok(ConnectionType::Postgres),
-//             "snowflake" => Ok(ConnectionType::Snowflake),
-//             "eth" => Ok(ConnectionType::Eth),
-//             "databricks" => Ok(ConnectionType::Databricks),
-//             _ => Err("String not match ConnectionType".to_owned())?,
-//         }
-//     }
-// }
 impl TryFrom<ConnectionInfo> for NewConnection {
     type Error = Box<dyn Error>;
     fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {
         let auth_string = serde_json::to_string(&item.authentication)?;
-        let connection_type = ConnectionType::try_from(item.r#type)?;
+        let connection_type = DBType::try_from(item.r#type)?;
         let connection_type_string = connection_type.as_str_name();
         Ok(NewConnection {
             auth: auth_string,

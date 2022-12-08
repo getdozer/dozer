@@ -57,8 +57,6 @@ impl EndpointService {
             app_id: request.app_id.to_owned(),
             name: request.name.to_owned(),
             path: request.path.to_owned(),
-            enable_rest: request.enable_rest.to_owned(),
-            enable_grpc: request.enable_grpc.to_owned(),
             sql: request.sql,
             source_ids: request.source_ids,
             primary_keys: request.primary_keys,
@@ -97,12 +95,6 @@ impl EndpointService {
                     message: err.to_string(),
                 },
             )?;
-        if let Some(enable_grpc) = request.enable_grpc {
-            endpoint_by_id.enable_grpc = enable_grpc;
-        }
-        if let Some(enable_rest) = request.enable_rest {
-            endpoint_by_id.enable_rest = enable_rest;
-        }
         if let Some(name) = request.name {
             endpoint_by_id.name = name;
         }
