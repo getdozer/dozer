@@ -163,7 +163,7 @@ fn test_pipeline_builder() {
 
     let statement: &Statement = &ast[0];
 
-    let builder = PipelineBuilder {};
+    let builder = PipelineBuilder::new(Some(1));
     let (mut dag, mut in_handle, out_handle) =
         builder.statement_to_pipeline(statement.clone()).unwrap();
 

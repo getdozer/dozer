@@ -123,9 +123,46 @@ impl Dag {
         Ok(())
     }
 
-    pub fn merge(&mut self, namespace: String, other: Dag) {
-        self.edges.extend(other.edges);
-        self.nodes.extend(other.nodes);
+    pub fn merge(&mut self, ns: Option<u16>, other: Dag) {
+        for (handle, node) in other.nodes {
+            self.nodes.insert(
+                NodeHandle::new(
+                    if let Some(ns) = ns {
+                        Some(ns)
+                    } else {
+                        handle.ns
+                    },
+                    handle.id,
+                ),
+                node,
+            );
+        }
+        for edge in other.edges {
+            self.edges.push(Edge::new(
+                Endpoint::new(
+                    NodeHandle::new(
+                        if let Some(ns) = ns {
+                            Some(ns)
+                        } else {
+                            edge.from.node.ns
+                        },
+                        edge.from.node.id,
+                    ),
+                    edge.from.port,
+                ),
+                Endpoint::new(
+                    NodeHandle::new(
+                        if let Some(ns) = ns {
+                            Some(ns)
+                        } else {
+                            edge.to.node.ns
+                        },
+                        edge.to.node.id,
+                    ),
+                    edge.to.port,
+                ),
+            ));
+        }
     }
 
     fn get_node_children(&self, handle: &NodeHandle) -> Vec<NodeHandle> {

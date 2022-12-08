@@ -16,7 +16,9 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub struct PipelineBuilder {}
+pub struct PipelineBuilder {
+    namespace: Option<u16>,
+}
 
 impl PipelineBuilder {
     pub fn statement_to_pipeline(
@@ -64,11 +66,12 @@ impl PipelineBuilder {
         }
         let product = ProductProcessorFactory::new(select.from[0].clone());
         let input_tables = get_input_tables(&select.from[0])?;
-        let input_endpoints = self.get_input_endpoints(Some(1), first_node_name, &input_tables)?;
+        let input_endpoints =
+            self.get_input_endpoints(self.namespace, first_node_name, &input_tables)?;
 
         dag.add_node(
             NodeType::Processor(Arc::new(product)),
-            NodeHandle::new(Some(1), String::from("product")),
+            NodeHandle::new(self.namespace, String::from("product")),
         );
 
         // Select clause
@@ -76,7 +79,7 @@ impl PipelineBuilder {
 
         dag.add_node(
             NodeType::Processor(Arc::new(preaggregation)),
-            NodeHandle::new(Some(1), String::from("preaggregation")),
+            NodeHandle::new(self.namespace, String::from("preaggregation")),
         );
 
         // Where clause
@@ -86,38 +89,38 @@ impl PipelineBuilder {
 
             dag.add_node(
                 NodeType::Processor(Arc::new(selection)),
-                NodeHandle::new(Some(1), String::from("selection")),
+                NodeHandle::new(self.namespace, String::from("selection")),
             );
 
             let _ = dag.connect(
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("product")),
+                    NodeHandle::new(self.namespace, String::from("product")),
                     DEFAULT_PORT_HANDLE,
                 ),
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("selection")),
+                    NodeHandle::new(self.namespace, String::from("selection")),
                     DEFAULT_PORT_HANDLE,
                 ),
             );
 
             let _ = dag.connect(
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("selection")),
+                    NodeHandle::new(self.namespace, String::from("selection")),
                     DEFAULT_PORT_HANDLE,
                 ),
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("preaggregation")),
+                    NodeHandle::new(self.namespace, String::from("preaggregation")),
                     DEFAULT_PORT_HANDLE,
                 ),
             );
         } else {
             let _ = dag.connect(
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("product")),
+                    NodeHandle::new(self.namespace, String::from("product")),
                     DEFAULT_PORT_HANDLE,
                 ),
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("preaggregation")),
+                    NodeHandle::new(self.namespace, String::from("preaggregation")),
                     DEFAULT_PORT_HANDLE,
                 ),
             );
@@ -131,16 +134,16 @@ impl PipelineBuilder {
 
             dag.add_node(
                 NodeType::Processor(Arc::new(aggregation)),
-                NodeHandle::new(Some(1), String::from("aggregation")),
+                NodeHandle::new(self.namespace, String::from("aggregation")),
             );
 
             let _ = dag.connect(
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("preaggregation")),
+                    NodeHandle::new(self.namespace, String::from("preaggregation")),
                     DEFAULT_PORT_HANDLE,
                 ),
                 Endpoint::new(
-                    NodeHandle::new(Some(1), String::from("aggregation")),
+                    NodeHandle::new(self.namespace, String::from("aggregation")),
                     DEFAULT_PORT_HANDLE,
                 ),
             );
@@ -149,7 +152,7 @@ impl PipelineBuilder {
             dag,
             input_endpoints,
             Endpoint::new(
-                NodeHandle::new(Some(1), last_node_name),
+                NodeHandle::new(self.namespace, last_node_name),
                 DEFAULT_PORT_HANDLE,
             ),
         ))
@@ -174,6 +177,10 @@ impl PipelineBuilder {
         }
 
         Ok(endpoints)
+    }
+
+    pub fn new(namespace: Option<u16>) -> Self {
+        Self { namespace }
     }
 }
 
