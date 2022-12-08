@@ -169,7 +169,7 @@ fn build_comparision_key(index_scan: &IndexScan) -> Result<Vec<u8>, CacheError> 
                     fields.push((val, range_query.sort_direction));
                 }
             }
-            index::get_secondary_index(&fields)
+            index::get_secondary_index(&fields, index_scan.is_single_field_sorted_inverted)
         }
         IndexScanKind::FullText { filter } => {
             if let Field::String(token) = &filter.val {
