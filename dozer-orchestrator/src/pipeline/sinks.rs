@@ -73,18 +73,29 @@ impl CacheSinkFactory {
 }
 
 impl SinkFactory for CacheSinkFactory {
+    fn set_input_schema(
+        &self,
+        output_port: &PortHandle,
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        todo!()
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
-    fn build(&self) -> Box<dyn Sink> {
-        Box::new(CacheSink::new(
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        Ok(Box::new(CacheSink::new(
             self.cache.clone(),
             self.api_endpoint.clone(),
             Mutex::new(HashMap::new()),
             self.notifier.clone(),
             self.record_cutoff,
             self.timeout,
-        ))
+        )))
     }
 }
 
@@ -100,28 +111,28 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn update_schema(
-        &mut self,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<(), ExecutionError> {
-        // Insert schemas into cache
-
-        for (k, schema) in input_schemas {
-            let mut map = self.input_schemas.lock();
-
-            // Append primary and secondary keys
-            let (schema, secondary_indexes) = self.get_output_schema(schema)?;
-
-            self.cache
-                .insert_schema(&self.api_endpoint.name, &schema, &secondary_indexes)
-                .map_err(|e| {
-                    ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
-                })?;
-
-            map.insert(*k, (schema.clone(), secondary_indexes));
-        }
-        Ok(())
-    }
+    // fn update_schema(
+    //     &mut self,
+    //     input_schemas: &HashMap<PortHandle, Schema>,
+    // ) -> Result<(), ExecutionError> {
+    //     // Insert schemas into cache
+    //
+    //     for (k, schema) in input_schemas {
+    //         let mut map = self.input_schemas.lock();
+    //
+    //         // Append primary and secondary keys
+    //         let (schema, secondary_indexes) = self.get_output_schema(schema)?;
+    //
+    //         self.cache
+    //             .insert_schema(&self.api_endpoint.name, &schema, &secondary_indexes)
+    //             .map_err(|e| {
+    //                 ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+    //             })?;
+    //
+    //         map.insert(*k, (schema.clone(), secondary_indexes));
+    //     }
+    //     Ok(())
+    // }
 
     fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
@@ -285,8 +296,7 @@ mod tests {
 
     use dozer_cache::cache::{index, Cache};
 
-    use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-
+    use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::Sink;
     use dozer_core::storage::common::RenewableRwTransaction;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;

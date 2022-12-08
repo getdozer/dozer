@@ -11,11 +11,10 @@ use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
-use dozer_core::dag::dag::{Dag, Endpoint, NodeType};
+use dozer_core::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::errors::ExecutionError::{self};
-use dozer_core::dag::executor_local::{
-    ExecutorOptions, MultiThreadedDagExecutor, DEFAULT_PORT_HANDLE,
-};
+use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::dag::node::NodeHandle;
 use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
@@ -109,6 +108,8 @@ impl Executor {
             table_map.insert(table_name, (idx as usize).try_into().unwrap());
         }
 
+        let source_handle = NodeHandle::new(None, "src".to_string());
+
         let source = ConnectorSourceFactory::new(
             connections,
             connection_map,
@@ -117,7 +118,7 @@ impl Executor {
             self.iterator.to_owned(),
         );
         let mut parent_dag = Dag::new();
-        parent_dag.add_node(NodeType::Source(Box::new(source)), 1.to_string());
+        parent_dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
         let running_wait = self.running.clone();
 
         for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
@@ -131,11 +132,15 @@ impl Executor {
 
             let statement: &Statement = &ast[0];
 
-            let builder = PipelineBuilder {};
+            let builder = PipelineBuilder::new(Some(idx as u16));
 
             let (mut dag, in_handle, out_handle) = builder
                 .statement_to_pipeline(statement.clone())
                 .map_err(OrchestrationError::SqlStatementFailed)?;
+
+            parent_dag.merge(Some(idx as u16), dag);
+
+            let sink_handle = NodeHandle::new(Some(idx as u16), "sink".to_string());
 
             // Initialize Sink
             let sink = CacheSinkFactory::new(
@@ -146,18 +151,12 @@ impl Executor {
                 self.sink_config.record_cutoff,
                 self.sink_config.timeout,
             );
-            dag.add_node(NodeType::Sink(Box::new(sink)), 4.to_string());
+            parent_dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
 
             // Connect Pipeline to Sink
-            dag.connect(
-                out_handle,
-                Endpoint::new(4.to_string(), DEFAULT_PORT_HANDLE),
-            )
-            .map_err(OrchestrationError::ExecutionError)?;
-
-            let namespace = format!("{}_{}", api_endpoint_name, idx);
-            // Merge dag with parent with namespace
-            parent_dag.merge(namespace.to_owned(), dag);
+            parent_dag
+                .connect(out_handle, Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE))
+                .map_err(OrchestrationError::ExecutionError)?;
 
             for (table_name, endpoint) in in_handle.into_iter() {
                 let port = match table_map.get(&table_name) {
@@ -168,25 +167,19 @@ impl Executor {
                     }
                 }?;
 
-                // Change namespace after merge
-                let mut endpoint = endpoint.clone();
-                endpoint.node = format!("{}_{}", namespace, endpoint.node);
-
                 // Connect source from Parent Dag to Processor
                 parent_dag
-                    .connect(Endpoint::new(1.to_string(), port.to_owned()), endpoint)
+                    .connect(
+                        Endpoint::new(source_handle.clone(), port.to_owned()),
+                        endpoint,
+                    )
                     .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
             }
         }
 
-        // let exec = MultiThreadedDagExecutor::new(100000, 20000);
         let path = self.home_dir.join("pipeline");
         fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let exec = MultiThreadedDagExecutor::start(
-            parent_dag,
-            path.as_path(),
-            ExecutorOptions::default(),
-        )?;
+        let exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
 
         // Waiting for Ctrl+C
         while running_wait.load(Ordering::SeqCst) {

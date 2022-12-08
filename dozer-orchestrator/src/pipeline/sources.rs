@@ -43,6 +43,10 @@ impl ConnectorSourceFactory {
 }
 
 impl SourceFactory for ConnectorSourceFactory {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        todo!()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.table_map
             .values()
@@ -50,14 +54,17 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect()
     }
 
-    fn build(&self) -> Box<dyn Source> {
-        Box::new(ConnectorSource {
+    fn build(
+        &self,
+        schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
             connection_map: self.connection_map.to_owned(),
             ingestor: self.ingestor.to_owned(),
             iterator: self.iterator.clone(),
             table_map: self.table_map.clone(),
-        })
+        }))
     }
 }
 
@@ -128,7 +135,7 @@ impl Source for ConnectorSource {
                             .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
                             .unwrap();
                         schema_map.insert(schema_id, port.to_owned());
-                        fw.update_schema(schema.clone(), port.to_owned())?
+                        //  fw.update_schema(schema.clone(), port.to_owned())?
                     }
                 }
             } else {
@@ -143,10 +150,6 @@ impl Source for ConnectorSource {
         }
 
         Ok(())
-    }
-
-    fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
-        None
     }
 }
 
