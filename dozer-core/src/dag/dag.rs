@@ -2,7 +2,11 @@ use crate::dag::dag::PortDirection::{Input, Output};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InvalidNodeHandle, InvalidNodeType, InvalidPortHandle};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+
 use std::collections::HashMap;
+use std::sync::Arc;
+
+pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Endpoint {
@@ -29,9 +33,9 @@ impl Edge {
 }
 
 pub enum NodeType {
-    Source(Box<dyn SourceFactory>),
-    Processor(Box<dyn ProcessorFactory>),
-    Sink(Box<dyn SinkFactory>),
+    Source(Arc<dyn SourceFactory>),
+    Processor(Arc<dyn ProcessorFactory>),
+    Sink(Arc<dyn SinkFactory>),
 }
 
 pub struct Node {
@@ -119,16 +123,44 @@ impl Dag {
         Ok(())
     }
 
-    pub fn merge(&mut self, namespace: String, other: Dag) {
-        for node in other.nodes {
-            self.nodes
-                .insert(format!("{}_{}", namespace, node.0), node.1);
+    pub fn merge(&mut self, ns: Option<u16>, other: Dag) {
+        for (handle, node) in other.nodes {
+            self.nodes.insert(
+                NodeHandle::new(
+                    if let Some(ns) = ns {
+                        Some(ns)
+                    } else {
+                        handle.ns
+                    },
+                    handle.id,
+                ),
+                node,
+            );
         }
-
         for edge in other.edges {
             self.edges.push(Edge::new(
-                Endpoint::new(format!("{}_{}", namespace, edge.from.node), edge.from.port),
-                Endpoint::new(format!("{}_{}", namespace, edge.to.node), edge.to.port),
+                Endpoint::new(
+                    NodeHandle::new(
+                        if let Some(ns) = ns {
+                            Some(ns)
+                        } else {
+                            edge.from.node.ns
+                        },
+                        edge.from.node.id,
+                    ),
+                    edge.from.port,
+                ),
+                Endpoint::new(
+                    NodeHandle::new(
+                        if let Some(ns) = ns {
+                            Some(ns)
+                        } else {
+                            edge.to.node.ns
+                        },
+                        edge.to.node.id,
+                    ),
+                    edge.to.port,
+                ),
             ));
         }
     }
@@ -141,11 +173,33 @@ impl Dag {
             .collect()
     }
 
-    pub fn get_sources(&self) -> Vec<NodeHandle> {
-        self.nodes
-            .iter()
-            .filter(|source| matches!(source.1, NodeType::Source(_)))
-            .map(|e| e.0.clone())
-            .collect()
+    pub fn get_sources(&self) -> Vec<(NodeHandle, &Arc<dyn SourceFactory>)> {
+        let mut r: Vec<(NodeHandle, &Arc<dyn SourceFactory>)> = Vec::new();
+        for (handle, typ) in &self.nodes {
+            if let NodeType::Source(s) = typ {
+                r.push((handle.clone(), s))
+            }
+        }
+        r
+    }
+
+    pub fn get_processors(&self) -> Vec<(NodeHandle, &Arc<dyn ProcessorFactory>)> {
+        let mut r: Vec<(NodeHandle, &Arc<dyn ProcessorFactory>)> = Vec::new();
+        for (handle, typ) in &self.nodes {
+            if let NodeType::Processor(s) = typ {
+                r.push((handle.clone(), s));
+            }
+        }
+        r
+    }
+
+    pub fn get_sinks(&self) -> Vec<(NodeHandle, &Arc<dyn SinkFactory>)> {
+        let mut r: Vec<(NodeHandle, &Arc<dyn SinkFactory>)> = Vec::new();
+        for (handle, typ) in &self.nodes {
+            if let NodeType::Sink(s) = typ {
+                r.push((handle.clone(), s));
+            }
+        }
+        r
     }
 }

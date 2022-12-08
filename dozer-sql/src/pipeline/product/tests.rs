@@ -1,4 +1,4 @@
 #[cfg(test)]
-mod join_pipeline_test;
+mod factory_tests;
 #[cfg(test)]
-mod product_tests;
+mod pipeline_test;

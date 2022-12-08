@@ -31,6 +31,14 @@ pub enum ExecutionError {
     RecordNotFound(),
     #[error("Invalid checkpoint state for node: {0}")]
     InvalidCheckpointState(NodeHandle),
+    #[error("Already exists: {0}")]
+    MetadataAlreadyExists(NodeHandle),
+    #[error("Incompatible schemas")]
+    IncompatibleSchemas(),
+    #[error("Channel disconnected")]
+    ChannelDisconnected,
+    #[error("Internal thread panicked")]
+    InternalThreadPanic,
 
     // Error forwarders
     #[error(transparent)]
