@@ -40,8 +40,6 @@ diesel::table! {
         app_id -> Text,
         name -> Text,
         path -> Text,
-        enable_rest -> Bool,
-        enable_grpc -> Bool,
         sql -> Text,
         primary_keys -> Text,
         created_at -> Timestamp,

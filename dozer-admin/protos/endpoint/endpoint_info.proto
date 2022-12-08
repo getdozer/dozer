@@ -8,6 +8,5 @@ message EndpointInfo {
   string name = 3;
   string path = 4;
   string sql = 5;
-  repeated string source_ids = 6;
-  repeated string primary_keys = 7;
+  repeated string primary_keys = 6;
 }

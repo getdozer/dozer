@@ -58,7 +58,6 @@ impl EndpointService {
             name: request.name.to_owned(),
             path: request.path.to_owned(),
             sql: request.sql,
-            source_ids: request.source_ids,
             primary_keys: request.primary_keys,
         };
         endpoint_info

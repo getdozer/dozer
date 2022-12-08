@@ -3,12 +3,12 @@ use super::{
     constants,
     persistable::Persistable,
     pool::DbPool,
-    schema::{self, endpoints, source_endpoints, sources},
+    schema::{self, endpoints, source_endpoints},
 };
 use crate::db::schema::apps::dsl::apps;
 use crate::server::dozer_admin_grpc::{EndpointInfo, Pagination};
-use diesel::{delete, insert_into, prelude::*, query_dsl::methods::FilterDsl, ExpressionMethods};
-use schema::{endpoints::dsl::*, source_endpoints::dsl::*, sources::dsl::*};
+use diesel::{insert_into, prelude::*, query_dsl::methods::FilterDsl, ExpressionMethods};
+use schema::endpoints::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
@@ -19,8 +19,6 @@ pub struct DbEndpoint {
     pub app_id: String,
     pub name: String,
     pub path: String,
-    pub enable_rest: bool,
-    pub enable_grpc: bool,
     pub sql: String,
     pub primary_keys: String,
     pub created_at: String,
@@ -33,8 +31,6 @@ struct NewEndpoint {
     app_id: String,
     name: String,
     path: String,
-    enable_rest: bool,
-    enable_grpc: bool,
     primary_keys: String,
     sql: String,
 }
@@ -64,8 +60,6 @@ impl TryFrom<EndpointInfo> for NewEndpoint {
             id: input.id,
             name: input.name,
             path: input.path,
-            enable_rest: true,
-            enable_grpc: true,
             sql: input.sql,
             app_id: input.app_id,
             primary_keys: input.primary_keys.join(","),
@@ -76,7 +70,6 @@ impl TryFrom<DbEndpoint> for EndpointInfo {
     type Error = Box<dyn Error>;
 
     fn try_from(input: DbEndpoint) -> Result<Self, Self::Error> {
-        let ids: Vec<String> = Vec::new();
         let primary_keys_arr: Vec<String> = input
             .primary_keys
             .split(',')
@@ -89,7 +82,6 @@ impl TryFrom<DbEndpoint> for EndpointInfo {
             name: input.name,
             path: input.path,
             sql: input.sql,
-            source_ids: ids,
             primary_keys: primary_keys_arr,
         })
     }
@@ -116,26 +108,12 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
 
     fn upsert(&mut self, pool: DbPool) -> Result<&mut EndpointInfo, Box<dyn Error>> {
         let mut db = pool.get()?;
-        let source_ids = self.source_ids.to_owned();
-        // if source_ids.is_empty() {
-        //     return Err("Missing source_ids".to_owned())?;
-        // }
-        let source_ids_len = source_ids.len();
         db.transaction::<(), _, _>(|conn| -> Result<(), Box<dyn Error>> {
             let _ = apps
                 .find(self.app_id.to_owned())
                 .first::<Application>(conn)
                 .map_err(|err| format!("App_id: {:} {:}", self.app_id.to_owned(), err))?;
 
-            let source_id_query = FilterDsl::filter(
-                FilterDsl::filter(sources, sources::id.eq_any(source_ids.to_owned())),
-                sources::app_id.eq(self.app_id.to_owned()),
-            )
-            .select(sources::id)
-            .load::<String>(conn)?;
-            if source_id_query.len() != source_ids_len {
-                return Err("source ids input is not correct".to_owned())?;
-            }
             let new_endpoint = NewEndpoint::try_from(self.clone())?;
 
             insert_into(endpoints)
@@ -144,25 +122,6 @@ impl Persistable<'_, EndpointInfo> for EndpointInfo {
                 .do_update()
                 .set(&new_endpoint)
                 .execute(conn)?;
-            for source_id_value in source_id_query {
-                insert_into(source_endpoints)
-                    .values(NewSourceEndpoint {
-                        source_id: source_id_value.to_owned(),
-                        endpoint_id: new_endpoint.clone().id,
-                        app_id: self.app_id.to_owned(),
-                    })
-                    .on_conflict((source_endpoints::endpoint_id, source_endpoints::source_id))
-                    .do_nothing()
-                    .execute(conn)?;
-            }
-            delete(FilterDsl::filter(
-                FilterDsl::filter(
-                    source_endpoints,
-                    source_endpoints::endpoint_id.eq(new_endpoint.id.to_owned()),
-                ),
-                source_endpoints::source_id.ne_all(source_ids.to_owned()),
-            ))
-            .execute(conn)?;
 
             self.id = new_endpoint.id;
             Ok(())

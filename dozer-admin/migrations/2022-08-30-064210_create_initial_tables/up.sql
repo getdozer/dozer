@@ -32,8 +32,6 @@ create table endpoints (
     app_id TEXT not null,
     name TEXT NOT NULL,
     path TEXT NOT NULL,
-    enable_rest BOOLEAN NOT NULL,
-    enable_grpc BOOLEAN NOT NULL,
     sql TEXT NOT NULL,
     primary_keys TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
