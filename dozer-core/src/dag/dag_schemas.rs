@@ -1,4 +1,4 @@
-use crate::dag::dag::{Dag, NodeType, DEFAULT_PORT_HANDLE};
+use crate::dag::dag::{Dag, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 use crate::dag::node::{NodeHandle, PortHandle};
@@ -50,7 +50,7 @@ impl<'a> DagSchemaManager<'a> {
             NodeType::Source(src) => Some(src.get_output_schema(output_port)?),
             NodeType::Processor(proc) => Some(proc.get_output_schema(output_port, input_schemas)?),
             NodeType::Sink(proc) => {
-                proc.set_input_schema(output_port, input_schemas)?;
+                proc.set_input_schema(input_schemas)?;
                 None
             }
         })
@@ -104,7 +104,7 @@ impl<'a> DagSchemaManager<'a> {
                     let node_schemas = all_schemas
                         .get_mut(handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-                    let _ = s.set_input_schema(&DEFAULT_PORT_HANDLE, &node_schemas.input_schemas);
+                    let _ = s.set_input_schema(&node_schemas.input_schemas);
                 }
                 _ => {
                     // Calculate the output schema for each port and insert it in the global schemas map

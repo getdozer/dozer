@@ -11,7 +11,7 @@ use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
-use dozer_types::crossbeam::channel::{unbounded, Sender};
+use dozer_types::crossbeam::channel::unbounded;
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
@@ -20,10 +20,10 @@ use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
-use std::sync::mpsc::RecvTimeoutError;
-use std::sync::{mpsc, Arc, Mutex};
+
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
-use std::{fs, thread};
 use tempdir::TempDir;
 
 use super::helper::get_table_create_sql;
@@ -48,7 +48,7 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(self.schema.clone())
     }
 
@@ -60,7 +60,7 @@ impl SourceFactory for TestSourceFactory {
     }
     fn build(
         &self,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {
             schema: self.schema.to_owned(),
@@ -125,7 +125,6 @@ impl TestSinkFactory {
 impl SinkFactory for TestSinkFactory {
     fn set_input_schema(
         &self,
-        output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone();
@@ -133,10 +132,7 @@ impl SinkFactory for TestSinkFactory {
         self.mapper
             .lock()
             .unwrap()
-            .create_tables(vec![(
-                "results",
-                &get_table_create_sql("results", schema.to_owned()),
-            )])
+            .create_tables(vec![("results", &get_table_create_sql("results", schema))])
             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
         Ok(())
@@ -246,7 +242,7 @@ impl TestPipeline {
     pub fn run(&mut self) -> Result<Schema, ExecutionError> {
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
-        let (tx, rx) = unbounded::<Schema>();
+        let (_tx, _rx) = unbounded::<Schema>();
 
         let ast = Parser::parse_sql(&dialect, &self.sql).unwrap();
 
@@ -267,12 +263,8 @@ impl TestPipeline {
 
         let source =
             TestSourceFactory::new(self.schema.clone(), self.ops.to_owned(), latch.clone());
-        let sink = TestSinkFactory::new(
-            self.mapper.clone(),
-            schema_holder.clone(),
-            latch.clone(),
-            ops_count,
-        );
+        let sink =
+            TestSinkFactory::new(self.mapper.clone(), schema_holder.clone(), latch, ops_count);
 
         dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
         dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
@@ -287,7 +279,7 @@ impl TestPipeline {
 
         dag.connect(
             Endpoint::new(out_handle.node, out_handle.port),
-            Endpoint::new(sink_handle.clone(), DEFAULT_PORT_HANDLE),
+            Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
         )
         .unwrap();
 
