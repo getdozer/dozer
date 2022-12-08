@@ -22,6 +22,7 @@ bytes = "1.2.1"
 indexmap = "1.9.1"
 ordered-float = { version = "2.10.0", features = ["serde"] }
 serde_yaml = "0.9.14"
+prost = "0.11.3"
 
 [features]
 snowflake=[]

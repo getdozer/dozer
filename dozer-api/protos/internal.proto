@@ -6,8 +6,8 @@ import "types.proto";
 
 service InternalPipelineService {
   // ClientStreamingEcho is client side streaming.
-  rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse) {
-  }
+  rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse);
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
 }
 
 // ---------------- Internal ------------------------
@@ -20,3 +20,7 @@ message PipelineRequest {
 }
 
 message PipelineResponse {}
+message GetConfigRequest {}
+message GetConfigResponse {
+  string config_yaml = 1;
+}

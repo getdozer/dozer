@@ -8,6 +8,6 @@ message ConnectionInfo {
   string id = 1;
   string app_id = 2;
   string name = 3;
-  ConnectionType type = 4;
+  DBType type = 4;
   Authentication authentication = 5;
 }

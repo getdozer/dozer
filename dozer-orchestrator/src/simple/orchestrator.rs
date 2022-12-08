@@ -88,19 +88,19 @@ impl Orchestrator for SimpleOrchestrator {
         let ce2 = cache_endpoints.clone();
         let ce3 = cache_endpoints;
 
-        let internal_config = self.config.api.internal.to_owned();
+        let app_config = self.config.to_owned();
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
             // Initialize Internal Server
             tokio::spawn(async move {
-                start_internal_server(internal_config, sender)
+                start_internal_server(app_config, sender)
                     .await
                     .expect("Failed to initialize internal server")
             });
 
             // Initialize API Server
-            let rest_config = self.config.api.rest.to_owned();
+            let rest_config = self.config.api.rest.to_owned().unwrap_or_default().to_owned();
             tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config);
                 api_server
@@ -110,7 +110,7 @@ impl Orchestrator for SimpleOrchestrator {
             });
 
             // Initialize GRPC Server
-            let grpc_config = &self.config.api.grpc;
+            let grpc_config = self.config.api.grpc.to_owned().unwrap_or_default();
             let grpc_server = grpc::ApiServer::new(receiver, grpc_config.to_owned(), true);
             tokio::spawn(async move {
                 grpc_server
@@ -139,7 +139,7 @@ impl Orchestrator for SimpleOrchestrator {
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
-        let internal_config = self.config.api.internal.to_owned();
+        let internal_config = self.config.api.internal.to_owned().unwrap_or_default();
         // Initialize Internal Server Client
         let _internal_thread = thread::spawn(move || {
             start_internal_client(internal_config, receiver);

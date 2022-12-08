@@ -6,9 +6,9 @@ use super::{
     schema::{self, connections},
 };
 use crate::db::schema::apps::dsl::apps;
-use crate::server::dozer_admin_grpc::{self, ConnectionInfo, ConnectionType, Pagination};
+use crate::server::dozer_admin_grpc::{self, ConnectionInfo, Pagination};
 use diesel::{insert_into, prelude::*, query_dsl::methods::FilterDsl, ExpressionMethods};
-use dozer_types::serde;
+use dozer_types::{serde, models::connection::DBType};
 use schema::connections::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -36,7 +36,7 @@ struct NewConnection {
 impl TryFrom<DbConnection> for ConnectionInfo {
     type Error = Box<dyn Error>;
     fn try_from(item: DbConnection) -> Result<Self, Self::Error> {
-        let db_type_value: ConnectionType = ConnectionType::try_from(item.db_type.clone())?;
+        let db_type_value: DBType = DBType::try_from(item.db_type.clone())?;
         let auth_value: dozer_admin_grpc::Authentication = serde_json::from_str(&item.auth)?;
         Ok(ConnectionInfo {
             id: item.id,
@@ -47,33 +47,30 @@ impl TryFrom<DbConnection> for ConnectionInfo {
         })
     }
 }
-impl TryFrom<i32> for ConnectionType {
-    type Error = Box<dyn Error>;
-    fn try_from(item: i32) -> Result<Self, Self::Error> {
-        match item {
-            0 => Ok(ConnectionType::Postgres),
-            1 => Ok(ConnectionType::Eth),
-            2 => Ok(ConnectionType::Events),
-            3 => Ok(ConnectionType::Snowflake),
-            4 => Ok(ConnectionType::Kafka),
-            _ => Err("ConnectionType enum not match".to_owned())?,
-        }
-    }
-}
-impl TryFrom<String> for ConnectionType {
-    type Error = Box<dyn Error>;
-    fn try_from(item: String) -> Result<Self, Self::Error> {
-        match item.to_lowercase().as_str() {
-            "postgres" => Ok(ConnectionType::Postgres),
-            "snowflake" => Ok(ConnectionType::Snowflake),
-            "eth" => Ok(ConnectionType::Eth),
-            "ethereum" => Ok(ConnectionType::Eth),
-            "events" => Ok(ConnectionType::Events),
-            "kafka" => Ok(ConnectionType::Kafka),
-            _ => Err("String not match ConnectionType".to_owned())?,
-        }
-    }
-}
+// impl TryFrom<i32> for ConnectionType {
+//     type Error = Box<dyn Error>;
+//     fn try_from(item: i32) -> Result<Self, Self::Error> {
+//         match item {
+//             0 => Ok(ConnectionType::Postgres),
+//             1 => Ok(ConnectionType::Snowflake),
+//             2 => Ok(ConnectionType::Databricks),
+//             3 => Ok(ConnectionType::Eth),
+//             _ => Err("ConnectionType enum not match".to_owned())?,
+//         }
+//     }
+// }
+// impl TryFrom<String> for ConnectionType {
+//     type Error = Box<dyn Error>;
+//     fn try_from(item: String) -> Result<Self, Self::Error> {
+//         match item.to_lowercase().as_str() {
+//             "postgres" => Ok(ConnectionType::Postgres),
+//             "snowflake" => Ok(ConnectionType::Snowflake),
+//             "eth" => Ok(ConnectionType::Eth),
+//             "databricks" => Ok(ConnectionType::Databricks),
+//             _ => Err("String not match ConnectionType".to_owned())?,
+//         }
+//     }
+// }
 impl TryFrom<ConnectionInfo> for NewConnection {
     type Error = Box<dyn Error>;
     fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {

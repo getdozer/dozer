@@ -23,24 +23,25 @@ use dozer_types::{
 use std::{convert::From, error::Error};
 
 //TODO: Add grpc method to create ApiConfig
-fn fake_api_config() -> ApiConfig {
+fn default_api_config() -> ApiConfig {
     ApiConfig {
-        rest: ApiRest {
+        rest: Some(ApiRest {
             port: 8080,
             url: "[::0]".to_owned(),
             cors: true,
-        },
-        grpc: ApiGrpc {
+        }),
+        grpc: Some(ApiGrpc {
             port: 50051,
             url: "[::0]".to_owned(),
             cors: true,
             web: true,
-        },
+        }),
         auth: false,
-        internal: ApiInternal {
+        internal: Some(ApiInternal {
             port: 50052,
             host: "[::1]".to_owned(),
-        },
+        }),
+        ..Default::default()
     }
 }
 fn convert_to_source(input: (DBSource, DbConnection)) -> Result<Source, Box<dyn Error>> {
@@ -106,7 +107,7 @@ impl TryFrom<ApplicationDetail> for Config {
             sources,
             endpoints,
             app_name: input.app.name,
-            api: fake_api_config(),
+            api: default_api_config(),
             connections,
         })
     }

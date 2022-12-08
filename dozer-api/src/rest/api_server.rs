@@ -47,7 +47,7 @@ impl ApiServer {
     pub fn new(rest_config: ApiRest) -> Self {
         Self {
             shutdown_timeout: 0,
-            port: rest_config.port,
+            port: rest_config.port as u16,
             cors: CorsOptions::Permissive,
             security: ApiSecurity::None,
             url: rest_config.url,

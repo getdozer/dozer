@@ -1,8 +1,9 @@
 use crate::{
     db::pool::establish_connection,
     services::{
-        application_service::AppService, connection_service::ConnectionService,
-        endpoint_service::EndpointService, source_service::SourceService,
+        api_config_service::ApiConfigService, application_service::AppService,
+        connection_service::ConnectionService, endpoint_service::EndpointService,
+        source_service::SourceService,
     },
 };
 use dotenvy::dotenv;
@@ -16,14 +17,16 @@ pub mod dozer_admin_grpc {
 }
 use dozer_admin_grpc::{
     dozer_admin_server::{DozerAdmin, DozerAdminServer},
-    CreateAppRequest, CreateAppResponse, CreateConnectionRequest, CreateConnectionResponse,
-    CreateEndpointRequest, CreateEndpointResponse, CreateSourceRequest, CreateSourceResponse,
-    DeleteEndpointRequest, DeleteEndpointResponse, GetAllConnectionRequest,
-    GetAllConnectionResponse, GetConnectionDetailsRequest, GetConnectionDetailsResponse,
+    CreateApiConfigRequest, CreateApiConfigResponse, CreateAppRequest, CreateAppResponse,
+    CreateConnectionRequest, CreateConnectionResponse, CreateEndpointRequest,
+    CreateEndpointResponse, CreateSourceRequest, CreateSourceResponse, DeleteEndpointRequest,
+    DeleteEndpointResponse, GetAllConnectionRequest, GetAllConnectionResponse, GetApiConfigRequest,
+    GetApiConfigResponse, GetConnectionDetailsRequest, GetConnectionDetailsResponse,
     GetEndpointRequest, GetEndpointResponse, GetSchemaRequest, GetSchemaResponse, GetSourceRequest,
     GetSourceResponse, StartPipelineRequest, StartPipelineResponse, TestConnectionRequest,
-    TestConnectionResponse, UpdateConnectionRequest, UpdateConnectionResponse,
-    UpdateEndpointRequest, UpdateEndpointResponse, UpdateSourceRequest, UpdateSourceResponse,
+    TestConnectionResponse, UpdateApiConfigRequest, UpdateApiConfigResponse,
+    UpdateConnectionRequest, UpdateConnectionResponse, UpdateEndpointRequest,
+    UpdateEndpointResponse, UpdateSourceRequest, UpdateSourceResponse,
 };
 
 use self::dozer_admin_grpc::{
@@ -37,10 +40,43 @@ pub struct GrpcService {
     connection_service: ConnectionService,
     source_service: SourceService,
     endpoint_service: EndpointService,
+    api_config_service: ApiConfigService,
 }
 
 #[tonic::async_trait]
 impl DozerAdmin for GrpcService {
+    async fn create_api_config(
+        &self,
+        request: tonic::Request<CreateApiConfigRequest>,
+    ) -> Result<tonic::Response<CreateApiConfigResponse>, tonic::Status> {
+        let result = self.api_config_service.create_api_config(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+    async fn update_api_config(
+        &self,
+        request: tonic::Request<UpdateApiConfigRequest>,
+    ) -> Result<tonic::Response<UpdateApiConfigResponse>, tonic::Status> {
+        let result = self.api_config_service.update(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
+    async fn get_api_config(
+        &self,
+        request: tonic::Request<GetApiConfigRequest>,
+    ) -> Result<tonic::Response<GetApiConfigResponse>, tonic::Status> {
+        let result = self.api_config_service.get_api_config(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
+    }
+
     async fn start_pipeline(
         &self,
         request: tonic::Request<StartPipelineRequest>,
@@ -276,6 +312,7 @@ pub async fn get_server() -> Result<(), tonic::transport::Error> {
         source_service: SourceService::new(db_pool.to_owned()),
         endpoint_service: EndpointService::new(db_pool.to_owned()),
         app_service: AppService::new(db_pool.to_owned()),
+        api_config_service: ApiConfigService::new(db_pool.to_owned()),
     };
     let server = DozerAdminServer::new(grpc_service);
     let server = tonic_web::config().allow_all_origins().enable(server);

@@ -35,7 +35,7 @@ impl ApiServer {
         dynamic: bool,
     ) -> Self {
         Self {
-            port: grpc_config.port,
+            port: grpc_config.port as u16,
             web: grpc_config.web,
             url: grpc_config.url,
             event_notifier,

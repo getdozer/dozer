@@ -7,6 +7,8 @@ import "protos/source/source_info.proto";
 import "protos/endpoint/endpoint_info.proto";
 import "protos/application/application_info.proto";
 import "protos/connection/authentication.proto";
+import "protos/api_config/api_config.proto";
+
 
 service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (CreateAppResponse);
@@ -35,6 +37,10 @@ service DozerAdmin {
 
 
   rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
+  
+  rpc createApiConfig(CreateApiConfigRequest) returns (CreateApiConfigResponse);
+  rpc updateApiConfig(UpdateApiConfigRequest) returns (UpdateApiConfigResponse);
+  rpc getApiConfig(GetApiConfigRequest) returns (GetApiConfigResponse);
 }
 
 message StartPipelineRequest {
@@ -116,7 +122,7 @@ message UpdateEndpointResponse {
 
 message TestConnectionRequest {
   string name = 1;
-  ConnectionType type = 2;
+  DBType type = 2;
   Authentication authentication = 3;
 }
 
@@ -125,7 +131,7 @@ message TestConnectionResponse {
 }
 message ValidateConnectionRequest {
   string name = 1;
-  ConnectionType type = 2;
+  DBType type = 2;
   Authentication authentication = 3;
 }
 message ValidateConnectionResponse {
@@ -134,7 +140,7 @@ message ValidateConnectionResponse {
 message CreateConnectionRequest {
   string app_id = 1;
   string name = 2;
-  ConnectionType type = 3;
+  DBType type = 3;
   Authentication authentication = 4;
 }
 
@@ -175,7 +181,7 @@ message UpdateConnectionRequest {
   string app_id = 1;
   string connection_id = 2;
   string name = 3;
-  ConnectionType type = 4;
+  DBType type = 4;
   Authentication authentication = 5;
 }
 message UpdateConnectionResponse {
@@ -243,4 +249,32 @@ message GetSourceResponse {
 
 message ErrorResponse {
   string message = 1;
+}
+message CreateApiConfigRequest {
+  ApiRest rest = 1;
+  ApiGrpc grpc = 2;
+  bool auth = 3;
+  ApiInternal internal = 4;
+  string app_id = 5;
+}
+message CreateApiConfigResponse {
+  ApiConfig config = 1;
+}
+message UpdateApiConfigRequest {
+  ApiRest rest = 1;
+  ApiGrpc grpc = 2;
+  bool auth = 3;
+  ApiInternal internal = 4;
+  string app_id = 5;
+  string id = 6;
+}
+message UpdateApiConfigResponse {
+  ApiConfig config = 1;
+}
+message GetApiConfigRequest {
+  string id = 1;
+  string app_id = 2;
+}
+message GetApiConfigResponse {
+  ApiConfig config = 1;
 }

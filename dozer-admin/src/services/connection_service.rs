@@ -68,6 +68,7 @@ impl ConnectionService {
             message: "Missing authentication input".to_owned(),
         })
     }
+    
     pub async fn get_connection_details(
         &self,
         input: GetConnectionDetailsRequest,

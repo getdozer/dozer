@@ -1,33 +1,48 @@
 use serde::{Deserialize, Serialize};
-
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ApiIndex {
     pub primary_key: Vec<String>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiConfig {
-    pub rest: ApiRest,
-    pub grpc: ApiGrpc,
+    #[prost(message, tag = "1")]
+    pub rest: Option<ApiRest>,
+    #[prost(message, tag = "2")]
+    pub grpc: Option<ApiGrpc>,
+    #[prost(bool, tag = "3")]
     pub auth: bool,
-    pub internal: ApiInternal,
+    #[prost(message, tag = "4")]
+    pub internal: Option<ApiInternal>,
+    #[prost(message, optional, tag = "5")]
+    pub app_id: Option<String>,
+    #[prost(message, optional, tag = "6")]
+    pub id: Option<String>,
 }
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiRest {
-    pub port: u16,
+    #[prost(uint32, tag = "1")]
+    pub port: u32,
+    #[prost(string, tag = "2")]
     pub url: String,
+    #[prost(bool, tag = "3")]
     pub cors: bool,
 }
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiGrpc {
-    pub port: u16,
+    #[prost(uint32, tag = "1")]
+    pub port: u32,
+    #[prost(string, tag = "2")]
     pub url: String,
+    #[prost(bool, tag = "3")]
     pub cors: bool,
+    #[prost(bool, tag = "4")]
     pub web: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiInternal {
-    pub port: u16,
+    #[prost(uint32, tag = "1")]
+    pub port: u32,
+    #[prost(string, tag = "2")]
     pub host: String,
 }

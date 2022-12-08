@@ -1391,6 +1391,7 @@ dependencies = [
  "log4rs",
  "ordered-float",
  "parking_lot 0.12.1",
+ "prost",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -3135,9 +3136,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.11.0"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "399c3c31cdec40583bb68f0b18403400d01ec4289c383aa047560439952c4dd7"
+checksum = "c0b18e655c21ff5ac2084a5ad0611e827b3f92badf79f4910b5a5c58f4d87ff0"
 dependencies = [
  "bytes",
  "prost-derive",
