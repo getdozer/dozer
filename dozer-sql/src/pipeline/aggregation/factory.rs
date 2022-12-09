@@ -122,6 +122,9 @@ fn parse_sql_aggregate_item(
             match builder.parse_sql_expression(&ExpressionType::Aggregation, sql_expr, schema) {
                 Ok(expr) => Ok(FieldRule::Measure(
                     sql_expr.to_string(),
+                    ExpressionBuilder {}
+                        .parse_sql_expression(&ExpressionType::PreAggregation, sql_expr, schema)?
+                        .0,
                     get_aggregator(expr.0, schema)?,
                     true,
                     Some(item.to_string()),
@@ -175,6 +178,17 @@ fn build_output_schema(
 
     for e in output_field_rules.iter().enumerate() {
         match e.1 {
+            FieldRule::Measure(idx, pre_aggr, aggr, is_value, name) => {
+                output_schema.fields.push(FieldDefinition::new(
+                    idx.clone(),
+                    aggr.get_return_type(pre_aggr.get_type(input_schema)),
+                    false,
+                ));
+                if *is_value {
+                    output_schema.values.push(e.0);
+                }
+            }
+
             FieldRule::Dimension(idx, expression, is_value, name) => {
                 let src_fld = input_schema.get_field_index(idx.as_str())?;
                 output_schema.fields.push(FieldDefinition::new(
@@ -189,21 +203,6 @@ fn build_output_schema(
                     output_schema.values.push(e.0);
                 }
                 output_schema.primary_index.push(e.0);
-            }
-
-            FieldRule::Measure(idx, aggr, is_value, name) => {
-                let src_fld = input_schema.get_field_index(idx)?;
-                output_schema.fields.push(FieldDefinition::new(
-                    match name {
-                        Some(n) => n.clone(),
-                        _ => src_fld.1.name.clone(),
-                    },
-                    aggr.get_return_type(src_fld.1.typ),
-                    false,
-                ));
-                if *is_value {
-                    output_schema.values.push(e.0);
-                }
             }
         }
     }

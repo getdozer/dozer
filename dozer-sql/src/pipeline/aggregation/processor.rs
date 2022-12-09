@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use crate::deserialize;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
@@ -35,6 +36,8 @@ pub enum FieldRule {
     Measure(
         /// Field to be aggregated in the source schema
         String,
+        /// Argument of the Aggregator
+        Box<Expression>,
         /// Aggregator implementation for this measure
         Aggregator,
         /// true if this field should be included in the list of values of the
@@ -67,7 +70,7 @@ impl<'a> AggregationData<'a> {
 pub struct AggregationProcessor {
     output_field_rules: Vec<FieldRule>,
     out_dimensions: Vec<(usize, Box<Expression>, usize)>,
-    out_measures: Vec<(usize, Box<Aggregator>, usize)>,
+    out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)>,
     pub db: Option<Database>,
     meta_db: Option<Database>,
     aggregators_db: Option<Database>,
@@ -207,14 +210,14 @@ impl AggregationProcessor {
 
             let (prefix, next_state_slice) = match op {
                 AggregatorOperation::Insert => {
-                    let inserted_field = inserted_record.unwrap().get_value(measure.0)?;
+                    let inserted_field = measure.0.evaluate(inserted_record.unwrap())?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.insert(
                             curr.state,
-                            inserted_field,
-                            inserted_field.get_type(),
+                            &inserted_field,
+                            inserted_field.get_type()?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -224,8 +227,8 @@ impl AggregationProcessor {
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.insert(
                             None,
-                            inserted_field,
-                            inserted_field.get_type(),
+                            &inserted_field,
+                            inserted_field.get_type()?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -233,14 +236,14 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Delete => {
-                    let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
+                    let deleted_field = measure.0.evaluate(deleted_record.unwrap())?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.delete(
                             curr.state,
-                            deleted_field,
-                            deleted_field.get_type(),
+                            &deleted_field,
+                            deleted_field.get_type()?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -250,8 +253,8 @@ impl AggregationProcessor {
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.delete(
                             None,
-                            deleted_field,
-                            deleted_field.get_type(),
+                            &deleted_field,
+                            deleted_field.get_type()?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -259,17 +262,17 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Update => {
-                    let deleted_field = deleted_record.unwrap().get_value(measure.0)?;
-                    let updated_field = inserted_record.unwrap().get_value(measure.0)?;
+                    let deleted_field = measure.0.evaluate(deleted_record.unwrap())?;
+                    let updated_field = measure.0.evaluate(inserted_record.unwrap())?;
 
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.update(
                             curr.state,
-                            deleted_field,
-                            updated_field,
-                            deleted_field.get_type(),
+                            &deleted_field,
+                            &updated_field,
+                            deleted_field.get_type()?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -279,9 +282,9 @@ impl AggregationProcessor {
                         let mut p_tx = PrefixTransaction::new(txn, prefix);
                         let r = measure.1.update(
                             None,
-                            deleted_field,
-                            updated_field,
-                            deleted_field.get_type(),
+                            &deleted_field,
+                            &updated_field,
+                            deleted_field.get_type()?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -531,7 +534,7 @@ impl Processor for AggregationProcessor {
 }
 
 type OutputRules = (
-    Vec<(usize, Box<Aggregator>, usize)>,
+    Vec<(Box<Expression>, Box<Aggregator>, usize)>,
     Vec<(usize, Box<Expression>, usize)>,
 );
 
@@ -539,17 +542,13 @@ fn populate_rules(
     output_field_rules: &[FieldRule],
     schema: &Schema,
 ) -> Result<OutputRules, PipelineError> {
-    let mut out_measures: Vec<(usize, Box<Aggregator>, usize)> = Vec::new();
+    let mut out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)> = Vec::new();
     let mut out_dimensions: Vec<(usize, Box<Expression>, usize)> = Vec::new();
 
     for rule in output_field_rules.iter().enumerate() {
         match rule.1 {
-            FieldRule::Measure(idx, aggr, _nullable, _name) => {
-                out_measures.push((
-                    schema.get_field_index(idx.as_str())?.0,
-                    Box::new(aggr.clone()),
-                    rule.0,
-                ));
+            FieldRule::Measure(idx, pre_aggr, aggr, _nullable, _name) => {
+                out_measures.push((pre_aggr.clone(), Box::new(aggr.clone()), rule.0));
             }
             FieldRule::Dimension(idx, expression, _nullable, _name) => {
                 out_dimensions.push((
