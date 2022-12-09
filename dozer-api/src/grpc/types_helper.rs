@@ -1,31 +1,9 @@
 use dozer_types::chrono::SecondsFormat;
 use dozer_types::types::{
-    Field, FieldType, Operation as DozerOperation, Record as DozerRecord, Schema as DozerSchema,
-    DATE_FORMAT,
+    Field, FieldType, Operation as DozerOperation, Record as DozerRecord, DATE_FORMAT,
 };
 
-use crate::grpc::types::{
-    value, FieldDefinition, Operation, OperationType, Record, SchemaEvent, Type, Value,
-};
-
-pub fn map_schema(endpoint_name: String, schema: &DozerSchema) -> SchemaEvent {
-    let fields = schema
-        .fields
-        .iter()
-        .map(|f| FieldDefinition {
-            typ: map_field_type_to_pb(&f.typ) as i32,
-            name: f.name.to_owned(),
-            nullable: f.nullable,
-        })
-        .collect();
-    let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
-    SchemaEvent {
-        endpoint: endpoint_name,
-        version: schema.identifier.as_ref().unwrap().version as u64,
-        fields,
-        primary_index,
-    }
-}
+use crate::grpc::types::{value, Operation, OperationType, Record, Type, Value};
 
 pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Operation {
     match operation.to_owned() {
@@ -51,37 +29,42 @@ pub fn map_operation(endpoint_name: String, operation: &DozerOperation) -> Opera
 }
 
 pub fn map_record(record: DozerRecord) -> Record {
-    let values: Vec<Value> = record.values.iter().map(field_to_prost_value).collect();
+    let values: Vec<Value> = record
+        .values
+        .into_iter()
+        .map(field_to_prost_value)
+        .collect();
 
     Record { values }
 }
-pub fn field_to_prost_value(f: &Field) -> Value {
+
+fn field_to_prost_value(f: Field) -> Value {
     match f {
         Field::UInt(n) => Value {
-            value: Some(value::Value::UintValue(*n)),
+            value: Some(value::Value::UintValue(n)),
         },
         Field::Int(n) => Value {
-            value: Some(value::Value::IntValue(*n)),
+            value: Some(value::Value::IntValue(n)),
         },
         Field::Float(n) => Value {
             value: Some(value::Value::FloatValue(n.0 as f32)),
         },
 
         Field::Boolean(n) => Value {
-            value: Some(value::Value::BoolValue(*n)),
+            value: Some(value::Value::BoolValue(n)),
         },
 
         Field::String(s) => Value {
-            value: Some(value::Value::StringValue(s.to_owned())),
+            value: Some(value::Value::StringValue(s)),
         },
         Field::Text(s) => Value {
-            value: Some(value::Value::StringValue(s.to_owned())),
+            value: Some(value::Value::StringValue(s)),
         },
         Field::Binary(b) => Value {
-            value: Some(value::Value::BytesValue(b.to_owned())),
+            value: Some(value::Value::BytesValue(b)),
         },
         Field::Decimal(n) => Value {
-            value: Some(value::Value::StringValue((*n).to_string())),
+            value: Some(value::Value::StringValue(n.to_string())),
         },
         Field::Timestamp(ts) => Value {
             value: Some(value::Value::StringValue(
@@ -89,7 +72,7 @@ pub fn field_to_prost_value(f: &Field) -> Value {
             )),
         },
         Field::Bson(b) => Value {
-            value: Some(value::Value::BytesValue(b.to_owned())),
+            value: Some(value::Value::BytesValue(b)),
         },
         Field::Null => Value { value: None },
         Field::Date(date) => Value {
@@ -100,7 +83,7 @@ pub fn field_to_prost_value(f: &Field) -> Value {
     }
 }
 
-pub fn map_field_type_to_pb(typ: &FieldType) -> Type {
+pub fn map_field_type_to_pb(typ: FieldType) -> Type {
     match typ {
         FieldType::UInt => Type::UInt,
         FieldType::Int => Type::Int,

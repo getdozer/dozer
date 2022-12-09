@@ -1,93 +1,92 @@
-use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 use dozer_core::dag::channels::ProcessorChannelForwarder;
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
-};
+use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::internal_err;
-use dozer_types::types::{FieldDefinition, Operation, Record, Schema};
+use dozer_types::types::{Operation, Record, Schema};
 use log::info;
-use sqlparser::ast::SelectItem;
 use std::collections::HashMap;
 
 pub struct ProjectionProcessor {
-    statement: Vec<SelectItem>,
     input_schema: Schema,
     expressions: Vec<(String, Expression)>,
-    builder: ExpressionBuilder,
 }
 
 impl ProjectionProcessor {
-    fn build(
-        &self,
-        statement: Vec<SelectItem>,
-        input_schema: &Schema,
-    ) -> Result<Vec<(String, Expression)>, PipelineError> {
-        let expressions = statement
-            .iter()
-            .map(|item| self.parse_sql_select_item(item, input_schema))
-            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()?;
-
-        Ok(expressions)
-    }
-
-    fn parse_sql_select_item(
-        &self,
-        sql: &SelectItem,
-        schema: &Schema,
-    ) -> Result<(String, Expression), PipelineError> {
-        match sql {
-            SelectItem::UnnamedExpr(sql_expr) => {
-                match self.builder.parse_sql_expression(
-                    &ExpressionType::PreAggregation,
-                    sql_expr,
-                    schema,
-                ) {
-                    Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
-                    Err(error) => Err(error),
-                }
-            }
-            SelectItem::ExprWithAlias { expr, alias } => {
-                Err(InvalidExpression(format!("{}:{}", expr, alias)))
-            }
-            SelectItem::Wildcard => Err(InvalidOperator("*".to_string())),
-            SelectItem::QualifiedWildcard(ref object_name) => {
-                Err(InvalidOperator(object_name.to_string()))
-            }
+    pub fn new(input_schema: Schema, expressions: Vec<(String, Expression)>) -> Self {
+        Self {
+            input_schema,
+            expressions,
         }
     }
+    // fn build(
+    //     &self,
+    //     statement: Vec<SelectItem>,
+    //     input_schema: &Schema,
+    // ) -> Result<Vec<(String, Expression)>, PipelineError> {
+    //     let expressions = statement
+    //         .iter()
+    //         .map(|item| self.parse_sql_select_item(item, input_schema))
+    //         .collect::<Result<Vec<(String, Expression)>, PipelineError>>()?;
 
-    fn build_output_schema(
-        &mut self,
-        input_schema: &Schema,
-        expressions: Vec<(String, Expression)>,
-    ) -> Result<Schema, ExecutionError> {
-        self.input_schema = input_schema.clone();
-        let mut output_schema = input_schema.clone();
+    //     Ok(expressions)
+    // }
 
-        for e in expressions.iter() {
-            let field_name = e.0.clone();
-            let field_type = e.1.get_type(input_schema);
-            let field_nullable = true;
+    // fn parse_sql_select_item(
+    //     &self,
+    //     sql: &SelectItem,
+    //     schema: &Schema,
+    // ) -> Result<(String, Expression), PipelineError> {
+    //     match sql {
+    //         SelectItem::UnnamedExpr(sql_expr) => {
+    //             match self.builder.parse_sql_expression(
+    //                 &ExpressionType::PreAggregation,
+    //                 sql_expr,
+    //                 schema,
+    //             ) {
+    //                 Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
+    //                 Err(error) => Err(error),
+    //             }
+    //         }
+    //         SelectItem::ExprWithAlias { expr, alias } => {
+    //             Err(InvalidExpression(format!("{}:{}", expr, alias)))
+    //         }
+    //         SelectItem::Wildcard => Err(InvalidOperator("*".to_string())),
+    //         SelectItem::QualifiedWildcard(ref object_name) => {
+    //             Err(InvalidOperator(object_name.to_string()))
+    //         }
+    //     }
+    // }
 
-            if output_schema.get_field_index(field_name.as_str()).is_err() {
-                output_schema.fields.push(FieldDefinition::new(
-                    field_name,
-                    field_type,
-                    field_nullable,
-                ));
-            }
-        }
+    // fn build_output_schema(
+    //     &mut self,
+    //     input_schema: &Schema,
+    //     expressions: Vec<(String, Expression)>,
+    // ) -> Result<Schema, ExecutionError> {
+    //     self.input_schema = input_schema.clone();
+    //     let mut output_schema = input_schema.clone();
 
-        Ok(output_schema)
-    }
+    //     for e in expressions.iter() {
+    //         let field_name = e.0.clone();
+    //         let field_type = e.1.get_type(input_schema);
+    //         let field_nullable = true;
+
+    //         if output_schema.get_field_index(field_name.as_str()).is_err() {
+    //             output_schema.fields.push(FieldDefinition::new(
+    //                 field_name,
+    //                 field_type,
+    //                 field_nullable,
+    //             ));
+    //         }
+    //     }
+
+    //     Ok(output_schema)
+    // }
 
     fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
         let mut results = vec![];
@@ -163,17 +162,17 @@ impl ProjectionProcessor {
     }
 }
 
-impl Processor for PreAggregationProcessor {
-    fn update_schema(
-        &mut self,
-        _output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        let expressions = internal_err!(self.build(self.statement.clone(), input_schema))?;
-        self.expressions = expressions.clone();
-        self.build_output_schema(input_schema, expressions)
-    }
+impl Processor for ProjectionProcessor {
+    // fn update_schema(
+    //     &mut self,
+    //     _output_port: PortHandle,
+    //     input_schemas: &HashMap<PortHandle, Schema>,
+    // ) -> Result<Schema, ExecutionError> {
+    //     let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+    //     let expressions = internal_err!(self.build(self.statement.clone(), input_schema))?;
+    //     self.expressions = expressions.clone();
+    //     self.build_output_schema(input_schema, expressions)
+    // }
 
     fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising PreAggregation Processor");
@@ -195,6 +194,10 @@ impl Processor for PreAggregationProcessor {
                 fw.send(self.update(old, new)?, DEFAULT_PORT_HANDLE)
             }
         };
+        Ok(())
+    }
+
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

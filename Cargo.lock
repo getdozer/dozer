@@ -1373,6 +1373,7 @@ dependencies = [
  "dozer-core",
  "dozer-sql",
  "dozer-types",
+ "fp_rust",
  "rusqlite",
  "sqlparser",
  "tempdir",

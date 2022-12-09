@@ -45,7 +45,7 @@ fn record_satisfies_filter(record: &Record, filter: &FilterExpression, schema: &
                 return false;
             };
 
-            let Ok(value) = json_value_to_field(value.as_str().unwrap_or(&value.to_string()), &field_definition.typ) else {
+            let Ok(value) = json_value_to_field(value.clone(), field_definition.typ) else {
                 return false;
             };
 

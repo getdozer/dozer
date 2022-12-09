@@ -1,9 +1,9 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::dag::dag::PortDirection;
-use crate::dag::dag::PortDirection::{Input, Output};
+
+use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
-use crate::dag::executor_local::ExecutorOperation;
+use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::common::{Database, RenewableRwTransaction};
@@ -17,10 +17,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-
-pub(crate) const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
-pub(crate) const OUTPUT_SCHEMA_IDENTIFIER: u8 = 1_u8;
-pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 
 pub(crate) struct StateWriter {
     meta_db: Database,
@@ -37,12 +33,14 @@ impl StateWriter {
         dbs: HashMap<PortHandle, StateOptions>,
         tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
         input_ports: Option<Vec<PortHandle>>,
+        output_schemas: HashMap<PortHandle, Schema>,
+        input_schemas: HashMap<PortHandle, Schema>,
     ) -> Self {
         Self {
             meta_db,
             dbs,
-            output_schemas: HashMap::new(),
-            input_schemas: HashMap::new(),
+            output_schemas,
+            input_schemas,
             tx,
             input_ports,
         }
@@ -125,42 +123,12 @@ impl StateWriter {
         seq: u64,
     ) -> Result<(), ExecutionError> {
         let mut full_key = vec![SOURCE_ID_IDENTIFIER];
-        full_key.extend(source.as_bytes());
+        full_key.extend(source.to_bytes());
 
         self.tx
             .write()
             .put(&self.meta_db, full_key.as_slice(), &seq.to_be_bytes())?;
         self.tx.write().commit_and_renew()?;
-
-        Ok(())
-    }
-
-    fn store_schema(
-        &mut self,
-        port: PortHandle,
-        schema: Schema,
-        direction: PortDirection,
-    ) -> Result<(), ExecutionError> {
-        let mut full_key = vec![if direction == PortDirection::Input {
-            INPUT_SCHEMA_IDENTIFIER
-        } else {
-            OUTPUT_SCHEMA_IDENTIFIER
-        }];
-        full_key.extend(port.to_be_bytes());
-
-        let schema_val = bincode::serialize(&schema).map_err(|e| SerializationError {
-            typ: "Schema".to_string(),
-            reason: Box::new(e),
-        })?;
-
-        match direction {
-            Output => self.output_schemas.insert(port, schema),
-            Input => self.input_schemas.insert(port, schema),
-        };
-
-        self.tx
-            .write()
-            .put(&self.meta_db, &full_key, schema_val.as_slice())?;
 
         Ok(())
     }
@@ -180,15 +148,6 @@ impl StateWriter {
             }
             _ => None,
         }
-    }
-
-    pub fn update_input_schema(
-        &mut self,
-        port: PortHandle,
-        schema: Schema,
-    ) -> Result<Option<HashMap<PortHandle, Schema>>, ExecutionError> {
-        self.store_schema(port, schema, Input)?;
-        Ok(self.get_all_input_schemas())
     }
 }
 
@@ -243,24 +202,6 @@ impl LocalChannelForwarder {
             last_commit_time: Instant::now(),
             stateful,
         }
-    }
-
-    fn update_output_schema(
-        &mut self,
-        port: PortHandle,
-        schema: Schema,
-    ) -> Result<(), ExecutionError> {
-        self.state_writer.store_schema(port, schema, Output)?;
-        Ok(())
-    }
-
-    pub fn update_input_schema(
-        &mut self,
-        port: PortHandle,
-        schema: Schema,
-    ) -> Result<Option<HashMap<PortHandle, Schema>>, ExecutionError> {
-        self.state_writer.store_schema(port, schema, Input)?;
-        Ok(self.state_writer.get_all_input_schemas())
     }
 
     pub fn update_seq_no(&mut self, seq: u64) {
@@ -356,24 +297,9 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
-    pub fn send_and_update_output_schema(
-        &mut self,
-        schema: Schema,
-        port_id: PortHandle,
-    ) -> Result<(), ExecutionError> {
-        self.update_output_schema(port_id, schema.clone())?;
-        let senders = self
-            .senders
-            .get(&port_id)
-            .ok_or(InvalidPortHandle(port_id))?;
-
-        for s in senders {
-            internal_err!(s.send(ExecutorOperation::SchemaUpdate {
-                new: schema.clone(),
-            }))?;
-        }
-
-        Ok(())
+    pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
+        self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
+        self.send_term_and_wait()
     }
 
     fn timeout_commit_needed(&self) -> bool {
@@ -401,15 +327,6 @@ impl SourceChannelForwarder for LocalChannelForwarder {
         self.send_op(seq, op, port)?;
         self.commit_counter += 1;
         Ok(())
-    }
-
-    fn update_schema(&mut self, schema: Schema, port: PortHandle) -> Result<(), ExecutionError> {
-        self.send_and_update_output_schema(schema, port)
-    }
-
-    fn terminate(&mut self) -> Result<(), ExecutionError> {
-        self.store_and_send_commit(self.owner.clone(), self.curr_seq_no)?;
-        self.send_term_and_wait()
     }
 }
 

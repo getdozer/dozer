@@ -1,66 +1,22 @@
-use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
-};
+use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
-use dozer_types::types::{Field, Operation, Schema};
+use dozer_types::types::{Field, Operation};
 use log::info;
-use sqlparser::ast::Expr as SqlExpr;
 use std::collections::HashMap;
 
-pub struct SelectionProcessorFactory {
-    statement: SqlExpr,
-}
-
-impl SelectionProcessorFactory {
-    /// Creates a new [`SelectionProcessorFactory`].
-    pub fn new(statement: SqlExpr) -> Self {
-        Self { statement }
-    }
-}
-
-impl ProcessorFactory for SelectionProcessorFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
-    }
-
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
-        )]
-    }
-
-    fn build(&self) -> Box<dyn Processor> {
-        Box::new(SelectionProcessor {
-            statement: self.statement.clone(),
-            expression: Box::new(Expression::Literal(Field::Boolean(true))),
-            builder: ExpressionBuilder {},
-        })
-    }
-}
-
 pub struct SelectionProcessor {
-    statement: SqlExpr,
     expression: Box<Expression>,
-    builder: ExpressionBuilder,
 }
 
 impl SelectionProcessor {
-    fn build_expression(
-        &self,
-        sql_expression: &SqlExpr,
-        schema: &Schema,
-    ) -> Result<Box<Expression>, ExecutionError> {
-        self.builder
-            .build(&ExpressionType::FullExpression, sql_expression, schema)
-            .map_err(|e| InternalError(Box::new(e)))
+    pub fn new(expression: Box<Expression>) -> Self {
+        Self { expression }
     }
 
     fn delete(&self, record: &dozer_types::types::Record) -> Operation {
@@ -77,16 +33,6 @@ impl SelectionProcessor {
 }
 
 impl Processor for SelectionProcessor {
-    fn update_schema(
-        &mut self,
-        _output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
-        self.expression = self.build_expression(&self.statement, schema)?;
-        Ok(schema.clone())
-    }
-
     fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
         info!("{:?}", "Initialising Selection Processor");
         Ok(())

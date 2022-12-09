@@ -94,8 +94,7 @@ fn collect_filters(
         FilterExpression::Simple(field_name, operator, value) => {
             let (field_index, field_type) = get_field_index_and_type(field_name, &schema.fields)
                 .ok_or(PlanError::FieldNotFound)?;
-            let field =
-                json_value_to_field(value.as_str().unwrap_or(&value.to_string()), &field_type)?;
+            let field = json_value_to_field(value.clone(), field_type)?;
             filters.push((IndexFilter::new(field_index, *operator, field), None));
         }
         FilterExpression::And(expressions) => {

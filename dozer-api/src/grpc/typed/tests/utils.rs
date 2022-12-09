@@ -20,8 +20,8 @@ fn test_records_to_typed_response() {
     let (schema, _) = test_utils::get_schema();
     let endpoint_name = "films".to_string();
 
-    let records = get_sample_records(schema.clone());
-    let res = query_response_to_typed_response(records, schema, desc, endpoint_name);
+    let records = get_sample_records(schema);
+    let res = query_response_to_typed_response(records, &desc, &endpoint_name);
     let data = res.message.get_field_by_name("data");
     assert!(data.is_some(), "data must be present");
 }
