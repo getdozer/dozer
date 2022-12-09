@@ -6,7 +6,9 @@ use dozer_core::{
     storage::{common::RenewableRwTransaction, lmdb_storage::LmdbEnvironmentManager},
 };
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, DATE_FORMAT,
+};
 use std::collections::HashMap;
 
 use crate::pipeline::{
@@ -19,6 +21,7 @@ type AggregationTransaction = dozer_types::parking_lot::lock_api::RwLock<
     dozer_types::parking_lot::RawRwLock,
     Box<dyn RenewableRwTransaction>,
 >;
+use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
@@ -180,6 +183,14 @@ pub fn get_decimal_div_field(numerator: i64, denominator: i64) -> Field {
     Field::Decimal(Decimal::new(numerator, 0).div(Decimal::new(denominator, 0)))
 }
 
+pub fn get_ts_field(val: i64) -> Field {
+    Field::Timestamp(DateTime::from(Utc.timestamp_millis(val)))
+}
+
+pub fn get_date_field(val: &str) -> Field {
+    Field::Date(NaiveDate::parse_from_str(val, DATE_FORMAT).unwrap())
+}
+
 #[macro_export]
 macro_rules! output {
     ($processor:expr, $inp:expr, $tx:expr) => {
@@ -193,17 +204,12 @@ macro_rules! output {
     };
 }
 
-#[macro_export]
-macro_rules! update_schema {
-    ($processor:expr, $schema:expr, $port:expr) => {
-        $processor
-            .update_schema($port, &HashMap::from([($port, $schema)]))
-            .unwrap();
-    };
-}
-
 pub const ITALY: &str = "Italy";
 pub const SINGAPORE: &str = "Singapore";
+
+pub const DATE4: &str = "2015-10-04";
+pub const DATE8: &str = "2015-10-08";
+pub const DATE16: &str = "2015-10-16";
 
 pub const FIELD_100_FLOAT: &Field = &Field::Float(OrderedFloat(100.0));
 pub const FIELD_200_FLOAT: &Field = &Field::Float(OrderedFloat(200.0));

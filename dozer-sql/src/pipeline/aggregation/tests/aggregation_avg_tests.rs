@@ -8,12 +8,12 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 };
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::storage::transactions::SharedTransaction;
-use dozer_types::types::FieldType;
+use dozer_types::types::FieldType::{Decimal, Float, Int};
 use std::collections::HashMap;
 
 #[test]
 fn test_avg_aggregation_float() {
-    let schema = init_input_schema(FieldType::Float, "AVG");
+    let schema = init_input_schema(Float, "AVG");
     let (processor, tx) = init_processor(
         "SELECT Country, AVG(Salary) \
         FROM Users \
@@ -136,7 +136,7 @@ fn test_avg_aggregation_float() {
 
 #[test]
 fn test_avg_aggregation_int() {
-    let schema = init_input_schema(FieldType::Int, "AVG");
+    let schema = init_input_schema(Int, "AVG");
     let (processor, tx) = init_processor(
         "SELECT Country, AVG(Salary) \
         FROM Users \
@@ -254,7 +254,7 @@ fn test_avg_aggregation_int() {
 
 #[test]
 fn test_avg_aggregation_decimal() {
-    let schema = init_input_schema(FieldType::Decimal, "AVG");
+    let schema = init_input_schema(Decimal, "AVG");
     let (processor, tx) = init_processor(
         "SELECT Country, AVG(Salary) \
         FROM Users \
