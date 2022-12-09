@@ -12,8 +12,8 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp};
 use dozer_types::types::{Field, FieldType, DATE_FORMAT};
 
+use crate::deserialize;
 use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
-use dozer_types::deserialize;
 use std::string::ToString;
 
 pub struct MaxAggregator {}

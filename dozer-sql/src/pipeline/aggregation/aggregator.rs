@@ -111,6 +111,13 @@ impl Aggregator {
 }
 
 #[macro_export]
+macro_rules! deserialize {
+    ($stmt:expr) => {
+        $stmt.try_into().unwrap()
+    };
+}
+
+#[macro_export]
 macro_rules! deserialize_f64 {
     ($stmt:expr) => {
         match $stmt {
