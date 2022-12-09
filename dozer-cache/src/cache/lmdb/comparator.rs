@@ -70,7 +70,6 @@ mod tests {
     use std::cmp::Ordering::{self, Equal, Greater, Less};
 
     use dozer_types::{
-        bincode,
         chrono::{DateTime, NaiveDate, TimeZone, Utc},
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
@@ -84,8 +83,8 @@ mod tests {
     #[test]
     fn test_compare_single_key_descending() {
         let check = |field1: Field, field2: Field, expected: Ordering| {
-            let a = field1.encode();
-            let b = field2.encode();
+            let a = get_secondary_index(&[(&field1, SortDirection::Descending)], true);
+            let b = get_secondary_index(&[(&field2, SortDirection::Descending)], true);
             let a = MDB_val {
                 mv_size: a.len() as _,
                 mv_data: a.as_ptr() as _,
@@ -257,7 +256,11 @@ mod tests {
                     .map(|x| Field::Int(*x))
                     .zip(directions.iter().copied())
                     .collect::<Vec<_>>();
-                bincode::serialize(&a).unwrap()
+                let a = a
+                    .iter()
+                    .map(|(field, sort_direction)| (field, *sort_direction))
+                    .collect::<Vec<_>>();
+                get_secondary_index(&a, false)
             };
             let a = serialize(a);
             let b = serialize(b);
@@ -447,7 +450,7 @@ mod tests {
     fn get_single_key_checker(direction: SortDirection) -> impl Fn(i64, i64, Ordering) {
         let (env, db) = setup(&[direction]);
         move |a: i64, b: i64, expected: Ordering| {
-            let serialize = |a| get_secondary_index(&[(&Field::Int(a), direction)], true).unwrap();
+            let serialize = |a| get_secondary_index(&[(&Field::Int(a), direction)], true);
             let a = serialize(a);
             let b = serialize(b);
             let a = MDB_val {
@@ -477,7 +480,7 @@ mod tests {
                     .iter()
                     .zip(directions.iter().copied())
                     .collect::<Vec<_>>();
-                get_secondary_index(&fields, false).unwrap()
+                get_secondary_index(&fields, false)
             };
             let a = serialize(a);
             let b = serialize(b);

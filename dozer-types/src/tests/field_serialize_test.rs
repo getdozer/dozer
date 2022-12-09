@@ -1,4 +1,4 @@
-use crate::types::{tests::field_test_cases, Field};
+use crate::types::{field_test_cases, Field};
 
 #[test]
 fn test_field_serialize_roundtrip() {
