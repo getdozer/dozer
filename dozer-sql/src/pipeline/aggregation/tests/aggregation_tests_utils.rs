@@ -20,6 +20,8 @@ type AggregationTransaction = dozer_types::parking_lot::lock_api::RwLock<
     Box<dyn RenewableRwTransaction>,
 >;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::rust_decimal::Decimal;
+use std::ops::Div;
 use std::{path::Path, sync::Arc};
 
 pub(crate) fn init_processor(
@@ -168,6 +170,14 @@ pub(crate) fn update_exp(
             vec![Field::String(new_country.to_string()), new.clone()],
         ),
     }
+}
+
+pub fn get_decimal_field(val: i64) -> Field {
+    Field::Decimal(Decimal::new(val, 0))
+}
+
+pub fn get_decimal_div_field(numerator: i64, denominator: i64) -> Field {
+    Field::Decimal(Decimal::new(numerator, 0).div(Decimal::new(denominator, 0)))
 }
 
 #[macro_export]
