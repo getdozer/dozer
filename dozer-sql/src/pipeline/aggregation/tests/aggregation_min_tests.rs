@@ -168,12 +168,9 @@ fn test_min_aggregation_int() {
         ---------------
         MIN = 50.0
     */
-    inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
+    inp = insert_field(SINGAPORE, FIELD_50_INT);
     out = output!(processor, inp, tx);
-    exp = vec![
-        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_100_INT),
-        delete_exp(SINGAPORE, FIELD_50_INT),
-    ];
+    exp = vec![insert_exp(SINGAPORE, FIELD_50_INT)];
     assert_eq!(out, exp);
 
     // Update Singapore segment to Italy
@@ -225,7 +222,7 @@ fn test_min_aggregation_int() {
     */
     inp = delete_field(ITALY, FIELD_50_INT);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_50_INT, FIELD_100_INT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_50_INT, FIELD_50_INT)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -235,7 +232,7 @@ fn test_min_aggregation_int() {
     */
     inp = delete_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, FIELD_100_INT)];
+    exp = vec![delete_exp(ITALY, FIELD_50_INT)];
     assert_eq!(out, exp);
 }
 

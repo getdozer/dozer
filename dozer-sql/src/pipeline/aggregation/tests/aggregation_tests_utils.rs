@@ -212,14 +212,20 @@ pub const DATE8: &str = "2015-10-08";
 pub const DATE16: &str = "2015-10-16";
 
 pub const FIELD_100_FLOAT: &Field = &Field::Float(OrderedFloat(100.0));
+pub const FIELD_150_FLOAT: &Field = &Field::Float(OrderedFloat(150.0));
 pub const FIELD_200_FLOAT: &Field = &Field::Float(OrderedFloat(200.0));
+pub const FIELD_250_FLOAT: &Field = &Field::Float(OrderedFloat(250.0));
+pub const FIELD_350_FLOAT: &Field = &Field::Float(OrderedFloat(350.0));
 pub const FIELD_75_FLOAT: &Field = &Field::Float(OrderedFloat(75.0));
 pub const FIELD_50_FLOAT: &Field = &Field::Float(OrderedFloat(50.0));
 pub const FIELD_250_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(250.0 / 3.0));
 pub const FIELD_350_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(350.0 / 3.0));
 
 pub const FIELD_100_INT: &Field = &Field::Int(100);
+pub const FIELD_150_INT: &Field = &Field::Int(150);
 pub const FIELD_200_INT: &Field = &Field::Int(200);
+pub const FIELD_250_INT: &Field = &Field::Int(250);
+pub const FIELD_350_INT: &Field = &Field::Int(350);
 pub const FIELD_75_INT: &Field = &Field::Int(75);
 pub const FIELD_50_INT: &Field = &Field::Int(50);
 pub const FIELD_250_DIV_3_INT: &Field = &Field::Int(250 / 3);
