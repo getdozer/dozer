@@ -64,6 +64,8 @@ diesel::table! {
         name -> Text,
         table_name -> Text,
         connection_id -> Text,
+        #[sql_name = "columns"]
+        columns_ -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

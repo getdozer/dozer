@@ -68,13 +68,13 @@ impl<'de> Deserialize<'de> for Config {
                         let super::source::Value::Ref(connection_name) = connection_ref;
                         let mut source: Source =
                             serde_yaml::from_value(source_value.to_owned()).unwrap();
-                        source.connection = connections
+                        source.connection = Some(connections
                             .iter()
                             .find(|c| c.name == connection_name)
                             .unwrap_or_else(|| {
                                 panic!("Cannot find Ref connection name: {}", connection_name)
                             })
-                            .to_owned();
+                            .to_owned());
                         source
                     })
                     .collect();

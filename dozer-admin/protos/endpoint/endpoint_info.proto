@@ -8,5 +8,9 @@ message EndpointInfo {
   string name = 3;
   string path = 4;
   string sql = 5;
-  repeated string primary_keys = 6;
+  ApiIndex index = 6;
+}
+
+message ApiIndex {
+  repeated string primary_key = 1;
 }

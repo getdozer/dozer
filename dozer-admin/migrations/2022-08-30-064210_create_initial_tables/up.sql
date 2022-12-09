@@ -22,6 +22,7 @@ create table sources (
     name TEXT NOT NULL,
     table_name TEXT NOT NULL,
     connection_id TEXT NOT NULL,
+    columns TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     FOREIGN KEY(app_id) REFERENCES apps(id),

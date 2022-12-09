@@ -83,15 +83,12 @@ impl Persistable<'_, ApiConfig> for ApiConfig {
 
     fn by_id(
         pool: super::pool::DbPool,
-        input_id: String,
+        _input_id: String,
         application_id: String,
     ) -> Result<ApiConfig, Box<dyn Error>> {
         let mut db = pool.get()?;
-        let result: DBApiConfig = FilterDsl::filter(
-            FilterDsl::filter(configs, id.eq(input_id)),
-            app_id.eq(application_id),
-        )
-        .first(&mut db)?;
+        let result: DBApiConfig =
+            FilterDsl::filter(configs, app_id.eq(application_id)).first(&mut db)?;
         let result = ApiConfig::try_from(result)?;
         Ok(result)
     }

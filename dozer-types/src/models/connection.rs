@@ -1,16 +1,22 @@
-use crate::ingestion_types::EthFilter;
+use crate::ingestion_types::{EthConfig, KafkaConfig, SnowflakeConfig};
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct Connection {
-    pub db_type: DBType,
-    pub authentication: Authentication,
-    pub name: String,
+    #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
+    pub authentication: Option<Authentication>,
+    #[prost(string, optional, tag = "6")]
     pub id: Option<String>,
+    #[prost(string, optional, tag = "7")]
+    pub app_id: Option<String>,
+    #[prost(enumeration = "DBType", tag = "8")]
+    pub db_type: i32,
+    #[prost(string, tag = "9")]
+    pub name: String,
 }
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Enumeration)]
 #[repr(i32)]
@@ -45,40 +51,41 @@ impl DBType {
         }
     }
 }
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub enum Authentication {
-    PostgresAuthentication {
-        user: String,
-        password: String,
-        host: String,
-        port: u16,
-        database: String,
-    },
-    EthereumAuthentication {
-        filter: EthFilter,
-        wss_url: String,
-    },
-    Events {},
-    SnowflakeAuthentication {
-        server: String,
-        port: String,
-        user: String,
-        password: String,
-        database: String,
-        schema: String,
-        warehouse: String,
-        driver: Option<String>,
-    },
-    KafkaAuthentication {
-        broker: String,
-        topic: String,
-    },
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct PostgresAuthentication {
+    #[prost(string, tag = "1")]
+    pub user: String,
+    #[prost(string, tag = "2")]
+    pub password: String,
+    #[prost(string, tag = "3")]
+    pub host: String,
+    #[prost(uint32, tag = "4")]
+    pub port: u32,
+    #[prost(string, tag = "5")]
+    pub database: String,
 }
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct EventsAuthentication {}
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof)]
+pub enum Authentication {
+    #[prost(message, tag = "1")]
+    Postgres(PostgresAuthentication),
+    #[prost(message, tag = "2")]
+    Ethereum(EthConfig),
+    #[prost(message, tag = "3")]
+    Events(EventsAuthentication),
+    #[prost(message, tag = "4")]
+    Snowflake(SnowflakeConfig),
+    #[prost(message, tag = "5")]
+    Kafka(KafkaConfig),
+}
+
 impl Default for Authentication {
     fn default() -> Self {
-        Authentication::Events {}
+        Authentication::Postgres(PostgresAuthentication::default())
     }
 }
+
 impl Display for DBType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -96,5 +103,17 @@ impl FromStr for DBType {
             "Events" | "events" => Ok(DBType::Events),
             _ => Err("Not match any value in Enum DBType"),
         }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct AuthenticationWrapper {
+    #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
+    pub authentication: Option<Authentication>,
+}
+
+impl From<AuthenticationWrapper> for Authentication {
+    fn from(input: AuthenticationWrapper) -> Self {
+        return input.authentication.unwrap_or_default();
     }
 }

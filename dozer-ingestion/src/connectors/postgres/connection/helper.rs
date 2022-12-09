@@ -7,20 +7,14 @@ use tokio_postgres::NoTls;
 pub fn map_connection_config(
     auth_details: &Authentication,
 ) -> Result<tokio_postgres::Config, ConnectorError> {
-    if let Authentication::PostgresAuthentication {
-        host,
-        port,
-        user,
-        database,
-        password,
-    } = auth_details
+    if let Authentication::Postgres(postgres) = auth_details
     {
         Ok(tokio_postgres::Config::new()
-            .host(host)
-            .port(*port as u16)
-            .user(user)
-            .dbname(database)
-            .password(password)
+            .host(&postgres.host)
+            .port(postgres.port as u16)
+            .user(&postgres.user)
+            .dbname(&postgres.database)
+            .password(&postgres.password)
             .to_owned())
     } else {
         Err(ConnectorError::WrongConnectionConfiguration)

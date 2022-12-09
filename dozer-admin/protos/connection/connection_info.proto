@@ -5,9 +5,16 @@ import "protos/connection/connection_type.proto";
 import "protos/connection/authentication.proto";
 
 message ConnectionInfo {
-  string id = 1;
-  string app_id = 2;
-  string name = 3;
-  DBType type = 4;
-  Authentication authentication = 5;
+  oneof authentication {
+    PostgresAuthentication Postgres = 1;
+    EthereumAuthentication Ethereum = 2;
+    EventsAuthentication Events = 3;
+    SnowflakeAuthentication Snowflake = 4;
+    KafkaAuthentication Kafka = 5;
+  }
+  string id = 6;
+  string app_id = 7;
+  string name = 8;
+  DBType db_type = 9;
+  
 }

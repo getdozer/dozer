@@ -1,0 +1,18 @@
+
+syntax = "proto3";
+package dozer_admin_grpc;
+import "protos/api_config/api_config.proto";
+import "protos/connection/connection_type.proto";
+
+message ApplicationDetail {
+  optional string id = 1;
+  string name = 2;
+  string created_at = 3;
+  string updated_at = 4;
+  ApiConfig api = 5;
+  repeated Connection connections = 6;
+}
+message Connection {
+  DBType db_type = 1;
+  string name = 2;
+}

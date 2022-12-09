@@ -84,10 +84,10 @@ impl Executor {
         // For every pipeline, there will be one Source implementation
         // that can take multiple Connectors on different ports.
         for (table_id, (idx, source)) in self.sources.iter().cloned().enumerate().enumerate() {
-            validate(source.connection.clone())?;
+            validate(source.connection.to_owned().unwrap())?;
 
             let table_name = source.table_name.clone();
-            let connection = source.connection.to_owned();
+            let connection = source.connection.to_owned().unwrap();
             let id = match &connection.id {
                 Some(id) => id.clone(),
                 None => idx.to_string(),
@@ -97,7 +97,7 @@ impl Executor {
             let table = TableInfo {
                 name: source.table_name,
                 id: table_id as u32,
-                columns: source.columns,
+                columns: Some(source.columns),
             };
 
             connection_map

@@ -64,7 +64,7 @@ impl EthConnector {
     }
 
     pub fn new(id: u64, config: EthConfig) -> Self {
-        let filter = Self::build_filter(&config.filter);
+        let filter = Self::build_filter(&config.to_owned().filter.unwrap());
         Self {
             id,
             config,

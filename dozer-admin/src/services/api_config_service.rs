@@ -8,6 +8,8 @@ use crate::{
     },
 };
 
+use super::converter::default_api_config;
+
 pub struct ApiConfigService {
     db_pool: DbPool,
 }
@@ -21,22 +23,26 @@ impl ApiConfigService {
         &self,
         input: CreateApiConfigRequest,
     ) -> Result<CreateApiConfigResponse, ErrorResponse> {
-        let mut api_config = ApiConfig {
-            rest: input.rest,
-            grpc: input.grpc,
-            auth: input.auth,
-            internal: input.internal,
-            app_id: Some(input.app_id),
-            id: None,
-        };
+        let mut api_config = default_api_config();
+        if input.grpc.is_some() {
+            api_config.grpc = input.grpc;
+        }
+        if input.rest.is_some() {
+            api_config.rest = input.rest;
+        }
+        if input.internal.is_some() {
+            api_config.internal = input.internal;
+        }
+        api_config.app_id = Some(input.app_id);
+        api_config.auth = input.auth;
         api_config
             .save(self.db_pool.clone())
             .map_err(|err| ErrorResponse {
                 message: err.to_string(),
             })?;
-        return Ok(CreateApiConfigResponse {
+        Ok(CreateApiConfigResponse {
             config: Some(api_config),
-        });
+        })
     }
 
     pub fn update(
@@ -71,10 +77,10 @@ impl ApiConfigService {
         &self,
         request: GetApiConfigRequest,
     ) -> Result<GetApiConfigResponse, ErrorResponse> {
-        let api_config = ApiConfig::by_id(self.db_pool.to_owned(), request.id, request.app_id)
+        let api_config = ApiConfig::by_id(self.db_pool.to_owned(), "".to_owned(), request.app_id)
             .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-            })?;
+            message: op.to_string(),
+        })?;
         Ok(GetApiConfigResponse {
             config: Some(api_config),
         })

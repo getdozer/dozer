@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod grpc_service {
+    use dozer_types::models::connection::Authentication;
+
     use crate::server::dozer_admin_grpc::{
-        authentication, Authentication, CreateConnectionRequest, CreateConnectionResponse,
-        EthereumAuthentication, GetAllConnectionRequest, GetAllConnectionResponse,
-        GetConnectionDetailsRequest, UpdateConnectionRequest, UpdateConnectionResponse,
-        ValidateConnectionRequest, ValidateConnectionResponse,
+        CreateConnectionRequest, CreateConnectionResponse, GetAllConnectionRequest,
+        GetAllConnectionResponse, GetConnectionDetailsRequest, UpdateConnectionRequest,
+        UpdateConnectionResponse, ValidateConnectionRequest, ValidateConnectionResponse,
     };
     use crate::services::connection_service::ConnectionService;
     use crate::tests::util_sqlite_setup::database_url_for_test_env;
@@ -36,14 +37,8 @@ mod grpc_service {
             app_id: setup_ids.app_id,
             name: "connection_name".to_owned(),
             r#type: 0,
-            authentication: Some(Authentication {
-                authentication: Some(authentication::Authentication::Ethereum(
-                    EthereumAuthentication {
-                        wss_url: "wss::link".to_owned(),
-                        filter: None,
-                    },
-                )),
-            }),
+            authentication: todo!()
+           
         };
         let result: CreateConnectionResponse = connection_service
             .create_connection(request.to_owned())
@@ -93,14 +88,6 @@ mod grpc_service {
             .validate_connection(ValidateConnectionRequest {
                 name: "test_connection".to_owned(),
                 r#type: 3,
-                authentication: Some(Authentication {
-                    authentication: Some(authentication::Authentication::Ethereum(
-                        EthereumAuthentication {
-                            wss_url: "wss::link".to_owned(),
-                            filter: None,
-                        },
-                    )),
-                }),
             })
             .await
             .unwrap();
