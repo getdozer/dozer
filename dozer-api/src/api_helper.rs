@@ -9,7 +9,7 @@ use dozer_types::indexmap::IndexMap;
 use dozer_types::json_str_to_field;
 use dozer_types::record_to_map;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{FieldType, Record, Schema};
+use dozer_types::types::{Record, Schema};
 use openapiv3::OpenAPI;
 
 pub struct ApiHelper {
@@ -77,12 +77,13 @@ impl ApiHelper {
             .get_schema_and_indexes_by_name(&self.details.schema_name)?
             .0;
 
-        let field_types: Vec<FieldType> = schema
-            .primary_index
-            .iter()
-            .map(|idx| schema.fields[*idx].typ)
-            .collect();
-        let key = json_str_to_field(key, field_types[0]).map_err(CacheError::TypeError)?;
+        if schema.primary_index.len() != 1 {
+            todo!("Decide what to do when primary key is empty or has more than one field");
+        }
+
+        let field = &schema.fields[schema.primary_index[0]];
+        let key =
+            json_str_to_field(key, field.typ, field.nullable).map_err(CacheError::TypeError)?;
 
         let key = index::get_primary_key(&[0], &[key]);
         let rec = self.reader.get(&key)?;
