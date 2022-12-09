@@ -63,17 +63,17 @@ impl SourceFactory for TestSourceFactory {
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {
-            schema: self.schema.to_owned(),
+            _schema: self.schema.to_owned(),
             ops: self.ops.to_owned(),
-            term_latch: self.term_latch.clone(),
+            _term_latch: self.term_latch.clone(),
         }))
     }
 }
 
 pub struct TestSource {
-    schema: Schema,
+    _schema: Schema,
     ops: Vec<Operation>,
-    term_latch: Arc<CountDownLatch>,
+    _term_latch: Arc<CountDownLatch>,
 }
 
 impl Source for TestSource {
@@ -156,7 +156,7 @@ impl SinkFactory for TestSinkFactory {
 
 pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
-    input_schemas: HashMap<PortHandle, Schema>,
+    _input_schemas: HashMap<PortHandle, Schema>,
     term_latch: Arc<CountDownLatch>,
     ops: usize,
     curr: usize,
@@ -165,13 +165,13 @@ pub struct TestSink {
 impl TestSink {
     pub fn new(
         mapper: Arc<Mutex<SqlMapper>>,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
         term_latch: Arc<CountDownLatch>,
         ops: usize,
     ) -> Self {
         Self {
             mapper,
-            input_schemas,
+            _input_schemas,
             term_latch,
             ops,
             curr: 0,

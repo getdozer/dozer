@@ -1,5 +1,3 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
-
 use dozer_core::{
     dag::{
         dag::DEFAULT_PORT_HANDLE,
@@ -9,7 +7,7 @@ use dozer_core::{
 };
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use dozer_types::{parking_lot::RwLock, types::Schema};
+use std::collections::HashMap;
 
 use crate::pipeline::{
     aggregation::{factory::get_aggregation_rules, processor::AggregationProcessor},
@@ -23,15 +21,6 @@ type AggregationTransaction = dozer_types::parking_lot::lock_api::RwLock<
 >;
 use dozer_types::ordered_float::OrderedFloat;
 use std::{path::Path, sync::Arc};
-
-pub const ITALY: &str = "Italy";
-pub const SINGAPORE: &str = "Singapore";
-pub const FIELD_100_FLOAT: &Field = &Field::Float(OrderedFloat(100.0));
-pub const FIELD_200_FLOAT: &Field = &Field::Float(OrderedFloat(200.0));
-pub const FIELD_75_FLOAT: &Field = &Field::Float(OrderedFloat(75.0));
-pub const FIELD_50_FLOAT: &Field = &Field::Float(OrderedFloat(50.0));
-pub const FIELD_250_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(250.0 / 3.0));
-pub const FIELD_350_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(350.0 / 3.0));
 
 pub(crate) fn init_processor(
     sql: &str,
@@ -202,3 +191,20 @@ macro_rules! update_schema {
             .unwrap();
     };
 }
+
+pub const ITALY: &str = "Italy";
+pub const SINGAPORE: &str = "Singapore";
+
+pub const FIELD_100_FLOAT: &Field = &Field::Float(OrderedFloat(100.0));
+pub const FIELD_200_FLOAT: &Field = &Field::Float(OrderedFloat(200.0));
+pub const FIELD_75_FLOAT: &Field = &Field::Float(OrderedFloat(75.0));
+pub const FIELD_50_FLOAT: &Field = &Field::Float(OrderedFloat(50.0));
+pub const FIELD_250_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(250.0 / 3.0));
+pub const FIELD_350_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(350.0 / 3.0));
+
+pub const FIELD_100_INT: &Field = &Field::Int(100);
+pub const FIELD_200_INT: &Field = &Field::Int(200);
+pub const FIELD_75_INT: &Field = &Field::Int(75);
+pub const FIELD_50_INT: &Field = &Field::Int(50);
+pub const FIELD_250_DIV_3_INT: &Field = &Field::Int(250 / 3);
+pub const FIELD_350_DIV_3_INT: &Field = &Field::Int(350 / 3);

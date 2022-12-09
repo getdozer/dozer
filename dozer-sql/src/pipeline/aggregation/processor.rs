@@ -8,13 +8,6 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_types::types::{Field, Operation, Record, Schema};
 use dozer_types::{deserialize, internal_err};
-use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
-use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
-};
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
-use dozer_types::{deserialize, internal_err};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};

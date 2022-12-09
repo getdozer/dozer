@@ -1,11 +1,6 @@
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use dozer_core::{
-    dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
-    storage::transactions::SharedTransaction,
-};
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::storage::transactions::SharedTransaction;
 use dozer_types::rust_decimal::Decimal;
