@@ -34,14 +34,21 @@ fn get_iterator(config: Connection, table_name: String) -> Arc<RwLock<IngestionI
 #[test]
 fn connector_e2e_connect_postgres_stream() {
     let source = serde_yaml::from_str::<Source>(load_config("test.postgres.yaml")).unwrap();
-    let mut client = TestPostgresClient::new(&source.connection.authentication);
+    let mut client = TestPostgresClient::new(
+        &source.to_owned()
+            .connection
+            .unwrap_or_default()
+            .authentication
+            .unwrap_or_default(),
+    );
 
     let mut rng = rand::thread_rng();
     let table_name = format!("products_test_{}", rng.gen::<u32>());
 
     client.create_simple_table("public", &table_name);
 
-    let iterator = get_iterator(source.connection, table_name.clone());
+    let connetion = source.to_owned().connection.unwrap_or_default();
+    let iterator = get_iterator(connetion, table_name.clone());
 
     client.insert_rows(&table_name, 10);
 

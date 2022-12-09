@@ -16,6 +16,7 @@ use dozer_types::{
     models::{
         self,
         api_endpoint::{ApiEndpoint, ApiIndex},
+        connection::EventsAuthentication,
     },
     types::{Field, OperationEvent, Record, Schema},
 };
@@ -30,15 +31,18 @@ fn single_source_sink_impl(schema: Schema) {
         id: Some("1".to_string()),
         name: "events".to_string(),
         table_name: "events".to_string(),
-        columns: None,
-        connection: models::connection::Connection {
-            db_type: models::connection::DBType::Events,
-            authentication: models::connection::Authentication::Events {},
-            name: "events".to_string(),
+        columns: vec![],
+        connection: Some(models::connection::Connection {
+            authentication: Some(models::connection::Authentication::Events(
+                EventsAuthentication::default(),
+            )),
             id: Some("1".to_string()),
-        },
-        history_type: None,
-        refresh_config: models::source::RefreshConfig::RealTime,
+            db_type: models::connection::DBType::Events as i32,
+            name: "events".to_string(),
+            ..Default::default()
+        }),
+        refresh_config: Some(models::source::RefreshConfig::default()),
+        ..Default::default()
     };
 
     let table_name = "events";
@@ -50,9 +54,10 @@ fn single_source_sink_impl(schema: Schema) {
             name: table_name.to_string(),
             path: "/events".to_string(),
             sql: "select a, b from events group by a,b;".to_string(),
-            index: ApiIndex {
+            index: Some(ApiIndex {
                 primary_key: vec!["a".to_string()],
-            },
+            }),
+            ..Default::default()
         },
     };
 

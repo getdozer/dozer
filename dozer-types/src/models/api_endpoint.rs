@@ -9,8 +9,10 @@ pub struct ApiIndex {
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct ApiEndpoint {
     #[prost(string, optional, tag = "1")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[prost(string, optional, tag = "2")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
     #[prost(string, tag = "3")]
     pub name: String,

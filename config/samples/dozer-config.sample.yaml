@@ -15,7 +15,7 @@ api:
     host: "[::1]"
 connections:
   - db_type: Postgres
-    authentication: !PostgresAuthentication
+    authentication: !Postgres
       user: postgres
       password: postgres
       host: localhost
@@ -31,7 +31,7 @@ sources:
       - phone
     connection: !Ref users
     history_type: null
-    refresh_config: RealTime
+    refresh_config: !RealTime {}
 endpoints:
   - id: null
     name: users

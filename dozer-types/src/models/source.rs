@@ -3,8 +3,10 @@ use serde::{ser::SerializeStruct, Deserialize, Serialize};
 
 #[derive(Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct Source {
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[prost(string, optional, tag = "1")]
     pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[prost(string, optional, tag = "2")]
     pub app_id: Option<String>,
     #[prost(string, tag = "3")]

@@ -2,6 +2,7 @@ use crate::connectors::postgres::connection::helper::{connect, map_connection_co
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
+use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
@@ -77,21 +78,23 @@ pub fn get_iterator_and_client(
             id: 0,
             columns: None,
         }];
-
-        if let Authentication::KafkaAuthentication { broker, topic: _ } =
-            source.connection.authentication
-        {
-            source.connection.authentication = Authentication::KafkaAuthentication {
-                broker,
-                topic: format!("dbserver1.public.{}", table_name),
-            };
-        };
-
+        if let Some(connection) = source.connection.to_owned() {
+            if let Some(authentication) = connection.to_owned().authentication {
+                if let Authentication::Kafka(kafka_config) = authentication {
+                    let mut new_connection = connection.to_owned();
+                    new_connection.authentication = Some(Authentication::Kafka(KafkaConfig {
+                        broker: kafka_config.broker,
+                        topic: format!("dbserver1.public.{}", table_name),
+                    }));
+                    source.connection = Some(new_connection);
+                }
+            }
+        }
         if table_name != "products_test" {
             thread::sleep(Duration::from_secs(1));
         }
 
-        let mut connector = get_connector(source.connection).unwrap();
+        let mut connector = get_connector(source.connection.unwrap_or_default()).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
         connector.start().unwrap();
     });
