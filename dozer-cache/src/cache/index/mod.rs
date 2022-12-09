@@ -17,7 +17,7 @@ use crate::errors::CacheError;
 pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
     let key: Vec<Vec<u8>> = primary_index
         .iter()
-        .map(|idx| values[*idx].to_bytes())
+        .map(|idx| values[*idx].encode())
         .collect();
 
     key.join("#".as_bytes())
@@ -40,7 +40,7 @@ pub fn get_secondary_index(
 ) -> Result<Vec<u8>, CacheError> {
     debug_assert!(!is_single_field_index || fields.len() == 1);
     if is_single_field_index {
-        Ok(fields[0].0.to_bytes())
+        Ok(fields[0].0.encode())
     } else {
         bincode::serialize(fields).map_err(CacheError::map_serialization_error)
     }
@@ -77,16 +77,4 @@ pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::get_full_text_secondary_index;
-
-    #[test]
-    fn secondary_index_is_never_empty() {
-        assert!(!super::get_secondary_index(&[], false).unwrap().is_empty());
-    }
-
-    #[test]
-    fn test_get_full_text_secondary_index() {
-        assert_eq!(get_full_text_secondary_index("foo"), b"foo",);
-    }
-}
+mod tests;

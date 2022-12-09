@@ -157,7 +157,7 @@ impl Record {
         let mut tot_size = 0_usize;
         let mut buffers = Vec::<Vec<u8>>::with_capacity(indexes.len());
         for i in indexes {
-            let bytes = self.values[*i].to_bytes();
+            let bytes = self.values[*i].encode();
             tot_size += bytes.len();
             buffers.push(bytes);
         }
@@ -199,4 +199,9 @@ pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
+}
+
+#[cfg(test)]
+pub mod tests {
+    pub use super::field::tests::field_test_cases;
 }

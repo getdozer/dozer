@@ -41,11 +41,11 @@ unsafe extern "C" fn compare_single_key_descending(
     a: *const MDB_val,
     b: *const MDB_val,
 ) -> std::ffi::c_int {
-    let Ok(a) = Field::from_bytes_borrow(mdb_val_to_slice(&*a)) else {
+    let Ok(a) = Field::decode_borrow(mdb_val_to_slice(&*a)) else {
         dozer_types::log::error!("Error deserializing secondary index field");
         return 0;
     };
-    let Ok(b) = Field::from_bytes_borrow(mdb_val_to_slice(&*b)) else {
+    let Ok(b) = Field::decode_borrow(mdb_val_to_slice(&*b)) else {
         dozer_types::log::error!("Error deserializing secondary index field");
         return 0;
     };
@@ -84,8 +84,8 @@ mod tests {
     #[test]
     fn test_compare_single_key_descending() {
         let check = |field1: Field, field2: Field, expected: Ordering| {
-            let a = field1.to_bytes();
-            let b = field2.to_bytes();
+            let a = field1.encode();
+            let b = field2.encode();
             let a = MDB_val {
                 mv_size: a.len() as _,
                 mv_data: a.as_ptr() as _,

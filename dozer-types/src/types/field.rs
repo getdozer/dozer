@@ -41,7 +41,24 @@ pub enum FieldBorrow<'a> {
 }
 
 impl Field {
-    fn data_to_bytes(&self) -> Cow<[u8]> {
+    fn data_encoding_len(&self) -> usize {
+        match self {
+            Field::Int(_) => 8,
+            Field::UInt(_) => 8,
+            Field::Float(_) => 8,
+            Field::Boolean(_) => 1,
+            Field::String(s) => s.len(),
+            Field::Text(s) => s.len(),
+            Field::Binary(b) => b.len(),
+            Field::Decimal(_) => 16,
+            Field::Timestamp(_) => 8,
+            Field::Date(_) => 10,
+            Field::Bson(b) => b.len(),
+            Field::Null => 0,
+        }
+    }
+
+    fn encode_data(&self) -> Cow<[u8]> {
         match self {
             Field::Int(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::UInt(i) => Cow::Owned(i.to_be_bytes().into()),
@@ -58,13 +75,20 @@ impl Field {
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        // prefix representing return type is added using get_type_prefix
+    pub fn encode_buf(&self, destination: &mut [u8]) {
         let prefix = self.get_type_prefix();
-        let data = self.data_to_bytes();
-        let mut result = Vec::with_capacity(data.len() + 1);
-        result.push(prefix);
-        result.extend_from_slice(&data);
+        let data = self.encode_data();
+        destination[0] = prefix;
+        destination[1..].copy_from_slice(&data);
+    }
+
+    pub fn encoding_len(&self) -> usize {
+        self.data_encoding_len() + 1
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut result = vec![0; self.encoding_len()];
+        self.encode_buf(&mut result);
         result
     }
 
@@ -85,11 +109,11 @@ impl Field {
         }
     }
 
-    pub fn from_bytes(buf: &[u8]) -> Result<Field, DeserializationError> {
-        Self::from_bytes_borrow(buf).map(|field| field.to_owned())
+    pub fn decode(buf: &[u8]) -> Result<Field, DeserializationError> {
+        Self::decode_borrow(buf).map(|field| field.to_owned())
     }
 
-    pub fn from_bytes_borrow(buf: &[u8]) -> Result<FieldBorrow, DeserializationError> {
+    pub fn decode_borrow(buf: &[u8]) -> Result<FieldBorrow, DeserializationError> {
         let first_byte = *buf.first().ok_or(DeserializationError::EmptyInput)?;
         let return_type = Self::type_from_prefix(first_byte)
             .ok_or(DeserializationError::UnrecognisedFieldType(first_byte))?;
@@ -215,4 +239,48 @@ pub enum FieldType {
     Date,
     Bson,
     Null,
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    pub fn field_test_cases() -> impl Iterator<Item = Field> {
+        [
+            Field::Int(0_i64),
+            Field::Int(1_i64),
+            Field::UInt(0_u64),
+            Field::UInt(1_u64),
+            Field::Float(OrderedFloat::from(0_f64)),
+            Field::Float(OrderedFloat::from(1_f64)),
+            Field::Boolean(true),
+            Field::Boolean(false),
+            Field::String("".to_string()),
+            Field::String("1".to_string()),
+            Field::Text("".to_string()),
+            Field::Text("1".to_string()),
+            Field::Binary(vec![]),
+            Field::Binary(vec![1]),
+            Field::Decimal(Decimal::new(0, 0)),
+            Field::Decimal(Decimal::new(1, 0)),
+            Field::Timestamp(DateTime::from(Utc.timestamp_millis(0))),
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
+            Field::Date(NaiveDate::from_ymd(1970, 1, 1)),
+            Field::Date(NaiveDate::from_ymd(2020, 1, 1)),
+            Field::Bson(vec![
+                // BSON representation of `{"abc":"foo"}`
+                123, 34, 97, 98, 99, 34, 58, 34, 102, 111, 111, 34, 125,
+            ]),
+            Field::Null,
+        ]
+        .into_iter()
+    }
+
+    #[test]
+    fn data_encoding_len_must_agree_with_encode() {
+        for field in field_test_cases() {
+            let bytes = field.encode_data();
+            assert_eq!(bytes.len(), field.data_encoding_len());
+        }
+    }
 }
