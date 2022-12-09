@@ -218,8 +218,8 @@ fn query(
         })
         .transpose()?;
 
-    let (schema, records) = shared_impl::query(pipeline_details, query)?;
-    let res = query_response_to_typed_response(records, schema, desc, endpoint_name);
+    let (_, records) = shared_impl::query(pipeline_details, query)?;
+    let res = query_response_to_typed_response(records, &desc, &endpoint_name);
     Ok(Response::new(res))
 }
 
@@ -244,6 +244,6 @@ fn on_event(
         pipeline_details,
         filter,
         event_notifier,
-        move |op, endpoint| Some(Ok(on_event_to_typed_response(op, desc.clone(), endpoint))),
+        move |op, endpoint| Some(Ok(on_event_to_typed_response(op, &desc, &endpoint))),
     )
 }

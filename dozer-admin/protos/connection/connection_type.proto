@@ -2,7 +2,8 @@ syntax = "proto3";
 package dozer_admin_grpc;
 enum ConnectionType {
   postgres = 0;
-  snowflake = 1;
-  databricks = 2;
-  eth = 3;
+  eth = 1;
+  events = 2;
+  snowflake = 3;
+  kafka = 4;
 }

@@ -1,11 +1,9 @@
 use crate::pipeline::CacheSink;
 use dozer_cache::cache::{CacheOptions, LmdbCache};
-use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_types::{
-    models::api_endpoint::{ApiEndpoint, ApiIndex},
-    parking_lot::Mutex,
-    types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
-};
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
+use dozer_types::parking_lot::Mutex;
+use dozer_types::types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier};
 use std::collections::HashMap;
 use std::sync::Arc;
 

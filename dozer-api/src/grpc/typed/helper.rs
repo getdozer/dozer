@@ -1,5 +1,5 @@
 use crate::grpc::types::{self as GrpcTypes};
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::types::{Field, Record};
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, MessageDescriptor};
 use prost_reflect::{DynamicMessage, Value};
@@ -7,9 +7,9 @@ use prost_reflect::{DynamicMessage, Value};
 use super::TypedResponse;
 
 pub fn get_response_descriptor(
-    desc: DescriptorPool,
+    desc: &DescriptorPool,
     method: &str,
-    endpoint_name: String,
+    endpoint_name: &str,
 ) -> MessageDescriptor {
     match method {
         "query" => {
@@ -36,7 +36,7 @@ pub fn get_response_descriptor(
     }
 }
 
-pub fn get_resource_desc(desc: DescriptorPool, endpoint_name: String) -> MessageDescriptor {
+pub fn get_resource_desc(desc: &DescriptorPool, endpoint_name: &str) -> MessageDescriptor {
     let msg_path = format!(
         "dozer.generated.{}.{}",
         endpoint_name.to_lowercase().to_plural(),
@@ -49,21 +49,17 @@ pub fn get_resource_desc(desc: DescriptorPool, endpoint_name: String) -> Message
 
 pub fn on_event_to_typed_response(
     op: GrpcTypes::Operation,
-    desc: DescriptorPool,
-    endpoint_name: String,
+    desc: &DescriptorPool,
+    endpoint_name: &str,
 ) -> TypedResponse {
-    let event_desc = get_response_descriptor(desc.to_owned(), "on_event", endpoint_name.to_owned());
+    let event_desc = get_response_descriptor(desc, "on_event", endpoint_name);
 
     let mut event = DynamicMessage::new(event_desc);
     event.set_field_by_name("typ", prost_reflect::Value::EnumNumber(op.typ));
     if let Some(old) = op.old {
         event.set_field_by_name(
             "old",
-            prost_reflect::Value::Message(internal_record_to_pb(
-                old,
-                desc.clone(),
-                endpoint_name.clone(),
-            )),
+            prost_reflect::Value::Message(internal_record_to_pb(old, desc, endpoint_name)),
         );
     }
 
@@ -79,8 +75,8 @@ pub fn on_event_to_typed_response(
 
 pub fn internal_record_to_pb(
     rec: GrpcTypes::Record,
-    desc: DescriptorPool,
-    endpoint_name: String,
+    desc: &DescriptorPool,
+    endpoint_name: &str,
 ) -> DynamicMessage {
     let msg_path = format!(
         "dozer.generated.{}.{}",
@@ -92,12 +88,10 @@ pub fn internal_record_to_pb(
         .unwrap_or_else(|| panic!("{}: not found", msg_path));
     let mut resource = DynamicMessage::new(resource_desc.to_owned());
 
-    for (idx, fd) in resource_desc.fields().enumerate() {
-        let field = rec.values.get(idx).expect("field to be present in record");
-
-        if let Some(value) = field.value.clone() {
-            let val = convert_internal_type_to_pb(value);
-            resource.set_field(&fd, val);
+    for (field, value) in resource_desc.fields().zip(rec.values.into_iter()) {
+        if let Some(value) = value.value {
+            let value = convert_internal_type_to_pb(value);
+            resource.set_field(&field, value);
         }
     }
     resource
@@ -117,21 +111,13 @@ fn convert_internal_type_to_pb(value: GrpcTypes::value::Value) -> prost_reflect:
         _ => todo!(),
     }
 }
-pub fn record_to_pb(
-    rec: Record,
-    _: Schema,
-    desc: DescriptorPool,
-    endpoint_name: String,
-) -> DynamicMessage {
-    let resource_desc = get_resource_desc(desc, endpoint_name);
-    let mut resource = DynamicMessage::new(resource_desc.to_owned());
-    for (idx, fd) in resource_desc.fields().enumerate() {
-        let field = rec.values.get(idx).expect("field to be present in record");
-
-        if let Field::Null = field {
+pub fn record_to_pb(record: Record, desc: &MessageDescriptor) -> DynamicMessage {
+    let mut resource = DynamicMessage::new(desc.clone());
+    for (field, value) in desc.fields().zip(record.values.into_iter()) {
+        if let Field::Null = value {
             // Don't set the field if null
         } else {
-            resource.set_field(&fd, convert_field_to_reflect_value(field));
+            resource.set_field(&field, convert_field_to_reflect_value(value));
         }
     }
     resource
@@ -139,36 +125,35 @@ pub fn record_to_pb(
 
 pub fn query_response_to_typed_response(
     records: Vec<Record>,
-    schema: Schema,
-    desc: DescriptorPool,
-    endpoint_name: String,
+    desc: &DescriptorPool,
+    endpoint_name: &str,
 ) -> TypedResponse {
-    let query_desc = get_response_descriptor(desc.to_owned(), "query", endpoint_name.to_owned());
+    let query_desc = get_response_descriptor(desc, "query", endpoint_name);
 
     let mut msg = DynamicMessage::new(query_desc);
 
-    let mut resources = vec![];
-    for record in records {
-        let resource = record_to_pb(record, schema.clone(), desc.clone(), endpoint_name.clone());
-        resources.push(prost_reflect::Value::Message(resource));
-    }
+    let resource_desc = get_resource_desc(desc, endpoint_name);
+    let resources = records
+        .into_iter()
+        .map(|rec| prost_reflect::Value::Message(record_to_pb(rec, &resource_desc)))
+        .collect::<Vec<_>>();
     msg.set_field_by_name("data", prost_reflect::Value::List(resources));
     TypedResponse::new(msg)
 }
 
-fn convert_field_to_reflect_value(field: &Field) -> prost_reflect::Value {
+fn convert_field_to_reflect_value(field: Field) -> prost_reflect::Value {
     match field {
-        Field::UInt(n) => Value::U64(*n),
-        Field::Int(n) => Value::I64(*n),
+        Field::UInt(n) => Value::U64(n),
+        Field::Int(n) => Value::I64(n),
         Field::Float(_n) => todo!(),
-        Field::Boolean(n) => Value::Bool(*n),
-        Field::String(n) => Value::String(n.clone()),
-        Field::Text(n) => Value::String(n.clone()),
-        Field::Binary(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n.to_vec())),
+        Field::Boolean(n) => Value::Bool(n),
+        Field::String(n) => Value::String(n),
+        Field::Text(n) => Value::String(n),
+        Field::Binary(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n)),
         Field::Decimal(n) => Value::String(n.to_string()),
         Field::Timestamp(n) => Value::String(n.to_rfc3339()),
         Field::Date(n) => Value::String(n.to_string()),
-        Field::Bson(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n.to_vec())),
+        Field::Bson(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n)),
         Field::Null => todo!(),
     }
 }

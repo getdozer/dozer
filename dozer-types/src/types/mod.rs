@@ -1,90 +1,9 @@
 use crate::errors::types::TypeError;
-use chrono::{DateTime, FixedOffset, NaiveDate};
-use std::fmt::{Display, Formatter};
-
-use ordered_float::OrderedFloat;
-use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 
-pub const DATE_FORMAT: &str = "%Y-%m-%d";
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-pub enum Field {
-    UInt(u64),
-    Int(i64),
-    Float(OrderedFloat<f64>),
-    Boolean(bool),
-    String(String),
-    Text(String),
-    Binary(Vec<u8>),
-    #[serde(with = "rust_decimal::serde::float")]
-    Decimal(Decimal),
-    Timestamp(DateTime<FixedOffset>),
-    Date(NaiveDate),
-    Bson(Vec<u8>),
-    Null,
-}
+mod field;
 
-impl Display for Field {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl Field {
-    pub fn to_bytes(&self) -> Result<Vec<u8>, TypeError> {
-        match self {
-            Field::Int(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::UInt(i) => Ok(Vec::from(i.to_be_bytes())),
-            Field::Float(f) => Ok(Vec::from(f.to_be_bytes())),
-            Field::Boolean(b) => Ok(Vec::from(if *b {
-                1_u8.to_be_bytes()
-            } else {
-                0_u8.to_be_bytes()
-            })),
-            Field::String(s) => Ok(Vec::from(s.as_bytes())),
-            Field::Text(s) => Ok(Vec::from(s.as_bytes())),
-            Field::Binary(b) => Ok(Vec::from(b.as_slice())),
-            Field::Decimal(d) => Ok(Vec::from(d.serialize())),
-            Field::Timestamp(t) => Ok(Vec::from(t.timestamp().to_be_bytes())),
-            Field::Date(t) => Ok(Vec::from(t.to_string().as_bytes())),
-            Field::Bson(b) => Ok(b.clone()),
-            Field::Null => Ok(Vec::from(0_u8.to_be_bytes())),
-        }
-    }
-
-    pub fn get_type(&self) -> Result<FieldType, TypeError> {
-        match self {
-            Field::Int(_i) => Ok(FieldType::Int),
-            Field::UInt(_i) => Ok(FieldType::UInt),
-            Field::Float(_f) => Ok(FieldType::Float),
-            Field::Boolean(_b) => Ok(FieldType::Boolean),
-            Field::String(_s) => Ok(FieldType::String),
-            Field::Text(_s) => Ok(FieldType::Text),
-            Field::Binary(_b) => Ok(FieldType::Binary),
-            Field::Decimal(_d) => Ok(FieldType::Decimal),
-            Field::Timestamp(_t) => Ok(FieldType::Timestamp),
-            Field::Date(_t) => Ok(FieldType::Date),
-            Field::Bson(_b) => Ok(FieldType::Bson),
-            Field::Null => Ok(FieldType::Null),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub enum FieldType {
-    UInt,
-    Int,
-    Float,
-    Boolean,
-    String,
-    Text,
-    Binary,
-    Decimal,
-    Timestamp,
-    Date,
-    Bson,
-    Null,
-}
+pub use field::{Field, FieldBorrow, FieldType, DATE_FORMAT};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FieldDefinition {
@@ -170,12 +89,26 @@ impl Schema {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(crate = "self::serde")]
 pub enum SortDirection {
-    #[serde(rename = "asc")]
     Ascending,
-    #[serde(rename = "desc")]
     Descending,
+}
+
+impl SortDirection {
+    pub fn convert_str(s: &str) -> Option<Self> {
+        match s {
+            "asc" => Some(SortDirection::Ascending),
+            "desc" => Some(SortDirection::Descending),
+            _ => None,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            SortDirection::Ascending => "asc",
+            SortDirection::Descending => "desc",
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -186,20 +119,14 @@ pub enum IndexDefinition {
     FullText(usize),
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Record {
     /// Schema implemented by this Record
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the asscoiated schema
     pub values: Vec<Field>,
 }
-impl std::fmt::Debug for Record {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Record")
-            .field("values", &self.values)
-            .finish()
-    }
-}
+
 impl Record {
     pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
         Record { schema_id, values }
@@ -226,11 +153,11 @@ impl Record {
         }
     }
 
-    pub fn get_key(&self, indexes: &Vec<usize>) -> Result<Vec<u8>, TypeError> {
+    pub fn get_key(&self, indexes: &Vec<usize>) -> Vec<u8> {
         let mut tot_size = 0_usize;
         let mut buffers = Vec::<Vec<u8>>::with_capacity(indexes.len());
         for i in indexes {
-            let bytes = self.values[*i].to_bytes()?;
+            let bytes = self.values[*i].to_bytes();
             tot_size += bytes.len();
             buffers.push(bytes);
         }
@@ -239,7 +166,7 @@ impl Record {
         for i in buffers {
             res_buffer.extend(i);
         }
-        Ok(res_buffer)
+        res_buffer
     }
 }
 

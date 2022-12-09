@@ -1,18 +1,22 @@
 use crate::dag::dag::{Dag, Edge, NodeType};
+use crate::dag::dag_schemas::NodeSchemas;
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::InvalidCheckpointState;
-use crate::dag::executor_utils::CHECKPOINT_DB_NAME;
-use crate::dag::forwarder::{
-    INPUT_SCHEMA_IDENTIFIER, OUTPUT_SCHEMA_IDENTIFIER, SOURCE_ID_IDENTIFIER,
+use crate::dag::errors::ExecutionError::{
+    InvalidCheckpointState, InvalidNodeHandle, MetadataAlreadyExists,
 };
 use crate::dag::node::{NodeHandle, PortHandle};
-
 use crate::storage::errors::StorageError;
-use crate::storage::errors::StorageError::DeserializationError;
+use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::Schema;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
 use std::path::Path;
+
+pub(crate) const METADATA_DB_NAME: &str = "__META__";
+pub(crate) const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
+pub(crate) const OUTPUT_SCHEMA_IDENTIFIER: u8 = 1_u8;
+pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 
 pub(crate) enum Consistency {
     FullyConsistent(u64),
@@ -33,25 +37,22 @@ impl DependencyTreeNode {
     }
 }
 
-pub(crate) struct CheckpointMetadata {
+pub(crate) struct DagMetadata {
     pub commits: HashMap<NodeHandle, u64>,
     pub input_schemas: HashMap<PortHandle, Schema>,
     pub output_schemas: HashMap<PortHandle, Schema>,
 }
 
-pub(crate) struct CheckpointMetadataReader<'a> {
+pub(crate) struct DagMetadataManager<'a> {
     dag: &'a Dag,
     path: &'a Path,
-    metadata: HashMap<NodeHandle, CheckpointMetadata>,
+    metadata: HashMap<NodeHandle, DagMetadata>,
     deps_trees: HashMap<NodeHandle, DependencyTreeNode>,
 }
 
-impl<'a> CheckpointMetadataReader<'a> {
-    pub fn new(
-        dag: &'a Dag,
-        path: &'a Path,
-    ) -> Result<CheckpointMetadataReader<'a>, ExecutionError> {
-        let metadata = CheckpointMetadataReader::get_checkpoint_metadata(path, dag)?;
+impl<'a> DagMetadataManager<'a> {
+    pub fn new(dag: &'a Dag, path: &'a Path) -> Result<DagMetadataManager<'a>, ExecutionError> {
+        let metadata = DagMetadataManager::get_checkpoint_metadata(path, dag)?;
         let mut deps_trees: HashMap<NodeHandle, DependencyTreeNode> = HashMap::new();
 
         for src in dag
@@ -76,13 +77,13 @@ impl<'a> CheckpointMetadataReader<'a> {
     fn get_node_checkpoint_metadata(
         path: &Path,
         name: &NodeHandle,
-    ) -> Result<CheckpointMetadata, ExecutionError> {
-        if !LmdbEnvironmentManager::exists(path, name) {
+    ) -> Result<DagMetadata, ExecutionError> {
+        if !LmdbEnvironmentManager::exists(path, format!("{}", name).as_str()) {
             return Err(InvalidCheckpointState(name.clone()));
         }
 
-        let mut env = LmdbEnvironmentManager::create(path, name)?;
-        let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+        let mut env = LmdbEnvironmentManager::create(path, format!("{}", name).as_str())?;
+        let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
 
         let cur = txn.open_cursor(&db)?;
@@ -102,7 +103,7 @@ impl<'a> CheckpointMetadataReader<'a> {
             ))?;
             match value.0[0] {
                 SOURCE_ID_IDENTIFIER => {
-                    let handle: NodeHandle = String::from_utf8_lossy(&value.0[1..]).to_string();
+                    let handle: NodeHandle = NodeHandle::from_bytes(&value.0[1..]);
                     let seq: u64 = u64::from_be_bytes(value.1.try_into().unwrap());
                     map.insert(handle, seq);
                 }
@@ -143,24 +144,24 @@ impl<'a> CheckpointMetadataReader<'a> {
             }
         }
 
-        Ok(CheckpointMetadata {
+        Ok(DagMetadata {
             commits: map,
             input_schemas,
             output_schemas,
         })
     }
 
-    pub(crate) fn get_checkpoint_metadata(
+    fn get_checkpoint_metadata(
         path: &Path,
         dag: &Dag,
-    ) -> Result<HashMap<NodeHandle, CheckpointMetadata>, ExecutionError> {
-        let mut all = HashMap::<NodeHandle, CheckpointMetadata>::new();
+    ) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
+        let mut all = HashMap::<NodeHandle, DagMetadata>::new();
         for node in &dag.nodes {
-            match CheckpointMetadataReader::get_node_checkpoint_metadata(path, node.0) {
+            match DagMetadataManager::get_node_checkpoint_metadata(path, node.0) {
                 Ok(r) => {
                     all.insert(node.0.clone(), r);
                 }
-                Err(_e) => LmdbEnvironmentManager::remove(path, node.0),
+                Err(_e) => LmdbEnvironmentManager::remove(path, format!("{}", node.0).as_str()),
             }
         }
         Ok(all)
@@ -196,6 +197,19 @@ impl<'a> CheckpointMetadataReader<'a> {
         }
     }
 
+    fn get_sources_for_namespace(&self, ns: u16) -> HashSet<NodeHandle> {
+        let mut handles = HashSet::<NodeHandle>::new();
+        for (src_handle, src_node) in self.deps_trees.iter() {
+            if src_node.children.iter().any(|e| match e.handle.ns {
+                Some(node_ns) => ns == node_ns,
+                _ => false,
+            }) {
+                handles.insert(src_handle.clone());
+            }
+        }
+        handles
+    }
+
     fn get_dependency_tree_consistency_rec(
         &self,
         source_handle: &NodeHandle,
@@ -206,7 +220,6 @@ impl<'a> CheckpointMetadataReader<'a> {
             Some(v) => *v.commits.get(source_handle).unwrap_or(&0),
             None => 0,
         };
-
         res.entry(seq).or_insert_with(Vec::new);
         res.get_mut(&seq).unwrap().push(tree_node.handle.clone());
 
@@ -215,7 +228,7 @@ impl<'a> CheckpointMetadataReader<'a> {
         }
     }
 
-    pub(crate) fn get_dependency_tree_consistency(&self) -> HashMap<NodeHandle, Consistency> {
+    pub(crate) fn get_checkpoint_consistency(&self) -> HashMap<NodeHandle, Consistency> {
         let mut r: HashMap<NodeHandle, Consistency> = HashMap::new();
         for e in &self.deps_trees {
             let mut res: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
@@ -231,28 +244,67 @@ impl<'a> CheckpointMetadataReader<'a> {
         r
     }
 
-    // fn get_state_schema_for_node(
-    //     &self,
-    //     node: &NodeHandle,
-    // ) -> Result<HashMap<PortHandle, Schema>, ExecutionError> {
-    //     let node_meta = self
-    //         .metadata
-    //         .get(node)
-    //         .ok_or_else(|| ExecutionError::InvalidCheckpointState(node.clone()))?;
-    //     Ok(node_meta.schemas.clone())
-    // }
+    pub(crate) fn delete_metadata(&self) {
+        for node in &self.dag.nodes {
+            LmdbEnvironmentManager::remove(self.path, format!("{}", node.0).as_str());
+        }
+    }
 
-    // pub fn get_source_checkpointing_consistency(
-    //     &self,
-    //     source_handle: &NodeHandle,
-    // ) -> Result<CheckpointConsistency, ExecutionError> {
-    //     let curr_node = source_handle;
-    //     let all_seqs = Vec::<u64>::new();
-    //     loop {
-    //         if self.dag.is_stateful(curr_node)? {
-    //             let seq = self.get_state_seq_for_node(source_handle, curr_node);
-    //         }
-    //     }
-    //     Ok(true)
-    // }
+    pub(crate) fn get_metadata(&self) -> Result<HashMap<NodeHandle, DagMetadata>, ExecutionError> {
+        let mut all_meta = HashMap::<NodeHandle, DagMetadata>::new();
+        for node in &self.dag.nodes {
+            let metadata = Self::get_node_checkpoint_metadata(self.path, node.0)?;
+            all_meta.insert(node.0.clone(), metadata);
+        }
+        Ok(all_meta)
+    }
+
+    pub(crate) fn init_metadata(
+        &self,
+        schemas: &HashMap<NodeHandle, NodeSchemas>,
+    ) -> Result<(), ExecutionError> {
+        for node in &self.dag.nodes {
+            let curr_node_schema = schemas
+                .get(node.0)
+                .ok_or_else(|| InvalidNodeHandle(node.0.clone()))?;
+
+            if LmdbEnvironmentManager::exists(self.path, format!("{}", node.0).as_str()) {
+                return Err(MetadataAlreadyExists(node.0.clone()));
+            }
+
+            let mut env =
+                LmdbEnvironmentManager::create(self.path, format!("{}", node.0).as_str())?;
+            let db = env.open_database(METADATA_DB_NAME, false)?;
+            let mut txn = env.create_txn()?;
+
+            for (handle, schema) in curr_node_schema.output_schemas.iter() {
+                let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];
+                key.extend(handle.to_be_bytes());
+                let value = bincode::serialize(schema).map_err(|e| SerializationError {
+                    typ: "Schema".to_string(),
+                    reason: Box::new(e),
+                })?;
+                txn.put(&db, &key, &value)?;
+            }
+
+            for (handle, schema) in curr_node_schema.input_schemas.iter() {
+                let mut key: Vec<u8> = vec![INPUT_SCHEMA_IDENTIFIER];
+                key.extend(handle.to_be_bytes());
+                let value = bincode::serialize(schema).map_err(|e| SerializationError {
+                    typ: "Schema".to_string(),
+                    reason: Box::new(e),
+                })?;
+                txn.put(&db, &key, &value)?;
+            }
+
+            for (source, _factory) in &self.dag.get_sources() {
+                let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
+                key.extend(source.to_bytes());
+                txn.put(&db, &key, &0_u64.to_be_bytes())?;
+            }
+
+            txn.commit_and_renew()?;
+        }
+        Ok(())
+    }
 }

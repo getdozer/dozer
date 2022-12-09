@@ -108,8 +108,7 @@ impl SqlMapper {
                 }
                 let rec = Record::new(schema.identifier.clone(), values);
                 let key = get_primary_key_value(schema, &rec);
-                self.record_map
-                    .insert((name, key.to_bytes().unwrap()), rec.clone());
+                self.record_map.insert((name, key.to_bytes()), rec.clone());
                 Operation::Insert { new: rec }
             }
 
@@ -273,7 +272,7 @@ impl SqlMapper {
                     _ => panic!("not supported: {:?}", left),
                 };
 
-                let val = parse_exp_to_field(&right.to_owned()).to_bytes().unwrap();
+                let val = parse_exp_to_field(&right).to_bytes();
 
                 assert_eq!(
                     column_name,

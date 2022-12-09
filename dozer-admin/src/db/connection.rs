@@ -52,9 +52,10 @@ impl TryFrom<i32> for ConnectionType {
     fn try_from(item: i32) -> Result<Self, Self::Error> {
         match item {
             0 => Ok(ConnectionType::Postgres),
-            1 => Ok(ConnectionType::Snowflake),
-            2 => Ok(ConnectionType::Databricks),
-            3 => Ok(ConnectionType::Eth),
+            1 => Ok(ConnectionType::Eth),
+            2 => Ok(ConnectionType::Events),
+            3 => Ok(ConnectionType::Snowflake),
+            4 => Ok(ConnectionType::Kafka),
             _ => Err("ConnectionType enum not match".to_owned())?,
         }
     }
@@ -66,7 +67,9 @@ impl TryFrom<String> for ConnectionType {
             "postgres" => Ok(ConnectionType::Postgres),
             "snowflake" => Ok(ConnectionType::Snowflake),
             "eth" => Ok(ConnectionType::Eth),
-            "databricks" => Ok(ConnectionType::Databricks),
+            "ethereum" => Ok(ConnectionType::Eth),
+            "events" => Ok(ConnectionType::Events),
+            "kafka" => Ok(ConnectionType::Kafka),
             _ => Err("String not match ConnectionType".to_owned())?,
         }
     }
@@ -123,6 +126,7 @@ impl Persistable<'_, ConnectionInfo> for ConnectionInfo {
             .limit(limit.into())
             .load(&mut db)?;
         let total: i64 = filter_dsl.count().get_result(&mut db)?;
+
         let connection_info: Vec<ConnectionInfo> = results
             .iter()
             .map(|result| ConnectionInfo::try_from(result.clone()).unwrap())

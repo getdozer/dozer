@@ -4,9 +4,10 @@ pub mod field_type;
 pub mod helper;
 pub mod ingestion_types;
 pub mod models;
+mod tests;
 pub mod types;
 
-pub use helper::{field_to_json_value, json_value_to_field, record_to_json};
+pub use helper::{json_str_to_field, json_value_to_field, record_to_map};
 
 // Re-exports
 pub use bincode;

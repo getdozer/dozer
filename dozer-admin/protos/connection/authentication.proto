@@ -1,13 +1,48 @@
 syntax = "proto3";
 package dozer_admin_grpc;
-import "protos/connection/postgres_authentication.proto";
-import "protos/connection/ethereum_authentication.proto";
-import "protos/connection/snowflake_authentication.proto";
 
 message Authentication {
   oneof authentication {
     PostgresAuthentication postgres = 1;
     EthereumAuthentication ethereum = 2;
     SnowflakeAuthentication snowflake = 3;
+    EventsAuthentication events = 4;
+    KafkaAuthentication kafka = 5;
   }
+}
+
+message SnowflakeAuthentication {
+  string server = 1;
+  string port = 2;
+  string user = 3;
+  string password = 4;
+  string database = 5;
+  string schema = 6;
+  string warehouse = 7;
+  optional string driver = 8;
+}
+message PostgresAuthentication {
+  string database = 1;
+  string user = 2;
+  string host = 3;
+  uint32 port = 4;
+  string password = 5;
+}
+message KafkaAuthentication {
+  string broker = 1;
+  string topic = 2;
+}
+message EventsAuthentication {
+  string database = 1;
+}
+
+message EthereumAuthentication {
+  string wss_url = 1;
+  EthereumFilter filter = 2;
+}
+
+message EthereumFilter {
+  optional uint64 from_block = 1;
+  repeated string addresses = 2;
+  repeated string topics = 3;
 }

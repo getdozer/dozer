@@ -1,28 +1,21 @@
 #![allow(clippy::too_many_arguments)]
+use crate::deserialize;
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::errors::ExecutionError::InvalidPortHandle;
-use dozer_core::dag::executor_local::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
-};
+use dozer_core::dag::node::{PortHandle, Processor};
+use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, Schema};
+use dozer_types::types::{Field, Operation, Record, Schema};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
-use sqlparser::ast::{Expr as SqlExpr, SelectItem};
 use std::{collections::HashMap, mem::size_of_val};
-
-use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::expression::builder::ExpressionType;
 
 pub enum FieldRule {
     /// Represents a dimension field, generally used in the GROUP BY clause
@@ -71,45 +64,10 @@ impl<'a> AggregationData<'a> {
     }
 }
 
-pub struct AggregationProcessorFactory {
-    select: Vec<SelectItem>,
-    groupby: Vec<SqlExpr>,
-}
-
-impl AggregationProcessorFactory {
-    /// Creates a new [`AggregationProcessorFactory`].
-    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>) -> Self {
-        Self { select, groupby }
-    }
-}
-
-impl ProcessorFactory for AggregationProcessorFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
-    }
-
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
-        )]
-    }
-
-    fn build(&self) -> Box<dyn Processor> {
-        Box::new(AggregationProcessor::new(
-            self.select.clone(),
-            self.groupby.clone(),
-        ))
-    }
-}
-
 pub struct AggregationProcessor {
-    select: Vec<SelectItem>,
-    groupby: Vec<SqlExpr>,
     output_field_rules: Vec<FieldRule>,
     out_dimensions: Vec<(usize, Box<Expression>, usize)>,
     out_measures: Vec<(usize, Box<Aggregator>, usize)>,
-    builder: ExpressionBuilder,
     pub db: Option<Database>,
     meta_db: Option<Database>,
     aggregators_db: Option<Database>,
@@ -127,188 +85,16 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
-    pub fn new(select: Vec<SelectItem>, groupby: Vec<SqlExpr>) -> Self {
+    pub fn new(output_field_rules: Vec<FieldRule>, schema: &Schema) -> Self {
+        let (out_measures, out_dimensions) = populate_rules(&output_field_rules, schema).unwrap();
         Self {
-            select,
-            groupby,
-            output_field_rules: vec![],
-            out_dimensions: vec![],
-            out_measures: vec![],
-            builder: ExpressionBuilder {},
+            output_field_rules,
+            out_dimensions,
+            out_measures,
             db: None,
             meta_db: None,
             aggregators_db: None,
         }
-    }
-
-    fn build(
-        &self,
-        select: &[SelectItem],
-        groupby: &[SqlExpr],
-        schema: &Schema,
-    ) -> Result<Vec<FieldRule>, PipelineError> {
-        let mut groupby_rules = groupby
-            .iter()
-            .map(|expr| self.parse_sql_groupby_item(expr, schema))
-            .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
-
-        let mut select_rules = select
-            .iter()
-            .map(|item| self.parse_sql_aggregate_item(item, schema))
-            .filter(|e| e.is_ok())
-            .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
-
-        groupby_rules.append(&mut select_rules);
-
-        Ok(groupby_rules)
-    }
-
-    pub fn parse_sql_groupby_item(
-        &self,
-        sql_expression: &SqlExpr,
-        schema: &Schema,
-    ) -> Result<FieldRule, PipelineError> {
-        let expression =
-            self.builder
-                .build(&ExpressionType::FullExpression, sql_expression, schema)?;
-
-        Ok(FieldRule::Dimension(
-            sql_expression.to_string(),
-            expression,
-            true,
-            None,
-        ))
-    }
-
-    pub fn parse_sql_aggregate_item(
-        &self,
-        item: &SelectItem,
-        schema: &Schema,
-    ) -> Result<FieldRule, PipelineError> {
-        match item {
-            SelectItem::UnnamedExpr(sql_expr) => {
-                match self.builder.parse_sql_expression(
-                    &ExpressionType::Aggregation,
-                    sql_expr,
-                    schema,
-                ) {
-                    Ok(expr) => Ok(FieldRule::Measure(
-                        sql_expr.to_string(),
-                        self.get_aggregator(expr.0, schema)?,
-                        true,
-                        Some(item.to_string()),
-                    )),
-                    Err(error) => Err(error),
-                }
-            }
-            SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
-                format!("Unsupported Expression {}:{}", expr, alias),
-            )),
-            SelectItem::Wildcard => Err(PipelineError::InvalidExpression(
-                "Wildcard Operator is not supported".to_string(),
-            )),
-            SelectItem::QualifiedWildcard(ref _object_name) => {
-                Err(PipelineError::InvalidExpression(
-                    "Qualified Wildcard Operator is not supported".to_string(),
-                ))
-            }
-        }
-    }
-
-    fn get_aggregator(
-        &self,
-        expression: Box<Expression>,
-        schema: &Schema,
-    ) -> Result<Aggregator, PipelineError> {
-        match *expression {
-            Expression::AggregateFunction { fun, args } => {
-                let arg_type = args[0].get_type(schema);
-                match (&fun, arg_type) {
-                    (AggregateFunctionType::Avg, _) => Ok(Aggregator::Avg),
-                    (AggregateFunctionType::Count, _) => Ok(Aggregator::Count),
-                    (AggregateFunctionType::Max, _) => Ok(Aggregator::Max),
-                    (AggregateFunctionType::Min, _) => Ok(Aggregator::Min),
-                    (AggregateFunctionType::Sum, _) => Ok(Aggregator::Sum),
-                    _ => Err(PipelineError::InvalidExpression(format!(
-                        "Not implemented Aggregation function: {:?}",
-                        fun
-                    ))),
-                }
-            }
-            _ => Err(PipelineError::InvalidExpression(format!(
-                "Not an Aggregation function: {:?}",
-                expression
-            ))),
-        }
-    }
-
-    fn populate_rules(&mut self, schema: &Schema) -> Result<(), PipelineError> {
-        let mut out_measures: Vec<(usize, Box<Aggregator>, usize)> = Vec::new();
-        let mut out_dimensions: Vec<(usize, Box<Expression>, usize)> = Vec::new();
-
-        for rule in self.output_field_rules.iter().enumerate() {
-            match rule.1 {
-                FieldRule::Measure(idx, aggr, _nullable, _name) => {
-                    out_measures.push((
-                        schema.get_field_index(idx.as_str())?.0,
-                        Box::new(aggr.clone()),
-                        rule.0,
-                    ));
-                }
-                FieldRule::Dimension(idx, expression, _nullable, _name) => {
-                    out_dimensions.push((
-                        schema.get_field_index(idx.as_str())?.0,
-                        expression.clone(),
-                        rule.0,
-                    ));
-                }
-            }
-        }
-
-        self.out_measures = out_measures;
-        self.out_dimensions = out_dimensions;
-
-        Ok(())
-    }
-
-    fn build_output_schema(&self, input_schema: &Schema) -> Result<Schema, ExecutionError> {
-        let mut output_schema = Schema::empty();
-
-        for e in self.output_field_rules.iter().enumerate() {
-            match e.1 {
-                FieldRule::Dimension(idx, expression, is_value, name) => {
-                    let src_fld = input_schema.get_field_index(idx.as_str())?;
-                    output_schema.fields.push(FieldDefinition::new(
-                        match name {
-                            Some(n) => n.clone(),
-                            _ => src_fld.1.name.clone(),
-                        },
-                        expression.get_type(input_schema),
-                        false,
-                    ));
-                    if *is_value {
-                        output_schema.values.push(e.0);
-                    }
-                    output_schema.primary_index.push(e.0);
-                }
-
-                FieldRule::Measure(idx, aggr, is_value, name) => {
-                    let src_fld = input_schema.get_field_index(idx)?;
-                    output_schema.fields.push(FieldDefinition::new(
-                        match name {
-                            Some(n) => n.clone(),
-                            _ => src_fld.1.name.clone(),
-                        },
-                        aggr.get_return_type(src_fld.1.typ),
-                        false,
-                    ));
-                    if *is_value {
-                        output_schema.values.push(e.0);
-                    }
-                }
-            }
-        }
-        Ok(output_schema)
     }
 
     fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
@@ -327,7 +113,7 @@ impl AggregationProcessor {
 
     fn get_record_key(&self, hash: &Vec<u8>, database_id: u16) -> Result<Vec<u8>, PipelineError> {
         let mut vec = Vec::with_capacity(hash.len() + size_of_val(&database_id));
-        vec.extend_from_slice(&database_id.to_le_bytes());
+        vec.extend_from_slice(&database_id.to_be_bytes());
         vec.extend(hash);
         Ok(vec)
     }
@@ -338,7 +124,7 @@ impl AggregationProcessor {
             .as_ref()
             .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
         let curr_ctr = match txn.get(meta_db, &COUNTER_KEY.to_be_bytes())? {
-            Some(v) => u32::from_be_bytes(v.try_into().unwrap()),
+            Some(v) => u32::from_be_bytes(deserialize!(v)),
             None => 1_u32,
         };
         txn.put(
@@ -355,9 +141,8 @@ impl AggregationProcessor {
 
         let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
-        let val: Field = internal_err!(bincode::deserialize(
-            &buf[offset..offset + val_len as usize]
-        ))?;
+        let val: Field = Field::from_bytes(&buf[offset..offset + val_len as usize])
+            .map_err(TypeError::DeserializationError)?;
         offset += val_len as usize;
         let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
@@ -380,7 +165,7 @@ impl AggregationProcessor {
         let mut r = Vec::with_capacity(512);
         r.extend(prefix.to_be_bytes());
 
-        let sz_val = internal_err!(bincode::serialize(&value))?;
+        let sz_val = value.to_bytes();
         r.extend((sz_val.len() as u16).to_be_bytes());
         r.extend(&sz_val);
 
@@ -429,7 +214,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             curr.state,
                             inserted_field,
-                            inserted_field.get_type()?,
+                            inserted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -440,7 +225,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             None,
                             inserted_field,
-                            inserted_field.get_type()?,
+                            inserted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -455,7 +240,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             curr.state,
                             deleted_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -466,7 +251,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             None,
                             deleted_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -484,7 +269,7 @@ impl AggregationProcessor {
                             curr.state,
                             deleted_field,
                             updated_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -496,7 +281,7 @@ impl AggregationProcessor {
                             None,
                             deleted_field,
                             updated_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -525,7 +310,7 @@ impl AggregationProcessor {
         let bytes = txn.get(db, key.as_slice())?;
 
         let curr_count = match bytes {
-            Some(b) => u64::from_le_bytes(b.try_into().unwrap()),
+            Some(b) => u64::from_be_bytes(deserialize!(b)),
             None => 0_u64,
         };
 
@@ -537,7 +322,7 @@ impl AggregationProcessor {
             } else {
                 curr_count + delta
             })
-            .to_le_bytes()
+            .to_be_bytes()
             .as_slice(),
         )?;
         Ok(curr_count)
@@ -553,7 +338,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
+            old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -606,7 +391,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
+            new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -699,7 +484,7 @@ impl AggregationProcessor {
                     )
                 } else {
                     let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
-                    (old.get_key(&record_keys)?, new.get_key(&record_keys)?)
+                    (old.get_key(&record_keys), new.get_key(&record_keys))
                 };
 
                 if old_record_hash == new_record_hash {
@@ -718,25 +503,6 @@ impl AggregationProcessor {
 impl Processor for AggregationProcessor {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
         internal_err!(self.init_store(state))
-    }
-
-    fn update_schema(
-        &mut self,
-        output_port: PortHandle,
-        input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<Schema, ExecutionError> {
-        let input_schema = input_schemas
-            .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(InvalidPortHandle(output_port))?;
-
-        let field_rules = internal_err!(self.build(&self.select, &self.groupby, input_schema))?;
-
-        self.output_field_rules = field_rules;
-
-        self.populate_rules(input_schema)
-            .map_err(|e| InternalError(Box::new(e)))?;
-
-        self.build_output_schema(input_schema)
     }
 
     fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
@@ -762,4 +528,38 @@ impl Processor for AggregationProcessor {
             _ => Err(ExecutionError::InvalidDatabase),
         }
     }
+}
+
+type OutputRules = (
+    Vec<(usize, Box<Aggregator>, usize)>,
+    Vec<(usize, Box<Expression>, usize)>,
+);
+
+fn populate_rules(
+    output_field_rules: &[FieldRule],
+    schema: &Schema,
+) -> Result<OutputRules, PipelineError> {
+    let mut out_measures: Vec<(usize, Box<Aggregator>, usize)> = Vec::new();
+    let mut out_dimensions: Vec<(usize, Box<Expression>, usize)> = Vec::new();
+
+    for rule in output_field_rules.iter().enumerate() {
+        match rule.1 {
+            FieldRule::Measure(idx, aggr, _nullable, _name) => {
+                out_measures.push((
+                    schema.get_field_index(idx.as_str())?.0,
+                    Box::new(aggr.clone()),
+                    rule.0,
+                ));
+            }
+            FieldRule::Dimension(idx, expression, _nullable, _name) => {
+                out_dimensions.push((
+                    schema.get_field_index(idx.as_str())?.0,
+                    expression.clone(),
+                    rule.0,
+                ));
+            }
+        }
+    }
+
+    Ok((out_measures, out_dimensions))
 }
