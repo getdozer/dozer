@@ -11,29 +11,6 @@ use crate::cache::expression::query_helper::{and_expression, simple_expression, 
 use super::super::expression::FilterExpression;
 use super::{Operator, SortOptions};
 
-impl<'de> Deserialize<'de> for Operator {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?.to_lowercase();
-
-        match Operator::convert_str(s.as_str()) {
-            Some(op) => Ok(op),
-            None => Err(de::Error::custom(format!("operator not found:  {}", s))),
-        }
-    }
-}
-
-impl Serialize for Operator {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(self.to_str())
-    }
-}
-
 impl<'de> Deserialize<'de> for FilterExpression {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

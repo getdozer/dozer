@@ -33,7 +33,6 @@ impl Serialize for Source {
         state.end()
     }
 }
-
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum Value {
     Ref(String),

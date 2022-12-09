@@ -5,6 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let _manifest_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .extern_path(
             ".dozer_admin_grpc.ApiIndex",

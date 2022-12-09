@@ -23,16 +23,6 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
     key.join("#".as_bytes())
 }
 
-pub fn has_primary_key_changed(
-    primary_index: &[usize],
-    old_values: &[Field],
-    new_values: &[Field],
-) -> bool {
-    primary_index
-        .iter()
-        .any(|idx| old_values[*idx] != new_values[*idx])
-}
-
 /// Returns the secondary index key for a given set of fields.
 ///
 /// We allow computing the secondary index key of "prefix" fields, so the user can filter the "prefix" fields using `Eq` filters,
