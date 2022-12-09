@@ -6,21 +6,18 @@ use dozer_core::dag::node::{
     SourceFactory,
 };
 
-use dozer_sql::pipeline::builder::PipelineBuilder;
-
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
-use dozer_types::crossbeam::channel::unbounded;
+use dozer_sql::pipeline::builder::PipelineBuilder;
+use dozer_types::crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
-use fp_rust::sync::CountDownLatch;
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
-
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -33,11 +30,11 @@ pub struct TestSourceFactory {
     output_ports: Vec<PortHandle>,
     ops: Vec<Operation>,
     schema: Schema,
-    term_latch: Arc<CountDownLatch>,
+    term_latch: Arc<Receiver<bool>>,
 }
 
 impl TestSourceFactory {
-    pub fn new(schema: Schema, ops: Vec<Operation>, term_latch: Arc<CountDownLatch>) -> Self {
+    pub fn new(schema: Schema, ops: Vec<Operation>, term_latch: Arc<Receiver<bool>>) -> Self {
         Self {
             output_ports: vec![DEFAULT_PORT_HANDLE],
             schema,
@@ -73,7 +70,7 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {
     schema: Schema,
     ops: Vec<Operation>,
-    term_latch: Arc<CountDownLatch>,
+    term_latch: Arc<Receiver<bool>>,
 }
 
 impl Source for TestSource {
@@ -87,8 +84,7 @@ impl Source for TestSource {
             idx += 1;
             fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
         }
-
-        thread::sleep(Duration::from_millis(1000));
+        self.term_latch.recv_timeout(Duration::from_secs(2));
         Ok(())
     }
 }
@@ -101,7 +97,7 @@ pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
     mapper: Arc<Mutex<SqlMapper>>,
     schema: Arc<RwLock<SchemaHolder>>,
-    term_latch: Arc<CountDownLatch>,
+    term_latch: Arc<Sender<bool>>,
     ops: usize,
 }
 
@@ -109,7 +105,7 @@ impl TestSinkFactory {
     pub fn new(
         mapper: Arc<Mutex<SqlMapper>>,
         schema: Arc<RwLock<SchemaHolder>>,
-        term_latch: Arc<CountDownLatch>,
+        term_latch: Arc<Sender<bool>>,
         ops: usize,
     ) -> Self {
         Self {
@@ -157,7 +153,7 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
     input_schemas: HashMap<PortHandle, Schema>,
-    term_latch: Arc<CountDownLatch>,
+    term_latch: Arc<Sender<bool>>,
     ops: usize,
     curr: usize,
 }
@@ -166,7 +162,7 @@ impl TestSink {
     pub fn new(
         mapper: Arc<Mutex<SqlMapper>>,
         input_schemas: HashMap<PortHandle, Schema>,
-        term_latch: Arc<CountDownLatch>,
+        term_latch: Arc<Sender<bool>>,
         ops: usize,
     ) -> Self {
         Self {
@@ -207,7 +203,7 @@ impl Sink for TestSink {
 
         self.curr += 1;
         if self.curr == self.ops {
-            self.term_latch.countdown();
+            let _ = self.term_latch.send(true);
         }
 
         Ok(())
@@ -242,12 +238,9 @@ impl TestPipeline {
     pub fn run(&mut self) -> Result<Schema, ExecutionError> {
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
-        let (_tx, _rx) = unbounded::<Schema>();
-
         let ast = Parser::parse_sql(&dialect, &self.sql).unwrap();
 
         let statement: &Statement = &ast[0];
-        let latch = Arc::new(CountDownLatch::new(1));
 
         let builder = PipelineBuilder::new(None);
         let (mut dag, in_handle, out_handle) =
@@ -259,12 +252,20 @@ impl TestPipeline {
         let schema_holder: Arc<RwLock<SchemaHolder>> =
             Arc::new(RwLock::new(SchemaHolder { schema: None }));
 
+        let (sync_sender, sync_receiver) = bounded::<bool>(0);
         let ops_count = self.ops.len();
 
-        let source =
-            TestSourceFactory::new(self.schema.clone(), self.ops.to_owned(), latch.clone());
-        let sink =
-            TestSinkFactory::new(self.mapper.clone(), schema_holder.clone(), latch, ops_count);
+        let source = TestSourceFactory::new(
+            self.schema.clone(),
+            self.ops.to_owned(),
+            Arc::new(sync_receiver),
+        );
+        let sink = TestSinkFactory::new(
+            self.mapper.clone(),
+            schema_holder.clone(),
+            Arc::new(sync_sender),
+            ops_count,
+        );
 
         dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
         dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
@@ -285,11 +286,6 @@ impl TestPipeline {
 
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
-        // if tmp_dir.path().exists() {
-        //     fs::remove_dir_all(tmp_dir.path())
-        //         .unwrap_or_else(|_e| panic!("Unable to remove old dir"));
-        // }
-        // fs::create_dir(tmp_dir.path()).unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
         let mut exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default())
             .unwrap_or_else(|_e| panic!("Unable to create exec"));
@@ -297,33 +293,6 @@ impl TestPipeline {
         exec.join()?;
 
         let r_schema = schema_holder.read().schema.as_ref().unwrap().clone();
-
         Ok(r_schema)
-
-        // match rx.recv() {
-        //     Ok(schema) => {
-        //         let (tx, rx) = mpsc::channel();
-        //         let _ = thread::spawn(move || -> Result<(), ExecutionError> {
-        //             let result = exec.join();
-        //             match tx.send(result) {
-        //                 Ok(()) => Ok(()),
-        //                 Err(_) => Err(ExecutionError::InternalStringError(
-        //                     "Disconnected".to_string(),
-        //                 )),
-        //             }
-        //         });
-        //
-        //         match rx.recv_timeout(Duration::from_millis(2000)) {
-        //             Ok(_) => Ok(schema),
-        //             Err(RecvTimeoutError::Timeout) => Err(ExecutionError::InternalStringError(
-        //                 "Pipeline timed out".to_string(),
-        //             )),
-        //             Err(RecvTimeoutError::Disconnected) => unreachable!(),
-        //         }
-        //     }
-        //     Err(_e) => Err(ExecutionError::InternalStringError(
-        //         "Schema not sent in the pipeline".to_string(),
-        //     )),
-        // }
     }
 }
