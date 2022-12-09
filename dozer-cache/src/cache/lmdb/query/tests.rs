@@ -96,6 +96,14 @@ fn query_secondary_vars() {
 
     test_query(json!({}), 7, &cache);
 
+    test_query(
+        json!({
+            "$order_by": { "c": "desc" }
+        }),
+        7,
+        &cache,
+    );
+
     test_query(json!({"$filter":{ "a": {"$eq": 1}}}), 1, &cache);
 
     test_query(json!({"$filter":{ "c": {"$eq": 521}}}), 2, &cache);
