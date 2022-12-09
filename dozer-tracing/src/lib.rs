@@ -1,9 +1,20 @@
+mod metrics_recorder;
 
+use metrics_recorder::MetricsRecorder;
+use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
+use tempdir::TempDir;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
-use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
+pub fn init_metrics() {
+    let path = TempDir::new("dozer_metrics")
+        .expect("unable to create temp dir for metrics")
+        .path()
+        .to_owned();
+    let recorder = MetricsRecorder::new(path);
+    metrics::set_boxed_recorder(Box::new(recorder)).unwrap()
+}
 
 pub fn init_telemetry() -> Result<(), Box<dyn ::std::error::Error>> {
     let app_name = "dozer";

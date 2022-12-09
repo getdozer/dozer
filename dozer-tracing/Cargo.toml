@@ -11,3 +11,6 @@ tracing-subscriber = {version = "0.3.11", features=["env-filter", "tracing-log"]
 opentelemetry = {version = "0.18.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
 opentelemetry-jaeger = {version = "0.17.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
 tracing-opentelemetry = "0.18.0"
+metrics = "0.20.1"
+lmdb-rkv = "0.14.0"
+tempdir = "0.3.7"
