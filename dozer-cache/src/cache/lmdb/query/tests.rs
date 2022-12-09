@@ -126,6 +126,16 @@ fn query_secondary_vars() {
         &cache,
     );
 
+    test_query_record(
+        json!({
+            "$filter":{ "a": {"$eq": 1}},
+            "$order_by": { "b": "asc" }
+        }),
+        vec![(1, "yuri".to_string(), 521)],
+        &schema,
+        &cache,
+    );
+
     // Range tests
     test_query(json!({"$filter":{ "c": {"$lte": 521}}}), 2, &cache);
 
