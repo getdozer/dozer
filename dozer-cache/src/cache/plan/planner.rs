@@ -226,10 +226,19 @@ fn all_indexes_are_present(
                 scans.push(IndexScan {
                     index_id: idx,
                     kind: index_scan_kind,
+                    is_single_field_sorted_inverted: is_single_field_sorted_inverted(&indexes[idx]),
                 });
             }
             None => return None,
         }
     }
     Some(scans)
+}
+
+fn is_single_field_sorted_inverted(index: &IndexDefinition) -> bool {
+    match index {
+        // `fields.len() == 1` criteria must be kept the same with `comparator.rs`.
+        IndexDefinition::SortedInverted(fields) => fields.len() == 1,
+        _ => false,
+    }
 }

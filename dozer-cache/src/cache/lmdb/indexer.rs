@@ -105,7 +105,8 @@ impl Indexer {
             .copied()
             .filter_map(|(index, direction)| (values.get(index).map(|value| (value, direction))))
             .collect::<Vec<_>>();
-        index::get_secondary_index(&values)
+        // `values.len() == 1` criteria must be kept the same with `comparator.rs`.
+        index::get_secondary_index(&values, values.len() == 1)
     }
 
     fn _build_indices_full_text(
