@@ -168,7 +168,12 @@ fn get_start_end_keys(
                     }
                     None => {
                         // Here we respond to case 2, examples are `a = 1 && b asc` or `b desc`.
-                        todo!()
+                        if comparison_key.is_some() {
+                            todo!()
+                        } else {
+                            // Just all of them.
+                            Ok((None, None))
+                        }
                     }
                 }
             } else {
