@@ -156,7 +156,7 @@ impl Processor for RecordReaderProcessor {
             .unwrap()
             .get(
                 Field::String(format!("key_{}", self.ctr))
-                    .to_bytes()?
+                    .to_bytes()
                     .as_slice(),
             )?;
         assert!(v.is_some());

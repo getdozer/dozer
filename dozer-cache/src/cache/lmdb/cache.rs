@@ -351,7 +351,7 @@ impl Cache for LmdbCache {
             let db = utils::init_db(&self.env, Some(&name), &self.cache_options, true, false)?;
 
             if let IndexDefinition::SortedInverted(fields) = index {
-                comparator::set_sorted_inverted_comparator(&self.env, db, schema, fields)
+                comparator::set_sorted_inverted_comparator(&self.env, db, fields)
                     .map_err(|e| CacheError::InternalError(Box::new(e)))?;
             }
 

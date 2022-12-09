@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+use crate::deserialize;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
@@ -6,8 +7,9 @@ use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
+use dozer_types::errors::types::TypeError;
+use dozer_types::internal_err;
 use dozer_types::types::{Field, Operation, Record, Schema};
-use dozer_types::{deserialize, internal_err};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
@@ -139,7 +141,8 @@ impl AggregationProcessor {
 
         let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
-        let val: Field = Field::from_bytes(&buf[offset..offset + val_len as usize])?;
+        let val: Field = Field::from_bytes(&buf[offset..offset + val_len as usize])
+            .map_err(TypeError::DeserializationError)?;
         offset += val_len as usize;
         let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
@@ -162,7 +165,7 @@ impl AggregationProcessor {
         let mut r = Vec::with_capacity(512);
         r.extend(prefix.to_be_bytes());
 
-        let sz_val = value.to_bytes_sql()?;
+        let sz_val = value.to_bytes();
         r.extend((sz_val.len() as u16).to_be_bytes());
         r.extend(&sz_val);
 
@@ -211,7 +214,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             curr.state,
                             inserted_field,
-                            inserted_field.get_type()?,
+                            inserted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -222,7 +225,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             None,
                             inserted_field,
-                            inserted_field.get_type()?,
+                            inserted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -237,7 +240,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             curr.state,
                             deleted_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -248,7 +251,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             None,
                             deleted_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -266,7 +269,7 @@ impl AggregationProcessor {
                             curr.state,
                             deleted_field,
                             updated_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -278,7 +281,7 @@ impl AggregationProcessor {
                             None,
                             deleted_field,
                             updated_field,
-                            deleted_field.get_type()?,
+                            deleted_field.get_type(),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -335,7 +338,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
+            old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -388,7 +391,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())?
+            new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
         };
@@ -481,7 +484,7 @@ impl AggregationProcessor {
                     )
                 } else {
                     let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
-                    (old.get_key(&record_keys)?, new.get_key(&record_keys)?)
+                    (old.get_key(&record_keys), new.get_key(&record_keys))
                 };
 
                 if old_record_hash == new_record_hash {

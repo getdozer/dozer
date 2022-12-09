@@ -36,4 +36,12 @@ pub enum DeserializationError {
     Bincode(#[source] bincode::Error),
     #[error("Failed deserialising custom field")]
     Custom(#[source] BoxedError),
+    #[error("Empty input")]
+    EmptyInput,
+    #[error("Unrecognised field type")]
+    UnrecognisedFieldType(u8),
+    #[error("Bad data length")]
+    BadDataLength,
+    #[error("Utf8: {0}")]
+    Utf8(#[from] std::str::Utf8Error),
 }

@@ -14,16 +14,10 @@ use dozer_types::types::Field;
 
 use crate::errors::CacheError;
 
-use super::lmdb::comparator::compared_without_composite_key;
-
 pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
     let key: Vec<Vec<u8>> = primary_index
         .iter()
-        .map(|idx| {
-            let field = &values[*idx];
-            let encoded: Vec<u8> = field.to_bytes().unwrap();
-            encoded
-        })
+        .map(|idx| values[*idx].to_bytes())
         .collect();
 
     key.join("#".as_bytes())
@@ -41,10 +35,8 @@ pub fn has_primary_key_changed(
 
 pub fn get_secondary_index(fields: &[(&Field, SortDirection)]) -> Result<Vec<u8>, CacheError> {
     // This criteria must be kept consistent with `comparator.rs`.
-    if fields.len() == 1
-        && (fields[0].1 == SortDirection::Ascending || compared_without_composite_key(fields[0].0))
-    {
-        Ok(fields[0].0.to_bytes()?.to_vec())
+    if fields.len() == 1 {
+        Ok(fields[0].0.to_bytes())
     } else {
         bincode::serialize(fields).map_err(CacheError::map_serialization_error)
     }
