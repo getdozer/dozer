@@ -22,4 +22,5 @@ pub use parking_lot;
 pub use rust_decimal;
 pub use serde;
 pub use serde_json;
+pub use serde_yaml;
 pub use thiserror;

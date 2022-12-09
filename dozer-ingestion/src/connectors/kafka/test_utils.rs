@@ -6,6 +6,7 @@ use dozer_types::models::connection::Authentication;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde::{Deserialize, Serialize};
+use dozer_types::serde_yaml;
 use postgres::Client;
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
 use std::sync::Arc;

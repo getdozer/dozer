@@ -2,6 +2,7 @@ use crate::connectors::postgres::tests::client::TestPostgresClient;
 
 use crate::test_util::load_config;
 use dozer_types::models::connection::Authentication;
+use dozer_types::serde_yaml;
 
 pub fn get_client() -> TestPostgresClient {
     let config =

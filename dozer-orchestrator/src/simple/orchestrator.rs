@@ -11,6 +11,8 @@ use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::models::api_config::ApiConfig;
+use dozer_types::models::app_config::Config;
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,36 +20,41 @@ use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
-    pub sources: Vec<Source>,
-    pub api_endpoints: Vec<ApiEndpoint>,
+    pub config: Config,
     pub cache_common_options: CacheCommonOptions,
     pub cache_read_options: CacheReadOptions,
     pub cache_write_options: CacheWriteOptions,
     // Home directory where all files will be located
     pub home_dir: PathBuf,
-    pub internal_port: u16,
 }
 
 impl SimpleOrchestrator {
-    pub fn new(home_dir: PathBuf) -> Self {
+    pub fn new(home_dir: PathBuf, config: Config) -> Self {
         Self {
             home_dir,
-            internal_port: 50052,
+            config,
             ..Default::default()
         }
     }
 }
 
 impl Orchestrator for SimpleOrchestrator {
+    fn add_api_config(&mut self, api_config: ApiConfig) -> &mut Self {
+        self.config.api = api_config;
+        self
+    }
+
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self {
         for source in sources.iter() {
-            self.sources.push(source.to_owned());
+            self.config.sources.push(source.to_owned());
         }
         self
     }
 
     fn add_endpoints(&mut self, endpoints: Vec<ApiEndpoint>) -> &mut Self {
-        self.api_endpoints = endpoints;
+        for endpoint in endpoints.iter() {
+            self.config.endpoints.push(endpoint.to_owned());
+        }
         self
     }
 
@@ -59,7 +66,8 @@ impl Orchestrator for SimpleOrchestrator {
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
         let cache_endpoints: Vec<CacheEndpoint> = self
-            .api_endpoints
+            .config
+            .endpoints
             .iter()
             .map(|e| {
                 let mut cache_common_options = self.cache_common_options.clone();
@@ -80,21 +88,21 @@ impl Orchestrator for SimpleOrchestrator {
         let ce2 = cache_endpoints.clone();
         let ce3 = cache_endpoints;
 
-        let internal_port = self.internal_port;
-
+        let internal_config = self.config.api.internal.to_owned();
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
             // Initialize Internal Server
             tokio::spawn(async move {
-                start_internal_server(internal_port, sender)
+                start_internal_server(internal_config, sender)
                     .await
                     .expect("Failed to initialize internal server")
             });
 
             // Initialize API Server
+            let rest_config = self.config.api.rest.to_owned();
             tokio::spawn(async move {
-                let api_server = rest::ApiServer::default();
+                let api_server = rest::ApiServer::new(rest_config);
                 api_server
                     .run(ce3, tx)
                     .await
@@ -102,7 +110,8 @@ impl Orchestrator for SimpleOrchestrator {
             });
 
             // Initialize GRPC Server
-            let grpc_server = grpc::ApiServer::new(receiver, 50051, true);
+            let grpc_config = &self.config.api.grpc;
+            let grpc_server = grpc::ApiServer::new(receiver, grpc_config.to_owned(), true);
             tokio::spawn(async move {
                 grpc_server
                     .run(ce2, running2.to_owned(), receiver_shutdown)
@@ -130,17 +139,18 @@ impl Orchestrator for SimpleOrchestrator {
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
-        let internal_port = self.internal_port;
+        let internal_config = self.config.api.internal.to_owned();
         // Initialize Internal Server Client
         let _internal_thread = thread::spawn(move || {
-            start_internal_client(internal_port, receiver);
+            start_internal_client(internal_config, receiver);
         });
 
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         let cache_endpoints: Vec<CacheEndpoint> = self
-            .api_endpoints
+            .config
+            .endpoints
             .iter()
             .map(|e| {
                 let mut cache_common_options = self.cache_common_options.clone();
@@ -164,7 +174,7 @@ impl Orchestrator for SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let sources = self.sources.clone();
+        let sources = self.config.sources.clone();
 
         let executor = Executor::new(
             sources,

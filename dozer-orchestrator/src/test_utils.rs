@@ -46,14 +46,11 @@ pub fn init_sink(
     );
     (cache, sink)
 }
-
 pub fn init_endpoint() -> ApiEndpoint {
     ApiEndpoint {
         id: None,
         name: "films".to_string(),
         path: "/films".to_string(),
-        enable_rest: false,
-        enable_grpc: false,
         sql: "SELECT film_name FROM film WHERE 1=1".to_string(),
         index: ApiIndex {
             primary_key: vec!["film_id".to_string()],
