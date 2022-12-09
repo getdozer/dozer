@@ -2,22 +2,21 @@
 use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::grpc::types_helper;
-use dozer_cache::cache::BatchedCacheMsg;
+use dozer_cache::cache::{BatchedCacheMsg, Cache};
 use dozer_cache::cache::{BatchedWriter, LmdbCache};
-use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam;
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::parking_lot::Mutex;
 use dozer_types::types::FieldType;
 use dozer_types::types::{
     IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
 };
 use indicatif::{ProgressBar, ProgressStyle};
-use log::info;
+use log::debug;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
@@ -69,158 +68,6 @@ impl CacheSinkFactory {
             notifier,
             record_cutoff,
             timeout,
-        }
-    }
-}
-
-impl SinkFactory for CacheSinkFactory {
-    fn set_input_schema(
-        &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
-    ) -> Result<(), ExecutionError> {
-        todo!()
-    }
-
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
-    }
-    fn build(
-        &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError> {
-        Ok(Box::new(CacheSink::new(
-            self.cache.clone(),
-            self.api_endpoint.clone(),
-            Mutex::new(HashMap::new()),
-            self.notifier.clone(),
-            self.record_cutoff,
-            self.timeout,
-        )))
-    }
-}
-
-pub struct CacheSink {
-    cache: Arc<LmdbCache>,
-    counter: i32,
-    before: Instant,
-    input_schemas: Mutex<HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>>,
-    api_endpoint: ApiEndpoint,
-    pb: ProgressBar,
-    notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-    batched_sender: Sender<BatchedCacheMsg>,
-}
-
-impl Sink for CacheSink {
-    // fn update_schema(
-    //     &mut self,
-    //     input_schemas: &HashMap<PortHandle, Schema>,
-    // ) -> Result<(), ExecutionError> {
-    //     // Insert schemas into cache
-    //
-    //     for (k, schema) in input_schemas {
-    //         let mut map = self.input_schemas.lock();
-    //
-    //         // Append primary and secondary keys
-    //         let (schema, secondary_indexes) = self.get_output_schema(schema)?;
-    //
-    //         self.cache
-    //             .insert_schema(&self.api_endpoint.name, &schema, &secondary_indexes)
-    //             .map_err(|e| {
-    //                 ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
-    //             })?;
-    //
-    //         map.insert(*k, (schema.clone(), secondary_indexes));
-    //     }
-    //     Ok(())
-    // }
-
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-
-    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
-        info!("SINK: Initialising CacheSink");
-
-        Ok(())
-    }
-
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        _seq: u64,
-        op: Operation,
-        _tx: &mut dyn RwTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
-    ) -> Result<(), ExecutionError> {
-        self.counter += 1;
-        if self.counter % 100 == 0 {
-            self.pb.set_message(format!(
-                "{}: Count: {}, Elapsed time: {:.2?}",
-                self.api_endpoint.name.to_owned(),
-                self.counter,
-                self.before.elapsed(),
-            ));
-        }
-        let (schema, secondary_indexes) = self
-            .input_schemas
-            .lock()
-            .get(&from_port)
-            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
-            .to_owned();
-
-        if let Some(notifier) = &self.notifier {
-            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
-            notifier
-                .try_send(PipelineRequest {
-                    endpoint: self.api_endpoint.name.to_owned(),
-                    api_event: Some(ApiEvent::Op(op)),
-                })
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-        }
-
-        self.batched_sender
-            .send(BatchedCacheMsg {
-                op,
-                schema,
-                secondary_indexes,
-            })
-            .unwrap();
-        Ok(())
-    }
-}
-
-impl CacheSink {
-    pub fn new(
-        cache: Arc<LmdbCache>,
-        api_endpoint: ApiEndpoint,
-        input_schemas: Mutex<HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>>,
-        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-        record_cutoff: u32,
-        timeout: u64,
-    ) -> Self {
-        let (batched_sender, batched_receiver) =
-            crossbeam::channel::bounded::<BatchedCacheMsg>(record_cutoff as usize);
-        let cache_batch = cache.clone();
-
-        thread::spawn(move || {
-            let batched_writer = BatchedWriter {
-                cache: cache_batch,
-                receiver: batched_receiver,
-                record_cutoff,
-                timeout,
-            };
-            batched_writer.run().unwrap();
-        });
-
-        Self {
-            cache,
-            counter: 0,
-            before: Instant::now(),
-            input_schemas,
-            api_endpoint,
-            pb: get_progress(),
-            notifier,
-            batched_sender,
         }
     }
     fn get_output_schema(
@@ -286,6 +133,148 @@ impl CacheSink {
         hasher.write(bytes);
 
         hasher.finish()
+    }
+}
+
+impl SinkFactory for CacheSinkFactory {
+    fn set_input_schema(
+        &self,
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        self.input_ports.clone()
+    }
+    fn build(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Sink>, ExecutionError> {
+        let mut sink_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)> = HashMap::new();
+        // Insert schemas into cache
+        for (k, schema) in input_schemas {
+            let (schema, secondary_indexes) = self.get_output_schema(&schema)?;
+            sink_schemas.insert(k, (schema, secondary_indexes));
+        }
+        Ok(Box::new(CacheSink::new(
+            self.cache.clone(),
+            self.api_endpoint.clone(),
+            sink_schemas,
+            self.notifier.clone(),
+            self.record_cutoff,
+            self.timeout,
+        )))
+    }
+}
+
+pub struct CacheSink {
+    cache: Arc<LmdbCache>,
+    counter: i32,
+    before: Instant,
+    input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
+    api_endpoint: ApiEndpoint,
+    pb: ProgressBar,
+    notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+    batched_sender: Sender<BatchedCacheMsg>,
+}
+
+impl Sink for CacheSink {
+    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+        debug!("SINK: Initialising CacheSink: {}", self.api_endpoint.name);
+
+        // Insert schemas into cache
+        for (_, (schema, secondary_indexes)) in self.input_schemas.iter() {
+            self.cache
+                .insert_schema(&self.api_endpoint.name, &schema, &secondary_indexes)
+                .map_err(|e| {
+                    ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+                })?;
+        }
+        Ok(())
+    }
+
+    fn process(
+        &mut self,
+        from_port: PortHandle,
+        _seq: u64,
+        op: Operation,
+        _tx: &mut dyn RwTransaction,
+        _reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<(), ExecutionError> {
+        self.counter += 1;
+        if self.counter % 100 == 0 {
+            self.pb.set_message(format!(
+                "{}: Count: {}, Elapsed time: {:.2?}",
+                self.api_endpoint.name.to_owned(),
+                self.counter,
+                self.before.elapsed(),
+            ));
+        }
+        let (schema, secondary_indexes) = self
+            .input_schemas
+            .get(&from_port)
+            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
+            .to_owned();
+
+        if let Some(notifier) = &self.notifier {
+            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
+            notifier
+                .try_send(PipelineRequest {
+                    endpoint: self.api_endpoint.name.to_owned(),
+                    api_event: Some(ApiEvent::Op(op)),
+                })
+                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        }
+
+        self.batched_sender
+            .send(BatchedCacheMsg {
+                op,
+                schema,
+                secondary_indexes,
+            })
+            .unwrap();
+        Ok(())
+    }
+}
+
+impl CacheSink {
+    pub fn new(
+        cache: Arc<LmdbCache>,
+        api_endpoint: ApiEndpoint,
+        input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
+        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        record_cutoff: u32,
+        timeout: u64,
+    ) -> Self {
+        let (batched_sender, batched_receiver) =
+            crossbeam::channel::bounded::<BatchedCacheMsg>(record_cutoff as usize);
+        let cache_batch = cache.clone();
+
+        thread::spawn(move || {
+            let batched_writer = BatchedWriter {
+                cache: cache_batch,
+                receiver: batched_receiver,
+                record_cutoff,
+                timeout,
+            };
+            batched_writer.run().unwrap();
+        });
+
+        Self {
+            cache,
+            counter: 0,
+            before: Instant::now(),
+            input_schemas,
+            api_endpoint,
+            pb: get_progress(),
+            notifier,
+            batched_sender,
+        }
     }
 }
 

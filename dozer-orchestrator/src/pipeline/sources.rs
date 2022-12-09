@@ -20,6 +20,8 @@ pub struct ConnectorSourceFactory {
     connections: Vec<Connection>,
     connection_map: HashMap<String, Vec<TableInfo>>,
     table_map: HashMap<String, u16>,
+    schema_map: HashMap<u16, Schema>,
+    port_map: HashMap<u32, u16>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
 }
@@ -32,19 +34,58 @@ impl ConnectorSourceFactory {
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Self {
+        let (schema_map, port_map) =
+            Self::get_schema_map(&connections, &connection_map, &table_map)
+                .expect("Cannot initialize schemas");
         Self {
             connections,
             connection_map,
             table_map,
+            schema_map,
+            port_map,
             ingestor,
             iterator,
         }
     }
+
+    pub fn get_schema_map(
+        connections: &Vec<Connection>,
+        connection_map: &HashMap<String, Vec<TableInfo>>,
+        table_map: &HashMap<String, u16>,
+    ) -> Result<(HashMap<u16, Schema>, HashMap<u32, u16>), ConnectorError> {
+        let mut schema_map = HashMap::new();
+        let mut port_map: HashMap<u32, u16> = HashMap::new();
+        for (idx, connection) in connections.iter().cloned().enumerate() {
+            let connection = connection.clone();
+            let connector = get_connector(connection.to_owned())?;
+            let id = match connection.id {
+                Some(idy) => idy,
+                None => idx.to_string(),
+            };
+            let tables = connection_map
+                .get(&id)
+                .map_or(Err(ConnectorError::TableNotFound(idx.to_string())), Ok)?;
+
+            let schema_tuples = connector.get_schemas(Some(tables.clone()))?;
+
+            for (table_name, schema) in schema_tuples {
+                let port = table_map
+                    .get(&table_name)
+                    .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
+                    .unwrap();
+                let schema_id = get_schema_id(schema.identifier.as_ref())?;
+                schema_map.insert(port.to_owned(), schema);
+                port_map.insert(schema_id, port.clone());
+            }
+        }
+        Ok((schema_map, port_map))
+    }
 }
 
 impl SourceFactory for ConnectorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        todo!()
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        let schema = self.schema_map.get(port).expect("Schema not found");
+        Ok(schema.to_owned())
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
@@ -61,9 +102,9 @@ impl SourceFactory for ConnectorSourceFactory {
         Ok(Box::new(ConnectorSource {
             connections: self.connections.to_owned(),
             connection_map: self.connection_map.to_owned(),
+            port_map: self.port_map.clone(),
             ingestor: self.ingestor.to_owned(),
             iterator: self.iterator.clone(),
-            table_map: self.table_map.clone(),
         }))
     }
 }
@@ -73,7 +114,7 @@ pub struct ConnectorSource {
     connections: Vec<Connection>,
     // Connection Index in the array to List of Tables
     connection_map: HashMap<String, Vec<TableInfo>>,
-    table_map: HashMap<String, u16>,
+    port_map: HashMap<u32, u16>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
 }
@@ -107,7 +148,6 @@ impl Source for ConnectorSource {
             threads.push(t);
         }
 
-        let mut schema_map: HashMap<u32, u16> = HashMap::new();
         loop {
             // Keep a reference of schema to table mapping
             let msg = self.iterator.write().next();
@@ -119,24 +159,16 @@ impl Source for ConnectorSource {
                             Operation::Insert { new } => new.schema_id.to_owned(),
                             Operation::Update { old: _, new } => new.schema_id.to_owned(),
                         };
-                        let schema_id = get_schema_id(identifier.as_ref())?;
-                        let port = schema_map
+                        let schema_id = get_schema_id(identifier.as_ref())
+                            .expect("schema_id not found in process_message");
+                        let port = self
+                            .port_map
                             .get(&schema_id)
                             .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
                             .unwrap();
                         fw.send(op.seq_no, op.operation.to_owned(), port.to_owned())?
                     }
-                    (_, IngestionOperation::SchemaUpdate(table_name, schema)) => {
-                        let schema_id = get_schema_id(schema.identifier.as_ref())?;
-
-                        let port = self
-                            .table_map
-                            .get(&table_name)
-                            .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
-                            .unwrap();
-                        schema_map.insert(schema_id, port.to_owned());
-                        //  fw.update_schema(schema.clone(), port.to_owned())?
-                    }
+                    (_, IngestionOperation::SchemaUpdate(_, _)) => {}
                 }
             } else {
                 break;
@@ -153,8 +185,8 @@ impl Source for ConnectorSource {
     }
 }
 
-fn get_schema_id(op_schema_id: Option<&SchemaIdentifier>) -> Result<u32, ExecutionError> {
+fn get_schema_id(op_schema_id: Option<&SchemaIdentifier>) -> Result<u32, ConnectorError> {
     Ok(op_schema_id
-        .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
+        .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?
         .id)
 }
