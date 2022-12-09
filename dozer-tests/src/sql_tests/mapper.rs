@@ -272,7 +272,7 @@ impl SqlMapper {
                     _ => panic!("not supported: {:?}", left),
                 };
 
-                let val = parse_exp_to_field(&right).to_bytes();
+                let val = parse_exp_to_field(right).to_bytes();
 
                 assert_eq!(
                     column_name,

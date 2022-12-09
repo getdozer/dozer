@@ -10,7 +10,7 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
-use dozer_types::types::{Field, Operation, Record, Schema};
+use dozer_types::types::{Field, Operation, Record};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
@@ -21,8 +21,6 @@ use std::{collections::HashMap, mem::size_of_val};
 pub enum FieldRule {
     /// Represents a dimension field, generally used in the GROUP BY clause
     Dimension(
-        /// Field to be used as a dimension in the source schema
-        String,
         /// Expression for this dimension
         Box<Expression>,
         /// true of this field should be included in the list of values of the
@@ -30,12 +28,10 @@ pub enum FieldRule {
         /// in the output results in addition to being in the list of the GROUP BY fields
         bool,
         /// Name of the field, if renaming is required. If `None` the original name is retained
-        Option<String>,
+        String,
     ),
     /// Represents an aggregated field that will be calculated using the appropriate aggregator
     Measure(
-        /// Field to be aggregated in the source schema
-        String,
         /// Argument of the Aggregator
         Box<Expression>,
         /// Aggregator implementation for this measure
@@ -45,7 +41,7 @@ pub enum FieldRule {
         /// in the output results in addition of being a condition for the HAVING condition
         bool,
         /// Name of the field, if renaming is required. If `None` the original name is retained
-        Option<String>,
+        String,
     ),
 }
 
@@ -88,8 +84,8 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
-    pub fn new(output_field_rules: Vec<FieldRule>, schema: &Schema) -> Self {
-        let (out_measures, out_dimensions) = populate_rules(&output_field_rules, schema).unwrap();
+    pub fn new(output_field_rules: Vec<FieldRule>) -> Self {
+        let (out_measures, out_dimensions) = populate_rules(&output_field_rules).unwrap();
         Self {
             output_field_rules,
             out_dimensions,
@@ -565,19 +561,16 @@ type OutputRules = (
     Vec<(Box<Expression>, usize)>,
 );
 
-fn populate_rules(
-    output_field_rules: &[FieldRule],
-    schema: &Schema,
-) -> Result<OutputRules, PipelineError> {
+fn populate_rules(output_field_rules: &[FieldRule]) -> Result<OutputRules, PipelineError> {
     let mut out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)> = Vec::new();
     let mut out_dimensions: Vec<(Box<Expression>, usize)> = Vec::new();
 
     for rule in output_field_rules.iter().enumerate() {
         match rule.1 {
-            FieldRule::Measure(idx, pre_aggr, aggr, _nullable, _name) => {
+            FieldRule::Measure(pre_aggr, aggr, _nullable, _name) => {
                 out_measures.push((pre_aggr.clone(), Box::new(aggr.clone()), rule.0));
             }
-            FieldRule::Dimension(idx, expression, _nullable, _name) => {
+            FieldRule::Dimension(expression, _nullable, _name) => {
                 out_dimensions.push((expression.clone(), rule.0));
             }
         }
