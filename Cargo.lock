@@ -1366,12 +1366,10 @@ dependencies = [
 name = "dozer-tests"
 version = "0.1.0"
 dependencies = [
- "crossbeam",
  "csv",
  "dozer-core",
  "dozer-sql",
  "dozer-types",
- "fp_rust",
  "rusqlite",
  "sqlparser",
  "tempdir",
@@ -1387,6 +1385,7 @@ dependencies = [
  "bytes",
  "chrono",
  "crossbeam",
+ "fp_rust",
  "indexmap",
  "log",
  "log4rs",

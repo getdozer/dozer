@@ -6,17 +6,14 @@ use dozer_core::dag::node::{
     SourceFactory,
 };
 
-use dozer_sql::pipeline::builder::PipelineBuilder;
-
-use crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
-use dozer_types::crossbeam::channel::unbounded;
+use dozer_sql::pipeline::builder::PipelineBuilder;
+use dozer_types::crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
-use fp_rust::sync::CountDownLatch;
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -244,7 +241,6 @@ impl TestPipeline {
         let ast = Parser::parse_sql(&dialect, &self.sql).unwrap();
 
         let statement: &Statement = &ast[0];
-        let latch = Arc::new(CountDownLatch::new(1));
 
         let builder = PipelineBuilder::new(None);
         let (mut dag, in_handle, out_handle) =
