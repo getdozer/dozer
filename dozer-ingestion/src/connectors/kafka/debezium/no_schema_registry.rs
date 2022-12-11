@@ -18,8 +18,6 @@ impl SchemaFetcher for NoSchemaRegistry {
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
-                eprintln!("t: {:?}", table);
-                eprintln!("b: {:?}", config.broker);
                 let mut con = Consumer::from_hosts(vec![config.broker.clone()])
                     .with_topic(table.name.clone())
                     .with_fallback_offset(FetchOffset::Earliest)

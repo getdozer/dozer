@@ -70,7 +70,6 @@ impl SchemaFetcher for SchemaRegistry {
                         &SubjectNameStrategy::TopicNameStrategy(table.clone().name, false),
                     )
                     .unwrap();
-                eprintln!("a: {:?}", schema_result.schema);
 
                 let result: DebeziumSchemaStruct =
                     serde_json::from_str(&schema_result.schema).map_err(JsonDecodeError)?;
