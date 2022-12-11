@@ -1,7 +1,4 @@
-
-
 use std::sync::Arc;
-
 
 use crate::connectors::Connector;
 use crate::ingestion::Ingestor;
@@ -12,21 +9,15 @@ use dozer_types::parking_lot::RwLock;
 
 use tokio::runtime::Runtime;
 
-use crate::connectors::kafka::debezium::schema::{SchemaFetcher};
+use crate::connectors::kafka::debezium::schema::SchemaFetcher;
 
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
 use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
-use crate::connectors::kafka::debezium::stream_consumer::{
-    DebeziumStreamConsumer,
-};
+use crate::connectors::kafka::debezium::stream_consumer::DebeziumStreamConsumer;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
-use crate::errors::DebeziumError::{DebeziumConnectionError};
-
-
-
-
+use crate::errors::DebeziumError::DebeziumConnectionError;
 
 pub struct KafkaConnector {
     pub id: u64,

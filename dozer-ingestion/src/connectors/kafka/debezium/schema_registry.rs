@@ -1,8 +1,7 @@
-
-use crate::connectors::kafka::debezium::schema::{SchemaFetcher};
-use crate::connectors::kafka::debezium::stream_consumer::{DebeziumSchemaStruct};
+use crate::connectors::kafka::debezium::schema::SchemaFetcher;
+use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::connectors::TableInfo;
-use crate::errors::DebeziumError::{JsonDecodeError};
+use crate::errors::DebeziumError::JsonDecodeError;
 use crate::errors::DebeziumSchemaError::TypeNotSupported;
 use crate::errors::{ConnectorError, DebeziumSchemaError};
 use dozer_types::ingestion_types::KafkaConfig;
@@ -79,14 +78,14 @@ impl SchemaFetcher for SchemaRegistry {
                 let mut schema_data: Option<
                     Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError>,
                 > = None;
-                result.fields.iter().for_each(|s| {
-                    s.iter().for_each(|f| {
+                result.fields.iter().for_each(|field| {
+                    field.iter().for_each(|f| {
                         if f.name.clone().unwrap() == "before" {
                             for typ in f.r#type.as_array().unwrap() {
                                 if let Value::Object(obj) = typ {
-                                    let fv = obj.get("fields").unwrap();
-                                    let x: Vec<DebeziumSchemaStruct> =
-                                        serde_json::from_value(fv.clone()).unwrap();
+                                    let fields_value = obj.get("fields").unwrap();
+                                    let fields_value_struct: Vec<DebeziumSchemaStruct> =
+                                        serde_json::from_value(fields_value.clone()).unwrap();
                                     // let mut pk_keys_indexes = vec![];
                                     let mut fields_schema_map: HashMap<
                                         String,
@@ -96,7 +95,7 @@ impl SchemaFetcher for SchemaRegistry {
                                     let defined_fields: Result<
                                         Vec<FieldDefinition>,
                                         DebeziumSchemaError,
-                                    > = x
+                                    > = fields_value_struct
                                         .iter()
                                         .enumerate()
                                         .map(|(_idx, f)| {

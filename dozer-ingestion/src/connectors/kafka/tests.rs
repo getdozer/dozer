@@ -15,7 +15,7 @@ use std::thread::sleep;
 
 use dozer_types::serde_yaml;
 use rand::Rng;
-use std::time::{Duration};
+use std::time::Duration;
 
 pub struct KafkaPostgres {
     client: Client,
