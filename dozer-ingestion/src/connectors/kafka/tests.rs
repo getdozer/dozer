@@ -12,6 +12,7 @@ use dozer_types::types::Operation;
 use postgres::Client;
 use std::fmt::Write;
 
+use dozer_types::serde_yaml;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct KafkaPostgres {
