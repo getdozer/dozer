@@ -11,6 +11,7 @@ use dozer_types::types::Schema;
 use odbc::create_environment_v3;
 use rand::Rng;
 use std::thread;
+use dozer_types::serde_yaml;
 
 use crate::test_util::load_config;
 
