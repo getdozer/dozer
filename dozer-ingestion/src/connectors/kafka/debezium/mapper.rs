@@ -35,25 +35,28 @@ fn convert_value(
     schema: &&DebeziumSchemaStruct,
 ) -> Result<Field, DebeziumSchemaError> {
     match schema.name.clone() {
-        None => match schema.r#type.as_str() {
-            "int8" | "int16" | "int32" | "int64" => value
-                .as_i64()
-                .map_or(Ok(Field::Null), |v| Ok(Field::from(v))),
-            "string" => value
-                .as_str()
-                .map_or(Ok(Field::Null), |s| Ok(Field::from(s.to_string()))),
-            "bytes" => value.as_str().map_or(Ok(Field::Null), |s| {
-                Ok(Field::Binary(
-                    base64::decode_config(s, STANDARD).map_err(BinaryDecodeError)?,
-                ))
-            }),
-            "float32" | "float64" | "double" => value
-                .as_f64()
-                .map_or(Ok(Field::Null), |s| Ok(Field::from(s))),
-            "boolean" => value
-                .as_bool()
-                .map_or(Ok(Field::Null), |s| Ok(Field::from(s))),
-            type_name => Err(TypeNotSupported(type_name.to_string())),
+        None => match schema.r#type.clone() {
+            Value::String(typ) => match typ.as_str() {
+                "int8" | "int16" | "int32" | "int64" => value
+                    .as_i64()
+                    .map_or(Ok(Field::Null), |v| Ok(Field::from(v))),
+                "string" => value
+                    .as_str()
+                    .map_or(Ok(Field::Null), |s| Ok(Field::from(s.to_string()))),
+                "bytes" => value.as_str().map_or(Ok(Field::Null), |s| {
+                    Ok(Field::Binary(
+                        base64::decode_config(s, STANDARD).map_err(BinaryDecodeError)?,
+                    ))
+                }),
+                "float32" | "float64" | "double" => value
+                    .as_f64()
+                    .map_or(Ok(Field::Null), |s| Ok(Field::from(s))),
+                "boolean" => value
+                    .as_bool()
+                    .map_or(Ok(Field::Null), |s| Ok(Field::from(s))),
+                _ => Err(TypeNotSupported(typ)),
+            },
+            _ => Err(TypeNotSupported("Unexpected value type".to_string())),
         },
         Some(name) => {
             match name.as_str() {
@@ -151,9 +154,9 @@ mod tests {
             let value = convert_value(
                 Value::from($a),
                 &&DebeziumSchemaStruct {
-                    r#type: $b.to_string(),
+                    r#type: $b.to_string().parse().unwrap(),
                     fields: None,
-                    optional: false,
+                    optional: Some(false),
                     name: $c,
                     field: None,
                     version: None,
@@ -169,9 +172,9 @@ mod tests {
             let actual_error = convert_value(
                 Value::from($a),
                 &&DebeziumSchemaStruct {
-                    r#type: $b.to_string(),
+                    r#type: $b.to_string().parse().unwrap(),
                     fields: None,
-                    optional: false,
+                    optional: Some(false),
                     name: $c,
                     field: None,
                     version: None,
@@ -331,9 +334,9 @@ mod tests {
 
         let mut fields_map: HashMap<String, &DebeziumSchemaStruct> = HashMap::new();
         let id_struct = DebeziumSchemaStruct {
-            r#type: "int64".to_string(),
+            r#type: "int64".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -341,9 +344,9 @@ mod tests {
         };
         fields_map.insert("id".to_string(), &id_struct);
         let name_struct = DebeziumSchemaStruct {
-            r#type: "string".to_string(),
+            r#type: "string".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -351,9 +354,9 @@ mod tests {
         };
         fields_map.insert("name".to_string(), &name_struct);
         let description_struct = DebeziumSchemaStruct {
-            r#type: "string".to_string(),
+            r#type: "string".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -361,9 +364,9 @@ mod tests {
         };
         fields_map.insert("description".to_string(), &description_struct);
         let weight_struct = DebeziumSchemaStruct {
-            r#type: "float64".to_string(),
+            r#type: "float64".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -408,9 +411,9 @@ mod tests {
 
         let mut fields_map: HashMap<String, &DebeziumSchemaStruct> = HashMap::new();
         let id_struct = DebeziumSchemaStruct {
-            r#type: "int64".to_string(),
+            r#type: "int64".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -418,9 +421,9 @@ mod tests {
         };
         fields_map.insert("id".to_string(), &id_struct);
         let name_struct = DebeziumSchemaStruct {
-            r#type: "string".to_string(),
+            r#type: "string".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,

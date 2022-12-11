@@ -4,18 +4,17 @@ use std::{
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Connection {
     pub db_type: DBType,
     pub authentication: Authentication,
     pub name: String,
     pub id: Option<String>,
 }
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum DBType {
     Postgres,
     Ethereum,
-    #[default]
     Events,
     Snowflake,
     Kafka,
@@ -47,6 +46,7 @@ pub enum Authentication {
     KafkaAuthentication {
         broker: String,
         topic: String,
+        schema_registry_url: Option<String>,
     },
 }
 impl Default for Authentication {

@@ -81,12 +81,16 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
             columns: None,
         }];
 
-        if let Authentication::KafkaAuthentication { broker, topic: _ } =
-            source.connection.authentication
+        if let Authentication::KafkaAuthentication {
+            broker,
+            topic: _,
+            schema_registry_url,
+        } = source.connection.authentication
         {
             source.connection.authentication = Authentication::KafkaAuthentication {
                 broker,
                 topic: format!("dbserver1.public.{}", table_name),
+                schema_registry_url,
             };
         };
 

@@ -1,20 +1,33 @@
+use dozer_types::ingestion_types::KafkaConfig;
+use dozer_types::serde_json::Value;
 use std::collections::HashMap;
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
-use crate::errors::DebeziumSchemaError;
+use crate::connectors::TableInfo;
 use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
+use crate::errors::{ConnectorError, DebeziumSchemaError};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 
+pub trait SchemaFetcher {
+    fn get_schema(
+        table_names: Option<Vec<TableInfo>>,
+        config: KafkaConfig,
+    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError>;
+}
+
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
-fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
+pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
     match schema.name.clone() {
-        None => match schema.r#type.as_str() {
-            "int8" | "int16" | "int32" | "int64" => Ok(FieldType::Int),
-            "string" => Ok(FieldType::String),
-            "bytes" => Ok(FieldType::Binary),
-            "float32" | "float64" | "double" => Ok(FieldType::Float),
-            "boolean" => Ok(FieldType::Boolean),
-            type_name => Err(TypeNotSupported(type_name.to_string())),
+        None => match schema.r#type.clone() {
+            Value::String(typ) => match typ.as_str() {
+                "int8" | "int16" | "int32" | "int64" => Ok(FieldType::Int),
+                "string" => Ok(FieldType::String),
+                "bytes" => Ok(FieldType::Binary),
+                "float32" | "float64" | "double" => Ok(FieldType::Float),
+                "boolean" => Ok(FieldType::Boolean),
+                _ => Err(TypeNotSupported(typ)),
+            },
+            _ => Err(TypeNotSupported("Unexpected value type".to_string())),
         },
         Some(name) => match name.as_str() {
             "io.debezium.time.MicroTime"
@@ -71,7 +84,7 @@ pub fn map_schema<'a>(
                             Ok(FieldDefinition {
                                 name,
                                 typ,
-                                nullable: f.optional,
+                                nullable: f.optional.map_or(false, |o| o),
                             })
                         })
                         .collect(),
@@ -104,9 +117,9 @@ mod tests {
     #[test]
     fn test_it_fails_when_schema_empty() {
         let schema = DebeziumSchemaStruct {
-            r#type: "empty".to_string(),
+            r#type: "empty".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -114,9 +127,9 @@ mod tests {
         };
 
         let key_schema = DebeziumSchemaStruct {
-            r#type: "before".to_string(),
+            r#type: "before".to_string().parse().unwrap(),
             fields: None,
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -130,36 +143,36 @@ mod tests {
     #[test]
     fn test_it_converts_schema() {
         let schema = DebeziumSchemaStruct {
-            r#type: "empty".to_string(),
+            r#type: "empty".to_string().parse().unwrap(),
             fields: Some(vec![DebeziumSchemaStruct {
-                r#type: "after".to_string(),
+                r#type: "after".to_string().parse().unwrap(),
                 fields: Some(vec![
                     DebeziumSchemaStruct {
-                        r#type: "int32".to_string(),
+                        r#type: "int32".to_string().parse().unwrap(),
                         fields: None,
-                        optional: false,
+                        optional: Some(false),
                         name: None,
                         field: Some("id".to_string()),
                         version: None,
                         parameters: None,
                     },
                     DebeziumSchemaStruct {
-                        r#type: "string".to_string(),
+                        r#type: "string".to_string().parse().unwrap(),
                         fields: None,
-                        optional: true,
+                        optional: Some(true),
                         name: None,
                         field: Some("name".to_string()),
                         version: None,
                         parameters: None,
                     },
                 ]),
-                optional: false,
+                optional: Some(false),
                 name: None,
                 field: Some("after".to_string()),
                 version: None,
                 parameters: None,
             }]),
-            optional: false,
+            optional: Some(false),
             name: None,
             field: Some("struct".to_string()),
             version: None,
@@ -167,17 +180,17 @@ mod tests {
         };
 
         let key_schema = DebeziumSchemaStruct {
-            r#type: "-".to_string(),
+            r#type: "-".to_string().parse().unwrap(),
             fields: Some(vec![DebeziumSchemaStruct {
-                r#type: "int32".to_string(),
+                r#type: "int32".to_string().parse().unwrap(),
                 fields: None,
-                optional: false,
+                optional: Some(false),
                 name: None,
                 field: Some("id".to_string()),
                 version: None,
                 parameters: None,
             }]),
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -208,17 +221,17 @@ mod tests {
     #[test]
     fn test_it_converts_empty_schema() {
         let schema = DebeziumSchemaStruct {
-            r#type: "empty".to_string(),
+            r#type: "empty".to_string().parse().unwrap(),
             fields: Some(vec![DebeziumSchemaStruct {
-                r#type: "after".to_string(),
+                r#type: "after".to_string().parse().unwrap(),
                 fields: None,
-                optional: false,
+                optional: Some(false),
                 name: None,
                 field: Some("after".to_string()),
                 version: None,
                 parameters: None,
             }]),
-            optional: false,
+            optional: Some(false),
             name: None,
             field: Some("struct".to_string()),
             version: None,
@@ -226,9 +239,9 @@ mod tests {
         };
 
         let key_schema = DebeziumSchemaStruct {
-            r#type: "-".to_string(),
+            r#type: "-".to_string().parse().unwrap(),
             fields: Some(vec![]),
-            optional: false,
+            optional: Some(false),
             name: None,
             field: None,
             version: None,
@@ -248,9 +261,9 @@ mod tests {
     macro_rules! test_map_type {
         ($a:expr,$b:expr,$c:expr) => {
             let schema = DebeziumSchemaStruct {
-                r#type: $a.to_string(),
+                r#type: $a.to_string().parse().unwrap(),
                 fields: None,
-                optional: false,
+                optional: Some(false),
                 name: $b,
                 field: None,
                 version: None,
