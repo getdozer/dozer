@@ -1,8 +1,8 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{AmbiguousSourceIdentifier, InvalidSourceIdentifier};
 use crate::dag::node::{PortHandle, SourceFactory};
-use std::collections::{HashMap, HashSet};
-use std::fmt::{Display, Formatter, Write};
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -65,6 +65,12 @@ pub struct AppSourceManager {
     pub(crate) sources: Vec<AppSource>,
 }
 
+impl Default for AppSourceManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppSourceManager {
     pub fn add(&mut self, src: AppSource) {
         self.sources.push(src);
@@ -78,20 +84,20 @@ impl AppSourceManager {
                 .sources
                 .iter()
                 .enumerate()
-                .filter(|(idx, s)| {
+                .filter(|(_idx, s)| {
                     ((source.connection.is_some()
                         && source.connection.as_ref().unwrap() == &s.connection)
                         || source.connection.is_none())
                         && s.mappings.contains_key(&source.id)
                 })
-                .map(|s| (s.0, s.1.mappings.get(&source.id).unwrap().clone()))
+                .map(|s| (s.0, *s.1.mappings.get(&source.id).unwrap()))
                 .collect();
 
             match (found.len(), &source.connection) {
                 (0, _) => return Err(InvalidSourceIdentifier(source)),
                 (1, _) => {
                     let (idx, port) = found.first().unwrap();
-                    let entry = res.entry(*idx).or_insert(HashMap::new());
+                    let entry = res.entry(*idx).or_default();
                     entry.insert(source, *port);
                 }
                 (_, None) => return Err(AmbiguousSourceIdentifier(source)),
@@ -100,17 +106,17 @@ impl AppSourceManager {
                         .sources
                         .iter()
                         .enumerate()
-                        .filter(|(idx, s)| {
+                        .filter(|(_idx, s)| {
                             &s.connection == conn && s.mappings.contains_key(&source.id)
                         })
-                        .map(|s| (s.0, s.1.mappings.get(&source.id).unwrap().clone()))
+                        .map(|s| (s.0, *s.1.mappings.get(&source.id).unwrap()))
                         .collect();
 
                     match found.len() {
                         0 => return Err(InvalidSourceIdentifier(source)),
                         1 => {
                             let (idx, port) = found.first().unwrap();
-                            let entry = res.entry(*idx).or_insert(HashMap::new());
+                            let entry = res.entry(*idx).or_default();
                             entry.insert(source, *port);
                         }
                         _ => return Err(AmbiguousSourceIdentifier(source)),

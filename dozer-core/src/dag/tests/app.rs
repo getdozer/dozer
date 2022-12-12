@@ -18,13 +18,12 @@ use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
+
 use tempdir::TempDir;
 
 struct NoneSourceFactory {}
 impl SourceFactory for NoneSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         todo!()
     }
 
@@ -34,7 +33,7 @@ impl SourceFactory for NoneSourceFactory {
 
     fn build(
         &self,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         todo!()
     }
@@ -143,7 +142,7 @@ fn test_apps_source_manager_lookup_multiple_ports() {
     );
     asm.add(app_src);
 
-    let r = asm.get(vec![
+    let _r = asm.get(vec![
         AppSourceId::new("table1".to_string(), None),
         AppSourceId::new("table2".to_string(), None),
     ]);
@@ -245,10 +244,7 @@ fn test_app_dag() {
             ),
         ],
     );
-    p2.add_sink(
-        Arc::new(CountingSinkFactory::new(20_000, latch.clone())),
-        "sink",
-    );
+    p2.add_sink(Arc::new(CountingSinkFactory::new(20_000, latch)), "sink");
     p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT))
         .unwrap();
 

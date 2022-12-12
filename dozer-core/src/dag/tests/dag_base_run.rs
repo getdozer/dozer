@@ -420,10 +420,7 @@ fn test_run_dag_1_source_2_ports_stateless() {
     ));
 
     chk!(dag.connect(
-        Endpoint::new(
-            source_handle.clone(),
-            DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2
-        ),
+        Endpoint::new(source_handle, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2),
         Endpoint::new(proc_handle.clone(), 2),
     ));
 

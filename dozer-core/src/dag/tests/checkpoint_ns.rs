@@ -1,16 +1,15 @@
 use crate::chk;
 use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
-use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
+
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
-use crate::dag::node::{NodeHandle, PortHandle};
+use crate::dag::node::NodeHandle;
 use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
 use fp_rust::sync::CountDownLatch;
-use std::collections::HashMap;
+
 use std::sync::Arc;
 
 use tempdir::TempDir;

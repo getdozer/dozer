@@ -1,10 +1,8 @@
-use crate::dag::appsource::{AppSource, AppSourceId, AppSourceManager};
+use crate::dag::appsource::{AppSourceId, AppSourceManager};
 use crate::dag::dag::{Dag, Edge, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::{
-    NodeHandle, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory, SourceFactory,
-};
-use std::collections::{HashMap, HashSet};
+use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory};
+
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -24,6 +22,12 @@ pub struct AppPipeline {
     processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory>)>,
     sinks: Vec<(NodeHandle, Arc<dyn SinkFactory>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
+}
+
+impl Default for AppPipeline {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AppPipeline {
@@ -53,7 +57,7 @@ impl AppPipeline {
         to: &str,
         to_port: Option<PortHandle>,
     ) -> Result<(), ExecutionError> {
-        Ok(self.edges.push(Edge::new(
+        self.edges.push(Edge::new(
             Endpoint::new(
                 NodeHandle::new(None, from.to_string()),
                 if let Some(port) = from_port {
@@ -70,7 +74,8 @@ impl AppPipeline {
                     DEFAULT_PORT_HANDLE
                 },
             ),
-        )))
+        ));
+        Ok(())
     }
 
     pub fn new() -> Self {
@@ -103,23 +108,23 @@ impl App {
             for (handle, proc) in &pipeline.processors {
                 dag.add_node(
                     NodeType::Processor(proc.clone()),
-                    NodeHandle::new(Some(pipeline_id.clone()), handle.id.clone()),
+                    NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
                 );
             }
             for (handle, sink) in &pipeline.sinks {
                 dag.add_node(
                     NodeType::Sink(sink.clone()),
-                    NodeHandle::new(Some(pipeline_id.clone()), handle.id.clone()),
+                    NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
                 );
             }
             for edge in &pipeline.edges {
                 dag.connect(
                     Endpoint::new(
-                        NodeHandle::new(Some(pipeline_id.clone()), edge.from.node.id.clone()),
+                        NodeHandle::new(Some(*pipeline_id), edge.from.node.id.clone()),
                         edge.from.port,
                     ),
                     Endpoint::new(
-                        NodeHandle::new(Some(pipeline_id.clone()), edge.to.node.id.clone()),
+                        NodeHandle::new(Some(*pipeline_id), edge.to.node.id.clone()),
                         edge.to.port,
                     ),
                 )?;
@@ -129,7 +134,7 @@ impl App {
                 entry_points.push((
                     entry.id.clone(),
                     Endpoint::new(
-                        NodeHandle::new(Some(pipeline_id.clone()), handle.id.clone()),
+                        NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
                         entry.port,
                     ),
                 ));
@@ -148,10 +153,7 @@ impl App {
             );
             for entry in &entry_points {
                 if let Some(e) = mapping.mappings.get(&entry.0) {
-                    dag.connect(
-                        Endpoint::new(node_handle.clone(), e.clone()),
-                        entry.1.clone(),
-                    )?;
+                    dag.connect(Endpoint::new(node_handle.clone(), *e), entry.1.clone())?;
                 }
             }
         }
