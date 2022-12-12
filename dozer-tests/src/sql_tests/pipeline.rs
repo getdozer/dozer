@@ -10,7 +10,7 @@ use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_sql::pipeline::builder::PipelineBuilder;
-use dozer_types::crossbeam::channel::{bounded, unbounded, Receiver, Sender};
+use dozer_types::crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
@@ -20,7 +20,7 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 
 use std::sync::{Arc, Mutex};
-use std::thread;
+
 use std::time::Duration;
 use tempdir::TempDir;
 

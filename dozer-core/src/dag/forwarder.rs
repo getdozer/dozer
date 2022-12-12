@@ -80,8 +80,8 @@ impl StateWriter {
 
     fn store_op(
         &mut self,
-        txid: u64,
-        seq_in_tx: u64,
+        _txid: u64,
+        _seq_in_tx: u64,
         op: Operation,
         port: &PortHandle,
     ) -> Result<Operation, ExecutionError> {
