@@ -62,7 +62,7 @@ impl<'a> AppSourceMappings<'a> {
 }
 
 pub struct AppSourceManager {
-    sources: Vec<AppSource>,
+    pub(crate) sources: Vec<AppSource>,
 }
 
 impl AppSourceManager {

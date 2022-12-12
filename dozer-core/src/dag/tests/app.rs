@@ -1,10 +1,26 @@
+use crate::chk;
+use crate::dag::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::dag::appsource::{AppSource, AppSourceId, AppSourceManager};
+use crate::dag::dag::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::{OutputPortDef, PortHandle, Source, SourceFactory};
-use crate::dag::tests::sources::GeneratorSourceFactory;
+use crate::dag::executor::{DagExecutor, ExecutorOptions};
+use crate::dag::node::{NodeHandle, OutputPortDef, PortHandle, Source, SourceFactory};
+use crate::dag::tests::dag_base_run::{
+    NoopJoinProcessorFactory, NOOP_JOIN_LEFT_INPUT_PORT, NOOP_JOIN_RIGHT_INPUT_PORT,
+};
+use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
+use crate::dag::tests::sources::{
+    DualPortGeneratorSourceFactory, GeneratorSourceFactory,
+    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
+    GENERATOR_SOURCE_OUTPUT_PORT,
+};
 use dozer_types::types::Schema;
+use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use tempdir::TempDir;
 
 struct NoneSourceFactory {}
 impl SourceFactory for NoneSourceFactory {
@@ -25,7 +41,7 @@ impl SourceFactory for NoneSourceFactory {
 }
 
 #[test]
-fn test_appsoyrcemanager_lookup() {
+fn test_apps_sorce_smanager_lookup() {
     let mut asm = AppSourceManager::new();
     let app_src = AppSource::new(
         "conn1".to_string(),
@@ -116,7 +132,7 @@ fn test_appsoyrcemanager_lookup() {
 }
 
 #[test]
-fn test_appsoyrcemanager_lookup_multiple_ports() {
+fn test_apps_source_manager_lookup_multiple_ports() {
     let mut asm = AppSourceManager::new();
     let app_src = AppSource::new(
         "conn1".to_string(),
@@ -152,4 +168,201 @@ fn test_appsoyrcemanager_lookup_multiple_ports() {
             .unwrap(),
         &2_u16
     );
+}
+
+#[test]
+fn test_app_dag() {
+    let latch = Arc::new(CountDownLatch::new(2));
+
+    let mut asm = AppSourceManager::new();
+    asm.add(AppSource::new(
+        "postgres".to_string(),
+        Arc::new(DualPortGeneratorSourceFactory::new(
+            10_000,
+            latch.clone(),
+            true,
+        )),
+        vec![
+            (
+                "users".to_string(),
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
+            ),
+            (
+                "transactions".to_string(),
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    ));
+
+    asm.add(AppSource::new(
+        "snowflake".to_string(),
+        Arc::new(GeneratorSourceFactory::new(10_000, latch.clone(), true)),
+        vec![("users".to_string(), GENERATOR_SOURCE_OUTPUT_PORT)]
+            .into_iter()
+            .collect(),
+    ));
+
+    let mut app = App::new(asm);
+
+    let mut p1 = AppPipeline::new();
+    p1.add_processor(
+        Arc::new(NoopJoinProcessorFactory {}),
+        "join",
+        vec![
+            PipelineEntryPoint::new(
+                AppSourceId::new("users".to_string(), Some("postgres".to_string())),
+                NOOP_JOIN_LEFT_INPUT_PORT,
+            ),
+            PipelineEntryPoint::new(
+                AppSourceId::new("transactions".to_string(), None),
+                NOOP_JOIN_RIGHT_INPUT_PORT,
+            ),
+        ],
+    );
+    p1.add_sink(
+        Arc::new(CountingSinkFactory::new(20_000, latch.clone())),
+        "sink",
+    );
+    p1.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT))
+        .unwrap();
+
+    app.add_pipeline(p1);
+
+    let mut p2 = AppPipeline::new();
+    p2.add_processor(
+        Arc::new(NoopJoinProcessorFactory {}),
+        "join",
+        vec![
+            PipelineEntryPoint::new(
+                AppSourceId::new("users".to_string(), Some("snowflake".to_string())),
+                NOOP_JOIN_LEFT_INPUT_PORT,
+            ),
+            PipelineEntryPoint::new(
+                AppSourceId::new("transactions".to_string(), None),
+                NOOP_JOIN_RIGHT_INPUT_PORT,
+            ),
+        ],
+    );
+    p2.add_sink(
+        Arc::new(CountingSinkFactory::new(20_000, latch.clone())),
+        "sink",
+    );
+    p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT))
+        .unwrap();
+
+    app.add_pipeline(p2);
+
+    let dag = app.get_dag().unwrap();
+
+    assert!(dag
+        .edges
+        .iter()
+        .find(|e| e
+            == &&Edge::new(
+                Endpoint::new(
+                    NodeHandle::new(None, "postgres".to_string()),
+                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), "join".to_string()),
+                    NOOP_JOIN_LEFT_INPUT_PORT
+                )
+            ))
+        .is_some());
+
+    assert!(dag
+        .edges
+        .iter()
+        .find(|e| e
+            == &&Edge::new(
+                Endpoint::new(
+                    NodeHandle::new(None, "postgres".to_string()),
+                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), "join".to_string()),
+                    NOOP_JOIN_RIGHT_INPUT_PORT
+                )
+            ))
+        .is_some());
+
+    assert!(dag
+        .edges
+        .iter()
+        .find(|e| e
+            == &&Edge::new(
+                Endpoint::new(
+                    NodeHandle::new(None, "snowflake".to_string()),
+                    GENERATOR_SOURCE_OUTPUT_PORT
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(2), "join".to_string()),
+                    NOOP_JOIN_LEFT_INPUT_PORT
+                )
+            ))
+        .is_some());
+
+    assert!(dag
+        .edges
+        .iter()
+        .find(|e| e
+            == &&Edge::new(
+                Endpoint::new(
+                    NodeHandle::new(None, "postgres".to_string()),
+                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(2), "join".to_string()),
+                    NOOP_JOIN_RIGHT_INPUT_PORT
+                )
+            ))
+        .is_some());
+
+    assert!(dag
+        .edges
+        .iter()
+        .find(|e| e
+            == &&Edge::new(
+                Endpoint::new(
+                    NodeHandle::new(Some(1), "join".to_string()),
+                    DEFAULT_PORT_HANDLE
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(1), "sink".to_string()),
+                    COUNTING_SINK_INPUT_PORT
+                )
+            ))
+        .is_some());
+
+    assert!(dag
+        .edges
+        .iter()
+        .find(|e| e
+            == &&Edge::new(
+                Endpoint::new(
+                    NodeHandle::new(Some(2), "join".to_string()),
+                    DEFAULT_PORT_HANDLE
+                ),
+                Endpoint::new(
+                    NodeHandle::new(Some(2), "sink".to_string()),
+                    COUNTING_SINK_INPUT_PORT
+                )
+            ))
+        .is_some());
+
+    assert_eq!(dag.edges.len(), 6);
+
+    let tmp_dir = chk!(TempDir::new("test"));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    //  thread::sleep(Duration::from_millis(3000));
+
+    chk!(executor.start());
+    assert!(executor.join().is_ok());
 }

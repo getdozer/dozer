@@ -87,87 +87,105 @@ impl Source for GeneratorSource {
         Ok(())
     }
 }
-//
-// pub(crate) struct StatefulGeneratorSourceFactory {
-//     count: u64,
-//     sleep: Duration,
-// }
-//
-// impl StatefulGeneratorSourceFactory {
-//     pub fn new(count: u64, sleep: Duration) -> Self {
-//         Self { count, sleep }
-//     }
-// }
-//
-// impl SourceFactory for StatefulGeneratorSourceFactory {
-//     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
-//         todo!()
-//     }
-//
-//     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-//         vec![OutputPortDef::new(
-//             GENERATOR_SOURCE_OUTPUT_PORT,
-//             OutputPortDefOptions::new(true, true, true),
-//         )]
-//     }
-//     fn build(&self) -> Box<dyn Source> {
-//         Box::new(StatefulGeneratorSource {
-//             count: self.count,
-//             sleep: self.sleep,
-//         })
-//     }
-// }
-//
-// pub(crate) struct StatefulGeneratorSource {
-//     count: u64,
-//     sleep: Duration,
-// }
-//
-// impl Source for StatefulGeneratorSource {
-//     fn get_output_schema(&self, _port: PortHandle) -> Option<Schema> {
-//         Some(
-//             Schema::empty()
-//                 .field(
-//                     FieldDefinition::new("id".to_string(), FieldType::String, false),
-//                     true,
-//                     true,
-//                 )
-//                 .field(
-//                     FieldDefinition::new("value".to_string(), FieldType::String, false),
-//                     true,
-//                     false,
-//                 )
-//                 .clone(),
-//         )
-//     }
-//
-//     fn start(
-//         &self,
-//         fw: &mut dyn SourceChannelForwarder,
-//         _from_seq: Option<u64>,
-//     ) -> Result<(), ExecutionError> {
-//         for n in 0..self.count {
-//             fw.send(
-//                 n,
-//                 Operation::Insert {
-//                     new: Record::new(
-//                         None,
-//                         vec![
-//                             Field::String(format!("key_{}", n)),
-//                             Field::String(format!("value_{}", n)),
-//                         ],
-//                     ),
-//                 },
-//                 GENERATOR_SOURCE_OUTPUT_PORT,
-//             )?;
-//             if !self.sleep.is_zero() {
-//                 thread::sleep(self.sleep);
-//             }
-//         }
-//         fw.terminate()?;
-//
-//         loop {
-//             thread::sleep(Duration::from_millis(1000));
-//         }
-//     }
-// }
+
+pub(crate) const DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1: PortHandle = 1000;
+pub(crate) const DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2: PortHandle = 2000;
+
+pub(crate) struct DualPortGeneratorSourceFactory {
+    count: u64,
+    term_latch: Arc<CountDownLatch>,
+    stateful: bool,
+}
+
+impl DualPortGeneratorSourceFactory {
+    pub fn new(count: u64, term_latch: Arc<CountDownLatch>, stateful: bool) -> Self {
+        Self {
+            count,
+            term_latch,
+            stateful,
+        }
+    }
+}
+
+impl SourceFactory for DualPortGeneratorSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
+        Ok(Schema::empty()
+            .field(
+                FieldDefinition::new("id".to_string(), FieldType::String, false),
+                true,
+                true,
+            )
+            .field(
+                FieldDefinition::new("value".to_string(), FieldType::String, false),
+                true,
+                false,
+            )
+            .clone())
+    }
+
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![
+            OutputPortDef::new(
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
+                OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
+            ),
+            OutputPortDef::new(
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
+                OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
+            ),
+        ]
+    }
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(DualPortGeneratorSource {
+            count: self.count,
+            term_latch: self.term_latch.clone(),
+        }))
+    }
+}
+
+pub(crate) struct DualPortGeneratorSource {
+    count: u64,
+    term_latch: Arc<CountDownLatch>,
+}
+
+impl Source for DualPortGeneratorSource {
+    fn start(
+        &self,
+        fw: &mut dyn SourceChannelForwarder,
+        _from_seq: Option<u64>,
+    ) -> Result<(), ExecutionError> {
+        for n in 1..(self.count + 1) {
+            fw.send(
+                n,
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String(format!("key_{}", n)),
+                            Field::String(format!("value_{}", n)),
+                        ],
+                    ),
+                },
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
+            )?;
+            fw.send(
+                n,
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String(format!("key_{}", n)),
+                            Field::String(format!("value_{}", n)),
+                        ],
+                    ),
+                },
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
+            )?;
+        }
+        self.term_latch.wait();
+        Ok(())
+    }
+}
