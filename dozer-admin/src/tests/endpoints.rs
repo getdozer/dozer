@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod grpc_service {
+    use dozer_types::models::api_endpoint::ApiIndex;
+
     use crate::server::dozer_admin_grpc::{
         CreateEndpointRequest, CreateEndpointResponse, DeleteEndpointRequest,
         DeleteEndpointResponse, GetAllEndpointRequest, GetAllEndpointResponse, GetEndpointRequest,
@@ -22,7 +24,8 @@ mod grpc_service {
             })
             .unwrap();
         assert!(!result.data.is_empty());
-        assert_eq!(result.data[0].id, setup_ids.api_ids[0]);
+        assert!(result.data[0].to_owned().id.is_some());
+        assert_eq!(result.data[0].to_owned().id.unwrap(), setup_ids.api_ids[0]);
     }
 
     #[test]
@@ -37,7 +40,10 @@ mod grpc_service {
                 endpoint_id: setup_ids.api_ids[0].to_owned(),
             })
             .unwrap();
-        assert_eq!(result.info.unwrap().id, setup_ids.api_ids[0].to_owned());
+        assert_eq!(
+            result.info.unwrap().id.unwrap(),
+            setup_ids.api_ids[0].to_owned()
+        );
     }
 
     #[test]
@@ -50,12 +56,11 @@ mod grpc_service {
             app_id: setup_ids.app_id,
             name: "new_endpoint".to_owned(),
             path: "/new_endpoint".to_owned(),
-            enable_rest: true,
-            enable_grpc: true,
             sql: "select block_number, id  from eth_logs where 1=1 group by block_number, id;"
                 .to_owned(),
-            source_ids: vec![],
-            primary_keys: vec!["id".to_owned()],
+            index: Some(ApiIndex {
+                primary_key: vec!["id".to_owned()],
+            }),
         };
         let result: CreateEndpointResponse = endpoint_service
             .create_endpoint(request.to_owned())
@@ -74,12 +79,7 @@ mod grpc_service {
             app_id: setup_ids.app_id,
             id: setup_ids.api_ids[0].to_owned(),
             name: Some("updated_endpoint_name".to_owned()),
-            enable_grpc: None,
-            enable_rest: None,
-            path: None,
-            primary_keys: vec![],
-            source_ids: vec![],
-            sql: None,
+            ..Default::default()
         };
         let result: UpdateEndpointResponse = endpoint_service
             .update_endpoint(request.to_owned())
@@ -98,12 +98,9 @@ mod grpc_service {
             app_id: setup_ids.app_id,
             id: "random_id".to_owned(),
             name: Some("updated_endpoint_name".to_owned()),
-            enable_grpc: None,
-            enable_rest: None,
             path: None,
-            primary_keys: vec![],
-            source_ids: vec![],
             sql: None,
+            ..Default::default()
         };
         let result = endpoint_service.update_endpoint(request);
         assert!(result.is_err());

@@ -117,10 +117,11 @@ fn test_config() -> Config {
     let api_config = test_api_config();
     Config {
         app_name: "dozer-config-sample".to_owned(),
-        api: api_config,
+        api: Some(api_config),
         connections: vec![test_connection],
         sources: vec![test_source],
         endpoints: vec![api_endpoint],
+        ..Default::default()
     }
 }
 #[test]

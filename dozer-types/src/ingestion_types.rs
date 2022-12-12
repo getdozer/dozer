@@ -51,7 +51,6 @@ pub struct EthConfig {
     pub wss_url: String,
     #[prost(string, tag = "3")]
     pub name: String,
-
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]

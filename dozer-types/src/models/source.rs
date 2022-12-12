@@ -18,7 +18,7 @@ pub struct Source {
     #[prost(message, tag = "6")]
     #[serde(skip_deserializing)]
     pub connection: Option<Connection>,
-    #[prost(oneof="RefreshConfig", tags = "7")]
+    #[prost(oneof = "RefreshConfig", tags = "7")]
     pub refresh_config: Option<RefreshConfig>,
 }
 impl Serialize for Source {
@@ -30,7 +30,10 @@ impl Serialize for Source {
         state.serialize_field("name", &self.name)?;
         state.serialize_field("table_name", &self.table_name)?;
         state.serialize_field("columns", &self.columns)?;
-        state.serialize_field("connection", &Value::Ref(self.connection.to_owned().unwrap_or_default().name))?;
+        state.serialize_field(
+            "connection",
+            &Value::Ref(self.connection.to_owned().unwrap_or_default().name),
+        )?;
         state.serialize_field("refresh_config", &self.refresh_config)?;
         state.end()
     }
@@ -67,7 +70,7 @@ pub enum RefreshConfig {
     // Hour { minute: u32 },
     // Day { time: String },
     // CronExpression { expression: String },
-    #[prost(message, tag = "1")]
+    #[prost(message, tag = "7")]
     RealTime(RealTimeConfig),
 }
 impl Default for RefreshConfig {

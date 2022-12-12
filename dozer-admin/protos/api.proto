@@ -14,7 +14,7 @@ service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (CreateAppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
   rpc update_application(UpdateAppRequest) returns (UpdateAppResponse);
-  rpc get_application(GetApplicationRequest) returns (GetApplicationResponse);
+  rpc get_application(GetAppRequest) returns (GetAppResponse);
 
   rpc validate_connection(ValidateConnectionRequest) returns (ValidateConnectionResponse);
 
@@ -72,10 +72,10 @@ message UpdateAppRequest {
 message UpdateAppResponse {
   ApplicationInfo data = 1;
 }
-message GetApplicationRequest {
+message GetAppRequest {
   optional string app_id = 1;
 }
-message GetApplicationResponse {
+message GetAppResponse {
   ApplicationDetail data = 1;
 }
 message CreateEndpointRequest {

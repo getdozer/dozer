@@ -103,8 +103,9 @@ impl TryFrom<ApplicationDetail> for Config {
             sources,
             endpoints,
             app_name: input.app.name,
-            api: default_api_config(),
+            api: Some(default_api_config()),
             connections,
+            ..Default::default()
         })
     }
 }
@@ -136,13 +137,8 @@ mod test {
             endpoint::DbEndpoint,
             source::DBSource,
         },
-        services::converter::{convert_to_api_endpoint, convert_to_source},
     };
-    use dozer_types::models::{
-        api_endpoint::ApiIndex,
-        app_config::Config,
-        connection::{self, DBType},
-    };
+    use dozer_types::models::{app_config::Config, connection::DBType};
 
     fn fake_application() -> Application {
         let generated_id = uuid::Uuid::new_v4().to_string();
@@ -164,31 +160,31 @@ mod test {
     fn fake_dbconnection(db_type: DBType) -> DbConnection {
         match db_type {
             DBType::Postgres => DbConnection {
-                auth: r#"{"authentication":{"Postgres":{"database":"users","user":"postgres","host":"localhost","port":5432,"password":"postgres"}}}"#.to_owned(),
+                auth: r#"{"Postgres":{"database":"users","user":"postgres","host":"localhost","port":5432,"password":"postgres"}}"#.to_owned(),
                 name: "postgres_connection".to_owned(),
                 db_type: "postgres".to_owned(),
                 ..Default::default()
             },
             DBType::Ethereum => DbConnection {
-                auth: r#"{"authentication":{"Postgres":{"database":"users","user":"postgres","host":"localhost","port":5432,"password":"postgres"}}}"#.to_owned(),
+                auth: r#"{"Postgres":{"database":"users","user":"postgres","host":"localhost","port":5432,"password":"postgres"}}"#.to_owned(),
                 name: "eth_connection".to_owned(),
                 db_type: "ethereum".to_owned(),
                 ..Default::default()
             },
             DBType::Events => DbConnection {
-                auth: r#"{"authentication":{"Events":{"database":"users"}}}"#.to_owned(),
+                auth: r#"{"Events":{"database":"users"}}}"#.to_owned(),
                 name: "events_connection".to_owned(),
                 db_type: "events".to_owned(),
                 ..Default::default()
             },
             DBType::Snowflake => DbConnection {
-                auth: r#"{"authentication":{"Snowflake":{"server":"tx06321.eu-north-1.aws.snowflakecomputing.com","port":"443","user":"karolisgud","password":"uQ@8S4856G9SHP6","database":"DOZER_SNOWFLAKE_SAMPLE_DATA","schema":"PUBLIC","warehouse":"TEST","driver":"{/opt/snowflake/snowflakeodbc/lib/universal/libSnowflake.dylib}"}}}"#.to_owned(),
+                auth: r#"{"Snowflake":{"server":"tx06321.eu-north-1.aws.snowflakecomputing.com","port":"443","user":"karolisgud","password":"uQ@8S4856G9SHP6","database":"DOZER_SNOWFLAKE_SAMPLE_DATA","schema":"PUBLIC","warehouse":"TEST","driver":"{/opt/snowflake/snowflakeodbc/lib/universal/libSnowflake.dylib}"}}"#.to_owned(),
                 name: "snowflake_connection".to_owned(),
                 db_type: "snowflake".to_owned(),
                 ..Default::default()
             },
             DBType::Kafka => DbConnection {
-                auth: r#"{"authentication":{"Kafka":{"broker":"localhost:9092","topic":"dbserver1.public.products"}}}"#.to_owned(),
+                auth: r#"{"Kafka":{"broker":"localhost:9092","topic":"dbserver1.public.products"}}"#.to_owned(),
                 name: "kafka_debezium_connection".to_owned(),
                 db_type: "kafka".to_owned(),
                 ..Default::default()
@@ -229,68 +225,5 @@ mod test {
             converted.unwrap().sources.len(),
             application_detail.sources_connections.len()
         )
-    }
-
-    #[test]
-    fn success_from_i32_to_connection_type() {
-        let converted = DBType::try_from(0);
-        assert!(converted.is_ok());
-        assert_eq!(converted.unwrap(), DBType::Postgres);
-    }
-
-    #[test]
-    fn success_from_db_source_to_source() {
-        // let db_source = DBSource {
-        //     name: "source_name".to_owned(),
-        //     table_name: "table_name".to_owned(),
-        //     ..Default::default()
-        // };
-        // let db_connection = DbConnection {
-        //     auth: r#"{"authentication":{"Postgres":{"database":"users","user":"postgres","host":"localhost","port":5432,"password":"postgres"}}}"#.to_owned(),
-        //     name: "postgres_connection".to_owned(),
-        //     db_type: "postgres".to_owned(),
-        //     ..Default::default()
-        // };
-        // let converted = convert_to_source((db_source.to_owned(), db_connection.to_owned()));
-        // assert!(converted.is_ok());
-        // let converted_source = converted.unwrap();
-        // assert_eq!(converted_source.name, db_source.name);
-        // let connection = ConnectionInfo::try_from(db_connection).unwrap();
-        // let connection = connection::Connection::try_from(connection).unwrap();
-        // assert_eq!(converted_source.connection.db_type, DBType::Postgres);
-        // assert_eq!(converted_source.connection, connection);
-    }
-
-    #[test]
-    fn success_from_db_endpoint_to_api_endpoint() {
-        // let db_endpoint = DbEndpoint {
-        //     name: "endpoint_name".to_owned(),
-        //     path: "/users".to_owned(),
-        //     sql: "Select id, user_id from users;".to_owned(),
-        //     primary_keys: "id, user_id".to_owned(),
-        //     ..Default::default()
-        // };
-        // let converted = convert_to_api_endpoint(db_endpoint.to_owned());
-        // assert!(converted.is_ok());
-        // let converted_endpoint = converted.unwrap();
-        // assert_eq!(converted_endpoint.name, db_endpoint.name);
-        // assert_eq!(
-        //     converted_endpoint.index,
-        //     ApiIndex {
-        //         primary_key: db_endpoint
-        //             .primary_keys
-        //             .split(',')
-        //             .into_iter()
-        //             .map(|s| s.to_string())
-        //             .collect(),
-        //     }
-        // );
-    }
-
-    #[test]
-    fn err_from_i32_to_connection_type() {
-        let converted = DBType::try_from(100).map_err(|err| err.to_string());
-        assert!(converted.is_err());
-        assert_eq!(converted.err().unwrap(), "ConnectionType enum not match");
     }
 }

@@ -40,7 +40,7 @@ impl SimpleOrchestrator {
 
 impl Orchestrator for SimpleOrchestrator {
     fn add_api_config(&mut self, api_config: ApiConfig) -> &mut Self {
-        self.config.api = api_config;
+        self.config.api = Some(api_config);
         self
     }
 
@@ -100,7 +100,13 @@ impl Orchestrator for SimpleOrchestrator {
             });
 
             // Initialize API Server
-            let rest_config = self.config.api.rest.to_owned().unwrap_or_default().to_owned();
+            let rest_config = self
+                .config
+                .to_owned()
+                .api
+                .unwrap_or_default()
+                .rest
+                .unwrap_or_default();
             tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config);
                 api_server
@@ -110,8 +116,14 @@ impl Orchestrator for SimpleOrchestrator {
             });
 
             // Initialize GRPC Server
-            let grpc_config = self.config.api.grpc.to_owned().unwrap_or_default();
-            let grpc_server = grpc::ApiServer::new(receiver, grpc_config.to_owned(), true);
+            let grpc_config = self
+                .config
+                .to_owned()
+                .api
+                .unwrap_or_default()
+                .grpc
+                .unwrap_or_default();
+            let grpc_server = grpc::ApiServer::new(receiver, grpc_config, true);
             tokio::spawn(async move {
                 grpc_server
                     .run(ce2, running2.to_owned(), receiver_shutdown)
@@ -139,7 +151,13 @@ impl Orchestrator for SimpleOrchestrator {
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
-        let internal_config = self.config.api.internal.to_owned().unwrap_or_default();
+        let internal_config = self
+            .config
+            .to_owned()
+            .api
+            .unwrap_or_default()
+            .internal
+            .unwrap_or_default();
         // Initialize Internal Server Client
         let _internal_thread = thread::spawn(move || {
             start_internal_client(internal_config, receiver);

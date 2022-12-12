@@ -35,7 +35,8 @@ fn get_iterator(config: Connection, table_name: String) -> Arc<RwLock<IngestionI
 fn connector_e2e_connect_postgres_stream() {
     let source = serde_yaml::from_str::<Source>(load_config("test.postgres.yaml")).unwrap();
     let mut client = TestPostgresClient::new(
-        &source.to_owned()
+        &source
+            .to_owned()
             .connection
             .unwrap_or_default()
             .authentication
@@ -47,7 +48,7 @@ fn connector_e2e_connect_postgres_stream() {
 
     client.create_simple_table("public", &table_name);
 
-    let connetion = source.to_owned().connection.unwrap_or_default();
+    let connetion = source.connection.unwrap_or_default();
     let iterator = get_iterator(connetion, table_name.clone());
 
     client.insert_rows(&table_name, 10);

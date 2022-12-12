@@ -12,7 +12,7 @@ use diesel::{insert_into, prelude::*, query_dsl::methods::FilterDsl, ExpressionM
 use dozer_types::serde;
 use schema::sources::dsl::*;
 use serde::{Deserialize, Serialize};
-use std::{error::Error, vec};
+use std::error::Error;
 
 #[derive(
     Queryable,
@@ -33,8 +33,8 @@ pub struct DBSource {
     pub(crate) app_id: String,
     pub(crate) name: String,
     pub(crate) table_name: String,
-    pub(crate) columns: String,
     pub(crate) connection_id: String,
+    pub(crate) columns: String,
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
 }
@@ -47,6 +47,28 @@ pub struct NewSource {
     table_name: String,
     connection_id: String,
     columns_: String,
+}
+
+fn convert_to_source(
+    db_source: DBSource,
+    connection: dozer_types::models::connection::Connection,
+) -> dozer_types::models::source::Source {
+    let columns_value: Vec<String> = db_source
+        .columns
+        .split(',')
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    dozer_types::models::source::Source {
+        id: Some(db_source.id),
+        app_id: Some(db_source.app_id),
+        name: db_source.name,
+        table_name: db_source.table_name,
+        columns: columns_value,
+        connection: Some(connection),
+        refresh_config: Some(dozer_types::models::source::RefreshConfig::default()),
+    }
 }
 impl Persistable<'_, dozer_types::models::source::Source> for dozer_types::models::source::Source {
     fn save(
@@ -69,18 +91,10 @@ impl Persistable<'_, dozer_types::models::source::Source> for dozer_types::model
         .first(&mut db)?;
         let connection_info = dozer_types::models::connection::Connection::by_id(
             pool,
-            result.connection_id,
+            result.to_owned().connection_id,
             application_id,
         )?;
-        let source_info = dozer_types::models::source::Source {
-            id: Some(result.id),
-            app_id: Some(result.app_id),
-            name: result.name,
-            table_name: result.table_name,
-            connection: Some(connection_info),
-            columns: vec![],
-            refresh_config: Some(dozer_types::models::source::RefreshConfig::default()),
-        };
+        let source_info = convert_to_source(result, connection_info);
         Ok(source_info)
     }
 
@@ -104,17 +118,12 @@ impl Persistable<'_, dozer_types::models::source::Source> for dozer_types::model
         let total: i64 = filter_dsl.count().get_result(&mut db)?;
         let response: Vec<dozer_types::models::source::Source> = results
             .iter()
-            .map(|result| dozer_types::models::source::Source {
-                app_id: Some(result.0.app_id.to_owned()),
-                connection: Some(
-                    dozer_types::models::connection::Connection::try_from(result.1.to_owned())
+            .map(|result| {
+                convert_to_source(
+                    result.to_owned().0,
+                    dozer_types::models::connection::Connection::try_from(result.to_owned().1)
                         .unwrap(),
-                ),
-                table_name: result.0.table_name.to_owned(),
-                id: Some(result.0.id.to_owned()),
-                name: result.0.name.to_owned(),
-                columns: vec![],
-                refresh_config: Some(dozer_types::models::source::RefreshConfig::default()),
+                )
             })
             .collect();
         Ok((

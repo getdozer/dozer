@@ -163,7 +163,13 @@ impl Persistable<'_, dozer_types::models::api_endpoint::ApiEndpoint>
             let _ = apps
                 .find(self.app_id.to_owned().unwrap_or_default())
                 .first::<Application>(conn)
-                .map_err(|err| format!("App_id: {:} {:}", self.app_id.to_owned().unwrap_or_default(), err))?;
+                .map_err(|err| {
+                    format!(
+                        "App_id: {:} {:}",
+                        self.app_id.to_owned().unwrap_or_default(),
+                        err
+                    )
+                })?;
 
             let new_endpoint = NewEndpoint::try_from(self.clone())?;
 

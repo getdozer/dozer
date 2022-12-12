@@ -81,7 +81,7 @@ pub fn get_iterator_and_client(
         if let Some(connection) = source.connection.to_owned() {
             if let Some(authentication) = connection.to_owned().authentication {
                 if let Authentication::Kafka(kafka_config) = authentication {
-                    let mut new_connection = connection.to_owned();
+                    let mut new_connection = connection;
                     new_connection.authentication = Some(Authentication::Kafka(KafkaConfig {
                         broker: kafka_config.broker,
                         topic: format!("dbserver1.public.{}", table_name),

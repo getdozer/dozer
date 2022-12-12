@@ -79,31 +79,31 @@ pub fn database_url_for_test_env() -> String {
 fn fake_dbconnection(db_type: DBType) -> DbConnection {
     match db_type {
         DBType::Postgres => DbConnection {
-            auth: r#"{"authentication":{"Postgres":{"database":"users","user":"postgres","host":"localhost","port":5432,"password":"postgres"}}}"#.to_owned(),
+            auth: r#"{"Postgres":{"user":"users","password":"postgres","host":"localhost","port":5432,"database":"postgres"}}"#.to_owned(),
             name: "postgres_connection".to_owned(),
             db_type: "postgres".to_owned(),
             ..Default::default()
         },
         DBType::Ethereum => DbConnection {
-            auth: r#"{"authentication":{"Ethereum":{"wss_url":"wss:link","filter":{"from_block":null,"addresses":[],"topics":[]}}}}"#.to_owned(),
+            auth: r#"{"Ethereum":{"filter":{"from_block":0,"addresses":[],"topics":[]},"wss_url":"wss:link","name":"eth_logs"}}"#.to_owned(),
             name: "eth_connection".to_owned(),
-            db_type: "eth".to_owned(),
+            db_type: "ethereum".to_owned(),
             ..Default::default()
         },
         DBType::Events => DbConnection {
-            auth: r#"{"authentication":{"Events":{"database":"users"}}}"#.to_owned(),
+            auth: r#"{"Events":{"database":"users"}}"#.to_owned(),
             name: "events_connection".to_owned(),
             db_type: "events".to_owned(),
             ..Default::default()
         },
         DBType::Snowflake => DbConnection {
-            auth: r#"{"authentication":{"Snowflake":{"server":"tx06321.eu-north-1.aws.snowflakecomputing.com","port":"443","user":"karolisgud","password":"uQ@8S4856G9SHP6","database":"DOZER_SNOWFLAKE_SAMPLE_DATA","schema":"PUBLIC","warehouse":"TEST","driver":"{/opt/snowflake/snowflakeodbc/lib/universal/libSnowflake.dylib}"}}}"#.to_owned(),
+            auth: r#"{"Snowflake":{"server":"tx06321.eu-north-1.aws.snowflakecomputing.com","port":"443","user":"karolisgud","password":"uQ@8S4856G9SHP6","database":"DOZER_SNOWFLAKE_SAMPLE_DATA","schema":"PUBLIC","warehouse":"TEST","driver":"{/opt/snowflake/snowflakeodbc/lib/universal/libSnowflake.dylib}"}}"#.to_owned(),
             name: "snowflake_connection".to_owned(),
             db_type: "snowflake".to_owned(),
             ..Default::default()
         },
         DBType::Kafka => DbConnection {
-            auth: r#"{"authentication":{"Kafka":{"broker":"localhost:9092","topic":"dbserver1.public.products"}}}"#.to_owned(),
+            auth: r#"{"Kafka":{"broker":"localhost:9092","topic":"dbserver1.public.products"}}"#.to_owned(),
             name: "kafka_debezium_connection".to_owned(),
             db_type: "kafka".to_owned(),
             ..Default::default()
@@ -136,6 +136,7 @@ fn setup_data(connection: &mut SqliteConnection, config_id: TestConfigId) {
                 format!("source_{:}", db_type.to_owned()),
                 format!("table_source_{:}", db_type.to_owned()),
                 config_id.connection_ids[idx].to_owned(),
+                "id".to_owned(),
             )
         }
     });
@@ -180,10 +181,11 @@ fn insert_sources(
     name: String,
     table_name: String,
     connection_id: String,
+    columns: String,
 ) {
     diesel::sql_query(
-        format!("INSERT INTO sources (id, app_id, name, table_name, connection_id, created_at, updated_at) VALUES('{}', '{}', '{}', '{}', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);",
-        source_id, app_id, name,table_name, connection_id))
+        format!("INSERT INTO sources (id, app_id, name, table_name, connection_id,columns, created_at, updated_at) VALUES('{}', '{}', '{}', '{}', '{}','{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);",
+        source_id, app_id, name,table_name, connection_id, columns))
     .execute(connection)
     .unwrap();
 }
@@ -198,7 +200,7 @@ fn insert_endpoints(
     primary_keys: String,
 ) {
     diesel::sql_query(
-        format!("INSERT INTO endpoints (id, app_id, name, \"path\", enable_rest, enable_grpc, \"sql\", primary_keys, created_at, updated_at) VALUES( '{}', '{}', '{}', '{}', 1, 1, '{}','{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"
+        format!("INSERT INTO endpoints (id, app_id, name, \"path\", \"sql\", primary_keys, created_at, updated_at) VALUES( '{}', '{}', '{}', '{}','{}','{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"
         ,endpoint_id, app_id, name,path, sql, primary_keys))
         .execute(connection)
         .unwrap();

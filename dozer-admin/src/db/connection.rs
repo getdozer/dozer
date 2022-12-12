@@ -6,7 +6,7 @@ use super::{
     schema::{self, connections},
 };
 use crate::db::schema::apps::dsl::apps;
-use crate::server::dozer_admin_grpc::{Pagination};
+use crate::server::dozer_admin_grpc::Pagination;
 use diesel::{insert_into, prelude::*, query_dsl::methods::FilterDsl, ExpressionMethods};
 use dozer_types::{
     models::connection::{Authentication, DBType},

@@ -52,7 +52,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         Authentication::Postgres(_) => {
             let config = map_connection_config(&authentication)?;
             let postgres_config = PostgresConfig {
-                name: connection.name.clone(),
+                name: connection.name,
                 tables: None,
                 config,
             };

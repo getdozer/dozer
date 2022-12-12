@@ -21,10 +21,10 @@ use dozer_admin_grpc::{
     CreateConnectionRequest, CreateConnectionResponse, CreateEndpointRequest,
     CreateEndpointResponse, CreateSourceRequest, CreateSourceResponse, DeleteEndpointRequest,
     DeleteEndpointResponse, GetAllConnectionRequest, GetAllConnectionResponse, GetApiConfigRequest,
-    GetApiConfigResponse, GetApplicationRequest, GetApplicationResponse,
-    GetConnectionDetailsRequest, GetConnectionDetailsResponse, GetEndpointRequest,
-    GetEndpointResponse, GetSchemaRequest, GetSchemaResponse, GetSourceRequest, GetSourceResponse,
-    StartPipelineRequest, StartPipelineResponse, UpdateApiConfigRequest, UpdateApiConfigResponse,
+    GetApiConfigResponse, GetAppRequest, GetAppResponse, GetConnectionDetailsRequest,
+    GetConnectionDetailsResponse, GetEndpointRequest, GetEndpointResponse, GetSchemaRequest,
+    GetSchemaResponse, GetSourceRequest, GetSourceResponse, StartPipelineRequest,
+    StartPipelineResponse, UpdateApiConfigRequest, UpdateApiConfigResponse,
     UpdateConnectionRequest, UpdateConnectionResponse, UpdateEndpointRequest,
     UpdateEndpointResponse, UpdateSourceRequest, UpdateSourceResponse,
 };
@@ -78,11 +78,11 @@ impl DozerAdmin for GrpcService {
 
     async fn get_application(
         &self,
-        _request: tonic::Request<GetApplicationRequest>,
-    ) -> Result<tonic::Response<GetApplicationResponse>, tonic::Status> {
+        _request: tonic::Request<GetAppRequest>,
+    ) -> Result<tonic::Response<GetAppResponse>, tonic::Status> {
         todo!()
     }
-    
+
     async fn validate_connection(
         &self,
         request: tonic::Request<ValidateConnectionRequest>,

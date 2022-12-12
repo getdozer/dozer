@@ -46,22 +46,28 @@ impl EndpointService {
         &self,
         request: DeleteEndpointRequest,
     ) -> Result<DeleteEndpointResponse, ErrorResponse> {
-        let _endpoint_info =
-            dozer_types::models::api_endpoint::ApiEndpoint::delete(self.db_pool.to_owned(), request.endpoint_id, request.app_id)
-                .map_err(|op| ErrorResponse {
-                    message: op.to_string(),
-                })?;
+        let _endpoint_info = dozer_types::models::api_endpoint::ApiEndpoint::delete(
+            self.db_pool.to_owned(),
+            request.endpoint_id,
+            request.app_id,
+        )
+        .map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
         Ok(DeleteEndpointResponse { success: true })
     }
     pub fn get_endpoint(
         &self,
         request: GetEndpointRequest,
     ) -> Result<GetEndpointResponse, ErrorResponse> {
-        let endpoint_info =
-            dozer_types::models::api_endpoint::ApiEndpoint::by_id(self.db_pool.to_owned(), request.endpoint_id, request.app_id)
-                .map_err(|op| ErrorResponse {
-                    message: op.to_string(),
-                })?;
+        let endpoint_info = dozer_types::models::api_endpoint::ApiEndpoint::by_id(
+            self.db_pool.to_owned(),
+            request.endpoint_id,
+            request.app_id,
+        )
+        .map_err(|op| ErrorResponse {
+            message: op.to_string(),
+        })?;
         Ok(GetEndpointResponse {
             info: Some(endpoint_info),
         })
@@ -71,7 +77,10 @@ impl EndpointService {
         &self,
         input: GetAllEndpointRequest,
     ) -> Result<GetAllEndpointResponse, ErrorResponse> {
-        let endpoints: (Vec<dozer_types::models::api_endpoint::ApiEndpoint>, Pagination) = dozer_types::models::api_endpoint::ApiEndpoint::list(
+        let endpoints: (
+            Vec<dozer_types::models::api_endpoint::ApiEndpoint>,
+            Pagination,
+        ) = dozer_types::models::api_endpoint::ApiEndpoint::list(
             self.db_pool.clone(),
             input.app_id,
             input.limit,
@@ -91,11 +100,14 @@ impl EndpointService {
         request: UpdateEndpointRequest,
     ) -> Result<UpdateEndpointResponse, ErrorResponse> {
         let mut endpoint_by_id: ApiEndpoint =
-            dozer_types::models::api_endpoint::ApiEndpoint::by_id(self.db_pool.to_owned(), request.id, request.app_id).map_err(
-                |err| ErrorResponse {
-                    message: err.to_string(),
-                },
-            )?;
+            dozer_types::models::api_endpoint::ApiEndpoint::by_id(
+                self.db_pool.to_owned(),
+                request.id,
+                request.app_id,
+            )
+            .map_err(|err| ErrorResponse {
+                message: err.to_string(),
+            })?;
         if let Some(name) = request.name {
             endpoint_by_id.name = name;
         }
@@ -106,7 +118,7 @@ impl EndpointService {
             endpoint_by_id.sql = sql;
         }
         if let Some(index) = request.index {
-            endpoint_by_id.index =  Some(index);
+            endpoint_by_id.index = Some(index);
         }
         endpoint_by_id
             .upsert(self.db_pool.to_owned())

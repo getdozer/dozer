@@ -3,9 +3,9 @@ use dozer_types::{models::app_config::Config, serde_yaml};
 use crate::{
     db::{application::AppDbService, pool::DbPool},
     server::dozer_admin_grpc::{
-        ApplicationInfo, CreateAppRequest, CreateAppResponse, ErrorResponse, ListAppRequest,
-        ListAppResponse, Pagination, StartPipelineRequest, StartPipelineResponse, UpdateAppRequest,
-        UpdateAppResponse,
+        ApplicationInfo, CreateAppRequest, CreateAppResponse, ErrorResponse, GetAppRequest,
+        GetAppResponse, ListAppRequest, ListAppResponse, Pagination, StartPipelineRequest,
+        StartPipelineResponse, UpdateAppRequest, UpdateAppResponse,
     },
 };
 use std::fs;
@@ -20,6 +20,9 @@ impl AppService {
     }
 }
 impl AppService {
+    pub fn get_app(&self, _input: GetAppRequest) -> Result<GetAppResponse, ErrorResponse> {
+        todo!()
+    }
     pub fn create(&self, input: CreateAppRequest) -> Result<CreateAppResponse, ErrorResponse> {
         let app_info = ApplicationInfo {
             name: input.app_name,

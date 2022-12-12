@@ -9,11 +9,11 @@ pub struct ApiConfig {
     pub auth: bool,
     #[prost(message, tag = "4")]
     pub internal: Option<ApiInternal>,
-    #[prost(message, optional, tag = "5")]
+    #[prost(string, optional, tag = "5")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(message, optional, tag = "6")]
+    #[prost(string, optional, tag = "6")]
     pub id: Option<String>,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]

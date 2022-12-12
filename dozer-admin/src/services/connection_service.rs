@@ -9,10 +9,7 @@ use crate::{
     },
 };
 use dozer_orchestrator::get_connector;
-use dozer_types::models::{
-    self,
-    connection::{Authentication, Connection},
-};
+use dozer_types::models::connection::{Authentication, Connection};
 use std::thread;
 
 pub struct ConnectionService {
@@ -78,10 +75,7 @@ impl ConnectionService {
                     message: op.to_string(),
                 },
             )?;
-        let connection = models::connection::Connection::try_from(connection_by_id.to_owned())
-            .map_err(|op| ErrorResponse {
-                message: op.to_string(),
-            })?;
+        let connection = connection_by_id.to_owned();
         let schema = self._get_schema(connection.clone()).await?;
         Ok(GetConnectionDetailsResponse {
             info: Some(connection_by_id),
@@ -106,9 +100,7 @@ impl ConnectionService {
         .map_err(|op| ErrorResponse {
             message: op.to_string(),
         })?;
-        let connection = Connection::try_from(connection_info).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-        })?;
+        let connection = connection_info;
         let schema = self._get_schema(connection).await?;
         Ok(GetSchemaResponse {
             connection_id: input.connection_id,

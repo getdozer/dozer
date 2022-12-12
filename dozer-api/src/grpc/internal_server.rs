@@ -56,9 +56,7 @@ impl InternalPipelineService for InternalServer {
     ) -> Result<tonic::Response<GetConfigResponse>, tonic::Status> {
         let config_yaml = serde_yaml::to_string(&self.app_config)
             .map_err(|err| tonic::Status::internal(err.to_string()))?;
-        Ok(Response::new(GetConfigResponse {
-            config_yaml: config_yaml,
-        }))
+        Ok(Response::new(GetConfigResponse { config_yaml }))
     }
 }
 
@@ -70,7 +68,11 @@ pub async fn start_internal_server(
         sender,
         app_config: app_config.to_owned(),
     };
-    let internal_config = app_config.api.internal.unwrap_or(ApiInternal::default());
+    let internal_config = app_config
+        .api
+        .unwrap_or_default()
+        .internal
+        .unwrap_or_default();
     let mut addr = format!("{}:{}", internal_config.host, internal_config.port)
         .to_socket_addrs()
         .unwrap();

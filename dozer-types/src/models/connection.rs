@@ -108,7 +108,7 @@ impl FromStr for DBType {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq, ::prost::Message)]
 pub struct AuthenticationWrapper {
     #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
     pub authentication: Option<Authentication>,
@@ -116,6 +116,6 @@ pub struct AuthenticationWrapper {
 
 impl From<AuthenticationWrapper> for Authentication {
     fn from(input: AuthenticationWrapper) -> Self {
-        return input.authentication.unwrap_or_default();
+        input.authentication.unwrap_or_default()
     }
 }
