@@ -82,7 +82,7 @@ impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut threads = vec![];
         for (idx, connection) in self.connections.iter().cloned().enumerate() {

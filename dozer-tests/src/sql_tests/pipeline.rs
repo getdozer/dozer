@@ -78,7 +78,7 @@ impl Source for TestSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut idx = 0;
         for op in self.ops.iter().cloned() {

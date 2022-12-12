@@ -117,7 +117,7 @@ pub trait Source {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<u64>,
+        from: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError>;
 }
 
