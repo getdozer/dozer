@@ -1,4 +1,5 @@
 #![allow(clippy::enum_variant_names)]
+use crate::dag::appsource::AppSourceId;
 use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
@@ -39,6 +40,10 @@ pub enum ExecutionError {
     ChannelDisconnected,
     #[error("Internal thread panicked")]
     InternalThreadPanic,
+    #[error("Invalid source identifier {0}")]
+    InvalidSourceIdentifier(AppSourceId),
+    #[error("Ambiguous source identifier {0}")]
+    AmbiguousSourceIdentifier(AppSourceId),
 
     // Error forwarders
     #[error(transparent)]
