@@ -334,7 +334,7 @@ mod tests {
 
         let mut fields_map: HashMap<String, &DebeziumSchemaStruct> = HashMap::new();
         let id_struct = DebeziumSchemaStruct {
-            r#type: "int64".to_string().parse().unwrap(),
+            r#type: Value::String("int64".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
@@ -344,7 +344,7 @@ mod tests {
         };
         fields_map.insert("id".to_string(), &id_struct);
         let name_struct = DebeziumSchemaStruct {
-            r#type: "string".to_string().parse().unwrap(),
+            r#type: Value::String("string".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
@@ -354,7 +354,7 @@ mod tests {
         };
         fields_map.insert("name".to_string(), &name_struct);
         let description_struct = DebeziumSchemaStruct {
-            r#type: "string".to_string().parse().unwrap(),
+            r#type: Value::String("string".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
@@ -364,7 +364,7 @@ mod tests {
         };
         fields_map.insert("description".to_string(), &description_struct);
         let weight_struct = DebeziumSchemaStruct {
-            r#type: "float64".to_string().parse().unwrap(),
+            r#type: Value::String("float64".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
@@ -411,7 +411,7 @@ mod tests {
 
         let mut fields_map: HashMap<String, &DebeziumSchemaStruct> = HashMap::new();
         let id_struct = DebeziumSchemaStruct {
-            r#type: "int64".to_string().parse().unwrap(),
+            r#type: Value::String("int64".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
@@ -421,7 +421,7 @@ mod tests {
         };
         fields_map.insert("id".to_string(), &id_struct);
         let name_struct = DebeziumSchemaStruct {
-            r#type: "string".to_string().parse().unwrap(),
+            r#type: Value::String("string".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
