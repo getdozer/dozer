@@ -4,43 +4,40 @@ use super::product::factory::ProductProcessorFactory;
 use super::selection::factory::SelectionProcessorFactory;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidQuery;
-use dozer_core::dag::dag::Dag;
-use dozer_core::dag::dag::Endpoint;
-use dozer_core::dag::dag::NodeType;
+use dozer_core::dag::app::AppPipeline;
+use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_core::dag::node::{NodeHandle, PortHandle};
+use dozer_core::dag::node::PortHandle;
 use sqlparser::ast::{Query, Select, SetExpr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
-use std::collections::HashMap;
 use std::sync::Arc;
 
-pub struct PipelineBuilder {
-    namespace: Option<u16>,
-}
+use dozer_core::dag::appsource::AppSourceId;
+
+pub struct PipelineBuilder {}
 
 impl PipelineBuilder {
+    pub fn build_pipeline(&self, sql: &str) -> Result<AppPipeline, PipelineError> {
+        let statement = get_statement(sql);
+        let query = get_query(statement)?;
+        self.select_to_pipeline(*query)
+    }
     pub fn statement_to_pipeline(
         &self,
         statement: Statement,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
+    ) -> Result<AppPipeline, PipelineError> {
         match statement {
             Statement::Query(query) => self.query_to_pipeline(*query),
             _ => Err(InvalidQuery(statement.to_string())),
         }
     }
 
-    pub fn query_to_pipeline(
-        &self,
-        query: Query,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
+    pub fn query_to_pipeline(&self, query: Query) -> Result<AppPipeline, PipelineError> {
         self.set_expr_to_pipeline(*query.body)
     }
 
-    fn set_expr_to_pipeline(
-        &self,
-        set_expr: SetExpr,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
+    fn set_expr_to_pipeline(&self, set_expr: SetExpr) -> Result<AppPipeline, PipelineError> {
         match set_expr {
             SetExpr::Select(s) => self.select_to_pipeline(*s),
             SetExpr::Query(q) => self.query_to_pipeline(*q),
@@ -48,11 +45,8 @@ impl PipelineBuilder {
         }
     }
 
-    fn select_to_pipeline(
-        &self,
-        select: Select,
-    ) -> Result<(Dag, HashMap<String, Endpoint>, Endpoint), PipelineError> {
-        let mut dag = Dag::new();
+    fn select_to_pipeline(&self, select: Select) -> Result<AppPipeline, PipelineError> {
+        let mut pipeline = AppPipeline::new();
 
         // FROM clause
         if select.from.len() != 1 {
@@ -62,99 +56,61 @@ impl PipelineBuilder {
         }
         let product = ProductProcessorFactory::new(select.from[0].clone());
         let input_tables = get_input_tables(&select.from[0])?;
-        let input_endpoints =
-            self.get_input_endpoints(self.namespace, String::from("product"), &input_tables)?;
+        let input_endpoints = self.get_input_endpoints(&input_tables)?;
 
-        dag.add_node(
-            NodeType::Processor(Arc::new(product)),
-            NodeHandle::new(self.namespace, String::from("product")),
-        );
+        pipeline.add_processor(Arc::new(product), "product", input_endpoints);
 
         let aggregation =
             AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
 
-        dag.add_node(
-            NodeType::Processor(Arc::new(aggregation)),
-            NodeHandle::new(self.namespace, String::from("aggregation")),
-        );
+        pipeline.add_processor(Arc::new(aggregation), "aggregation", vec![]);
 
         // Where clause
         if let Some(selection) = select.selection {
             let selection = SelectionProcessorFactory::new(selection);
             // first_node_name = String::from("selection");
 
-            dag.add_node(
-                NodeType::Processor(Arc::new(selection)),
-                NodeHandle::new(self.namespace, String::from("selection")),
-            );
+            pipeline.add_processor(Arc::new(selection), "selection", vec![]);
 
-            let _ = dag.connect(
-                Endpoint::new(
-                    NodeHandle::new(self.namespace, String::from("product")),
-                    DEFAULT_PORT_HANDLE,
-                ),
-                Endpoint::new(
-                    NodeHandle::new(self.namespace, String::from("selection")),
-                    DEFAULT_PORT_HANDLE,
-                ),
-            );
+            pipeline.connect_nodes(
+                "product",
+                Some(DEFAULT_PORT_HANDLE),
+                "selection",
+                Some(DEFAULT_PORT_HANDLE),
+            )?;
 
-            let _ = dag.connect(
-                Endpoint::new(
-                    NodeHandle::new(self.namespace, String::from("selection")),
-                    DEFAULT_PORT_HANDLE,
-                ),
-                Endpoint::new(
-                    NodeHandle::new(self.namespace, String::from("aggregation")),
-                    DEFAULT_PORT_HANDLE,
-                ),
-            );
+            pipeline.connect_nodes(
+                "selection",
+                Some(DEFAULT_PORT_HANDLE),
+                "aggregation",
+                Some(DEFAULT_PORT_HANDLE),
+            )?;
         } else {
-            let _ = dag.connect(
-                Endpoint::new(
-                    NodeHandle::new(self.namespace, String::from("product")),
-                    DEFAULT_PORT_HANDLE,
-                ),
-                Endpoint::new(
-                    NodeHandle::new(self.namespace, String::from("aggregation")),
-                    DEFAULT_PORT_HANDLE,
-                ),
-            );
+            pipeline.connect_nodes(
+                "product",
+                Some(DEFAULT_PORT_HANDLE),
+                "aggregation",
+                Some(DEFAULT_PORT_HANDLE),
+            )?;
         }
 
-        Ok((
-            dag,
-            input_endpoints,
-            Endpoint::new(
-                NodeHandle::new(self.namespace, String::from("aggregation")),
-                DEFAULT_PORT_HANDLE,
-            ),
-        ))
+        Ok(pipeline)
     }
 
     fn get_input_endpoints(
         &self,
-        namespace: Option<u16>,
-        node_name: String,
         input_tables: &[String],
-    ) -> Result<HashMap<String, Endpoint>, PipelineError> {
-        let mut endpoints = HashMap::new();
+    ) -> Result<Vec<PipelineEntryPoint>, PipelineError> {
+        let mut endpoints = vec![];
 
         for (input_port, table) in input_tables.iter().enumerate() {
-            endpoints.insert(
-                table.clone(),
-                Endpoint::new(
-                    NodeHandle::new(namespace, node_name.clone()),
-                    input_port as PortHandle,
-                ),
-            );
+            endpoints.push(PipelineEntryPoint::new(
+                AppSourceId::new(table.clone(), None),
+                input_port as PortHandle,
+            ));
         }
 
         Ok(endpoints)
-    }
-
-    pub fn new(namespace: Option<u16>) -> Self {
-        Self { namespace }
     }
 }
 

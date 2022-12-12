@@ -101,20 +101,12 @@ impl Executor {
         let running_wait = self.running.clone();
 
         for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
-            let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
-
             let api_endpoint = cache_endpoint.endpoint;
             let _api_endpoint_name = api_endpoint.name.clone();
             let cache = cache_endpoint.cache;
 
-            let ast = Parser::parse_sql(&dialect, &api_endpoint.sql).unwrap();
-
-            let statement: &Statement = &ast[0];
-
-            let builder = PipelineBuilder::new(Some(idx as u16));
-
-            let (dag, in_handle, out_handle) = builder
-                .statement_to_pipeline(statement.clone())
+            let pipeline = PipelineBuilder {}
+                .build_pipeline(&api_endpoint.sql)
                 .map_err(OrchestrationError::SqlStatementFailed)?;
 
             parent_dag.merge(Some(idx as u16), dag);

@@ -1,6 +1,8 @@
 use crate::pipeline::builder::PipelineBuilder;
+use dozer_core::dag::app::App;
+use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::{Endpoint, NodeType, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::{
@@ -12,9 +14,7 @@ use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
-use sqlparser::ast::Statement;
-use sqlparser::dialect::GenericDialect;
-use sqlparser::parser::Parser;
+
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
@@ -155,49 +155,40 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT SUM(Spending), Country \
-                            FROM Users \
-                            WHERE Spending >= 1 GROUP BY Country";
+    let mut pipeline = PipelineBuilder {}
+        .build_pipeline(
+            "SELECT COUNT(Spending), Country \
+                FROM Users \
+                WHERE Spending >= 1",
+        )
+        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
 
-    let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+    let mut asm = AppSourceManager::new();
+    asm.add(AppSource::new(
+        "mem".to_string(),
+        Arc::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
+            .into_iter()
+            .collect(),
+    ));
 
-    let ast = Parser::parse_sql(&dialect, sql).unwrap();
-
-    let statement: &Statement = &ast[0];
-
-    let builder = PipelineBuilder::new(Some(1));
-    let (mut dag, mut in_handle, out_handle) =
-        builder.statement_to_pipeline(statement.clone()).unwrap();
-
-    let source = TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
-    let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
-
-    dag.add_node(
-        NodeType::Source(Arc::new(source)),
-        NodeHandle::new(Some(1), String::from("source")),
+    pipeline.add_sink(
+        Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        "sink",
     );
-    dag.add_node(
-        NodeType::Sink(Arc::new(sink)),
-        NodeHandle::new(Some(1), String::from("sink")),
-    );
+    pipeline
+        .connect_nodes(
+            "aggregation",
+            Some(DEFAULT_PORT_HANDLE),
+            "sink",
+            Some(DEFAULT_PORT_HANDLE),
+        )
+        .unwrap();
 
-    let input_point = in_handle.remove("users").unwrap();
+    let mut app = App::new(asm);
+    app.add_pipeline(pipeline);
 
-    let _source_to_input = dag.connect(
-        Endpoint::new(
-            NodeHandle::new(Some(1), String::from("source")),
-            DEFAULT_PORT_HANDLE,
-        ),
-        Endpoint::new(input_point.node, input_point.port),
-    );
-
-    let _output_to_sink = dag.connect(
-        Endpoint::new(out_handle.node, out_handle.port),
-        Endpoint::new(
-            NodeHandle::new(Some(1), String::from("sink")),
-            DEFAULT_PORT_HANDLE,
-        ),
-    );
+    let dag = app.get_dag().unwrap();
 
     let tmp_dir = TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
     if tmp_dir.path().exists() {
