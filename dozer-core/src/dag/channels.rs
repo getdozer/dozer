@@ -5,7 +5,13 @@ use core::result::Result;
 use dozer_types::types::Operation;
 
 pub trait SourceChannelForwarder: Send + Sync {
-    fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError>;
+    fn send(
+        &mut self,
+        txid: u64,
+        seq_in_tx: u64,
+        op: Operation,
+        port: PortHandle,
+    ) -> Result<(), ExecutionError>;
 }
 
 pub trait ProcessorChannelForwarder {

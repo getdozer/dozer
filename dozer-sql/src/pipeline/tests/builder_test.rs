@@ -78,6 +78,7 @@ impl Source for TestSource {
         for n in 0..10000 {
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -137,7 +138,8 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _seq: u64,
+        _txid: u64,
+        _seq_in_tx: u64,
         _op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,

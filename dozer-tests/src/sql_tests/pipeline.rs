@@ -83,7 +83,7 @@ impl Source for TestSource {
         let mut idx = 0;
         for op in self.ops.iter().cloned() {
             idx += 1;
-            fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
+            fw.send(idx, 0, op, DEFAULT_PORT_HANDLE).unwrap();
         }
         self.term_latch.recv_timeout(Duration::from_secs(2));
         Ok(())
@@ -185,7 +185,8 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _seq: u64,
+        _txid: u64,
+        _seq_in_tx: u64,
         op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,

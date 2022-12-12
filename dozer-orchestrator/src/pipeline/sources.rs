@@ -124,7 +124,7 @@ impl Source for ConnectorSource {
                             .get(&schema_id)
                             .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
                             .unwrap();
-                        fw.send(op.seq_no, op.operation.to_owned(), port.to_owned())?
+                        fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
                     }
                     (_, IngestionOperation::SchemaUpdate(table_name, schema)) => {
                         let schema_id = get_schema_id(schema.identifier.as_ref())?;

@@ -71,6 +71,7 @@ impl Source for GeneratorSource {
         for n in 1..(self.count + 1) {
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -160,6 +161,7 @@ impl Source for DualPortGeneratorSource {
         for n in 1..(self.count + 1) {
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -173,6 +175,7 @@ impl Source for DualPortGeneratorSource {
             )?;
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
