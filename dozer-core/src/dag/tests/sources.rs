@@ -66,11 +66,12 @@ impl Source for GeneratorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -155,11 +156,12 @@ impl Source for DualPortGeneratorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -173,6 +175,7 @@ impl Source for DualPortGeneratorSource {
             )?;
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,

@@ -346,7 +346,7 @@ impl Source for ErrGeneratorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
@@ -357,6 +357,7 @@ impl Source for ErrGeneratorSource {
 
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -485,7 +486,8 @@ impl Sink for ErrSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _seq: u64,
+        _txid: u64,
+        _seq_in_tx: u64,
         _op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,

@@ -10,7 +10,7 @@ use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_sql::pipeline::builder::PipelineBuilder;
-use dozer_types::crossbeam::channel::{bounded, unbounded, Receiver, Sender};
+use dozer_types::crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
@@ -20,7 +20,7 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 
 use std::sync::{Arc, Mutex};
-use std::thread;
+
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -78,12 +78,12 @@ impl Source for TestSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut idx = 0;
         for op in self.ops.iter().cloned() {
             idx += 1;
-            fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
+            fw.send(idx, 0, op, DEFAULT_PORT_HANDLE).unwrap();
         }
         self.term_latch.recv_timeout(Duration::from_secs(2));
         Ok(())
@@ -185,7 +185,8 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _seq: u64,
+        _txid: u64,
+        _seq_in_tx: u64,
         op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
