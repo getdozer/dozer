@@ -1,14 +1,13 @@
 use super::internal_grpc::{
-    self, internal_pipeline_service_client::InternalPipelineServiceClient,
-    internal_pipeline_service_server::InternalPipelineService, GetConfigRequest, GetConfigResponse,
-    PipelineRequest, PipelineResponse,
+    internal_pipeline_service_client::InternalPipelineServiceClient,
+    internal_pipeline_service_server::{self, InternalPipelineService},
+    GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, PipelineResponse,
 };
 use crossbeam::channel::Receiver;
 use dozer_types::{
     crossbeam::channel::Sender,
     log::{self, debug},
     models::{api_config::ApiInternal, app_config::Config},
-    serde_yaml,
 };
 use log::warn;
 use std::{net::ToSocketAddrs, thread, time::Duration};
@@ -52,11 +51,11 @@ impl InternalPipelineService for InternalServer {
     }
     async fn get_config(
         &self,
-        _request: tonic::Request<GetConfigRequest>,
-    ) -> Result<tonic::Response<GetConfigResponse>, tonic::Status> {
-        let config_yaml = serde_yaml::to_string(&self.app_config)
-            .map_err(|err| tonic::Status::internal(err.to_string()))?;
-        Ok(Response::new(GetConfigResponse { config_yaml }))
+        _request: tonic::Request<GetAppConfigRequest>,
+    ) -> Result<tonic::Response<GetAppConfigResponse>, tonic::Status> {
+        Ok(Response::new(GetAppConfigResponse {
+            data: Some(self.app_config.to_owned()),
+        }))
     }
 }
 
@@ -77,11 +76,7 @@ pub async fn start_internal_server(
         .to_socket_addrs()
         .unwrap();
     Server::builder()
-        .add_service(
-            internal_grpc::internal_pipeline_service_server::InternalPipelineServiceServer::new(
-                server,
-            ),
-        )
+        .add_service(internal_pipeline_service_server::InternalPipelineServiceServer::new(server))
         .serve(addr.next().unwrap())
         .await
 }

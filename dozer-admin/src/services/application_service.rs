@@ -1,7 +1,12 @@
-use dozer_types::{models::app_config::Config, serde_yaml};
+use dozer_types::{
+    models::{
+        api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::Config, source::Source,
+    },
+    serde_yaml,
+};
 
 use crate::{
-    db::{application::AppDbService, pool::DbPool},
+    db::{application::AppDbService, persistable::Persistable, pool::DbPool},
     server::dozer_admin_grpc::{
         ApplicationInfo, CreateAppRequest, CreateAppResponse, ErrorResponse, GetAppRequest,
         GetAppResponse, ListAppRequest, ListAppResponse, Pagination, StartPipelineRequest,
@@ -20,8 +25,51 @@ impl AppService {
     }
 }
 impl AppService {
-    pub fn get_app(&self, _input: GetAppRequest) -> Result<GetAppResponse, ErrorResponse> {
-        todo!()
+    pub fn get_app(&self, input: GetAppRequest) -> Result<GetAppResponse, ErrorResponse> {
+        if let Some(app_id) = input.app_id {
+            let app_by_id =
+                AppDbService::by_id(self.db_pool.clone(), app_id.to_owned()).map_err(|err| {
+                    ErrorResponse {
+                        message: err.to_string(),
+                    }
+                })?;
+            let api_config =
+                ApiConfig::by_id(self.db_pool.clone(), app_by_id.id, app_id.to_owned()).map_err(
+                    |err| ErrorResponse {
+                        message: err.to_string(),
+                    },
+                )?;
+            let sources = Source::list(self.db_pool.clone(), app_id.to_owned(), None, None)
+                .map_err(|err| ErrorResponse {
+                    message: err.to_string(),
+                })?;
+            let endpoints = ApiEndpoint::list(self.db_pool.clone(), app_id.to_owned(), None, None)
+                .map_err(|err| ErrorResponse {
+                    message: err.to_string(),
+                })?;
+            let connections = dozer_types::models::connection::Connection::list(
+                self.db_pool.clone(),
+                app_id.to_owned(),
+                None,
+                None,
+            )
+            .map_err(|err| ErrorResponse {
+                message: err.to_string(),
+            })?;
+            Ok(GetAppResponse {
+                data: Some(Config {
+                    id: Some(app_id.to_owned()),
+                    app_name: app_by_id.name,
+                    api: Some(api_config),
+                    connections: connections.0,
+                    sources: sources.0,
+                    endpoints: endpoints.0,
+                }),
+            })
+        } else {
+            // get default app
+            todo!()
+        }
     }
     pub fn create(&self, input: CreateAppRequest) -> Result<CreateAppResponse, ErrorResponse> {
         let app_info = ApplicationInfo {

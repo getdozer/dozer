@@ -78,9 +78,13 @@ impl DozerAdmin for GrpcService {
 
     async fn get_application(
         &self,
-        _request: tonic::Request<GetAppRequest>,
+        request: tonic::Request<GetAppRequest>,
     ) -> Result<tonic::Response<GetAppResponse>, tonic::Status> {
-        todo!()
+        let result = self.app_service.get_app(request.into_inner());
+        match result {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => Err(Status::new(tonic::Code::Internal, e.message)),
+        }
     }
 
     async fn validate_connection(

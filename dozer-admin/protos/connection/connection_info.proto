@@ -16,5 +16,4 @@ message ConnectionInfo {
   string app_id = 7;
   DBType db_type = 8;
   string name = 9;
-  
 }
