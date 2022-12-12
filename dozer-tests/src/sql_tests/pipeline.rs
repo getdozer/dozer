@@ -18,6 +18,7 @@ use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
+
 use std::sync::{Arc, Mutex};
 
 use std::time::Duration;

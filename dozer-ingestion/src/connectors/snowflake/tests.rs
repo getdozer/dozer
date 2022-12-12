@@ -4,6 +4,7 @@ use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::source::Source;
+use dozer_types::serde_yaml;
 use dozer_types::types::FieldType::{
     Binary, Boolean, Date, Decimal, Float, Int, String, Timestamp,
 };
