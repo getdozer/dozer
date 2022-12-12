@@ -154,7 +154,7 @@ mod tests {
             let value = convert_value(
                 Value::from($a),
                 &&DebeziumSchemaStruct {
-                    r#type: $b.to_string().parse().unwrap(),
+                    r#type: Value::String($b.to_string()),
                     fields: None,
                     optional: Some(false),
                     name: $c,
@@ -172,7 +172,7 @@ mod tests {
             let actual_error = convert_value(
                 Value::from($a),
                 &&DebeziumSchemaStruct {
-                    r#type: $b.to_string().parse().unwrap(),
+                    r#type: Value::String($b.to_string()),
                     fields: None,
                     optional: Some(false),
                     name: $c,
