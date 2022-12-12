@@ -12,7 +12,7 @@ pub trait SchemaFetcher {
     fn get_schema(
         table_names: Option<Vec<TableInfo>>,
         config: KafkaConfig,
-    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError>;
+    ) -> Result<Vec<(String, Schema)>, ConnectorError>;
 }
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
@@ -112,12 +112,13 @@ mod tests {
     use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
     use crate::errors::DebeziumSchemaError::SchemaDefinitionNotFound;
     use crate::errors::DebeziumSchemaError::TypeNotSupported;
+    use dozer_types::serde_json::Value;
     use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 
     #[test]
     fn test_it_fails_when_schema_empty() {
         let schema = DebeziumSchemaStruct {
-            r#type: "empty".to_string().parse().unwrap(),
+            r#type: Value::String("empty".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
@@ -127,7 +128,7 @@ mod tests {
         };
 
         let key_schema = DebeziumSchemaStruct {
-            r#type: "before".to_string().parse().unwrap(),
+            r#type: Value::String("before".to_string()),
             fields: None,
             optional: Some(false),
             name: None,
@@ -143,12 +144,12 @@ mod tests {
     #[test]
     fn test_it_converts_schema() {
         let schema = DebeziumSchemaStruct {
-            r#type: "empty".to_string().parse().unwrap(),
+            r#type: Value::String("empty".to_string()),
             fields: Some(vec![DebeziumSchemaStruct {
-                r#type: "after".to_string().parse().unwrap(),
+                r#type: Value::String("after".to_string()),
                 fields: Some(vec![
                     DebeziumSchemaStruct {
-                        r#type: "int32".to_string().parse().unwrap(),
+                        r#type: Value::String("int32".to_string()),
                         fields: None,
                         optional: Some(false),
                         name: None,
@@ -157,7 +158,7 @@ mod tests {
                         parameters: None,
                     },
                     DebeziumSchemaStruct {
-                        r#type: "string".to_string().parse().unwrap(),
+                        r#type: Value::String("string".to_string()),
                         fields: None,
                         optional: Some(true),
                         name: None,
@@ -180,9 +181,9 @@ mod tests {
         };
 
         let key_schema = DebeziumSchemaStruct {
-            r#type: "-".to_string().parse().unwrap(),
+            r#type: Value::String("-".to_string()),
             fields: Some(vec![DebeziumSchemaStruct {
-                r#type: "int32".to_string().parse().unwrap(),
+                r#type: Value::String("int32".to_string()),
                 fields: None,
                 optional: Some(false),
                 name: None,
@@ -221,9 +222,9 @@ mod tests {
     #[test]
     fn test_it_converts_empty_schema() {
         let schema = DebeziumSchemaStruct {
-            r#type: "empty".to_string().parse().unwrap(),
+            r#type: Value::String("empty".to_string()),
             fields: Some(vec![DebeziumSchemaStruct {
-                r#type: "after".to_string().parse().unwrap(),
+                r#type: Value::String("after".to_string()),
                 fields: None,
                 optional: Some(false),
                 name: None,
@@ -239,7 +240,7 @@ mod tests {
         };
 
         let key_schema = DebeziumSchemaStruct {
-            r#type: "-".to_string().parse().unwrap(),
+            r#type: Value::String("-".to_string()),
             fields: Some(vec![]),
             optional: Some(false),
             name: None,
@@ -261,7 +262,7 @@ mod tests {
     macro_rules! test_map_type {
         ($a:expr,$b:expr,$c:expr) => {
             let schema = DebeziumSchemaStruct {
-                r#type: $a.to_string().parse().unwrap(),
+                r#type: Value::String($a.to_string()),
                 fields: None,
                 optional: Some(false),
                 name: $b,
