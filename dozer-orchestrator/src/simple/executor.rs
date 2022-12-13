@@ -179,8 +179,9 @@ impl Executor {
 
         let path = self.home_dir.join("pipeline");
         fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
+        let mut exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
 
+        exec.start()?;
         // Waiting for Ctrl+C
         while running_wait.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(200));
