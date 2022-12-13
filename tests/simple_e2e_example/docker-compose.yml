@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   postgres:
-    container_name: users-postgres
+    container_name: users-postgres-sample
     image: debezium/postgres:13
     volumes:
       - ./pg_hba.conf:/var/lib/foo/pg_hba.conf

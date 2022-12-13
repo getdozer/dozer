@@ -23,10 +23,10 @@ CREATE UNIQUE INDEX email_index
 
 ALTER SEQUENCE users_id_seq
     OWNED BY users.id;
-
 ```
 
 ## Run
 
-cd scripts/tests/src/films
+```bash
 docker-compose up --build
+```
