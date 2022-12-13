@@ -496,8 +496,8 @@ impl AggregationProcessor {
                     Ok(vec![self.agg_update(txn, db, old, new, old_record_hash)?])
                 } else {
                     Ok(vec![
-                        self.agg_insert(txn, db, new)?,
                         self.agg_delete(txn, db, old)?,
+                        self.agg_insert(txn, db, new)?,
                     ])
                 }
             }
@@ -546,8 +546,8 @@ impl Processor for AggregationProcessor {
         match &self.db {
             Some(d) => {
                 let ops = internal_err!(self.aggregate(txn, d, op))?;
-                for op in ops {
-                    fw.send(op, DEFAULT_PORT_HANDLE)?;
+                for fop in ops {
+                    fw.send(fop, DEFAULT_PORT_HANDLE)?;
                 }
                 Ok(())
             }
