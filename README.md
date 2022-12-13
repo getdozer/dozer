@@ -41,7 +41,7 @@ Using binary
 
 curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash
 cd dozer
-dozer run
+./dozer
 ```
 
 Using docker
