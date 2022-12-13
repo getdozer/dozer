@@ -88,25 +88,30 @@ fn query_secondary_vars() {
         (5, Some("steff".to_string()), Some(526)),
         (6, Some("mega".to_string()), Some(527)),
         (7, Some("james".to_string()), Some(528)),
+        (8, Some("ava".to_string()), None),
     ];
     // 26 alphabets
     for val in items {
         utils::insert_rec_1(&cache, &schema, val);
     }
 
-    test_query(json!({}), 7, &cache);
+    test_query(json!({}), 8, &cache);
 
     test_query(
         json!({
             "$order_by": { "c": "desc" }
         }),
-        7,
+        8,
         &cache,
     );
 
     test_query(json!({"$filter":{ "a": {"$eq": 1}}}), 1, &cache);
 
+    test_query(json!({"$filter":{ "a": {"$eq": null}}}), 0, &cache);
+
     test_query(json!({"$filter":{ "c": {"$eq": 521}}}), 2, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$eq": null}}}), 1, &cache);
 
     test_query(
         json!({"$filter":{ "a": 1, "b": "yuri".to_string()}}),
