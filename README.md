@@ -37,14 +37,14 @@ Download the latest stable binary or source code for a quick start.<br>
 Check out our latest release details here: https://github.com/getdozer/dozer/releases/latest
 
 
-Using binary
+#### Using binary
 ```bash
 curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash
 cd dozer
 ./dozer
 ```
 
-Using docker
+#### Using docker
 ```bash
 curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash -s -- -d
 cd dozer
