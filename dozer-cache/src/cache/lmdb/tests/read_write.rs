@@ -27,10 +27,11 @@ fn read_and_write() {
     cache_writer
         .insert_schema("sample", &schema, &secondary_indexes)
         .unwrap();
-    let items: Vec<(i64, String, i64)> = vec![
-        (1, "a".to_string(), 521),
-        (2, "a".to_string(), 521),
-        (3, "a".to_string(), 521),
+    let items = vec![
+        (1, Some("a".to_string()), Some(521)),
+        (2, Some("a".to_string()), None),
+        (3, None, Some(521)),
+        (4, None, None),
     ];
 
     for val in items.clone() {
@@ -47,7 +48,11 @@ fn read_and_write() {
     let cache_reader = LmdbCache::new(read_options).unwrap();
     for (a, b, c) in items {
         let rec = cache_reader.get(&Field::Int(a).encode()).unwrap();
-        let values = vec![Field::Int(a), Field::String(b), Field::Int(c)];
+        let values = vec![
+            Field::Int(a),
+            b.map_or(Field::Null, Field::String),
+            c.map_or(Field::Null, Field::Int),
+        ];
         assert_eq!(rec.values, values, "should be equal");
     }
 }

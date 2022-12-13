@@ -205,6 +205,44 @@ mod tests {
         check(Field::Bson(vec![1]), Field::Bson(vec![2]), Greater);
         check(Field::Bson(vec![1]), Field::Bson(vec![1]), Equal);
         check(Field::Bson(vec![1]), Field::Bson(vec![0]), Less);
+        check(Field::Int(0), Field::Null, Greater);
+        check(Field::Null, Field::Int(0), Less);
+        check(Field::UInt(0), Field::Null, Greater);
+        check(Field::Null, Field::UInt(0), Less);
+        check(Field::Float(OrderedFloat(0.0)), Field::Null, Greater);
+        check(Field::Null, Field::Float(OrderedFloat(0.0)), Less);
+        check(Field::Boolean(false), Field::Null, Greater);
+        check(Field::Null, Field::Boolean(false), Less);
+        check(Field::String("".to_string()), Field::Null, Greater);
+        check(Field::Null, Field::String("".to_string()), Less);
+        check(Field::Text("".to_string()), Field::Null, Greater);
+        check(Field::Null, Field::Text("".to_string()), Less);
+        check(Field::Binary(vec![]), Field::Null, Greater);
+        check(Field::Null, Field::Binary(vec![]), Less);
+        check(Field::Decimal(Decimal::new(0, 1)), Field::Null, Greater);
+        check(Field::Null, Field::Decimal(Decimal::new(0, 1)), Less);
+        check(
+            Field::Timestamp(DateTime::from(Utc.timestamp_millis(0))),
+            Field::Null,
+            Greater,
+        );
+        check(
+            Field::Null,
+            Field::Timestamp(DateTime::from(Utc.timestamp_millis(0))),
+            Less,
+        );
+        check(
+            Field::Date(NaiveDate::from_ymd(2020, 1, 1)),
+            Field::Null,
+            Greater,
+        );
+        check(
+            Field::Null,
+            Field::Date(NaiveDate::from_ymd(2020, 1, 1)),
+            Less,
+        );
+        check(Field::Bson(vec![0]), Field::Null, Greater);
+        check(Field::Null, Field::Bson(vec![0]), Less);
         check(Field::Null, Field::Null, Equal);
     }
 
@@ -424,14 +462,20 @@ mod tests {
     #[test]
     fn test_set_sorted_inverted_comparator() {
         let check_single_asc = get_single_key_checker(SortDirection::Ascending);
-        check_single_asc(1, 1, Equal);
-        check_single_asc(1, 2, Less);
-        check_single_asc(2, 1, Greater);
+        check_single_asc(Some(1), Some(1), Equal);
+        check_single_asc(Some(1), Some(2), Less);
+        check_single_asc(Some(2), Some(1), Greater);
+        check_single_asc(Some(1), None, Less);
+        check_single_asc(None, Some(1), Greater);
+        check_single_asc(None, None, Equal);
 
         let check_single_desc = get_single_key_checker(SortDirection::Descending);
-        check_single_desc(1, 1, Equal);
-        check_single_desc(1, 2, Greater);
-        check_single_desc(2, 1, Less);
+        check_single_desc(Some(1), Some(1), Equal);
+        check_single_desc(Some(1), Some(2), Greater);
+        check_single_desc(Some(2), Some(1), Less);
+        check_single_desc(Some(1), None, Greater);
+        check_single_desc(None, Some(1), Less);
+        check_single_desc(None, None, Equal);
 
         let check_composite =
             get_composite_key_checker(&[SortDirection::Descending, SortDirection::Ascending]);
@@ -447,10 +491,14 @@ mod tests {
         (env, db)
     }
 
-    fn get_single_key_checker(direction: SortDirection) -> impl Fn(i64, i64, Ordering) {
+    fn get_single_key_checker(
+        direction: SortDirection,
+    ) -> impl Fn(Option<i64>, Option<i64>, Ordering) {
         let (env, db) = setup(&[direction]);
-        move |a: i64, b: i64, expected: Ordering| {
-            let serialize = |a| get_secondary_index(&[(&Field::Int(a), direction)], true);
+        move |a: Option<i64>, b: Option<i64>, expected: Ordering| {
+            let serialize = |a: Option<i64>| {
+                get_secondary_index(&[(&a.map_or(Field::Null, Field::Int), direction)], true)
+            };
             let a = serialize(a);
             let b = serialize(b);
             let a = MDB_val {
@@ -463,8 +511,8 @@ mod tests {
             };
             let txn = env.begin_ro_txn().unwrap();
             assert_eq!(
-                unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) },
-                expected as i32
+                unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) }.cmp(&0),
+                expected
             );
         }
     }
@@ -494,9 +542,47 @@ mod tests {
             };
             let txn = env.begin_ro_txn().unwrap();
             assert_eq!(
-                unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) },
-                expected as i32
+                unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) }.cmp(&0),
+                expected
             );
+        }
+    }
+
+    #[test]
+    fn null_is_greater_than_other_thing() {
+        let (env, db) = setup(&[SortDirection::Ascending]);
+        let txn = env.begin_ro_txn().unwrap();
+        let check = |field: &Field| {
+            let serialize = |a| get_secondary_index(&[(a, SortDirection::Ascending)], true);
+            let a = serialize(field);
+            let b = serialize(&Field::Null);
+            let a = MDB_val {
+                mv_size: a.len() as _,
+                mv_data: a.as_ptr() as *mut _,
+            };
+            let b = MDB_val {
+                mv_size: b.len() as _,
+                mv_data: b.as_ptr() as *mut _,
+            };
+            assert!(unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) } < 0);
+            assert_eq!(field.cmp(&Field::Null), Ordering::Less);
+        };
+
+        let test_cases = [
+            Field::UInt(u64::MAX),
+            Field::Int(i64::MAX),
+            Field::Float(OrderedFloat(f64::MAX)),
+            Field::Boolean(true),
+            Field::String("a".to_string()),
+            Field::Text("a".to_string()),
+            Field::Binary(vec![255]),
+            Field::Decimal(Decimal::new(i64::MAX, 0)),
+            Field::Timestamp(DateTime::from(Utc.timestamp_millis(1))),
+            Field::Date(NaiveDate::from_ymd(2020, 1, 2)),
+            Field::Bson(vec![255]),
+        ];
+        for a in test_cases.iter() {
+            check(a);
         }
     }
 }
