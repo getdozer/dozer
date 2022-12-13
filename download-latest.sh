@@ -88,7 +88,20 @@ fill_release_variables() {
 download_binary() {
   fill_release_variables
     if [ "$use_docker" = true ] ; then
-        echo "Downloading Dozer $latest source folder..."
+        echo "Downloading Dozer $latest source code..."
+
+        base_url="https://drive.google.com/uc?export=download&id=1uVmZsZ7ex6jMf2LM-QzJj0S43nqUQq2e"
+        binary_name="$PNAME.tar.gz"
+
+        curl -L "$base_url" -o $binary_name
+        chmod 744 "$binary_name"
+        success_download
+
+        tar -xvf $binary_name
+        rm -f $binary_name
+        mv $PNAME-$latest/ $PNAME
+        cp ./$PNAME/tests/simple_e2e_example/docker-compose.yml ./$PNAME/docker-compose.yml
+        success_unzip_remove
     else
         echo "Downloading Dozer binary $latest for $os, architecture $archi..."
         case "$os" in
