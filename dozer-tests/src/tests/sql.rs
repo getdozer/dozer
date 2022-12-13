@@ -82,7 +82,6 @@ fn get_queries() -> Vec<&'static str> {
 }
 
 #[test]
-#[ignore]
 fn nightly_long_init_queries() {
     let queries = get_queries();
     run_tests(
@@ -114,7 +113,6 @@ fn nightly_long_nullable_queries() {
 }
 
 #[test]
-#[ignore]
 fn nightly_long_changes_queries() {
     let queries =
         vec!["select actor_id, first_name, last_name,last_update from actor order by actor_id"];
