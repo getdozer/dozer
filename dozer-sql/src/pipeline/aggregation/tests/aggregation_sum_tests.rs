@@ -601,4 +601,5 @@ fn test_sum_aggregation_decimal_null() {
     out = output!(processor, inp, tx);
     exp = vec![delete_exp(ITALY, &get_decimal_field(0))];
     assert_eq!(out, exp);
+    //
 }
