@@ -44,6 +44,8 @@ pub enum ExecutionError {
     InvalidSourceIdentifier(AppSourceId),
     #[error("Ambiguous source identifier {0}")]
     AmbiguousSourceIdentifier(AppSourceId),
+    #[error("Inconsistent checkpointing data")]
+    InconsistentCheckpointMetadata,
 
     // Error forwarders
     #[error(transparent)]

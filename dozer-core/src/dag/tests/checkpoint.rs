@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tempdir::TempDir;
 
 #[test]
-fn test_checpoint_consistency() {
+fn test_checkpoint_consistency() {
     init_log4rs();
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
@@ -110,5 +110,150 @@ fn test_checpoint_consistency() {
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
+    }
+}
+
+#[test]
+fn test_checkpoint_consistency_resume() {
+    init_log4rs();
+    let mut dag = Dag::new();
+    let latch = Arc::new(CountDownLatch::new(1));
+
+    let source1_handle = NodeHandle::new(Some(1), 1.to_string());
+    let source2_handle = NodeHandle::new(Some(1), 2.to_string());
+    let proc_handle = NodeHandle::new(Some(1), 3.to_string());
+    let sink_handle = NodeHandle::new(Some(1), 4.to_string());
+
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            25_000,
+            latch.clone(),
+            true,
+        ))),
+        source1_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            50_000,
+            latch.clone(),
+            true,
+        ))),
+        source2_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
+        proc_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch))),
+        sink_handle.clone(),
+    );
+
+    chk!(dag.connect(
+        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle.clone(), 1),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle.clone(), 2),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+    ));
+
+    let tmp_dir = chk!(TempDir::new("test"));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    chk!(executor.start());
+    assert!(executor.join().is_ok());
+
+    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
+    let c = r.get_checkpoint_consistency();
+
+    match c.get(&source1_handle).unwrap() {
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(25_000, 0)),
+    }
+
+    match c.get(&source2_handle).unwrap() {
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(50_000, 0)),
+    }
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(CountDownLatch::new(1));
+
+    let source1_handle = NodeHandle::new(Some(1), 1.to_string());
+    let source2_handle = NodeHandle::new(Some(1), 2.to_string());
+    let proc_handle = NodeHandle::new(Some(1), 3.to_string());
+    let sink_handle = NodeHandle::new(Some(1), 4.to_string());
+
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            25_000,
+            latch.clone(),
+            true,
+        ))),
+        source1_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+            50_000,
+            latch.clone(),
+            true,
+        ))),
+        source2_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
+        proc_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch))),
+        sink_handle.clone(),
+    );
+
+    chk!(dag.connect(
+        Endpoint::new(source1_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle.clone(), 1),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new(source2_handle.clone(), GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle.clone(), 2),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle.clone(), COUNTING_SINK_INPUT_PORT),
+    ));
+
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    chk!(executor.start());
+    assert!(executor.join().is_ok());
+
+    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
+    let c = r.get_checkpoint_consistency();
+
+    match c.get(&source1_handle).unwrap() {
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(50_000, 0)),
+    }
+
+    match c.get(&source2_handle).unwrap() {
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(100_000, 0)),
     }
 }
