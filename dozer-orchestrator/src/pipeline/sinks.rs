@@ -283,8 +283,8 @@ impl CacheSink {
 mod tests {
 
     use crate::test_utils;
-
     use dozer_cache::cache::{index, Cache};
+    use dozer_types::types::SortDirection::Ascending;
 
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::Sink;
@@ -292,13 +292,12 @@ mod tests {
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::storage::transactions::SharedTransaction;
     use dozer_types::parking_lot::RwLock;
-    use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
+    use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::sync::Arc;
     use std::{collections::HashMap, thread, time::Duration};
     use tempdir::TempDir;
 
     #[test]
-    #[ignore]
     // This test cases covers updation of records when primary key changes because of value change in primary_key
     fn update_record_when_primary_changes() {
         let tmp_dir = TempDir::new("example").unwrap();
@@ -307,8 +306,23 @@ mod tests {
             Arc::new(RwLock::new(env.create_txn().unwrap()));
 
         let schema = test_utils::get_schema();
+        let secondary_indexes: Vec<IndexDefinition> = schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
+            .collect();
 
-        let (cache, mut sink) = test_utils::init_sink(&schema, vec![]);
+        let (cache, mut sink) = test_utils::init_sink(&schema, secondary_indexes.clone());
+
+        let mut input_schemas = HashMap::new();
+        input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
+        //    sink.update_schema(&input_schemas).unwrap();
+
+        // Initialing schemas
+        cache
+            .insert_schema("films", &schema, &secondary_indexes)
+            .unwrap();
 
         let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
 
@@ -334,9 +348,6 @@ mod tests {
                 values: updated_values.clone(),
             },
         };
-        let mut input_schemas = HashMap::new();
-        input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
-        //    sink.update_schema(&input_schemas).unwrap();
 
         let mut t = SharedTransaction::new(&txn);
         sink.process(
