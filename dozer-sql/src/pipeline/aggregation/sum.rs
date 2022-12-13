@@ -31,8 +31,8 @@ impl SumAggregator {
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        match (return_type, new) {
-            (FieldType::Int, _) => {
+        match return_type {
+            FieldType::Int => {
                 let prev = match cur_state {
                     Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
@@ -40,6 +40,7 @@ impl SumAggregator {
 
                 let curr = match &new {
                     Int(i) => i,
+                    Field::Null => &0_i64,
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }
@@ -51,7 +52,7 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
-            (FieldType::Float, _) => {
+            FieldType::Float => {
                 let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
@@ -59,6 +60,7 @@ impl SumAggregator {
 
                 let curr = match &new {
                     Float(i) => i,
+                    Field::Null => &OrderedFloat(0.0),
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }
@@ -81,8 +83,8 @@ impl SumAggregator {
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        match (return_type, new) {
-            (FieldType::Int, _) => {
+        match return_type {
+            FieldType::Int => {
                 let prev = match cur_state {
                     Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
@@ -90,12 +92,14 @@ impl SumAggregator {
 
                 let curr_del = match &old {
                     Int(i) => i,
+                    Field::Null => &0_i64,
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }
                 };
                 let curr_added = match &new {
                     Int(i) => i,
+                    Field::Null => &0_i64,
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }
@@ -107,7 +111,7 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
-            (FieldType::Float, _) => {
+            FieldType::Float => {
                 let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
@@ -115,12 +119,14 @@ impl SumAggregator {
 
                 let curr_del = match &old {
                     Float(i) => i,
+                    Field::Null => &OrderedFloat(0.0),
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }
                 };
                 let curr_added = match &new {
                     Float(i) => i,
+                    Field::Null => &OrderedFloat(0.0),
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }
@@ -142,8 +148,8 @@ impl SumAggregator {
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        match (return_type, old) {
-            (FieldType::Int, _) => {
+        match return_type {
+            FieldType::Int => {
                 let prev = match cur_state {
                     Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
@@ -151,6 +157,7 @@ impl SumAggregator {
 
                 let curr = match &old {
                     Int(i) => i,
+                    Field::Null => &0_i64,
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }
@@ -162,7 +169,7 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
-            (FieldType::Float, _) => {
+            FieldType::Float => {
                 let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
@@ -170,6 +177,7 @@ impl SumAggregator {
 
                 let curr = match &old {
                     Float(i) => i,
+                    Field::Null => &OrderedFloat(0.0),
                     _ => {
                         return Err(InvalidOperandType("SUM".to_string()));
                     }

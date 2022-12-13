@@ -213,6 +213,7 @@ pub const DATE16: &str = "2015-10-16";
 
 pub const FIELD_NULL: &Field = &Field::Null;
 
+pub const FIELD_0_FLOAT: &Field = &Field::Float(OrderedFloat(0.0));
 pub const FIELD_100_FLOAT: &Field = &Field::Float(OrderedFloat(100.0));
 pub const FIELD_150_FLOAT: &Field = &Field::Float(OrderedFloat(150.0));
 pub const FIELD_200_FLOAT: &Field = &Field::Float(OrderedFloat(200.0));

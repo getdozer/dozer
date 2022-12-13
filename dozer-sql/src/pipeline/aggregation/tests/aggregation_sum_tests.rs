@@ -1,9 +1,9 @@
 use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, init_input_schema, init_processor, insert_exp, insert_field,
-    update_exp, update_field, FIELD_100_FLOAT, FIELD_100_INT, FIELD_150_FLOAT, FIELD_150_INT,
-    FIELD_200_FLOAT, FIELD_200_INT, FIELD_250_FLOAT, FIELD_250_INT, FIELD_350_FLOAT, FIELD_350_INT,
-    FIELD_50_FLOAT, FIELD_50_INT, ITALY, SINGAPORE,
+    update_exp, update_field, FIELD_0_FLOAT, FIELD_0_INT, FIELD_100_FLOAT, FIELD_100_INT,
+    FIELD_150_FLOAT, FIELD_150_INT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_250_FLOAT, FIELD_250_INT,
+    FIELD_350_FLOAT, FIELD_350_INT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_NULL, ITALY, SINGAPORE,
 };
 use dozer_core::{dag::dag::DEFAULT_PORT_HANDLE, storage::transactions::SharedTransaction};
 use dozer_types::types::FieldType::{Float, Int};
@@ -232,5 +232,141 @@ fn test_sum_aggregation_int() {
     inp = delete_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp, tx);
     exp = vec![delete_exp(ITALY, FIELD_100_INT)];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_sum_aggregation_int_null() {
+    let schema = init_input_schema(Int, "SUM");
+    let (processor, tx) = init_processor(
+        "SELECT Country, SUM(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    // Insert NULL for segment Italy
+    /*
+        Italy, NULL
+        -------------
+        SUM = 0
+    */
+    let mut inp = insert_field(ITALY, FIELD_NULL);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, FIELD_0_INT)];
+    assert_eq!(out, exp);
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, NULL
+        Italy, 100
+        -------------
+        SUM = 100
+    */
+    let mut inp = insert_field(ITALY, FIELD_100_INT);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_100_INT)];
+    assert_eq!(out, exp);
+
+    // Update 100 for segment Italy to NULL
+    /*
+        Italy, NULL
+        Italy, NULL
+        -------------
+        SUM = 0
+    */
+    inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_0_INT)];
+    assert_eq!(out, exp);
+
+    // Delete a record
+    /*
+        Italy, NULL
+        -------------
+        SUM = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        SUM = 0.0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, FIELD_0_INT)];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_sum_aggregation_float_null() {
+    let schema = init_input_schema(Float, "SUM");
+    let (processor, tx) = init_processor(
+        "SELECT Country, SUM(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    // Insert NULL for segment Italy
+    /*
+        Italy, NULL
+        -------------
+        SUM = 0
+    */
+    let mut inp = insert_field(ITALY, FIELD_NULL);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, NULL
+        Italy, 100
+        -------------
+        SUM = 100
+    */
+    let mut inp = insert_field(ITALY, FIELD_100_FLOAT);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_100_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Update 100 for segment Italy to NULL
+    /*
+        Italy, NULL
+        Italy, NULL
+        -------------
+        SUM = 0
+    */
+    inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Delete a record
+    /*
+        Italy, NULL
+        -------------
+        SUM = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        SUM = 0.0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, FIELD_0_FLOAT)];
     assert_eq!(out, exp);
 }
