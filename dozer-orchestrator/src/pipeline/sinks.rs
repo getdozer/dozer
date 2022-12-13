@@ -190,7 +190,7 @@ impl Sink for CacheSink {
         // Insert schemas into cache
         for (_, (schema, secondary_indexes)) in self.input_schemas.iter() {
             self.cache
-                .insert_schema(&self.api_endpoint.name, &schema, &secondary_indexes)
+                .insert_schema(&self.api_endpoint.name, schema, secondary_indexes)
                 .map_err(|e| {
                     ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
                 })?;

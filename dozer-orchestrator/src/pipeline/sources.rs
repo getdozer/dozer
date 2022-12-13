@@ -48,8 +48,9 @@ impl ConnectorSourceFactory {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_schema_map(
-        connections: &Vec<Connection>,
+        connections: &[Connection],
         connection_map: &HashMap<String, Vec<TableInfo>>,
         table_map: &HashMap<String, u16>,
     ) -> Result<(HashMap<u16, Schema>, HashMap<u32, u16>), ConnectorError> {
@@ -75,7 +76,7 @@ impl ConnectorSourceFactory {
                     .unwrap();
                 let schema_id = get_schema_id(schema.identifier.as_ref())?;
                 schema_map.insert(port.to_owned(), schema);
-                port_map.insert(schema_id, port.clone());
+                port_map.insert(schema_id, *port);
             }
         }
         Ok((schema_map, port_map))
@@ -152,23 +153,20 @@ impl Source for ConnectorSource {
             // Keep a reference of schema to table mapping
             let msg = self.iterator.write().next();
             if let Some(msg) = msg {
-                match msg {
-                    (_, IngestionOperation::OperationEvent(op)) => {
-                        let identifier = match &op.operation {
-                            Operation::Delete { old } => old.schema_id.to_owned(),
-                            Operation::Insert { new } => new.schema_id.to_owned(),
-                            Operation::Update { old: _, new } => new.schema_id.to_owned(),
-                        };
-                        let schema_id = get_schema_id(identifier.as_ref())
-                            .expect("schema_id not found in process_message");
-                        let port = self
-                            .port_map
-                            .get(&schema_id)
-                            .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
-                            .unwrap();
-                        fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
-                    }
-                    (_, IngestionOperation::SchemaUpdate(_, _)) => {}
+                if let (_, IngestionOperation::OperationEvent(op)) = msg {
+                    let identifier = match &op.operation {
+                        Operation::Delete { old } => old.schema_id.to_owned(),
+                        Operation::Insert { new } => new.schema_id.to_owned(),
+                        Operation::Update { old: _, new } => new.schema_id.to_owned(),
+                    };
+                    let schema_id = get_schema_id(identifier.as_ref())
+                        .expect("schema_id not found in process_message");
+                    let port = self
+                        .port_map
+                        .get(&schema_id)
+                        .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
+                        .unwrap();
+                    fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
                 }
             } else {
                 break;
