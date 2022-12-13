@@ -3,7 +3,7 @@ use serde::{self, Deserialize, Serialize};
 
 mod field;
 
-pub use field::{Field, FieldBorrow, FieldType, DATE_FORMAT};
+pub use field::{field_test_cases, Field, FieldBorrow, FieldType, DATE_FORMAT};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FieldDefinition {
@@ -109,6 +109,21 @@ impl SortDirection {
             SortDirection::Descending => "desc",
         }
     }
+
+    pub fn to_u8(&self) -> u8 {
+        match self {
+            SortDirection::Ascending => 0,
+            SortDirection::Descending => 1,
+        }
+    }
+
+    pub fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(SortDirection::Ascending),
+            1 => Some(SortDirection::Descending),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -157,7 +172,7 @@ impl Record {
         let mut tot_size = 0_usize;
         let mut buffers = Vec::<Vec<u8>>::with_capacity(indexes.len());
         for i in indexes {
-            let bytes = self.values[*i].to_bytes();
+            let bytes = self.values[*i].encode();
             tot_size += bytes.len();
             buffers.push(bytes);
         }
@@ -200,3 +215,6 @@ pub enum Operation {
     Insert { new: Record },
     Update { old: Record, new: Record },
 }
+
+#[cfg(test)]
+pub mod tests;

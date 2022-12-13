@@ -81,29 +81,32 @@ fn test_checpoint_consistency() {
 
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &25_000),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(25_000, 0)),
     }
 
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-        Consistency::FullyConsistent(r) => assert_eq!(r, &50_000),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(50_000, 0)),
     }
 
     LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{}", proc_handle).as_str());
     let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
     let c = r.get_checkpoint_consistency();
 
-    let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
-    expected.insert(25000_u64, vec![source1_handle.clone(), sink_handle.clone()]);
-    expected.insert(0_u64, vec![proc_handle.clone()]);
+    let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
+    expected.insert(
+        (25000_u64, 0),
+        vec![source1_handle.clone(), sink_handle.clone()],
+    );
+    expected.insert((0_u64, 0), vec![proc_handle.clone()]);
     match c.get(&source1_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
     }
 
-    let mut expected: HashMap<u64, Vec<NodeHandle>> = HashMap::new();
-    expected.insert(50000_u64, vec![source2_handle.clone(), sink_handle]);
-    expected.insert(0_u64, vec![proc_handle]);
+    let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
+    expected.insert((50000_u64, 0), vec![source2_handle.clone(), sink_handle]);
+    expected.insert((0_u64, 0), vec![proc_handle]);
     match c.get(&source2_handle).unwrap() {
         Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
         Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),

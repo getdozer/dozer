@@ -9,7 +9,11 @@ use crate::dag::node::{
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
-use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::dag::tests::sources::{
+    DualPortGeneratorSourceFactory, GeneratorSourceFactory,
+    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
+    GENERATOR_SOURCE_OUTPUT_PORT,
+};
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
@@ -189,6 +193,9 @@ fn test_run_dag_and_stop() {
 }
 
 pub(crate) struct NoopJoinProcessorFactory {}
+
+pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
+pub const NOOP_JOIN_RIGHT_INPUT_PORT: u16 = 2;
 
 impl ProcessorFactory for NoopJoinProcessorFactory {
     fn get_output_schema(
@@ -372,4 +379,64 @@ fn test_run_dag_2_sources_stateful() {
 
     chk!(executor.start());
     assert!(executor.join().is_ok());
+}
+
+#[test]
+fn test_run_dag_1_source_2_ports_stateless() {
+    init_log4rs();
+
+    let count: u64 = 50_000;
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(CountDownLatch::new(1));
+
+    let source_handle = NodeHandle::new(None, 1.to_string());
+    let proc_handle = NodeHandle::new(Some(1), 1.to_string());
+    let sink_handle = NodeHandle::new(Some(1), 2.to_string());
+
+    dag.add_node(
+        NodeType::Source(Arc::new(DualPortGeneratorSourceFactory::new(
+            count,
+            latch.clone(),
+            false,
+        ))),
+        source_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Processor(Arc::new(NoopJoinProcessorFactory {})),
+        proc_handle.clone(),
+    );
+    dag.add_node(
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(count * 2, latch))),
+        sink_handle.clone(),
+    );
+
+    chk!(dag.connect(
+        Endpoint::new(
+            source_handle.clone(),
+            DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1
+        ),
+        Endpoint::new(proc_handle.clone(), 1),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new(source_handle, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2),
+        Endpoint::new(proc_handle.clone(), 2),
+    ));
+
+    chk!(dag.connect(
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
+    ));
+
+    let tmp_dir = chk!(TempDir::new("test"));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default()
+    ));
+
+    chk!(executor.start());
+    let r = executor.join();
+    assert!(r.is_ok());
 }

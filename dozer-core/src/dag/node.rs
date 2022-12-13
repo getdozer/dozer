@@ -117,7 +117,7 @@ pub trait Source {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<u64>,
+        from: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -167,7 +167,8 @@ pub trait Sink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        seq: u64,
+        txid: u64,
+        seq_in_tx: u64,
         op: Operation,
         state: &mut dyn RwTransaction,
         reader: &HashMap<PortHandle, RecordReader>,

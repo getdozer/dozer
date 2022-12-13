@@ -209,9 +209,9 @@ impl AvgAggregator {
         let prev_count = deserialize_u8!(get_prev_count);
         let mut new_count = prev_count;
         if decr {
-            new_count -= val_delta;
+            new_count = new_count.wrapping_sub(val_delta);
         } else {
-            new_count += val_delta;
+            new_count = new_count.wrapping_add(val_delta);
         }
         if new_count < 1 {
             try_unwrap!(ptx.del(aggregators_db, key, Option::from(to_bytes!(prev_count))));
