@@ -6,7 +6,7 @@ use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
 use dozer_cache::cache::Cache;
-use dozer_types::{log::info, types::Schema};
+use dozer_types::{log::info, models::api_config::ApiGrpc, types::Schema};
 use futures_util::FutureExt;
 use std::{
     collections::HashMap,
@@ -24,16 +24,20 @@ pub struct ApiServer {
     port: u16,
     dynamic: bool,
     event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
+    web: bool,
+    url: String,
 }
 
 impl ApiServer {
     pub fn new(
         event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
-        port: u16,
+        grpc_config: ApiGrpc,
         dynamic: bool,
     ) -> Self {
         Self {
-            port,
+            port: grpc_config.port,
+            web: grpc_config.web,
+            url: grpc_config.url,
             event_notifier,
             dynamic,
         }
@@ -131,7 +135,7 @@ impl ApiServer {
             event_notifier: rx1.resubscribe(),
         });
 
-        let grpc_router = Server::builder()
+        let mut grpc_router = Server::builder()
             .accept_http1(true)
             .concurrency_limit_per_connection(32)
             .add_service(
@@ -144,15 +148,20 @@ impl ApiServer {
             let (grpc_service, inflection_service) =
                 self.get_dynamic_service(pipeline_map.clone(), rx1, running)?;
             // GRPC service to handle reflection requests
+            grpc_router = grpc_router.add_service(inflection_service);
+            if self.web {
+                grpc_router = grpc_router
+                    .add_service(tonic_web::config().allow_all_origins().enable(grpc_service));
+            } else {
+                grpc_router = grpc_router.add_service(grpc_service);
+            }
+            // GRPC service to handle typed requests
             grpc_router
-                .add_service(inflection_service)
-                // GRPC service to handle typed requests
-                .add_service(tonic_web::config().allow_all_origins().enable(grpc_service))
         } else {
             grpc_router
         };
         ApiServer::setup_broad_cast_channel(tx, self.event_notifier.to_owned())?;
-        let addr = format!("[::0]:{:}", self.port).parse().unwrap();
+        let addr = format!("{:}:{:}", self.url, self.port).parse().unwrap();
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await

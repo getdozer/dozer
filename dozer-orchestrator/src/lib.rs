@@ -6,7 +6,7 @@ use std::sync::{atomic::AtomicBool, Arc};
 
 use dozer_types::{
     crossbeam::channel::Sender,
-    models::{api_endpoint::ApiEndpoint, source::Source},
+    models::{api_config::ApiConfig, api_endpoint::ApiEndpoint, source::Source},
 };
 use errors::OrchestrationError;
 
@@ -16,6 +16,7 @@ mod test_utils;
 pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;
     fn add_endpoints(&mut self, endpoint: Vec<ApiEndpoint>) -> &mut Self;
+    fn add_api_config(&mut self, api_config: ApiConfig) -> &mut Self;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,

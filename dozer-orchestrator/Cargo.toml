@@ -21,7 +21,6 @@ tempdir = "0.3.7"
 log = "0.4.17"
 log4rs = "1.1.1"
 clap = {version = "4.0.15", features = ["derive"]}
-serde_yaml = "0.9.13"
 indicatif = "0.17.1"
 ctrlc = "3.2.3"
 

@@ -7,7 +7,7 @@ pub mod models;
 mod tests;
 pub mod types;
 
-pub use helper::{field_to_json_value, json_value_to_field, record_to_json};
+pub use helper::{json_str_to_field, json_value_to_field, record_to_map};
 
 // Re-exports
 pub use bincode;
@@ -22,4 +22,5 @@ pub use parking_lot;
 pub use rust_decimal;
 pub use serde;
 pub use serde_json;
+pub use serde_yaml;
 pub use thiserror;

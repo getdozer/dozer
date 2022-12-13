@@ -1,13 +1,13 @@
 #![allow(clippy::module_inception)]
 
+pub mod app;
+pub(crate) mod appsource;
 pub mod channels;
 pub mod dag;
+mod dag_metadata;
+mod dag_schemas;
 pub mod errors;
-mod executor_checkpoint;
-pub mod executor_local;
-mod executor_processor;
-mod executor_sink;
-mod executor_source;
+pub mod executor;
 mod executor_utils;
 pub mod forwarder;
 pub mod node;

@@ -1,12 +1,10 @@
 #![allow(clippy::type_complexity)]
-use crate::dag::dag::{Dag, Edge, Endpoint, NodeType};
+use crate::dag::dag::{Dag, Edge, Endpoint};
+use crate::dag::dag_metadata::METADATA_DB_NAME;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
-use crate::dag::executor_local::ExecutorOperation;
-use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, ProcessorFactory, SinkFactory,
-    SourceFactory,
-};
+use crate::dag::executor::ExecutorOperation;
+use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
 use crate::storage::errors::StorageError;
@@ -17,8 +15,6 @@ use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-
-pub(crate) const CHECKPOINT_DB_NAME: &str = "__CHECKPOINT_META";
 
 pub(crate) struct StorageMetadata {
     pub env: Box<dyn EnvironmentManager>,
@@ -39,8 +35,8 @@ pub(crate) fn init_component<F>(
 where
     F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
 {
-    let mut env = LmdbEnvironmentManager::create(base_path, node_handle.as_str())?;
-    let db = env.open_database(CHECKPOINT_DB_NAME, false)?;
+    let mut env = LmdbEnvironmentManager::create(base_path, format!("{}", node_handle).as_str())?;
+    let db = env.open_database(METADATA_DB_NAME, false)?;
     init_f(env.as_environment())?;
     Ok(StorageMetadata::new(env, db))
 }
@@ -66,20 +62,46 @@ pub(crate) fn requires_schema_update(
     count == 0
 }
 
-pub(crate) fn map_to_op(op: ExecutorOperation) -> Result<(u64, Operation), ExecutionError> {
+pub(crate) fn map_to_op(op: ExecutorOperation) -> Result<(u64, u64, Operation), ExecutionError> {
     match op {
-        ExecutorOperation::Delete { seq, old } => Ok((seq, Operation::Delete { old })),
-        ExecutorOperation::Insert { seq, new } => Ok((seq, Operation::Insert { new })),
-        ExecutorOperation::Update { seq, old, new } => Ok((seq, Operation::Update { old, new })),
+        ExecutorOperation::Delete {
+            txid,
+            seq_in_tx,
+            old,
+        } => Ok((txid, seq_in_tx, Operation::Delete { old })),
+        ExecutorOperation::Insert {
+            txid,
+            seq_in_tx,
+            new,
+        } => Ok((txid, seq_in_tx, Operation::Insert { new })),
+        ExecutorOperation::Update {
+            txid,
+            seq_in_tx,
+            old,
+            new,
+        } => Ok((txid, seq_in_tx, Operation::Update { old, new })),
         _ => Err(InvalidOperation(op.to_string())),
     }
 }
 
-pub(crate) fn map_to_exec_op(seq: u64, op: Operation) -> ExecutorOperation {
+pub(crate) fn map_to_exec_op(txid: u64, seq_in_tx: u64, op: Operation) -> ExecutorOperation {
     match op {
-        Operation::Update { old, new } => ExecutorOperation::Update { old, new, seq },
-        Operation::Delete { old } => ExecutorOperation::Delete { old, seq },
-        Operation::Insert { new } => ExecutorOperation::Insert { new, seq },
+        Operation::Update { old, new } => ExecutorOperation::Update {
+            old,
+            new,
+            txid,
+            seq_in_tx,
+        },
+        Operation::Delete { old } => ExecutorOperation::Delete {
+            old,
+            txid,
+            seq_in_tx,
+        },
+        Operation::Insert { new } => ExecutorOperation::Insert {
+            new,
+            txid,
+            seq_in_tx,
+        },
     }
 }
 
@@ -145,28 +167,6 @@ pub(crate) fn index_edges(
     }
 
     (senders, receivers)
-}
-
-pub(crate) fn get_node_types_and_edges(
-    dag: Dag,
-) -> (
-    Vec<(NodeHandle, Box<dyn SourceFactory>)>,
-    Vec<(NodeHandle, Box<dyn ProcessorFactory>)>,
-    Vec<(NodeHandle, Box<dyn SinkFactory>)>,
-    Vec<Edge>,
-) {
-    let mut sources = Vec::new();
-    let mut processors = Vec::new();
-    let mut sinks = Vec::new();
-
-    for node in dag.nodes.into_iter() {
-        match node.1 {
-            NodeType::Source(s) => sources.push((node.0, s)),
-            NodeType::Processor(s) => processors.push((node.0, s)),
-            NodeType::Sink(s) => sinks.push((node.0, s)),
-        }
-    }
-    (sources, processors, sinks, dag.edges)
 }
 
 pub(crate) fn build_receivers_lists(

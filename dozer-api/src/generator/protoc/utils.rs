@@ -39,6 +39,7 @@ pub fn create_descriptor_set(
     let mut prost_build_config = prost_build::Config::new();
     prost_build_config.out_dir(folder_path.to_owned());
     tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(&my_path_descriptor)
         // .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
         .build_client(false)

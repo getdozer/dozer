@@ -14,8 +14,8 @@ use actix_web::{
     rt, web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use dozer_types::crossbeam::channel::Sender;
 use dozer_types::serde::{self, Deserialize, Serialize};
+use dozer_types::{crossbeam::channel::Sender, models::api_config::ApiRest};
 use futures_util::FutureExt;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -32,6 +32,7 @@ pub struct ApiServer {
     port: u16,
     cors: CorsOptions,
     security: ApiSecurity,
+    url: String,
 }
 impl ApiServer {
     pub fn default() -> Self {
@@ -40,14 +41,16 @@ impl ApiServer {
             port: 8080,
             cors: CorsOptions::Permissive,
             security: ApiSecurity::None,
+            url: "0.0.0.0".to_owned(),
         }
     }
-    pub fn new(shutdown_timeout: u64, port: u16, cors: CorsOptions, security: ApiSecurity) -> Self {
+    pub fn new(rest_config: ApiRest) -> Self {
         Self {
-            shutdown_timeout,
-            port,
-            cors,
-            security,
+            shutdown_timeout: 0,
+            port: rest_config.port,
+            cors: CorsOptions::Permissive,
+            security: ApiSecurity::None,
+            url: rest_config.url,
         }
     }
     fn get_cors(cors: CorsOptions) -> Cors {
@@ -137,7 +140,7 @@ impl ApiServer {
                 cache_endpoints.clone(),
             )
         })
-        .bind(("0.0.0.0", self.port.to_owned()))?
+        .bind(format!("{}:{}", self.url.to_owned(), self.port.to_owned()))?
         .shutdown_timeout(self.shutdown_timeout.to_owned())
         .run();
 

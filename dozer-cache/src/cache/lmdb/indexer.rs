@@ -39,8 +39,7 @@ impl Indexer {
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
-                    let secondary_key =
-                        self._build_index_sorted_inverted(fields, &record.values)?;
+                    let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
                     txn.put(db, &secondary_key, &id, WriteFlags::default())
                         .map_err(QueryError::InsertValue)?;
                 }
@@ -76,8 +75,7 @@ impl Indexer {
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
-                    let secondary_key =
-                        self._build_index_sorted_inverted(fields, &record.values)?;
+                    let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
                     txn.del(db, &secondary_key, Some(&id))
                         .map_err(QueryError::DeleteValue)?;
                 }
@@ -96,16 +94,16 @@ impl Indexer {
     }
 
     fn _build_index_sorted_inverted(
-        &self,
         fields: &[(usize, SortDirection)],
         values: &[Field],
-    ) -> Result<Vec<u8>, CacheError> {
+    ) -> Vec<u8> {
         let values = fields
             .iter()
             .copied()
             .filter_map(|(index, direction)| (values.get(index).map(|value| (value, direction))))
             .collect::<Vec<_>>();
-        index::get_secondary_index(&values)
+        // `values.len() == 1` criteria must be kept the same with `comparator.rs`.
+        index::get_secondary_index(&values, values.len() == 1)
     }
 
     fn _build_indices_full_text(
@@ -176,7 +174,7 @@ mod tests {
         );
 
         for a in [1i64, 2, 3] {
-            cache.delete(&a.to_be_bytes()).unwrap();
+            cache.delete(&Field::Int(a).encode()).unwrap();
         }
 
         assert_eq!(

@@ -131,7 +131,7 @@ mod tests {
         for &(ref key, ref data) in &items {
             let key = [
                 "idx".as_bytes().to_vec(),
-                Field::Int(*key).to_bytes().unwrap(),
+                Field::Int(*key).encode(),
                 key.to_be_bytes().to_vec(),
             ]
             .join("#".as_bytes());

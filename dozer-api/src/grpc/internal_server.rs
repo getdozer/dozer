@@ -6,6 +6,7 @@ use crossbeam::channel::Receiver;
 use dozer_types::{
     crossbeam::channel::Sender,
     log::{self, debug},
+    models::api_config::ApiInternal,
 };
 use log::warn;
 use std::{net::ToSocketAddrs, thread, time::Duration};
@@ -49,12 +50,13 @@ impl InternalPipelineService for InternalServer {
 }
 
 pub async fn start_internal_server(
-    port: u16,
+    internal_config: ApiInternal,
     sender: Sender<PipelineRequest>,
 ) -> Result<(), tonic::transport::Error> {
     let server = InternalServer { sender };
-
-    let mut addr = format!("[::1]:{}", port).to_socket_addrs().unwrap();
+    let mut addr = format!("{}:{}", internal_config.host, internal_config.port)
+        .to_socket_addrs()
+        .unwrap();
     Server::builder()
         .add_service(
             internal_grpc::internal_pipeline_service_server::InternalPipelineServiceServer::new(
@@ -65,13 +67,13 @@ pub async fn start_internal_server(
         .await
 }
 
-pub fn start_internal_client(port: u16, receiver: Receiver<PipelineRequest>) {
+pub fn start_internal_client(internal_config: ApiInternal, receiver: Receiver<PipelineRequest>) {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let mut connected = false;
         let mut idx = 0;
         while !connected {
-            let addr = format!("http://[::1]:{}", port);
+            let addr = format!("http://{}:{}", internal_config.host, internal_config.port);
             if let Ok(mut client) = InternalPipelineServiceClient::connect(addr).await {
                 connected = true;
                 let iterator = InternalIterator {

@@ -39,8 +39,9 @@ impl<'a> QueryPlanner<'a> {
         let mut order_by = vec![];
         for order in &self.query.order_by.0 {
             // Find the field index.
-            let (field_index, _) = get_field_index_and_type(&order.field_name, &self.schema.fields)
-                .ok_or(PlanError::FieldNotFound)?;
+            let (field_index, _, _) =
+                get_field_index_and_type(&order.field_name, &self.schema.fields)
+                    .ok_or(PlanError::FieldNotFound)?;
             // If the field is already in a filter supported by `SortedInverted`, mark the corresponding filter.
             if seen_in_sorted_inverted_filter(field_index, order.direction, &mut filters)? {
                 continue;
@@ -77,12 +78,12 @@ impl<'a> QueryPlanner<'a> {
 fn get_field_index_and_type(
     field_name: &str,
     fields: &[FieldDefinition],
-) -> Option<(usize, FieldType)> {
+) -> Option<(usize, FieldType, bool)> {
     fields
         .iter()
         .enumerate()
         .find(|(_, f)| f.name == field_name)
-        .map(|(i, f)| (i, f.typ))
+        .map(|(i, f)| (i, f.typ, f.nullable))
 }
 
 fn collect_filters(
@@ -92,10 +93,10 @@ fn collect_filters(
 ) -> Result<(), PlanError> {
     match expression {
         FilterExpression::Simple(field_name, operator, value) => {
-            let (field_index, field_type) = get_field_index_and_type(field_name, &schema.fields)
-                .ok_or(PlanError::FieldNotFound)?;
-            let field =
-                json_value_to_field(value.as_str().unwrap_or(&value.to_string()), &field_type)?;
+            let (field_index, field_type, nullable) =
+                get_field_index_and_type(field_name, &schema.fields)
+                    .ok_or(PlanError::FieldNotFound)?;
+            let field = json_value_to_field(value.clone(), field_type, nullable)?;
             filters.push((IndexFilter::new(field_index, *operator, field), None));
         }
         FilterExpression::And(expressions) => {
@@ -225,10 +226,19 @@ fn all_indexes_are_present(
                 scans.push(IndexScan {
                     index_id: idx,
                     kind: index_scan_kind,
+                    is_single_field_sorted_inverted: is_single_field_sorted_inverted(&indexes[idx]),
                 });
             }
             None => return None,
         }
     }
     Some(scans)
+}
+
+fn is_single_field_sorted_inverted(index: &IndexDefinition) -> bool {
+    match index {
+        // `fields.len() == 1` criteria must be kept the same with `comparator.rs`.
+        IndexDefinition::SortedInverted(fields) => fields.len() == 1,
+        _ => false,
+    }
 }

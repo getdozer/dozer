@@ -12,7 +12,6 @@ dozer-types = {path = "../dozer-types"}
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tempdir = "0.3.7"
 futures = "0.3.24"
-galil-seiferas = "0.1.5"
 unicode-segmentation = "1.10.0"
 itertools = "0.10.5"
 roaring = "0.10.1"

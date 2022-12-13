@@ -1,54 +1,24 @@
+use crate::output;
+use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
+    delete_exp, delete_field, init_input_schema, init_processor, insert_exp, insert_field,
+    update_exp, update_field, FIELD_100_FLOAT, FIELD_100_INT, FIELD_150_FLOAT, FIELD_150_INT,
+    FIELD_200_FLOAT, FIELD_200_INT, FIELD_250_FLOAT, FIELD_250_INT, FIELD_350_FLOAT, FIELD_350_INT,
+    FIELD_50_FLOAT, FIELD_50_INT, ITALY, SINGAPORE,
+};
+use dozer_core::{dag::dag::DEFAULT_PORT_HANDLE, storage::transactions::SharedTransaction};
+use dozer_types::types::FieldType::{Float, Int};
 use std::collections::HashMap;
-
-use dozer_core::{
-    dag::{executor_local::DEFAULT_PORT_HANDLE, node::Processor},
-    storage::transactions::SharedTransaction,
-};
-use dozer_types::{
-    ordered_float::OrderedFloat,
-    types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
-};
-
-use crate::pipeline::aggregation::tests::aggregation_tests_utils::init_processor;
 
 #[test]
 fn test_sum_aggregation_float() {
-    let (mut processor, tx) = init_processor(
+    let schema = init_input_schema(Float, "SUM");
+    let (processor, tx) = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
-
-    let schema = Schema::empty()
-        .field(
-            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
-            false,
-            false,
-        )
-        .field(
-            FieldDefinition::new(String::from("Country"), FieldType::String, false),
-            false,
-            false,
-        )
-        .field(
-            FieldDefinition::new(String::from("Salary"), FieldType::Float, false),
-            false,
-            false,
-        )
-        .field(
-            FieldDefinition::new(String::from("SUM(Salary)"), FieldType::Float, false),
-            false,
-            false,
-        )
-        .clone();
-
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
 
     // Insert 100 for segment Italy
     /*
@@ -56,35 +26,9 @@ fn test_sum_aggregation_float() {
         -------------
         SUM = 100.0
     */
-    let inp = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-    }];
+    let mut inp = insert_field(ITALY, FIELD_100_FLOAT);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
     // Insert another 100 for segment Italy
@@ -94,42 +38,9 @@ fn test_sum_aggregation_float() {
         -------------
         SUM = 200.0
     */
-    let inp = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(200.0)),
-            ],
-        ),
-    }];
+    inp = insert_field(ITALY, FIELD_100_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT)];
     assert_eq!(out, exp);
 
     // Insert 50 for segment Singapore
@@ -143,35 +54,9 @@ fn test_sum_aggregation_float() {
         ---------------
         SUM = 50.0
     */
-    let inp = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Singapore".to_string()),
-                Field::Float(OrderedFloat(50.0)),
-                Field::Float(OrderedFloat(50.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Singapore".to_string()),
-                Field::Float(OrderedFloat(50.0)),
-            ],
-        ),
-    }];
+    inp = insert_field(SINGAPORE, FIELD_50_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![insert_exp(SINGAPORE, FIELD_50_FLOAT)];
     assert_eq!(out, exp);
 
     // Update Singapore segment to Italy
@@ -182,61 +67,11 @@ fn test_sum_aggregation_float() {
         -------------
         SUM = 250.0
     */
-    let inp = Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Singapore".to_string()),
-                Field::Float(OrderedFloat(50.0)),
-                Field::Float(OrderedFloat(50.0)),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(50.0)),
-                Field::Float(OrderedFloat(50.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![
-        Operation::Update {
-            old: Record::new(
-                None,
-                vec![
-                    Field::String("Italy".to_string()),
-                    Field::Float(OrderedFloat(200.0)),
-                ],
-            ),
-            new: Record::new(
-                None,
-                vec![
-                    Field::String("Italy".to_string()),
-                    Field::Float(OrderedFloat(250.0)),
-                ],
-            ),
-        },
-        Operation::Delete {
-            old: Record::new(
-                None,
-                vec![
-                    Field::String("Singapore".to_string()),
-                    Field::Float(OrderedFloat(50.0)),
-                ],
-            ),
-        },
+    inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![
+        update_exp(ITALY, ITALY, FIELD_200_FLOAT, FIELD_250_FLOAT),
+        delete_exp(SINGAPORE, FIELD_50_FLOAT),
     ];
     assert_eq!(out, exp);
 
@@ -248,51 +83,9 @@ fn test_sum_aggregation_float() {
         -------------
         SUM = 350.0
     */
-    let inp = Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(200.0)),
-                Field::Float(OrderedFloat(200.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(250.0)),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(350.0)),
-            ],
-        ),
-    }];
+    inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_200_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_250_FLOAT, FIELD_350_FLOAT)];
     assert_eq!(out, exp);
 
     // Delete 1 record (200)
@@ -302,42 +95,9 @@ fn test_sum_aggregation_float() {
         -------------
         SUM = 150.0
     */
-    let inp = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(200.0)),
-                Field::Float(OrderedFloat(200.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(350.0)),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(150.0)),
-            ],
-        ),
-    }];
+    inp = delete_field(ITALY, FIELD_200_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_350_FLOAT, FIELD_150_FLOAT)];
     assert_eq!(out, exp);
 
     // Delete another record (50)
@@ -346,42 +106,9 @@ fn test_sum_aggregation_float() {
         -------------
         SUM = 100.0
     */
-    let inp = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(50.0)),
-                Field::Float(OrderedFloat(50.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(150.0)),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-    }];
+    inp = delete_field(ITALY, FIELD_50_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_150_FLOAT, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -389,76 +116,22 @@ fn test_sum_aggregation_float() {
         -------------
         SUM = 0.0
     */
-    let inp = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::String("Italy".to_string()),
-                Field::Float(OrderedFloat(100.0)),
-            ],
-        ),
-    }];
+    inp = delete_field(ITALY, FIELD_100_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, FIELD_100_FLOAT)];
     assert_eq!(out, exp);
 }
 
 #[test]
 fn test_sum_aggregation_int() {
-    let (mut processor, tx) = init_processor(
+    let schema = init_input_schema(Int, "SUM");
+    let (processor, tx) = init_processor(
         "SELECT Country, SUM(Salary) \
         FROM Users \
         WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
-
-    let schema = Schema::empty()
-        .field(
-            FieldDefinition::new(String::from("ID"), FieldType::Int, false),
-            false,
-            false,
-        )
-        .field(
-            FieldDefinition::new(String::from("Country"), FieldType::String, false),
-            false,
-            false,
-        )
-        .field(
-            FieldDefinition::new(String::from("Salary"), FieldType::Int, false),
-            false,
-            false,
-        )
-        .field(
-            FieldDefinition::new(String::from("SUM(Salary)"), FieldType::Int, false),
-            false,
-            false,
-        )
-        .clone();
-
-    let _output_schema = processor
-        .update_schema(
-            DEFAULT_PORT_HANDLE,
-            &HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
-        )
-        .unwrap();
 
     // Insert 100 for segment Italy
     /*
@@ -466,32 +139,9 @@ fn test_sum_aggregation_int() {
         -------------
         SUM = 100.0
     */
-    let inp = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-                Field::Int(100),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Insert {
-        new: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(100)],
-        ),
-    }];
+    let mut inp = insert_field(ITALY, FIELD_100_INT);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, FIELD_100_INT)];
     assert_eq!(out, exp);
 
     // Insert another 100 for segment Italy
@@ -501,36 +151,9 @@ fn test_sum_aggregation_int() {
         -------------
         SUM = 200.0
     */
-    let inp = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-                Field::Int(100),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(100)],
-        ),
-        new: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(200)],
-        ),
-    }];
+    inp = insert_field(ITALY, FIELD_100_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_200_INT)];
     assert_eq!(out, exp);
 
     // Insert 50 for segment Singapore
@@ -544,32 +167,9 @@ fn test_sum_aggregation_int() {
         ---------------
         SUM = 50.0
     */
-    let inp = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Singapore".to_string()),
-                Field::Int(50),
-                Field::Int(50),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Insert {
-        new: Record::new(
-            None,
-            vec![Field::String("Singapore".to_string()), Field::Int(50)],
-        ),
-    }];
+    inp = insert_field(SINGAPORE, FIELD_50_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![insert_exp(SINGAPORE, FIELD_50_INT)];
     assert_eq!(out, exp);
 
     // Update Singapore segment to Italy
@@ -580,52 +180,11 @@ fn test_sum_aggregation_int() {
         -------------
         SUM = 250.0
     */
-    let inp = Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Singapore".to_string()),
-                Field::Int(50),
-                Field::Int(50),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(50),
-                Field::Int(50),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![
-        Operation::Update {
-            old: Record::new(
-                None,
-                vec![Field::String("Italy".to_string()), Field::Int(200)],
-            ),
-            new: Record::new(
-                None,
-                vec![Field::String("Italy".to_string()), Field::Int(250)],
-            ),
-        },
-        Operation::Delete {
-            old: Record::new(
-                None,
-                vec![Field::String("Singapore".to_string()), Field::Int(50)],
-            ),
-        },
+    inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![
+        update_exp(ITALY, ITALY, FIELD_200_INT, FIELD_250_INT),
+        delete_exp(SINGAPORE, FIELD_50_INT),
     ];
     assert_eq!(out, exp);
 
@@ -637,45 +196,9 @@ fn test_sum_aggregation_int() {
         -------------
         SUM = 350.0
     */
-    let inp = Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-                Field::Int(100),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(200),
-                Field::Int(200),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(250)],
-        ),
-        new: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(350)],
-        ),
-    }];
+    inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_200_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_250_INT, FIELD_350_INT)];
     assert_eq!(out, exp);
 
     // Delete 1 record (200)
@@ -685,36 +208,9 @@ fn test_sum_aggregation_int() {
         -------------
         SUM = 150.0
     */
-    let inp = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(200),
-                Field::Int(200),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(350)],
-        ),
-        new: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(150)],
-        ),
-    }];
+    inp = delete_field(ITALY, FIELD_200_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_350_INT, FIELD_150_INT)];
     assert_eq!(out, exp);
 
     // Delete another record (50)
@@ -723,36 +219,9 @@ fn test_sum_aggregation_int() {
         -------------
         SUM = 100.0
     */
-    let inp = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(50),
-                Field::Int(50),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Update {
-        old: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(150)],
-        ),
-        new: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(100)],
-        ),
-    }];
+    inp = delete_field(ITALY, FIELD_50_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_150_INT, FIELD_100_INT)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -760,31 +229,8 @@ fn test_sum_aggregation_int() {
         -------------
         SUM = 0.0
     */
-    let inp = Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String("Italy".to_string()),
-                Field::Int(100),
-                Field::Int(100),
-            ],
-        ),
-    };
-
-    let out = processor
-        .aggregate(
-            &mut SharedTransaction::new(&tx),
-            &processor.db.clone().unwrap(),
-            inp,
-        )
-        .unwrap_or_else(|_e| panic!("Error executing aggregate"));
-
-    let exp = vec![Operation::Delete {
-        old: Record::new(
-            None,
-            vec![Field::String("Italy".to_string()), Field::Int(100)],
-        ),
-    }];
+    inp = delete_field(ITALY, FIELD_100_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, FIELD_100_INT)];
     assert_eq!(out, exp);
 }

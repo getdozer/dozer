@@ -1,25 +1,38 @@
-storage_path: null
+app_name: dozer-config-snowflake
+api:
+  rest:
+    port: 8080
+    url: "[::0]"
+    cors: true
+  grpc:
+    port: 50051
+    url: "[::0]"
+    cors: true
+    web: true
+  auth: false
+  internal:
+    port: 50052
+    host: "[::1]"
+connections:
+  - name: accounts
+    db_type: Snowflake
+    authentication: !SnowflakeAuthentication
+      server: "${SERVER}"
+      port: 443
+      user: "${USERNAME}"
+      password: "${PASSWORD}"
+      database: "${DATABASE}"
+      schema: "${SCHEMA}"
+      warehouse: "${WAREHOUSE}"
 sources:
   - name: accounts
     table_name: accounts
-    connection:
-      db_type: Snowflake
-      authentication: !SnowflakeAuthentication
-        server: "${SERVER}"
-        port: 443
-        user: "${USERNAME}"
-        password: "${PASSWORD}"
-        database: "${DATABASE}"
-        schema: "${SCHEMA}"
-        warehouse: "${WAREHOUSE}"
-      name: accounts
+    connection: !Ref accounts
     history_type: null
     refresh_config: RealTime
 endpoints:
   - name: accounts
     path: /accounts
-    enable_rest: false
-    enable_grpc: true
     sql: select id from accounts;
     index:
       primary_key:

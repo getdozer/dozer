@@ -1,12 +1,11 @@
-mod cli;
 use clap::Parser;
-
-use cli::load_config;
-use cli::types::{ApiCommands, AppCommands, Cli, Commands};
+use dozer_orchestrator::cli::load_config;
+use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use dozer_types::crossbeam::channel;
+use dozer_types::serde_yaml;
 use log::{debug, warn};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -47,10 +46,7 @@ fn main() -> Result<(), OrchestrationError> {
 
     let configuration = load_config(cli.config_path)?;
     let path = Path::new("./.dozer").to_owned();
-    let mut dozer = Dozer::new(path);
-    dozer.add_sources(configuration.sources);
-    dozer.add_endpoints(configuration.endpoints);
-
+    let mut dozer = Dozer::new(path, configuration);
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {

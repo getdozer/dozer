@@ -1,9 +1,18 @@
-use crate::connectors::kafka::test_utils::get_iterator_and_client;
-use dozer_types::ingestion_types::IngestionOperation;
+use crate::connectors::kafka::connector::KafkaConnector;
+use crate::connectors::kafka::test_utils::{
+    get_client_and_create_table, get_iterator_and_client, DebeziumTestConfig,
+};
+
+use crate::connectors::{Connector, TableInfo};
+use crate::test_util::load_config;
+use dozer_types::ingestion_types::{IngestionOperation, KafkaConfig};
+use dozer_types::models::connection::Authentication::KafkaAuthentication;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::Operation;
 use postgres::Client;
 use std::fmt::Write;
+
+use dozer_types::serde_yaml;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct KafkaPostgres {
@@ -49,6 +58,12 @@ impl KafkaPostgres {
             )
             .unwrap();
     }
+
+    pub fn drop_table(&mut self) {
+        self.client
+            .query(&format!("DROP TABLE {}", self.table_name), &[])
+            .unwrap();
+    }
 }
 
 #[ignore]
@@ -57,7 +72,7 @@ fn connector_e2e_connect_debezium_and_use_kafka_stream() {
     let start = SystemTime::now();
     let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap();
     let table_name = format!("products_test_{}", since_the_epoch.as_millis());
-    let (iterator, client) = get_iterator_and_client("../", table_name.clone());
+    let (iterator, client) = get_iterator_and_client(table_name.clone());
 
     let mut pg_client = KafkaPostgres { client, table_name };
 
@@ -91,5 +106,50 @@ fn connector_e2e_connect_debezium_and_use_kafka_stream() {
         }
     }
 
+    pg_client.drop_table();
+
     assert_eq!(i, 30);
+}
+
+#[ignore]
+#[test]
+fn connector_e2e_connect_debezium_json_and_get_schema() {
+    let start = SystemTime::now();
+    let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap();
+    let table_name = format!("products_test_{}", since_the_epoch.as_millis());
+    let topic = format!("dbserver1.public.{}", table_name);
+    let config =
+        serde_yaml::from_str::<DebeziumTestConfig>(load_config("test.debezium.yaml")).unwrap();
+
+    let client = get_client_and_create_table(&table_name, &config.postgres_source_authentication);
+
+    let mut pg_client = KafkaPostgres { client, table_name };
+    pg_client.insert_rows(1);
+
+    let broker = if let KafkaAuthentication { broker, .. } = config.source.connection.authentication
+    {
+        broker
+    } else {
+        todo!()
+    };
+    let connector = KafkaConnector::new(
+        1,
+        KafkaConfig {
+            broker,
+            topic: topic.clone(),
+        },
+    );
+
+    let schemas = connector
+        .get_schemas(Some(vec![TableInfo {
+            name: topic.clone(),
+            id: 0,
+            columns: None,
+        }]))
+        .unwrap();
+
+    pg_client.drop_table();
+
+    assert_eq!(topic, schemas.get(0).unwrap().0);
+    assert_eq!(4, schemas.get(0).unwrap().1.fields.len());
 }

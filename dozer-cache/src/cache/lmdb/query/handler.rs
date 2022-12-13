@@ -103,25 +103,8 @@ impl<'a> LmdbQueryHandler<'a> {
     ) -> Result<impl Iterator<Item = &'a [u8]> + 'a, CacheError> {
         let index_db = self.index_metadata.get_db(self.schema, index_scan.index_id);
 
-        let comparision_key = build_comparision_key(index_scan)?;
-        let last_filter = match &index_scan.kind {
-            IndexScanKind::SortedInverted {
-                range_query:
-                    Some(SortedInvertedRangeQuery {
-                        sort_direction,
-                        operator_and_value: Some((operator, _)),
-                        ..
-                    }),
-                ..
-            } => Some((*operator, *sort_direction)),
-            IndexScanKind::SortedInverted { eq_filters, .. } => {
-                let filter = eq_filters.last().unwrap();
-                Some((Operator::EQ, filter.1))
-            }
-            IndexScanKind::FullText { filter } => Some((filter.op, SortDirection::Ascending)),
-        };
-
-        let (start_key, end_key) = get_start_end_keys(last_filter, comparision_key);
+        let (start_key, end_key) =
+            get_start_end_keys(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
 
         let cursor = self
             .txn
@@ -154,74 +137,129 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 }
 
-fn build_comparision_key(index_scan: &IndexScan) -> Result<Vec<u8>, CacheError> {
-    match &index_scan.kind {
+fn get_start_end_keys(
+    index_scan_kind: &IndexScanKind,
+    is_single_field_sorted_inverted: bool,
+) -> Result<(Option<KeyEndpoint>, Option<KeyEndpoint>), CacheError> {
+    match &index_scan_kind {
         IndexScanKind::SortedInverted {
             eq_filters,
             range_query,
         } => {
-            let mut fields = vec![];
-            eq_filters.iter().for_each(|filter| {
-                fields.push((&filter.2, filter.1));
-            });
+            let comparison_key = build_sorted_inverted_comparision_key(
+                eq_filters,
+                range_query.as_ref(),
+                is_single_field_sorted_inverted,
+            );
+            // There're 3 cases:
+            // 1. Range query with operator.
+            // 2. Range query without operator (only order by).
+            // 3. No range query.
             if let Some(range_query) = range_query {
-                if let Some((_, val)) = &range_query.operator_and_value {
-                    fields.push((val, range_query.sort_direction));
+                match range_query.operator_and_value {
+                    Some((operator, _)) => {
+                        // Here we resond to case 1, examples are `a = 1 && b > 2` or `b < 2`.
+                        let comparison_key = comparison_key.expect("here's at least a range query");
+                        Ok(get_start_end_keys_from_range_query(
+                            comparison_key,
+                            operator,
+                            range_query.sort_direction,
+                        ))
+                    }
+                    None => {
+                        // Here we respond to case 2, examples are `a = 1 && b asc` or `b desc`.
+                        if comparison_key.is_some() {
+                            todo!()
+                        } else {
+                            // Just all of them.
+                            Ok((None, None))
+                        }
+                    }
+                }
+            } else {
+                // Here we respond to case 3, examples are `a = 1` or `a = 1 && b = 2`.
+                let comparison_key = comparison_key
+                    .expect("here's at least a eq filter because there's no range query");
+                Ok((
+                    Some(KeyEndpoint::Including(comparison_key.clone())),
+                    Some(KeyEndpoint::Including(comparison_key)),
+                ))
+            }
+        }
+        IndexScanKind::FullText { filter } => match filter.op {
+            Operator::Contains => {
+                if let Field::String(token) = &filter.val {
+                    let key = index::get_full_text_secondary_index(token);
+                    Ok((
+                        Some(KeyEndpoint::Including(key.clone())),
+                        Some(KeyEndpoint::Including(key)),
+                    ))
+                } else {
+                    Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
                 }
             }
-            index::get_secondary_index(&fields)
-        }
-        IndexScanKind::FullText { filter } => {
-            if let Field::String(token) = &filter.val {
-                Ok(index::get_full_text_secondary_index(token))
-            } else {
-                Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
+            Operator::MatchesAll | Operator::MatchesAny => {
+                unimplemented!("matches all and matches any are not implemented")
             }
-        }
+            other => panic!("operator {:?} is not supported by full text index", other),
+        },
     }
 }
 
-fn get_start_end_keys(
-    last_filter: Option<(Operator, SortDirection)>,
-    comp_key: Vec<u8>,
+fn build_sorted_inverted_comparision_key(
+    eq_filters: &[(usize, SortDirection, Field)],
+    range_query: Option<&SortedInvertedRangeQuery>,
+    is_single_field_index: bool,
+) -> Option<Vec<u8>> {
+    let mut fields = vec![];
+    eq_filters.iter().for_each(|filter| {
+        fields.push((&filter.2, filter.1));
+    });
+    if let Some(range_query) = range_query {
+        if let Some((_, val)) = &range_query.operator_and_value {
+            fields.push((val, range_query.sort_direction));
+        }
+    }
+    if fields.is_empty() {
+        None
+    } else {
+        Some(index::get_secondary_index(&fields, is_single_field_index))
+    }
+}
+
+fn get_start_end_keys_from_range_query(
+    comparison_key: Vec<u8>,
+    operator: Operator,
+    sort_direction: SortDirection,
 ) -> (Option<KeyEndpoint>, Option<KeyEndpoint>) {
-    last_filter.map_or(
-        (
-            Some(KeyEndpoint::Including(comp_key.clone())),
-            Some(KeyEndpoint::Including(comp_key.clone())),
+    match (operator, sort_direction) {
+        (Operator::LT, SortDirection::Ascending) => {
+            (None, Some(KeyEndpoint::Excluding(comparison_key)))
+        }
+        (Operator::LT, SortDirection::Descending) => {
+            (Some(KeyEndpoint::Excluding(comparison_key)), None)
+        }
+        (Operator::LTE, SortDirection::Ascending) => {
+            (None, Some(KeyEndpoint::Including(comparison_key)))
+        }
+        (Operator::LTE, SortDirection::Descending) => {
+            (Some(KeyEndpoint::Including(comparison_key)), None)
+        }
+        (Operator::GT, SortDirection::Ascending) => {
+            (Some(KeyEndpoint::Excluding(comparison_key)), None)
+        }
+        (Operator::GT, SortDirection::Descending) => {
+            (None, Some(KeyEndpoint::Excluding(comparison_key)))
+        }
+        (Operator::GTE, SortDirection::Ascending) => {
+            (Some(KeyEndpoint::Including(comparison_key)), None)
+        }
+        (Operator::GTE, SortDirection::Descending) => {
+            (None, Some(KeyEndpoint::Including(comparison_key)))
+        }
+        (other, _) => panic!(
+            "operator {:?} is not supported by sorted inverted index range query",
+            other
         ),
-        |(operator, sort_direction)| match (operator, sort_direction) {
-            (Operator::LT, SortDirection::Ascending) => {
-                (None, Some(KeyEndpoint::Excluding(comp_key)))
-            }
-            (Operator::LT, SortDirection::Descending) => {
-                (Some(KeyEndpoint::Excluding(comp_key)), None)
-            }
-            (Operator::LTE, SortDirection::Ascending) => {
-                (None, Some(KeyEndpoint::Including(comp_key)))
-            }
-            (Operator::LTE, SortDirection::Descending) => {
-                (Some(KeyEndpoint::Including(comp_key)), None)
-            }
-            (Operator::GT, SortDirection::Ascending) => {
-                (Some(KeyEndpoint::Excluding(comp_key)), None)
-            }
-            (Operator::GT, SortDirection::Descending) => {
-                (None, Some(KeyEndpoint::Excluding(comp_key)))
-            }
-            (Operator::GTE, SortDirection::Ascending) => {
-                (Some(KeyEndpoint::Including(comp_key)), None)
-            }
-            (Operator::GTE, SortDirection::Descending) => {
-                (None, Some(KeyEndpoint::Including(comp_key)))
-            }
-            (
-                Operator::EQ | Operator::Contains | Operator::MatchesAny | Operator::MatchesAll,
-                _,
-            ) => (
-                Some(KeyEndpoint::Including(comp_key.clone())),
-                Some(KeyEndpoint::Including(comp_key)),
-            ),
-        },
-    )
+    }
 }

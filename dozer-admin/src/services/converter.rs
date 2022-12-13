@@ -12,13 +12,37 @@ use dozer_types::{
     ingestion_types::EthFilter,
     models::{
         self,
+        api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
         api_endpoint::{ApiEndpoint, ApiIndex},
+        app_config::Config,
+        connection::DBType,
         source::Source,
     },
     types::Schema,
 };
 use std::{convert::From, error::Error};
 
+//TODO: Add grpc method to create ApiConfig
+fn fake_api_config() -> ApiConfig {
+    ApiConfig {
+        rest: ApiRest {
+            port: 8080,
+            url: "[::0]".to_owned(),
+            cors: true,
+        },
+        grpc: ApiGrpc {
+            port: 50051,
+            url: "[::0]".to_owned(),
+            cors: true,
+            web: true,
+        },
+        auth: false,
+        internal: ApiInternal {
+            port: 50052,
+            host: "[::1]".to_owned(),
+        },
+    }
+}
 fn convert_to_source(input: (DBSource, DbConnection)) -> Result<Source, Box<dyn Error>> {
     let db_source = input.0;
     let connection_info = ConnectionInfo::try_from(input.1)?;
@@ -45,8 +69,6 @@ fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Err
         id: Some(input.id),
         name: input.name,
         path: input.path,
-        enable_rest: input.enable_rest,
-        enable_grpc: input.enable_grpc,
         sql: input.sql,
         index: ApiIndex {
             primary_key: primary_keys_arr,
@@ -54,20 +76,39 @@ fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Err
     })
 }
 
-impl TryFrom<ApplicationDetail> for dozer_orchestrator::cli::Config {
+impl TryFrom<ApplicationDetail> for Config {
     type Error = Box<dyn Error>;
     fn try_from(input: ApplicationDetail) -> Result<Self, Self::Error> {
-        let sources = input
+        let sources_connections: Vec<(Source, models::connection::Connection)> = input
             .sources_connections
             .iter()
-            .map(|sc| convert_to_source(sc.to_owned()).unwrap())
+            .map(|sc| {
+                let source = convert_to_source(sc.to_owned()).unwrap();
+                let connection = models::connection::Connection::try_from(sc.to_owned().1).unwrap();
+                (source, connection)
+            })
             .collect();
         let endpoints = input
             .endpoints
             .iter()
             .map(|sc| convert_to_api_endpoint(sc.to_owned()).unwrap())
             .collect();
-        Ok(dozer_orchestrator::cli::Config { sources, endpoints })
+        let sources = sources_connections
+            .iter()
+            .map(|sc| sc.0.to_owned())
+            .collect();
+        let connections = sources_connections
+            .iter()
+            .map(|sc| sc.1.to_owned())
+            .collect();
+
+        Ok(Config {
+            sources,
+            endpoints,
+            app_name: input.app.name,
+            api: fake_api_config(),
+            connections,
+        })
     }
 }
 
@@ -90,23 +131,28 @@ impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
     }
 }
 
+pub fn convert_auth_to_db_type(input: models::connection::Authentication) -> DBType {
+    match input {
+        models::connection::Authentication::PostgresAuthentication { .. } => DBType::Postgres,
+        models::connection::Authentication::EthereumAuthentication { .. } => DBType::Ethereum,
+        models::connection::Authentication::Events {} => DBType::Events,
+        models::connection::Authentication::SnowflakeAuthentication { .. } => DBType::Snowflake,
+        models::connection::Authentication::KafkaAuthentication { .. } => DBType::Kafka,
+    }
+}
 impl TryFrom<ConnectionInfo> for models::connection::Connection {
     type Error = Box<dyn Error>;
     fn try_from(item: ConnectionInfo) -> Result<Self, Self::Error> {
-        let db_type_value = match item.r#type {
-            0 => models::connection::DBType::Postgres,
-            1 => models::connection::DBType::Snowflake,
-            3 => models::connection::DBType::Ethereum,
-            _ => models::connection::DBType::Events,
-        };
         if item.authentication.is_none() {
             Err("Missing authentication props when converting ".to_owned())?
         } else {
-            let auth_value =
+            let authentication =
                 models::connection::Authentication::try_from(item.authentication.unwrap())?;
+            let db_type_value = convert_auth_to_db_type(authentication.to_owned());
+
             Ok(models::connection::Connection {
                 db_type: db_type_value,
-                authentication: auth_value,
+                authentication,
                 name: item.name,
                 id: None,
             })
@@ -126,6 +172,14 @@ impl TryFrom<EthFilter> for dozer_admin_grpc::EthereumFilter {
     }
 }
 
+impl TryFrom<DbConnection> for dozer_orchestrator::Connection {
+    type Error = Box<dyn Error>;
+
+    fn try_from(input: DbConnection) -> Result<Self, Self::Error> {
+        let connection_info: ConnectionInfo = ConnectionInfo::try_from(input)?;
+        dozer_orchestrator::Connection::try_from(connection_info)
+    }
+}
 impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authentication {
     type Error = Box<dyn Error>;
     fn try_from(item: models::connection::Connection) -> Result<Self, Self::Error> {
@@ -169,7 +223,9 @@ impl TryFrom<models::connection::Connection> for dozer_admin_grpc::Authenticatio
                 driver,
                 warehouse,
             }),
-            models::connection::Authentication::Events {} => todo!(),
+            models::connection::Authentication::Events {} => {
+                todo!()
+            }
             _ => todo!(),
         };
         Ok(dozer_admin_grpc::Authentication {
@@ -224,6 +280,15 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
                         driver: snow_flake.driver,
                     }
                 }
+                authentication::Authentication::Events(_) => {
+                    models::connection::Authentication::Events {}
+                }
+                authentication::Authentication::Kafka(kafka) => {
+                    models::connection::Authentication::KafkaAuthentication {
+                        broker: kafka.broker,
+                        topic: kafka.topic,
+                    }
+                }
             };
             Ok(result)
         }
@@ -245,6 +310,7 @@ mod test {
     };
     use dozer_types::models::{
         api_endpoint::ApiIndex,
+        app_config::Config,
         connection::{self, DBType},
     };
 
@@ -329,7 +395,7 @@ mod test {
             sources_connections,
             endpoints: vec![fake_db_endpoint()],
         };
-        let converted = dozer_orchestrator::cli::Config::try_from(application_detail.to_owned());
+        let converted = Config::try_from(application_detail.to_owned());
         assert!(converted.is_ok());
         assert_eq!(
             converted.unwrap().sources.len(),
