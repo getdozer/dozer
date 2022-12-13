@@ -35,6 +35,8 @@
 
 Using binary
 ```
+# Download binary from the latest stable
+# Check out our latest release here - https://github.com/getdozer/dozer/releases/latest
 
 ```
 
