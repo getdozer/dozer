@@ -17,7 +17,15 @@ pub struct SchemaRegistry {}
 pub fn map_typ(schema: &DebeziumSchemaStruct) -> Result<(FieldType, bool), DebeziumSchemaError> {
     let nullable = schema.optional.map_or(false, |o| !o);
     match schema.r#type.clone() {
-        Value::String(_) => map_type(schema).map(|s| (s, nullable)),
+        Value::String(_) => map_type(&DebeziumSchemaStruct {
+            r#type: schema.r#type.clone(),
+            fields: None,
+            optional: None,
+            name: None,
+            field: None,
+            version: None,
+            parameters: None
+        }).map(|s| (s, nullable)),
         Value::Array(types) => {
             let nullable = types.contains(&Value::from("null"));
             for typ in types {
@@ -83,9 +91,10 @@ impl SchemaRegistry {
                         .collect()
                 });
 
+                eprintln!("ddd: {:#?}", schema_result.fields);
                 let mut schema_data: Option<Result<Vec<(String, Schema)>, ConnectorError>> = None;
-                schema_result.fields.iter().for_each(|field| {
-                    field.iter().for_each(|f| {
+                for field in schema_result.fields {
+                    for f in field {
                         if f.name.clone().unwrap() == "before" {
                             for typ in f.r#type.as_array().unwrap() {
                                 if let Value::Object(obj) = typ {
@@ -100,12 +109,12 @@ impl SchemaRegistry {
 
                                     let defined_fields: Result<
                                         Vec<FieldDefinition>,
-                                        DebeziumSchemaError,
+                                        ConnectorError,
                                     > = fields_value_struct
                                         .iter()
                                         .enumerate()
                                         .map(|(idx, f)| {
-                                            let (typ, nullable) = map_typ(f)?;
+                                            let (typ, nullable) = map_typ(f).map_err(|e| ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e)))?;
                                             let name = f.name.clone().unwrap();
                                             if pk_fields.contains(&name) {
                                                 pk_keys_indexes.push(idx);
@@ -121,7 +130,7 @@ impl SchemaRegistry {
 
                                     let schema = Schema {
                                         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
-                                        fields: defined_fields.unwrap(),
+                                        fields: defined_fields?,
                                         values: vec![],
                                         primary_index: pk_keys_indexes,
                                     };
@@ -130,8 +139,9 @@ impl SchemaRegistry {
                                 }
                             }
                         }
-                    });
-                });
+                    }
+                }
+
 
                 if let Some(v) = schema_data {
                     v
