@@ -1,4 +1,3 @@
-use crate::connectors::kafka::debezium::schema::SchemaFetcher;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::connectors::TableInfo;
 use crate::errors::DebeziumError::{JsonDecodeError, SchemaRegistryFetchError};
@@ -72,10 +71,8 @@ impl SchemaRegistry {
 
         serde_json::from_str::<DebeziumSchemaStruct>(&schema_result.schema).map_err(JsonDecodeError)
     }
-}
 
-impl SchemaFetcher for SchemaRegistry {
-    fn get_schema(
+    pub fn get_schema(
         table_names: Option<Vec<TableInfo>>,
         config: KafkaConfig,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {

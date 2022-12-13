@@ -1,4 +1,4 @@
-use crate::connectors::kafka::debezium::schema::{map_schema, SchemaFetcher};
+use crate::connectors::kafka::debezium::schema::map_schema;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumMessage;
 use crate::connectors::TableInfo;
 use crate::errors::DebeziumError::{BytesConvertError, DebeziumConnectionError, JsonDecodeError};
@@ -11,8 +11,8 @@ use kafka::consumer::Consumer;
 
 pub struct NoSchemaRegistry {}
 
-impl SchemaFetcher for NoSchemaRegistry {
-    fn get_schema(
+impl NoSchemaRegistry {
+    pub fn get_schema(
         table_names: Option<Vec<TableInfo>>,
         config: KafkaConfig,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {

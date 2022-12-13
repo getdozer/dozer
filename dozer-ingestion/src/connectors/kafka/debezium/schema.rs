@@ -1,19 +1,12 @@
-use dozer_types::ingestion_types::KafkaConfig;
+
 use dozer_types::serde_json::Value;
 use std::collections::HashMap;
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
-use crate::connectors::TableInfo;
-use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
-use crate::errors::{ConnectorError, DebeziumSchemaError};
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 
-pub trait SchemaFetcher {
-    fn get_schema(
-        table_names: Option<Vec<TableInfo>>,
-        config: KafkaConfig,
-    ) -> Result<Vec<(String, Schema)>, ConnectorError>;
-}
+use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
+use crate::errors::{DebeziumSchemaError};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
 pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {

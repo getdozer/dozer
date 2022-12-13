@@ -9,8 +9,6 @@ use dozer_types::parking_lot::RwLock;
 
 use tokio::runtime::Runtime;
 
-use crate::connectors::kafka::debezium::schema::SchemaFetcher;
-
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
