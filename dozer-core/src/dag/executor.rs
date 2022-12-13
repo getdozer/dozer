@@ -175,10 +175,10 @@ impl<'a> DagExecutor<'a> {
         let mut r: HashMap<NodeHandle, (u64, u64)> = HashMap::new();
         let meta = DagMetadataManager::new(dag, path)?;
         let chk = meta.get_checkpoint_consistency();
-        for (handle, factory) in &dag.get_sources() {
+        for (handle, _factory) in &dag.get_sources() {
             match chk.get(handle) {
                 Some(Consistency::FullyConsistent(c)) => {
-                    r.insert(handle.clone(), c.clone());
+                    r.insert(handle.clone(), *c);
                 }
                 _ => return Err(InconsistentCheckpointMetadata),
             }
@@ -367,11 +367,10 @@ impl<'a> DagExecutor<'a> {
         let st_stop_req = self.stop_req.clone();
         let st_output_schemas = schemas.output_schemas.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
-        let start_seq = self
+        let start_seq = *self
             .consistency_metadata
             .get(&handle)
-            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?
-            .clone();
+            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
         let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
             let src = st_src_factory.build(st_output_schemas)?;
