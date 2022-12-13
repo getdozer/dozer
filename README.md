@@ -37,14 +37,18 @@ Using binary
 ```bash
 # Download the latest stable binary
 # Check out our latest release details here - https://github.com/getdozer/dozer/releases/latest
-#./download-latest.sh
+# ./download-latest.sh
 
-curl -L "https://drive.google.com/uc?export=download&id=1a8WJW7-yvk1OEamd68Fc65jpFeD7Be-S&confirm=9iBg" | bash
+curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash
+cd dozer
+dozer run
 ```
 
 Using docker
-```
-
+```bash
+curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash -s -- -d
+cd dozer
+docker-compose up
 ```
 
 
