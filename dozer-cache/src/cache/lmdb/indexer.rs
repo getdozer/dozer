@@ -146,10 +146,11 @@ mod tests {
             .insert_schema("sample", &schema, &secondary_indexes)
             .unwrap();
 
-        let items: Vec<(i64, String, i64)> = vec![
-            (1, "a".to_string(), 521),
-            (2, "a".to_string(), 521),
-            (3, "a".to_string(), 521),
+        let items = vec![
+            (1, Some("a".to_string()), Some(521)),
+            (2, Some("a".to_string()), None),
+            (3, None, Some(521)),
+            (4, None, None),
         ];
 
         for val in items.clone() {
@@ -173,7 +174,7 @@ mod tests {
             "Must index each field"
         );
 
-        for a in [1i64, 2, 3] {
+        for a in [1i64, 2, 3, 4] {
             cache.delete(&Field::Int(a).encode()).unwrap();
         }
 

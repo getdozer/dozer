@@ -83,6 +83,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 }
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(),
+            Plan::ReturnEmpty => Ok(vec![]),
         }
     }
 
@@ -179,8 +180,19 @@ fn get_range_spec(
                     Some((operator, _)) => {
                         // Here we respond to case 1, examples are `a = 1 && b > 2` or `b < 2`.
                         let comparison_key = comparison_key.expect("here's at least a range query");
+                        let null_key = build_sorted_inverted_comparision_key(
+                            eq_filters,
+                            Some(&SortedInvertedRangeQuery {
+                                field_index: range_query.field_index,
+                                operator_and_value: Some((operator, Field::Null)),
+                                sort_direction: range_query.sort_direction,
+                            }),
+                            is_single_field_sorted_inverted,
+                        )
+                        .expect("we provided a range query");
                         let (start, end) = get_key_interval_from_range_query(
                             comparison_key,
+                            null_key,
                             operator,
                             range_query.sort_direction,
                         );
@@ -250,8 +262,10 @@ fn build_sorted_inverted_comparision_key(
     }
 }
 
+/// Here we use the invariant that `null` is greater than anything.
 fn get_key_interval_from_range_query(
     comparison_key: Vec<u8>,
+    null_key: Vec<u8>,
     operator: Operator,
     sort_direction: SortDirection,
 ) -> (Option<KeyEndpoint>, Option<KeyEndpoint>) {
@@ -268,18 +282,22 @@ fn get_key_interval_from_range_query(
         (Operator::LTE, SortDirection::Descending) => {
             (Some(KeyEndpoint::Including(comparison_key)), None)
         }
-        (Operator::GT, SortDirection::Ascending) => {
-            (Some(KeyEndpoint::Excluding(comparison_key)), None)
-        }
-        (Operator::GT, SortDirection::Descending) => {
-            (None, Some(KeyEndpoint::Excluding(comparison_key)))
-        }
-        (Operator::GTE, SortDirection::Ascending) => {
-            (Some(KeyEndpoint::Including(comparison_key)), None)
-        }
-        (Operator::GTE, SortDirection::Descending) => {
-            (None, Some(KeyEndpoint::Including(comparison_key)))
-        }
+        (Operator::GT, SortDirection::Ascending) => (
+            Some(KeyEndpoint::Excluding(comparison_key)),
+            Some(KeyEndpoint::Excluding(null_key)),
+        ),
+        (Operator::GT, SortDirection::Descending) => (
+            Some(KeyEndpoint::Excluding(null_key)),
+            Some(KeyEndpoint::Excluding(comparison_key)),
+        ),
+        (Operator::GTE, SortDirection::Ascending) => (
+            Some(KeyEndpoint::Including(comparison_key)),
+            Some(KeyEndpoint::Excluding(null_key)),
+        ),
+        (Operator::GTE, SortDirection::Descending) => (
+            Some(KeyEndpoint::Excluding(null_key)),
+            Some(KeyEndpoint::Including(comparison_key)),
+        ),
         (other, _) => panic!(
             "operator {:?} is not supported by sorted inverted index range query",
             other

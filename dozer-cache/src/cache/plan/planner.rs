@@ -1,7 +1,7 @@
-use crate::cache::expression::{FilterExpression, QueryExpression};
+use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::errors::PlanError;
 use dozer_types::json_value_to_field;
-use dozer_types::types::{FieldDefinition, Schema};
+use dozer_types::types::{Field, FieldDefinition, Schema};
 use dozer_types::types::{FieldType, IndexDefinition, SortDirection};
 
 use super::helper::{RangeQuery, RangeQueryKind};
@@ -55,6 +55,14 @@ impl<'a> QueryPlanner<'a> {
             return Ok(Plan::SeqScan(SeqScan {
                 direction: SortDirection::Ascending,
             }));
+        }
+
+        // If non-`Eq` filter is applied to `null` value, return empty result.
+        if filters
+            .iter()
+            .any(|f| matches!(f.0.val, Field::Null) && f.0.op != Operator::EQ)
+        {
+            return Ok(Plan::ReturnEmpty);
         }
 
         // Find the range query, can be a range filter or a sort option.

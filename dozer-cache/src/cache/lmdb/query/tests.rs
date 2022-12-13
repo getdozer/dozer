@@ -80,33 +80,38 @@ fn query_secondary_vars() {
         .insert_schema("sample", &schema, &seconary_indexes)
         .unwrap();
 
-    let items: Vec<(i64, String, i64)> = vec![
-        (1, "yuri".to_string(), 521),
-        (2, "mega".to_string(), 521),
-        (3, "james".to_string(), 523),
-        (4, "james".to_string(), 524),
-        (5, "steff".to_string(), 526),
-        (6, "mega".to_string(), 527),
-        (7, "james".to_string(), 528),
+    let items = vec![
+        (1, Some("yuri".to_string()), Some(521)),
+        (2, Some("mega".to_string()), Some(521)),
+        (3, Some("james".to_string()), Some(523)),
+        (4, Some("james".to_string()), Some(524)),
+        (5, Some("steff".to_string()), Some(526)),
+        (6, Some("mega".to_string()), Some(527)),
+        (7, Some("james".to_string()), Some(528)),
+        (8, Some("ava".to_string()), None),
     ];
     // 26 alphabets
     for val in items {
         utils::insert_rec_1(&cache, &schema, val);
     }
 
-    test_query(json!({}), 7, &cache);
+    test_query(json!({}), 8, &cache);
 
     test_query(
         json!({
             "$order_by": { "c": "desc" }
         }),
-        7,
+        8,
         &cache,
     );
 
     test_query(json!({"$filter":{ "a": {"$eq": 1}}}), 1, &cache);
 
+    test_query(json!({"$filter":{ "a": {"$eq": null}}}), 0, &cache);
+
     test_query(json!({"$filter":{ "c": {"$eq": 521}}}), 2, &cache);
+
+    test_query(json!({"$filter":{ "c": {"$eq": null}}}), 1, &cache);
 
     test_query(
         json!({"$filter":{ "a": 1, "b": "yuri".to_string()}}),
@@ -137,6 +142,8 @@ fn query_secondary_vars() {
     );
 
     // Range tests
+    test_query(json!({"$filter":{ "c": {"$lte": null}}}), 0, &cache);
+
     test_query(json!({"$filter":{ "c": {"$lte": 521}}}), 2, &cache);
 
     test_query(json!({"$filter":{ "c": {"$gte": 521}}}), 7, &cache);

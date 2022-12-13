@@ -12,6 +12,7 @@ mod tests;
 pub enum Plan {
     IndexScans(Vec<IndexScan>),
     SeqScan(SeqScan),
+    ReturnEmpty,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexScan {
