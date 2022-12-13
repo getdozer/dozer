@@ -38,7 +38,7 @@ pub fn evaluate_or(
             }
             let right_p = right.evaluate(record)?;
             match right_p {
-                Field::Boolean(right_v) => Ok(Field::Boolean(left_v && right_v)),
+                Field::Boolean(right_v) => Ok(right_p),
                 _ => Ok(Field::Boolean(false)),
             }
         }
