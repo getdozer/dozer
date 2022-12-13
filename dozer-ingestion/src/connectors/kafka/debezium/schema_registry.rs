@@ -17,7 +17,7 @@ pub struct SchemaRegistry {}
 pub fn map_typ(schema: &DebeziumSchemaStruct) -> Result<(FieldType, bool), DebeziumSchemaError> {
     let nullable = schema.optional.map_or(false, |o| !o);
     match schema.r#type.clone() {
-        Value::String(typ) => map_type(schema).map(|s| (s, nullable)),
+        Value::String(_) => map_type(schema).map(|s| (s, nullable)),
         Value::Array(types) => {
             let nullable = types.contains(&Value::from("null"));
             for typ in types {
