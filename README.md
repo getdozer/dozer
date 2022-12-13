@@ -33,12 +33,12 @@
 
 ## Quick Start
 
+Download the latest stable binary or source code for a quick start.<br>
+Check out our latest release details here: https://github.com/getdozer/dozer/releases/latest
+
+
 Using binary
 ```bash
-# Download the latest stable binary
-# Check out our latest release details here - https://github.com/getdozer/dozer/releases/latest
-# ./download-latest.sh
-
 curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash
 cd dozer
 ./dozer
