@@ -46,7 +46,7 @@ cd dozer
 ```bash
 curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash -s -- -d
 cd dozer
-docker-compose up
+docker compose -f tests/simple_e2e_example/docker-compose.yml up
 ```
 
 
