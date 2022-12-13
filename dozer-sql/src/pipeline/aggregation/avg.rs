@@ -41,8 +41,8 @@ impl AvgAggregator {
         ptx: &mut PrefixTransaction,
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
-        match *new {
-            Int(_i) => {
+        match (return_type, new) {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -54,7 +54,7 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -66,7 +66,7 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            Decimal(_d) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
@@ -90,8 +90,8 @@ impl AvgAggregator {
         ptx: &mut PrefixTransaction,
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
-        match *old {
-            Int(_i) => {
+        match (return_type, new) {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -105,7 +105,7 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -119,7 +119,7 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            Decimal(_d) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
@@ -146,8 +146,8 @@ impl AvgAggregator {
         ptx: &mut PrefixTransaction,
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
-        match *old {
-            Int(_i) => {
+        match (return_type, old) {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
@@ -159,7 +159,7 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let old_val = field_extract_f64!(&old, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
@@ -171,7 +171,7 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            Decimal(_d) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
                 Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);

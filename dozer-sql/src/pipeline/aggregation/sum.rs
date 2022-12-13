@@ -31,8 +31,8 @@ impl SumAggregator {
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        match *new {
-            Int(_i) => {
+        match (return_type, new) {
+            (FieldType::Int, _) => {
                 let prev = match cur_state {
                     Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
@@ -51,7 +51,7 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
@@ -81,8 +81,8 @@ impl SumAggregator {
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        match *old {
-            Int(_i) => {
+        match (return_type, new) {
+            (FieldType::Int, _) => {
                 let prev = match cur_state {
                     Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
@@ -107,7 +107,7 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
@@ -142,8 +142,8 @@ impl SumAggregator {
         return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        match *old {
-            Int(_i) => {
+        match (return_type, old) {
+            (FieldType::Int, _) => {
                 let prev = match cur_state {
                     Some(v) => i64::from_be_bytes(deserialize!(v)),
                     None => 0_i64,
@@ -162,7 +162,7 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 let prev = OrderedFloat(match cur_state {
                     Some(v) => f64::from_be_bytes(deserialize!(v)),
                     None => 0_f64,
