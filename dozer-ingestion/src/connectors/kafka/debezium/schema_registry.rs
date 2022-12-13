@@ -10,20 +10,14 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use std::collections::HashMap;
+use crate::connectors::kafka::debezium::schema::map_type;
 
 pub struct SchemaRegistry {}
 
 pub fn map_typ(schema: &DebeziumSchemaStruct) -> Result<(FieldType, bool), DebeziumSchemaError> {
     let nullable = schema.optional.map_or(false, |o| !o);
     match schema.r#type.clone() {
-        Value::String(typ) => match typ.as_str() {
-            "int" | "int8" | "int16" | "int32" | "int64" => Ok((FieldType::Int, nullable)),
-            "string" => Ok((FieldType::String, nullable)),
-            "bytes" => Ok((FieldType::Binary, nullable)),
-            "float32" | "float64" | "double" => Ok((FieldType::Float, nullable)),
-            "boolean" => Ok((FieldType::Boolean, nullable)),
-            _ => Err(TypeNotSupported(typ)),
-        },
+        Value::String(typ) => map_type(schema).map(|s| (s, nullable)),
         Value::Array(types) => {
             let nullable = types.contains(&Value::from("null"));
             for typ in types {

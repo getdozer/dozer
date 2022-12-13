@@ -13,7 +13,7 @@ pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSche
     match schema.name.clone() {
         None => match schema.r#type.clone() {
             Value::String(typ) => match typ.as_str() {
-                "int8" | "int16" | "int32" | "int64" => Ok(FieldType::Int),
+                "int" | "int8" | "int16" | "int32" | "int64" => Ok(FieldType::Int),
                 "string" => Ok(FieldType::String),
                 "bytes" => Ok(FieldType::Binary),
                 "float32" | "float64" | "double" => Ok(FieldType::Float),
