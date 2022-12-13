@@ -119,40 +119,48 @@ pub fn query_sqllite(
             let mut records = vec![];
 
             while let Ok(Some(row)) = rows.next() {
-                let mut values = vec![];
-
-                for (idx, f) in schema.fields.clone().into_iter().enumerate() {
-                    let val = match_type! {
-                        f.typ,
-                        FieldType::UInt => convert_type!(Field::UInt, f, row, idx),
-                        FieldType::Int => convert_type!(Field::Int, f, row, idx),
-                        FieldType::Float => Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?)),
-                        FieldType::Boolean => convert_type!(Field::Boolean, f, row, idx),
-                        FieldType::String => convert_type!(Field::String, f, row, idx),
-                        FieldType::Text => convert_type!(Field::Text, f, row, idx),
-                        FieldType::Binary => convert_type!(Field::Binary, f, row, idx),
-                        FieldType::Timestamp => convert_type!(Field::String, f, row, idx),
-                        FieldType::Decimal => {
-                            let val: String = row.get(idx)?;
-                            Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
-                        },
-                        dozer_types::types::FieldType::Null => Field::Null,
-                        FieldType::Date =>  convert_type!(Field::String, f, row, idx),
-                        dozer_types::types::FieldType::Bson => {
-                            panic!("type not supported : {:?}", f.typ.to_owned())
-                        }
-                    };
-                    values.push(val);
-                }
-                let record = Record {
-                    schema_id: schema.identifier.clone(),
-                    values,
-                };
+                let record = map_sqlite_to_record(schema, row)?;
                 records.push(record);
             }
             Ok(records)
         })
         .unwrap()
+}
+
+pub fn map_sqlite_to_record(
+    schema: &Schema,
+    row: &rusqlite::Row,
+) -> Result<Record, rusqlite::Error> {
+    let mut values = vec![];
+
+    for (idx, f) in schema.fields.clone().into_iter().enumerate() {
+        let val = match_type! {
+            f.typ,
+            FieldType::UInt => convert_type!(Field::UInt, f, row, idx),
+            FieldType::Int => convert_type!(Field::Int, f, row, idx),
+            FieldType::Float => Field::Float(dozer_types::ordered_float::OrderedFloat(row.get(idx)?)),
+            FieldType::Boolean => convert_type!(Field::Boolean, f, row, idx),
+            FieldType::String => convert_type!(Field::String, f, row, idx),
+            FieldType::Text => convert_type!(Field::Text, f, row, idx),
+            FieldType::Binary => convert_type!(Field::Binary, f, row, idx),
+            FieldType::Timestamp => convert_type!(Field::String, f, row, idx),
+            FieldType::Decimal => {
+                let val: String = row.get(idx)?;
+                Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
+            },
+            dozer_types::types::FieldType::Null => Field::Null,
+            FieldType::Date =>  convert_type!(Field::String, f, row, idx),
+            dozer_types::types::FieldType::Bson => {
+                panic!("type not supported : {:?}", f.typ.to_owned())
+            }
+        };
+        values.push(val);
+    }
+    let record = Record {
+        schema_id: schema.identifier.clone(),
+        values,
+    };
+    Ok(record)
 }
 
 pub fn parse_sql_number(n: &str) -> Result<Field, types::TypeError> {
@@ -162,6 +170,13 @@ pub fn parse_sql_number(n: &str) -> Result<Field, types::TypeError> {
             Ok(f) => Ok(Field::Float(OrderedFloat(f))),
             Err(_) => Err(types::TypeError::InvalidFieldValue(n.to_string())),
         },
+    }
+}
+pub fn parse_exp_to_string(exp: &Expr) -> String {
+    if let sqlparser::ast::Expr::Value(value) = exp {
+        value.to_string()
+    } else {
+        panic!("not supported");
     }
 }
 
@@ -232,7 +247,7 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                     typ: match typ.as_str() {
                         "integer" => FieldType::Int,
                         "string" => FieldType::String,
-                        "text" => FieldType::Text,
+                        "text" => FieldType::String,
                         "numeric" => FieldType::Float,
                         "timestamp" => FieldType::Timestamp,
                         f => panic!("unknown field_type : {}", f),
