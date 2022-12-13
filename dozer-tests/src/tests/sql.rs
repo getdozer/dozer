@@ -71,7 +71,7 @@ fn get_queries() -> Vec<&'static str> {
     vec![
         "select actor_id, first_name, last_name,last_update from actor order by actor_id",
         "select actor_id, first_name, last_name,last_update from actor where actor_id<=5",
-         "select count(actor_id) from actor",
+        "select count(actor_id) from actor",
          "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)",
          "select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'",
          "select actor_id, first_name, last_name,last_update from actor where actor_id<5 and actor_id>2",
@@ -84,7 +84,9 @@ fn get_queries() -> Vec<&'static str> {
 #[test]
 #[ignore]
 fn nightly_long_init_queries() {
+    let queries = get_queries();
     run_tests(
+        queries,
         "from_csv".to_string(),
         TestInstruction::FromCsv("actor".to_string(), vec!["actor".to_string()]),
     );
@@ -107,42 +109,39 @@ fn nightly_long_nullable_queries() {
                 "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)".to_string(),
             ),
         ];
-    run_tests("nullable".to_string(), TestInstruction::List(list));
+    let queries = get_queries();
+    run_tests(queries, "nullable".to_string(), TestInstruction::List(list));
 }
 
 #[test]
 #[ignore]
 fn nightly_long_changes_queries() {
+    let queries =
+        vec!["select actor_id, first_name, last_name,last_update from actor order by actor_id"];
     let list = vec![
         (
             "actor".to_string(),
-            "INSERT INTO actor(actor_id,first_name) values (1, 'mario')".to_string(),
+            "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', 'GUINESS','2020-02-15 09:34:33+00')".to_string(),
         ),
         (
             "actor".to_string(),
-            "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (2, 'dario', null, null)".to_string(),
+            "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', 'GUINESS','2020-02-15 09:34:33+00')".to_string(),
         ),
         (
             "actor".to_string(),
-            "INSERT INTO actor(actor_id,first_name, last_name, last_update) values (3, 'luigi', null, null)".to_string(),
+            "UPDATE actor SET first_name ='sampras' WHERE actor_id=2".to_string(),
         ),
-        (
-            "actor".to_string(),
-            "UPDATE actor SET first_name ='sampras' WHERE actor_id=1".to_string(),
-        ),
-        ("actor".to_string(), "DELETE FROM actor WHERE actor_id=1".to_string()),
+        ("actor".to_string(), "DELETE FROM actor WHERE actor_id=2".to_string()),
     ];
-    run_tests("changes".to_string(), TestInstruction::List(list));
+    run_tests(queries, "changes".to_string(), TestInstruction::List(list));
 }
 
-fn run_tests(test_name: String, test_instruction: TestInstruction) {
+fn run_tests(queries: Vec<&str>, test_name: String, test_instruction: TestInstruction) {
     init();
-
-    let tests = get_queries();
 
     let mut results = vec![];
 
-    for (idx, test) in tests.into_iter().enumerate() {
+    for (idx, test) in queries.into_iter().enumerate() {
         let mut framework = setup();
 
         let list = match test_instruction {
