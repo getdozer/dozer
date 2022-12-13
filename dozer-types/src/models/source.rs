@@ -7,6 +7,7 @@ pub struct Source {
     pub name: String,
     pub table_name: String,
     pub columns: Option<Vec<String>>,
+    #[serde(skip_deserializing)]
     pub connection: Connection,
     pub history_type: Option<HistoryType>,
     pub refresh_config: RefreshConfig,

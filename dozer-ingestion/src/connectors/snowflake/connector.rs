@@ -144,9 +144,7 @@ async fn run(
             let mut consumer = StreamConsumer::new(connector_id);
             loop {
                 for table in tables.iter() {
-                    consumer
-                        .consume_stream(&stream_client, &table.name, &ingestor_stream)
-                        .unwrap();
+                    consumer.consume_stream(&stream_client, &table.name, &ingestor_stream)?;
 
                     interval.tick().await;
                 }

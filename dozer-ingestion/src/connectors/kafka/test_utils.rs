@@ -2,8 +2,9 @@ use crate::connectors::postgres::connection::helper::{connect, map_connection_co
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
+use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::Authentication;
-use dozer_types::models::source::Source;
+
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
@@ -16,9 +17,25 @@ use std::time::Duration;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumTestConfig {
-    pub source: Source,
+    pub config: Config,
+    pub debezium: DebeziumConnectorConfig,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(crate = "dozer_types::serde")]
+pub struct DebeziumConnectorConfig {
     pub postgres_source_authentication: Authentication,
-    pub debezium_connector_url: String,
+    pub connector_url: String,
+}
+
+pub fn get_debezium_config(file_name: &str) -> DebeziumTestConfig {
+    let config = serde_yaml::from_str::<Config>(load_config(file_name)).unwrap();
+
+    let debezium =
+        serde_yaml::from_str::<DebeziumConnectorConfig>(load_config("test.debezium.pg.yaml"))
+            .unwrap();
+
+    DebeziumTestConfig { config, debezium }
 }
 
 pub fn get_client_and_create_table(table_name: &str, auth: &Authentication) -> Client {
@@ -50,20 +67,16 @@ pub fn get_client_and_create_table(table_name: &str, auth: &Authentication) -> C
 }
 
 pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionIterator>>, Client) {
-    let mut config =
-        serde_yaml::from_str::<DebeziumTestConfig>(load_config("test.debezium.yaml")).unwrap();
+    let config = get_debezium_config("test.debezium.yaml");
 
-    config.source.table_name = table_name.clone();
-
-    let mut source = config.source;
-
-    let client = get_client_and_create_table(&table_name, &config.postgres_source_authentication);
+    let client =
+        get_client_and_create_table(&table_name, &config.debezium.postgres_source_authentication);
 
     let content = load_config("test.register-postgres.json");
 
     let connector_client = reqwest::blocking::Client::new();
     connector_client
-        .post(&config.debezium_connector_url)
+        .post(&config.debezium.connector_url)
         .body(content)
         .header(CONTENT_TYPE, "application/json")
         .header(ACCEPT, "application/json")
@@ -81,13 +94,14 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
             columns: None,
         }];
 
+        let mut connection = config.config.connections.get(0).unwrap().clone();
         if let Authentication::KafkaAuthentication {
             broker,
             topic: _,
             schema_registry_url,
-        } = source.connection.authentication
+        } = connection.authentication
         {
-            source.connection.authentication = Authentication::KafkaAuthentication {
+            connection.authentication = Authentication::KafkaAuthentication {
                 broker,
                 topic: format!("dbserver1.public.{}", table_name),
                 schema_registry_url,
@@ -98,7 +112,7 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
             thread::sleep(Duration::from_secs(1));
         }
 
-        let mut connector = get_connector(source.connection).unwrap();
+        let mut connector = get_connector(connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
         connector.start().unwrap();
     });
