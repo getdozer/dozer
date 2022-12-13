@@ -34,10 +34,10 @@
 ## Quick Start
 
 Using binary
-```
-# Download binary from the latest stable
-# Check out our latest release here - https://github.com/getdozer/dozer/releases/latest
-
+```bash
+# Download the latest stable binary
+# Check out our latest release details here - https://github.com/getdozer/dozer/releases/latest
+./download-latest.sh
 ```
 
 Using docker
