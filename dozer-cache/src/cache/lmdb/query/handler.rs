@@ -83,6 +83,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 }
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(),
+            Plan::ReturnEmpty => Ok(vec![]),
         }
     }
 

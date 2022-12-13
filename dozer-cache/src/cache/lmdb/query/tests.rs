@@ -137,6 +137,8 @@ fn query_secondary_vars() {
     );
 
     // Range tests
+    test_query(json!({"$filter":{ "c": {"$lte": null}}}), 0, &cache);
+
     test_query(json!({"$filter":{ "c": {"$lte": 521}}}), 2, &cache);
 
     test_query(json!({"$filter":{ "c": {"$gte": 521}}}), 7, &cache);

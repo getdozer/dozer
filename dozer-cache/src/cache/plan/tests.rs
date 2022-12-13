@@ -1,6 +1,6 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, QueryExpression, SortOption},
+    expression::{self, FilterExpression, Operator, QueryExpression, SortOption},
     plan::{IndexScanKind, SortedInvertedRangeQuery},
     test_utils,
 };
@@ -130,4 +130,22 @@ fn test_generate_plan_range_query_and_order_by() {
     } else {
         panic!("IndexScan expected")
     }
+}
+
+#[test]
+fn test_generate_plan_empty() {
+    let (schema, secondary_indexes) = test_utils::schema_1();
+
+    let query = QueryExpression::new(
+        Some(FilterExpression::Simple(
+            "c".into(),
+            Operator::LT,
+            Value::Null,
+        )),
+        vec![],
+        10,
+        0,
+    );
+    let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
+    assert!(matches!(planner.plan().unwrap(), Plan::ReturnEmpty));
 }
