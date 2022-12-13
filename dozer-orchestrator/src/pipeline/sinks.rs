@@ -298,7 +298,7 @@ mod tests {
     use tempdir::TempDir;
 
     #[test]
-    // This test cases covers updation of records when primary key changes because of value change in primary_key
+    // This test cases covers update of records when primary key changes because of value change in primary_key
     fn update_record_when_primary_changes() {
         let tmp_dir = TempDir::new("example").unwrap();
         let mut env = LmdbEnvironmentManager::create(tmp_dir.path(), "test").unwrap();
@@ -317,7 +317,7 @@ mod tests {
 
         let mut input_schemas = HashMap::new();
         input_schemas.insert(DEFAULT_PORT_HANDLE, schema.clone());
-        //    sink.update_schema(&input_schemas).unwrap();
+        // sink.update_schema(&input_schemas).unwrap();
 
         // Initialing schemas
         cache
