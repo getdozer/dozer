@@ -140,7 +140,7 @@ impl AggregationProcessor {
 
         let val_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
         offset += 2;
-        let val: Field = Field::from_bytes(&buf[offset..offset + val_len as usize])
+        let val: Field = Field::decode(&buf[offset..offset + val_len as usize])
             .map_err(TypeError::DeserializationError)?;
         offset += val_len as usize;
         let state_len = u16::from_be_bytes(buf[offset..offset + 2].try_into().unwrap());
@@ -164,7 +164,7 @@ impl AggregationProcessor {
         let mut r = Vec::with_capacity(512);
         r.extend(prefix.to_be_bytes());
 
-        let sz_val = value.to_bytes();
+        let sz_val = value.encode();
         r.extend((sz_val.len() as u16).to_be_bytes());
         r.extend(&sz_val);
 
@@ -514,7 +514,7 @@ fn get_key(
 
     for dimension in out_dimensions.iter() {
         let value = dimension.0.evaluate(record)?;
-        let bytes = value.to_bytes();
+        let bytes = value.encode();
         tot_size += bytes.len();
         buffers.push(bytes);
     }

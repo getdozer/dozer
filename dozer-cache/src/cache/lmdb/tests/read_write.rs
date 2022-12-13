@@ -46,7 +46,7 @@ fn read_and_write() {
     };
     let cache_reader = LmdbCache::new(read_options).unwrap();
     for (a, b, c) in items {
-        let rec = cache_reader.get(&Field::Int(a).to_bytes()).unwrap();
+        let rec = cache_reader.get(&Field::Int(a).encode()).unwrap();
         let values = vec![Field::Int(a), Field::String(b), Field::Int(c)];
         assert_eq!(rec.values, values, "should be equal");
     }

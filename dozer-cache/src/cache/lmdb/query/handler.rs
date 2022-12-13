@@ -150,7 +150,7 @@ fn get_start_end_keys(
                 eq_filters,
                 range_query.as_ref(),
                 is_single_field_sorted_inverted,
-            )?;
+            );
             // There're 3 cases:
             // 1. Range query with operator.
             // 2. Range query without operator (only order by).
@@ -210,7 +210,7 @@ fn build_sorted_inverted_comparision_key(
     eq_filters: &[(usize, SortDirection, Field)],
     range_query: Option<&SortedInvertedRangeQuery>,
     is_single_field_index: bool,
-) -> Result<Option<Vec<u8>>, CacheError> {
+) -> Option<Vec<u8>> {
     let mut fields = vec![];
     eq_filters.iter().for_each(|filter| {
         fields.push((&filter.2, filter.1));
@@ -221,9 +221,9 @@ fn build_sorted_inverted_comparision_key(
         }
     }
     if fields.is_empty() {
-        Ok(None)
+        None
     } else {
-        index::get_secondary_index(&fields, is_single_field_index).map(Some)
+        Some(index::get_secondary_index(&fields, is_single_field_index))
     }
 }
 

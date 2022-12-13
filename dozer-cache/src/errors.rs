@@ -55,6 +55,18 @@ pub enum QueryError {
 }
 
 #[derive(Error, Debug)]
+pub enum CompareError {
+    #[error("cannot read field length")]
+    CannotReadFieldLength,
+    #[error("cannot read field")]
+    CannotReadField,
+    #[error("invalid sort direction")]
+    InvalidSortDirection(u8),
+    #[error(transparent)]
+    DeserializationError(#[from] DeserializationError),
+}
+
+#[derive(Error, Debug)]
 pub enum IndexError {
     #[error("field indexes dont match with index_scan")]
     MismatchedIndexAndValues,
