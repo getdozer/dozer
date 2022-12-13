@@ -1,4 +1,3 @@
-
 ## End to end sample
 
 Features used:

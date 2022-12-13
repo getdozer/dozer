@@ -1,7 +1,7 @@
 ## Dozer Tests
 
-This module implements end-to-end test cases as well provides samples for the most common use cases.
+This module contains end-to-end test samples.
 
 ### Samples
 [End to End Dozer Sample](./simple_e2e_example/README.md)
-[Postgres as an Iterator](./connectors/postgres_as_iterator/README.md)
+[Postgres as an Iterator](./connectors/simple_iterator_samples/README.md)
