@@ -71,6 +71,8 @@ fn get_queries() -> Vec<&'static str> {
     vec![
         "select actor_id, first_name, last_name,last_update from actor order by actor_id",
         "select actor_id, first_name, last_name,last_update from actor where actor_id<=5",
+        "select actor_id, first_name, last_name,last_update from actor where last_name = 'PIPPO'",
+     //   "select actor_id, first_name, last_name,last_update from actor where last_name IS NULL",
         "select count(actor_id) from actor",
          // "select actor_id, first_name, last_name,last_update from actor where actor_id in (1,5)",
          "select actor_id, first_name, last_name,last_update from actor where first_name='GUINESS'",
@@ -92,7 +94,6 @@ fn nightly_long_init_queries() {
 }
 
 #[test]
-#[ignore]
 fn nightly_long_nullable_queries() {
     let list = vec![
             (
