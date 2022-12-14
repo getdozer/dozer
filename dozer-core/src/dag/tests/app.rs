@@ -252,101 +252,77 @@ fn test_app_dag() {
 
     let dag = app.get_dag().unwrap();
 
-    assert!(dag
-        .edges
-        .iter()
-        .find(|e| e
-            == &&Edge::new(
-                Endpoint::new(
-                    NodeHandle::new(None, "postgres".to_string()),
-                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1
-                ),
-                Endpoint::new(
-                    NodeHandle::new(Some(1), "join".to_string()),
-                    NOOP_JOIN_LEFT_INPUT_PORT
-                )
-            ))
-        .is_some());
+    assert!(dag.edges.iter().any(|e| *e
+        == Edge::new(
+            Endpoint::new(
+                NodeHandle::new(None, "postgres".to_string()),
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1
+            ),
+            Endpoint::new(
+                NodeHandle::new(Some(1), "join".to_string()),
+                NOOP_JOIN_LEFT_INPUT_PORT
+            )
+        )));
 
-    assert!(dag
-        .edges
-        .iter()
-        .find(|e| e
-            == &&Edge::new(
-                Endpoint::new(
-                    NodeHandle::new(None, "postgres".to_string()),
-                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2
-                ),
-                Endpoint::new(
-                    NodeHandle::new(Some(1), "join".to_string()),
-                    NOOP_JOIN_RIGHT_INPUT_PORT
-                )
-            ))
-        .is_some());
+    assert!(dag.edges.iter().any(|e| *e
+        == Edge::new(
+            Endpoint::new(
+                NodeHandle::new(None, "postgres".to_string()),
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2
+            ),
+            Endpoint::new(
+                NodeHandle::new(Some(1), "join".to_string()),
+                NOOP_JOIN_RIGHT_INPUT_PORT
+            )
+        )));
 
-    assert!(dag
-        .edges
-        .iter()
-        .find(|e| e
-            == &&Edge::new(
-                Endpoint::new(
-                    NodeHandle::new(None, "snowflake".to_string()),
-                    GENERATOR_SOURCE_OUTPUT_PORT
-                ),
-                Endpoint::new(
-                    NodeHandle::new(Some(2), "join".to_string()),
-                    NOOP_JOIN_LEFT_INPUT_PORT
-                )
-            ))
-        .is_some());
+    assert!(dag.edges.iter().any(|e| *e
+        == Edge::new(
+            Endpoint::new(
+                NodeHandle::new(None, "snowflake".to_string()),
+                GENERATOR_SOURCE_OUTPUT_PORT
+            ),
+            Endpoint::new(
+                NodeHandle::new(Some(2), "join".to_string()),
+                NOOP_JOIN_LEFT_INPUT_PORT
+            )
+        )));
 
-    assert!(dag
-        .edges
-        .iter()
-        .find(|e| e
-            == &&Edge::new(
-                Endpoint::new(
-                    NodeHandle::new(None, "postgres".to_string()),
-                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2
-                ),
-                Endpoint::new(
-                    NodeHandle::new(Some(2), "join".to_string()),
-                    NOOP_JOIN_RIGHT_INPUT_PORT
-                )
-            ))
-        .is_some());
+    assert!(dag.edges.iter().any(|e| *e
+        == Edge::new(
+            Endpoint::new(
+                NodeHandle::new(None, "postgres".to_string()),
+                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2
+            ),
+            Endpoint::new(
+                NodeHandle::new(Some(2), "join".to_string()),
+                NOOP_JOIN_RIGHT_INPUT_PORT
+            )
+        )));
 
-    assert!(dag
-        .edges
-        .iter()
-        .find(|e| e
-            == &&Edge::new(
-                Endpoint::new(
-                    NodeHandle::new(Some(1), "join".to_string()),
-                    DEFAULT_PORT_HANDLE
-                ),
-                Endpoint::new(
-                    NodeHandle::new(Some(1), "sink".to_string()),
-                    COUNTING_SINK_INPUT_PORT
-                )
-            ))
-        .is_some());
+    assert!(dag.edges.iter().any(|e| *e
+        == Edge::new(
+            Endpoint::new(
+                NodeHandle::new(Some(1), "join".to_string()),
+                DEFAULT_PORT_HANDLE
+            ),
+            Endpoint::new(
+                NodeHandle::new(Some(1), "sink".to_string()),
+                COUNTING_SINK_INPUT_PORT
+            )
+        )));
 
-    assert!(dag
-        .edges
-        .iter()
-        .find(|e| e
-            == &&Edge::new(
-                Endpoint::new(
-                    NodeHandle::new(Some(2), "join".to_string()),
-                    DEFAULT_PORT_HANDLE
-                ),
-                Endpoint::new(
-                    NodeHandle::new(Some(2), "sink".to_string()),
-                    COUNTING_SINK_INPUT_PORT
-                )
-            ))
-        .is_some());
+    assert!(dag.edges.iter().any(|e| *e
+        == Edge::new(
+            Endpoint::new(
+                NodeHandle::new(Some(2), "join".to_string()),
+                DEFAULT_PORT_HANDLE
+            ),
+            Endpoint::new(
+                NodeHandle::new(Some(2), "sink".to_string()),
+                COUNTING_SINK_INPUT_PORT
+            )
+        )));
 
     assert_eq!(dag.edges.len(), 6);
 

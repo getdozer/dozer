@@ -517,6 +517,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::needless_lifetimes)]
     fn get_composite_key_checker<'a>(
         directions: &'a [SortDirection],
     ) -> impl Fn(&[i64], &[i64], Ordering) + 'a {

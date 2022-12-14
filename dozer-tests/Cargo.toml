@@ -8,6 +8,7 @@ edition = "2021"
 [dev-dependencies]
 sqlparser = "0.24.0"
 dozer-types = {path = "../dozer-types"}
+dozer-tracing = {path = "../dozer-tracing"}
 dozer-core = {path = "../dozer-core"}
 dozer-sql = {path = "../dozer-sql"}
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }

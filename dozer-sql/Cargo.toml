@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 chrono = "0.4.0"
 log = "0.4.17"
-log4rs = "1.1.1"
 num-traits = "0.2.15"
 sqlparser = "0.24.0"
 bincode = "1.3.3"
