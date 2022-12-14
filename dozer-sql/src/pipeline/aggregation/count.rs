@@ -1,6 +1,6 @@
-use crate::deserialize;
 use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
+use crate::{deserialize, deserialize_i64};
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::types::Field::Int;
 use dozer_types::types::{Field, FieldType};
@@ -24,11 +24,7 @@ impl CountAggregator {
         _return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        let prev = match cur_state {
-            Some(v) => i64::from_be_bytes(deserialize!(v)),
-            None => 0_i64,
-        };
-
+        let prev = deserialize_i64!(cur_state);
         let buf = (prev + 1).to_be_bytes();
         Ok(AggregationResult::new(
             Self::get_value(&buf),
@@ -43,11 +39,7 @@ impl CountAggregator {
         _return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        let prev = match cur_state {
-            Some(v) => i64::from_be_bytes(deserialize!(v)),
-            None => 0_i64,
-        };
-
+        let prev = deserialize_i64!(cur_state);
         let buf = (prev).to_be_bytes();
         Ok(AggregationResult::new(
             Self::get_value(&buf),
@@ -61,11 +53,7 @@ impl CountAggregator {
         _return_type: FieldType,
         _txn: &mut PrefixTransaction,
     ) -> Result<AggregationResult, PipelineError> {
-        let prev = match cur_state {
-            Some(v) => i64::from_be_bytes(deserialize!(v)),
-            None => 0_i64,
-        };
-
+        let prev = deserialize_i64!(cur_state);
         let buf = (prev - 1).to_be_bytes();
         Ok(AggregationResult::new(
             Self::get_value(&buf),

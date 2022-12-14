@@ -276,7 +276,7 @@ impl SqlMapper {
                     .get_record(&name, &column_name, &val, &schema)
                     .expect("record with id is expected");
 
-                (rec.to_owned(), SchemaResponse { schema })
+                (rec, SchemaResponse { schema })
             } else {
                 panic!("not supported: {:?}", selection);
             }
