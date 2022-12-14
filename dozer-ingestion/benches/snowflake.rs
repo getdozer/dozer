@@ -31,6 +31,7 @@ fn snowflake(c: &mut Criterion, iterator: Arc<RwLock<IngestionIterator>>) {
 
 pub fn main() {
     use dozer_types::models::source::Source;
+    use dozer_types::serde_yaml;
 
     let source = serde_yaml::from_str::<Source>(load_config("test.snowflake.yaml")).unwrap();
 
