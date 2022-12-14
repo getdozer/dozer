@@ -18,5 +18,5 @@ arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebr
 ```
 Second, install `unixodbc` using following command
 ```bash
-arch -x86_64 brew install unixodbc
+arch -x86_64 /usr/local/Homebrew/bin/brew install unixodbc
 ```
