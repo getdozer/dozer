@@ -31,6 +31,7 @@ message PostgresAuthentication {
 message KafkaAuthentication {
   string broker = 1;
   string topic = 2;
+  optional string schema_registry_url = 3;
 }
 message EventsAuthentication {
   string database = 1;

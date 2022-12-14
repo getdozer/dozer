@@ -101,8 +101,16 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
 
             Ok(Box::new(SnowflakeConnector::new(4, snowflake_config)))
         }
-        KafkaAuthentication { broker, topic } => {
-            let kafka_config = KafkaConfig { broker, topic };
+        KafkaAuthentication {
+            broker,
+            topic,
+            schema_registry_url,
+        } => {
+            let kafka_config = KafkaConfig {
+                broker,
+                topic,
+                schema_registry_url,
+            };
 
             Ok(Box::new(KafkaConnector::new(5, kafka_config)))
         }

@@ -14,6 +14,7 @@ use std::str::Utf8Error;
 
 #[cfg(feature = "snowflake")]
 use odbc::DiagnosticRecord;
+use schema_registry_converter::error::SRCError;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
@@ -220,6 +221,9 @@ pub enum DebeziumError {
 
     #[error(transparent)]
     DebeziumStreamError(#[from] DebeziumStreamError),
+
+    #[error("Schema registry fetch failed")]
+    SchemaRegistryFetchError(#[source] SRCError),
 }
 
 #[derive(Error, Debug)]

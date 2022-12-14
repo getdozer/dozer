@@ -287,6 +287,7 @@ impl TryFrom<dozer_admin_grpc::Authentication> for models::connection::Authentic
                     models::connection::Authentication::KafkaAuthentication {
                         broker: kafka.broker,
                         topic: kafka.topic,
+                        schema_registry_url: kafka.schema_registry_url,
                     }
                 }
             };
