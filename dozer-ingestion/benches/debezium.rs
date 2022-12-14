@@ -70,7 +70,7 @@ impl DebeziumBench {
 }
 
 pub fn main() {
-    let (iterator, client) = get_iterator_and_client("", "products_test".to_string());
+    let (iterator, client) = get_iterator_and_client("products_test".to_string());
 
     let mut criterion = Criterion::default().configure_from_args();
     let mut bench = DebeziumBench::new(client);
