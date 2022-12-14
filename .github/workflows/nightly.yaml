@@ -1,16 +1,14 @@
-name: Dozer Scheduled
+name: Dozer Main
 # Long running tests, Performance benchmarks, Code vulnerability, Code coverage etc
 on:
-  schedule:
-    # 9pm SGT
-    - cron: "0 13 * * *"
+  push:
+    branches: [main, chore/remove-sql-log]
+  # TODO: Remove before merge
   pull_request:
     branches: [main]
-    paths:
-      - .github/workflows/nightly.yaml
 
 concurrency:
-  group: nightly
+  group: main
   cancel-in-progress: true
 
 jobs:
@@ -61,7 +59,7 @@ jobs:
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Cinstrument-coverage"
-          LLVM_PROFILE_FILE: 'cargo-test-%p-%m.profraw'
+          LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
 
       - uses: actions-rs/cargo@v1
         with:
@@ -70,7 +68,7 @@ jobs:
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Cinstrument-coverage"
-          LLVM_PROFILE_FILE: 'cargo-test-%p-%m.profraw'
+          LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
 
       - name: Get current date
         id: date
@@ -202,70 +200,6 @@ jobs:
             Criterion: ${{ job.status }}
 
             Criterion Report: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/criterion/reports/index.html
-            ```
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-
-  test_long:
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install minimal stable with clippy and rustfmt
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          components: rustfmt, clippy
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: ⚡ Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-            ~/.cargo/.package-cache
-            ~/.cargo/registry/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            ${{ runner.os }}-cargo-
-
-      - name: Run tests
-        run: cargo test -- nightly_long_ --ignored
-
-      - name: Get current date
-        id: date
-        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
-
-      - uses: keithweaver/aws-s3-github-action@v1.0.0
-        continue-on-error: true
-        with:
-          command: cp
-          source: ./dozer-tests/logs/sql-tests.log
-          destination: s3://dozer-ci/${{ steps.date.outputs.date }}/sql-tests.txt
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID_FOR_S3 }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FOR_S3 }}
-          aws_region: ap-southeast-1
-
-      - name: Post to a Slack channel
-        id: slack
-        continue-on-error: true
-        uses: slackapi/slack-github-action@v1.23.0
-        with:
-          channel-id: "release-notifications"
-          slack-message: |
-            ```
-            SQL log: https://dozer-ci.s3.ap-southeast-1.amazonaws.com/${{ steps.date.outputs.date }}/sql-tests.txt
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
