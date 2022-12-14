@@ -307,13 +307,13 @@ fn test_sum_aggregation_decimal() {
     );
     out = output!(processor, inp, tx);
     exp = vec![
+        delete_exp(SINGAPORE, &get_decimal_field(50)),
         update_exp(
             ITALY,
             ITALY,
             &get_decimal_field(200),
             &get_decimal_field(250),
         ),
-        delete_exp(SINGAPORE, &get_decimal_field(50)),
     ];
     assert_eq!(out, exp);
 
