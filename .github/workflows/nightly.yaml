@@ -3,8 +3,6 @@ name: Dozer Main
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 concurrency:
   group: main
@@ -103,7 +101,7 @@ jobs:
             ```
             Coverage: ${{ job.status }}
 
-            Last Commit: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
+            Last Commit: ${{ github.event.head_commit.url }}
 
             Response: ${{ steps.coveralls.outputs.coveralls-api-result }}
             ```
