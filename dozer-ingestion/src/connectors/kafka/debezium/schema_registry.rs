@@ -101,35 +101,31 @@ impl SchemaRegistry {
                                 let fields_value_struct: Vec<DebeziumSchemaStruct> =
                                     serde_json::from_value(fields_value.clone()).unwrap();
                                 let mut pk_keys_indexes = vec![];
-                                let mut fields_schema_map: HashMap<
-                                    String,
-                                    &DebeziumSchemaStruct,
-                                > = HashMap::new();
+                                let mut fields_schema_map: HashMap<String, &DebeziumSchemaStruct> =
+                                    HashMap::new();
 
-                                let defined_fields: Result<
-                                    Vec<FieldDefinition>,
-                                    ConnectorError,
-                                > = fields_value_struct
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(idx, f)| {
-                                        let (typ, nullable) = map_typ(f).map_err(|e| {
-                                            ConnectorError::DebeziumError(
-                                                DebeziumError::DebeziumSchemaError(e),
-                                            )
-                                        })?;
-                                        let name = f.name.clone().unwrap();
-                                        if pk_fields.contains(&name) {
-                                            pk_keys_indexes.push(idx);
-                                        }
-                                        fields_schema_map.insert(name.clone(), f);
-                                        Ok(FieldDefinition {
-                                            name,
-                                            typ,
-                                            nullable,
+                                let defined_fields: Result<Vec<FieldDefinition>, ConnectorError> =
+                                    fields_value_struct
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(idx, f)| {
+                                            let (typ, nullable) = map_typ(f).map_err(|e| {
+                                                ConnectorError::DebeziumError(
+                                                    DebeziumError::DebeziumSchemaError(e),
+                                                )
+                                            })?;
+                                            let name = f.name.clone().unwrap();
+                                            if pk_fields.contains(&name) {
+                                                pk_keys_indexes.push(idx);
+                                            }
+                                            fields_schema_map.insert(name.clone(), f);
+                                            Ok(FieldDefinition {
+                                                name,
+                                                typ,
+                                                nullable,
+                                            })
                                         })
-                                    })
-                                    .collect();
+                                        .collect();
 
                                 let schema = Schema {
                                     identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
