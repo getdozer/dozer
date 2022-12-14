@@ -225,6 +225,9 @@ pub const FIELD_250_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(250.0 / 3.0
 pub const FIELD_350_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(350.0 / 3.0));
 
 pub const FIELD_0_INT: &Field = &Field::Int(0);
+pub const FIELD_1_INT: &Field = &Field::Int(1);
+pub const FIELD_2_INT: &Field = &Field::Int(2);
+pub const FIELD_3_INT: &Field = &Field::Int(3);
 pub const FIELD_100_INT: &Field = &Field::Int(100);
 pub const FIELD_150_INT: &Field = &Field::Int(150);
 pub const FIELD_200_INT: &Field = &Field::Int(200);

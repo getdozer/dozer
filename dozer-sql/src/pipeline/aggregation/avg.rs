@@ -23,9 +23,9 @@ impl AvgAggregator {
 
     pub(crate) fn get_return_type(from: FieldType) -> FieldType {
         match from {
-            FieldType::Int => FieldType::Int,
-            FieldType::Float => FieldType::Float,
             FieldType::Decimal => FieldType::Decimal,
+            FieldType::Float => FieldType::Float,
+            FieldType::Int => FieldType::Int,
             _ => from,
         }
     }
@@ -42,15 +42,15 @@ impl AvgAggregator {
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
-            (FieldType::Int, _) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
-                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_be_bytes();
+                let avg = try_unwrap!(Self::calc_decimal_average(ptx, aggregators_db)).serialize();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
+                    Self::get_value(avg.as_slice(), return_type),
                     Some(Vec::from(avg)),
                 ))
             }
@@ -66,15 +66,15 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            (FieldType::Decimal, _) => {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
-                Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
+                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_decimal_average(ptx, aggregators_db)).serialize();
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(avg.as_slice(), return_type),
+                    Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
                 ))
             }
@@ -91,17 +91,19 @@ impl AvgAggregator {
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
-            (FieldType::Int, _) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
-                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
-                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
-                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
+
+                // Update aggregators_db with new val and its occurrence
+                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = (try_unwrap!(Self::calc_i64_average(ptx, aggregators_db))).to_be_bytes();
+                let avg = try_unwrap!(Self::calc_decimal_average(ptx, aggregators_db)).serialize();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
+                    Self::get_value(avg.as_slice(), return_type),
                     Some(Vec::from(avg)),
                 ))
             }
@@ -119,19 +121,17 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            (FieldType::Decimal, _) => {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
-                Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
-
-                // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
-                Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
+                let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_decimal_average(ptx, aggregators_db)).serialize();
+                let avg = (try_unwrap!(Self::calc_i64_average(ptx, aggregators_db))).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(avg.as_slice(), return_type),
+                    Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
                 ))
             }
@@ -147,15 +147,15 @@ impl AvgAggregator {
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, old) {
-            (FieldType::Int, _) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
-                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
+                Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_be_bytes();
+                let avg = try_unwrap!(Self::calc_decimal_average(ptx, aggregators_db)).serialize();
                 Ok(AggregationResult::new(
-                    Self::get_value(&avg, return_type),
+                    Self::get_value(avg.as_slice(), return_type),
                     Some(Vec::from(avg)),
                 ))
             }
@@ -171,15 +171,15 @@ impl AvgAggregator {
                     Some(Vec::from(avg)),
                 ))
             }
-            (FieldType::Decimal, _) => {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
-                let old_val = field_extract_decimal!(&old, AGGREGATOR_NAME).serialize();
-                Self::update_aggregator_db(old_val.as_slice(), 1, true, ptx, aggregators_db);
+                let old_val = field_extract_i64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
 
                 // Calculate average
-                let avg = try_unwrap!(Self::calc_decimal_average(ptx, aggregators_db)).serialize();
+                let avg = try_unwrap!(Self::calc_i64_average(ptx, aggregators_db)).to_be_bytes();
                 Ok(AggregationResult::new(
-                    Self::get_value(avg.as_slice(), return_type),
+                    Self::get_value(&avg, return_type),
                     Some(Vec::from(avg)),
                 ))
             }
@@ -189,11 +189,11 @@ impl AvgAggregator {
 
     pub(crate) fn get_value(f: &[u8], from: FieldType) -> Field {
         match from {
-            FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
-            FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
             FieldType::Decimal => Decimal(dozer_types::rust_decimal::Decimal::deserialize(
                 deserialize!(f),
             )),
+            FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
+            FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
             _ => Field::Null,
         }
     }
