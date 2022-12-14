@@ -17,6 +17,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::{crossbeam::channel::Sender, models::api_config::ApiRest};
 use futures_util::FutureExt;
+use tracing_actix_web::TracingLogger;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
@@ -25,7 +26,6 @@ pub enum CorsOptions {
     // origins, max_age
     Custom(Vec<String>, usize),
 }
-
 #[derive(Clone)]
 pub struct ApiServer {
     shutdown_timeout: u64,
@@ -76,7 +76,9 @@ impl ApiServer {
             Error = actix_web::Error,
         >,
     > {
-        let app = App::new().wrap(Logger::default());
+        let app = App::new()
+            .wrap(Logger::default())
+            .wrap(TracingLogger::default());
 
         // Injecting API Security
         let app = app.app_data(security.to_owned());

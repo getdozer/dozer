@@ -11,6 +11,7 @@ actix-web-httpauth = "0.8.0"
 actix-cors = "0.6.3"
 dozer-cache = {version = "0.1.0", path = "../dozer-cache"}
 dozer-types = {version = "0.1.0", path = "../dozer-types"}
+dozer-tracing = {version = "0.1.0", path = "../dozer-tracing"}
 handlebars = "4.3.5"
 tempdir = "0.3.7"
 openapiv3 = "1.0.1"
@@ -28,6 +29,8 @@ jsonwebtoken = "8.1.1"
 tokio-stream = "0.1.11"
 crossbeam = "0.8.2"
 async-trait = "0.1.58"
+tracing-actix-web = "0.6.2"
+
 
 [build-dependencies]
 tonic-build = "0.8"

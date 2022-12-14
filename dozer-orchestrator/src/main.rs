@@ -4,27 +4,25 @@ use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
+
 use dozer_types::crossbeam::channel;
-use dozer_types::serde_yaml;
-use log::{debug, warn};
+use dozer_types::log::info;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-
-fn load_default_config() {
-    let config_str = include_str!("../../config/log4rs.release.yaml");
-    let config = serde_yaml::from_str(config_str).unwrap();
-    log4rs::init_raw_config(config).unwrap();
-}
+use std::time::Duration;
+use tokio::runtime::Runtime;
 
 fn main() -> Result<(), OrchestrationError> {
-    log4rs::init_file("log4rs.yaml", Default::default()).unwrap_or_else(|_e| {
-        debug!("log4rs.yaml not found. Loading default config.");
-        load_default_config();
+    let tracing_thread = thread::spawn(|| {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            dozer_tracing::init_telemetry(false).unwrap();
+        });
     });
-
-    warn!(
+    thread::sleep(Duration::from_millis(50));
+    info!(
         "
       ____   ___ __________ ____
      |  _ \\ / _ \\__  / ____|  _ \\
@@ -47,7 +45,8 @@ fn main() -> Result<(), OrchestrationError> {
     let configuration = load_config(cli.config_path)?;
     let path = Path::new("./.dozer").to_owned();
     let mut dozer = Dozer::new(path, configuration);
-    if let Some(cmd) = cli.cmd {
+
+    let res = if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
             Commands::Api(api) => match api.command {
@@ -69,5 +68,7 @@ fn main() -> Result<(), OrchestrationError> {
         rx.recv().unwrap();
 
         dozer_api.run_api(running_api)
-    }
+    };
+    tracing_thread.join().unwrap();
+    res
 }
