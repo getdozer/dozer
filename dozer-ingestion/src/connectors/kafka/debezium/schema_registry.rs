@@ -90,7 +90,6 @@ impl SchemaRegistry {
                         .collect()
                 });
 
-                eprintln!("ddd: {:#?}", schema_result.fields);
                 let mut schema_data: Option<Result<Vec<(String, Schema)>, ConnectorError>> = None;
                 for field in schema_result.fields {
                     for f in field {
