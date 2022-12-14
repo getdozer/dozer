@@ -44,8 +44,8 @@ impl MinAggregator {
         ptx: &mut PrefixTransaction,
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
-        match *new {
-            Int(_i) => {
+        match (return_type, new) {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -64,7 +64,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -83,7 +83,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Decimal(_d) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
@@ -99,7 +99,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Timestamp(_t) => {
+            (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_timestamp!(&new, AGGREGATOR_NAME)
                     .timestamp_millis()
@@ -122,7 +122,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Date(_d) => {
+            (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_date!(&new, AGGREGATOR_NAME).to_string();
                 Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);
@@ -151,8 +151,8 @@ impl MinAggregator {
         ptx: &mut PrefixTransaction,
         aggregators_db: &Database,
     ) -> Result<AggregationResult, PipelineError> {
-        match *old {
-            Int(_i) => {
+        match (return_type, new) {
+            (FieldType::Int, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_i64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -173,7 +173,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Float(_f) => {
+            (FieldType::Float, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_f64!(&new, AGGREGATOR_NAME);
                 Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
@@ -194,7 +194,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Decimal(_d) => {
+            (FieldType::Decimal, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_decimal!(&new, AGGREGATOR_NAME).serialize();
                 Self::update_aggregator_db(new_val.as_slice(), 1, false, ptx, aggregators_db);
@@ -212,7 +212,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Timestamp(_t) => {
+            (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_timestamp!(&new, AGGREGATOR_NAME)
                     .timestamp_millis()
@@ -239,7 +239,7 @@ impl MinAggregator {
                     ))
                 }
             }
-            Date(_d) => {
+            (FieldType::Date, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_date!(&new, AGGREGATOR_NAME).to_string();
                 Self::update_aggregator_db(new_val.as_bytes(), 1, false, ptx, aggregators_db);

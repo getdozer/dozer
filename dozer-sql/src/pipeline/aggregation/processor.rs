@@ -10,7 +10,7 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
-use dozer_types::types::{Field, Operation, Record};
+use dozer_types::types::{Field, Operation, Record, Schema};
 
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
@@ -70,6 +70,7 @@ pub struct AggregationProcessor {
     pub db: Option<Database>,
     meta_db: Option<Database>,
     aggregators_db: Option<Database>,
+    input_schema: Schema,
 }
 
 enum AggregatorOperation {
@@ -84,7 +85,7 @@ const AGG_COUNT_DATASET_ID: u16 = 0x0001_u16;
 const AGG_DEFAULT_DIMENSION_ID: u8 = 0xFF_u8;
 
 impl AggregationProcessor {
-    pub fn new(output_field_rules: Vec<FieldRule>) -> Self {
+    pub fn new(output_field_rules: Vec<FieldRule>, input_schema: Schema) -> Self {
         let (out_measures, out_dimensions) = populate_rules(&output_field_rules).unwrap();
         Self {
             output_field_rules,
@@ -93,6 +94,7 @@ impl AggregationProcessor {
             db: None,
             meta_db: None,
             aggregators_db: None,
+            input_schema,
         }
     }
 
@@ -213,7 +215,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             curr.state,
                             &inserted_field,
-                            inserted_field.get_type(),
+                            measure.0.get_type(&self.input_schema),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -224,7 +226,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             None,
                             &inserted_field,
-                            inserted_field.get_type(),
+                            measure.0.get_type(&self.input_schema),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -239,7 +241,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             curr.state,
                             &deleted_field,
-                            deleted_field.get_type(),
+                            measure.0.get_type(&self.input_schema),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -250,7 +252,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             None,
                             &deleted_field,
-                            deleted_field.get_type(),
+                            measure.0.get_type(&self.input_schema),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -268,7 +270,7 @@ impl AggregationProcessor {
                             curr.state,
                             &deleted_field,
                             &updated_field,
-                            deleted_field.get_type(),
+                            measure.0.get_type(&self.input_schema),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -280,7 +282,7 @@ impl AggregationProcessor {
                             None,
                             &deleted_field,
                             &updated_field,
-                            deleted_field.get_type(),
+                            measure.0.get_type(&self.input_schema),
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
