@@ -71,8 +71,8 @@ fn test_sum_aggregation_float() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_200_FLOAT, FIELD_250_FLOAT),
         delete_exp(SINGAPORE, FIELD_50_FLOAT),
+        update_exp(ITALY, ITALY, FIELD_200_FLOAT, FIELD_250_FLOAT),
     ];
     assert_eq!(out, exp);
 
@@ -184,8 +184,8 @@ fn test_sum_aggregation_int() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_200_INT, FIELD_250_INT),
         delete_exp(SINGAPORE, FIELD_50_INT),
+        update_exp(ITALY, ITALY, FIELD_200_INT, FIELD_250_INT),
     ];
     assert_eq!(out, exp);
 

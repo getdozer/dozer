@@ -71,8 +71,8 @@ fn test_max_aggregation_float() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_100_FLOAT),
         delete_exp(SINGAPORE, FIELD_50_FLOAT),
+        update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_100_FLOAT),
     ];
     assert_eq!(out, exp);
 
@@ -184,8 +184,8 @@ fn test_max_aggregation_int() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_100_INT),
         delete_exp(SINGAPORE, FIELD_50_INT),
+        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_100_INT),
     ];
     assert_eq!(out, exp);
 
@@ -307,13 +307,13 @@ fn test_max_aggregation_decimal() {
     );
     out = output!(processor, inp, tx);
     exp = vec![
+        delete_exp(SINGAPORE, &get_decimal_field(50)),
         update_exp(
             ITALY,
             ITALY,
             &get_decimal_field(100),
             &get_decimal_field(100),
         ),
-        delete_exp(SINGAPORE, &get_decimal_field(50)),
     ];
     assert_eq!(out, exp);
 
@@ -450,8 +450,8 @@ fn test_max_aggregation_timestamp() {
     inp = update_field(SINGAPORE, ITALY, &get_ts_field(50), &get_ts_field(50));
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, &get_ts_field(100), &get_ts_field(100)),
         delete_exp(SINGAPORE, &get_ts_field(50)),
+        update_exp(ITALY, ITALY, &get_ts_field(100), &get_ts_field(100)),
     ];
     assert_eq!(out, exp);
 
@@ -588,8 +588,8 @@ fn test_max_aggregation_date() {
     );
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, &get_date_field(DATE8), &get_date_field(DATE8)),
         delete_exp(SINGAPORE, &get_date_field(DATE4)),
+        update_exp(ITALY, ITALY, &get_date_field(DATE8), &get_date_field(DATE8)),
     ];
     assert_eq!(out, exp);
 

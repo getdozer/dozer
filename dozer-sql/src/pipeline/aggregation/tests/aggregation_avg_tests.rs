@@ -72,8 +72,8 @@ fn test_avg_aggregation_float() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_250_DIV_3_FLOAT),
         delete_exp(SINGAPORE, FIELD_50_FLOAT),
+        update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_250_DIV_3_FLOAT),
     ];
     assert_eq!(out, exp);
 
@@ -195,8 +195,8 @@ fn test_avg_aggregation_int() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_250_DIV_3_INT),
         delete_exp(SINGAPORE, FIELD_50_INT),
+        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_250_DIV_3_INT),
     ];
     assert_eq!(out, exp);
 
@@ -323,13 +323,13 @@ fn test_avg_aggregation_decimal() {
     );
     out = output!(processor, inp, tx);
     exp = vec![
+        delete_exp(SINGAPORE, &get_decimal_field(50)),
         update_exp(
             ITALY,
             ITALY,
             &get_decimal_field(100),
             &get_decimal_div_field(250, 3),
         ),
-        delete_exp(SINGAPORE, &get_decimal_field(50)),
     ];
     assert_eq!(out, exp);
 
