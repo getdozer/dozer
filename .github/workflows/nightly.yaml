@@ -2,8 +2,7 @@ name: Dozer Main
 # Long running tests, Performance benchmarks, Code vulnerability, Code coverage etc
 on:
   push:
-    branches: [main, chore/remove-sql-log]
-  # TODO: Remove before merge
+    branches: [main]
   pull_request:
     branches: [main]
 
