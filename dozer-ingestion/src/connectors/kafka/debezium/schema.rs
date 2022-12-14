@@ -1,11 +1,10 @@
-
 use dozer_types::serde_json::Value;
 use std::collections::HashMap;
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 
+use crate::errors::DebeziumSchemaError;
 use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
-use crate::errors::{DebeziumSchemaError};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html

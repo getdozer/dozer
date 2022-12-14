@@ -1,3 +1,4 @@
+use crate::connectors::kafka::debezium::schema::map_type;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::connectors::TableInfo;
 use crate::errors::DebeziumError::{JsonDecodeError, SchemaRegistryFetchError};
@@ -10,7 +11,6 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use std::collections::HashMap;
-use crate::connectors::kafka::debezium::schema::map_type;
 
 pub struct SchemaRegistry {}
 
@@ -24,8 +24,9 @@ pub fn map_typ(schema: &DebeziumSchemaStruct) -> Result<(FieldType, bool), Debez
             name: None,
             field: None,
             version: None,
-            parameters: None
-        }).map(|s| (s, nullable)),
+            parameters: None,
+        })
+        .map(|s| (s, nullable)),
         Value::Array(types) => {
             let nullable = types.contains(&Value::from("null"));
             for typ in types {
@@ -91,55 +92,57 @@ impl SchemaRegistry {
                 });
 
                 let mut schema_data: Option<Result<Vec<(String, Schema)>, ConnectorError>> = None;
-                for field in schema_result.fields {
-                    for f in field {
-                        if f.name.clone().unwrap() == "before" {
-                            for typ in f.r#type.as_array().unwrap() {
-                                if let Value::Object(obj) = typ {
-                                    let fields_value = obj.get("fields").unwrap();
-                                    let fields_value_struct: Vec<DebeziumSchemaStruct> =
-                                        serde_json::from_value(fields_value.clone()).unwrap();
-                                    let mut pk_keys_indexes = vec![];
-                                    let mut fields_schema_map: HashMap<
-                                        String,
-                                        &DebeziumSchemaStruct,
-                                    > = HashMap::new();
+                let fields = schema_result.fields.map_or(vec![], |f| f);
+                for f in fields {
+                    if f.name.clone().unwrap() == "before" {
+                        for typ in f.r#type.as_array().unwrap() {
+                            if let Value::Object(obj) = typ {
+                                let fields_value = obj.get("fields").unwrap();
+                                let fields_value_struct: Vec<DebeziumSchemaStruct> =
+                                    serde_json::from_value(fields_value.clone()).unwrap();
+                                let mut pk_keys_indexes = vec![];
+                                let mut fields_schema_map: HashMap<
+                                    String,
+                                    &DebeziumSchemaStruct,
+                                > = HashMap::new();
 
-                                    let defined_fields: Result<
-                                        Vec<FieldDefinition>,
-                                        ConnectorError,
-                                    > = fields_value_struct
-                                        .iter()
-                                        .enumerate()
-                                        .map(|(idx, f)| {
-                                            let (typ, nullable) = map_typ(f).map_err(|e| ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e)))?;
-                                            let name = f.name.clone().unwrap();
-                                            if pk_fields.contains(&name) {
-                                                pk_keys_indexes.push(idx);
-                                            }
-                                            fields_schema_map.insert(name.clone(), f);
-                                            Ok(FieldDefinition {
-                                                name,
-                                                typ,
-                                                nullable,
-                                            })
+                                let defined_fields: Result<
+                                    Vec<FieldDefinition>,
+                                    ConnectorError,
+                                > = fields_value_struct
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(idx, f)| {
+                                        let (typ, nullable) = map_typ(f).map_err(|e| {
+                                            ConnectorError::DebeziumError(
+                                                DebeziumError::DebeziumSchemaError(e),
+                                            )
+                                        })?;
+                                        let name = f.name.clone().unwrap();
+                                        if pk_fields.contains(&name) {
+                                            pk_keys_indexes.push(idx);
+                                        }
+                                        fields_schema_map.insert(name.clone(), f);
+                                        Ok(FieldDefinition {
+                                            name,
+                                            typ,
+                                            nullable,
                                         })
-                                        .collect();
+                                    })
+                                    .collect();
 
-                                    let schema = Schema {
-                                        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
-                                        fields: defined_fields?,
-                                        values: vec![],
-                                        primary_index: pk_keys_indexes,
-                                    };
+                                let schema = Schema {
+                                    identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+                                    fields: defined_fields?,
+                                    values: vec![],
+                                    primary_index: pk_keys_indexes,
+                                };
 
-                                    schema_data = Some(Ok(vec![(table.name.clone(), schema)]));
-                                }
+                                schema_data = Some(Ok(vec![(table.name.clone(), schema)]));
                             }
                         }
                     }
                 }
-
 
                 if let Some(v) = schema_data {
                     v
