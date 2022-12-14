@@ -62,46 +62,20 @@ pub(crate) fn requires_schema_update(
     count == 0
 }
 
-pub(crate) fn map_to_op(op: ExecutorOperation) -> Result<(u64, u64, Operation), ExecutionError> {
+pub(crate) fn map_to_op(op: ExecutorOperation) -> Result<Operation, ExecutionError> {
     match op {
-        ExecutorOperation::Delete {
-            txid,
-            seq_in_tx,
-            old,
-        } => Ok((txid, seq_in_tx, Operation::Delete { old })),
-        ExecutorOperation::Insert {
-            txid,
-            seq_in_tx,
-            new,
-        } => Ok((txid, seq_in_tx, Operation::Insert { new })),
-        ExecutorOperation::Update {
-            txid,
-            seq_in_tx,
-            old,
-            new,
-        } => Ok((txid, seq_in_tx, Operation::Update { old, new })),
+        ExecutorOperation::Delete { old } => Ok(Operation::Delete { old }),
+        ExecutorOperation::Insert { new } => Ok(Operation::Insert { new }),
+        ExecutorOperation::Update { old, new } => Ok(Operation::Update { old, new }),
         _ => Err(InvalidOperation(op.to_string())),
     }
 }
 
-pub(crate) fn map_to_exec_op(txid: u64, seq_in_tx: u64, op: Operation) -> ExecutorOperation {
+pub(crate) fn map_to_exec_op(op: Operation) -> ExecutorOperation {
     match op {
-        Operation::Update { old, new } => ExecutorOperation::Update {
-            old,
-            new,
-            txid,
-            seq_in_tx,
-        },
-        Operation::Delete { old } => ExecutorOperation::Delete {
-            old,
-            txid,
-            seq_in_tx,
-        },
-        Operation::Insert { new } => ExecutorOperation::Insert {
-            new,
-            txid,
-            seq_in_tx,
-        },
+        Operation::Update { old, new } => ExecutorOperation::Update { old, new },
+        Operation::Delete { old } => ExecutorOperation::Delete { old },
+        Operation::Insert { new } => ExecutorOperation::Insert { new },
     }
 }
 
