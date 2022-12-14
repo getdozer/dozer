@@ -78,13 +78,7 @@ impl StateWriter {
         Ok(r)
     }
 
-    fn store_op(
-        &mut self,
-        _txid: u64,
-        _seq_in_tx: u64,
-        op: Operation,
-        port: &PortHandle,
-    ) -> Result<Operation, ExecutionError> {
+    fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
         if let Some(opts) = self.dbs.get(port) {
             let schema = self
                 .output_schemas
@@ -214,21 +208,10 @@ impl LocalChannelForwarder {
         }
     }
 
-    pub fn update_tx_info(&mut self, txid: u64, seq_in_tx: u64) {
-        self.curr_txid = txid;
-        self.curr_seq_in_tx = seq_in_tx;
-    }
-
     #[inline]
-    fn send_op(
-        &mut self,
-        txid: u64,
-        seq_in_tx: u64,
-        mut op: Operation,
-        port_id: PortHandle,
-    ) -> Result<(), ExecutionError> {
+    fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
         if self.stateful {
-            op = self.state_writer.store_op(txid, seq_in_tx, op, &port_id)?;
+            op = self.state_writer.store_op(op, &port_id)?;
         }
 
         let senders = self
@@ -237,22 +220,9 @@ impl LocalChannelForwarder {
             .ok_or(InvalidPortHandle(port_id))?;
 
         let exec_op = match op {
-            Operation::Insert { new } => ExecutorOperation::Insert {
-                txid,
-                seq_in_tx,
-                new,
-            },
-            Operation::Update { old, new } => ExecutorOperation::Update {
-                txid,
-                seq_in_tx,
-                old,
-                new,
-            },
-            Operation::Delete { old } => ExecutorOperation::Delete {
-                txid,
-                seq_in_tx,
-                old,
-            },
+            Operation::Insert { new } => ExecutorOperation::Insert { new },
+            Operation::Update { old, new } => ExecutorOperation::Update { old, new },
+            Operation::Delete { old } => ExecutorOperation::Delete { old },
         };
 
         if senders.len() == 1 {
@@ -361,7 +331,7 @@ impl SourceChannelForwarder for LocalChannelForwarder {
             self.commit_counter = 0;
             self.last_commit_time = Instant::now();
         }
-        self.send_op(txid, seq_in_tx, op, port)?;
+        self.send_op(op, port)?;
         self.commit_counter += 1;
         Ok(())
     }
@@ -369,6 +339,6 @@ impl SourceChannelForwarder for LocalChannelForwarder {
 
 impl ProcessorChannelForwarder for LocalChannelForwarder {
     fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.send_op(self.curr_txid, self.curr_seq_in_tx, op, port)
+        self.send_op(op, port)
     }
 }

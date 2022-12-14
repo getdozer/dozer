@@ -60,18 +60,12 @@ pub(crate) enum InputPortState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
     Delete {
-        txid: u64,
-        seq_in_tx: u64,
         old: Record,
     },
     Insert {
-        txid: u64,
-        seq_in_tx: u64,
         new: Record,
     },
     Update {
-        txid: u64,
-        seq_in_tx: u64,
         old: Record,
         new: Record,
     },
@@ -84,24 +78,11 @@ pub enum ExecutorOperation {
 }
 
 impl ExecutorOperation {
-    pub fn from_operation(txid: u64, seq_in_tx: u64, op: Operation) -> ExecutorOperation {
+    pub fn from_operation(op: Operation) -> ExecutorOperation {
         match op {
-            Operation::Update { old, new } => ExecutorOperation::Update {
-                old,
-                new,
-                txid,
-                seq_in_tx,
-            },
-            Operation::Delete { old } => ExecutorOperation::Delete {
-                old,
-                txid,
-                seq_in_tx,
-            },
-            Operation::Insert { new } => ExecutorOperation::Insert {
-                new,
-                txid,
-                seq_in_tx,
-            },
+            Operation::Update { old, new } => ExecutorOperation::Update { old, new },
+            Operation::Delete { old } => ExecutorOperation::Delete { old },
+            Operation::Insert { new } => ExecutorOperation::Insert { new },
         }
     }
 }
@@ -543,11 +524,9 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                         let data_op = map_to_op(op)?;
-                        fw.update_tx_info(data_op.0, data_op.1);
-
                         proc.process(
                             handles_ls[index],
-                            data_op.2,
+                            data_op,
                             &mut fw,
                             &mut SharedTransaction::new(&master_tx),
                             reader,
@@ -623,9 +602,7 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
                         snk.process(
                             handles_ls[index],
-                            data_op.0,
-                            data_op.1,
-                            data_op.2,
+                            data_op,
                             &mut SharedTransaction::new(&master_tx),
                             reader,
                         )?;

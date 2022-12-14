@@ -207,8 +207,6 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
         op: Operation,
         _tx: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
@@ -358,8 +356,6 @@ mod tests {
         let mut t = SharedTransaction::new(&txn);
         sink.process(
             DEFAULT_PORT_HANDLE,
-            0_u64,
-            0,
             insert_operation,
             &mut t,
             &HashMap::new(),
@@ -374,8 +370,6 @@ mod tests {
 
         sink.process(
             DEFAULT_PORT_HANDLE,
-            0_u64,
-            0,
             update_operation,
             &mut t,
             &HashMap::new(),

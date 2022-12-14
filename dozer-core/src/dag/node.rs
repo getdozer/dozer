@@ -179,8 +179,6 @@ pub trait Sink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        txid: u64,
-        seq_in_tx: u64,
         op: Operation,
         state: &mut dyn RwTransaction,
         reader: &HashMap<PortHandle, RecordReader>,

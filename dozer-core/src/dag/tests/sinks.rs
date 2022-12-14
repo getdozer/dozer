@@ -70,8 +70,6 @@ impl Sink for CountingSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
         _op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
