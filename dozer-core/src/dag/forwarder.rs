@@ -331,7 +331,8 @@ impl LocalChannelForwarder {
     }
 
     fn timeout_commit_needed(&self) -> bool {
-        !self.max_commit_time.is_zero() && self.last_commit_time.elapsed().gt(&self.max_commit_time)
+        (!self.max_commit_time.is_zero())
+            && self.last_commit_time.elapsed().gt(&self.max_commit_time)
     }
 
     pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {

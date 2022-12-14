@@ -138,7 +138,13 @@ pub trait ProcessorFactory: Send + Sync {
 
 pub trait Processor {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError>;
+    fn commit(
+        &self,
+        source: &NodeHandle,
+        txid: u64,
+        seq_in_tx: u64,
+        tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
@@ -163,7 +169,13 @@ pub trait SinkFactory: Send + Sync {
 
 pub trait Sink {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
-    fn commit(&self, tx: &mut dyn RwTransaction) -> Result<(), ExecutionError>;
+    fn commit(
+        &self,
+        source: &NodeHandle,
+        txid: u64,
+        seq_in_tx: u64,
+        tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,

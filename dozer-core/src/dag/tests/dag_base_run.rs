@@ -64,7 +64,13 @@ impl Processor for NoopProcessor {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -233,7 +239,13 @@ impl Processor for NoopJoinProcessor {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 

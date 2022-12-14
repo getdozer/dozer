@@ -1,5 +1,5 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::{PortHandle, Sink, SinkFactory};
+use crate::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Environment, RwTransaction};
 use dozer_types::types::{Operation, Schema};
@@ -57,7 +57,13 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 

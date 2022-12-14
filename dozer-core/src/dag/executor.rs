@@ -424,7 +424,7 @@ impl<'a> DagExecutor<'a> {
                 true,
             );
             loop {
-                let r = st_receiver.recv_deadline(Instant::now().add(Duration::from_millis(500)));
+                let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
                 match lt_stop_req.load(Ordering::Relaxed) {
                     true => {
                         dag_fw.commit_and_terminate()?;
@@ -520,7 +520,12 @@ impl<'a> DagExecutor<'a> {
                         seq_in_tx,
                         source,
                     } => {
-                        proc.commit(&mut SharedTransaction::new(&master_tx))?;
+                        proc.commit(
+                            &source,
+                            txid,
+                            seq_in_tx,
+                            &mut SharedTransaction::new(&master_tx),
+                        )?;
                         fw.store_and_send_commit(source, txid, seq_in_tx)?;
                     }
                     ExecutorOperation::Terminate => {
@@ -605,7 +610,12 @@ impl<'a> DagExecutor<'a> {
                             "[{}] Checkpointing (source: {}, epoch: {}:{})",
                             handle, source, txid, seq_in_tx
                         );
-                        snk.commit(&mut SharedTransaction::new(&master_tx))?;
+                        snk.commit(
+                            &source,
+                            txid,
+                            seq_in_tx,
+                            &mut SharedTransaction::new(&master_tx),
+                        )?;
                         state_writer.store_commit_info(&source, txid, seq_in_tx)?;
                     }
                     op => {
