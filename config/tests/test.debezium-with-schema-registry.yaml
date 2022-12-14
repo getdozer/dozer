@@ -1,4 +1,4 @@
-app_name: dozer-kafka-test
+app_name: dozer-kafka-with-schema-registry-test
 
 api:
   rest:
@@ -19,10 +19,11 @@ connections:
   - name: products
     db_type: Kafka
     authentication: !KafkaAuthentication
-      broker: ${DEBEZIUM_KAFKA_BROKER}
+      broker: ${DEBEZIUM_KAFKA_WITH_REGISTRY_BROKER}
       topic: ${DEBEZIUM_KAFKA_TOPIC}
+      schema_registry_url: ${DEBEZIUM_KAFKA_SCHEMA_REGISTRY_URL}
 
-sources:
+source:
   - name: products
     table_name: ${DEBEZIUM_TABLE_NAME}
     connection: !Ref products

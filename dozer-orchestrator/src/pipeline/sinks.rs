@@ -5,7 +5,7 @@ use dozer_api::grpc::types_helper;
 use dozer_cache::cache::{BatchedCacheMsg, Cache};
 use dozer_cache::cache::{BatchedWriter, LmdbCache};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
-use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
+use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam;
@@ -180,7 +180,13 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -201,8 +207,6 @@ impl Sink for CacheSink {
     fn process(
         &mut self,
         from_port: PortHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
         op: Operation,
         _tx: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
@@ -352,8 +356,6 @@ mod tests {
         let mut t = SharedTransaction::new(&txn);
         sink.process(
             DEFAULT_PORT_HANDLE,
-            0_u64,
-            0,
             insert_operation,
             &mut t,
             &HashMap::new(),
@@ -368,8 +370,6 @@ mod tests {
 
         sink.process(
             DEFAULT_PORT_HANDLE,
-            0_u64,
-            0,
             update_operation,
             &mut t,
             &HashMap::new(),

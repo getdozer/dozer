@@ -27,15 +27,12 @@ use dozer_types::types::{Operation, Record, Schema};
 use log::info;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::ops::Add;
-
 use std::path::{Path, PathBuf};
-
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct ExecutorOptions {
@@ -49,7 +46,7 @@ impl ExecutorOptions {
         Self {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
-            commit_time_threshold: Duration::from_secs(30),
+            commit_time_threshold: Duration::from_millis(50),
         }
     }
 }
@@ -63,18 +60,12 @@ pub(crate) enum InputPortState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
     Delete {
-        txid: u64,
-        seq_in_tx: u64,
         old: Record,
     },
     Insert {
-        txid: u64,
-        seq_in_tx: u64,
         new: Record,
     },
     Update {
-        txid: u64,
-        seq_in_tx: u64,
         old: Record,
         new: Record,
     },
@@ -87,24 +78,11 @@ pub enum ExecutorOperation {
 }
 
 impl ExecutorOperation {
-    pub fn from_operation(txid: u64, seq_in_tx: u64, op: Operation) -> ExecutorOperation {
+    pub fn from_operation(op: Operation) -> ExecutorOperation {
         match op {
-            Operation::Update { old, new } => ExecutorOperation::Update {
-                old,
-                new,
-                txid,
-                seq_in_tx,
-            },
-            Operation::Delete { old } => ExecutorOperation::Delete {
-                old,
-                txid,
-                seq_in_tx,
-            },
-            Operation::Insert { new } => ExecutorOperation::Insert {
-                new,
-                txid,
-                seq_in_tx,
-            },
+            Operation::Update { old, new } => ExecutorOperation::Update { old, new },
+            Operation::Delete { old } => ExecutorOperation::Delete { old },
+            Operation::Insert { new } => ExecutorOperation::Insert { new },
         }
     }
 }
@@ -424,7 +402,7 @@ impl<'a> DagExecutor<'a> {
                 true,
             );
             loop {
-                let r = st_receiver.recv_deadline(Instant::now().add(Duration::from_millis(500)));
+                let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
                 match lt_stop_req.load(Ordering::Relaxed) {
                     true => {
                         dag_fw.commit_and_terminate()?;
@@ -520,7 +498,12 @@ impl<'a> DagExecutor<'a> {
                         seq_in_tx,
                         source,
                     } => {
-                        proc.commit(&mut SharedTransaction::new(&master_tx))?;
+                        proc.commit(
+                            &source,
+                            txid,
+                            seq_in_tx,
+                            &mut SharedTransaction::new(&master_tx),
+                        )?;
                         fw.store_and_send_commit(source, txid, seq_in_tx)?;
                     }
                     ExecutorOperation::Terminate => {
@@ -541,11 +524,9 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                         let data_op = map_to_op(op)?;
-                        fw.update_tx_info(data_op.0, data_op.1);
-
                         proc.process(
                             handles_ls[index],
-                            data_op.2,
+                            data_op,
                             &mut fw,
                             &mut SharedTransaction::new(&master_tx),
                             reader,
@@ -605,7 +586,12 @@ impl<'a> DagExecutor<'a> {
                             "[{}] Checkpointing (source: {}, epoch: {}:{})",
                             handle, source, txid, seq_in_tx
                         );
-                        snk.commit(&mut SharedTransaction::new(&master_tx))?;
+                        snk.commit(
+                            &source,
+                            txid,
+                            seq_in_tx,
+                            &mut SharedTransaction::new(&master_tx),
+                        )?;
                         state_writer.store_commit_info(&source, txid, seq_in_tx)?;
                     }
                     op => {
@@ -616,9 +602,7 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
                         snk.process(
                             handles_ls[index],
-                            data_op.0,
-                            data_op.1,
-                            data_op.2,
+                            data_op,
                             &mut SharedTransaction::new(&master_tx),
                             reader,
                         )?;

@@ -50,9 +50,9 @@ pub struct DebeziumSchemaParameters {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumSchemaStruct {
-    pub r#type: String,
+    pub r#type: Value,
     pub fields: Option<Vec<DebeziumSchemaStruct>>,
-    pub optional: bool,
+    pub optional: Option<bool>,
     pub name: Option<String>,
     pub field: Option<String>,
     pub version: Option<i64>,

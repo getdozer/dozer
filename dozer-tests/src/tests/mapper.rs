@@ -17,9 +17,17 @@ fn test_framework_to_dozer_types() {
     mapper.create_tables(tables).unwrap();
 
     let schema_id = Some(SchemaIdentifier { id: 1, version: 1 });
-    let op = mapper.get_operation_from_sql("INSERT INTO actor(actor_id,name) values (1, 'mario');");
+
     let values = vec![Field::Int(1), Field::String("mario".to_string())];
     let new_values = vec![Field::Int(1), Field::String("dario".to_string())];
+
+    let ops = mapper
+        .execute_list(vec![(
+            "actor".to_string(),
+            "INSERT INTO actor(actor_id,name) values (1, 'mario');".to_string(),
+        )])
+        .unwrap();
+
     assert_eq!(
         Operation::Insert {
             new: Record {
@@ -27,10 +35,15 @@ fn test_framework_to_dozer_types() {
                 values: values.clone()
             }
         },
-        op
+        ops[0]
     );
 
-    let op = mapper.get_operation_from_sql("UPDATE actor SET name ='dario' WHERE actor_id=1;");
+    let ops = mapper
+        .execute_list(vec![(
+            "actor".to_string(),
+            "UPDATE actor SET name ='dario' WHERE actor_id=1;".to_string(),
+        )])
+        .unwrap();
     assert_eq!(
         Operation::Update {
             old: Record {
@@ -42,10 +55,16 @@ fn test_framework_to_dozer_types() {
                 values: new_values.clone()
             }
         },
-        op
+        ops[0]
     );
 
-    let op = mapper.get_operation_from_sql("DELETE FROM actor WHERE actor_id=1;");
+    let ops = mapper
+        .execute_list(vec![(
+            "actor".to_string(),
+            "DELETE FROM actor WHERE actor_id=1;".to_string(),
+        )])
+        .unwrap();
+
     assert_eq!(
         Operation::Delete {
             old: Record {
@@ -53,7 +72,7 @@ fn test_framework_to_dozer_types() {
                 values: new_values.clone()
             },
         },
-        op
+        ops[0]
     );
 
     let sql = mapper
@@ -67,7 +86,7 @@ fn test_framework_to_dozer_types() {
             },
         )
         .unwrap();
-    assert_eq!(sql, "INSERT INTO actor(actor_id,name) values (1,'mario')");
+    assert_eq!(sql, "INSERT INTO actor(actor_id,name) values (1,'mario');");
 
     let sql = mapper
         .map_operation_to_sql(
@@ -84,7 +103,7 @@ fn test_framework_to_dozer_types() {
             },
         )
         .unwrap();
-    assert_eq!(sql, "UPDATE actor SET name='dario' WHERE actor_id=1");
+    assert_eq!(sql, "UPDATE actor SET name='dario' WHERE actor_id=1;");
 
     let sql = mapper
         .map_operation_to_sql(
@@ -97,7 +116,7 @@ fn test_framework_to_dozer_types() {
             },
         )
         .unwrap();
-    assert_eq!(sql, "DELETE FROM actor WHERE actor_id=1");
+    assert_eq!(sql, "DELETE FROM actor WHERE actor_id=1;");
 }
 
 #[test]
