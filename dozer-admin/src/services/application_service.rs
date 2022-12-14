@@ -72,8 +72,11 @@ impl AppService {
         }
     }
     pub fn create(&self, input: CreateAppRequest) -> Result<CreateAppResponse, ErrorResponse> {
+        let generated_id = uuid::Uuid::new_v4().to_string();
+
         let app_info = ApplicationInfo {
             name: input.app_name,
+            id: generated_id,
             ..Default::default()
         };
         let app_info =
@@ -112,30 +115,27 @@ impl AppService {
         &self,
         input: StartPipelineRequest,
     ) -> Result<StartPipelineResponse, ErrorResponse> {
-        let app_detail =
-            AppDbService::detail(self.db_pool.clone(), input.app_id).map_err(|op| {
-                ErrorResponse {
-                    message: op.to_string(),
-                }
-            })?;
+        let app_detail_result = self.get_app(GetAppRequest {
+            app_id: Some(input.app_id),
+        })?;
+        let app_detail = app_detail_result.data.unwrap();
         let path = Path::new("./.dozer").join("api_config");
         if path.exists() {
             fs::remove_dir_all(&path).unwrap();
         }
         fs::create_dir_all(&path).unwrap();
-        let config = Config::try_from(app_detail.to_owned()).map_err(|op| ErrorResponse {
-            message: op.to_string(),
-        })?;
+        let config = app_detail;
         let yaml_path = path.join(format!(
             "dozer-config-{:}-{:}.yaml",
-            app_detail.app.name, app_detail.app.id
+            config.to_owned().app_name,
+            config.to_owned().id.unwrap()
         ));
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(&yaml_path)
             .expect("Couldn't open file");
-        serde_yaml::to_writer(f, &config).map_err(|op| ErrorResponse {
+        serde_yaml::to_writer(f, &config.to_owned()).map_err(|op| ErrorResponse {
             message: op.to_string(),
         })?;
         let dozer_log_path = path;
@@ -144,7 +144,8 @@ impl AppService {
             .write(true)
             .open(dozer_log_path.join(format!(
                 "logs-{:}-{:}.txt",
-                app_detail.app.name, app_detail.app.id
+                config.to_owned().app_name,
+                config.to_owned().id.unwrap()
             )))
             .expect("Couldn't open file");
         let errors_log_file = dozer_log_file.try_clone().map_err(|op| ErrorResponse {

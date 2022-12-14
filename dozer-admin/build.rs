@@ -1,4 +1,8 @@
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -6,6 +10,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
+        .extern_path(
+            ".dozer_admin_grpc.ApplicationDetail",
+            "dozer_types::models::app_config::Config",
+        )
         .extern_path(
             ".dozer_admin_grpc.ApiIndex",
             "dozer_types::models::api_endpoint::ApiIndex",
@@ -74,29 +82,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_descriptor_set_path(out_dir.join("dozer_admin_grpc_descriptor.bin"))
         .compile(&["protos/api.proto"], &["proto"])
         .unwrap();
-    // // build dozer-orchestrator
-    // let orchestrator_cli = Command::new("cargo")
-    //     .args([
-    //         "build",
-    //         "-p",
-    //         "dozer-orchestrator",
-    //         "--release",
-    //         "--bin",
-    //         "dozer",
-    //     ])
-    //     .status()
-    //     .unwrap();
-    // if !orchestrator_cli.success() {
-    //     panic!("Cannot build dozer-orchestrator cli");
-    // }
 
-    // //  to go outer path
-    // manifest_path.pop();
-    // manifest_path.push("target/release/dozer");
-    // let dozer_bin_path = manifest_path;
-    // Command::new("cp")
-    //     .args([dozer_bin_path, out_dir])
-    //     .status()
-    //     .unwrap();
+    let profile = std::env::var("PROFILE").unwrap();
+    let mut manifest_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    manifest_path.pop();
+    manifest_path.push(format!("target/{:}/dozer", profile));
+    let dozer_bin_path = manifest_path;
+    if !Path::exists(&dozer_bin_path) {
+        let mut orchestrator_cli = Command::new("cargo");
+        let params = vec!["build", "-p", "dozer-orchestrator", "--bin", "dozer"];
+        orchestrator_cli.args(params);
+        // build release if current build profile is release
+        if profile == "release" {
+            orchestrator_cli.arg("-r");
+        }
+        let execute_result = orchestrator_cli.status().unwrap();
+        if !execute_result.success() {
+            panic!("Cannot build dozer-orchestrator cli");
+        }
+    }
+    let _ = Command::new("cp").args([dozer_bin_path, out_dir]).status();
     Ok(())
 }

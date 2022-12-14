@@ -30,8 +30,11 @@ impl ApiConfigService {
         if input.rest.is_some() {
             api_config.rest = input.rest;
         }
-        if input.internal.is_some() {
-            api_config.internal = input.internal;
+        if input.api_internal.is_some() {
+            api_config.api_internal = input.api_internal;
+        }
+        if input.pipeline_internal.is_some() {
+            api_config.pipeline_internal = input.pipeline_internal;
         }
         api_config.app_id = Some(input.app_id);
         api_config.auth = input.auth;
@@ -60,8 +63,11 @@ impl ApiConfigService {
         if input.rest.is_some() {
             config_by_id.rest = input.rest;
         }
-        if input.internal.is_some() {
-            config_by_id.internal = input.internal;
+        if input.api_internal.is_some() {
+            config_by_id.api_internal = input.api_internal;
+        }
+        if input.pipeline_internal.is_some() {
+            config_by_id.pipeline_internal = input.pipeline_internal;
         }
         config_by_id.auth = input.auth;
         config_by_id

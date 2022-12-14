@@ -23,6 +23,7 @@ log4rs = "1.1.1"
 clap = {version = "4.0.15", features = ["derive"]}
 indicatif = "0.17.1"
 ctrlc = "3.2.3"
+tonic = "0.8.3"
 
 
 [[bin]]

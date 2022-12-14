@@ -301,8 +301,8 @@ impl DozerAdmin for GrpcService {
     }
 }
 
-pub async fn get_server() -> Result<(), tonic::transport::Error> {
-    let addr = "[::1]:8081".parse().unwrap();
+pub async fn get_server(host: String, port: u16) -> Result<(), tonic::transport::Error> {
+    let addr = format!("{:}:{:}", host, port).parse().unwrap();
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let db_pool = establish_connection(database_url);

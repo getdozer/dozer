@@ -1,0 +1,12 @@
+
+port: 8081
+host: '[::1]'
+cors: true
+output_path: ./dozer
+internal:
+  api:
+    port: 50052
+    host: '[::0]'
+  pipeline:
+    port: 50053
+    host: '[::0]'

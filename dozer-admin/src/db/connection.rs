@@ -28,7 +28,7 @@ pub struct DbConnection {
 }
 #[derive(Insertable, AsChangeset, PartialEq, Debug, Serialize, Deserialize)]
 #[diesel(table_name = connections)]
-struct NewConnection {
+pub struct NewConnection {
     pub(crate) auth: String,
     pub(crate) app_id: String,
     pub(crate) name: String,

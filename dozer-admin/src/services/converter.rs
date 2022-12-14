@@ -1,21 +1,9 @@
-use crate::{
-    db::{
-        application::ApplicationDetail, connection::DbConnection, endpoint::DbEndpoint,
-        source::DBSource,
-    },
-    server::dozer_admin_grpc::{self},
-};
+use crate::server::dozer_admin_grpc::{self};
 use dozer_types::{
-    models::{
-        self,
-        api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
-        api_endpoint::{ApiEndpoint, ApiIndex},
-        app_config::Config,
-        source::{RefreshConfig, Source},
-    },
+    models::api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
     types::Schema,
 };
-use std::{convert::From, error::Error};
+use std::convert::From;
 
 //TODO: Add grpc method to create ApiConfig
 pub fn default_api_config() -> ApiConfig {
@@ -32,81 +20,15 @@ pub fn default_api_config() -> ApiConfig {
             web: true,
         }),
         auth: false,
-        internal: Some(ApiInternal {
+        api_internal: Some(ApiInternal {
             port: 50052,
             host: "[::1]".to_owned(),
         }),
-        ..Default::default()
-    }
-}
-
-fn convert_to_source(input: (DBSource, DbConnection)) -> Result<Source, Box<dyn Error>> {
-    let db_source = input.0;
-    let connection = models::connection::Connection::try_from(input.1)?;
-    Ok(Source {
-        id: Some(db_source.id),
-        app_id: Some(db_source.app_id),
-        name: db_source.name,
-        table_name: db_source.table_name,
-        columns: vec![],
-        connection: Some(connection),
-        refresh_config: Some(RefreshConfig::default()),
-    })
-}
-
-fn convert_to_api_endpoint(input: DbEndpoint) -> Result<ApiEndpoint, Box<dyn Error>> {
-    let primary_keys_arr: Vec<String> = input
-        .primary_keys
-        .split(',')
-        .into_iter()
-        .map(|s| s.to_string())
-        .collect();
-    Ok(ApiEndpoint {
-        id: Some(input.id),
-        name: input.name,
-        path: input.path,
-        sql: input.sql,
-        index: Some(ApiIndex {
-            primary_key: primary_keys_arr,
+        pipeline_internal: Some(ApiInternal {
+            port: 50053,
+            host: "[::1]".to_owned(),
         }),
-        app_id: Some(input.app_id),
-    })
-}
-
-impl TryFrom<ApplicationDetail> for Config {
-    type Error = Box<dyn Error>;
-    fn try_from(input: ApplicationDetail) -> Result<Self, Self::Error> {
-        let sources_connections: Vec<(Source, models::connection::Connection)> = input
-            .sources_connections
-            .iter()
-            .map(|sc| {
-                let source = convert_to_source(sc.to_owned()).unwrap();
-                let connection = models::connection::Connection::try_from(sc.to_owned().1).unwrap();
-                (source, connection)
-            })
-            .collect();
-        let endpoints = input
-            .endpoints
-            .iter()
-            .map(|sc| convert_to_api_endpoint(sc.to_owned()).unwrap())
-            .collect();
-        let sources = sources_connections
-            .iter()
-            .map(|sc| sc.0.to_owned())
-            .collect();
-        let connections = sources_connections
-            .iter()
-            .map(|sc| sc.1.to_owned())
-            .collect();
-
-        Ok(Config {
-            sources,
-            endpoints,
-            app_name: input.app.name,
-            api: Some(default_api_config()),
-            connections,
-            ..Default::default()
-        })
+        ..Default::default()
     }
 }
 
@@ -132,13 +54,9 @@ impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
 mod test {
     use crate::{
         db::connection::DbConnection,
-        db::{
-            application::{Application, ApplicationDetail},
-            endpoint::DbEndpoint,
-            source::DBSource,
-        },
+        db::{application::Application, endpoint::DbEndpoint, source::DBSource},
     };
-    use dozer_types::models::{app_config::Config, connection::DBType};
+    use dozer_types::models::connection::DBType;
 
     fn fake_application() -> Application {
         let generated_id = uuid::Uuid::new_v4().to_string();
@@ -209,21 +127,5 @@ mod test {
             })
             .collect();
         sources_connections
-    }
-
-    #[test]
-    fn success_from_db_application_to_dozer_config() {
-        let sources_connections = fake_sources_connections();
-        let application_detail = ApplicationDetail {
-            app: fake_application(),
-            sources_connections,
-            endpoints: vec![fake_db_endpoint()],
-        };
-        let converted = Config::try_from(application_detail.to_owned());
-        assert!(converted.is_ok());
-        assert_eq!(
-            converted.unwrap().sources.len(),
-            application_detail.sources_connections.len()
-        )
     }
 }

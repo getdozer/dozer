@@ -1,12 +1,14 @@
 use super::{
     application::Application,
-    connection::DbConnection,
+    connection::{DbConnection, NewConnection},
     constants,
     persistable::Persistable,
     pool::DbPool,
     schema::{self, connections, sources},
 };
 use crate::db::schema::apps::dsl::apps;
+use crate::db::schema::connections::dsl::connections as dsl_connections;
+
 use crate::server::dozer_admin_grpc::Pagination;
 use diesel::{insert_into, prelude::*, query_dsl::methods::FilterDsl, ExpressionMethods};
 use dozer_types::serde;
@@ -143,13 +145,24 @@ impl Persistable<'_, dozer_types::models::source::Source> for dozer_types::model
         let mut db = pool.get()?;
         if let Some(connection) = self.connection.to_owned() {
             let mut connection = connection;
-            let _ = apps
-                .find(self.app_id.to_owned().unwrap_or_default())
-                .first::<Application>(&mut db)
-                .map_err(|err| format!("App_id: {:}", err))?;
             db.transaction::<(), _, _>(|conn| -> Result<(), Box<dyn Error>> {
-                connection.upsert(pool.to_owned())?;
+                let _ = apps
+                    .find(self.app_id.to_owned().unwrap_or_default())
+                    .first::<Application>(conn)
+                    .map_err(|err| format!("App_id: {:}", err))?;
+
+                connection.app_id = self.app_id.to_owned();
+                let new_connection = NewConnection::try_from(connection.to_owned())?;
+
+                // upsert connection incase connection not created
+                let _inserted_connection = insert_into(dsl_connections)
+                    .values(&new_connection)
+                    .on_conflict(connections::id)
+                    .do_update()
+                    .set(&new_connection)
+                    .execute(conn);
                 self.connection = Some(connection.to_owned());
+
                 let new_source = NewSource {
                     name: self.name.to_owned(),
                     table_name: self.table_name.to_owned(),

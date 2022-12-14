@@ -246,8 +246,9 @@ message CreateApiConfigRequest {
   ApiRest rest = 1;
   ApiGrpc grpc = 2;
   bool auth = 3;
-  ApiInternal internal = 4;
-  string app_id = 5;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  string app_id = 6;
 }
 message CreateApiConfigResponse {
   ApiConfig config = 1;
@@ -256,9 +257,10 @@ message UpdateApiConfigRequest {
   ApiRest rest = 1;
   ApiGrpc grpc = 2;
   bool auth = 3;
-  ApiInternal internal = 4;
-  string app_id = 5;
-  string id = 6;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  string app_id = 6;
+  string id = 7;
 }
 message UpdateApiConfigResponse {
   ApiConfig config = 1;

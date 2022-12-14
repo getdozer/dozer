@@ -45,8 +45,12 @@ impl<'de> Deserialize<'de> for Config {
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints: Vec<ApiEndpoint> = vec![];
                 let mut app_name = "".to_owned();
+                let mut id: Option<String> = None;
                 while let Some(key) = access.next_key()? {
                     match key {
+                        "id" => {
+                            id = access.next_value::<Option<String>>()?;
+                        }
                         "app_name" => {
                             app_name = access.next_value::<String>()?;
                         }
@@ -95,6 +99,7 @@ impl<'de> Deserialize<'de> for Config {
                     connections,
                     sources,
                     endpoints,
+                    id,
                     ..Default::default()
                 })
             }

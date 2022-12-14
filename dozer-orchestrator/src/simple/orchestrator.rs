@@ -1,9 +1,10 @@
 use super::executor::{Executor, SinkConfig};
 use crate::errors::OrchestrationError;
+use crate::internal::internal_pipeline_server::start_internal_pipeline_server;
 use crate::Orchestrator;
 use dozer_api::actix_web::dev::ServerHandle;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
-use dozer_api::grpc::{start_internal_client, start_internal_server};
+use dozer_api::grpc::{start_internal_api_client, start_internal_api_server};
 use dozer_api::CacheEndpoint;
 use dozer_api::{grpc, rest};
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
@@ -94,7 +95,7 @@ impl Orchestrator for SimpleOrchestrator {
         rt.block_on(async {
             // Initialize Internal Server
             tokio::spawn(async move {
-                start_internal_server(app_config, sender)
+                start_internal_api_server(app_config, sender)
                     .await
                     .expect("Failed to initialize internal server")
             });
@@ -151,18 +152,23 @@ impl Orchestrator for SimpleOrchestrator {
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
-        let internal_config = self
+        let internal_api_config = self
             .config
             .to_owned()
             .api
             .unwrap_or_default()
-            .internal
+            .api_internal
             .unwrap_or_default();
         // Initialize Internal Server Client
-        let _internal_thread = thread::spawn(move || {
-            start_internal_client(internal_config, receiver);
+        let _internal_api_thread = thread::spawn(move || {
+            start_internal_api_client(internal_api_config, receiver);
         });
 
+        let internal_app_config = self.config.to_owned();
+        let _intern_pipeline_thread = thread::spawn(move || {
+            _ = start_internal_pipeline_server(internal_app_config);
+
+        });
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 

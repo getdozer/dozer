@@ -15,7 +15,6 @@ pub fn validate_connection(
     replication_info: Option<ReplicationSlotInfo>,
 ) -> Result<(), ConnectorError> {
     let mut client = super::helper::connect(config)?;
-
     validate_details(client.borrow_mut())?;
     validate_user(client.borrow_mut())?;
 

@@ -4,9 +4,10 @@ message ApiConfig {
   ApiRest rest = 1;
   ApiGrpc grpc = 2;
   bool auth = 3;
-  ApiInternal internal = 4;
-  optional string app_id = 5;
-  optional string id = 6;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  optional string app_id = 6;
+  optional string id = 7;
 }
 message ApiRest {
   uint32 port = 1;

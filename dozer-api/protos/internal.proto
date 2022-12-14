@@ -4,13 +4,16 @@ syntax = "proto3";
 package dozer.internal;
 import "types.proto";
 
-service InternalPipelineService {
-  // ClientStreamingEcho is client side streaming.
+service InternalApiService {
   rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse);
-  rpc GetConfig(GetAppConfigRequest) returns (GetAppConfigResponse);
 }
 
-// ---------------- Internal ------------------------
+service InternalPipelineService {
+  rpc GetConfig(GetAppConfigRequest) returns (GetAppConfigResponse);
+  rpc Restart(RestartPipelineRequest) returns (RestartPipelineResponse); 
+}
+
+// ---------------- Api ------------------------
 message PipelineRequest {
   string endpoint = 1;
   oneof api_event {
@@ -18,8 +21,12 @@ message PipelineRequest {
     dozer.types.Operation op = 3;
   }
 }
-
 message PipelineResponse {}
+
+// ---------------- Pipeline ------------------------
+message RestartPipelineRequest {}
+message RestartPipelineResponse {}
+
 message GetAppConfigRequest {}
 message GetAppConfigResponse {
   ApplicationDetail data = 1;
@@ -32,14 +39,16 @@ message ApplicationDetail {
   repeated SourceInfo sources = 5;
   repeated EndpointInfo endpoints = 6;
 }
+
 //========== ApiConfig =====
 message ApiConfig {
   ApiRest rest = 1;
   ApiGrpc grpc = 2;
   bool auth = 3;
-  ApiInternal internal = 4;
-  optional string app_id = 5;
-  optional string id = 6;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  optional string app_id = 6;
+  optional string id = 7;
 }
 message ApiRest {
   uint32 port = 1;
@@ -144,3 +153,5 @@ message EndpointInfo {
 message ApiIndex {
   repeated string primary_key = 1;
 }
+
+// ======= Restart 

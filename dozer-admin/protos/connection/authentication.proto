@@ -22,11 +22,11 @@ message SnowflakeAuthentication {
   optional string driver = 8;
 }
 message PostgresAuthentication {
-  string database = 1;
-  string user = 2;
+  string user = 1;
+  string password = 2;
   string host = 3;
   uint32 port = 4;
-  string password = 5;
+  string database = 5;
 }
 message KafkaAuthentication {
   string broker = 1;

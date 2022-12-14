@@ -103,8 +103,12 @@ fn test_api_config() -> ApiConfig {
             web: true,
         }),
         auth: false,
-        internal: Some(ApiInternal {
+        api_internal: Some(ApiInternal {
             port: 50052,
+            host: "[::1]".to_owned(),
+        }),
+        pipeline_internal: Some(ApiInternal {
+            port: 50053,
             host: "[::1]".to_owned(),
         }),
         ..Default::default()

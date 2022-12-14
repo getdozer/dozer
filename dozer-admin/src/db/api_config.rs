@@ -24,7 +24,8 @@ pub struct DBApiConfig {
     pub(crate) app_id: String,
     pub(crate) rest: String,
     pub(crate) grpc: String,
-    pub(crate) internal: String,
+    pub(crate) api_internal: String,
+    pub(crate) pipeline_internal: String,
     pub(crate) auth: bool,
 
     pub(crate) created_at: String,
@@ -37,7 +38,8 @@ struct NewApiConfig {
     pub(crate) app_id: String,
     pub(crate) rest: String,
     pub(crate) grpc: String,
-    pub(crate) internal: String,
+    pub(crate) api_internal: String,
+    pub(crate) pipeline_internal: String,
     pub(crate) auth: bool,
 }
 impl TryFrom<DBApiConfig> for ApiConfig {
@@ -45,12 +47,14 @@ impl TryFrom<DBApiConfig> for ApiConfig {
     fn try_from(item: DBApiConfig) -> Result<Self, Self::Error> {
         let rest_value: ApiRest = serde_json::from_str(&item.rest)?;
         let grpc_value: ApiGrpc = serde_json::from_str(&item.grpc)?;
-        let internal_value: ApiInternal = serde_json::from_str(&item.internal)?;
+        let internal_api: ApiInternal = serde_json::from_str(&item.api_internal)?;
+        let internal_pipeline: ApiInternal = serde_json::from_str(&item.pipeline_internal)?;
 
         Ok(ApiConfig {
             rest: Some(rest_value),
             grpc: Some(grpc_value),
-            internal: Some(internal_value),
+            api_internal: Some(internal_api),
+            pipeline_internal: Some(internal_pipeline),
             auth: item.auth,
             app_id: Some(item.app_id),
             id: Some(item.id),
@@ -63,7 +67,9 @@ impl TryFrom<ApiConfig> for NewApiConfig {
     fn try_from(item: ApiConfig) -> Result<Self, Self::Error> {
         let rest_value = serde_json::to_string(&item.rest)?;
         let grpc_value = serde_json::to_string(&item.grpc)?;
-        let internal_value = serde_json::to_string(&item.internal)?;
+        let internal_api = serde_json::to_string(&item.api_internal)?;
+        let internal_pipeline = serde_json::to_string(&item.pipeline_internal)?;
+
         let generated_id = uuid::Uuid::new_v4().to_string();
         let id_str = item.id.unwrap_or(generated_id);
         Ok(NewApiConfig {
@@ -71,7 +77,8 @@ impl TryFrom<ApiConfig> for NewApiConfig {
             app_id: item.app_id.unwrap(),
             rest: rest_value,
             grpc: grpc_value,
-            internal: internal_value,
+            api_internal: internal_api,
+            pipeline_internal: internal_pipeline,
             auth: item.auth,
         })
     }
@@ -114,7 +121,6 @@ impl Persistable<'_, ApiConfig> for ApiConfig {
             .iter()
             .map(|result| ApiConfig::try_from(result.clone()).unwrap())
             .collect();
-        println!("==== config list {:?}", config_lst);
         Ok((
             config_lst,
             Pagination {

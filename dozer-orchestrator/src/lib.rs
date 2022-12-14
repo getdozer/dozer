@@ -1,7 +1,11 @@
 pub mod cli;
 pub mod errors;
+pub mod internal;
 pub mod pipeline;
 pub mod simple;
+pub use dozer_api::grpc::internal_grpc;
+pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
+
 use std::sync::{atomic::AtomicBool, Arc};
 
 use dozer_types::{
