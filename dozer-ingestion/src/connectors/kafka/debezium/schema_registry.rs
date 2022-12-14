@@ -44,7 +44,6 @@ pub fn map_typ(schema: &DebeziumSchemaStruct) -> Result<(FieldType, bool), Debez
 
             Err(TypeNotSupported("Array".to_string()))
         }
-
         Value::Object(obj) => map_typ(&DebeziumSchemaStruct {
             r#type: obj.get("type").unwrap().clone(),
             fields: None,
