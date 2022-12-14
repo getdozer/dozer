@@ -18,7 +18,7 @@ fn main() -> Result<(), OrchestrationError> {
     let tracing_thread = thread::spawn(|| {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
-            dozer_tracing::init_telemetry().unwrap();
+            dozer_tracing::init_telemetry(false).unwrap();
         });
     });
     thread::sleep(Duration::from_millis(50));

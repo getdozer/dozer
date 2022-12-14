@@ -8,7 +8,7 @@ use std::sync::Once;
 static INIT: Once = Once::new();
 fn init() {
     INIT.call_once(|| {
-        dozer_tracing::init_telemetry().unwrap();
+        dozer_tracing::init_telemetry(false).unwrap();
         download("actor");
     });
 }
