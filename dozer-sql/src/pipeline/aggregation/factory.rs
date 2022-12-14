@@ -179,7 +179,7 @@ fn build_output_schema(
                 output_schema.fields.push(FieldDefinition::new(
                     name.clone(),
                     expression.get_type(input_schema),
-                    false,
+                    true,
                 ));
                 if *is_value {
                     output_schema.values.push(e.0);

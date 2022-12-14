@@ -18,6 +18,10 @@ macro_rules! define_comparison {
             let right_p = right.evaluate(&record)?;
 
             match left_p {
+                Field::Null => match right_p {
+                    Field::Null => Ok(Field::Boolean(true)),
+                    _ => Ok(Field::Boolean(false)),
+                },
                 Field::Boolean(left_v) => match right_p {
                     Field::Boolean(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     _ => Ok(Field::Boolean(false)),
@@ -28,6 +32,7 @@ macro_rules! define_comparison {
                         let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
                         Ok(Field::Boolean($function(left_v_f, right_v)))
                     }
+                    Field::Null => Ok(Field::Boolean(false)),
                     _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
                 Field::Float(left_v) => match right_p {
@@ -36,14 +41,17 @@ macro_rules! define_comparison {
                         let right_v_f = OrderedFloat::<f64>::from_i64(right_v).unwrap();
                         Ok(Field::Boolean($function(left_v, right_v_f)))
                     }
+                    Field::Null => Ok(Field::Boolean(false)),
                     _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
                 Field::String(left_v) => match right_p {
                     Field::String(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    Field::Null => Ok(Field::Boolean(false)),
                     _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
                 Field::Timestamp(left_v) => match right_p {
                     Field::Timestamp(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    Field::Null => Ok(Field::Boolean(false)),
                     _ => Err(PipelineError::InvalidOperandType($op.to_string())),
                 },
                 Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType($op.to_string())),
@@ -63,6 +71,10 @@ pub fn evaluate_lt(
     let right_p = right.evaluate(record)?;
 
     match left_p {
+        Field::Null => match right_p {
+            Field::Null => Ok(Field::Boolean(true)),
+            _ => Ok(Field::Boolean(false)),
+        },
         Field::Boolean(left_v) => match right_p {
             Field::Boolean(right_v) => Ok(Field::Boolean(!left_v & right_v)),
             _ => Ok(Field::Boolean(false)),
@@ -73,6 +85,7 @@ pub fn evaluate_lt(
                 let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
                 Ok(Field::Boolean(left_v_f < right_v))
             }
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
         Field::Float(left_v) => match right_p {
@@ -81,14 +94,17 @@ pub fn evaluate_lt(
                 let right_v_f = OrderedFloat::<f64>::from_i64(right_v).unwrap();
                 Ok(Field::Boolean(left_v < right_v_f))
             }
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType("<".to_string())),
         },
         Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType("<".to_string())),
@@ -105,6 +121,10 @@ pub fn evaluate_gt(
     let right_p = right.evaluate(record)?;
 
     match left_p {
+        Field::Null => match right_p {
+            Field::Null => Ok(Field::Boolean(true)),
+            _ => Ok(Field::Boolean(false)),
+        },
         Field::Boolean(left_v) => match right_p {
             Field::Boolean(right_v) => Ok(Field::Boolean(left_v & !right_v)),
             _ => Ok(Field::Boolean(false)),
@@ -115,6 +135,7 @@ pub fn evaluate_gt(
                 let left_v_f = OrderedFloat::<f64>::from_i64(left_v).unwrap();
                 Ok(Field::Boolean(left_v_f > right_v))
             }
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
         Field::Float(left_v) => match right_p {
@@ -123,14 +144,17 @@ pub fn evaluate_gt(
                 let right_v_f = OrderedFloat::<f64>::from_i64(right_v).unwrap();
                 Ok(Field::Boolean(left_v > right_v_f))
             }
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
         Field::String(left_v) => match right_p {
             Field::String(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
         Field::Timestamp(left_v) => match right_p {
             Field::Timestamp(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Null => Ok(Field::Boolean(false)),
             _ => Err(PipelineError::InvalidOperandType(">".to_string())),
         },
         Field::Binary(_left_v) => Err(PipelineError::InvalidOperandType(">".to_string())),
@@ -159,6 +183,17 @@ fn test_float_float_eq() {
 }
 
 #[test]
+fn test_float_null_eq() {
+    let row = Record::new(None, vec![]);
+    let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.3))));
+    let f1 = Box::new(Literal(Field::Null));
+    assert!(matches!(
+        evaluate_eq(&f0, &f1, &row),
+        Ok(Field::Boolean(false))
+    ));
+}
+
+#[test]
 fn test_float_int_eq() {
     let row = Record::new(None, vec![]);
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
@@ -166,6 +201,17 @@ fn test_float_int_eq() {
     assert!(matches!(
         evaluate_eq(&f0, &f1, &row),
         Ok(Field::Boolean(true))
+    ));
+}
+
+#[test]
+fn test_int_null_eq() {
+    let row = Record::new(None, vec![]);
+    let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
+    let f1 = Box::new(Literal(Field::Null));
+    assert!(matches!(
+        evaluate_eq(&f0, &f1, &row),
+        Ok(Field::Boolean(false))
     ));
 }
 
@@ -199,5 +245,16 @@ fn test_str_str_eq() {
     assert!(matches!(
         evaluate_eq(&f0, &f1, &row),
         Ok(Field::Boolean(true))
+    ));
+}
+
+#[test]
+fn test_str_null_eq() {
+    let row = Record::new(None, vec![]);
+    let f0 = Box::new(Literal(Field::String("abc".to_string())));
+    let f1 = Box::new(Literal(Field::Null));
+    assert!(matches!(
+        evaluate_eq(&f0, &f1, &row),
+        Ok(Field::Boolean(false))
     ));
 }
