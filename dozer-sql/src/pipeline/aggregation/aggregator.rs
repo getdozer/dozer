@@ -138,6 +138,16 @@ macro_rules! deserialize_i64 {
 }
 
 #[macro_export]
+macro_rules! deserialize_decimal {
+    ($stmt:expr) => {
+        match $stmt {
+            Some(v) => Decimal::deserialize(deserialize!(v)),
+            None => Decimal::from(0),
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! deserialize_u8 {
     ($stmt:expr) => {
         match $stmt {
@@ -151,7 +161,8 @@ macro_rules! deserialize_u8 {
 macro_rules! field_extract_f64 {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
-            Float(i) => i,
+            Field::Float(f) => f,
+            Field::Null => &OrderedFloat(0.0),
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }
@@ -163,7 +174,8 @@ macro_rules! field_extract_f64 {
 macro_rules! field_extract_decimal {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
-            Decimal(d) => d,
+            Field::Decimal(d) => *d,
+            Field::Null => dozer_types::rust_decimal::Decimal::from(0),
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }
@@ -175,7 +187,8 @@ macro_rules! field_extract_decimal {
 macro_rules! field_extract_timestamp {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
-            Timestamp(t) => t,
+            Field::Timestamp(t) => *t,
+            Field::Null => DateTime::from(Utc.timestamp_millis(0)),
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }
@@ -187,7 +200,8 @@ macro_rules! field_extract_timestamp {
 macro_rules! field_extract_date {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
-            Date(d) => d,
+            Date(d) => *d,
+            Field::Null => Utc.timestamp_millis(0).naive_utc().date(),
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }
@@ -199,7 +213,8 @@ macro_rules! field_extract_date {
 macro_rules! field_extract_i64 {
     ($stmt:expr, $agg:expr) => {
         match $stmt {
-            Int(i) => i,
+            Field::Int(i) => i,
+            Field::Null => &0_i64,
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }

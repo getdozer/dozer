@@ -61,7 +61,6 @@ impl SourceFactory for TestSourceFactory {
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {
-            schema: self.schema.to_owned(),
             ops: self.ops.to_owned(),
             term_latch: self.term_latch.clone(),
         }))
@@ -69,7 +68,6 @@ impl SourceFactory for TestSourceFactory {
 }
 
 pub struct TestSource {
-    schema: Schema,
     ops: Vec<Operation>,
     term_latch: Arc<Receiver<bool>>,
 }
@@ -85,7 +83,8 @@ impl Source for TestSource {
             idx += 1;
             fw.send(idx, 0, op, DEFAULT_PORT_HANDLE).unwrap();
         }
-        self.term_latch.recv_timeout(Duration::from_secs(2));
+        let _res = self.term_latch.recv_timeout(Duration::from_secs(2));
+
         Ok(())
     }
 }
@@ -140,11 +139,10 @@ impl SinkFactory for TestSinkFactory {
     }
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink::new(
             self.mapper.clone(),
-            input_schemas,
             self.term_latch.clone(),
             self.ops,
         )))
@@ -153,22 +151,15 @@ impl SinkFactory for TestSinkFactory {
 
 pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
-    input_schemas: HashMap<PortHandle, Schema>,
     term_latch: Arc<Sender<bool>>,
     ops: usize,
     curr: usize,
 }
 
 impl TestSink {
-    pub fn new(
-        mapper: Arc<Mutex<SqlMapper>>,
-        input_schemas: HashMap<PortHandle, Schema>,
-        term_latch: Arc<Sender<bool>>,
-        ops: usize,
-    ) -> Self {
+    pub fn new(mapper: Arc<Mutex<SqlMapper>>, term_latch: Arc<Sender<bool>>, ops: usize) -> Self {
         Self {
             mapper,
-            input_schemas,
             term_latch,
             ops,
             curr: 0,
@@ -185,8 +176,6 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
         op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
@@ -201,7 +190,7 @@ impl Sink for TestSink {
             .lock()
             .unwrap()
             .execute_list(vec![("results".to_string(), sql)])
-            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+            .unwrap();
 
         self.curr += 1;
         if self.curr == self.ops {
@@ -211,7 +200,13 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

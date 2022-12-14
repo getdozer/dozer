@@ -2,11 +2,13 @@ use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_date_field, get_decimal_field, get_ts_field, init_input_schema,
     init_processor, insert_exp, insert_field, update_exp, update_field, DATE16, DATE4, DATE8,
-    FIELD_100_FLOAT, FIELD_100_INT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_50_FLOAT, FIELD_50_INT,
-    ITALY, SINGAPORE,
+    FIELD_0_FLOAT, FIELD_0_INT, FIELD_100_FLOAT, FIELD_100_INT, FIELD_200_FLOAT, FIELD_200_INT,
+    FIELD_50_FLOAT, FIELD_50_INT, FIELD_NULL, ITALY, SINGAPORE,
 };
+use chrono::{TimeZone, Utc};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::storage::transactions::SharedTransaction;
+use dozer_types::types::Field;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp};
 use std::collections::HashMap;
 
@@ -71,8 +73,8 @@ fn test_min_aggregation_float() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_FLOAT, FIELD_50_FLOAT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_50_FLOAT),
         delete_exp(SINGAPORE, FIELD_50_FLOAT),
+        update_exp(ITALY, ITALY, FIELD_100_FLOAT, FIELD_50_FLOAT),
     ];
     assert_eq!(out, exp);
 
@@ -184,8 +186,8 @@ fn test_min_aggregation_int() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_50_INT),
         delete_exp(SINGAPORE, FIELD_50_INT),
+        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_50_INT),
     ];
     assert_eq!(out, exp);
 
@@ -307,13 +309,13 @@ fn test_min_aggregation_decimal() {
     );
     out = output!(processor, inp, tx);
     exp = vec![
+        delete_exp(SINGAPORE, &get_decimal_field(50)),
         update_exp(
             ITALY,
             ITALY,
             &get_decimal_field(100),
             &get_decimal_field(50),
         ),
-        delete_exp(SINGAPORE, &get_decimal_field(50)),
     ];
     assert_eq!(out, exp);
 
@@ -450,8 +452,8 @@ fn test_min_aggregation_timestamp() {
     inp = update_field(SINGAPORE, ITALY, &get_ts_field(50), &get_ts_field(50));
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, &get_ts_field(100), &get_ts_field(50)),
         delete_exp(SINGAPORE, &get_ts_field(50)),
+        update_exp(ITALY, ITALY, &get_ts_field(100), &get_ts_field(50)),
     ];
     assert_eq!(out, exp);
 
@@ -588,8 +590,8 @@ fn test_min_aggregation_date() {
     );
     out = output!(processor, inp, tx);
     exp = vec![
-        update_exp(ITALY, ITALY, &get_date_field(DATE8), &get_date_field(DATE4)),
         delete_exp(SINGAPORE, &get_date_field(DATE4)),
+        update_exp(ITALY, ITALY, &get_date_field(DATE8), &get_date_field(DATE4)),
     ];
     assert_eq!(out, exp);
 
@@ -657,5 +659,362 @@ fn test_min_aggregation_date() {
     inp = delete_field(ITALY, &get_date_field(DATE8));
     out = output!(processor, inp, tx);
     exp = vec![delete_exp(ITALY, &get_date_field(DATE8))];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_min_aggregation_int_null() {
+    let schema = init_input_schema(Int, "MIN");
+    let (processor, tx) = init_processor(
+        "SELECT Country, MIN(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    // Insert NULL for segment Italy
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    let mut inp = insert_field(ITALY, FIELD_NULL);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, FIELD_0_INT)];
+    assert_eq!(out, exp);
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, NULL
+        Italy, 100
+        -------------
+        MIN = 0
+    */
+    inp = insert_field(ITALY, FIELD_100_INT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    assert_eq!(out, exp);
+
+    // Update 100 for segment Italy to NULL
+    /*
+        Italy, NULL
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    assert_eq!(out, exp);
+
+    // Delete a record
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        MIN = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, FIELD_0_INT)];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_min_aggregation_float_null() {
+    let schema = init_input_schema(Float, "MIN");
+    let (processor, tx) = init_processor(
+        "SELECT Country, MIN(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    // Insert NULL for segment Italy
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0.0
+    */
+    let mut inp = insert_field(ITALY, FIELD_NULL);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, NULL
+        Italy, 100.0
+        -------------
+        MIN = 0.0
+    */
+    inp = insert_field(ITALY, FIELD_100_FLOAT);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Update 100 for segment Italy to NULL
+    /*
+        Italy, NULL
+        Italy, NULL
+        -------------
+        MIN = 0.0
+    */
+    inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Delete a record
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0.0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, FIELD_0_FLOAT, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        MIN = 0.0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, FIELD_0_FLOAT)];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_min_aggregation_decimal_null() {
+    let schema = init_input_schema(Decimal, "MIN");
+    let (processor, tx) = init_processor(
+        "SELECT Country, MIN(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    // Insert NULL for segment Italy
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0.0
+    */
+    let mut inp = insert_field(ITALY, FIELD_NULL);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, &get_decimal_field(0))];
+    assert_eq!(out, exp);
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, NULL
+        Italy, 100.0
+        -------------
+        MIN = 0.0
+    */
+    inp = insert_field(ITALY, &get_decimal_field(0));
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(0),
+        &get_decimal_field(0),
+    )];
+    assert_eq!(out, exp);
+
+    // Update 100 for segment Italy to NULL
+    /*
+        Italy, NULL
+        Italy, NULL
+        -------------
+        MIN = 0.0
+    */
+    inp = update_field(ITALY, ITALY, &get_decimal_field(100), FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(0),
+        &get_decimal_field(0),
+    )];
+    assert_eq!(out, exp);
+
+    // Delete a record
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0.0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(0),
+        &get_decimal_field(0),
+    )];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        MIN = 0.0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, &get_decimal_field(0))];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_min_aggregation_timestamp_null() {
+    let schema = init_input_schema(Timestamp, "MIN");
+    let (processor, tx) = init_processor(
+        "SELECT Country, MIN(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    // Insert NULL for segment Italy
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    let mut inp = insert_field(ITALY, FIELD_NULL);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, &get_ts_field(0))];
+    assert_eq!(out, exp);
+
+    // Insert 100 for segment Italy
+    /*
+        Italy, NULL
+        Italy, 100
+        -------------
+        MIN = 100
+    */
+    inp = insert_field(ITALY, &get_ts_field(100));
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(0), &get_ts_field(0))];
+    assert_eq!(out, exp);
+
+    // Update 100 for segment Italy to NULL
+    /*
+        Italy, NULL
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    inp = update_field(ITALY, ITALY, &get_ts_field(100), FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(0), &get_ts_field(0))];
+    assert_eq!(out, exp);
+
+    // Delete a record
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, &get_ts_field(0), &get_ts_field(0))];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        MIN = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, &get_ts_field(0))];
+    assert_eq!(out, exp);
+}
+
+#[test]
+fn test_min_aggregation_date_null() {
+    let schema = init_input_schema(Date, "MIN");
+    let (processor, tx) = init_processor(
+        "SELECT Country, MIN(Salary) \
+        FROM Users \
+        WHERE Salary >= 1 GROUP BY Country",
+        HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
+    )
+    .unwrap();
+
+    let date_null: &Field = &Field::Date(Utc.timestamp_millis(0).naive_utc().date());
+
+    // Insert NULL for segment Italy
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    let mut inp = insert_field(ITALY, FIELD_NULL);
+    let mut out = output!(processor, inp, tx);
+    let mut exp = vec![insert_exp(ITALY, date_null)];
+    assert_eq!(out, exp);
+
+    // Insert 2015-10-08 for segment Italy
+    /*
+        Italy, NULL
+        Italy, 2015-10-08
+        -------------
+        MIN = 0
+    */
+    inp = insert_field(ITALY, &get_date_field(DATE8));
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, date_null, date_null)];
+    assert_eq!(out, exp);
+
+    // Update 2015-10-08 for segment Italy to NULL
+    /*
+        Italy, NULL
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    inp = update_field(ITALY, ITALY, &get_date_field(DATE8), FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, date_null, date_null)];
+    assert_eq!(out, exp);
+
+    // Delete a record
+    /*
+        Italy, NULL
+        -------------
+        MIN = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![update_exp(ITALY, ITALY, date_null, date_null)];
+    assert_eq!(out, exp);
+
+    // Delete last record
+    /*
+        -------------
+        MIN = 0
+    */
+    inp = delete_field(ITALY, FIELD_NULL);
+    out = output!(processor, inp, tx);
+    exp = vec![delete_exp(ITALY, date_null)];
     assert_eq!(out, exp);
 }

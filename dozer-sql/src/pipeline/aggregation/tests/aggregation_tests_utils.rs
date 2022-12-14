@@ -44,7 +44,7 @@ pub(crate) fn init_processor(
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let mut processor = AggregationProcessor::new(output_field_rules);
+    let mut processor = AggregationProcessor::new(output_field_rules, input_schema.clone());
 
     let mut storage = LmdbEnvironmentManager::create(Path::new("/tmp"), "aggregation_test")
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
@@ -211,6 +211,9 @@ pub const DATE4: &str = "2015-10-04";
 pub const DATE8: &str = "2015-10-08";
 pub const DATE16: &str = "2015-10-16";
 
+pub const FIELD_NULL: &Field = &Field::Null;
+
+pub const FIELD_0_FLOAT: &Field = &Field::Float(OrderedFloat(0.0));
 pub const FIELD_100_FLOAT: &Field = &Field::Float(OrderedFloat(100.0));
 pub const FIELD_150_FLOAT: &Field = &Field::Float(OrderedFloat(150.0));
 pub const FIELD_200_FLOAT: &Field = &Field::Float(OrderedFloat(200.0));
@@ -221,6 +224,10 @@ pub const FIELD_50_FLOAT: &Field = &Field::Float(OrderedFloat(50.0));
 pub const FIELD_250_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(250.0 / 3.0));
 pub const FIELD_350_DIV_3_FLOAT: &Field = &Field::Float(OrderedFloat(350.0 / 3.0));
 
+pub const FIELD_0_INT: &Field = &Field::Int(0);
+pub const FIELD_1_INT: &Field = &Field::Int(1);
+pub const FIELD_2_INT: &Field = &Field::Int(2);
+pub const FIELD_3_INT: &Field = &Field::Int(3);
 pub const FIELD_100_INT: &Field = &Field::Int(100);
 pub const FIELD_150_INT: &Field = &Field::Int(150);
 pub const FIELD_200_INT: &Field = &Field::Int(200);

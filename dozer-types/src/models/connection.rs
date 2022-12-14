@@ -47,6 +47,7 @@ pub enum Authentication {
     KafkaAuthentication {
         broker: String,
         topic: String,
+        schema_registry_url: Option<String>,
     },
 }
 impl Default for Authentication {

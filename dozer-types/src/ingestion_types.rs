@@ -51,6 +51,7 @@ pub struct EthConfig {
 pub struct KafkaConfig {
     pub broker: String,
     pub topic: String,
+    pub schema_registry_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]

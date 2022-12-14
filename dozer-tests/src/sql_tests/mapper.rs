@@ -9,13 +9,10 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::*;
 pub struct SchemaResponse {
     schema: Schema,
-    name: String,
-    key: Vec<u8>,
 }
 
 pub struct SqlMapper {
     pub schema_map: HashMap<String, Schema>,
-    pub record_map: HashMap<(String, Vec<u8>), Record>,
     pub conn: rusqlite::Connection,
 }
 
@@ -23,7 +20,6 @@ impl Default for SqlMapper {
     fn default() -> Self {
         Self {
             schema_map: Default::default(),
-            record_map: Default::default(),
             conn: rusqlite::Connection::open_in_memory().unwrap(),
         }
     }
@@ -49,8 +45,8 @@ impl SqlMapper {
     ) -> rusqlite::Result<Vec<Operation>> {
         let mut ops = vec![];
         for (_schema_name, sql) in list {
-            self.conn.execute(sql.as_str(), ())?;
             let op = self.get_operation_from_sql(&sql);
+            self.conn.execute(sql.as_str(), ())?;
             ops.push(op);
         }
         Ok(ops)
@@ -107,8 +103,7 @@ impl SqlMapper {
                     }
                 }
                 let rec = Record::new(schema.identifier.clone(), values);
-                let key = get_primary_key_value(schema, &rec);
-                self.record_map.insert((name, key.encode()), rec.clone());
+
                 Operation::Insert { new: rec }
             }
 
@@ -136,9 +131,6 @@ impl SqlMapper {
 
                     rec2.values[idx.0] = parse_exp_to_field(&a.value);
                 }
-                self.record_map
-                    .insert((schema_res.name, schema_res.key), rec2.clone());
-
                 Operation::Update {
                     old: rec,
                     new: rec2,
@@ -180,7 +172,7 @@ impl SqlMapper {
             Operation::Delete { old } => {
                 let pkey_value = get_primary_key_value(schema, &old);
                 Ok(format!(
-                    "DELETE FROM {} WHERE {}={}",
+                    "DELETE FROM {} WHERE {}={};",
                     name,
                     pkey_name,
                     map_field_to_string(&pkey_value)
@@ -204,7 +196,7 @@ impl SqlMapper {
                     .collect::<Vec<String>>()
                     .join(",");
                 Ok(format!(
-                    "INSERT INTO {}({}) values ({})",
+                    "INSERT INTO {}({}) values ({});",
                     name, column_names, values_str
                 ))
             }
@@ -232,7 +224,7 @@ impl SqlMapper {
                 }
                 let values_str = field_names.join(",");
                 Ok(format!(
-                    "UPDATE {} SET {} WHERE {}={}",
+                    "UPDATE {} SET {} WHERE {}={};",
                     name,
                     values_str,
                     pkey_name,
@@ -272,7 +264,7 @@ impl SqlMapper {
                     _ => panic!("not supported: {:?}", left),
                 };
 
-                let val = parse_exp_to_field(right).encode();
+                let val = parse_exp_to_string(right);
 
                 assert_eq!(
                     column_name,
@@ -281,22 +273,34 @@ impl SqlMapper {
                 );
 
                 let rec = self
-                    .record_map
-                    .get(&(name.clone(), val.clone()))
-                    .expect("record is to be inserted before update/delete");
-                (
-                    rec.to_owned(),
-                    SchemaResponse {
-                        schema,
-                        name,
-                        key: val,
-                    },
-                )
+                    .get_record(&name, &column_name, &val, &schema)
+                    .expect("record with id is expected");
+
+                (rec, SchemaResponse { schema })
             } else {
                 panic!("not supported: {:?}", selection);
             }
         } else {
             panic!("not supported: {:?}", selection);
+        }
+    }
+
+    pub fn get_record(
+        &self,
+        table_name: &str,
+        key_name: &str,
+        val: &str,
+        schema: &Schema,
+    ) -> Result<Record, rusqlite::Error> {
+        let sql = format!("select * from {} where {} = {};", table_name, key_name, val);
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut rows = stmt.query(())?;
+
+        if let Some(row) = rows.next().unwrap() {
+            // scan columns value
+            map_sqlite_to_record(schema, row)
+        } else {
+            panic!("no rows found");
         }
     }
 }

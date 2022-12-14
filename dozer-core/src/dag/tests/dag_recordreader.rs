@@ -16,6 +16,7 @@ use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use tempdir::TempDir;
 
@@ -73,7 +74,13 @@ impl Processor for PassthroughProcessor {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -139,7 +146,13 @@ impl Processor for RecordReaderProcessor {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -218,12 +231,12 @@ fn test_run_dag_reacord_reader() {
         )
         .is_ok());
 
+    let mut options = ExecutorOptions::default();
+    options.commit_sz = 1000;
+    options.commit_time_threshold = Duration::from_millis(5);
+
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(
-        &dag,
-        tmp_dir.path(),
-        ExecutorOptions::default()
-    ));
+    let mut executor = chk!(DagExecutor::new(&dag, tmp_dir.path(), options));
 
     chk!(executor.start());
     assert!(executor.join().is_ok());
