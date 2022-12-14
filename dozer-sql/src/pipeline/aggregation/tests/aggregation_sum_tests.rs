@@ -402,9 +402,9 @@ fn test_sum_aggregation_int_null() {
         -------------
         SUM = 0
     */
-    let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_0_INT)];
+    let inp = insert_field(ITALY, FIELD_NULL);
+    let out = output!(processor, inp, tx);
+    let exp = vec![insert_exp(ITALY, FIELD_0_INT)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -470,9 +470,9 @@ fn test_sum_aggregation_float_null() {
         -------------
         SUM = 0
     */
-    let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_0_FLOAT)];
+    let inp = insert_field(ITALY, FIELD_NULL);
+    let out = output!(processor, inp, tx);
+    let exp = vec![insert_exp(ITALY, FIELD_0_FLOAT)];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -538,9 +538,9 @@ fn test_sum_aggregation_decimal_null() {
         -------------
         SUM = 0
     */
-    let mut inp = insert_field(ITALY, FIELD_NULL);
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, &get_decimal_field(0))];
+    let inp = insert_field(ITALY, FIELD_NULL);
+    let out = output!(processor, inp, tx);
+    let exp = vec![insert_exp(ITALY, &get_decimal_field(0))];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
