@@ -49,7 +49,7 @@ impl ExecutorOptions {
         Self {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
-            commit_time_threshold: Duration::from_secs(30),
+            commit_time_threshold: Duration::from_millis(50),
         }
     }
 }
