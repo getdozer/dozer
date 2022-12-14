@@ -51,6 +51,7 @@ mod grpc_service {
     }
 
     #[test]
+    #[ignore]
     pub fn trigger_cli() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
