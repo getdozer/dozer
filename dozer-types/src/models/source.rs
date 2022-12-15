@@ -19,7 +19,11 @@ pub struct Source {
     #[serde(skip_deserializing)]
     pub connection: Option<Connection>,
     #[prost(oneof = "RefreshConfig", tags = "7")]
+    #[serde(default = "default_refresh_config")]
     pub refresh_config: Option<RefreshConfig>,
+}
+fn default_refresh_config() -> Option<RefreshConfig> {
+    Some(RefreshConfig::default())
 }
 impl Serialize for Source {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

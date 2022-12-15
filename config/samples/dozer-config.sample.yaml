@@ -33,8 +33,6 @@ sources:
       - email
       - phone
     connection: !Ref users
-    history_type: null
-    refresh_config: !RealTime {}
 endpoints:
   - id: null
     name: users

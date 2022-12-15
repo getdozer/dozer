@@ -45,8 +45,6 @@ fn test_yml_content_full() -> &'static str {
           - email
           - phone
         connection: !Ref users
-        history_type: null
-        refresh_config: !RealTime {}
     endpoints:
       - id: null
         name: users
@@ -77,8 +75,6 @@ fn test_yml_content_missing_api_config() -> &'static str {
           - email
           - phone
         connection: !Ref users
-        history_type: null
-        refresh_config: !RealTime {}
     endpoints:
       - id: null
         name: users
@@ -120,8 +116,6 @@ fn test_yml_content_missing_internal_config() -> &'static str {
           - email
           - phone
         connection: !Ref users
-        history_type: null
-        refresh_config: !RealTime {}
     endpoints:
       - id: null
         name: users
