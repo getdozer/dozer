@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use dozer_types::bincode;
 
+pub use lmdb;
 use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
 
 use dozer_types::types::{IndexDefinition, Record};
@@ -65,9 +66,10 @@ pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
 }
 
 impl LmdbCache {
-    pub fn init_txn(&self) -> RwTransaction {
-        let txn = self.env.begin_rw_txn().unwrap();
-        txn
+    pub fn begin_rw_txn(&self) -> Result<RwTransaction, CacheError> {
+        self.env
+            .begin_rw_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))
     }
     pub fn new(cache_options: CacheOptions) -> Result<Self, CacheError> {
         let env = utils::init_env(&cache_options)?;

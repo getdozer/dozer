@@ -78,9 +78,18 @@ pub enum SinkError {
     #[error("Failed to notify schema in Sink")]
     SchemaNotificationFailed(#[source] BoxedError),
 
+    #[error("Failed to begin cache transaction")]
+    CacheBeginTransactionFailed(#[source] BoxedError),
+
     #[error("Failed to insert record in Sink")]
     CacheInsertFailed(#[source] BoxedError),
 
     #[error("Failed to delete record in Sink")]
     CacheDeleteFailed(#[source] BoxedError),
+
+    #[error("Failed to update record in Sink")]
+    CacheUpdateFailed(#[source] BoxedError),
+
+    #[error("Failed to commit cache transaction")]
+    CacheCommitTransactionFailed(#[source] BoxedError),
 }

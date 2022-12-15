@@ -1,4 +1,4 @@
-use super::executor::{Executor, SinkConfig};
+use super::executor::Executor;
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
 use dozer_api::actix_web::dev::ServerHandle;
@@ -183,7 +183,6 @@ impl Orchestrator for SimpleOrchestrator {
             iterator,
             running,
             self.home_dir.to_owned(),
-            SinkConfig::default(),
         );
         executor.run(Some(sender), executor_running)
     }
