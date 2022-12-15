@@ -7,6 +7,7 @@ use dozer_types::{
 };
 
 use crate::{
+    cli::utils::kill_process_at,
     db::{application::AppDbService, persistable::Persistable, pool::DbPool},
     server::dozer_admin_grpc::{
         ApplicationInfo, CreateAppRequest, CreateAppResponse, ErrorResponse, GetAppRequest,
@@ -116,16 +117,16 @@ impl AppService {
         &self,
         input: StartPipelineRequest,
     ) -> Result<StartPipelineResponse, ErrorResponse> {
-        let app_detail_result = self.get_app(GetAppRequest {
+        let app_detail_result: GetAppResponse = self.get_app(GetAppRequest {
             app_id: Some(input.app_id),
         })?;
-        let app_detail = app_detail_result.data.unwrap();
+        let app_detail: dozer_types::models::app_config::Config = app_detail_result.data.unwrap();
         let path = Path::new(DEFAULT_HOME_DIR).join("api_config");
         if path.exists() {
             fs::remove_dir_all(&path).unwrap();
         }
         fs::create_dir_all(&path).unwrap();
-        let config = app_detail;
+        let config = app_detail.to_owned();
         let yaml_path = path.join(format!(
             "dozer-config-{:}-{:}.yaml",
             config.app_name,
@@ -154,23 +155,8 @@ impl AppService {
         })?;
 
         // kill process at port 8080 50051 lsof -t -i:8080 | xargs -r kill
-        let mut check_ports_used = Command::new("lsof");
-        check_ports_used.args(["-t", "-i:50051"]);
-        let check_port_result = check_ports_used
-            .output()
-            .expect("failed to execute process");
-        let check_port_result_str = String::from_utf8(check_port_result.stdout).unwrap();
-        if !check_port_result_str.is_empty() {
-            let ports: Vec<String> = check_port_result_str
-                .split('\n')
-                .into_iter()
-                .map(|s| s.to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            let _clear_grpc_port_command = Command::new("kill")
-                .args(["-9", &ports[ports.len() - 1]])
-                .output()
-                .unwrap();
+        if let Some(api_config) = app_detail.api {
+            kill_process_at(api_config.grpc.unwrap_or_default().port as u16);
         }
 
         let path_to_bin = concat!(env!("OUT_DIR"), "/dozer");

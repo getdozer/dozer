@@ -1,7 +1,7 @@
 use std::{fs::File, path::Path};
 
 use super::{
-    utils::{init_db_with_config, init_internal_pipeline_client, reset_db},
+    utils::{init_db_with_config, init_internal_pipeline_client, kill_process_at, reset_db},
     AdminCliConfig,
 };
 use crate::server;
@@ -43,7 +43,8 @@ impl CliProcess {
         }
         reset_db();
         init_db_with_config(dozer_config);
-        server::get_server(
+        kill_process_at(self.config.to_owned().port as u16);
+        server::start_admin_server(
             self.config.to_owned().host,
             self.config.to_owned().port as u16,
         )

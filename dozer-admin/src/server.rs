@@ -301,7 +301,7 @@ impl DozerAdmin for GrpcService {
     }
 }
 
-pub async fn get_server(host: String, port: u16) -> Result<(), tonic::transport::Error> {
+pub async fn start_admin_server(host: String, port: u16) -> Result<(), tonic::transport::Error> {
     let addr = format!("{:}:{:}", host, port).parse().unwrap();
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
