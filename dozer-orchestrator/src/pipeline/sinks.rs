@@ -1,15 +1,12 @@
-#![allow(dead_code)]
-use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
-use dozer_api::grpc::internal_grpc::PipelineRequest;
-use dozer_api::grpc::types_helper;
-use dozer_cache::cache::{BatchedCacheMsg, Cache};
-use dozer_cache::cache::{BatchedWriter, LmdbCache};
+use dozer_cache::cache::index::get_primary_key;
+use dozer_cache::cache::{
+    lmdb_rs::{self, Transaction},
+    Cache, LmdbCache,
+};
 use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
-use dozer_types::crossbeam;
-use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::FieldType;
 use dozer_types::types::{
@@ -21,16 +18,12 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
 use std::sync::Arc;
-use std::thread;
 use std::time::Instant;
 
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    notifier: Option<Sender<PipelineRequest>>,
-    record_cutoff: u32,
-    timeout: u64,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -57,17 +50,11 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-        record_cutoff: u32,
-        timeout: u64,
     ) -> Self {
         Self {
             input_ports,
             cache,
             api_endpoint,
-            notifier,
-            record_cutoff,
-            timeout,
         }
     }
     fn get_output_schema(
@@ -161,32 +148,34 @@ impl SinkFactory for CacheSinkFactory {
             self.cache.clone(),
             self.api_endpoint.clone(),
             sink_schemas,
-            self.notifier.clone(),
-            self.record_cutoff,
-            self.timeout,
         )))
     }
 }
 
 pub struct CacheSink {
+    // It's not really 'static, the actual lifetime is the lifetime of `cache`. See comments in `process`.
+    txn: Option<lmdb_rs::RwTransaction<'static>>,
     cache: Arc<LmdbCache>,
     counter: i32,
     before: Instant,
     input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
-    notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-    batched_sender: Sender<BatchedCacheMsg>,
 }
 
 impl Sink for CacheSink {
     fn commit(
-        &self,
+        &mut self,
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
         _tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError> {
+        if let Some(txn) = self.txn.take() {
+            txn.commit().map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
+            })?;
+        }
         Ok(())
     }
 
@@ -220,29 +209,60 @@ impl Sink for CacheSink {
                 self.before.elapsed(),
             ));
         }
+
+        if self.txn.is_none() {
+            let txn = self.cache.begin_rw_txn().map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheBeginTransactionFailed(Box::new(e)))
+            })?;
+            // SAFETY:
+            // 1. `std::mem::transmute` is only used to extend the lifetime of `txn` to `'static`.
+            // 2. `RwTransaction` doesn't reference data in `LmdbCache`, the lifetime of it is only
+            // to ensure that the returned `RwTransaction` does not outlive `LmdbCache`.
+            // 3. `txn` in `CacheSink` is private, and we don't expose it to the outside, so the one owning
+            // `txn` must own `CacheSink`.
+            // 4. The declaration order in `CacheSink` ensures `txn` is dropped before `cache`.
+            let txn = unsafe {
+                std::mem::transmute::<lmdb_rs::RwTransaction<'_>, lmdb_rs::RwTransaction<'static>>(
+                    txn,
+                )
+            };
+            self.txn = Some(txn);
+        }
+        let txn = self.txn.as_mut().unwrap();
+
         let (schema, secondary_indexes) = self
             .input_schemas
             .get(&from_port)
-            .map_or(Err(ExecutionError::SchemaNotInitialized), Ok)?
-            .to_owned();
+            .ok_or(ExecutionError::SchemaNotInitialized)?;
 
-        if let Some(notifier) = &self.notifier {
-            let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
-            notifier
-                .try_send(PipelineRequest {
-                    endpoint: self.api_endpoint.name.to_owned(),
-                    api_event: Some(ApiEvent::Op(op)),
-                })
-                .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        match op {
+            Operation::Delete { old } => {
+                let key = get_primary_key(&schema.primary_index, &old.values);
+                self.cache
+                    .delete_with_txn(txn, &key, &old, schema, secondary_indexes)
+                    .map_err(|e| {
+                        ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
+                    })?;
+            }
+            Operation::Insert { new } => {
+                // new.schema_id = schema.identifier.clone();
+                self.cache
+                    .insert_with_txn(txn, &new, schema, secondary_indexes)
+                    .map_err(|e| {
+                        ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
+                    })?;
+            }
+            Operation::Update { old, new } => {
+                let key = get_primary_key(&schema.primary_index, &old.values);
+                // new.schema_id = old.schema_id.clone();
+                self.cache
+                    .update_with_txn(txn, &key, &old, &new, schema, secondary_indexes)
+                    .map_err(|e| {
+                        ExecutionError::SinkError(SinkError::CacheUpdateFailed(Box::new(e)))
+                    })?;
+            }
         }
 
-        self.batched_sender
-            .send(BatchedCacheMsg {
-                op,
-                schema,
-                secondary_indexes,
-            })
-            .unwrap();
         Ok(())
     }
 }
@@ -252,33 +272,15 @@ impl CacheSink {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
-        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-        record_cutoff: u32,
-        timeout: u64,
     ) -> Self {
-        let (batched_sender, batched_receiver) =
-            crossbeam::channel::bounded::<BatchedCacheMsg>(record_cutoff as usize);
-        let cache_batch = cache.clone();
-
-        thread::spawn(move || {
-            let batched_writer = BatchedWriter {
-                cache: cache_batch,
-                receiver: batched_receiver,
-                record_cutoff,
-                timeout,
-            };
-            batched_writer.run().unwrap();
-        });
-
         Self {
+            txn: None,
             cache,
             counter: 0,
             before: Instant::now(),
             input_schemas,
             api_endpoint,
             pb: get_progress(),
-            notifier,
-            batched_sender,
         }
     }
 }
@@ -291,14 +293,14 @@ mod tests {
     use dozer_types::types::SortDirection::Ascending;
 
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-    use dozer_core::dag::node::Sink;
+    use dozer_core::dag::node::{NodeHandle, Sink};
     use dozer_core::storage::common::RenewableRwTransaction;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
     use dozer_core::storage::transactions::SharedTransaction;
     use dozer_types::parking_lot::RwLock;
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
+    use std::collections::HashMap;
     use std::sync::Arc;
-    use std::{collections::HashMap, thread, time::Duration};
     use tempdir::TempDir;
 
     #[test]
@@ -361,8 +363,14 @@ mod tests {
             &HashMap::new(),
         )
         .unwrap();
+        sink.commit(
+            &NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+            0,
+            0,
+            &mut t,
+        )
+        .unwrap();
 
-        thread::sleep(Duration::from_millis(100));
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
         let record = cache.get(&key).unwrap();
 
@@ -375,8 +383,14 @@ mod tests {
             &HashMap::new(),
         )
         .unwrap();
+        sink.commit(
+            &NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+            0,
+            1,
+            &mut t,
+        )
+        .unwrap();
 
-        thread::sleep(Duration::from_millis(100));
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);
 
