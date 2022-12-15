@@ -1,14 +1,14 @@
 use super::Config;
 use dozer_types::{
     models::{
-        api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
+        api_config::{default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiRest},
         api_endpoint::ApiEndpoint,
         connection::{Authentication, Connection, PostgresAuthentication},
         source::{RefreshConfig, Source},
     },
     serde_yaml,
 };
-fn test_yml_content() -> &'static str {
+fn test_yml_content_full() -> &'static str {
     r#"
     app_name: dozer-config-sample
     api:
@@ -28,6 +28,81 @@ fn test_yml_content() -> &'static str {
       pipeline_internal:
         port: 50053
         host: '[::1]'
+    connections:
+      - db_type: Postgres
+        authentication: !Postgres
+          user: postgres
+          password: postgres
+          host: localhost
+          port: 5432
+          database: users
+        name: users
+    sources:
+      - name: users
+        table_name: users
+        columns:
+          - id
+          - email
+          - phone
+        connection: !Ref users
+        history_type: null
+        refresh_config: !RealTime {}
+    endpoints:
+      - id: null
+        name: users
+        path: /users
+        sql: select id, email, phone from users where 1=1;
+        index:
+          primary_key:
+            - id    
+    "#
+}
+fn test_yml_content_missing_api_config() -> &'static str {
+    r#"
+    app_name: dozer-config-sample
+    connections:
+      - db_type: Postgres
+        authentication: !Postgres
+          user: postgres
+          password: postgres
+          host: localhost
+          port: 5432
+          database: users
+        name: users
+    sources:
+      - name: users
+        table_name: users
+        columns:
+          - id
+          - email
+          - phone
+        connection: !Ref users
+        history_type: null
+        refresh_config: !RealTime {}
+    endpoints:
+      - id: null
+        name: users
+        path: /users
+        sql: select id, email, phone from users where 1=1;
+        index:
+          primary_key:
+            - id    
+    "#
+}
+fn test_yml_content_missing_internal_config() -> &'static str {
+    r#"
+    app_name: dozer-config-sample
+    api:
+      rest:
+        port: 8080
+        url: "[::0]"
+        cors: true
+      grpc:
+        port: 50051
+        url: "[::0]"
+        cors: true
+        web: true
+      auth: false
     connections:
       - db_type: Postgres
         authentication: !Postgres
@@ -135,10 +210,57 @@ fn test_config() -> Config {
 }
 #[test]
 fn test_deserialize_config() {
-    let test_str = test_yml_content();
+    let test_str = test_yml_content_full();
     let deserializer_result = serde_yaml::from_str::<Config>(test_str).unwrap();
     let expected = test_config();
     assert_eq!(deserializer_result.api, expected.api);
+    assert_eq!(deserializer_result.app_name, expected.app_name);
+    assert_eq!(deserializer_result.connections, expected.connections);
+    assert_eq!(deserializer_result.endpoints, expected.endpoints);
+    assert_eq!(deserializer_result.sources, expected.sources);
+    assert_eq!(deserializer_result, expected);
+}
+#[test]
+fn test_deserialize_default_api_config() {
+    let test_str = test_yml_content_missing_api_config();
+    let deserializer_result = serde_yaml::from_str::<Config>(test_str).unwrap();
+    let expected = test_config();
+    let default_api_config = default_api_config();
+    assert_eq!(deserializer_result.api, Some(default_api_config));
+    assert_eq!(deserializer_result.app_name, expected.app_name);
+    assert_eq!(deserializer_result.connections, expected.connections);
+    assert_eq!(deserializer_result.endpoints, expected.endpoints);
+    assert_eq!(deserializer_result.sources, expected.sources);
+    assert_eq!(deserializer_result, expected);
+}
+#[test]
+fn test_deserialize_yaml_missing_internal_config() {
+    let test_str = test_yml_content_missing_internal_config();
+    let deserializer_result = serde_yaml::from_str::<Config>(test_str).unwrap();
+    let expected = test_config();
+    let default_api_config = default_api_config();
+    assert_eq!(
+        deserializer_result.api.to_owned(),
+        Some(default_api_config.to_owned())
+    );
+    assert_eq!(
+        deserializer_result
+            .api
+            .to_owned()
+            .unwrap()
+            .api_internal
+            .unwrap(),
+        default_api_config.api_internal.unwrap()
+    );
+    assert_eq!(
+        deserializer_result
+            .api
+            .to_owned()
+            .unwrap()
+            .pipeline_internal
+            .unwrap(),
+        default_api_config.pipeline_internal.unwrap()
+    );
     assert_eq!(deserializer_result.app_name, expected.app_name);
     assert_eq!(deserializer_result.connections, expected.connections);
     assert_eq!(deserializer_result.endpoints, expected.endpoints);

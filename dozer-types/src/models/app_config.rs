@@ -3,6 +3,8 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 
+use crate::models::api_config::default_api_config;
+
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, source::Source,
 };
@@ -40,7 +42,7 @@ impl<'de> Deserialize<'de> for Config {
             where
                 A: serde::de::MapAccess<'de>,
             {
-                let mut api: Option<ApiConfig> = None;
+                let mut api: Option<ApiConfig> = Some(default_api_config());
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints: Vec<ApiEndpoint> = vec![];
