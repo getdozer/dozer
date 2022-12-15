@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::errors::AdminError;
-use dozer_types::models::api_config::ApiInternal;
+use dozer_types::models::api_config::{default_api_config, ApiInternal};
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
 pub mod cli_process;
@@ -12,8 +12,14 @@ pub struct AdminCliConfig {
     pub port: u32,
     pub host: String,
     pub cors: bool,
-    pub internal: Option<GrpcInternal>,
+    #[serde(default = "GrpcInternal::default")]
+    pub internal: GrpcInternal,
     pub dozer_config: Option<String>,
+    #[serde(default = "default_output_path")]
+    pub output_path: String,
+}
+fn default_output_path() -> String {
+    "./.dozer".to_owned()
 }
 impl Default for AdminCliConfig {
     fn default() -> Self {
@@ -21,8 +27,9 @@ impl Default for AdminCliConfig {
             port: 8081,
             host: "[::0]".to_owned(),
             cors: true,
-            internal: Some(GrpcInternal::default()),
+            internal: GrpcInternal::default(),
             dozer_config: None,
+            output_path: default_output_path(),
         }
     }
 }
@@ -33,15 +40,10 @@ pub struct GrpcInternal {
 }
 impl Default for GrpcInternal {
     fn default() -> Self {
+        let default_config = default_api_config();
         Self {
-            api: ApiInternal {
-                port: 50052,
-                host: "[::1]".to_owned(),
-            },
-            pipeline: ApiInternal {
-                port: 50053,
-                host: "[::1]".to_owned(),
-            },
+            api: default_config.api_internal.unwrap(),
+            pipeline: default_config.pipeline_internal.unwrap(),
         }
     }
 }

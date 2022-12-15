@@ -27,6 +27,11 @@ async fn main() -> Result<(), AdminError> {
                     .map_err(AdminError::FailedToRunCli)?;
             }
         }
+    } else {
+        cli_process
+            .start()
+            .await
+            .map_err(AdminError::FailedToRunCli)?;
     }
     Ok(())
 }

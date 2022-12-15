@@ -7,11 +7,10 @@ use clap::{Parser, Subcommand};
     long_about = "Dozer admin provide UI to config"
 )]
 pub struct Cli {
-    // #[arg(short = 'c', long, default_value = "./dozer-admin-config.yaml")]
     #[arg(
         short = 'c',
         long,
-        default_value = "/Users/anhthu/Dozer/pdozer/dozer-admin-config.yaml"
+        default_value = "./dozer-admin-config.yaml"
     )]
     pub config_path: String,
 

@@ -12,7 +12,7 @@ pub struct CliProcess {
 }
 impl CliProcess {
     pub async fn start(self) -> Result<(), Box<dyn std::error::Error>> {
-        let internal_pipeline_config = self.config.to_owned().internal.unwrap_or_default().pipeline;
+        let internal_pipeline_config = self.config.to_owned().internal.pipeline;
         let client_connect_result = init_internal_pipeline_client(internal_pipeline_config).await;
         let mut dozer_config: Config = Config::default();
         if let Ok(mut client) = client_connect_result {
