@@ -25,7 +25,7 @@ pub struct ProjectionProcessorFactory {
 
 impl ProjectionProcessorFactory {
     /// Creates a new [`ProjectionProcessorFactory`].
-    pub fn new(select: Vec<SelectItem>) -> Self {
+    pub fn _new(select: Vec<SelectItem>) -> Self {
         Self { select }
     }
 }
@@ -98,7 +98,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
     }
 }
 
-fn parse_sql_select_item(
+pub(crate) fn parse_sql_select_item(
     sql: &SelectItem,
     schema: &Schema,
 ) -> Result<(String, Expression), PipelineError> {

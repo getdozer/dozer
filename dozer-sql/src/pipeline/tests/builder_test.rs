@@ -155,9 +155,9 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT COUNT(Spending), Country \
+    let sql = "SELECT SUM(Spending), Country \
                             FROM Users \
-                            WHERE Spending >= 1"; // GROUP BY Country";
+                            WHERE Spending >= 1 GROUP BY Country";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
