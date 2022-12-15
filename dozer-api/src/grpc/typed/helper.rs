@@ -145,7 +145,7 @@ fn convert_field_to_reflect_value(field: Field) -> prost_reflect::Value {
     match field {
         Field::UInt(n) => Value::U64(n),
         Field::Int(n) => Value::I64(n),
-        Field::Float(_n) => todo!(),
+        Field::Float(n) => Value::F64(n.0),
         Field::Boolean(n) => Value::Bool(n),
         Field::String(n) => Value::String(n),
         Field::Text(n) => Value::String(n),
@@ -154,6 +154,6 @@ fn convert_field_to_reflect_value(field: Field) -> prost_reflect::Value {
         Field::Timestamp(n) => Value::String(n.to_rfc3339()),
         Field::Date(n) => Value::String(n.to_string()),
         Field::Bson(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n)),
-        Field::Null => todo!(),
+        Field::Null => panic!(),
     }
 }
