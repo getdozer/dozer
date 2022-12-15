@@ -51,7 +51,6 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
                 version: 1,
             }),
             fields,
-            values: vec![],
             primary_index: vec![0],
         },
         secondary_indexes,

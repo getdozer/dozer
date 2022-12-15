@@ -314,11 +314,9 @@ impl SourceFactory for ErrGeneratorSourceFactory {
             .field(
                 FieldDefinition::new("id".to_string(), FieldType::String, false),
                 true,
-                true,
             )
             .field(
                 FieldDefinition::new("value".to_string(), FieldType::String, false),
-                true,
                 false,
             )
             .clone())

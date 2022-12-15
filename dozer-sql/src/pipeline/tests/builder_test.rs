@@ -44,16 +44,13 @@ impl SourceFactory for TestSourceFactory {
             .field(
                 FieldDefinition::new(String::from("CustomerID"), FieldType::Int, false),
                 false,
-                false,
             )
             .field(
                 FieldDefinition::new(String::from("Country"), FieldType::String, false),
                 false,
-                false,
             )
             .field(
                 FieldDefinition::new(String::from("Spending"), FieldType::Float, false),
-                false,
                 false,
             )
             .clone())

@@ -118,7 +118,6 @@ impl SchemaHelper {
                     version: 1,
                 }),
                 fields: fields.clone(),
-                values: vec![],
                 primary_index,
             };
             schemas.push((table_name, schema));

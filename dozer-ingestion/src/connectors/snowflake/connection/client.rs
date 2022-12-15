@@ -378,7 +378,6 @@ impl Client {
                         .or_insert(Schema {
                             identifier: Some(SchemaIdentifier { id: 0, version: 0 }),
                             fields: vec![],
-                            values: vec![],
                             primary_index: vec![],
                         })
                         .fields

@@ -40,10 +40,6 @@ pub struct Schema {
     /// the cache. Some fields might only be used for indexing purposes only.
     pub fields: Vec<FieldDefinition>,
 
-    /// Indexes of the fields representing values that will appear in the final object stored
-    /// in the cache
-    pub values: Vec<usize>,
-
     /// Indexes of the fields forming the primary key for this schema. If the value is empty
     /// only Insert Operation are supported. Updates and Deletes are not supported without a
     /// primary key definition
@@ -55,16 +51,12 @@ impl Schema {
         Self {
             identifier: None,
             fields: Vec::new(),
-            values: Vec::new(),
             primary_index: Vec::new(),
         }
     }
 
-    pub fn field(&mut self, f: FieldDefinition, value: bool, pk: bool) -> &mut Self {
+    pub fn field(&mut self, f: FieldDefinition, pk: bool) -> &mut Self {
         self.fields.push(f);
-        if value {
-            self.values.push(&self.fields.len() - 1)
-        }
         if pk {
             self.primary_index.push(&self.fields.len() - 1)
         }

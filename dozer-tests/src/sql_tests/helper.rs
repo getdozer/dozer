@@ -256,7 +256,6 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                 }
             })
             .collect(),
-        values: vec![],
         primary_index: vec![0],
     }
 }
