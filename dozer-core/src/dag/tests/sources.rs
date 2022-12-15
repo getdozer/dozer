@@ -30,11 +30,9 @@ impl SourceFactory for GeneratorSourceFactory {
             .field(
                 FieldDefinition::new("id".to_string(), FieldType::String, false),
                 true,
-                true,
             )
             .field(
                 FieldDefinition::new("value".to_string(), FieldType::String, false),
-                true,
                 false,
             )
             .clone())
@@ -116,11 +114,9 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
             .field(
                 FieldDefinition::new("id".to_string(), FieldType::String, false),
                 true,
-                true,
             )
             .field(
                 FieldDefinition::new("value".to_string(), FieldType::String, false),
-                true,
                 false,
             )
             .clone())

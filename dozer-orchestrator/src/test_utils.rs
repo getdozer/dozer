@@ -21,7 +21,6 @@ pub fn get_schema() -> Schema {
                 nullable: false,
             },
         ],
-        values: vec![0],
         primary_index: vec![0],
     }
 }
