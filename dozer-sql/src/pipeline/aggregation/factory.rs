@@ -15,6 +15,7 @@ use crate::pipeline::{
         builder::{ExpressionBuilder, ExpressionType},
         execution::{Expression, ExpressionExecutor},
     },
+    projection::{factory::parse_sql_select_item, processor::ProjectionProcessor},
 };
 
 use super::{
@@ -56,7 +57,11 @@ impl ProcessorFactory for AggregationProcessorFactory {
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
-        build_output_schema(input_schema, output_field_rules)
+        if is_aggregation(&self.groupby, &output_field_rules) {
+            return build_output_schema(input_schema, output_field_rules);
+        }
+
+        build_projection_schema(input_schema, &self.select)
     }
 
     fn build(
@@ -69,23 +74,54 @@ impl ProcessorFactory for AggregationProcessorFactory {
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
-        Ok(Box::new(AggregationProcessor::new(
-            output_field_rules,
-            input_schema.clone(),
-        )))
+
+        if is_aggregation(&self.groupby, &output_field_rules) {
+            return Ok(Box::new(AggregationProcessor::new(
+                output_field_rules,
+                input_schema.clone(),
+            )));
+        }
+
+        // Build a Projection
+        match self
+            .select
+            .iter()
+            .map(|item| parse_sql_select_item(item, input_schema))
+            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
+        {
+            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(expressions))),
+            Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
+        }
     }
+}
+
+fn is_aggregation(groupby: &[SqlExpr], output_field_rules: &[FieldRule]) -> bool {
+    if !groupby.is_empty() {
+        return true;
+    }
+
+    output_field_rules
+        .iter()
+        .any(|rule| matches!(rule, FieldRule::Measure(_, _, _)))
 }
 
 pub(crate) fn get_aggregation_rules(
     select: &[SelectItem],
-    _groupby: &[SqlExpr],
+    groupby: &[SqlExpr],
     schema: &Schema,
 ) -> Result<Vec<FieldRule>, PipelineError> {
-    let select_rules = select
+    let mut select_rules = select
         .iter()
         .map(|item| parse_sql_aggregate_item(item, schema))
         .filter(|e| e.is_ok())
         .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
+
+    let mut groupby_rules = groupby
+        .iter()
+        .map(|expr| parse_sql_groupby_item(expr, schema))
+        .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
+
+    select_rules.append(&mut groupby_rules);
 
     Ok(select_rules)
 }
@@ -109,7 +145,11 @@ fn parse_sql_aggregate_item(
                     aggregator,
                     sql_expr.to_string(),
                 )),
-                Err(_) => Ok(FieldRule::Dimension(expression.0, sql_expr.to_string())),
+                Err(_) => Ok(FieldRule::Dimension(
+                    expression.0,
+                    true,
+                    sql_expr.to_string(),
+                )),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
@@ -122,6 +162,17 @@ fn parse_sql_aggregate_item(
             "Qualified Wildcard Operator is not supported".to_string(),
         )),
     }
+}
+
+fn parse_sql_groupby_item(
+    sql_expression: &SqlExpr,
+    schema: &Schema,
+) -> Result<FieldRule, PipelineError> {
+    Ok(FieldRule::Dimension(
+        ExpressionBuilder {}.build(&ExpressionType::FullExpression, sql_expression, schema)?,
+        false,
+        sql_expression.to_string(),
+    ))
 }
 
 fn get_aggregator(
@@ -161,27 +212,51 @@ fn build_output_schema(
             FieldRule::Measure(pre_aggr, aggr, name) => {
                 output_schema.fields.push(FieldDefinition::new(
                     name.clone(),
-                    aggr.get_return_type(
-                        pre_aggr
-                            .get_type(input_schema)
-                            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
-                    ),
+                    aggr.get_return_type(pre_aggr.get_type(input_schema)),
                     false,
                 ));
             }
 
-            FieldRule::Dimension(expression, name) => {
-                //let src_fld = input_schema.get_field_index(idx.as_str())?;
-                output_schema.fields.push(FieldDefinition::new(
-                    name.clone(),
-                    expression
-                        .get_type(input_schema)
-                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
-                    true,
-                ));
-                output_schema.primary_index.push(e.0);
+            FieldRule::Dimension(expression, is_value, name) => {
+                if *is_value {
+                    output_schema.fields.push(FieldDefinition::new(
+                        name.clone(),
+                        expression.get_type(input_schema),
+                        true,
+                    ));
+                    output_schema.primary_index.push(e.0);
+                }
             }
         }
     }
     Ok(output_schema)
+}
+
+fn build_projection_schema(
+    input_schema: &Schema,
+    select: &[SelectItem],
+) -> Result<Schema, ExecutionError> {
+    match select
+        .iter()
+        .map(|item| parse_sql_select_item(item, input_schema))
+        .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
+    {
+        Ok(expressions) => {
+            let mut output_schema = Schema::empty();
+
+            for e in expressions.iter() {
+                let field_name = e.0.clone();
+                let field_type = e.1.get_type(input_schema);
+                let field_nullable = true;
+                output_schema.fields.push(FieldDefinition::new(
+                    field_name,
+                    field_type,
+                    field_nullable,
+                ));
+            }
+
+            Ok(output_schema)
+        }
+        Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
+    }
 }
