@@ -85,7 +85,7 @@ impl Source for TestSource {
             idx += 1;
             fw.send(idx, op, DEFAULT_PORT_HANDLE).unwrap();
         }
-        self.term_latch.recv_timeout(Duration::from_secs(2));
+        _ = self.term_latch.recv_timeout(Duration::from_secs(2));
         Ok(())
     }
 }

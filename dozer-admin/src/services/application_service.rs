@@ -58,7 +58,7 @@ impl AppService {
             })?;
             Ok(GetAppResponse {
                 data: Some(Config {
-                    id: Some(app_id.to_owned()),
+                    id: Some(app_id),
                     app_name: app_by_id.name,
                     api: Some(api_config),
                     connections: connections.0,
@@ -127,7 +127,7 @@ impl AppService {
         let config = app_detail;
         let yaml_path = path.join(format!(
             "dozer-config-{:}-{:}.yaml",
-            config.to_owned().app_name,
+            config.app_name,
             config.to_owned().id.unwrap()
         ));
         let f = std::fs::OpenOptions::new()
@@ -135,7 +135,7 @@ impl AppService {
             .write(true)
             .open(&yaml_path)
             .expect("Couldn't open file");
-        serde_yaml::to_writer(f, &config.to_owned()).map_err(|op| ErrorResponse {
+        serde_yaml::to_writer(f, &config).map_err(|op| ErrorResponse {
             message: op.to_string(),
         })?;
         let dozer_log_path = path;
@@ -144,8 +144,8 @@ impl AppService {
             .write(true)
             .open(dozer_log_path.join(format!(
                 "logs-{:}-{:}.txt",
-                config.to_owned().app_name,
-                config.to_owned().id.unwrap()
+                config.app_name,
+                config.id.unwrap()
             )))
             .expect("Couldn't open file");
         let errors_log_file = dozer_log_file.try_clone().map_err(|op| ErrorResponse {

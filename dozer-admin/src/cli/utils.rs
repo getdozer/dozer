@@ -27,12 +27,12 @@ pub fn reset_db() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     // check if db file exist
-    let db_file_exist = std::path::Path::new(&database_url.to_owned()).exists();
+    let db_file_exist = std::path::Path::new(&database_url).exists();
     if db_file_exist {
-        fs::remove_file(database_url.to_owned()).unwrap();
+        fs::remove_file(&database_url).unwrap();
     }
     // create new db
-    let db_pool = establish_connection(database_url.to_owned());
+    let db_pool = establish_connection(database_url);
     let mut db_connection = db_pool.get().unwrap();
     // run migration
     run_migrations(&mut db_connection).unwrap();
@@ -40,7 +40,7 @@ pub fn reset_db() {
 
 pub fn init_db_with_config(mut config: Config) -> Config {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let db_pool = establish_connection(database_url.to_owned());
+    let db_pool = establish_connection(database_url);
     config.save(db_pool).unwrap();
     config
 }

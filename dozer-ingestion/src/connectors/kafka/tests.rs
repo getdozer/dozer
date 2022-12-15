@@ -6,7 +6,7 @@ use crate::connectors::kafka::test_utils::{
 use crate::connectors::{Connector, TableInfo};
 use crate::test_util::load_config;
 use dozer_types::ingestion_types::{IngestionOperation, KafkaConfig};
-use dozer_types::models::connection::Authentication::KafkaAuthentication;
+use dozer_types::models::connection::Authentication::{self};
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::Operation;
 use postgres::Client;
@@ -126,7 +126,8 @@ fn connector_e2e_connect_debezium_json_and_get_schema() {
     let mut pg_client = KafkaPostgres { client, table_name };
     pg_client.insert_rows(1);
 
-    let broker = if let KafkaAuthentication { broker, .. } = config.source.connection.authentication
+    let broker = if let Some(Authentication::Kafka(KafkaConfig { broker, .. })) =
+        config.source.connection.unwrap_or_default().authentication
     {
         broker
     } else {

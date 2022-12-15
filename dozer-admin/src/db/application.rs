@@ -62,7 +62,7 @@ impl AppDbService {
         let mut db = pool.get()?;
         let _inserted = insert_into(apps).values(&new_app).execute(&mut db);
         // query
-        let result: Application = apps.find(app.to_owned().id).first(&mut db)?;
+        let result: Application = apps.find(app.id).first(&mut db)?;
         let response = ApplicationInfo::try_from(result)?;
         Ok(response)
     }
@@ -186,7 +186,6 @@ impl Persistable<'_, app_config::Config> for app_config::Config {
         // endpoints
         let endpoints = self
             .endpoints
-            .to_owned()
             .into_iter()
             .map(|mut ep| {
                 ep.app_id = Some(app_id.to_owned());
