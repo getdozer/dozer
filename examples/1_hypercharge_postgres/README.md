@@ -54,3 +54,7 @@ COPY stocks (Ticker, Date, Open, High, Low, Close, Adj_Close, Volume) FROM
 ```bash
 docker-compose up --build
 ```
+
+```bash
+cargo run
+```
