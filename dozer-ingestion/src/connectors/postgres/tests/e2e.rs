@@ -3,8 +3,9 @@ use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
 use dozer_types::ingestion_types::IngestionOperation;
+use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::Connection;
-use dozer_types::models::source::Source;
+
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
 use dozer_types::types::{Field, Operation};

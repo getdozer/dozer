@@ -72,7 +72,13 @@ impl Processor for ErrorProcessor {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -346,7 +352,7 @@ impl Source for ErrGeneratorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
@@ -357,6 +363,7 @@ impl Source for ErrGeneratorSource {
 
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -478,14 +485,19 @@ impl Sink for ErrSink {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _seq: u64,
         _op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,

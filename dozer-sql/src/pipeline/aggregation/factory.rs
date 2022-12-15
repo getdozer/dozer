@@ -71,45 +71,23 @@ impl ProcessorFactory for AggregationProcessorFactory {
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
         Ok(Box::new(AggregationProcessor::new(
             output_field_rules,
-            input_schema,
+            input_schema.clone(),
         )))
     }
 }
 
 pub(crate) fn get_aggregation_rules(
     select: &[SelectItem],
-    groupby: &[SqlExpr],
+    _groupby: &[SqlExpr],
     schema: &Schema,
 ) -> Result<Vec<FieldRule>, PipelineError> {
-    let mut groupby_rules = groupby
-        .iter()
-        .map(|expr| parse_sql_groupby_item(expr, schema))
-        .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
-
-    let mut select_rules = select
+    let select_rules = select
         .iter()
         .map(|item| parse_sql_aggregate_item(item, schema))
         .filter(|e| e.is_ok())
         .collect::<Result<Vec<FieldRule>, PipelineError>>()?;
 
-    groupby_rules.append(&mut select_rules);
-
-    Ok(groupby_rules)
-}
-
-fn parse_sql_groupby_item(
-    sql_expression: &SqlExpr,
-    schema: &Schema,
-) -> Result<FieldRule, PipelineError> {
-    let expression =
-        ExpressionBuilder {}.build(&ExpressionType::FullExpression, sql_expression, schema)?;
-
-    Ok(FieldRule::Dimension(
-        sql_expression.to_string(),
-        expression,
-        true,
-        None,
-    ))
+    Ok(select_rules)
 }
 
 fn parse_sql_aggregate_item(
@@ -117,16 +95,26 @@ fn parse_sql_aggregate_item(
     schema: &Schema,
 ) -> Result<FieldRule, PipelineError> {
     let builder = ExpressionBuilder {};
+
     match item {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match builder.parse_sql_expression(&ExpressionType::Aggregation, sql_expr, schema) {
-                Ok(expr) => Ok(FieldRule::Measure(
-                    sql_expr.to_string(),
-                    get_aggregator(expr.0, schema)?,
+            let expression =
+                builder.parse_sql_expression(&ExpressionType::Aggregation, sql_expr, schema)?;
+
+            match get_aggregator(expression.0.clone(), schema) {
+                Ok(aggregator) => Ok(FieldRule::Measure(
+                    ExpressionBuilder {}
+                        .parse_sql_expression(&ExpressionType::PreAggregation, sql_expr, schema)?
+                        .0,
+                    aggregator,
                     true,
-                    Some(item.to_string()),
+                    sql_expr.to_string(),
                 )),
-                Err(error) => Err(error),
+                Err(_) => Ok(FieldRule::Dimension(
+                    expression.0,
+                    true,
+                    sql_expr.to_string(),
+                )),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
@@ -175,35 +163,28 @@ fn build_output_schema(
 
     for e in output_field_rules.iter().enumerate() {
         match e.1 {
-            FieldRule::Dimension(idx, expression, is_value, name) => {
-                let src_fld = input_schema.get_field_index(idx.as_str())?;
+            FieldRule::Measure(pre_aggr, aggr, is_value, name) => {
                 output_schema.fields.push(FieldDefinition::new(
-                    match name {
-                        Some(n) => n.clone(),
-                        _ => src_fld.1.name.clone(),
-                    },
-                    expression.get_type(input_schema),
+                    name.clone(),
+                    aggr.get_return_type(pre_aggr.get_type(input_schema)),
                     false,
+                ));
+                if *is_value {
+                    output_schema.values.push(e.0);
+                }
+            }
+
+            FieldRule::Dimension(expression, is_value, name) => {
+                //let src_fld = input_schema.get_field_index(idx.as_str())?;
+                output_schema.fields.push(FieldDefinition::new(
+                    name.clone(),
+                    expression.get_type(input_schema),
+                    true,
                 ));
                 if *is_value {
                     output_schema.values.push(e.0);
                 }
                 output_schema.primary_index.push(e.0);
-            }
-
-            FieldRule::Measure(idx, aggr, is_value, name) => {
-                let src_fld = input_schema.get_field_index(idx)?;
-                output_schema.fields.push(FieldDefinition::new(
-                    match name {
-                        Some(n) => n.clone(),
-                        _ => src_fld.1.name.clone(),
-                    },
-                    aggr.get_return_type(src_fld.1.typ),
-                    false,
-                ));
-                if *is_value {
-                    output_schema.values.push(e.0);
-                }
             }
         }
     }

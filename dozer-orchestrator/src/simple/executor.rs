@@ -1,5 +1,4 @@
 use dozer_api::grpc::internal_grpc::PipelineRequest;
-use log::info;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -161,10 +160,7 @@ impl Executor {
             for (table_name, endpoint) in in_handle.into_iter() {
                 let port = match table_map.get(&table_name) {
                     Some(port) => Ok(port),
-                    None => {
-                        info!("Port not found for table_name: {}", table_name);
-                        Err(OrchestrationError::PortNotFound(table_name))
-                    }
+                    None => Err(OrchestrationError::PortNotFound(table_name)),
                 }?;
 
                 // Connect source from Parent Dag to Processor
@@ -179,8 +175,9 @@ impl Executor {
 
         let path = self.home_dir.join("pipeline");
         fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
+        let mut exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
 
+        exec.start()?;
         // Waiting for Ctrl+C
         while running_wait.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(200));

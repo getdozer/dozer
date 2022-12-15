@@ -59,6 +59,7 @@ pub struct KafkaConfig {
     pub broker: String,
     #[prost(string, tag = "2")]
     pub topic: String,
+    pub schema_registry_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]

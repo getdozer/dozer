@@ -1,5 +1,9 @@
 #[cfg(test)]
+mod app;
+#[cfg(test)]
 mod checkpoint;
+#[cfg(test)]
+mod checkpoint_ns;
 #[cfg(test)]
 mod common;
 #[cfg(test)]

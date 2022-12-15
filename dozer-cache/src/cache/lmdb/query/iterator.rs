@@ -62,7 +62,7 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
                                     }
                                 }
                                 Err(lmdb::Error::NotFound) => {
-                                    self.cursor.get(None, None, MDB_FIRST)
+                                    return None;
                                 }
 
                                 Err(e) => Err(e),
@@ -181,6 +181,20 @@ mod tests {
             ],
         );
 
+        // Test ascending from key before db start.
+        let starting_key = b"a".to_vec();
+        check(
+            Some(KeyEndpoint::Excluding(starting_key)),
+            true,
+            vec![
+                b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
+            ],
+        );
+
+        // Test descending from key before db start.
+        let starting_key = b"a".to_vec();
+        check(Some(KeyEndpoint::Excluding(starting_key)), false, vec![]);
+
         // Test ascending from existing key.
         let starting_key = b"ba".to_vec();
         check(
@@ -242,5 +256,9 @@ mod tests {
                 b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
             ],
         );
+
+        // Test ascending from key past db end.
+        let starting_key = b"dd".to_vec();
+        check(Some(KeyEndpoint::Including(starting_key)), true, vec![]);
     }
 }

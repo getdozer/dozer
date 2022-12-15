@@ -2,11 +2,12 @@
 
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::dag::Dag;
-use crate::dag::dag_metadata::{DagMetadata, DagMetadataManager};
+use crate::dag::dag_metadata::{Consistency, DagMetadata, DagMetadataManager};
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
-    ChannelDisconnected, IncompatibleSchemas, InternalError, InternalThreadPanic, InvalidNodeHandle,
+    ChannelDisconnected, IncompatibleSchemas, InconsistentCheckpointMetadata, InternalError,
+    InternalThreadPanic, InvalidNodeHandle,
 };
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, index_edges,
@@ -26,15 +27,12 @@ use dozer_types::types::{Operation, Record, Schema};
 use log::info;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::ops::Add;
-
 use std::path::{Path, PathBuf};
-
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct ExecutorOptions {
@@ -48,7 +46,7 @@ impl ExecutorOptions {
         Self {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
-            commit_time_threshold: Duration::from_secs(30),
+            commit_time_threshold: Duration::from_millis(50),
         }
     }
 }
@@ -61,19 +59,30 @@ pub(crate) enum InputPortState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
-    Delete { seq: u64, old: Record },
-    Insert { seq: u64, new: Record },
-    Update { seq: u64, old: Record, new: Record },
-    Commit { source: NodeHandle, epoch: u64 },
+    Delete {
+        old: Record,
+    },
+    Insert {
+        new: Record,
+    },
+    Update {
+        old: Record,
+        new: Record,
+    },
+    Commit {
+        source: NodeHandle,
+        txid: u64,
+        seq_in_tx: u64,
+    },
     Terminate,
 }
 
 impl ExecutorOperation {
-    pub fn from_operation(seq: u64, op: Operation) -> ExecutorOperation {
+    pub fn from_operation(op: Operation) -> ExecutorOperation {
         match op {
-            Operation::Update { old, new } => ExecutorOperation::Update { old, new, seq },
-            Operation::Delete { old } => ExecutorOperation::Delete { old, seq },
-            Operation::Insert { new } => ExecutorOperation::Insert { new, seq },
+            Operation::Update { old, new } => ExecutorOperation::Update { old, new },
+            Operation::Delete { old } => ExecutorOperation::Delete { old },
+            Operation::Insert { new } => ExecutorOperation::Insert { new },
         }
     }
 }
@@ -103,18 +112,24 @@ impl StorageMetadata {
 }
 
 struct InternalChannelSourceForwarder {
-    sender: Sender<(PortHandle, u64, Operation)>,
+    sender: Sender<(PortHandle, u64, u64, Operation)>,
 }
 
 impl InternalChannelSourceForwarder {
-    pub fn new(sender: Sender<(PortHandle, u64, Operation)>) -> Self {
+    pub fn new(sender: Sender<(PortHandle, u64, u64, Operation)>) -> Self {
         Self { sender }
     }
 }
 
 impl SourceChannelForwarder for InternalChannelSourceForwarder {
-    fn send(&mut self, seq: u64, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        internal_err!(self.sender.send((port, seq, op)))
+    fn send(
+        &mut self,
+        txid: u64,
+        seq_in_tx: u64,
+        op: Operation,
+        port: PortHandle,
+    ) -> Result<(), ExecutionError> {
+        internal_err!(self.sender.send((port, txid, seq_in_tx, op)))
     }
 }
 
@@ -127,15 +142,47 @@ pub struct DagExecutor<'a> {
     path: PathBuf,
     options: ExecutorOptions,
     stop_req: Arc<AtomicBool>,
+    consistency_metadata: HashMap<NodeHandle, (u64, u64)>,
 }
 
 impl<'a> DagExecutor<'a> {
+    fn check_consistency(
+        dag: &'a Dag,
+        path: &Path,
+    ) -> Result<HashMap<NodeHandle, (u64, u64)>, ExecutionError> {
+        let mut r: HashMap<NodeHandle, (u64, u64)> = HashMap::new();
+        let meta = DagMetadataManager::new(dag, path)?;
+        let chk = meta.get_checkpoint_consistency();
+        for (handle, _factory) in &dag.get_sources() {
+            match chk.get(handle) {
+                Some(Consistency::FullyConsistent(c)) => {
+                    r.insert(handle.clone(), *c);
+                }
+                _ => return Err(InconsistentCheckpointMetadata),
+            }
+        }
+        Ok(r)
+    }
+
     pub fn new(
         dag: &'a Dag,
         path: &Path,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         //
+
+        let consistency_metadata: HashMap<NodeHandle, (u64, u64)> =
+            match Self::check_consistency(dag, path) {
+                Ok(c) => c,
+                Err(_) => {
+                    DagMetadataManager::new(dag, path)?.delete_metadata();
+                    dag.get_sources()
+                        .iter()
+                        .map(|e| (e.0.clone(), (0_u64, 0_u64)))
+                        .collect()
+                }
+            };
+
         let schemas = Self::load_or_init_schema(dag, path)?;
 
         Ok(Self {
@@ -152,6 +199,7 @@ impl<'a> DagExecutor<'a> {
             join_handles: HashMap::new(),
             options,
             stop_req: Arc::new(AtomicBool::new(false)),
+            consistency_metadata,
         })
     }
 
@@ -292,15 +340,19 @@ impl<'a> DagExecutor<'a> {
         //
 
         let (st_sender, st_receiver) =
-            bounded::<(PortHandle, u64, Operation)>(self.options.channel_buffer_sz);
+            bounded::<(PortHandle, u64, u64, Operation)>(self.options.channel_buffer_sz);
         let st_src_factory = src_factory.clone();
         let st_stop_req = self.stop_req.clone();
         let st_output_schemas = schemas.output_schemas.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
+        let start_seq = *self
+            .consistency_metadata
+            .get(&handle)
+            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
         let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
             let src = st_src_factory.build(st_output_schemas)?;
-            let r = src.start(&mut fw, None);
+            let r = src.start(&mut fw, Some(start_seq));
             st_stop_req.store(true, Ordering::Relaxed);
             r
         });
@@ -350,7 +402,7 @@ impl<'a> DagExecutor<'a> {
                 true,
             );
             loop {
-                let r = st_receiver.recv_deadline(Instant::now().add(Duration::from_millis(500)));
+                let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
                 match lt_stop_req.load(Ordering::Relaxed) {
                     true => {
                         dag_fw.commit_and_terminate()?;
@@ -364,14 +416,14 @@ impl<'a> DagExecutor<'a> {
                         Err(RecvTimeoutError::Disconnected) => {
                             return Err(ChannelDisconnected);
                         }
-                        Ok((port, seq, Operation::Insert { new })) => {
-                            dag_fw.send(seq, Operation::Insert { new }, port)?;
+                        Ok((port, txid, seq_in_tx, Operation::Insert { new })) => {
+                            dag_fw.send(txid, seq_in_tx, Operation::Insert { new }, port)?;
                         }
-                        Ok((port, seq, Operation::Delete { old })) => {
-                            dag_fw.send(seq, Operation::Delete { old }, port)?;
+                        Ok((port, txid, seq_in_tx, Operation::Delete { old })) => {
+                            dag_fw.send(txid, seq_in_tx, Operation::Delete { old }, port)?;
                         }
-                        Ok((port, seq, Operation::Update { old, new })) => {
-                            dag_fw.send(seq, Operation::Update { old, new }, port)?;
+                        Ok((port, txid, seq_in_tx, Operation::Update { old, new })) => {
+                            dag_fw.send(txid, seq_in_tx, Operation::Update { old, new }, port)?;
                         }
                     },
                 }
@@ -441,9 +493,18 @@ impl<'a> DagExecutor<'a> {
             loop {
                 let index = sel.ready();
                 match internal_err!(receivers_ls[index].recv())? {
-                    ExecutorOperation::Commit { epoch, source } => {
-                        proc.commit(&mut SharedTransaction::new(&master_tx))?;
-                        fw.store_and_send_commit(source, epoch)?;
+                    ExecutorOperation::Commit {
+                        txid,
+                        seq_in_tx,
+                        source,
+                    } => {
+                        proc.commit(
+                            &source,
+                            txid,
+                            seq_in_tx,
+                            &mut SharedTransaction::new(&master_tx),
+                        )?;
+                        fw.store_and_send_commit(source, txid, seq_in_tx)?;
                     }
                     ExecutorOperation::Terminate => {
                         port_states[index] = InputPortState::Terminated;
@@ -463,11 +524,9 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                         let data_op = map_to_op(op)?;
-                        fw.update_seq_no(data_op.0);
-
                         proc.process(
                             handles_ls[index],
-                            data_op.1,
+                            data_op,
                             &mut fw,
                             &mut SharedTransaction::new(&master_tx),
                             reader,
@@ -518,13 +577,22 @@ impl<'a> DagExecutor<'a> {
                         info!("[{}] Terminating: Exiting message loop", handle);
                         return Ok(());
                     }
-                    ExecutorOperation::Commit { epoch, source } => {
+                    ExecutorOperation::Commit {
+                        txid,
+                        seq_in_tx,
+                        source,
+                    } => {
                         info!(
-                            "[{}] Checkpointing (source: {}, epoch: {})",
-                            handle, source, epoch
+                            "[{}] Checkpointing (source: {}, epoch: {}:{})",
+                            handle, source, txid, seq_in_tx
                         );
-                        snk.commit(&mut SharedTransaction::new(&master_tx))?;
-                        state_writer.store_commit_info(&source, epoch)?;
+                        snk.commit(
+                            &source,
+                            txid,
+                            seq_in_tx,
+                            &mut SharedTransaction::new(&master_tx),
+                        )?;
+                        state_writer.store_commit_info(&source, txid, seq_in_tx)?;
                     }
                     op => {
                         let data_op = map_to_op(op)?;
@@ -534,8 +602,7 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
                         snk.process(
                             handles_ls[index],
-                            data_op.0,
-                            data_op.1,
+                            data_op,
                             &mut SharedTransaction::new(&master_tx),
                             reader,
                         )?;

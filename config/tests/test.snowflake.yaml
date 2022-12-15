@@ -1,16 +1,44 @@
-name: customer
-table_name: customer_test_1000
-connection:
-  db_type: Snowflake
-  authentication: !SnowflakeAuthentication
-    server: "${SERVER}"
-    port: 443
-    user: "${USERNAME}"
-    password: "${PASSWORD}"
-    database: "${DATABASE}"
-    schema: "${SCHEMA}"
-    warehouse: "${WAREHOUSE}"
-    driver: SnowflakeDSIIDriver
-  name: customers
-history_type: null
-refresh_config: RealTime
+app_name: dozer-snowflake-test
+
+api:
+  rest:
+    port: 8080
+    url: "[::0]"
+    cors: true
+  grpc:
+    port: 50051
+    url: "[::0]"
+    cors: true
+    web: true
+  auth: false
+  internal:
+    port: 50052
+    host: "[::1]"
+
+connections:
+  - name: customers
+    db_type: Snowflake
+    authentication: !SnowflakeAuthentication
+      server: "${SERVER}"
+      port: 443
+      user: "${USERNAME}"
+      password: "${PASSWORD}"
+      database: "${DATABASE}"
+      schema: "${SCHEMA}"
+      warehouse: "${WAREHOUSE}"
+      driver: SnowflakeDSIIDriver
+
+sources:
+  - name: customer
+    table_name: customer_test_1000
+    connection: !Ref customers
+    history_type: null
+    refresh_config: RealTime
+
+endpoints:
+  - name: customer
+    path: /customer
+    sql: select id from customer;
+    index:
+      primary_key:
+        - id

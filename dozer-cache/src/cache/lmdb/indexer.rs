@@ -39,8 +39,7 @@ impl Indexer {
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
-                    let secondary_key =
-                        self._build_index_sorted_inverted(fields, &record.values)?;
+                    let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
                     txn.put(db, &secondary_key, &id, WriteFlags::default())
                         .map_err(QueryError::InsertValue)?;
                 }
@@ -76,8 +75,7 @@ impl Indexer {
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
-                    let secondary_key =
-                        self._build_index_sorted_inverted(fields, &record.values)?;
+                    let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
                     txn.del(db, &secondary_key, Some(&id))
                         .map_err(QueryError::DeleteValue)?;
                 }
@@ -96,10 +94,9 @@ impl Indexer {
     }
 
     fn _build_index_sorted_inverted(
-        &self,
         fields: &[(usize, SortDirection)],
         values: &[Field],
-    ) -> Result<Vec<u8>, CacheError> {
+    ) -> Vec<u8> {
         let values = fields
             .iter()
             .copied()
@@ -149,10 +146,11 @@ mod tests {
             .insert_schema("sample", &schema, &secondary_indexes)
             .unwrap();
 
-        let items: Vec<(i64, String, i64)> = vec![
-            (1, "a".to_string(), 521),
-            (2, "a".to_string(), 521),
-            (3, "a".to_string(), 521),
+        let items = vec![
+            (1, Some("a".to_string()), Some(521)),
+            (2, Some("a".to_string()), None),
+            (3, None, Some(521)),
+            (4, None, None),
         ];
 
         for val in items.clone() {
@@ -176,8 +174,8 @@ mod tests {
             "Must index each field"
         );
 
-        for a in [1i64, 2, 3] {
-            cache.delete(&Field::Int(a).to_bytes()).unwrap();
+        for a in [1i64, 2, 3, 4] {
+            cache.delete(&Field::Int(a).encode()).unwrap();
         }
 
         assert_eq!(

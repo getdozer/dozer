@@ -1,20 +1,38 @@
-source:
-  name: products
-  table_name: ${DEBEZIUM_TABLE_NAME}
-  connection:
+app_name: dozer-kafka-test
+
+api:
+  rest:
+    port: 8080
+    url: "[::0]"
+    cors: true
+  grpc:
+    port: 50051
+    url: "[::0]"
+    cors: true
+    web: true
+  auth: false
+  internal:
+    port: 50052
+    host: "[::1]"
+
+connections:
+  - name: products
     db_type: Kafka
     authentication: !KafkaAuthentication
       broker: ${DEBEZIUM_KAFKA_BROKER}
       topic: ${DEBEZIUM_KAFKA_TOPIC}
-    name: products
-  history_type: null
-  refresh_config: RealTime
 
-postgres_source_authentication: !PostgresAuthentication
-  user: ${POSTGRES_USER}
-  password: ${POSTGRES_PASSWORD}
-  host: ${POSTGRES_HOST}
-  port: ${POSTGRES_PORT}
-  database: ${POSTGRES_DATABASE}
+sources:
+  - name: products
+    table_name: ${DEBEZIUM_TABLE_NAME}
+    connection: !Ref products
+    history_type: null
+    refresh_config: RealTime
 
-debezium_connector_url: ${KAFKA_CONNECTOR_URL}
+endpoints:
+  - name: products
+    path: /products
+    sql: select id from products;
+    index:
+      primary_key:
+        - id

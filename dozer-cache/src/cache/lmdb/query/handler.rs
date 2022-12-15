@@ -22,6 +22,7 @@ use dozer_types::{
     bincode,
     types::{Field, IndexDefinition, Record, Schema},
 };
+use itertools::Either;
 use lmdb::{Database, RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
@@ -82,6 +83,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 }
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(),
+            Plan::ReturnEmpty => Ok(vec![]),
         }
     }
 
@@ -103,27 +105,36 @@ impl<'a> LmdbQueryHandler<'a> {
     ) -> Result<impl Iterator<Item = &'a [u8]> + 'a, CacheError> {
         let index_db = self.index_metadata.get_db(self.schema, index_scan.index_id);
 
-        let (start_key, end_key) =
-            get_start_end_keys(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
+        let range_spec =
+            get_range_spec(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
 
         let cursor = self
             .txn
             .open_ro_cursor(index_db)
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
-        Ok(CacheIterator::new(cursor, start_key, true)
-            .take_while(move |(key, _)| {
-                if let Some(end_key) = &end_key {
-                    match lmdb_cmp(self.txn, index_db, key, end_key.key()) {
-                        Ordering::Less => true,
-                        Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
-                        Ordering::Greater => false,
-                    }
-                } else {
-                    true
-                }
-            })
-            .map(|(_, id)| id))
+        Ok(match range_spec {
+            RangeSpec::KeyInterval { start, end } => Either::Left(
+                CacheIterator::new(cursor, start, true)
+                    .take_while(move |(key, _)| {
+                        if let Some(end_key) = &end {
+                            match lmdb_cmp(self.txn, index_db, key, end_key.key()) {
+                                Ordering::Less => true,
+                                Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
+                                Ordering::Greater => false,
+                            }
+                        } else {
+                            true
+                        }
+                    })
+                    .map(|(_, id)| id),
+            ),
+            RangeSpec::KeyPrefix(prefix) => Either::Right(
+                CacheIterator::new(cursor, Some(KeyEndpoint::Excluding(prefix.clone())), true)
+                    .take_while(move |(key, _)| key.starts_with(&prefix))
+                    .map(|(_, id)| id),
+            ),
+        })
     }
 
     fn collect_records(
@@ -137,10 +148,19 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 }
 
-fn get_start_end_keys(
+#[derive(Debug)]
+enum RangeSpec {
+    KeyInterval {
+        start: Option<KeyEndpoint>,
+        end: Option<KeyEndpoint>,
+    },
+    KeyPrefix(Vec<u8>),
+}
+
+fn get_range_spec(
     index_scan_kind: &IndexScanKind,
     is_single_field_sorted_inverted: bool,
-) -> Result<(Option<KeyEndpoint>, Option<KeyEndpoint>), CacheError> {
+) -> Result<RangeSpec, CacheError> {
     match &index_scan_kind {
         IndexScanKind::SortedInverted {
             eq_filters,
@@ -150,29 +170,44 @@ fn get_start_end_keys(
                 eq_filters,
                 range_query.as_ref(),
                 is_single_field_sorted_inverted,
-            )?;
+            );
             // There're 3 cases:
             // 1. Range query with operator.
             // 2. Range query without operator (only order by).
             // 3. No range query.
-            if let Some(range_query) = range_query {
+            Ok(if let Some(range_query) = range_query {
                 match range_query.operator_and_value {
                     Some((operator, _)) => {
-                        // Here we resond to case 1, examples are `a = 1 && b > 2` or `b < 2`.
+                        // Here we respond to case 1, examples are `a = 1 && b > 2` or `b < 2`.
                         let comparison_key = comparison_key.expect("here's at least a range query");
-                        Ok(get_start_end_keys_from_range_query(
+                        let null_key = build_sorted_inverted_comparision_key(
+                            eq_filters,
+                            Some(&SortedInvertedRangeQuery {
+                                field_index: range_query.field_index,
+                                operator_and_value: Some((operator, Field::Null)),
+                                sort_direction: range_query.sort_direction,
+                            }),
+                            is_single_field_sorted_inverted,
+                        )
+                        .expect("we provided a range query");
+                        let (start, end) = get_key_interval_from_range_query(
                             comparison_key,
+                            null_key,
                             operator,
                             range_query.sort_direction,
-                        ))
+                        );
+                        RangeSpec::KeyInterval { start, end }
                     }
                     None => {
                         // Here we respond to case 2, examples are `a = 1 && b asc` or `b desc`.
-                        if comparison_key.is_some() {
-                            todo!()
+                        if let Some(comparison_key) = comparison_key {
+                            RangeSpec::KeyPrefix(comparison_key)
                         } else {
                             // Just all of them.
-                            Ok((None, None))
+                            RangeSpec::KeyInterval {
+                                start: None,
+                                end: None,
+                            }
                         }
                     }
                 }
@@ -180,20 +215,20 @@ fn get_start_end_keys(
                 // Here we respond to case 3, examples are `a = 1` or `a = 1 && b = 2`.
                 let comparison_key = comparison_key
                     .expect("here's at least a eq filter because there's no range query");
-                Ok((
-                    Some(KeyEndpoint::Including(comparison_key.clone())),
-                    Some(KeyEndpoint::Including(comparison_key)),
-                ))
-            }
+                RangeSpec::KeyInterval {
+                    start: Some(KeyEndpoint::Including(comparison_key.clone())),
+                    end: Some(KeyEndpoint::Including(comparison_key)),
+                }
+            })
         }
         IndexScanKind::FullText { filter } => match filter.op {
             Operator::Contains => {
                 if let Field::String(token) = &filter.val {
                     let key = index::get_full_text_secondary_index(token);
-                    Ok((
-                        Some(KeyEndpoint::Including(key.clone())),
-                        Some(KeyEndpoint::Including(key)),
-                    ))
+                    Ok(RangeSpec::KeyInterval {
+                        start: Some(KeyEndpoint::Including(key.clone())),
+                        end: Some(KeyEndpoint::Including(key)),
+                    })
                 } else {
                     Err(CacheError::IndexError(IndexError::ExpectedStringFullText))
                 }
@@ -210,7 +245,7 @@ fn build_sorted_inverted_comparision_key(
     eq_filters: &[(usize, SortDirection, Field)],
     range_query: Option<&SortedInvertedRangeQuery>,
     is_single_field_index: bool,
-) -> Result<Option<Vec<u8>>, CacheError> {
+) -> Option<Vec<u8>> {
     let mut fields = vec![];
     eq_filters.iter().for_each(|filter| {
         fields.push((&filter.2, filter.1));
@@ -221,14 +256,16 @@ fn build_sorted_inverted_comparision_key(
         }
     }
     if fields.is_empty() {
-        Ok(None)
+        None
     } else {
-        index::get_secondary_index(&fields, is_single_field_index).map(Some)
+        Some(index::get_secondary_index(&fields, is_single_field_index))
     }
 }
 
-fn get_start_end_keys_from_range_query(
+/// Here we use the invariant that `null` is greater than anything.
+fn get_key_interval_from_range_query(
     comparison_key: Vec<u8>,
+    null_key: Vec<u8>,
     operator: Operator,
     sort_direction: SortDirection,
 ) -> (Option<KeyEndpoint>, Option<KeyEndpoint>) {
@@ -245,18 +282,22 @@ fn get_start_end_keys_from_range_query(
         (Operator::LTE, SortDirection::Descending) => {
             (Some(KeyEndpoint::Including(comparison_key)), None)
         }
-        (Operator::GT, SortDirection::Ascending) => {
-            (Some(KeyEndpoint::Excluding(comparison_key)), None)
-        }
-        (Operator::GT, SortDirection::Descending) => {
-            (None, Some(KeyEndpoint::Excluding(comparison_key)))
-        }
-        (Operator::GTE, SortDirection::Ascending) => {
-            (Some(KeyEndpoint::Including(comparison_key)), None)
-        }
-        (Operator::GTE, SortDirection::Descending) => {
-            (None, Some(KeyEndpoint::Including(comparison_key)))
-        }
+        (Operator::GT, SortDirection::Ascending) => (
+            Some(KeyEndpoint::Excluding(comparison_key)),
+            Some(KeyEndpoint::Excluding(null_key)),
+        ),
+        (Operator::GT, SortDirection::Descending) => (
+            Some(KeyEndpoint::Excluding(null_key)),
+            Some(KeyEndpoint::Excluding(comparison_key)),
+        ),
+        (Operator::GTE, SortDirection::Ascending) => (
+            Some(KeyEndpoint::Including(comparison_key)),
+            Some(KeyEndpoint::Excluding(null_key)),
+        ),
+        (Operator::GTE, SortDirection::Descending) => (
+            Some(KeyEndpoint::Excluding(null_key)),
+            Some(KeyEndpoint::Including(comparison_key)),
+        ),
         (other, _) => panic!(
             "operator {:?} is not supported by sorted inverted index range query",
             other

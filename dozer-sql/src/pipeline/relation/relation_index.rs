@@ -42,7 +42,7 @@ impl RelationIndex {
 
         let mut sec_indexes = Vec::<(u16, Vec<u8>)>::with_capacity(self.fk_indexes.len());
         for fk_idx in &self.fk_indexes {
-            let val = fk_idx.1.evaluate(rec)?.to_bytes();
+            let val = fk_idx.1.evaluate(rec)?.encode();
             sec_indexes.push((fk_idx.0, val));
         }
 

@@ -59,12 +59,6 @@ or with a config file
 cargo run -c dozer-config.sample.yaml
 ```
 
-#### Logging
-Initialize `log4rs.yaml`
-```
-cp config/log4rs.sample.yaml log4rs.yaml
-```
-
 ### Running individual modules
 dozer-api are instantiated part of `dozer` (short for `dozer-orchestrator`).
 

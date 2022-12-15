@@ -1,6 +1,7 @@
 #![allow(clippy::module_inception)]
 
-pub mod application;
+pub mod app;
+pub(crate) mod appsource;
 pub mod channels;
 pub mod dag;
 mod dag_metadata;

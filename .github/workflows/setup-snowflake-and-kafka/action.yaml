@@ -81,15 +81,15 @@ runs:
     - uses: franzbischoff/replace_envs@v1
       env:
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
-        SERVER: ${{ inputs.SNOWFLAKE_SERVER }}
-        USERNAME: ${{ inputs.SNOWFLAKE_USERNAME }}
-        PASSWORD: ${{ inputs.SNOWFLAKE_PASSWORD }}
-        DATABASE: ${{ inputs.SNOWFLAKE_DATABASE }}
-        SCHEMA: ${{ inputs.SNOWFLAKE_SCHEMA }}
-        WAREHOUSE: ${{ inputs.SNOWFLAKE_WAREHOUSE }}
+        POSTGRES_USER: ${{ inputs.POSTGRES_USER }}
+        POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
+        POSTGRES_HOST: ${{ inputs.POSTGRES_HOST }}
+        POSTGRES_PORT: ${{ inputs.POSTGRES_PORT }}
+        POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
+        KAFKA_CONNECTOR_URL: ${{ inputs.KAFKA_CONNECTOR_URL }}
       with:
-        from_file: "config/tests/test.snowflake.yaml"
-        to_file: "config/tests/local/test.snowflake.yaml"
+        from_file: "config/tests/test.debezium.pg.yaml"
+        to_file: "config/tests/local/test.debezium.pg.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -98,15 +98,21 @@ runs:
         DEBEZIUM_TABLE_NAME: ${{ inputs.DEBEZIUM_TABLE_NAME }}
         DEBEZIUM_KAFKA_BROKER: ${{ inputs.DEBEZIUM_KAFKA_BROKER }}
         DEBEZIUM_KAFKA_TOPIC: ${{ inputs.DEBEZIUM_KAFKA_TOPIC }}
-        POSTGRES_USER: ${{ inputs.POSTGRES_USER }}
-        POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
-        POSTGRES_HOST: ${{ inputs.POSTGRES_HOST }}
-        POSTGRES_PORT: ${{ inputs.POSTGRES_PORT }}
-        POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
-        KAFKA_CONNECTOR_URL: ${{ inputs.KAFKA_CONNECTOR_URL }}
       with:
         from_file: "config/tests/test.debezium.yaml"
         to_file: "config/tests/local/test.debezium.yaml"
+        commit: "false"
+
+    - uses: franzbischoff/replace_envs@v1
+      env:
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        DEBEZIUM_TABLE_NAME: ${{ inputs.DEBEZIUM_TABLE_NAME }}
+        DEBEZIUM_KAFKA_WITH_REGISTRY_BROKER: ${{ inputs.DEBEZIUM_KAFKA_WITH_REGISTRY_BROKER }}
+        DEBEZIUM_KAFKA_TOPIC: ${{ inputs.DEBEZIUM_KAFKA_TOPIC }}
+        DEBEZIUM_KAFKA_SCHEMA_REGISTRY_URL: ${{ inputs.DEBEZIUM_KAFKA_SCHEMA_REGISTRY_URL }}
+      with:
+        from_file: "config/tests/test.debezium-with-schema-registry.yaml"
+        to_file: "config/tests/local/test.debezium-with-schema-registry.yaml"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -123,6 +129,22 @@ runs:
       with:
         from_file: "config/tests/test.register-postgres.json"
         to_file: "config/tests/local/test.register-postgres.json"
+        commit: "false"
+
+    - uses: franzbischoff/replace_envs@v1
+      env:
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        DEBEZIUM_TABLE_NAME: ${{ inputs.DEBEZIUM_TABLE_NAME }}
+        DEBEZIUM_KAFKA_TOPIC: ${{ inputs.DEBEZIUM_KAFKA_TOPIC }}
+        POSTGRES_USER: ${{ inputs.POSTGRES_USER }}
+        POSTGRES_HOST: ${{ inputs.POSTGRES_HOST }}
+        POSTGRES_PORT: ${{ inputs.POSTGRES_PORT }}
+        POSTGRES_DATABASE: ${{ inputs.POSTGRES_DATABASE }}
+        POSTGRES_SCHEMA: ${{ inputs.POSTGRES_SCHEMA }}
+        POSTGRES_PASSWORD: ${{ inputs.POSTGRES_PASSWORD }}
+      with:
+        from_file: "config/tests/test.register-postgres-with-schema-registry.json"
+        to_file: "config/tests/local/test.register-postgres-with-schema-registry.json"
         commit: "false"
 
     - uses: franzbischoff/replace_envs@v1
@@ -149,4 +171,18 @@ runs:
       with:
         from_file: "config/tests/test.postgres.yaml"
         to_file: "config/tests/local/test.postgres.yaml"
+        commit: "false"
+
+    - uses: franzbischoff/replace_envs@v1
+      env:
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        SERVER: ${{ inputs.SNOWFLAKE_SERVER }}
+        USERNAME: ${{ inputs.SNOWFLAKE_USERNAME }}
+        PASSWORD: ${{ inputs.SNOWFLAKE_PASSWORD }}
+        DATABASE: ${{ inputs.SNOWFLAKE_DATABASE }}
+        SCHEMA: ${{ inputs.SNOWFLAKE_SCHEMA }}
+        WAREHOUSE: ${{ inputs.SNOWFLAKE_WAREHOUSE }}
+      with:
+        from_file: "config/tests/test.snowflake.yaml"
+        to_file: "config/tests/local/test.snowflake.yaml"
         commit: "false"

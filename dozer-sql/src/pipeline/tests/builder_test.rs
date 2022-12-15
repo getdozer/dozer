@@ -73,11 +73,12 @@ impl Source for TestSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         for n in 0..10000 {
             fw.send(
                 n,
+                0,
                 Operation::Insert {
                     new: Record::new(
                         None,
@@ -137,7 +138,6 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _seq: u64,
         _op: Operation,
         _state: &mut dyn RwTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
@@ -145,16 +145,22 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&self, _tx: &mut dyn RwTransaction) -> Result<(), ExecutionError> {
+    fn commit(
+        &self,
+        _source: &NodeHandle,
+        _txid: u64,
+        _seq_in_tx: u64,
+        _tx: &mut dyn RwTransaction,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
 
 #[test]
 fn test_pipeline_builder() {
-    let sql = "SELECT Country, SUM(Spending) \
+    let sql = "SELECT COUNT(Spending), Country \
                             FROM Users \
-                            WHERE Spending >= 1 GROUP BY Country";
+                            WHERE Spending >= 1"; // GROUP BY Country";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
