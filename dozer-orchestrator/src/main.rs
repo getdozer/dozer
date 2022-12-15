@@ -5,6 +5,7 @@ use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 
+use dozer_types::constants::DEFAULT_HOME_DIR;
 use dozer_types::crossbeam::channel;
 use dozer_types::log::info;
 use std::path::Path;
@@ -43,7 +44,7 @@ fn main() -> Result<(), OrchestrationError> {
     .expect("Error setting Ctrl-C handler");
 
     let configuration = load_config(cli.config_path)?;
-    let path = Path::new("./.dozer").to_owned();
+    let path = Path::new(DEFAULT_HOME_DIR).to_owned();
     let mut dozer = Dozer::new(path, configuration);
 
     let res = if let Some(cmd) = cli.cmd {

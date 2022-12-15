@@ -15,7 +15,7 @@ extern crate diesel_migrations;
 async fn main() -> Result<(), AdminError> {
     let cli = Cli::parse();
     let configuration = load_config(cli.config_path)?;
-    let cli_process = CliProcess {
+    let mut cli_process = CliProcess {
         config: configuration,
     };
     if let Some(cmd) = cli.cmd {

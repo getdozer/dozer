@@ -6,8 +6,8 @@ use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::RecvError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
+use dozer_types::{serde_yaml, thiserror};
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
@@ -17,6 +17,8 @@ pub enum OrchestrationError {
     FailedToParseYaml(#[source] BoxedError),
     #[error("Failed to validate dozer config..")]
     FailedToParseValidateYaml(#[source] BoxedError),
+    #[error("Failed to write config yaml")]
+    FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize dozer config..")]
     InitializationFailed,
     #[error("Failed to initialize api server..")]

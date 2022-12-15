@@ -233,10 +233,7 @@ fn test_deserialize_yaml_missing_internal_config() {
     let deserializer_result = serde_yaml::from_str::<Config>(test_str).unwrap();
     let expected = test_config();
     let default_api_config = default_api_config();
-    assert_eq!(
-        deserializer_result.api.to_owned(),
-        Some(default_api_config.to_owned())
-    );
+    assert_eq!(deserializer_result.api, Some(default_api_config.to_owned()));
     assert_eq!(
         deserializer_result
             .api

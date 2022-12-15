@@ -1,6 +1,7 @@
 use std::fs;
 
 use crate::errors::AdminError;
+use dozer_types::constants::DEFAULT_HOME_DIR;
 use dozer_types::models::api_config::{default_api_config, ApiInternal};
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
@@ -12,42 +13,29 @@ pub struct AdminCliConfig {
     pub port: u32,
     pub host: String,
     pub cors: bool,
-    #[serde(default = "GrpcInternal::default")]
-    pub internal: GrpcInternal,
+    pub api_internal: ApiInternal,
+    pub pipeline_internal: ApiInternal,
     pub dozer_config: Option<String>,
-    #[serde(default = "default_output_path")]
-    pub output_path: String,
+    #[serde(default = "default_home_dir")]
+    pub home_dir: String,
 }
-fn default_output_path() -> String {
-    "./.dozer".to_owned()
+fn default_home_dir() -> String {
+    DEFAULT_HOME_DIR.to_owned()
 }
 impl Default for AdminCliConfig {
     fn default() -> Self {
+        let default_config = default_api_config();
         Self {
             port: 8081,
             host: "[::0]".to_owned(),
             cors: true,
-            internal: GrpcInternal::default(),
             dozer_config: None,
-            output_path: default_output_path(),
+            home_dir: default_home_dir(),
+            api_internal: default_config.api_internal.unwrap(),
+            pipeline_internal: default_config.pipeline_internal.unwrap(),
         }
     }
 }
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
-pub struct GrpcInternal {
-    pub api: ApiInternal,
-    pub pipeline: ApiInternal,
-}
-impl Default for GrpcInternal {
-    fn default() -> Self {
-        let default_config = default_api_config();
-        Self {
-            api: default_config.api_internal.unwrap(),
-            pipeline: default_config.pipeline_internal.unwrap(),
-        }
-    }
-}
-
 pub fn load_config(config_path: String) -> Result<AdminCliConfig, AdminError> {
     let contents = fs::read_to_string(config_path).map_err(AdminError::FailedToLoadFile)?;
     let config: AdminCliConfig =

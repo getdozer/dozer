@@ -15,7 +15,9 @@ use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::app_config::Config;
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
-use std::path::PathBuf;
+use dozer_types::serde_yaml;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
@@ -36,6 +38,30 @@ impl SimpleOrchestrator {
             config,
             ..Default::default()
         }
+    }
+    fn write_internal_config(&self) -> Result<(), OrchestrationError> {
+        let path = Path::new(&self.home_dir).join("internal_config");
+        if path.exists() {
+            fs::remove_dir_all(&path).unwrap();
+        }
+        fs::create_dir_all(&path).unwrap();
+        let yaml_path = path.join("config.yaml");
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&yaml_path)
+            .expect("Couldn't open file");
+        let api_config = self.config.api.to_owned().unwrap_or_default();
+        let api_internal = api_config.to_owned().api_internal.unwrap_or_default();
+        let pipeline_internal = api_config.pipeline_internal.unwrap_or_default();
+        let mut internal_content = serde_yaml::Value::default();
+        internal_content["api_internal"] = serde_yaml::to_value(api_internal)
+            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
+        internal_content["pipeline_internal"] = serde_yaml::to_value(pipeline_internal)
+            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
+        serde_yaml::to_writer(f, &internal_content)
+            .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
+        Ok(())
     }
 }
 
@@ -60,6 +86,7 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
+        self.write_internal_config()?;
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
         let running2 = running.clone();
@@ -148,6 +175,7 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
+        self.write_internal_config()?;
         let executor_running = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();

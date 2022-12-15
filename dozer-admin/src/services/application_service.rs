@@ -1,4 +1,5 @@
 use dozer_types::{
+    constants::DEFAULT_HOME_DIR,
     models::{
         api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::Config, source::Source,
     },
@@ -119,7 +120,7 @@ impl AppService {
             app_id: Some(input.app_id),
         })?;
         let app_detail = app_detail_result.data.unwrap();
-        let path = Path::new("./.dozer").join("api_config");
+        let path = Path::new(DEFAULT_HOME_DIR).join("api_config");
         if path.exists() {
             fs::remove_dir_all(&path).unwrap();
         }
