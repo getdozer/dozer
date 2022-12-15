@@ -205,7 +205,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
     match field_type {
         FieldType::UInt => Ok("uint64".to_owned()),
         FieldType::Int => Ok("int64".to_owned()),
-        FieldType::Float => Ok("float".to_owned()),
+        FieldType::Float => Ok("double".to_owned()),
         FieldType::Boolean => Ok("bool".to_owned()),
         FieldType::String => Ok("string".to_owned()),
         FieldType::Decimal => Ok("float64".to_owned()),
