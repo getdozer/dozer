@@ -54,9 +54,7 @@ pub async fn start_internal_api_server(
     app_config: Config,
     sender: Sender<PipelineRequest>,
 ) -> Result<(), tonic::transport::Error> {
-    let server = InternalServer {
-        sender
-    };
+    let server = InternalServer { sender };
     let internal_config = app_config
         .api
         .unwrap_or_default()
@@ -66,12 +64,17 @@ pub async fn start_internal_api_server(
         .to_socket_addrs()
         .unwrap();
     Server::builder()
-        .add_service(internal_api_service_server::InternalApiServiceServer::new(server))
+        .add_service(internal_api_service_server::InternalApiServiceServer::new(
+            server,
+        ))
         .serve(addr.next().unwrap())
         .await
 }
 
-pub fn start_internal_api_client(internal_config: ApiInternal, receiver: Receiver<PipelineRequest>) {
+pub fn start_internal_api_client(
+    internal_config: ApiInternal,
+    receiver: Receiver<PipelineRequest>,
+) {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let mut connected = false;

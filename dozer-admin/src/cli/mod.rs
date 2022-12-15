@@ -4,9 +4,9 @@ use crate::errors::AdminError;
 use dozer_types::models::api_config::ApiInternal;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
+pub mod cli_process;
 pub mod types;
 pub mod utils;
-pub mod cli_process;
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 pub struct AdminCliConfig {
     pub port: u32,

@@ -2,13 +2,13 @@ use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::kafka::test_utils::{
     get_client_and_create_table, get_debezium_config, get_iterator_and_client,
 };
-
 use crate::connectors::{Connector, TableInfo};
-
-use dozer_types::ingestion_types::{IngestionOperation, KafkaConfig};
-use dozer_types::models::connection::Authentication::{self};
-use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::Operation;
+use dozer_types::models::connection::Authentication;
+use dozer_types::{
+    ingestion_types::{IngestionOperation, KafkaConfig},
+    rust_decimal::Decimal,
+    types::Operation,
+};
 use postgres::Client;
 use std::fmt::Write;
 use std::thread::sleep;
@@ -125,8 +125,14 @@ fn connector_e2e_connect_debezium_json_and_get_schema() {
     let mut pg_client = KafkaPostgres { client, table_name };
     pg_client.insert_rows(1);
 
-    let broker = if let Some(Authentication::Kafka(KafkaConfig { broker, .. })) =
-        config.source.connection.unwrap_or_default().authentication
+    let broker = if let Authentication::Kafka(KafkaConfig { broker, .. }) = config
+        .config
+        .connections
+        .get(0)
+        .unwrap()
+        .clone()
+        .authentication
+        .unwrap_or_default()
     {
         broker
     } else {
@@ -170,22 +176,24 @@ fn connector_e2e_connect_debezium_avro_and_get_schema() {
     let mut pg_client = KafkaPostgres { client, table_name };
     pg_client.insert_rows(1);
 
-    let (broker, schema_registry_url) = if let KafkaAuthentication {
-        broker,
-        schema_registry_url,
-        ..
-    } = config
-        .config
-        .connections
-        .get(0)
-        .unwrap()
-        .clone()
-        .authentication
-    {
-        (broker, schema_registry_url)
-    } else {
-        todo!()
-    };
+    let (broker, schema_registry_url) =
+        if let dozer_types::models::connection::Authentication::Kafka(KafkaConfig {
+            broker,
+            schema_registry_url,
+            ..
+        }) = config
+            .config
+            .connections
+            .get(0)
+            .unwrap()
+            .clone()
+            .authentication
+            .unwrap_or_default()
+        {
+            (broker, schema_registry_url)
+        } else {
+            todo!()
+        };
     let connector = KafkaConnector::new(
         1,
         KafkaConfig {

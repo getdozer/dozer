@@ -100,7 +100,6 @@ impl<'de> Deserialize<'de> for Config {
                     sources,
                     endpoints,
                     id,
-                    ..Default::default()
                 })
             }
         }

@@ -5,7 +5,6 @@ use dozer_types::{
 };
 use std::convert::From;
 
-//TODO: Add grpc method to create ApiConfig
 pub fn default_api_config() -> ApiConfig {
     ApiConfig {
         rest: Some(ApiRest {
@@ -49,12 +48,4 @@ impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
             columns,
         }
     }
-}
-#[cfg(test)]
-mod test {
-    use crate::{
-        db::connection::DbConnection,
-        db::{application::Application, endpoint::DbEndpoint, source::DBSource},
-    };
-    use dozer_types::models::connection::DBType;
 }

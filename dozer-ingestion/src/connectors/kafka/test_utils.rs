@@ -3,6 +3,7 @@ use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
 use dozer_types::ingestion_types::KafkaConfig;
+use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::Authentication;
 
 use dozer_types::parking_lot::RwLock;
@@ -95,24 +96,24 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
         }];
 
         let mut connection = config.config.connections.get(0).unwrap().clone();
-        if let Authentication::KafkaAuthentication {
+        if let Some(Authentication::Kafka(KafkaConfig {
             broker,
             topic: _,
             schema_registry_url,
-        } = connection.authentication
+        })) = connection.authentication
         {
-            connection.authentication = Authentication::KafkaAuthentication {
+            connection.authentication = Some(Authentication::Kafka(KafkaConfig {
                 broker,
                 topic: format!("dbserver1.public.{}", table_name),
                 schema_registry_url,
-            };
+            }));
         };
 
         if table_name != "products_test" {
             thread::sleep(Duration::from_secs(1));
         }
 
-        let mut connector = get_connector(source.connection.unwrap_or_default()).unwrap();
+        let mut connector = get_connector(connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
         let _ = connector.start();
     });

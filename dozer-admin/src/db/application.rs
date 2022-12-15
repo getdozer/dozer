@@ -156,8 +156,8 @@ impl Persistable<'_, app_config::Config> for app_config::Config {
         // connection
         let connections = self
             .connections
-            .to_owned()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|mut con| {
                 con.app_id = Some(app_id.to_owned());
                 if con.id.is_none() {
@@ -171,8 +171,8 @@ impl Persistable<'_, app_config::Config> for app_config::Config {
         // sources
         let sources = self
             .sources
-            .to_owned()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|mut src| {
                 src.app_id = Some(app_id.to_owned());
                 if src.id.is_none() {
@@ -186,7 +186,8 @@ impl Persistable<'_, app_config::Config> for app_config::Config {
         // endpoints
         let endpoints = self
             .endpoints
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|mut ep| {
                 ep.app_id = Some(app_id.to_owned());
                 if ep.id.is_none() {

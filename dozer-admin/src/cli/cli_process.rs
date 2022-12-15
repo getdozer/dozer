@@ -15,13 +15,10 @@ impl CliProcess {
         let internal_pipeline_config = self.config.to_owned().internal.unwrap_or_default().pipeline;
         let client_connect_result = init_internal_pipeline_client(internal_pipeline_config).await;
         let mut dozer_config: Config = Config::default();
-        match client_connect_result {
-            Ok(mut client) => {
-                let response = client.get_config(GetAppConfigRequest {}).await?;
-                let config = response.into_inner();
-                dozer_config = config.data.unwrap();
-            }
-            Err(_) => {},
+        if let Ok(mut client) = client_connect_result {
+            let response = client.get_config(GetAppConfigRequest {}).await?;
+            let config = response.into_inner();
+            dozer_config = config.data.unwrap();
         }
         reset_db();
         init_db_with_config(dozer_config);

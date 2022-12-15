@@ -167,7 +167,6 @@ impl Orchestrator for SimpleOrchestrator {
         let internal_app_config = self.config.to_owned();
         let _intern_pipeline_thread = thread::spawn(move || {
             _ = start_internal_pipeline_server(internal_app_config);
-
         });
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());

@@ -59,6 +59,7 @@ pub struct KafkaConfig {
     pub broker: String,
     #[prost(string, tag = "2")]
     pub topic: String,
+    #[prost(string, optional, tag = "3")]
     pub schema_registry_url: Option<String>,
 }
 
