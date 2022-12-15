@@ -13,7 +13,9 @@ pub struct AdminCliConfig {
     pub port: u32,
     pub host: String,
     pub cors: bool,
+    #[serde(default = "default_api_internal")]
     pub api_internal: ApiInternal,
+    #[serde(default = "default_pipeline_internal")]
     pub pipeline_internal: ApiInternal,
     pub dozer_config: Option<String>,
     #[serde(default = "default_home_dir")]
@@ -21,6 +23,12 @@ pub struct AdminCliConfig {
 }
 fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
+}
+fn default_api_internal() -> ApiInternal {
+    AdminCliConfig::default().api_internal
+}
+fn default_pipeline_internal() -> ApiInternal {
+    AdminCliConfig::default().pipeline_internal
 }
 impl Default for AdminCliConfig {
     fn default() -> Self {
