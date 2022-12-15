@@ -1,35 +1,6 @@
 use crate::server::dozer_admin_grpc::{self};
-use dozer_types::{
-    models::api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
-    types::Schema,
-};
+use dozer_types::types::Schema;
 use std::convert::From;
-
-pub fn default_api_config() -> ApiConfig {
-    ApiConfig {
-        rest: Some(ApiRest {
-            port: 8080,
-            url: "[::0]".to_owned(),
-            cors: true,
-        }),
-        grpc: Some(ApiGrpc {
-            port: 50051,
-            url: "[::0]".to_owned(),
-            cors: true,
-            web: true,
-        }),
-        auth: false,
-        api_internal: Some(ApiInternal {
-            port: 50052,
-            host: "[::1]".to_owned(),
-        }),
-        pipeline_internal: Some(ApiInternal {
-            port: 50053,
-            host: "[::1]".to_owned(),
-        }),
-        ..Default::default()
-    }
-}
 
 impl From<(String, Schema)> for dozer_admin_grpc::TableInfo {
     fn from(item: (String, Schema)) -> Self {

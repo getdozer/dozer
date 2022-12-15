@@ -10,9 +10,12 @@ api:
     cors: true
     web: true
   auth: false
-  internal:
+  api_internal:
     port: 50052
-    host: "[::1]"
+    host: '[::1]'
+  pipeline_internal:
+    port: 50053
+    host: '[::1]'
 connections:
   - db_type: Postgres
     authentication: !Postgres

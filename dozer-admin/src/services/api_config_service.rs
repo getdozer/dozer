@@ -1,4 +1,4 @@
-use dozer_types::models::api_config::ApiConfig;
+use dozer_types::models::api_config::{default_api_config, ApiConfig};
 
 use crate::{
     db::{persistable::Persistable, pool::DbPool},
@@ -7,8 +7,6 @@ use crate::{
         GetApiConfigResponse, UpdateApiConfigRequest, UpdateApiConfigResponse,
     },
 };
-
-use super::converter::default_api_config;
 
 pub struct ApiConfigService {
     db_pool: DbPool,

@@ -1,5 +1,10 @@
 use crate::ingestion_types::{EthConfig, KafkaConfig, SnowflakeConfig};
+use serde::{
+    de::Deserializer,
+    ser::{self, Serializer},
+};
 use serde::{Deserialize, Serialize};
+
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
@@ -16,10 +21,29 @@ pub struct Connection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
     #[prost(enumeration = "DBType", tag = "8")]
+    #[serde(serialize_with = "serialize_db_type_i32_as_string")]
+    #[serde(deserialize_with = "deserialize_db_type_str_as_i32")]
     pub db_type: i32,
     #[prost(string, tag = "9")]
     pub name: String,
 }
+fn serialize_db_type_i32_as_string<S>(input: &i32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let db_type = DBType::try_from(input.to_owned()).map_err(ser::Error::custom)?;
+    serializer.serialize_str(db_type.as_str_name())
+}
+
+fn deserialize_db_type_str_as_i32<'de, D>(deserializer: D) -> Result<i32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let db_type_string = String::deserialize(deserializer)?;
+    let db_type = DBType::from_str(&db_type_string).map_err(serde::de::Error::custom)?;
+    Ok(db_type as i32)
+}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum DBType {
@@ -42,6 +66,7 @@ impl TryFrom<i32> for DBType {
         }
     }
 }
+
 impl DBType {
     pub fn as_str_name(&self) -> &'static str {
         match self {

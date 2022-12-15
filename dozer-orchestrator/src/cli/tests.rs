@@ -22,17 +22,20 @@ fn test_yml_content() -> &'static str {
         cors: true
         web: true
       auth: false
-      internal:
+      api_internal:
         port: 50052
-        host: "[::1]"
+        host: '[::1]'
+      pipeline_internal:
+        port: 50053
+        host: '[::1]'
     connections:
-      - authentication: !Postgres
+      - db_type: Postgres
+        authentication: !Postgres
           user: postgres
           password: postgres
           host: localhost
           port: 5432
           database: users
-        db_type: 0
         name: users
     sources:
       - name: users
@@ -42,14 +45,16 @@ fn test_yml_content() -> &'static str {
           - email
           - phone
         connection: !Ref users
+        history_type: null
         refresh_config: !RealTime {}
     endpoints:
-      - name: users
+      - id: null
+        name: users
         path: /users
         sql: select id, email, phone from users where 1=1;
         index:
           primary_key:
-            - id
+            - id    
     "#
 }
 
