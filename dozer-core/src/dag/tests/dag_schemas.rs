@@ -25,16 +25,13 @@ impl SourceFactory for TestUsersSourceFactory {
             .field(
                 FieldDefinition::new("user_id".to_string(), FieldType::String, false),
                 true,
-                true,
             )
             .field(
                 FieldDefinition::new("username".to_string(), FieldType::String, false),
                 true,
-                true,
             )
             .field(
                 FieldDefinition::new("country_id".to_string(), FieldType::String, false),
-                true,
                 true,
             )
             .clone())
@@ -63,11 +60,9 @@ impl SourceFactory for TestCountriesSourceFactory {
             .field(
                 FieldDefinition::new("country_id".to_string(), FieldType::String, false),
                 true,
-                true,
             )
             .field(
                 FieldDefinition::new("country_name".to_string(), FieldType::String, false),
-                true,
                 true,
             )
             .clone())
@@ -101,7 +96,6 @@ impl ProcessorFactory for TestJoinProcessorFactory {
         joined.extend(input_schemas.get(&2).unwrap().fields.clone());
         Ok(Schema {
             fields: joined,
-            values: vec![],
             primary_index: vec![],
             identifier: None,
         })

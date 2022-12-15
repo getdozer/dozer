@@ -115,7 +115,6 @@ mod tests {
         let schema_message = dozer_types::types::Schema {
             identifier: None,
             fields: vec![],
-            values: vec![],
             primary_index: vec![],
         };
 

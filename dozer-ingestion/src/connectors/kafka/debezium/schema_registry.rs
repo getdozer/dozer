@@ -130,7 +130,6 @@ impl SchemaRegistry {
                                 let schema = Schema {
                                     identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
                                     fields: defined_fields?,
-                                    values: vec![],
                                     primary_index: pk_keys_indexes,
                                 };
 

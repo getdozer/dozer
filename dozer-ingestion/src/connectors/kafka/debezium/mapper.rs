@@ -328,7 +328,6 @@ mod tests {
                     nullable: false,
                 },
             ],
-            values: vec![],
             primary_index: vec![],
         };
 
@@ -405,7 +404,6 @@ mod tests {
                     nullable: true,
                 },
             ],
-            values: vec![],
             primary_index: vec![],
         };
 

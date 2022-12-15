@@ -23,10 +23,6 @@ pub enum FieldRule {
     Dimension(
         /// Expression for this dimension
         Box<Expression>,
-        /// true of this field should be included in the list of values of the
-        /// output schema, otherwise false. Generally, this value is true if the field appears
-        /// in the output results in addition to being in the list of the GROUP BY fields
-        bool,
         /// Name of the field, if renaming is required. If `None` the original name is retained
         String,
     ),
@@ -36,10 +32,6 @@ pub enum FieldRule {
         Box<Expression>,
         /// Aggregator implementation for this measure
         Aggregator,
-        /// true if this field should be included in the list of values of the
-        /// output schema, otherwise false. Generally this value is true if the field appears
-        /// in the output results in addition of being a condition for the HAVING condition
-        bool,
         /// Name of the field, if renaming is required. If `None` the original name is retained
         String,
     ),
@@ -575,10 +567,10 @@ fn populate_rules(output_field_rules: &[FieldRule]) -> Result<OutputRules, Pipel
 
     for rule in output_field_rules.iter().enumerate() {
         match rule.1 {
-            FieldRule::Measure(pre_aggr, aggr, _nullable, _name) => {
+            FieldRule::Measure(pre_aggr, aggr, _name) => {
                 out_measures.push((pre_aggr.clone(), Box::new(aggr.clone()), rule.0));
             }
-            FieldRule::Dimension(expression, _nullable, _name) => {
+            FieldRule::Dimension(expression, _name) => {
                 out_dimensions.push((expression.clone(), rule.0));
             }
         }

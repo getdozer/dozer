@@ -76,7 +76,6 @@ impl SchemaHelper {
         Ok(Schema {
             identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
             fields: defined_fields,
-            values: vec![],
             primary_index: vec![0],
         })
     }

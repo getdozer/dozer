@@ -107,14 +107,9 @@ fn parse_sql_aggregate_item(
                         .parse_sql_expression(&ExpressionType::PreAggregation, sql_expr, schema)?
                         .0,
                     aggregator,
-                    true,
                     sql_expr.to_string(),
                 )),
-                Err(_) => Ok(FieldRule::Dimension(
-                    expression.0,
-                    true,
-                    sql_expr.to_string(),
-                )),
+                Err(_) => Ok(FieldRule::Dimension(expression.0, sql_expr.to_string())),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
@@ -163,27 +158,21 @@ fn build_output_schema(
 
     for e in output_field_rules.iter().enumerate() {
         match e.1 {
-            FieldRule::Measure(pre_aggr, aggr, is_value, name) => {
+            FieldRule::Measure(pre_aggr, aggr, name) => {
                 output_schema.fields.push(FieldDefinition::new(
                     name.clone(),
                     aggr.get_return_type(pre_aggr.get_type(input_schema)),
                     false,
                 ));
-                if *is_value {
-                    output_schema.values.push(e.0);
-                }
             }
 
-            FieldRule::Dimension(expression, is_value, name) => {
+            FieldRule::Dimension(expression, name) => {
                 //let src_fld = input_schema.get_field_index(idx.as_str())?;
                 output_schema.fields.push(FieldDefinition::new(
                     name.clone(),
                     expression.get_type(input_schema),
                     true,
                 ));
-                if *is_value {
-                    output_schema.values.push(e.0);
-                }
                 output_schema.primary_index.push(e.0);
             }
         }
