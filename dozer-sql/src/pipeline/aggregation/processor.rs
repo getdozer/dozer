@@ -331,8 +331,9 @@ impl AggregationProcessor {
         db: &Database,
         old: &Record,
     ) -> Result<Operation, PipelineError> {
-        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
-        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
+        let size = self.out_measures.len() + self.out_dimensions.len();
+        let mut out_rec_insert = Record::nulls(None, size);
+        let mut out_rec_delete = Record::nulls(None, size);
 
         let record_hash = if !self.out_dimensions.is_empty() {
             get_key(old, &self.out_dimensions)?
@@ -439,8 +440,9 @@ impl AggregationProcessor {
         new: &Record,
         record_hash: Vec<u8>,
     ) -> Result<Operation, PipelineError> {
-        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
-        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
+        let size = self.out_measures.len() + self.out_dimensions.len();
+        let mut out_rec_insert = Record::nulls(None, size);
+        let mut out_rec_delete = Record::nulls(None, size);
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let cur_state = txn.get(db, record_key.as_slice())?;
