@@ -59,7 +59,9 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 
                 for e in expressions.iter() {
                     let field_name = e.0.clone();
-                    let field_type = e.1.get_type(input_schema);
+                    let field_type =
+                        e.1.get_type(input_schema)
+                            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                     let field_nullable = true;
                     output_schema.fields.push(FieldDefinition::new(
                         field_name,

@@ -212,7 +212,11 @@ fn build_output_schema(
             FieldRule::Measure(pre_aggr, aggr, name) => {
                 output_schema.fields.push(FieldDefinition::new(
                     name.clone(),
-                    aggr.get_return_type(pre_aggr.get_type(input_schema)),
+                    aggr.get_return_type(
+                        pre_aggr
+                            .get_type(input_schema)
+                            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
+                    ),
                     false,
                 ));
             }
@@ -221,7 +225,9 @@ fn build_output_schema(
                 if *is_value {
                     output_schema.fields.push(FieldDefinition::new(
                         name.clone(),
-                        expression.get_type(input_schema),
+                        expression
+                            .get_type(input_schema)
+                            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
                         true,
                     ));
                     output_schema.primary_index.push(e.0);
@@ -246,7 +252,9 @@ fn build_projection_schema(
 
             for e in expressions.iter() {
                 let field_name = e.0.clone();
-                let field_type = e.1.get_type(input_schema);
+                let field_type =
+                    e.1.get_type(input_schema)
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
                 let field_nullable = true;
                 output_schema.fields.push(FieldDefinition::new(
                     field_name,
