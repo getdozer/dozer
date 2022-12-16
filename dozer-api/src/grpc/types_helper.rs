@@ -95,7 +95,6 @@ pub fn map_field_type_to_pb(typ: FieldType) -> Type {
         FieldType::Decimal => Type::Decimal,
         FieldType::Timestamp => Type::Timestamp,
         FieldType::Bson => Type::Bson,
-        FieldType::Null => Type::Null,
         FieldType::Date => Type::String,
     }
 }

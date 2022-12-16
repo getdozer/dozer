@@ -25,7 +25,7 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
         },
         FieldDefinition {
             name: "rental_rate".to_string(),
-            typ: FieldType::Null,
+            typ: FieldType::Float,
             nullable: true,
         },
         FieldDefinition {

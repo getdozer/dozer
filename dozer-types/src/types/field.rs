@@ -43,8 +43,8 @@ pub enum FieldBorrow<'a> {
 impl Field {
     fn data_encoding_len(&self) -> usize {
         match self {
-            Field::Int(_) => 8,
             Field::UInt(_) => 8,
+            Field::Int(_) => 8,
             Field::Float(_) => 8,
             Field::Boolean(_) => 1,
             Field::String(s) => s.len(),
@@ -60,8 +60,8 @@ impl Field {
 
     fn encode_data(&self) -> Cow<[u8]> {
         match self {
-            Field::Int(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::UInt(i) => Cow::Owned(i.to_be_bytes().into()),
+            Field::Int(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::Float(f) => Cow::Owned(f.to_be_bytes().into()),
             Field::Boolean(b) => Cow::Owned(if *b { [1] } else { [0] }.into()),
             Field::String(s) => Cow::Borrowed(s.as_bytes()),
@@ -94,8 +94,8 @@ impl Field {
 
     pub fn borrow(&self) -> FieldBorrow {
         match self {
-            Field::Int(i) => FieldBorrow::Int(*i),
             Field::UInt(i) => FieldBorrow::UInt(*i),
+            Field::Int(i) => FieldBorrow::Int(*i),
             Field::Float(f) => FieldBorrow::Float(*f),
             Field::Boolean(b) => FieldBorrow::Boolean(*b),
             Field::String(s) => FieldBorrow::String(s),
@@ -115,93 +115,57 @@ impl Field {
 
     pub fn decode_borrow(buf: &[u8]) -> Result<FieldBorrow, DeserializationError> {
         let first_byte = *buf.first().ok_or(DeserializationError::EmptyInput)?;
-        let return_type = Self::type_from_prefix(first_byte)
-            .ok_or(DeserializationError::UnrecognisedFieldType(first_byte))?;
         let val = &buf[1..];
-        match return_type {
-            FieldType::Int => Ok(FieldBorrow::Int(i64::from_be_bytes(
+        match first_byte {
+            0 => Ok(FieldBorrow::UInt(u64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            FieldType::UInt => Ok(FieldBorrow::UInt(u64::from_be_bytes(
+            1 => Ok(FieldBorrow::Int(i64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            FieldType::Float => Ok(FieldBorrow::Float(OrderedFloat(f64::from_be_bytes(
+            2 => Ok(FieldBorrow::Float(OrderedFloat(f64::from_be_bytes(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             )))),
-            FieldType::Boolean => Ok(FieldBorrow::Boolean(val[0] == 1)),
-            FieldType::String => Ok(FieldBorrow::String(std::str::from_utf8(val)?)),
-            FieldType::Text => Ok(FieldBorrow::Text(std::str::from_utf8(val)?)),
-            FieldType::Binary => Ok(FieldBorrow::Binary(val)),
-            FieldType::Decimal => Ok(FieldBorrow::Decimal(Decimal::deserialize(
+            3 => Ok(FieldBorrow::Boolean(val[0] == 1)),
+            4 => Ok(FieldBorrow::String(std::str::from_utf8(val)?)),
+            5 => Ok(FieldBorrow::Text(std::str::from_utf8(val)?)),
+            6 => Ok(FieldBorrow::Binary(val)),
+            7 => Ok(FieldBorrow::Decimal(Decimal::deserialize(
                 val.try_into()
                     .map_err(|_| DeserializationError::BadDataLength)?,
             ))),
-            FieldType::Timestamp => Ok(FieldBorrow::Timestamp(DateTime::from(
+            8 => Ok(FieldBorrow::Timestamp(DateTime::from(
                 Utc.timestamp_millis(i64::from_be_bytes(
                     val.try_into()
                         .map_err(|_| DeserializationError::BadDataLength)?,
                 )),
             ))),
-            FieldType::Date => Ok(FieldBorrow::Date(
+            9 => Ok(FieldBorrow::Date(
                 NaiveDate::parse_from_str(std::str::from_utf8(val)?, DATE_FORMAT).unwrap(),
             )),
-            FieldType::Bson => Ok(FieldBorrow::Bson(val)),
-            FieldType::Null => Ok(FieldBorrow::Null),
-        }
-    }
-
-    pub fn get_type(&self) -> FieldType {
-        match self {
-            Field::Int(_i) => FieldType::Int,
-            Field::UInt(_i) => FieldType::UInt,
-            Field::Float(_f) => FieldType::Float,
-            Field::Boolean(_b) => FieldType::Boolean,
-            Field::String(_s) => FieldType::String,
-            Field::Text(_s) => FieldType::Text,
-            Field::Binary(_b) => FieldType::Binary,
-            Field::Decimal(_d) => FieldType::Decimal,
-            Field::Timestamp(_t) => FieldType::Timestamp,
-            Field::Date(_t) => FieldType::Date,
-            Field::Bson(_b) => FieldType::Bson,
-            Field::Null => FieldType::Null,
+            10 => Ok(FieldBorrow::Bson(val)),
+            11 => Ok(FieldBorrow::Null),
+            other => Err(DeserializationError::UnrecognisedFieldType(other)),
         }
     }
 
     fn get_type_prefix(&self) -> u8 {
-        match self.get_type() {
-            FieldType::Int => 0,
-            FieldType::UInt => 1,
-            FieldType::Float => 2,
-            FieldType::Boolean => 3,
-            FieldType::String => 4,
-            FieldType::Text => 5,
-            FieldType::Binary => 6,
-            FieldType::Decimal => 7,
-            FieldType::Timestamp => 8,
-            FieldType::Date => 9,
-            FieldType::Bson => 10,
-            FieldType::Null => 11,
-        }
-    }
-
-    fn type_from_prefix(prefix: u8) -> Option<FieldType> {
-        match prefix {
-            0 => Some(FieldType::Int),
-            1 => Some(FieldType::UInt),
-            2 => Some(FieldType::Float),
-            3 => Some(FieldType::Boolean),
-            4 => Some(FieldType::String),
-            5 => Some(FieldType::Text),
-            6 => Some(FieldType::Binary),
-            7 => Some(FieldType::Decimal),
-            8 => Some(FieldType::Timestamp),
-            9 => Some(FieldType::Date),
-            10 => Some(FieldType::Bson),
-            11 => Some(FieldType::Null),
-            _ => None,
+        match self {
+            Field::UInt(_) => 0,
+            Field::Int(_) => 1,
+            Field::Float(_) => 2,
+            Field::Boolean(_) => 3,
+            Field::String(_) => 4,
+            Field::Text(_) => 5,
+            Field::Binary(_) => 6,
+            Field::Decimal(_) => 7,
+            Field::Timestamp(_) => 8,
+            Field::Date(_) => 9,
+            Field::Bson(_) => 10,
+            Field::Null => 11,
         }
     }
 }
@@ -238,7 +202,6 @@ pub enum FieldType {
     Timestamp,
     Date,
     Bson,
-    Null,
 }
 
 /// Can't put it in `tests` module because of https://github.com/rust-lang/cargo/issues/8379

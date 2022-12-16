@@ -207,7 +207,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             curr.state,
                             &inserted_field,
-                            measure.0.get_type(&self.input_schema),
+                            measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -218,7 +218,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             None,
                             &inserted_field,
-                            measure.0.get_type(&self.input_schema),
+                            measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -233,7 +233,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             curr.state,
                             &deleted_field,
-                            measure.0.get_type(&self.input_schema),
+                            measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -244,7 +244,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             None,
                             &deleted_field,
-                            measure.0.get_type(&self.input_schema),
+                            measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -262,7 +262,7 @@ impl AggregationProcessor {
                             curr.state,
                             &deleted_field,
                             &updated_field,
-                            measure.0.get_type(&self.input_schema),
+                            measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;
@@ -274,7 +274,7 @@ impl AggregationProcessor {
                             None,
                             &deleted_field,
                             &updated_field,
-                            measure.0.get_type(&self.input_schema),
+                            measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
                             self.aggregators_db.as_ref().unwrap(),
                         )?;

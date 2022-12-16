@@ -34,7 +34,7 @@ impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
     fn evaluate(&self, record: &Record) -> Result<Field, PipelineError>;
-    fn get_type(&self, schema: &Schema) -> FieldType;
+    fn get_type(&self, schema: &Schema) -> Result<FieldType, PipelineError>;
 }
 
 impl ExpressionExecutor for Expression {
@@ -63,10 +63,12 @@ impl ExpressionExecutor for Expression {
         }
     }
 
-    fn get_type(&self, schema: &Schema) -> FieldType {
+    fn get_type(&self, schema: &Schema) -> Result<FieldType, PipelineError> {
         match self {
-            Expression::Literal(field) => get_field_type(field, schema),
-            Expression::Column { index } => get_column_type(index, schema),
+            Expression::Literal(field) => get_field_type(field).ok_or_else(|| {
+                PipelineError::InvalidExpression("literal expression cannot be null".to_string())
+            }),
+            Expression::Column { index } => Ok(get_column_type(index, schema)),
             Expression::UnaryOperator { operator, arg } => {
                 get_unary_operator_type(operator, arg, schema)
             }
@@ -83,20 +85,20 @@ impl ExpressionExecutor for Expression {
     }
 }
 
-fn get_field_type(field: &Field, _schema: &Schema) -> FieldType {
+fn get_field_type(field: &Field) -> Option<FieldType> {
     match field {
-        Field::Int(_) => FieldType::Int,
-        Field::Float(_) => FieldType::Float,
-        Field::Boolean(_) => FieldType::Boolean,
-        Field::String(_) => FieldType::String,
-        Field::Binary(_) => FieldType::Binary,
-        Field::Decimal(_) => FieldType::Decimal,
-        Field::Timestamp(_) => FieldType::Timestamp,
-        Field::Bson(_) => FieldType::Bson,
-        Field::Null => FieldType::Null,
-        Field::UInt(_) => FieldType::UInt,
-        Field::Text(_) => FieldType::Text,
-        Field::Date(_) => FieldType::Date,
+        Field::Int(_) => Some(FieldType::Int),
+        Field::Float(_) => Some(FieldType::Float),
+        Field::Boolean(_) => Some(FieldType::Boolean),
+        Field::String(_) => Some(FieldType::String),
+        Field::Binary(_) => Some(FieldType::Binary),
+        Field::Decimal(_) => Some(FieldType::Decimal),
+        Field::Timestamp(_) => Some(FieldType::Timestamp),
+        Field::Bson(_) => Some(FieldType::Bson),
+        Field::Null => None,
+        Field::UInt(_) => Some(FieldType::UInt),
+        Field::Text(_) => Some(FieldType::Text),
+        Field::Date(_) => Some(FieldType::Date),
     }
 }
 
@@ -108,17 +110,18 @@ fn get_unary_operator_type(
     operator: &UnaryOperatorType,
     expression: &Expression,
     schema: &Schema,
-) -> FieldType {
-    let field_type = expression.get_type(schema);
+) -> Result<FieldType, PipelineError> {
+    let field_type = expression.get_type(schema)?;
     match operator {
-        UnaryOperatorType::Not => {
-            match field_type {
-                FieldType::Boolean => field_type,
-                _ => FieldType::Null, //Error ("Invalid Field Type: {:?}", field_type)
-            }
-        }
-        UnaryOperatorType::Plus => field_type,
-        UnaryOperatorType::Minus => field_type,
+        UnaryOperatorType::Not => match field_type {
+            FieldType::Boolean => Ok(field_type),
+            field_type => Err(PipelineError::InvalidExpression(format!(
+                "cannot apply NOT to {:?}",
+                field_type
+            ))),
+        },
+        UnaryOperatorType::Plus => Ok(field_type),
+        UnaryOperatorType::Minus => Ok(field_type),
     }
 }
 
@@ -127,39 +130,54 @@ fn get_binary_operator_type(
     operator: &BinaryOperatorType,
     right: &Expression,
     schema: &Schema,
-) -> FieldType {
-    let left_field_type = left.get_type(schema);
-    let right_field_type = right.get_type(schema);
+) -> Result<FieldType, PipelineError> {
+    let left_field_type = left.get_type(schema)?;
+    let right_field_type = right.get_type(schema)?;
     match operator {
         BinaryOperatorType::Eq
         | BinaryOperatorType::Ne
         | BinaryOperatorType::Gt
         | BinaryOperatorType::Gte
         | BinaryOperatorType::Lt
-        | BinaryOperatorType::Lte => FieldType::Boolean,
+        | BinaryOperatorType::Lte => Ok(FieldType::Boolean),
 
         BinaryOperatorType::And | BinaryOperatorType::Or => {
             match (left_field_type, right_field_type) {
-                (FieldType::Boolean, FieldType::Boolean) => FieldType::Boolean,
-                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                (FieldType::Boolean, FieldType::Boolean) => Ok(FieldType::Boolean),
+                (left_field_type, right_field_type) => {
+                    Err(PipelineError::InvalidExpression(format!(
+                        "cannot apply {:?} to {:?} and {:?}",
+                        operator, left_field_type, right_field_type
+                    )))
+                }
             }
         }
 
         BinaryOperatorType::Add | BinaryOperatorType::Sub | BinaryOperatorType::Mul => {
             match (left_field_type, right_field_type) {
-                (FieldType::Int, FieldType::Int) => FieldType::Int,
+                (FieldType::Int, FieldType::Int) => Ok(FieldType::Int),
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
-                | (FieldType::Float, FieldType::Float) => FieldType::Float,
-                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                | (FieldType::Float, FieldType::Float) => Ok(FieldType::Float),
+                (left_field_type, right_field_type) => {
+                    Err(PipelineError::InvalidExpression(format!(
+                        "cannot apply {:?} to {:?} and {:?}",
+                        operator, left_field_type, right_field_type
+                    )))
+                }
             }
         }
         BinaryOperatorType::Div | BinaryOperatorType::Mod => {
             match (left_field_type, right_field_type) {
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
-                | (FieldType::Float, FieldType::Float) => FieldType::Float,
-                _ => FieldType::Null, // Error ("Invalid Field Type: {:?}, {:?}", left_field_type, right_field_type)
+                | (FieldType::Float, FieldType::Float) => Ok(FieldType::Float),
+                (left_field_type, right_field_type) => {
+                    Err(PipelineError::InvalidExpression(format!(
+                        "cannot apply {:?} to {:?} and {:?}",
+                        operator, left_field_type, right_field_type
+                    )))
+                }
             }
         }
     }
@@ -169,16 +187,16 @@ fn get_aggregate_function_type(
     function: &AggregateFunctionType,
     args: &[Expression],
     schema: &Schema,
-) -> FieldType {
+) -> Result<FieldType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => FieldType::Float,
-        AggregateFunctionType::Count => FieldType::Int,
+        AggregateFunctionType::Avg => Ok(FieldType::Float),
+        AggregateFunctionType::Count => Ok(FieldType::Int),
         AggregateFunctionType::Max => args.get(0).unwrap().get_type(schema),
         AggregateFunctionType::Median => args.get(0).unwrap().get_type(schema),
         AggregateFunctionType::Min => args.get(0).unwrap().get_type(schema),
         AggregateFunctionType::Sum => args.get(0).unwrap().get_type(schema),
-        AggregateFunctionType::Stddev => FieldType::Float,
-        AggregateFunctionType::Variance => FieldType::Float,
+        AggregateFunctionType::Stddev => Ok(FieldType::Float),
+        AggregateFunctionType::Variance => Ok(FieldType::Float),
     }
 }
 
@@ -186,10 +204,10 @@ fn get_scalar_function_type(
     function: &ScalarFunctionType,
     args: &[Expression],
     schema: &Schema,
-) -> FieldType {
+) -> Result<FieldType, PipelineError> {
     match function {
         ScalarFunctionType::Abs => args.get(0).unwrap().get_type(schema),
-        ScalarFunctionType::Round => FieldType::Int,
+        ScalarFunctionType::Round => Ok(FieldType::Int),
         ScalarFunctionType::Ucase => args.get(0).unwrap().get_type(schema),
     }
 }
