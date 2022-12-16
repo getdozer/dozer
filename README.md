@@ -52,6 +52,19 @@ cd dozer
 docker compose -f tests/simple_e2e_example/docker-compose.yml up
 ```
 
+## What can you build with Dozer?
+
+1. Hypercharge your Postgres by offloading read APIs to Dozer
+2. Real time ML predictions deployed as APIs from Snowflake
+3. Real time Ethereum Stats published as a grafana dashboard
+
+[//]: # (### Screenshots)
+
+
+### End-to-end Examples
+
+Check out our end-to-end examples [here](./examples/README.md).
+
 
 [//]: # (## Architecture)
 
@@ -82,19 +95,6 @@ docker compose -f tests/simple_e2e_example/docker-compose.yml up
 - Build and rapidly iterate on customer facing data apps.
 - Extend Dozer with custom connectors, operators and Api transformations using WASM.
 - Built in Rust with performance and extensibility in mind.
-
-## What can you build with Dozer?
-
-1. Hypercharge your Postgres by offloading read APIs to Dozer
-2. Real time ML predictions deployed as APIs from Snowflake
-3. Real time Ethereum Stats published as a grafana dashboard
-
-### Screenshots
-
-
-## End-to-end Examples
-
-Check out our end-to-end examples [here](./examples/README.md)
 
 ## Contributing
 
