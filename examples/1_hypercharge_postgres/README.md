@@ -1,5 +1,3 @@
-<br>
-
 ## End-to-end Hypercharge Postgres Example - Stock Price Dataset
 
 Features used:
