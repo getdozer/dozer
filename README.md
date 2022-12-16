@@ -33,6 +33,8 @@
 
 [//]: # (  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>)
 
+<br>
+
 ## Why use Dozer?
 
 - Create blazing fast end to end APIs in minutes with a simple configuration.
