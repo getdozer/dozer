@@ -60,180 +60,28 @@ impl Executor {
         _notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
-        let mut connections: Vec<Connection> = vec![];
-        let mut connection_map: HashMap<String, Vec<TableInfo>> = HashMap::new();
-        let mut table_map: Huse crate::ingestion_types::{EthConfig, KafkaConfig, SnowflakeConfig};
-        use serde::{
-            de::Deserializer,
-            ser::{self, Serializer},
-        };
-        use serde::{Deserialize, Serialize};
-
-        use std::{
-            error::Error,
-            fmt::{self, Display, Formatter},
-            str::FromStr,
-        };
-
-        #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
-
-        pub struct Connection {
-            #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
-            pub authentication: Option<Authentication>,
-            #[prost(string, optional, tag = "6")]
-            #[serde(skip_serializing_if = "Option::is_none")]
-            pub id: Option<String>,
-            #[prost(string, optional, tag = "7")]
-            #[serde(skip_serializing_if = "Option::is_none")]
-            pub app_id: Option<String>,
-            #[prost(enumeration = "DBType", tag = "8")]
-            #[serde(serialize_with = "serialize_db_type_i32_as_string")]
-            #[serde(deserialize_with = "deserialize_db_type_str_as_i32")]
-            pub db_type: i32,
-            #[prost(string, tag = "9")]
-            pub name: String,
-        }
-        fn serialize_db_type_i32_as_string<S>(input: &i32, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-        {
-            let db_type = DBType::try_from(input.to_owned()).map_err(ser::Error::custom)?;
-            serializer.serialize_str(db_type.as_str_name())
-        }
-
-        fn deserialize_db_type_str_as_i32<'de, D>(deserializer: D) -> Result<i32, D::Error>
-            where
-                D: Deserializer<'de>,
-        {
-            let db_type_string = String::deserialize(deserializer)?;
-            let db_type = DBType::from_str(&db_type_string).map_err(serde::de::Error::custom)?;
-            Ok(db_type as i32)
-        }
-
-        #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Enumeration)]
-        #[repr(i32)]
-        pub enum DBType {
-            Postgres = 0,
-            Snowflake = 1,
-            Ethereum = 2,
-            Events = 3,
-            Kafka = 4,
-        }
-        impl TryFrom<i32> for DBType {
-            type Error = Box<dyn Error>;
-            fn try_from(item: i32) -> Result<Self, Self::Error> {
-                match item {
-                    0 => Ok(DBType::Postgres),
-                    1 => Ok(DBType::Snowflake),
-                    2 => Ok(DBType::Ethereum),
-                    3 => Ok(DBType::Events),
-                    4 => Ok(DBType::Kafka),
-                    _ => Err("DBType enum not match".to_owned())?,
-                }
-            }
-        }
-
-        impl DBType {
-            pub fn as_str_name(&self) -> &'static str {
-                match self {
-                    DBType::Postgres => "postgres",
-                    DBType::Snowflake => "snowflake",
-                    DBType::Ethereum => "ethereum",
-                    DBType::Events => "events",
-                    DBType::Kafka => "kafka",
-                }
-            }
-        }
-        #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
-        pub struct PostgresAuthentication {
-            #[prost(string, tag = "1")]
-            pub user: String,
-            #[prost(string, tag = "2")]
-            pub password: String,
-            #[prost(string, tag = "3")]
-            pub host: String,
-            #[prost(uint32, tag = "4")]
-            pub port: u32,
-            #[prost(string, tag = "5")]
-            pub database: String,
-        }
-        #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
-        pub struct EventsAuthentication {}
-        #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
-        pub enum Authentication {
-            #[prost(message, tag = "1")]
-            Postgres(PostgresAuthentication),
-            #[prost(message, tag = "2")]
-            Ethereum(EthConfig),
-            #[prost(message, tag = "3")]
-            Events(EventsAuthentication),
-            #[prost(message, tag = "4")]
-            Snowflake(SnowflakeConfig),
-            #[prost(message, tag = "5")]
-            Kafka(KafkaConfig),
-        }
-
-        impl Default for Authentication {
-            fn default() -> Self {
-                Authentication::Postgres(PostgresAuthentication::default())
-            }
-        }
-
-        impl Display for DBType {
-            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                write!(f, "{:?}", self)
-            }
-        }
-
-        impl FromStr for DBType {
-            type Err = &'static str;
-            fn from_str(s: &str) -> Result<DBType, Self::Err> {
-                match s {
-                    "Postgres" | "postgres" => Ok(DBType::Postgres),
-                    "Ethereum" | "ethereum" => Ok(DBType::Ethereum),
-                    "Snowflake" | "snowflake" => Ok(DBType::Snowflake),
-                    "Kafka" | "kafka" => Ok(DBType::Kafka),
-                    "Events" | "events" => Ok(DBType::Events),
-                    _ => Err("Not match any value in Enum DBType"),
-                }
-            }
-        }
-
-        #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq, ::prost::Message)]
-        pub struct AuthenticationWrapper {
-            #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
-            pub authentication: Option<Authentication>,
-        }
-
-        impl From<AuthenticationWrapper> for Authentication {
-            fn from(input: AuthenticationWrapper) -> Self {
-                input.authentication.unwrap_or_default()
-            }
-        }
-        ashMap<String, u16> = HashMap::new();
+        let mut connection_map: HashMap<Connection, Vec<TableInfo>> = HashMap::new();
+        let mut table_map: HashMap<String, u16> = HashMap::new();
 
         // Initialize Source
         // For every pipeline, there will be one Source implementation
         // that can take multiple Connectors on different ports.
         for (table_id, (idx, source)) in self.sources.iter().cloned().enumerate().enumerate() {
-            validate(source.connection.clone())?;
+            validate(source.connection.to_owned().unwrap())?;
 
             let table_name = source.table_name.clone();
-            let connection = source.connection.to_owned();
-            let id = match &connection.id {
-                Some(id) => id.clone(),
-                None => idx.to_string(),
-            };
-            connections.push(connection);
-
+            let connection = source
+                .connection
+                .expect("connection is expected")
+                .to_owned();
             let table = TableInfo {
                 name: source.table_name,
                 id: table_id as u32,
-                columns: source.columns,
+                columns: Some(source.columns),
             };
 
             connection_map
-                .entry(id)
+                .entry(connection)
                 .and_modify(|v| v.push(table.clone()))
                 .or_insert_with(|| vec![table]);
 
@@ -243,7 +91,6 @@ impl Executor {
         let source_handle = NodeHandle::new(None, "src".to_string());
 
         let source = ConnectorSourceFactory::new(
-            connections,
             connection_map,
             table_map.clone(),
             self.ingestor.to_owned(),

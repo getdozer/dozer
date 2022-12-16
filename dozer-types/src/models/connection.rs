@@ -30,16 +30,16 @@ pub struct Connection {
     pub name: String,
 }
 fn serialize_db_type_i32_as_string<S>(input: &i32, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     let db_type = DBType::try_from(input.to_owned()).map_err(ser::Error::custom)?;
     serializer.serialize_str(db_type.as_str_name())
 }
 
 fn deserialize_db_type_str_as_i32<'de, D>(deserializer: D) -> Result<i32, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let db_type_string = String::deserialize(deserializer)?;
     let db_type = DBType::from_str(&db_type_string).map_err(serde::de::Error::custom)?;
