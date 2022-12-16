@@ -231,9 +231,11 @@ fn test_run_dag_reacord_reader() {
         )
         .is_ok());
 
-    let mut options = ExecutorOptions::default();
-    options.commit_sz = 1000;
-    options.commit_time_threshold = Duration::from_millis(5);
+    let options = ExecutorOptions {
+        commit_sz: 1000,
+        commit_time_threshold: Duration::from_millis(5),
+        ..Default::default()
+    };
 
     let tmp_dir = chk!(TempDir::new("test"));
     let mut executor = chk!(DagExecutor::new(&dag, tmp_dir.path(), options));
