@@ -8,6 +8,7 @@ use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::Path;
+use dozer_types::log::error;
 
 use super::utils::{create_descriptor_set, get_proto_descriptor};
 
@@ -43,6 +44,9 @@ pub struct ProtoGenerator<'a> {
 }
 
 fn safe_name(name: &str) -> String {
+    if name.contains('-') {
+        error!("Name of the endpoint should not contains `-`.");
+    }
     name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
 }
 impl ProtoGenerator<'_> {
