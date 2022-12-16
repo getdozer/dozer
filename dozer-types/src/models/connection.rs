@@ -4,14 +4,14 @@ use std::{
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default, Hash)]
 pub struct Connection {
     pub db_type: DBType,
     pub authentication: Authentication,
     pub name: String,
     pub id: Option<String>,
 }
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default, Hash)]
 pub enum DBType {
     Postgres,
     Ethereum,
@@ -20,7 +20,7 @@ pub enum DBType {
     Snowflake,
     Kafka,
 }
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
 pub enum Authentication {
     PostgresAuthentication {
         user: String,

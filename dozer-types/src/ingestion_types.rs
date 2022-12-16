@@ -32,7 +32,7 @@ pub trait IngestorForwarder: Send + Sync {
     fn forward(&self, msg: (u64, IngestionOperation)) -> Result<(), IngestorError>;
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default, Hash)]
 pub struct EthFilter {
     // Starting block
     pub from_block: Option<u64>,
