@@ -115,7 +115,6 @@ pub fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldTy
         dozer_types::types::FieldType::Decimal => get_type_by_name("string"),
         dozer_types::types::FieldType::Timestamp => get_type_by_name("decimal"),
         dozer_types::types::FieldType::Bson => get_type_by_name("string"),
-        dozer_types::types::FieldType::Null => get_type_by_name("string"),
         dozer_types::types::FieldType::UInt => get_type_by_name("string"),
         dozer_types::types::FieldType::Text => get_type_by_name("string"),
         dozer_types::types::FieldType::Date => get_type_by_name("string"),

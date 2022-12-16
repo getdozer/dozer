@@ -89,7 +89,6 @@ pub fn json_value_to_field(
         (FieldType::Bson, _) => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Bson),
-        (FieldType::Null, Value::Null) => Ok(Field::Null),
         _ => Err(DeserializationError::Custom(
             "Json value type does not match field type"
                 .to_string()
