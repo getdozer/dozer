@@ -1,6 +1,5 @@
 ## End-to-end Examples /  Quick Start with Pre-setup
 
-### Examples
 #### 1. Hypercharge your Postgres by offloading read APIs to `Dozer`
 [End-to-end hypercharge postgres example](./1_hypercharge_postgres/README.md)
 
