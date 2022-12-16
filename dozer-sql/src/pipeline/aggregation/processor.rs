@@ -23,6 +23,10 @@ pub enum FieldRule {
     Dimension(
         /// Expression for this dimension
         Box<Expression>,
+        /// true of this field should be included in the list of values of the
+        /// output schema, otherwise false. Generally, this value is true if the field appears
+        /// in the output results in addition to being in the list of the GROUP BY fields
+        bool,
         /// Name of the field, if renaming is required. If `None` the original name is retained
         String,
     ),
@@ -56,7 +60,6 @@ impl<'a> AggregationData<'a> {
 }
 
 pub struct AggregationProcessor {
-    output_field_rules: Vec<FieldRule>,
     out_dimensions: Vec<(Box<Expression>, usize)>,
     out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)>,
     pub db: Option<Database>,
@@ -80,7 +83,6 @@ impl AggregationProcessor {
     pub fn new(output_field_rules: Vec<FieldRule>, input_schema: Schema) -> Self {
         let (out_measures, out_dimensions) = populate_rules(&output_field_rules).unwrap();
         Self {
-            output_field_rules,
             out_dimensions,
             out_measures,
             db: None,
@@ -327,8 +329,9 @@ impl AggregationProcessor {
         db: &Database,
         old: &Record,
     ) -> Result<Operation, PipelineError> {
-        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
-        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
+        let size = self.out_measures.len() + self.out_dimensions.len();
+        let mut out_rec_insert = Record::nulls(None, size);
+        let mut out_rec_delete = Record::nulls(None, size);
 
         let record_hash = if !self.out_dimensions.is_empty() {
             get_key(old, &self.out_dimensions)?
@@ -381,8 +384,9 @@ impl AggregationProcessor {
         db: &Database,
         new: &Record,
     ) -> Result<Operation, PipelineError> {
-        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
-        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
+        let size = self.out_measures.len() + self.out_dimensions.len();
+        let mut out_rec_insert = Record::nulls(None, size);
+        let mut out_rec_delete = Record::nulls(None, size);
 
         let record_hash = if !self.out_dimensions.is_empty() {
             get_key(new, &self.out_dimensions)?
@@ -434,8 +438,9 @@ impl AggregationProcessor {
         new: &Record,
         record_hash: Vec<u8>,
     ) -> Result<Operation, PipelineError> {
-        let mut out_rec_insert = Record::nulls(None, self.output_field_rules.len());
-        let mut out_rec_delete = Record::nulls(None, self.output_field_rules.len());
+        let size = self.out_measures.len() + self.out_dimensions.len();
+        let mut out_rec_insert = Record::nulls(None, size);
+        let mut out_rec_delete = Record::nulls(None, size);
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
         let cur_state = txn.get(db, record_key.as_slice())?;
@@ -570,8 +575,10 @@ fn populate_rules(output_field_rules: &[FieldRule]) -> Result<OutputRules, Pipel
             FieldRule::Measure(pre_aggr, aggr, _name) => {
                 out_measures.push((pre_aggr.clone(), Box::new(aggr.clone()), rule.0));
             }
-            FieldRule::Dimension(expression, _name) => {
-                out_dimensions.push((expression.clone(), rule.0));
+            FieldRule::Dimension(expression, is_value, _name) => {
+                if *is_value {
+                    out_dimensions.push((expression.clone(), rule.0));
+                }
             }
         }
     }
