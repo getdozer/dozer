@@ -37,10 +37,10 @@
 
 ## Why use Dozer?
 
-- Create blazing fast end to end APIs in minutes with a simple configuration.
+- Create **blazing fast** end to end APIs in minutes with a simple configuration.
 - Build and rapidly iterate on customer facing data apps.
-- Extend Dozer with custom connectors, operators and Api transformations using WASM.
-- Built in Rust with performance and extensibility in mind.
+- Extend Dozer with **custom connectors, operators and Api transformations** using **WASM**.
+- Built in **Rust** with performance and extensibility in mind.
 
 <br>
 
