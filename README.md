@@ -29,7 +29,7 @@
   <a><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a>
   <a><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>
   <a href="https://github.com/meilisearch/meilisearch/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
-</p><br>
+</p>
 
 [//]: # (  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>)
 
