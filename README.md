@@ -40,6 +40,8 @@
 - Extend Dozer with custom connectors, operators and Api transformations using WASM.
 - Built in Rust with performance and extensibility in mind.
 
+<br>
+
 ## Quick Start
 
 Download the latest stable binary or source code for a quick start. Check out our latest release details [here](https://github.com/getdozer/dozer/releases/latest).
@@ -57,6 +59,7 @@ curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWnt
 cd dozer
 docker compose -f tests/simple_e2e_example/docker-compose.yml up
 ```
+<br>
 
 ## End-to-end Examples
 
@@ -72,6 +75,8 @@ Check out this module for above [end-to-end examples](./examples/README.md).
 
 
 [//]: # (## Architecture)
+
+<br>
 
 ## Features
 
@@ -92,7 +97,9 @@ Check out this module for above [end-to-end examples](./examples/README.md).
     - gRPC and REST APIs automatically generated
     - Protobuf an Open API documentation
     - TypeSafe APIs
-    - Realtime Streaming
+  - Realtime Streaming
+  
+<br>
 
 [//]: # (## Contributing)
 
