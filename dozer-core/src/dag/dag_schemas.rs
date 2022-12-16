@@ -169,8 +169,8 @@ impl<'a> DagSchemaManager<'a> {
 
         let mut schemas: HashMap<NodeHandle, NodeSchemas> = dag
             .nodes
-            .iter()
-            .map(|(handle, _)| (handle.clone(), NodeSchemas::new()))
+            .keys()
+            .map(|handle| (handle.clone(), NodeSchemas::new()))
             .collect();
 
         for source in sources {

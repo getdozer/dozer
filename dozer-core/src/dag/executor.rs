@@ -41,8 +41,8 @@ pub struct ExecutorOptions {
     pub commit_time_threshold: Duration,
 }
 
-impl ExecutorOptions {
-    pub fn default() -> Self {
+impl Default for ExecutorOptions {
+    fn default() -> Self {
         Self {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,

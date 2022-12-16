@@ -17,7 +17,7 @@ pub fn map_connection_config(
     {
         Ok(tokio_postgres::Config::new()
             .host(host)
-            .port(*port as u16)
+            .port(*port)
             .user(user)
             .dbname(database)
             .password(password)

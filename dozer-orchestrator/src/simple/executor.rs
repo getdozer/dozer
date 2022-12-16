@@ -89,7 +89,7 @@ impl Executor {
                 .and_modify(|v| v.push(table.clone()))
                 .or_insert_with(|| vec![table]);
 
-            table_map.insert(table_name, (idx as usize).try_into().unwrap());
+            table_map.insert(table_name, idx.try_into().unwrap());
         }
 
         let source_handle = NodeHandle::new(None, "src".to_string());
