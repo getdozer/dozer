@@ -67,9 +67,9 @@ docker compose -f tests/simple_e2e_example/docker-compose.yml up
 
 ### What can you build with Dozer?
 
-1. Hypercharge your Postgres by offloading read APIs to `Dozer`
-2. Real time ML predictions deployed as APIs from Snowflake
-3. Real time Ethereum Stats published as a grafana dashboard
+1. Hypercharge your **Postgres** by offloading read APIs to `Dozer`
+2. **Real time ML predictions** deployed as APIs from **Snowflake**
+3. **Real time Ethereum Stats** published as a grafana dashboard
 
 [//]: # (### Screenshots)
 
@@ -82,20 +82,20 @@ Check out this module for above [end-to-end examples](./examples/README.md).
 
 ## Features
 
-- Connect your sources
+- **Connect your sources**
     - Import real time data from Postgres as CDC, Snowflake Table Stream etc.
     - Create your own connector using Rust
     - Automatic schema evolution and validation
-- Transform in REAL-TIME
+- **Transform in REAL-TIME**
     - Use SQL to perform joins, aggregations and filer operations in real time across sources.
     - Use it like an ORM; Map relational data to object entities using Dozer SQL extensions
     - Build custom functions for aggregation, selection etc. using WASM
-- Optimize for serving
+- **Optimize for serving**
     - Define indices with a simple configuration
     - Support for multiple indices such as Inverted, Full Test, Compound, Geo (Coming soon!) etc.
     - Apply filter and sort operations on cached data
     - Support for Push and Pull queries
-- Publish blazing fast APIs
+- **Publish blazing fast APIs**
     - gRPC and REST APIs automatically generated
     - Protobuf an Open API documentation
     - TypeSafe APIs
