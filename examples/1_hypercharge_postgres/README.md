@@ -20,9 +20,7 @@ cargo run
 
 ### gRPC & REST API
 
-<details>
-<summary><h3>gRPC API</h3></summary>
-Example Config for gRPC API
+#### gRPC API
 
 ```yaml
 api:
@@ -45,11 +43,11 @@ Use server reflection as a source of the gRPC API.
     <img src="https://drive.google.com/uc?export=view&id=11tji0bhcLei7V-SiSQgY6CfMX9r6q_2C" width=60%">
 </div>
 
-</details>
+<div align="center">
+    <img src="https://drive.google.com/uc?export=view&id=1LTayAdpDGWHkJGQ-R9rGDWwOmvctwtBY" width=60%">
+</div>
 
-<details>
-<summary><h3>REST API</h3></summary>
-Example Config for REST API
+#### REST API
 
 ```yaml
 api:
@@ -90,5 +88,3 @@ Endpoint details are coming from above yaml for REST APIs.
 <div align="center">
     <img src="https://drive.google.com/uc?export=view&id=1sAugL5gVxf_5UvJh1H8uRQ7EV-6yvMK2" width=60%">
 </div>
-
-</details>
