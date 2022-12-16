@@ -3,7 +3,7 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 
-use crate::models::api_config::default_api_config;
+use crate::{models::api_config::default_api_config, constants::DEFAULT_HOME_DIR};
 
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, source::Source,
@@ -23,6 +23,13 @@ pub struct Config {
     pub sources: Vec<Source>,
     #[prost(message, repeated, tag = "6")]
     pub endpoints: Vec<ApiEndpoint>,
+    #[prost(string, tag = "7")]
+    #[serde(default = "default_home_dir")]
+    pub home_dir: String,
+}
+
+fn default_home_dir() -> String {
+    DEFAULT_HOME_DIR.to_owned()
 }
 impl<'de> Deserialize<'de> for Config {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -48,6 +55,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut endpoints: Vec<ApiEndpoint> = vec![];
                 let mut app_name = "".to_owned();
                 let mut id: Option<String> = None;
+                let mut home_dir: String = default_home_dir();
                 while let Some(key) = access.next_key()? {
                     match key {
                         "id" => {
@@ -67,6 +75,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "endpoints" => {
                             endpoints = access.next_value::<Vec<ApiEndpoint>>()?;
+                        }
+                        "home_dir" => {
+                            home_dir = access.next_value::<String>()?;
                         }
                         _ => {
                             access.next_value::<IgnoredAny>()?;
@@ -96,12 +107,13 @@ impl<'de> Deserialize<'de> for Config {
                     .collect();
 
                 Ok(Config {
+                    id,
                     app_name,
                     api,
                     connections,
                     sources,
                     endpoints,
-                    id,
+                    home_dir
                 })
             }
         }

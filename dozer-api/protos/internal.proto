@@ -38,6 +38,7 @@ message ApplicationDetail {
   repeated ConnectionInfo connections = 4;
   repeated SourceInfo sources = 5;
   repeated EndpointInfo endpoints = 6;
+  string home_dir = 7;
 }
 
 //========== ApiConfig =====
@@ -64,6 +65,7 @@ message ApiGrpc {
 message ApiInternal {
   uint32 port = 1;
   string host = 2;
+  string home_dir = 3;
 }
 
 //========== ConnectionInfo =====
