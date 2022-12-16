@@ -10,7 +10,9 @@ use std::{
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+
 pub struct Connection {
     #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
     pub authentication: Option<Authentication>,

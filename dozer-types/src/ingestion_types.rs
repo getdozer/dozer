@@ -32,7 +32,8 @@ pub trait IngestorForwarder: Send + Sync {
     fn forward(&self, msg: (u64, IngestionOperation)) -> Result<(), IngestorError>;
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+
 pub struct EthFilter {
     // Starting block
     #[prost(uint64, optional, tag = "1")]

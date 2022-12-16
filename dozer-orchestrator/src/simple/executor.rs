@@ -60,8 +60,7 @@ impl Executor {
         _notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
-        let mut connections: Vec<Connection> = vec![];
-        let mut connection_map: HashMap<String, Vec<TableInfo>> = HashMap::new();
+        let mut connection_map: HashMap<Connection, Vec<TableInfo>> = HashMap::new();
         let mut table_map: HashMap<String, u16> = HashMap::new();
 
         // Initialize Source
@@ -71,13 +70,7 @@ impl Executor {
             validate(source.connection.to_owned().unwrap())?;
 
             let table_name = source.table_name.clone();
-            let connection = source.connection.to_owned().unwrap();
-            let id = match &connection.id {
-                Some(id) => id.clone(),
-                None => idx.to_string(),
-            };
-            connections.push(connection);
-
+            let connection = source.connection.to_owned();
             let table = TableInfo {
                 name: source.table_name,
                 id: table_id as u32,
@@ -85,7 +78,7 @@ impl Executor {
             };
 
             connection_map
-                .entry(id)
+                .entry(connection)
                 .and_modify(|v| v.push(table.clone()))
                 .or_insert_with(|| vec![table]);
 
@@ -95,7 +88,6 @@ impl Executor {
         let source_handle = NodeHandle::new(None, "src".to_string());
 
         let source = ConnectorSourceFactory::new(
-            connections,
             connection_map,
             table_map.clone(),
             self.ingestor.to_owned(),
