@@ -92,14 +92,9 @@ docker compose -f tests/simple_e2e_example/docker-compose.yml up
 ### Screenshots
 
 
-## Examples / Samples
+## End-to-end Examples
 
-#### 1. Hypercharge your Postgres by offloading read APIs to `Dozer`
-
-#### 2. Real time ML predictions deployed as APIs from Snowflake
-
-#### 3. Real time Ethereum Stats published as a grafana dashboard
-
+Check out our end-to-end examples [here](./examples/README.md)
 
 ## Contributing
 
