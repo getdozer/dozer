@@ -31,18 +31,19 @@ api:
     web: true
 ```
 
-Use server reflection as a source of the gRPC API.
+Use server reflection as a source of the gRPC API. `[::0]50051` is from yaml configuration.
 
+<details>
+<summary>Screenshots</summary>
 <div align="center">
     <img src="https://drive.google.com/uc?export=view&id=1zcYcUMY7KGJy8MxkZM9noF_MAp5jLPzZ" width=70%">
 </div>
-
-`[::0]50051` is from yaml configuration.
 
 <div align="center">
     <img src="https://drive.google.com/uc?export=view&id=11tji0bhcLei7V-SiSQgY6CfMX9r6q_2C" width=70%">
     <img src="https://drive.google.com/uc?export=view&id=18qScvOY8q9UM0zeu5DgViwUN37y2cbIy" width=70%">
 </div>
+</details>
 
 #### REST API
 
@@ -74,6 +75,11 @@ endpoints:
 
 Endpoint details are coming from above yaml for REST APIs.
 
+
+
+<details>
+<summary>Screenshots</summary>
+
 `/stocks`
 
 <div align="center">
@@ -85,3 +91,8 @@ Endpoint details are coming from above yaml for REST APIs.
 <div align="center">
     <img src="https://drive.google.com/uc?export=view&id=1sAugL5gVxf_5UvJh1H8uRQ7EV-6yvMK2" width=70%">
 </div>
+</details>
+
+
+
+
