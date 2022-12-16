@@ -171,7 +171,7 @@ impl AggregationProcessor {
             0_usize
         };
 
-        Ok((5 + sz_val.len() as usize + len, r))
+        Ok((5 + sz_val.len() + len, r))
     }
 
     fn calc_and_fill_measures(
