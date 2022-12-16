@@ -41,7 +41,7 @@ Use server reflection as a source of the gRPC API.
 
 <div align="center">
     <img src="https://drive.google.com/uc?export=view&id=11tji0bhcLei7V-SiSQgY6CfMX9r6q_2C" width=70%">
-    <img src="https://drive.google.com/uc?export=view&id=1LTayAdpDGWHkJGQ-R9rGDWwOmvctwtBY" width=70%">
+    <img src="https://drive.google.com/uc?export=view&id=18qScvOY8q9UM0zeu5DgViwUN37y2cbIy" width=70%">
 </div>
 
 #### REST API
