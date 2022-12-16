@@ -16,7 +16,6 @@ use crate::pipeline::{
         execution::{Expression, ExpressionExecutor},
     },
     projection::{factory::parse_sql_select_item, processor::ProjectionProcessor},
-    projection::{factory::parse_sql_select_item, processor::ProjectionProcessor},
 };
 
 use super::{
@@ -63,11 +62,6 @@ impl ProcessorFactory for AggregationProcessorFactory {
         }
 
         build_projection_schema(input_schema, &self.select)
-        if is_aggregation(&self.groupby, &output_field_rules) {
-            return build_output_schema(input_schema, output_field_rules);
-        }
-
-        build_projection_schema(input_schema, &self.select)
     }
 
     fn build(
@@ -98,35 +92,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(expressions))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
-
-        if is_aggregation(&self.groupby, &output_field_rules) {
-            return Ok(Box::new(AggregationProcessor::new(
-                output_field_rules,
-                input_schema.clone(),
-            )));
-        }
-
-        // Build a Projection
-        match self
-            .select
-            .iter()
-            .map(|item| parse_sql_select_item(item, input_schema))
-            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
-        {
-            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(expressions))),
-            Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
-        }
     }
-}
-
-fn is_aggregation(groupby: &[SqlExpr], output_field_rules: &[FieldRule]) -> bool {
-    if !groupby.is_empty() {
-        return true;
-    }
-
-    output_field_rules
-        .iter()
-        .any(|rule| matches!(rule, FieldRule::Measure(_, _, _)))
 }
 
 fn is_aggregation(groupby: &[SqlExpr], output_field_rules: &[FieldRule]) -> bool {
@@ -142,10 +108,8 @@ fn is_aggregation(groupby: &[SqlExpr], output_field_rules: &[FieldRule]) -> bool
 pub(crate) fn get_aggregation_rules(
     select: &[SelectItem],
     groupby: &[SqlExpr],
-    groupby: &[SqlExpr],
     schema: &Schema,
 ) -> Result<Vec<FieldRule>, PipelineError> {
-    let mut select_rules = select
     let mut select_rules = select
         .iter()
         .map(|item| parse_sql_aggregate_item(item, schema))
@@ -186,11 +150,6 @@ fn parse_sql_aggregate_item(
                     true,
                     sql_expr.to_string(),
                 )),
-                Err(_) => Ok(FieldRule::Dimension(
-                    expression.0,
-                    true,
-                    sql_expr.to_string(),
-                )),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
@@ -203,17 +162,6 @@ fn parse_sql_aggregate_item(
             "Qualified Wildcard Operator is not supported".to_string(),
         )),
     }
-}
-
-fn parse_sql_groupby_item(
-    sql_expression: &SqlExpr,
-    schema: &Schema,
-) -> Result<FieldRule, PipelineError> {
-    Ok(FieldRule::Dimension(
-        ExpressionBuilder {}.build(&ExpressionType::FullExpression, sql_expression, schema)?,
-        false,
-        sql_expression.to_string(),
-    ))
 }
 
 fn parse_sql_groupby_item(
