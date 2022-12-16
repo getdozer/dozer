@@ -1,12 +1,13 @@
 use super::internal_grpc::{
-    self, internal_pipeline_service_client::InternalPipelineServiceClient,
-    internal_pipeline_service_server::InternalPipelineService, PipelineRequest, PipelineResponse,
+    internal_api_service_client::InternalApiServiceClient,
+    internal_api_service_server::{self, InternalApiService},
+    PipelineRequest, PipelineResponse,
 };
 use crossbeam::channel::Receiver;
 use dozer_types::{
     crossbeam::channel::Sender,
     log::{self, debug},
-    models::api_config::ApiInternal,
+    models::{api_config::ApiInternal, app_config::Config},
 };
 use log::warn;
 use std::{net::ToSocketAddrs, thread, time::Duration};
@@ -20,7 +21,7 @@ pub struct InternalServer {
 type PipelineResult<T> = Result<Response<T>, Status>;
 
 #[tonic::async_trait]
-impl InternalPipelineService for InternalServer {
+impl InternalApiService for InternalServer {
     async fn stream_pipeline_request(
         &self,
         request: tonic::Request<tonic::Streaming<PipelineRequest>>,
@@ -49,32 +50,38 @@ impl InternalPipelineService for InternalServer {
     }
 }
 
-pub async fn start_internal_server(
-    internal_config: ApiInternal,
+pub async fn start_internal_api_server(
+    app_config: Config,
     sender: Sender<PipelineRequest>,
 ) -> Result<(), tonic::transport::Error> {
     let server = InternalServer { sender };
+    let internal_config = app_config
+        .api
+        .unwrap_or_default()
+        .api_internal
+        .unwrap_or_default();
     let mut addr = format!("{}:{}", internal_config.host, internal_config.port)
         .to_socket_addrs()
         .unwrap();
     Server::builder()
-        .add_service(
-            internal_grpc::internal_pipeline_service_server::InternalPipelineServiceServer::new(
-                server,
-            ),
-        )
+        .add_service(internal_api_service_server::InternalApiServiceServer::new(
+            server,
+        ))
         .serve(addr.next().unwrap())
         .await
 }
 
-pub fn start_internal_client(internal_config: ApiInternal, receiver: Receiver<PipelineRequest>) {
+pub fn start_internal_api_client(
+    internal_config: ApiInternal,
+    receiver: Receiver<PipelineRequest>,
+) {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let mut connected = false;
         let mut idx = 0;
         while !connected {
             let addr = format!("http://{}:{}", internal_config.host, internal_config.port);
-            if let Ok(mut client) = InternalPipelineServiceClient::connect(addr).await {
+            if let Ok(mut client) = InternalApiServiceClient::connect(addr).await {
                 connected = true;
                 let iterator = InternalIterator {
                     receiver: receiver.to_owned(),

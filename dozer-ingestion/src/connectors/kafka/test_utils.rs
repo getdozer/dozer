@@ -2,6 +2,7 @@ use crate::connectors::postgres::connection::helper::{connect, map_connection_co
 use crate::connectors::{get_connector, TableInfo};
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
+use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::models::app_config::Config;
 use dozer_types::models::connection::Authentication;
 
@@ -95,17 +96,17 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
         }];
 
         let mut connection = config.config.connections.get(0).unwrap().clone();
-        if let Authentication::KafkaAuthentication {
+        if let Some(Authentication::Kafka(KafkaConfig {
             broker,
             topic: _,
             schema_registry_url,
-        } = connection.authentication
+        })) = connection.authentication
         {
-            connection.authentication = Authentication::KafkaAuthentication {
+            connection.authentication = Some(Authentication::Kafka(KafkaConfig {
                 broker,
                 topic: format!("dbserver1.public.{}", table_name),
                 schema_registry_url,
-            };
+            }));
         };
 
         if table_name != "products_test" {

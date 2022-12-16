@@ -10,6 +10,20 @@ diesel::table! {
 }
 
 diesel::table! {
+    configs (id) {
+        id -> Text,
+        app_id -> Text,
+        rest -> Text,
+        grpc -> Text,
+        api_internal -> Text,
+        pipeline_internal -> Text,
+        auth -> Bool,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     connections (id) {
         id -> Text,
         app_id -> Text,
@@ -27,8 +41,6 @@ diesel::table! {
         app_id -> Text,
         name -> Text,
         path -> Text,
-        enable_rest -> Bool,
-        enable_grpc -> Bool,
         sql -> Text,
         primary_keys -> Text,
         created_at -> Timestamp,
@@ -53,11 +65,14 @@ diesel::table! {
         name -> Text,
         table_name -> Text,
         connection_id -> Text,
+        #[sql_name = "columns"]
+        columns_ -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
 }
 
+diesel::joinable!(configs -> apps (app_id));
 diesel::joinable!(connections -> apps (app_id));
 diesel::joinable!(endpoints -> apps (app_id));
 diesel::joinable!(source_endpoints -> apps (app_id));
@@ -68,6 +83,7 @@ diesel::joinable!(sources -> connections (connection_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     apps,
+    configs,
     connections,
     endpoints,
     source_endpoints,

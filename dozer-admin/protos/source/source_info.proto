@@ -6,5 +6,6 @@ message SourceInfo {
   string app_id = 2;
   string name = 3;
   string table_name = 4;
-  ConnectionInfo connection = 5;
+  repeated string columns = 5;
+  ConnectionInfo connection = 6;
 }

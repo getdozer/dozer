@@ -4,13 +4,16 @@ syntax = "proto3";
 package dozer.internal;
 import "types.proto";
 
-service InternalPipelineService {
-  // ClientStreamingEcho is client side streaming.
-  rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse) {
-  }
+service InternalApiService {
+  rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse);
 }
 
-// ---------------- Internal ------------------------
+service InternalPipelineService {
+  rpc GetConfig(GetAppConfigRequest) returns (GetAppConfigResponse);
+  rpc Restart(RestartPipelineRequest) returns (RestartPipelineResponse); 
+}
+
+// ---------------- Api ------------------------
 message PipelineRequest {
   string endpoint = 1;
   oneof api_event {
@@ -18,5 +21,137 @@ message PipelineRequest {
     dozer.types.Operation op = 3;
   }
 }
-
 message PipelineResponse {}
+
+// ---------------- Pipeline ------------------------
+message RestartPipelineRequest {}
+message RestartPipelineResponse {}
+
+message GetAppConfigRequest {}
+message GetAppConfigResponse {
+  ApplicationDetail data = 1;
+}
+message ApplicationDetail {
+  optional string id = 1;
+  string app_name = 2;
+  ApiConfig api = 3;
+  repeated ConnectionInfo connections = 4;
+  repeated SourceInfo sources = 5;
+  repeated EndpointInfo endpoints = 6;
+}
+
+//========== ApiConfig =====
+message ApiConfig {
+  ApiRest rest = 1;
+  ApiGrpc grpc = 2;
+  bool auth = 3;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  optional string app_id = 6;
+  optional string id = 7;
+}
+message ApiRest {
+  uint32 port = 1;
+  string url = 2;
+  bool cors = 3;
+}
+message ApiGrpc {
+  uint32 port = 1;
+  string url = 2;
+  bool cors = 3;
+  bool web = 4;
+}
+message ApiInternal {
+  uint32 port = 1;
+  string host = 2;
+}
+
+//========== ConnectionInfo =====
+message ConnectionInfo {
+  oneof authentication {
+    PostgresAuthentication Postgres = 1;
+    EthereumAuthentication Ethereum = 2;
+    EventsAuthentication Events = 3;
+    SnowflakeAuthentication Snowflake = 4;
+    KafkaAuthentication Kafka = 5;
+  }
+  string id = 6;
+  string app_id = 7;
+  DBType db_type = 8;
+  string name = 9;
+}
+enum DBType {
+  Postgres = 0;
+  Snowflake = 1;
+  Ethereum = 2;
+  Events = 3;
+  Kafka = 4;
+}
+message Authentication {
+  oneof authentication {
+    PostgresAuthentication Postgres = 1;
+    EthereumAuthentication Ethereum = 2;
+    EventsAuthentication Events = 3;
+    SnowflakeAuthentication Snowflake = 4;
+    KafkaAuthentication Kafka = 5;
+  }
+}
+message SnowflakeAuthentication {
+  string server = 1;
+  string port = 2;
+  string user = 3;
+  string password = 4;
+  string database = 5;
+  string schema = 6;
+  string warehouse = 7;
+  optional string driver = 8;
+}
+message PostgresAuthentication {
+  string database = 1;
+  string user = 2;
+  string host = 3;
+  uint32 port = 4;
+  string password = 5;
+}
+message KafkaAuthentication {
+  string broker = 1;
+  string topic = 2;
+}
+message EventsAuthentication {
+  string database = 1;
+}
+message EthereumAuthentication {
+  EthereumFilter filter = 1;
+  string wss_url = 2;
+  string name = 3;
+}
+message EthereumFilter {
+  optional uint64 from_block = 1;
+  repeated string addresses = 2;
+  repeated string topics = 3;
+}
+//========== SourceInfo =====
+message SourceInfo {
+  string id = 1;
+  string app_id = 2;
+  string name = 3;
+  string table_name = 4;
+  repeated string columns = 5;
+  ConnectionInfo connection = 6;
+}
+//========== EndpointInfo =====
+
+message EndpointInfo {
+  string id = 1;
+  string app_id = 2;
+  string name = 3;
+  string path = 4;
+  string sql = 5;
+  ApiIndex index = 6;
+}
+
+message ApiIndex {
+  repeated string primary_key = 1;
+}
+
+// ======= Restart 

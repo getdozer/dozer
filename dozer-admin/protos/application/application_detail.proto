@@ -1,0 +1,16 @@
+
+syntax = "proto3";
+package dozer_admin_grpc;
+import "protos/api_config/api_config.proto";
+import "protos/connection/connection_info.proto";
+import "protos/source/source_info.proto";
+import "protos/endpoint/endpoint_info.proto";
+
+message ApplicationDetail {
+  optional string id = 1;
+  string app_name = 2;
+  ApiConfig api = 3;
+  repeated ConnectionInfo connections = 4;
+  repeated SourceInfo sources = 5;
+  repeated EndpointInfo endpoints = 6;
+}

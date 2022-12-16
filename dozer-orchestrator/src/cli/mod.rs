@@ -1,3 +1,5 @@
+#[cfg(test)]
+pub mod tests;
 pub mod types;
 use super::OrchestrationError;
 use dozer_types::{models::app_config::Config, serde_yaml};

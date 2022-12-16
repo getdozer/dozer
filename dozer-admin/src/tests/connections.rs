@@ -1,10 +1,13 @@
 #[cfg(test)]
 mod grpc_service {
+    use dozer_types::models::connection::{
+        Authentication, AuthenticationWrapper, DBType, EventsAuthentication,
+    };
+
     use crate::server::dozer_admin_grpc::{
-        authentication, Authentication, CreateConnectionRequest, CreateConnectionResponse,
-        EthereumAuthentication, GetAllConnectionRequest, GetAllConnectionResponse,
-        GetConnectionDetailsRequest, UpdateConnectionRequest, UpdateConnectionResponse,
-        ValidateConnectionRequest, ValidateConnectionResponse,
+        CreateConnectionRequest, CreateConnectionResponse, GetAllConnectionRequest,
+        GetAllConnectionResponse, GetConnectionDetailsRequest, UpdateConnectionRequest,
+        UpdateConnectionResponse, ValidateConnectionRequest, ValidateConnectionResponse,
     };
     use crate::services::connection_service::ConnectionService;
     use crate::tests::util_sqlite_setup::database_url_for_test_env;
@@ -23,7 +26,10 @@ mod grpc_service {
             })
             .unwrap();
         assert_eq!(result.data.len(), setup_ids.connection_ids.len());
-        assert!(setup_ids.connection_ids.contains(&result.data[0].id));
+        assert!(result.data[0].id.is_some());
+        assert!(setup_ids
+            .connection_ids
+            .contains(&result.data[0].id.to_owned().unwrap()));
     }
 
     #[test]
@@ -35,20 +41,20 @@ mod grpc_service {
         let request = CreateConnectionRequest {
             app_id: setup_ids.app_id,
             name: "connection_name".to_owned(),
-            r#type: 0,
-            authentication: Some(Authentication {
-                authentication: Some(authentication::Authentication::Ethereum(
-                    EthereumAuthentication {
-                        wss_url: "wss::link".to_owned(),
-                        filter: None,
-                    },
-                )),
+            r#type: DBType::Events as i32,
+            authentication: Some(AuthenticationWrapper {
+                authentication: Some(Authentication::Events(EventsAuthentication {})),
             }),
         };
         let result: CreateConnectionResponse = connection_service
             .create_connection(request.to_owned())
             .unwrap();
-        assert_eq!(result.data.unwrap().name, request.name);
+        assert_eq!(result.data.to_owned().unwrap().name, request.name);
+        assert_eq!(result.data.to_owned().unwrap().db_type, request.r#type);
+        assert_eq!(
+            result.data.unwrap().authentication,
+            request.authentication.unwrap().authentication
+        );
     }
     #[test]
     pub fn update() {
@@ -92,14 +98,9 @@ mod grpc_service {
         let result: ValidateConnectionResponse = connection_service
             .validate_connection(ValidateConnectionRequest {
                 name: "test_connection".to_owned(),
-                r#type: 3,
-                authentication: Some(Authentication {
-                    authentication: Some(authentication::Authentication::Ethereum(
-                        EthereumAuthentication {
-                            wss_url: "wss::link".to_owned(),
-                            filter: None,
-                        },
-                    )),
+                r#type: DBType::Events as i32,
+                authentication: Some(AuthenticationWrapper {
+                    authentication: Some(Authentication::Events(EventsAuthentication {})),
                 }),
             })
             .await

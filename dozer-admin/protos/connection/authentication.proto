@@ -3,11 +3,11 @@ package dozer_admin_grpc;
 
 message Authentication {
   oneof authentication {
-    PostgresAuthentication postgres = 1;
-    EthereumAuthentication ethereum = 2;
-    SnowflakeAuthentication snowflake = 3;
-    EventsAuthentication events = 4;
-    KafkaAuthentication kafka = 5;
+    PostgresAuthentication Postgres = 1;
+    EthereumAuthentication Ethereum = 2;
+    EventsAuthentication Events = 3;
+    SnowflakeAuthentication Snowflake = 4;
+    KafkaAuthentication Kafka = 5;
   }
 }
 
@@ -22,11 +22,11 @@ message SnowflakeAuthentication {
   optional string driver = 8;
 }
 message PostgresAuthentication {
-  string database = 1;
-  string user = 2;
+  string user = 1;
+  string password = 2;
   string host = 3;
   uint32 port = 4;
-  string password = 5;
+  string database = 5;
 }
 message KafkaAuthentication {
   string broker = 1;
@@ -38,8 +38,9 @@ message EventsAuthentication {
 }
 
 message EthereumAuthentication {
-  string wss_url = 1;
-  EthereumFilter filter = 2;
+  EthereumFilter filter = 1;
+  string wss_url = 2;
+  string name = 3;
 }
 
 message EthereumFilter {

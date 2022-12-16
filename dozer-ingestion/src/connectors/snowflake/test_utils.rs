@@ -2,31 +2,12 @@ use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 use crate::errors::SnowflakeError;
-use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::models::connection::{Authentication, Connection};
 use odbc::create_environment_v3;
 
 pub fn get_client(connection: &Connection) -> Client {
-    let config = match connection.authentication.clone() {
-        Authentication::SnowflakeAuthentication {
-            server,
-            port,
-            user,
-            password,
-            database,
-            schema,
-            warehouse,
-            driver,
-        } => Some(SnowflakeConfig {
-            server,
-            port,
-            user,
-            password,
-            database,
-            schema,
-            warehouse,
-            driver,
-        }),
+    let config = match connection.authentication.to_owned().unwrap_or_default() {
+        Authentication::Snowflake(snowflake_config) => Some(snowflake_config),
         _ => None,
     };
 

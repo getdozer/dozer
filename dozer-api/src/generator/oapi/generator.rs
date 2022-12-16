@@ -72,7 +72,7 @@ impl OpenApiGenerator {
             parameters: vec![ReferenceOr::Item(Parameter::Path {
                 parameter_data: ParameterData {
                     name: "id".to_owned(),
-                    description: Some(format!("Primary key of the document - {} ", self.endpoint.index.primary_key.join(", "))),
+                    description: Some(format!("Primary key of the document - {} ", self.endpoint.index.to_owned().unwrap().primary_key.join(", "))),
                     required: true,
                     format: ParameterSchemaOrContent::Schema(ReferenceOr::Item(Schema {
                         schema_data: SchemaData {

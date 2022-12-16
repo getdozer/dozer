@@ -6,14 +6,16 @@ import "protos/connection/connection_type.proto";
 import "protos/source/source_info.proto";
 import "protos/endpoint/endpoint_info.proto";
 import "protos/application/application_info.proto";
+import "protos/application/application_detail.proto";
+import "protos/api_config/api_config.proto";
 import "protos/connection/authentication.proto";
 
 service DozerAdmin {
   rpc create_application(CreateAppRequest) returns (CreateAppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
   rpc update_application(UpdateAppRequest) returns (UpdateAppResponse);
+  rpc get_application(GetAppRequest) returns (GetAppResponse);
 
-  rpc test_connection(TestConnectionRequest) returns (TestConnectionResponse);
   rpc validate_connection(ValidateConnectionRequest) returns (ValidateConnectionResponse);
 
   rpc create_connection(CreateConnectionRequest) returns (CreateConnectionResponse);
@@ -35,6 +37,10 @@ service DozerAdmin {
 
 
   rpc start_pipeline(StartPipelineRequest) returns (StartPipelineResponse);
+  
+  rpc createApiConfig(CreateApiConfigRequest) returns (CreateApiConfigResponse);
+  rpc updateApiConfig(UpdateApiConfigRequest) returns (UpdateApiConfigResponse);
+  rpc getApiConfig(GetApiConfigRequest) returns (GetApiConfigResponse);
 }
 
 message StartPipelineRequest {
@@ -66,16 +72,18 @@ message UpdateAppRequest {
 message UpdateAppResponse {
   ApplicationInfo data = 1;
 }
-
+message GetAppRequest {
+  optional string app_id = 1;
+}
+message GetAppResponse {
+  ApplicationDetail data = 1;
+}
 message CreateEndpointRequest {
   string app_id = 1;
   string name = 2;
   string path = 3;
-  bool enable_rest = 4;
-  bool enable_grpc = 5;
-  string sql = 6;
-  repeated string source_ids = 7;
-  repeated string primary_keys = 9;
+  string sql = 4;
+  ApiIndex index = 5;
 
 }
 
@@ -102,40 +110,28 @@ message UpdateEndpointRequest {
   string app_id = 2;
   optional string name = 3;
   optional string path = 4;
-  optional bool enable_rest = 5;
-  optional bool enable_grpc = 6;
-  optional string sql = 7;
-  repeated string source_ids = 8;
-  repeated string primary_keys = 9;
-
+  optional string sql = 5;
+  ApiIndex index = 6;
 }
 
 message UpdateEndpointResponse {
   EndpointInfo info = 1;
 }
 
-message TestConnectionRequest {
-  string name = 1;
-  ConnectionType type = 2;
-  Authentication authentication = 3;
-}
-
-message TestConnectionResponse {
-  bool success = 1;
-}
 message ValidateConnectionRequest {
-  string name = 1;
-  ConnectionType type = 2;
-  Authentication authentication = 3;
+  Authentication authentication = 1;
+  string name = 2;
+  DBType type = 3;
+  
 }
 message ValidateConnectionResponse {
   bool success = 1;
 }
 message CreateConnectionRequest {
-  string app_id = 1;
-  string name = 2;
-  ConnectionType type = 3;
-  Authentication authentication = 4;
+  Authentication authentication = 1;
+  string app_id = 2;
+  string name = 3;
+  DBType type = 4;
 }
 
 
@@ -172,11 +168,11 @@ message GetAllConnectionResponse {
   Pagination pagination = 2;
 }
 message UpdateConnectionRequest {
-  string app_id = 1;
-  string connection_id = 2;
-  string name = 3;
-  ConnectionType type = 4;
-  Authentication authentication = 5;
+  Authentication authentication = 1;
+  string app_id = 2;
+  string connection_id = 3;
+  string name = 4;
+  DBType type = 5;
 }
 message UpdateConnectionResponse {
   ConnectionInfo info = 1;
@@ -187,9 +183,10 @@ message UpdateSourceRequest {
   optional string name = 2;
   string app_id = 3;
   optional string table_name = 4;
+  repeated string columns = 5;
   oneof connection {
-    string connection_id = 5;
-    CreateConnectionRequest connection_info = 6;
+    string connection_id = 6;
+    CreateConnectionRequest connection_info = 7;
   }
 }
 message UpdateSourceResponse {
@@ -223,6 +220,7 @@ message CreateSourceRequest {
   string name = 1;
   string app_id = 2;
   string table_name = 3;
+  repeated string columns = 4;
   oneof connection {
     string connection_id = 5;
     CreateConnectionRequest connection_info = 6;
@@ -243,4 +241,33 @@ message GetSourceResponse {
 
 message ErrorResponse {
   string message = 1;
+}
+message CreateApiConfigRequest {
+  ApiRest rest = 1;
+  ApiGrpc grpc = 2;
+  bool auth = 3;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  string app_id = 6;
+}
+message CreateApiConfigResponse {
+  ApiConfig config = 1;
+}
+message UpdateApiConfigRequest {
+  ApiRest rest = 1;
+  ApiGrpc grpc = 2;
+  bool auth = 3;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  string app_id = 6;
+  string id = 7;
+}
+message UpdateApiConfigResponse {
+  ApiConfig config = 1;
+}
+message GetApiConfigRequest {
+  string app_id = 2;
+}
+message GetApiConfigResponse {
+  ApiConfig config = 1;
 }

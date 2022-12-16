@@ -16,7 +16,7 @@ api:
 connections:
   - name: accounts
     db_type: Snowflake
-    authentication: !SnowflakeAuthentication
+    authentication: !Snowflake
       server: "${SERVER}"
       port: 443
       user: "${USERNAME}"
@@ -28,8 +28,6 @@ sources:
   - name: accounts
     table_name: accounts
     connection: !Ref accounts
-    history_type: null
-    refresh_config: RealTime
 endpoints:
   - name: accounts
     path: /accounts

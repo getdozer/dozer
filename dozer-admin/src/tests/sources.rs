@@ -22,7 +22,6 @@ mod grpc_service {
             })
             .unwrap();
         assert_eq!(result.data.len(), setup_ids.source_ids.len());
-        assert_eq!(result.data[0].id, setup_ids.source_ids[0]);
     }
     #[test]
     pub fn get() {
@@ -36,7 +35,7 @@ mod grpc_service {
                 id: setup_ids.source_ids[0].to_owned(),
             })
             .unwrap();
-        assert_eq!(result.info.unwrap().id, setup_ids.source_ids[0]);
+        assert_eq!(result.info.unwrap().id.unwrap(), setup_ids.source_ids[0]);
     }
 
     #[test]
@@ -49,16 +48,17 @@ mod grpc_service {
             .update_source(UpdateSourceRequest {
                 app_id: setup_ids.app_id,
                 id: setup_ids.source_ids[0].to_owned(),
+                columns: vec!["a".to_owned(), "b".to_owned(), "c".to_owned()],
                 name: Some("update_source_name".to_owned()),
                 connection: None,
                 table_name: None,
             })
             .unwrap();
-        assert_eq!(result.info.unwrap().id, setup_ids.source_ids[0]);
+        assert_eq!(result.info.unwrap().id.unwrap(), setup_ids.source_ids[0]);
     }
 
     #[test]
-    pub fn create() {
+    pub fn create_source_with_connection_id() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
         let setup_ids = get_setup_ids();
@@ -67,6 +67,7 @@ mod grpc_service {
             app_id: setup_ids.app_id,
             name: "new_source_name".to_owned(),
             table_name: "source_table_name".to_owned(),
+            columns: vec!["a".to_owned(), "b".to_owned(), "c".to_owned()],
             connection: Some(create_source_request::Connection::ConnectionId(
                 setup_ids.connection_ids[0].to_owned(),
             )),

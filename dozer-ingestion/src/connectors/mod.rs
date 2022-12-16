@@ -9,7 +9,6 @@ use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::{EthConfig, KafkaConfig};
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
@@ -18,15 +17,9 @@ use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::sync::Arc;
-use Authentication::KafkaAuthentication;
-
 pub mod snowflake;
-
-use crate::connectors::snowflake::connector::SnowflakeConnector;
-
-use dozer_types::ingestion_types::SnowflakeConfig;
-
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
+use crate::connectors::snowflake::connector::SnowflakeConnector;
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
     fn get_schemas(
@@ -54,11 +47,12 @@ pub struct TableInfo {
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
-    match connection.authentication {
-        Authentication::PostgresAuthentication { .. } => {
-            let config = map_connection_config(&connection.authentication)?;
+    let authentication = connection.authentication.unwrap_or_default();
+    match authentication {
+        Authentication::Postgres(_) => {
+            let config = map_connection_config(&authentication)?;
             let postgres_config = PostgresConfig {
-                name: connection.name.clone(),
+                name: connection.name,
                 tables: None,
                 config,
             };
@@ -68,51 +62,13 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             }
             Ok(Box::new(PostgresConnector::new(1, postgres_config)))
         }
-        Authentication::EthereumAuthentication { filter, wss_url } => {
-            let eth_config = EthConfig {
-                name: connection.name,
-                filter,
-                wss_url,
-            };
-
-            Ok(Box::new(EthConnector::new(2, eth_config)))
-        }
-        Authentication::Events {} => Ok(Box::new(EventsConnector::new(3, connection.name))),
-        Authentication::SnowflakeAuthentication {
-            server,
-            port,
-            user,
-            password,
-            database,
-            schema,
-            warehouse,
-            driver,
-        } => {
-            let snowflake_config = SnowflakeConfig {
-                server,
-                port,
-                user,
-                password,
-                database,
-                schema,
-                warehouse,
-                driver,
-            };
+        Authentication::Ethereum(eth_config) => Ok(Box::new(EthConnector::new(2, eth_config))),
+        Authentication::Events(_) => Ok(Box::new(EventsConnector::new(3, connection.name))),
+        Authentication::Snowflake(snowflake) => {
+            let snowflake_config = snowflake;
 
             Ok(Box::new(SnowflakeConnector::new(4, snowflake_config)))
         }
-        KafkaAuthentication {
-            broker,
-            topic,
-            schema_registry_url,
-        } => {
-            let kafka_config = KafkaConfig {
-                broker,
-                topic,
-                schema_registry_url,
-            };
-
-            Ok(Box::new(KafkaConnector::new(5, kafka_config)))
-        }
+        Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
     }
 }

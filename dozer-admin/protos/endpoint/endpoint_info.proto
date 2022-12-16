@@ -7,9 +7,10 @@ message EndpointInfo {
   string app_id = 2;
   string name = 3;
   string path = 4;
-  bool enable_rest = 5;
-  bool enable_grpc = 6;
-  string sql = 7;
-  repeated string source_ids = 8;
-  repeated string primary_keys = 9;
+  string sql = 5;
+  ApiIndex index = 6;
+}
+
+message ApiIndex {
+  repeated string primary_key = 1;
 }
