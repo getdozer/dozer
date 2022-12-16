@@ -56,7 +56,7 @@ docker compose -f tests/simple_e2e_example/docker-compose.yml up
 
 ### What can you build with Dozer?
 
-1. Hypercharge your Postgres by offloading read APIs to Dozer
+1. Hypercharge your Postgres by offloading read APIs to `Dozer`
 2. Real time ML predictions deployed as APIs from Snowflake
 3. Real time Ethereum Stats published as a grafana dashboard
 
