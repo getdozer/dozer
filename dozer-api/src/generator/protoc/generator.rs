@@ -139,7 +139,7 @@ impl ProtoGenerator<'_> {
             package_name,
             messages,
             import_libs,
-            plural_lower_name: self.schema_name.to_lowercase().to_plural(),
+            plural_lower_name: self.schema_name.to_lowercase(),
             plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
             pascal_name: self.schema_name.to_pascal_case().to_singular(),
         };
@@ -167,7 +167,7 @@ impl ProtoGenerator<'_> {
         let resource_path = format!(
             "{}/{}.proto",
             self.folder_path,
-            self.schema_name.to_lowercase().to_plural()
+            self.schema_name.to_lowercase()
         );
         let mut resource_file = std::fs::File::create(resource_path.clone())
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
