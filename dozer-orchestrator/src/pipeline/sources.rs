@@ -51,7 +51,7 @@ impl ConnectorSourceFactory {
     ) -> Result<(HashMap<u16, Schema>, HashMap<u32, u16>), ConnectorError> {
         let mut schema_map = HashMap::new();
         let mut port_map: HashMap<u32, u16> = HashMap::new();
-        for (connection, tables) in connection_map.into_iter() {
+        for (connection, tables) in connection_map.iter() {
             let connection = connection.clone();
             let connector = get_connector(connection.to_owned())?;
             let schema_tuples = connector.get_schemas(Some(tables.clone()))?;
@@ -118,7 +118,7 @@ impl Source for ConnectorSource {
             let t = thread::spawn(move || -> Result<(), ConnectorError> {
                 let mut connector = get_connector(connection.to_owned())?;
 
-                connector.initialize(ingestor, Some(tables.clone()))?;
+                connector.initialize(ingestor, Some(tables))?;
                 connector.start()?;
                 Ok(())
             });
