@@ -15,7 +15,7 @@ api:
     host: "[::1]"
 connections:
   - db_type: Postgres
-    authentication: !PostgresAuthentication
+    authentication: !Postgres
       user: postgres
       password: postgres
       host: localhost
@@ -36,8 +36,6 @@ sources:
       - adj_close
       - volume
     connection: !Ref stocks
-    history_type: null
-    refresh_config: RealTime
   - name: stocks_meta
     table_name: stocks_meta
     columns:
@@ -54,8 +52,6 @@ sources:
       - nasdaq_symbol
       - next_shares
     connection: !Ref stocks
-    history_type: null
-    refresh_config: RealTime
 endpoints:
   - id: null
     name: stocks
