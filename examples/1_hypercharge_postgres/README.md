@@ -8,6 +8,8 @@ Features used:
 
 [//]: # (- Creation of embeddable React widget)
 
+<br>
+
 ### Run
 
 ```bash
@@ -17,6 +19,8 @@ docker-compose up --build
 ```bash
 cargo run
 ```
+
+<br>
 
 ### gRPC & REST API
 
