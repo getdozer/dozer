@@ -21,7 +21,6 @@ pub struct PipelineDetails {
 pub mod errors;
 pub mod grpc;
 pub mod rest;
-
 // Re-exports
 pub use actix_web;
 pub use tokio;

@@ -1,0 +1,5 @@
+
+port: 8081
+host: '[::1]'
+cors: true
+home_dir: ./.dozer

@@ -16,15 +16,13 @@ api:
 connections:
   - name: all_events
     db_type: Kafka
-    authentication: !KafkaAuthentication
+    authentication: !Kafka
       broker: localhost:9092
       topic: dbserver1.inventory.customers
 sources:
   - name: all_events
     table_name: dbserver1.inventory.customers
     connection: !Ref all_events
-    history_type: null
-    refresh_config: RealTime
 endpoints:
   - name: customers
     path: /customers

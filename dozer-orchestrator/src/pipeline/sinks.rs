@@ -66,7 +66,7 @@ impl CacheSinkFactory {
         // Get hash of schema
         let hash = self.get_schema_hash();
 
-        let api_index = &self.api_endpoint.index;
+        let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
         let mut primary_index = Vec::new();
         for name in api_index.primary_key.iter() {
             let idx = schema

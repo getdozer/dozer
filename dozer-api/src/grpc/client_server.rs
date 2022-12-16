@@ -6,7 +6,9 @@ use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
 use dozer_cache::cache::Cache;
-use dozer_types::{log::info, models::api_config::ApiGrpc, types::Schema};
+use dozer_types::{
+    constants::DEFAULT_HOME_DIR, log::info, models::api_config::ApiGrpc, types::Schema,
+};
 use futures_util::FutureExt;
 use std::{
     collections::HashMap,
@@ -35,7 +37,7 @@ impl ApiServer {
         dynamic: bool,
     ) -> Self {
         Self {
-            port: grpc_config.port,
+            port: grpc_config.port as u16,
             web: grpc_config.web,
             url: grpc_config.url,
             event_notifier,
@@ -86,7 +88,7 @@ impl ApiServer {
         }
         info!("Schemas initialized. Starting gRPC server.");
 
-        let folder_path = Path::new("./.dozer").join("generated");
+        let folder_path = Path::new(DEFAULT_HOME_DIR).join("generated");
         if folder_path.exists() {
             fs::remove_dir_all(&folder_path).unwrap();
         }

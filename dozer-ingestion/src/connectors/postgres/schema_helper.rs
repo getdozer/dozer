@@ -51,9 +51,7 @@ impl SchemaHelper {
         table_name: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, Schema)>, ConnectorError> {
         let mut client = helper::connect(self.conn_config.clone())?;
-
         let mut schemas: Vec<(String, Schema)> = Vec::new();
-
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
         let schema = self.schema.clone();
         let query = if let Some(tables) = table_name {

@@ -10,12 +10,15 @@ api:
     cors: true
     web: true
   auth: false
-  internal:
+  api_internal:
     port: 50052
-    host: "[::1]"
+    host: '[::1]'
+  pipeline_internal:
+    port: 50053
+    host: '[::1]'
 connections:
   - db_type: Postgres
-    authentication: !PostgresAuthentication
+    authentication: !Postgres
       user: postgres
       password: postgres
       host: localhost
@@ -30,8 +33,6 @@ sources:
       - email
       - phone
     connection: !Ref users
-    history_type: null
-    refresh_config: RealTime
 endpoints:
   - id: null
     name: users

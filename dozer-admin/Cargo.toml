@@ -19,7 +19,6 @@ uuid = { version = "1.1.2", features = ["v4", "serde"] }
 tonic = "0.8.2"
 tokio = "1.21.0"
 prost-types = "0.11.1"
-prost = "0.11.0"
 tonic-web = "0.4.0"
 dozer-orchestrator = {version = "0.1.0", path = "../dozer-orchestrator"}
 dozer-types = {version = "0.1.0", path = "../dozer-types"}
@@ -28,6 +27,8 @@ mockall = "0.11.2"
 cargo-expand = "1.0.31"
 tonic-reflection = "0.5.0"
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
+prost = "0.11.3"
+clap = {version = "4.0.29", features = ["derive"]}
 
 [build-dependencies]
 tonic-build = "0.8.2"
@@ -35,3 +36,8 @@ tonic-build = "0.8.2"
 [features]
 default = []
 snowflake = ["dozer-types/snowflake", "dozer-orchestrator/snowflake"]
+
+[[bin]]
+edition = "2021"
+name = "dozer-admin"
+path = "src/main.rs"

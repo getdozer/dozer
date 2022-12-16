@@ -1,0 +1,26 @@
+syntax = "proto3";
+package dozer_admin_grpc;
+message ApiConfig {
+  ApiRest rest = 1;
+  ApiGrpc grpc = 2;
+  bool auth = 3;
+  ApiInternal api_internal = 4;
+  ApiInternal pipeline_internal = 5;
+  optional string app_id = 6;
+  optional string id = 7;
+}
+message ApiRest {
+  uint32 port = 1;
+  string url = 2;
+  bool cors = 3;
+}
+message ApiGrpc {
+  uint32 port = 1;
+  string url = 2;
+  bool cors = 3;
+  bool web = 4;
+}
+message ApiInternal {
+  uint32 port = 1;
+  string host = 2;
+}
