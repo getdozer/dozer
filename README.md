@@ -95,7 +95,9 @@ Check out these tests for above end-to-end examples [here](./examples/README.md)
 - Extend Dozer with custom connectors, operators and Api transformations using WASM.
 - Built in Rust with performance and extensibility in mind.
 
-## Contributing
+[//]: # (## Contributing)
 
-- User
-- Contributor / Developer
+[//]: # ()
+[//]: # (- User)
+
+[//]: # (- Contributor / Developer)
