@@ -34,17 +34,14 @@ api:
 Use server reflection as a source of the gRPC API.
 
 <div align="center">
-    <img src="https://drive.google.com/uc?export=view&id=1zcYcUMY7KGJy8MxkZM9noF_MAp5jLPzZ" width=60%">
+    <img src="https://drive.google.com/uc?export=view&id=1zcYcUMY7KGJy8MxkZM9noF_MAp5jLPzZ" width=70%">
 </div>
 
 `[::0]50051` is from yaml configuration.
 
 <div align="center">
-    <img src="https://drive.google.com/uc?export=view&id=11tji0bhcLei7V-SiSQgY6CfMX9r6q_2C" width=60%">
-</div>
-
-<div align="center">
-    <img src="https://drive.google.com/uc?export=view&id=1LTayAdpDGWHkJGQ-R9rGDWwOmvctwtBY" width=60%">
+    <img src="https://drive.google.com/uc?export=view&id=11tji0bhcLei7V-SiSQgY6CfMX9r6q_2C" width=70%">
+    <img src="https://drive.google.com/uc?export=view&id=1LTayAdpDGWHkJGQ-R9rGDWwOmvctwtBY" width=70%">
 </div>
 
 #### REST API
@@ -80,11 +77,11 @@ Endpoint details are coming from above yaml for REST APIs.
 `/stocks`
 
 <div align="center">
-    <img src="https://drive.google.com/uc?export=view&id=1p0kbfJbPFAt5ibV9GFJoEdLZa-DArXwT" width=60%">
+    <img src="https://drive.google.com/uc?export=view&id=1p0kbfJbPFAt5ibV9GFJoEdLZa-DArXwT" width=70%">
 </div>
 
 `/stocks-meta`
 
 <div align="center">
-    <img src="https://drive.google.com/uc?export=view&id=1sAugL5gVxf_5UvJh1H8uRQ7EV-6yvMK2" width=60%">
+    <img src="https://drive.google.com/uc?export=view&id=1sAugL5gVxf_5UvJh1H8uRQ7EV-6yvMK2" width=70%">
 </div>
