@@ -18,7 +18,9 @@ docker-compose up --build
 cargo run
 ```
 
-### Postman Integration
+### gRPC & REST API
+
+--- 
 
 <details>
 <summary><h3>gRPC</h3></summary>
