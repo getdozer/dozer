@@ -20,3 +20,22 @@ CREATE TABLE IF NOT EXISTS stocks (
 COPY stocks (Ticker, Date, Open, High, Low, Close, Adj_Close, Volume) FROM
     '/var/lib/stock-sample/data/stock_price.csv'
     WITH (FORMAT csv);
+
+CREATE TABLE IF NOT EXISTS stocks_meta (
+    Nasdaq_Traded varchar(255) NOT NULL,
+    Symbol varchar(255) NOT NULL CONSTRAINT symbol_pk PRIMARY KEY,
+    Security_Name varchar(255) NOT NULL,
+    Listing_Exchange varchar(255) NOT NULL,
+    Market_Category varchar(255),
+    ETF varchar(255) NOT NULL,
+    Round_Lot_Size double precision NOT NULL,
+    Test_Issue varchar(255) NOT NULL,
+    Financial_Status varchar(255),
+    CQS_Symbol varchar(255),
+    NASDAQ_Symbol varchar(255) NOT NULL,
+    Next_Shares varchar(255) NOT NULL
+);
+
+COPY stocks_meta FROM
+    '/var/lib/stock-sample/data/symbols_valid_meta.csv'
+    WITH (FORMAT csv, HEADER true);

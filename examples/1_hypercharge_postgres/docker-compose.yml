@@ -7,6 +7,7 @@ services:
       - ./pg_hba.conf:/var/lib/stock-sample/pg_hba.conf
       - ./scripts/init_stocks.sql:/docker-entrypoint-initdb.d/init_stocks.sql
       - ./data/stock_price.csv:/var/lib/stock-sample/data/stock_price.csv
+      - ./data/symbols_valid_meta.csv:/var/lib/stock-sample/data/symbols_valid_meta.csv
     command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
     environment:
       POSTGRES_DB: stocks

@@ -38,6 +38,24 @@ sources:
     connection: !Ref stocks
     history_type: null
     refresh_config: RealTime
+  - name: stocks_meta
+    table_name: stocks_meta
+    columns:
+      - nasdaq_traded
+      - symbol
+      - security_name
+      - listing_exchange
+      - market_category
+      - etf
+      - round_lot_size
+      - test_issue
+      - financial_status
+      - cqs_symbol
+      - nasdaq_symbol
+      - next_shares
+    connection: !Ref stocks
+    history_type: null
+    refresh_config: RealTime
 endpoints:
   - id: null
     name: stocks
@@ -46,3 +64,10 @@ endpoints:
     index:
       primary_key:
         - id
+  - id: null
+    name: stocks-meta
+    path: /stocks-meta
+    sql: select symbol, security_name from stocks_meta where 1=1;
+    index:
+      primary_key:
+        - symbol
