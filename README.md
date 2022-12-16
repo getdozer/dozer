@@ -62,7 +62,7 @@ docker compose -f tests/simple_e2e_example/docker-compose.yml up
 
 [//]: # (### Screenshots)
 
-Check out these tests for above end-to-end examples [here](./examples/README.md).
+Check out this module for above [end-to-end examples](./examples/README.md).
 
 
 [//]: # (## Architecture)
