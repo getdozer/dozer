@@ -17,8 +17,7 @@ use std::sync::Arc;
 use std::thread;
 
 pub struct ConnectorSourceFactory {
-    connections: Vec<Connection>,
-    connection_map: HashMap<String, Vec<TableInfo>>,
+    connection_map: HashMap<Connection, Vec<TableInfo>>,
     table_map: HashMap<String, u16>,
     schema_map: HashMap<u16, Schema>,
     port_map: HashMap<u32, u16>,
@@ -28,17 +27,14 @@ pub struct ConnectorSourceFactory {
 
 impl ConnectorSourceFactory {
     pub fn new(
-        connections: Vec<Connection>,
-        connection_map: HashMap<String, Vec<TableInfo>>,
+        connection_map: HashMap<Connection, Vec<TableInfo>>,
         table_map: HashMap<String, u16>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Self {
         let (schema_map, port_map) =
-            Self::get_schema_map(&connections, &connection_map, &table_map)
-                .expect("Cannot initialize schemas");
+            Self::get_schema_map(&connection_map, &table_map).expect("Cannot initialize schemas");
         Self {
-            connections,
             connection_map,
             table_map,
             schema_map,
@@ -50,23 +46,14 @@ impl ConnectorSourceFactory {
 
     #[allow(clippy::type_complexity)]
     pub fn get_schema_map(
-        connections: &[Connection],
-        connection_map: &HashMap<String, Vec<TableInfo>>,
+        connection_map: &HashMap<Connection, Vec<TableInfo>>,
         table_map: &HashMap<String, u16>,
     ) -> Result<(HashMap<u16, Schema>, HashMap<u32, u16>), ConnectorError> {
         let mut schema_map = HashMap::new();
         let mut port_map: HashMap<u32, u16> = HashMap::new();
-        for (idx, connection) in connections.iter().cloned().enumerate() {
+        for (connection, tables) in connection_map.iter() {
             let connection = connection.clone();
             let connector = get_connector(connection.to_owned())?;
-            let id = match connection.id {
-                Some(idy) => idy,
-                None => idx.to_string(),
-            };
-            let tables = connection_map
-                .get(&id)
-                .map_or(Err(ConnectorError::TableNotFound(idx.to_string())), Ok)?;
-
             let schema_tuples = connector.get_schemas(Some(tables.clone()))?;
 
             for (table_name, schema) in schema_tuples {
@@ -101,7 +88,6 @@ impl SourceFactory for ConnectorSourceFactory {
         _schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(ConnectorSource {
-            connections: self.connections.to_owned(),
             connection_map: self.connection_map.to_owned(),
             port_map: self.port_map.clone(),
             ingestor: self.ingestor.to_owned(),
@@ -112,9 +98,8 @@ impl SourceFactory for ConnectorSourceFactory {
 
 pub struct ConnectorSource {
     // Multiple tables per connection
-    connections: Vec<Connection>,
     // Connection Index in the array to List of Tables
-    connection_map: HashMap<String, Vec<TableInfo>>,
+    connection_map: HashMap<Connection, Vec<TableInfo>>,
     port_map: HashMap<u32, u16>,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
@@ -127,22 +112,13 @@ impl Source for ConnectorSource {
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut threads = vec![];
-        for (idx, connection) in self.connections.iter().cloned().enumerate() {
+        for (connection, tables) in self.connection_map.clone().into_iter() {
             let connection = connection.clone();
             let ingestor = self.ingestor.clone();
-            let connection_map = self.connection_map.clone();
             let t = thread::spawn(move || -> Result<(), ConnectorError> {
                 let mut connector = get_connector(connection.to_owned())?;
 
-                let id = match connection.id {
-                    Some(idy) => idy,
-                    None => idx.to_string(),
-                };
-                let tables = connection_map
-                    .get(&id)
-                    .map_or(Err(ConnectorError::TableNotFound(idx.to_string())), Ok)?;
-
-                connector.initialize(ingestor, Some(tables.clone()))?;
+                connector.initialize(ingestor, Some(tables))?;
                 connector.start()?;
                 Ok(())
             });

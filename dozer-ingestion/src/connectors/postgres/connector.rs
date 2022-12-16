@@ -130,7 +130,7 @@ impl PostgresConnector {
             None => "ALL TABLES".to_string(),
             Some(arr) => {
                 let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
-                format!("TABLE {}", table_names.join(" "))
+                format!("TABLE {}", table_names.join(" , "))
             }
         };
 
