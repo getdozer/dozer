@@ -1,7 +1,7 @@
 use super::Config;
 use dozer_types::{
     models::{
-        api_config::{default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiRest},
+        api_config::{default_api_config, ApiConfig, ApiGrpc, ApiRest},
         api_endpoint::ApiEndpoint,
         connection::{Authentication, Connection, PostgresAuthentication},
         source::{RefreshConfig, Source},
@@ -177,14 +177,6 @@ fn test_api_config() -> ApiConfig {
             web: true,
         }),
         auth: false,
-        api_internal: Some(ApiInternal {
-            port: 50052,
-            host: "[::1]".to_owned(),
-        }),
-        pipeline_internal: Some(ApiInternal {
-            port: 50053,
-            host: "[::1]".to_owned(),
-        }),
         ..Default::default()
     }
 }

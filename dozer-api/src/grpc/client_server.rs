@@ -6,14 +6,12 @@ use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
 use dozer_cache::cache::Cache;
-use dozer_types::{
-    constants::DEFAULT_HOME_DIR, log::info, models::api_config::ApiGrpc, types::Schema,
-};
+use dozer_types::{log::info, models::api_config::ApiGrpc, types::Schema};
 use futures_util::FutureExt;
 use std::{
     collections::HashMap,
     fs,
-    path::Path,
+    path::PathBuf,
     sync::{atomic::AtomicBool, Arc},
     thread,
     time::Duration,
@@ -28,6 +26,7 @@ pub struct ApiServer {
     event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
     web: bool,
     url: String,
+    api_dir: PathBuf,
 }
 
 impl ApiServer {
@@ -35,6 +34,7 @@ impl ApiServer {
         event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
         grpc_config: ApiGrpc,
         dynamic: bool,
+        api_dir: PathBuf,
     ) -> Self {
         Self {
             port: grpc_config.port as u16,
@@ -42,6 +42,7 @@ impl ApiServer {
             url: grpc_config.url,
             event_notifier,
             dynamic,
+            api_dir,
         }
     }
     pub fn setup_broad_cast_channel(
@@ -88,14 +89,14 @@ impl ApiServer {
         }
         info!("Schemas initialized. Starting gRPC server.");
 
-        let folder_path = Path::new(DEFAULT_HOME_DIR).join("generated");
-        if folder_path.exists() {
-            fs::remove_dir_all(&folder_path).unwrap();
+        let generated_path = self.api_dir.join("generated");
+        if generated_path.exists() {
+            fs::remove_dir_all(&generated_path).unwrap();
         }
-        fs::create_dir_all(&folder_path).unwrap();
+        fs::create_dir_all(&generated_path).unwrap();
 
         let proto_res = ProtoGenerator::generate(
-            folder_path.to_string_lossy().to_string(),
+            generated_path.to_string_lossy().to_string(),
             pipeline_map.to_owned(),
         )?;
 

@@ -61,14 +61,14 @@ fn default_api_internal() -> Option<ApiInternal> {
     Some(ApiInternal {
         port: 50052,
         host: "[::1]".to_owned(),
-        home_dir: format!("{:}/api", DEFAULT_HOME_DIR.to_owned())
+        home_dir: format!("{:}/api", DEFAULT_HOME_DIR.to_owned()),
     })
 }
 fn default_pipeline_internal() -> Option<ApiInternal> {
     Some(ApiInternal {
         port: 50053,
         host: "[::1]".to_owned(),
-        home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned())
+        home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),
     })
 }
 fn default_api_rest() -> Option<ApiRest> {

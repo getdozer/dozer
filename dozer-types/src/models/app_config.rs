@@ -3,7 +3,7 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 
-use crate::{models::api_config::default_api_config, constants::DEFAULT_HOME_DIR};
+use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
 
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, source::Source,
@@ -113,7 +113,7 @@ impl<'de> Deserialize<'de> for Config {
                     connections,
                     sources,
                     endpoints,
-                    home_dir
+                    home_dir,
                 })
             }
         }
