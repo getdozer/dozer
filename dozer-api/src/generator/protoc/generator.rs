@@ -127,7 +127,6 @@ impl ProtoGenerator<'_> {
 
     pub fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = format!("dozer.generated.{}", self.schema_name);
-        let _service_name = self.schema_name.to_pascal_case().to_plural();
 
         let messages = vec![self.resource_message()];
 

@@ -65,8 +65,8 @@ endpoints:
       primary_key:
         - id
   - id: null
-    name: stocks-meta
-    path: /stocks-meta
+    name: metas
+    path: /metas
     sql: select symbol, security_name from stocks_meta where 1=1;
     index:
       primary_key:
