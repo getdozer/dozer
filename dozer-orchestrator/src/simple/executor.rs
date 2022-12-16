@@ -70,7 +70,10 @@ impl Executor {
             validate(source.connection.to_owned().unwrap())?;
 
             let table_name = source.table_name.clone();
-            let connection = source.connection.to_owned();
+            let connection = source
+                .connection
+                .expect("connection is expected")
+                .to_owned();
             let table = TableInfo {
                 name: source.table_name,
                 id: table_id as u32,

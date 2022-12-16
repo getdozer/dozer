@@ -44,7 +44,7 @@ pub struct EthFilter {
     pub topics: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthConfig {
     #[prost(message, optional, tag = "1")]
     pub filter: Option<EthFilter>,
@@ -54,7 +54,7 @@ pub struct EthConfig {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct KafkaConfig {
     #[prost(string, tag = "1")]
     pub broker: String,
@@ -64,7 +64,7 @@ pub struct KafkaConfig {
     pub schema_registry_url: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct SnowflakeConfig {
     #[prost(string, tag = "1")]
     pub server: String,

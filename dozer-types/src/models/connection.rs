@@ -80,7 +80,7 @@ impl DBType {
         }
     }
 }
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct PostgresAuthentication {
     #[prost(string, tag = "1")]
     pub user: String,
@@ -93,9 +93,9 @@ pub struct PostgresAuthentication {
     #[prost(string, tag = "5")]
     pub database: String,
 }
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EventsAuthentication {}
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
 pub enum Authentication {
     #[prost(message, tag = "1")]
     Postgres(PostgresAuthentication),
