@@ -18,7 +18,7 @@ api:
 connections:
   - name: customers
     db_type: Snowflake
-    authentication: !SnowflakeAuthentication
+    authentication: !Snowflake
       server: "${SERVER}"
       port: 443
       user: "${USERNAME}"
