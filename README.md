@@ -33,6 +33,12 @@
 
 [//]: # (  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>)
 
+## Why use Dozer?
+
+- Create blazing fast end to end APIs in minutes with a simple configuration.
+- Build and rapidly iterate on customer facing data apps.
+- Extend Dozer with custom connectors, operators and Api transformations using WASM.
+- Built in Rust with performance and extensibility in mind.
 
 ## Quick Start
 
@@ -87,13 +93,6 @@ Check out this module for above [end-to-end examples](./examples/README.md).
     - Protobuf an Open API documentation
     - TypeSafe APIs
     - Realtime Streaming
-
-## Why use Dozer?
-
-- Create blazing fast end to end APIs in minutes with a simple configuration.
-- Build and rapidly iterate on customer facing data apps.
-- Extend Dozer with custom connectors, operators and Api transformations using WASM.
-- Built in Rust with performance and extensibility in mind.
 
 [//]: # (## Contributing)
 
