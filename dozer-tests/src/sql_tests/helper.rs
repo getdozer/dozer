@@ -148,7 +148,6 @@ pub fn map_sqlite_to_record(
                 let val: String = row.get(idx)?;
                 Field::Decimal(Decimal::from_str(&val).expect("decimal parse error"))
             },
-            dozer_types::types::FieldType::Null => Field::Null,
             FieldType::Date =>  convert_type!(Field::String, f, row, idx),
             dozer_types::types::FieldType::Bson => {
                 panic!("type not supported : {:?}", f.typ.to_owned())
