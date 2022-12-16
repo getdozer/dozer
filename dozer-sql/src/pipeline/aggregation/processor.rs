@@ -60,7 +60,6 @@ impl<'a> AggregationData<'a> {
 }
 
 pub struct AggregationProcessor {
-    output_field_rules: Vec<FieldRule>,
     out_dimensions: Vec<(Box<Expression>, usize)>,
     out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)>,
     pub db: Option<Database>,
@@ -84,7 +83,6 @@ impl AggregationProcessor {
     pub fn new(output_field_rules: Vec<FieldRule>, input_schema: Schema) -> Self {
         let (out_measures, out_dimensions) = populate_rules(&output_field_rules).unwrap();
         Self {
-            output_field_rules,
             out_dimensions,
             out_measures,
             db: None,
