@@ -492,7 +492,7 @@ impl Transaction {
 
             Ok(Some(slice::from_raw_parts(
                 val_data.mv_data as *mut u8,
-                val_data.mv_size as usize,
+                val_data.mv_size,
             )))
         }
     }
@@ -751,8 +751,8 @@ impl Cursor {
                 MDB_NOTFOUND => Ok(None),
                 x if x != 0 => Err(LmdbError::new(r, "Unknown error".to_string())),
                 _ => Ok(Some((
-                    slice::from_raw_parts(key_data.mv_data as *mut u8, key_data.mv_size as usize),
-                    slice::from_raw_parts(val_data.mv_data as *mut u8, val_data.mv_size as usize),
+                    slice::from_raw_parts(key_data.mv_data as *mut u8, key_data.mv_size),
+                    slice::from_raw_parts(val_data.mv_data as *mut u8, val_data.mv_size),
                 ))),
             }
         }
