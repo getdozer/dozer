@@ -1,6 +1,6 @@
 use super::{
     common::CommonService, common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
-    internal_grpc::PipelineRequest, typed::TypedService,
+    internal_grpc::PipelineResponse, typed::TypedService,
 };
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
@@ -23,7 +23,7 @@ use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 pub struct ApiServer {
     port: u16,
     dynamic: bool,
-    event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
+    event_notifier: crossbeam::channel::Receiver<PipelineResponse>,
     web: bool,
     url: String,
     api_dir: PathBuf,
@@ -31,7 +31,7 @@ pub struct ApiServer {
 
 impl ApiServer {
     pub fn new(
-        event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
+        event_notifier: crossbeam::channel::Receiver<PipelineResponse>,
         grpc_config: ApiGrpc,
         dynamic: bool,
         api_dir: PathBuf,
@@ -46,8 +46,8 @@ impl ApiServer {
         }
     }
     pub fn setup_broad_cast_channel(
-        sender: broadcast::Sender<PipelineRequest>,
-        event_notifier: crossbeam::channel::Receiver<PipelineRequest>,
+        sender: broadcast::Sender<PipelineResponse>,
+        event_notifier: crossbeam::channel::Receiver<PipelineResponse>,
     ) -> Result<(), GRPCError> {
         let _thread = thread::spawn(move || {
             while let Some(event) = event_notifier.iter().next() {
@@ -59,7 +59,7 @@ impl ApiServer {
     fn get_dynamic_service(
         &self,
         pipeline_map: HashMap<String, PipelineDetails>,
-        rx1: broadcast::Receiver<PipelineRequest>,
+        rx1: broadcast::Receiver<PipelineResponse>,
         _running: Arc<AtomicBool>,
     ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
         let mut schema_map: HashMap<String, Schema> = HashMap::new();
@@ -120,7 +120,7 @@ impl ApiServer {
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
-        let (tx, rx1) = broadcast::channel::<PipelineRequest>(16);
+        let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
 
         for ce in cache_endpoints {

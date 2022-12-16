@@ -1,5 +1,5 @@
-use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_types::types::Schema;
+use dozer_api::grpc::internal_grpc::{PipelineRequest, PipelineResponse};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;

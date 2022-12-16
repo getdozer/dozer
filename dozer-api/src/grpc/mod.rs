@@ -1,7 +1,7 @@
 mod client_server;
 pub mod common;
 // pub mod dynamic;
-pub mod internal_api_server;
+// pub mod internal_api_server;
 mod shared_impl;
 pub mod typed;
 pub mod types_helper;
@@ -21,6 +21,6 @@ pub mod internal_grpc {
 }
 
 pub use client_server::ApiServer;
-pub use internal_api_server::{
-    start_internal_api_client, start_internal_api_server, InternalServer,
-};
+// pub use internal_api_server::{
+//     start_internal_api_client, start_internal_api_server, InternalServer,
+// };

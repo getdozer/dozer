@@ -9,8 +9,8 @@ use tonic::{Code, Response, Status};
 
 use crate::{api_helper::ApiHelper, PipelineDetails};
 
-use super::internal_grpc::pipeline_request::ApiEvent;
-use super::internal_grpc::PipelineRequest;
+use super::internal_grpc::pipeline_response::ApiEvent;
+use super::internal_grpc::PipelineResponse;
 use super::types::Operation;
 
 mod filter;
@@ -41,7 +41,7 @@ pub fn query(
 pub fn on_event<T: Send + 'static>(
     pipeline_details: PipelineDetails,
     filter: Option<&str>,
-    mut broadcast_receiver: Receiver<PipelineRequest>,
+    mut broadcast_receiver: Receiver<PipelineResponse>,
     event_mapper: impl Fn(Operation, String) -> Option<T> + Send + Sync + 'static,
 ) -> Result<Response<ReceiverStream<T>>, Status> {
     let filter = match filter {
