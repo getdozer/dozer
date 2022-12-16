@@ -170,7 +170,6 @@ fn test_null_inserts() {
                     typ: dozer_types::types::FieldType::Int,
                     nullable: false
                 }],
-                values: vec![],
                 primary_index: vec![0],
             }
         )
@@ -210,7 +209,6 @@ fn test_null_inserts() {
                         nullable: true
                     }
                 ],
-                values: vec![],
                 primary_index: vec![0],
             }
         )

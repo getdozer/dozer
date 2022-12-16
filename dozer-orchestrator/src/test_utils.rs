@@ -21,7 +21,6 @@ pub fn get_schema() -> Schema {
                 nullable: false,
             },
         ],
-        values: vec![0],
         primary_index: vec![0],
     }
 }
@@ -35,14 +34,7 @@ pub fn init_sink(
     let mut input_schemas = HashMap::new();
     input_schemas.insert(DEFAULT_PORT_HANDLE, (schema.clone(), secondary_indexes));
 
-    let sink = CacheSink::new(
-        Arc::clone(&cache),
-        init_endpoint(),
-        input_schemas,
-        None,
-        1,
-        1,
-    );
+    let sink = CacheSink::new(Arc::clone(&cache), init_endpoint(), input_schemas);
     (cache, sink)
 }
 pub fn init_endpoint() -> ApiEndpoint {

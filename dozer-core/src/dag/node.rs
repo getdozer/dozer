@@ -65,7 +65,7 @@ impl Display for NodeHandle {
 
 pub type PortHandle = u16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OutputPortDefOptions {
     pub stateful: bool,
     pub retrieve_old_record_for_updates: bool,
@@ -73,13 +73,6 @@ pub struct OutputPortDefOptions {
 }
 
 impl OutputPortDefOptions {
-    pub fn default() -> Self {
-        Self {
-            stateful: false,
-            retrieve_old_record_for_updates: false,
-            retrieve_old_record_for_deletes: false,
-        }
-    }
     pub fn new(
         stateful: bool,
         retrieve_old_record_for_updates: bool,
@@ -170,7 +163,7 @@ pub trait SinkFactory: Send + Sync {
 pub trait Sink {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
     fn commit(
-        &self,
+        &mut self,
         source: &NodeHandle,
         txid: u64,
         seq_in_tx: u64,

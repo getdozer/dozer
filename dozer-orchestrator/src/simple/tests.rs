@@ -24,7 +24,7 @@ use log::warn;
 use serde_json::{json, Value};
 use tempdir::TempDir;
 
-use super::executor::{Executor, SinkConfig};
+use super::executor::Executor;
 
 fn single_source_sink_impl(schema: Schema) {
     let source = models::source::Source {
@@ -102,10 +102,6 @@ fn single_source_sink_impl(schema: Schema) {
             iterator,
             executor_running,
             tmp_path,
-            SinkConfig {
-                record_cutoff: 1,
-                timeout: 1,
-            },
         );
         match executor.run(None, running) {
             Ok(_) => {}

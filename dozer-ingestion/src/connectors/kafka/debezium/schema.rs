@@ -86,7 +86,6 @@ pub fn map_schema<'a>(
                     Schema {
                         identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
                         fields: defined_fields?,
-                        values: vec![],
                         primary_index: pk_keys_indexes,
                     },
                     fields_schema_map,
@@ -205,7 +204,6 @@ mod tests {
                     nullable: true,
                 },
             ],
-            values: vec![],
             primary_index: vec![0],
         };
         assert_eq!(schema, expected_schema);
@@ -245,7 +243,6 @@ mod tests {
         let expected_schema = Schema {
             identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
             fields: vec![],
-            values: vec![],
             primary_index: vec![],
         };
         assert_eq!(schema, expected_schema);

@@ -314,11 +314,9 @@ impl SourceFactory for ErrGeneratorSourceFactory {
             .field(
                 FieldDefinition::new("id".to_string(), FieldType::String, false),
                 true,
-                true,
             )
             .field(
                 FieldDefinition::new("value".to_string(), FieldType::String, false),
-                true,
                 false,
             )
             .clone())
@@ -486,7 +484,7 @@ impl Sink for ErrSink {
     }
 
     fn commit(
-        &self,
+        &mut self,
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,

@@ -201,7 +201,7 @@ impl Sink for TestSink {
     }
 
     fn commit(
-        &self,
+        &mut self,
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,

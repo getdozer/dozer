@@ -1,4 +1,4 @@
-use super::executor::{Executor, SinkConfig};
+use super::executor::Executor;
 use crate::errors::OrchestrationError;
 use crate::internal::internal_pipeline_server::start_internal_pipeline_server;
 use crate::Orchestrator;
@@ -49,7 +49,7 @@ impl SimpleOrchestrator {
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&yaml_path)
+            .open(yaml_path)
             .expect("Couldn't open file");
         let api_config = self.config.api.to_owned().unwrap_or_default();
         let api_internal = api_config.to_owned().api_internal.unwrap_or_default();
@@ -234,7 +234,6 @@ impl Orchestrator for SimpleOrchestrator {
             iterator,
             running,
             self.home_dir.to_owned(),
-            SinkConfig::default(),
         );
         executor.run(Some(sender), executor_running)
     }

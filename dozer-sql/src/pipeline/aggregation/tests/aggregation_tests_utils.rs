@@ -63,21 +63,17 @@ pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) ->
         .field(
             FieldDefinition::new(String::from("ID"), FieldType::Int, false),
             false,
-            false,
         )
         .field(
             FieldDefinition::new(String::from("Country"), FieldType::String, false),
-            false,
             false,
         )
         .field(
             FieldDefinition::new(String::from("Salary"), field_type, false),
             false,
-            false,
         )
         .field(
             FieldDefinition::new(format!("{}(Salary)", aggregator_name), field_type, false),
-            false,
             false,
         )
         .clone()

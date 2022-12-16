@@ -37,7 +37,6 @@ impl SourceFactory for CreateErrSourceFactory {
             .field(
                 FieldDefinition::new("id".to_string(), FieldType::Int, false),
                 true,
-                true,
             )
             .clone())
     }
@@ -176,7 +175,6 @@ impl ProcessorFactory for CreateErrProcessorFactory {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new("id".to_string(), FieldType::Int, false),
-                true,
                 true,
             )
             .clone())

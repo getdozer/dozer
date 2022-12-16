@@ -28,7 +28,7 @@ impl<E> CustomizeConnection<SqliteConnection, E> for TestConnectionCustomizer {
 }
 pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 pub fn establish_test_connection(database_url: String) -> DbPool {
-    let manager = ConnectionManager::<SqliteConnection>::new(&database_url);
+    let manager = ConnectionManager::<SqliteConnection>::new(database_url);
     r2d2::Pool::builder()
         .max_size(10)
         .connection_customizer(Box::new(TestConnectionCustomizer))

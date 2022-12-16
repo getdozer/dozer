@@ -124,7 +124,7 @@ impl XlogMapper {
                     operation: Operation::Insert {
                         new: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id as u32,
+                                id: table.rel_id,
                                 version: table.rel_id as u16,
                             }),
                             values,
@@ -152,14 +152,14 @@ impl XlogMapper {
                     operation: Operation::Update {
                         old: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id as u32,
+                                id: table.rel_id,
                                 version: table.rel_id as u16,
                             }),
                             old_values,
                         ),
                         new: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id as u32,
+                                id: table.rel_id,
                                 version: table.rel_id as u16,
                             }),
                             values,
@@ -181,7 +181,7 @@ impl XlogMapper {
                     operation: Operation::Delete {
                         old: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {
-                                id: table.rel_id as u32,
+                                id: table.rel_id,
                                 version: table.rel_id as u16,
                             }),
                             values,
@@ -258,11 +258,10 @@ impl XlogMapper {
 
         let schema = Schema {
             identifier: Some(dozer_types::types::SchemaIdentifier {
-                id: table.rel_id as u32,
+                id: table.rel_id,
                 version: table.rel_id as u16,
             }),
             fields,
-            values: vec![0],
             primary_index: vec![0],
         };
 

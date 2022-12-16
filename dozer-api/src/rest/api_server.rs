@@ -34,8 +34,9 @@ pub struct ApiServer {
     security: ApiSecurity,
     url: String,
 }
-impl ApiServer {
-    pub fn default() -> Self {
+
+impl Default for ApiServer {
+    fn default() -> Self {
         Self {
             shutdown_timeout: 0,
             port: 8080,
@@ -44,6 +45,9 @@ impl ApiServer {
             url: "0.0.0.0".to_owned(),
         }
     }
+}
+
+impl ApiServer {
     pub fn new(rest_config: ApiRest) -> Self {
         Self {
             shutdown_timeout: 0,

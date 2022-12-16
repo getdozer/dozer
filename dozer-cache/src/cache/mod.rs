@@ -1,9 +1,8 @@
 mod lmdb;
 use self::expression::QueryExpression;
 pub use self::lmdb::{
-    batched_writer::{BatchedCacheMsg, BatchedWriter},
-    cache::LmdbCache,
-    CacheCommonOptions, CacheOptions, CacheOptionsKind, CacheReadOptions, CacheWriteOptions,
+    cache::lmdb as lmdb_rs, cache::LmdbCache, CacheCommonOptions, CacheOptions, CacheOptionsKind,
+    CacheReadOptions, CacheWriteOptions,
 };
 use crate::errors::CacheError;
 use dozer_types::types::{IndexDefinition, Record, Schema, SchemaIdentifier};

@@ -44,6 +44,10 @@ dozer run -c dozer-config.yaml
 - `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
 - `openssl` (brew install pkg-config openssl on MacOS)
 
+### Test Dependencies
+
+- `wget` (`brew install wget` on MacOS)
+
 ### Local development
 
 By default `config` file is loaded from `dozer-config.yaml`

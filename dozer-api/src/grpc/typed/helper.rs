@@ -6,7 +6,7 @@ use prost_reflect::{DynamicMessage, Value};
 
 use super::TypedResponse;
 
-pub fn get_response_descriptor(
+fn get_response_descriptor(
     desc: &DescriptorPool,
     method: &str,
     endpoint_name: &str,
@@ -36,7 +36,7 @@ pub fn get_response_descriptor(
     }
 }
 
-pub fn get_resource_desc(desc: &DescriptorPool, endpoint_name: &str) -> MessageDescriptor {
+fn get_resource_desc(desc: &DescriptorPool, endpoint_name: &str) -> MessageDescriptor {
     let msg_path = format!(
         "dozer.generated.{}.{}",
         endpoint_name.to_lowercase().to_plural(),
@@ -73,7 +73,7 @@ pub fn on_event_to_typed_response(
     TypedResponse::new(event)
 }
 
-pub fn internal_record_to_pb(
+fn internal_record_to_pb(
     rec: GrpcTypes::Record,
     desc: &DescriptorPool,
     endpoint_name: &str,
@@ -111,7 +111,7 @@ fn convert_internal_type_to_pb(value: GrpcTypes::value::Value) -> prost_reflect:
         _ => todo!(),
     }
 }
-pub fn record_to_pb(record: Record, desc: &MessageDescriptor) -> DynamicMessage {
+fn record_to_pb(record: Record, desc: &MessageDescriptor) -> DynamicMessage {
     let mut resource = DynamicMessage::new(desc.clone());
     for (field, value) in desc.fields().zip(record.values.into_iter()) {
         if let Field::Null = value {
@@ -145,7 +145,7 @@ fn convert_field_to_reflect_value(field: Field) -> prost_reflect::Value {
     match field {
         Field::UInt(n) => Value::U64(n),
         Field::Int(n) => Value::I64(n),
-        Field::Float(_n) => todo!(),
+        Field::Float(n) => Value::F64(n.0),
         Field::Boolean(n) => Value::Bool(n),
         Field::String(n) => Value::String(n),
         Field::Text(n) => Value::String(n),
@@ -154,6 +154,6 @@ fn convert_field_to_reflect_value(field: Field) -> prost_reflect::Value {
         Field::Timestamp(n) => Value::String(n.to_rfc3339()),
         Field::Date(n) => Value::String(n.to_string()),
         Field::Bson(n) => Value::Bytes(prost_reflect::bytes::Bytes::from(n)),
-        Field::Null => todo!(),
+        Field::Null => panic!("Cannot convert null to protobuf value"),
     }
 }

@@ -32,22 +32,9 @@ pub struct Executor {
     sources: Vec<Source>,
     cache_endpoints: Vec<CacheEndpoint>,
     home_dir: PathBuf,
-    sink_config: SinkConfig,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
     running: Arc<AtomicBool>,
-}
-pub struct SinkConfig {
-    pub record_cutoff: u32,
-    pub timeout: u64,
-}
-impl Default for SinkConfig {
-    fn default() -> Self {
-        Self {
-            record_cutoff: 50000,
-            timeout: 300,
-        }
-    }
 }
 impl Executor {
     pub fn new(
@@ -57,7 +44,6 @@ impl Executor {
         iterator: Arc<RwLock<IngestionIterator>>,
         running: Arc<AtomicBool>,
         home_dir: PathBuf,
-        sink_config: SinkConfig,
     ) -> Self {
         Self {
             sources,
@@ -66,13 +52,12 @@ impl Executor {
             ingestor,
             iterator,
             running,
-            sink_config,
         }
     }
 
     pub fn run(
         &self,
-        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        _notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connections: Vec<Connection> = vec![];
@@ -104,7 +89,7 @@ impl Executor {
                 .and_modify(|v| v.push(table.clone()))
                 .or_insert_with(|| vec![table]);
 
-            table_map.insert(table_name, (idx as usize).try_into().unwrap());
+            table_map.insert(table_name, idx.try_into().unwrap());
         }
 
         let source_handle = NodeHandle::new(None, "src".to_string());
@@ -142,14 +127,7 @@ impl Executor {
             let sink_handle = NodeHandle::new(Some(idx as u16), "sink".to_string());
 
             // Initialize Sink
-            let sink = CacheSinkFactory::new(
-                vec![DEFAULT_PORT_HANDLE],
-                cache,
-                api_endpoint,
-                notifier.clone(),
-                self.sink_config.record_cutoff,
-                self.sink_config.timeout,
-            );
+            let sink = CacheSinkFactory::new(vec![DEFAULT_PORT_HANDLE], cache, api_endpoint);
             parent_dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
 
             // Connect Pipeline to Sink

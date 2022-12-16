@@ -44,21 +44,17 @@ impl SourceFactory for UserTestSourceFactory {
             .field(
                 FieldDefinition::new(String::from("id"), FieldType::Int, false),
                 false,
-                false,
             )
             .field(
                 FieldDefinition::new(String::from("name"), FieldType::String, false),
-                false,
                 false,
             )
             .field(
                 FieldDefinition::new(String::from("DepartmentID"), FieldType::Int, false),
                 false,
-                false,
             )
             .field(
                 FieldDefinition::new(String::from("Salary"), FieldType::Float, false),
-                false,
                 false,
             )
             .clone())
@@ -128,11 +124,9 @@ impl SourceFactory for DepartmentTestSourceFactory {
             .field(
                 FieldDefinition::new(String::from("id"), FieldType::Int, false),
                 false,
-                false,
             )
             .field(
                 FieldDefinition::new(String::from("name"), FieldType::String, false),
-                false,
                 false,
             )
             .clone())
@@ -211,7 +205,7 @@ impl Sink for TestSink {
     }
 
     fn commit(
-        &self,
+        &mut self,
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
