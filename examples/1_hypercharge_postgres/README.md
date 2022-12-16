@@ -21,21 +21,29 @@ cargo run
 ### Postman Integration
 
 #### gRPC
-```yaml
-grpc:
-    port: 50051
-    url: "[::0]"
-    cors: true
-    web: true
-```
-Use server reflection as a source of the gRPC API.
+<details>
+    <summary>Click me</summary>
 
-<div align="center">
-    <img src="https://drive.google.com/uc?export=view&id=1zcYcUMY7KGJy8MxkZM9noF_MAp5jLPzZ" width=60%">
-</div>
+    #### Example Config for gRPC
 
-`[::0]50051` is from yaml configuration.
+    ```yaml
+    grpc:
+        port: 50051
+        url: "[::0]"
+        cors: true
+        web: true
+    ```
+    Use server reflection as a source of the gRPC API.
+    
+    <div align="center">
+        <img src="https://drive.google.com/uc?export=view&id=1zcYcUMY7KGJy8MxkZM9noF_MAp5jLPzZ" width=60%">
+    </div>
+    
+    `[::0]50051` is from yaml configuration.
+    
+    <div align="center">
+        <img src="https://drive.google.com/uc?export=view&id=11tji0bhcLei7V-SiSQgY6CfMX9r6q_2C" width=60%">
+    </div>
 
-<div align="center">
-    <img src="https://drive.google.com/uc?export=view&id=11tji0bhcLei7V-SiSQgY6CfMX9r6q_2C" width=60%">
-</div>
+</details>
+
