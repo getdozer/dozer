@@ -52,7 +52,9 @@ cd dozer
 docker compose -f tests/simple_e2e_example/docker-compose.yml up
 ```
 
-## What can you build with Dozer?
+## End-to-end Examples
+
+### What can you build with Dozer?
 
 1. Hypercharge your Postgres by offloading read APIs to Dozer
 2. Real time ML predictions deployed as APIs from Snowflake
@@ -60,10 +62,7 @@ docker compose -f tests/simple_e2e_example/docker-compose.yml up
 
 [//]: # (### Screenshots)
 
-
-### End-to-end Examples
-
-Check out our end-to-end examples [here](./examples/README.md).
+Check out these tests for above end-to-end examples [here](./examples/README.md).
 
 
 [//]: # (## Architecture)
