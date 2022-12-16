@@ -18,7 +18,7 @@ api:
 connections:
   - name: products
     db_type: Kafka
-    authentication: !KafkaAuthentication
+    authentication: !Kafka
       broker: ${DEBEZIUM_KAFKA_WITH_REGISTRY_BROKER}
       topic: ${DEBEZIUM_KAFKA_TOPIC}
       schema_registry_url: ${DEBEZIUM_KAFKA_SCHEMA_REGISTRY_URL}

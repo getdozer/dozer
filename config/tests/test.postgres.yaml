@@ -18,7 +18,7 @@ api:
 connections:
   - name: products_test
     db_type: Postgres
-    authentication: !PostgresAuthentication
+    authentication: !Postgres
       user: ${POSTGRES_USER}
       password: ${POSTGRES_PASSWORD}
       host: ${POSTGRES_HOST}
