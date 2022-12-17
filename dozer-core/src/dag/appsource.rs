@@ -28,8 +28,8 @@ impl AppSource {
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
 pub struct AppSourceId {
-    pub connection: Option<String>,
     pub id: String,
+    pub connection: Option<String>,
 }
 
 impl Display for AppSourceId {

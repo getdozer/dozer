@@ -8,6 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter};
+use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
@@ -214,6 +215,32 @@ impl Connector for EthConnector {
                 return Err(ConnectorError::map_serialization_error(e));
             }
         }
+        Ok(())
+    }
+
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
+        vec![sources]
+    }
+}
+
+#[allow(unreachable_code)]
+async fn run(
+    wss_url: String,
+    filter: Filter,
+    ingestor: Arc<RwLock<Ingestor>>,
+    connector_id: u64,
+) -> Result<(), ConnectorError> {
+    let client = helper::get_client(&wss_url).await.unwrap();
+
+    let stream = client
+        .eth_subscribe()
+        .subscribe_logs(filter.clone())
+        .await
+        .unwrap();
+
+    tokio::pin!(stream);
+    let mut idx = 0;
+
         Ok(())
     }
 }
