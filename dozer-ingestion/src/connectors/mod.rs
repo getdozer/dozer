@@ -22,6 +22,9 @@ use self::{ethereum::connector::EthConnector, events::connector::EventsConnector
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>>
+    where
+        Self: Sized;
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,

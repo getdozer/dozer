@@ -7,6 +7,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter, IngestionMessage};
+use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use futures::StreamExt;
 use tokio::runtime::Runtime;
@@ -122,6 +123,10 @@ impl Connector for EthConnector {
 
     fn validate(&self) -> Result<(), ConnectorError> {
         Ok(())
+    }
+
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
+        vec![sources]
     }
 }
 

@@ -11,6 +11,7 @@ use dozer_types::types::Schema;
 use postgres::Client;
 use postgres_types::PgLsn;
 
+use dozer_types::models::source::Source;
 use std::sync::Arc;
 use tokio_postgres::config::ReplicationMode;
 use tokio_postgres::Config;
@@ -112,6 +113,10 @@ impl Connector for PostgresConnector {
     fn validate(&self) -> Result<(), ConnectorError> {
         validate_connection(self.conn_config.clone(), self.tables.clone(), None)?;
         Ok(())
+    }
+
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
+        vec![sources]
     }
 }
 

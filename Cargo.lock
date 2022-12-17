@@ -1364,6 +1364,7 @@ dependencies = [
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
+ "include_dir",
  "indicatif",
  "log",
  "serde",
