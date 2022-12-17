@@ -29,8 +29,8 @@ sources:
   - name: users
     table_name: users
     connection: !Ref products_test
-    history_type: null
-    refresh_config: RealTime
+    columns:
+      - id
 
 endpoints:
   - name: products_test
