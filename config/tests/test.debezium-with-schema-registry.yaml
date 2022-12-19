@@ -27,8 +27,8 @@ source:
   - name: products
     table_name: ${DEBEZIUM_TABLE_NAME}
     connection: !Ref products
-    history_type: null
-    refresh_config: RealTime
+    columns:
+      - id
 
 endpoints:
   - name: products

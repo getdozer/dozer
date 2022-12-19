@@ -32,8 +32,8 @@ sources:
   - name: customer
     table_name: customer_test_1000
     connection: !Ref customers
-    history_type: null
-    refresh_config: RealTime
+    columns:
+      - id
 
 endpoints:
   - name: customer
