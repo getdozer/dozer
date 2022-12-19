@@ -11,6 +11,11 @@ dozer-types = {path = "../dozer-types"}
 dozer-tracing = {path = "../dozer-tracing"}
 dozer-core = {path = "../dozer-core"}
 dozer-sql = {path = "../dozer-sql"}
+dozer-cache = { path = "../dozer-cache" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.1"
 tempdir = "0.3.7"
+tokio = { version = "1.23.0", features = ["full"] }
+bson = "2.4.0"
+mongodb = "2.3.1"
+futures = "0.3.25"

@@ -47,6 +47,7 @@ dozer run -c dozer-config.yaml
 ### Test Dependencies
 
 - `wget` (`brew install wget` on MacOS)
+- `mongodb` running on `localhost:27017`
 
 ### Local development
 

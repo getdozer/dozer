@@ -1,3 +1,5 @@
+use crate::read_csv::read_csv;
+
 use super::SqlMapper;
 use dozer_types::errors::types;
 use dozer_types::ordered_float::OrderedFloat;
@@ -257,24 +259,6 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
             .collect(),
         primary_index: vec![0],
     }
-}
-
-pub fn read_csv(folder_name: &str, name: &str) -> Result<csv::Reader<std::fs::File>, csv::Error> {
-    let current_dir = std::env::current_dir().unwrap();
-    let paths = vec![
-        current_dir.join(format!("../target/debug/{}-data/{}.csv", folder_name, name)),
-        current_dir.join(format!("./target/debug/{}-data/{}.csv", folder_name, name)),
-    ];
-
-    let mut err = None;
-    for path in paths {
-        let rdr = csv::Reader::from_path(path);
-        match rdr {
-            Ok(rdr) => return Ok(rdr),
-            Err(e) => err = Some(Err(e)),
-        }
-    }
-    err.unwrap()
 }
 
 pub fn download(folder_name: &str) {
