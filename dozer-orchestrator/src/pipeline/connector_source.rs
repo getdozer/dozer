@@ -8,8 +8,7 @@ use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
-use dozer_types::parking_lot::lock_api::RwLockWriteGuard;
-use dozer_types::parking_lot::{RawRwLock, RwLock};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,7 +62,7 @@ impl Source for NewConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<u64>,
+        from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut connector = get_connector(self.connection.to_owned())
             .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
