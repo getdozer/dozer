@@ -92,7 +92,7 @@ Check out this module for above [end-to-end examples](./examples/README.md).
     - Build custom functions for aggregation, selection etc. using WASM
 - **Optimize for serving**
     - Define indices with a simple configuration
-    - Support for multiple indices such as Inverted, Full Test, Compound, Geo (Coming soon!) etc.
+    - Support for multiple indices such as Inverted, Full Text, Compound, Geo (Coming soon!) etc.
     - Apply filter and sort operations on cached data
     - Support for Push and Pull queries
 - **Publish blazing fast APIs**
