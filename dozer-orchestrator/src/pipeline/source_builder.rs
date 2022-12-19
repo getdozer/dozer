@@ -1,9 +1,7 @@
 use crate::pipeline::connector_source::NewConnectorSourceFactory;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
-use dozer_core::dag::node::{PortHandle, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, get_connector_outputs, TableInfo};
-use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
-use dozer_types::models::connection::Connection;
+use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
+use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
