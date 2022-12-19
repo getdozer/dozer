@@ -57,7 +57,7 @@ impl Executor {
 
     pub fn run(
         &self,
-        _notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
         _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connection_map: HashMap<Connection, Vec<TableInfo>> = HashMap::new();
@@ -122,7 +122,12 @@ impl Executor {
             let sink_handle = NodeHandle::new(Some(idx as u16), "sink".to_string());
 
             // Initialize Sink
-            let sink = CacheSinkFactory::new(vec![DEFAULT_PORT_HANDLE], cache, api_endpoint);
+            let sink = CacheSinkFactory::new(
+                vec![DEFAULT_PORT_HANDLE],
+                cache,
+                api_endpoint,
+                notifier.clone(),
+            );
             parent_dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
 
             // Connect Pipeline to Sink
