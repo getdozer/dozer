@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use dozer_types::types::{FieldBorrow, IndexDefinition, Record, SortDirection};
+use dozer_types::types::{FieldBorrow, IndexDefinition, Record};
 
 pub trait CacheIndex {
     // Builds one index based on index definition and record
@@ -48,15 +48,11 @@ pub fn compare_composite_secondary_index(a: &[u8], b: &[u8]) -> Result<Ordering,
     Ok(loop {
         match (a.next(), b.next()) {
             (Some(a), Some(b)) => {
-                let (a, a_direction) = a?;
-                let (b, b_direction) = b?;
-                debug_assert!(a_direction == b_direction);
+                let a = a?;
+                let b = b?;
                 match a.cmp(&b) {
                     Ordering::Equal => continue,
-                    ordering => match a_direction {
-                        SortDirection::Ascending => break ordering,
-                        SortDirection::Descending => break ordering.reverse(),
-                    },
+                    ordering => break ordering,
                 }
             }
             (Some(_), None) => break Ordering::Greater,
@@ -76,7 +72,7 @@ pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
 
 fn get_composite_secondary_index(fields: &[&Field]) -> Vec<u8> {
     fn get_field_encoding_len(field: &Field) -> usize {
-        8 + 1 + field.encoding_len()
+        8 + field.encoding_len()
     }
 
     let total_len = fields
@@ -88,8 +84,7 @@ fn get_composite_secondary_index(fields: &[&Field]) -> Vec<u8> {
     for field in fields {
         let field_len = get_field_encoding_len(field);
         buf[offset..offset + 8].copy_from_slice(&(field_len as u64).to_be_bytes());
-        buf[offset + 8] = SortDirection::Ascending.to_u8();
-        field.encode_buf(&mut buf[offset + 9..offset + field_len]);
+        field.encode_buf(&mut buf[offset + 8..offset + field_len]);
         offset += field_len;
     }
     buf
@@ -105,7 +100,7 @@ impl<'a> CompositeSecondaryIndexKey<'a> {
         Self { buf, offset: 0 }
     }
 
-    fn decode_one(&mut self) -> Result<(FieldBorrow<'a>, SortDirection), CompareError> {
+    fn decode_one(&mut self) -> Result<FieldBorrow<'a>, CompareError> {
         if self.offset + 8 > self.buf.len() {
             return Err(CompareError::CannotReadFieldLength);
         }
@@ -116,17 +111,14 @@ impl<'a> CompositeSecondaryIndexKey<'a> {
             return Err(CompareError::CannotReadField);
         }
 
-        let direction = self.buf[self.offset + 8];
-        let direction = SortDirection::from_u8(direction)
-            .ok_or(CompareError::InvalidSortDirection(direction))?;
-        let field = Field::decode_borrow(&self.buf[self.offset + 9..self.offset + field_len])?;
+        let field = Field::decode_borrow(&self.buf[self.offset + 8..self.offset + field_len])?;
         self.offset += field_len;
-        Ok((field, direction))
+        Ok(field)
     }
 }
 
 impl<'a> Iterator for CompositeSecondaryIndexKey<'a> {
-    type Item = Result<(FieldBorrow<'a>, SortDirection), CompareError>;
+    type Item = Result<FieldBorrow<'a>, CompareError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset >= self.buf.len() {
