@@ -33,13 +33,10 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
 /// # Parameters
 /// - `fields`: The fields to index.
 /// - `is_single_field_index`: Whether the `fields` belong to a single field index. If `true`, `fields` must have length 1.
-pub fn get_secondary_index(
-    fields: &[(&Field, SortDirection)],
-    is_single_field_index: bool,
-) -> Vec<u8> {
+pub fn get_secondary_index(fields: &[&Field], is_single_field_index: bool) -> Vec<u8> {
     debug_assert!(!is_single_field_index || fields.len() == 1);
     if is_single_field_index {
-        fields[0].0.encode()
+        fields[0].encode()
     } else {
         get_composite_secondary_index(fields)
     }
@@ -77,21 +74,21 @@ pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
     ["schema_name_".as_bytes(), name.as_bytes()].join("#".as_bytes())
 }
 
-fn get_composite_secondary_index(fields: &[(&Field, SortDirection)]) -> Vec<u8> {
+fn get_composite_secondary_index(fields: &[&Field]) -> Vec<u8> {
     fn get_field_encoding_len(field: &Field) -> usize {
         8 + 1 + field.encoding_len()
     }
 
     let total_len = fields
         .iter()
-        .map(|(field, _)| get_field_encoding_len(field))
+        .map(|field| get_field_encoding_len(field))
         .sum::<usize>();
     let mut buf = vec![0; total_len];
     let mut offset = 0;
-    for (field, direction) in fields {
+    for field in fields {
         let field_len = get_field_encoding_len(field);
         buf[offset..offset + 8].copy_from_slice(&(field_len as u64).to_be_bytes());
-        buf[offset + 8] = direction.to_u8();
+        buf[offset + 8] = SortDirection::Ascending.to_u8();
         field.encode_buf(&mut buf[offset + 9..offset + field_len]);
         offset += field_len;
     }

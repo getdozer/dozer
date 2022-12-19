@@ -24,7 +24,7 @@ pub struct IndexScan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IndexScanKind {
     SortedInverted {
-        eq_filters: Vec<(usize, SortDirection, Field)>,
+        eq_filters: Vec<(usize, Field)>,
         range_query: Option<SortedInvertedRangeQuery>,
     },
     FullText {

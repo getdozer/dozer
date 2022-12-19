@@ -9,9 +9,7 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::FieldType;
-use dozer_types::types::{
-    IndexDefinition, Operation, Schema, SchemaIdentifier, SortDirection::Ascending,
-};
+use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
 use std::collections::hash_map::DefaultHasher;
@@ -100,7 +98,7 @@ impl CacheSinkFactory {
                 | FieldType::String
                 | FieldType::Decimal
                 | FieldType::Timestamp
-                | FieldType::Date => Some(IndexDefinition::SortedInverted(vec![(idx, Ascending)])),
+                | FieldType::Date => Some(IndexDefinition::SortedInverted(vec![idx])),
 
                 // Create full text indexes for text fields
                 FieldType::Text => Some(IndexDefinition::FullText(idx)),
@@ -289,7 +287,6 @@ mod tests {
 
     use crate::test_utils;
     use dozer_cache::cache::{index, Cache};
-    use dozer_types::types::SortDirection::Ascending;
 
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::{NodeHandle, Sink};
@@ -315,7 +312,7 @@ mod tests {
             .fields
             .iter()
             .enumerate()
-            .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
+            .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![idx]))
             .collect();
 
         let (cache, mut sink) = test_utils::init_sink(&schema, secondary_indexes.clone());

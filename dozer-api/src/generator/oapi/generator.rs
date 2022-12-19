@@ -27,7 +27,7 @@ impl OpenApiGenerator {
     fn generate_query_example(&self) -> Value {
         if !self.secondary_indexes.is_empty() {
             if let IndexDefinition::SortedInverted(fields) = &self.secondary_indexes[0] {
-                let field_def = &self.schema.fields[fields[0].0];
+                let field_def = &self.schema.fields[fields[0]];
                 let name = field_def.name.clone();
                 let val = match field_def.typ {
                     FieldType::Int => Value::from(-1),

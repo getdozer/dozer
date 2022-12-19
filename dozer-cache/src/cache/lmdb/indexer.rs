@@ -1,5 +1,5 @@
 use crate::errors::{CacheError, IndexError, QueryError};
-use dozer_types::types::{Field, IndexDefinition, Record, Schema, SortDirection};
+use dozer_types::types::{Field, IndexDefinition, Record, Schema};
 use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
@@ -93,14 +93,11 @@ impl Indexer {
         Ok(())
     }
 
-    fn _build_index_sorted_inverted(
-        fields: &[(usize, SortDirection)],
-        values: &[Field],
-    ) -> Vec<u8> {
+    fn _build_index_sorted_inverted(fields: &[usize], values: &[Field]) -> Vec<u8> {
         let values = fields
             .iter()
             .copied()
-            .filter_map(|(index, direction)| (values.get(index).map(|value| (value, direction))))
+            .filter_map(|index| (values.get(index)))
             .collect::<Vec<_>>();
         // `values.len() == 1` criteria must be kept the same with `comparator.rs`.
         index::get_secondary_index(&values, values.len() == 1)

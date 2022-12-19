@@ -41,7 +41,7 @@ pub fn get_all_indexes(
             full_text_scans.push(IndexScanKind::FullText { filter: filter.0 });
         } else {
             debug_assert!(filter.0.op == Operator::EQ);
-            eq_filters.push(filter);
+            eq_filters.push((filter.0.field_index, filter.0.val));
         }
     }
 
@@ -64,7 +64,7 @@ pub fn get_all_indexes(
 }
 
 fn get_sorted_inverted_scans(
-    eq_filters: Vec<(IndexFilter, Option<SortDirection>)>,
+    eq_filters: Vec<(usize, Field)>,
     range_query: Option<RangeQuery>,
 ) -> impl Iterator<Item = IndexScanKind> {
     if eq_filters.is_empty() {
@@ -85,34 +85,22 @@ fn get_sorted_inverted_scans(
 }
 
 fn get_sorted_inverted_scans_with_eq_filters(
-    eq_filters: Vec<(IndexFilter, Option<SortDirection>)>,
+    eq_filters: Vec<(usize, Field)>,
     range_query: Option<RangeQuery>,
 ) -> impl Iterator<Item = IndexScanKind> {
-    // Combine `Eq` filters with sort directions.
-    let eq_filters = eq_filters.into_iter().map(|filter| {
-        get_sort_directions(filter.1)
-            .map(move |sort_direction| (filter.0.field_index, sort_direction, filter.0.val.clone()))
-    });
-
-    // Generate all possible combinations of `Eq` filters. The fields are in input order.
-    let all_eq_filters = eq_filters.multi_cartesian_product();
-
-    all_eq_filters.flat_map(move |eq_filters| {
-        // The `Eq` filters can be of arbitary order.
-        let num_eq_filters = eq_filters.len();
-        let range_query = range_query.clone();
-        eq_filters
-            .into_iter()
-            .permutations(num_eq_filters)
-            .flat_map(move |eq_filters| {
-                get_option_sorted_inverted_range_queries(range_query.clone()).map(
-                    move |range_query| IndexScanKind::SortedInverted {
-                        eq_filters: eq_filters.clone(),
-                        range_query,
-                    },
-                )
+    // The `Eq` filters can be of arbitary order.
+    let num_eq_filters = eq_filters.len();
+    eq_filters
+        .into_iter()
+        .permutations(num_eq_filters)
+        .flat_map(move |eq_filters| {
+            get_option_sorted_inverted_range_queries(range_query.clone()).map(move |range_query| {
+                IndexScanKind::SortedInverted {
+                    eq_filters: eq_filters.clone(),
+                    range_query,
+                }
             })
-    })
+        })
 }
 
 fn get_option_sorted_inverted_range_queries(
@@ -195,20 +183,10 @@ fn test_get_all_indexes() {
     check(
         vec![(filter.clone(), None)],
         None,
-        vec![
-            vec![IndexScanKind::SortedInverted {
-                eq_filters: vec![(
-                    filter.field_index,
-                    SortDirection::Ascending,
-                    filter.val.clone(),
-                )],
-                range_query: None,
-            }],
-            vec![IndexScanKind::SortedInverted {
-                eq_filters: vec![(filter.field_index, SortDirection::Descending, filter.val)],
-                range_query: None,
-            }],
-        ],
+        vec![vec![IndexScanKind::SortedInverted {
+            eq_filters: vec![(filter.field_index, filter.val)],
+            range_query: None,
+        }]],
     );
 
     // Only order by.

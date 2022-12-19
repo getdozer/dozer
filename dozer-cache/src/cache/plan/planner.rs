@@ -195,7 +195,7 @@ impl IndexScanKind {
                 if !eq_filters
                     .iter()
                     .zip(fields)
-                    .all(|(filter, field)| filter.0 == field.0 && filter.1 == field.1)
+                    .all(|(filter, field)| filter.0 == *field)
                 {
                     return false;
                 }
@@ -204,8 +204,7 @@ impl IndexScanKind {
                         return false;
                     }
                     let last_field = fields.last().unwrap();
-                    range_query.field_index == last_field.0
-                        && range_query.sort_direction == last_field.1
+                    range_query.field_index == *last_field
                 } else {
                     true
                 }

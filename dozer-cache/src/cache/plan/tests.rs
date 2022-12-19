@@ -34,14 +34,7 @@ fn test_generate_plan_simple() {
                 range_query,
             } => {
                 assert_eq!(eq_filters.len(), 1);
-                assert_eq!(
-                    eq_filters[0],
-                    (
-                        0,
-                        SortDirection::Ascending,
-                        Field::String("bar".to_string())
-                    )
-                );
+                assert_eq!(eq_filters[0], (0, Field::String("bar".to_string())));
                 assert_eq!(range_query, &None);
             }
             _ => panic!("Must be sorted inverted"),
@@ -75,15 +68,8 @@ fn test_generate_plan_and() {
                 range_query,
             } => {
                 assert_eq!(eq_filters.len(), 2);
-                assert_eq!(eq_filters[0], (0, SortDirection::Ascending, Field::Int(1)));
-                assert_eq!(
-                    eq_filters[1],
-                    (
-                        1,
-                        SortDirection::Ascending,
-                        Field::String("test".to_string())
-                    )
-                );
+                assert_eq!(eq_filters[0], (0, Field::Int(1)));
+                assert_eq!(eq_filters[1], (1, Field::String("test".to_string())));
                 assert_eq!(range_query, &None);
             }
             _ => panic!("Must be sorted inverted"),
@@ -109,7 +95,7 @@ fn test_generate_plan_range_query_and_order_by() {
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
         assert_eq!(index_scans.len(), 1);
-        assert_eq!(index_scans[0].index_id, 4);
+        assert_eq!(index_scans[0].index_id, 2);
         match &index_scans[0].kind {
             IndexScanKind::SortedInverted {
                 eq_filters,

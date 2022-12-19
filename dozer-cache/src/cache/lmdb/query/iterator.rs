@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use dozer_types::types::SortDirection;
 use lmdb::Cursor;
 use lmdb_sys::{
     MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_NEXT_NODUP, MDB_PREV, MDB_PREV_NODUP, MDB_SET_RANGE,
@@ -23,10 +24,10 @@ impl KeyEndpoint {
 enum CacheIteratorState {
     First {
         starting_key: Option<KeyEndpoint>,
-        ascending: bool,
+        direction: SortDirection,
     },
     NotFirst {
-        ascending: bool,
+        direction: SortDirection,
     },
 }
 
@@ -43,11 +44,11 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
         let res = match &self.state {
             CacheIteratorState::First {
                 starting_key,
-                ascending,
+                direction,
             } => {
                 let res = match starting_key {
-                    Some(starting_key) => {
-                        if *ascending {
+                    Some(starting_key) => match direction {
+                        SortDirection::Ascending => {
                             match self
                                 .cursor
                                 .get(Some(starting_key.key()), None, MDB_SET_RANGE)
@@ -67,7 +68,8 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
 
                                 Err(e) => Err(e),
                             }
-                        } else {
+                        }
+                        SortDirection::Descending => {
                             match self
                                 .cursor
                                 .get(Some(starting_key.key()), None, MDB_SET_RANGE)
@@ -85,27 +87,21 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
                                 Err(e) => Err(e),
                             }
                         }
-                    }
-                    None => {
-                        if *ascending {
-                            self.cursor.get(None, None, MDB_FIRST)
-                        } else {
-                            self.cursor.get(None, None, MDB_LAST)
-                        }
-                    }
+                    },
+                    None => match direction {
+                        SortDirection::Ascending => self.cursor.get(None, None, MDB_FIRST),
+                        SortDirection::Descending => self.cursor.get(None, None, MDB_LAST),
+                    },
                 };
                 self.state = CacheIteratorState::NotFirst {
-                    ascending: *ascending,
+                    direction: *direction,
                 };
                 res
             }
-            CacheIteratorState::NotFirst { ascending } => {
-                if *ascending {
-                    self.cursor.get(None, None, MDB_NEXT)
-                } else {
-                    self.cursor.get(None, None, MDB_PREV)
-                }
-            }
+            CacheIteratorState::NotFirst { direction } => match direction {
+                SortDirection::Ascending => self.cursor.get(None, None, MDB_NEXT),
+                SortDirection::Descending => self.cursor.get(None, None, MDB_PREV),
+            },
         };
 
         match res {
@@ -115,12 +111,12 @@ impl<'txn, C: Cursor<'txn>> Iterator for CacheIterator<'txn, C> {
     }
 }
 impl<'txn, C: Cursor<'txn>> CacheIterator<'txn, C> {
-    pub fn new(cursor: C, starting_key: Option<KeyEndpoint>, ascending: bool) -> Self {
+    pub fn new(cursor: C, starting_key: Option<KeyEndpoint>, direction: SortDirection) -> Self {
         CacheIterator {
             cursor,
             state: CacheIteratorState::First {
                 starting_key,
-                ascending,
+                direction,
             },
             _marker: PhantomData::default(),
         }
@@ -129,6 +125,7 @@ impl<'txn, C: Cursor<'txn>> CacheIterator<'txn, C> {
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::types::SortDirection;
     use lmdb::{Transaction, WriteFlags};
 
     use crate::cache::lmdb::{
@@ -155,9 +152,9 @@ mod tests {
 
         // Create testing cursor and utility function.
         let txn = env.begin_ro_txn().unwrap();
-        let check = |starting_key, ascending, expected: Vec<&'static [u8]>| {
+        let check = |starting_key, direction, expected: Vec<&'static [u8]>| {
             let cursor = txn.open_ro_cursor(db).unwrap();
-            let actual = CacheIterator::new(cursor, starting_key, ascending)
+            let actual = CacheIterator::new(cursor, starting_key, direction)
                 .map(|(key, _)| key)
                 .collect::<Vec<_>>();
             assert_eq!(actual, expected);
@@ -166,7 +163,7 @@ mod tests {
         // Test ascending from start.
         check(
             None,
-            true,
+            SortDirection::Ascending,
             vec![
                 b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
             ],
@@ -175,7 +172,7 @@ mod tests {
         // Test descending from last.
         check(
             None,
-            false,
+            SortDirection::Descending,
             vec![
                 b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
             ],
@@ -185,7 +182,7 @@ mod tests {
         let starting_key = b"a".to_vec();
         check(
             Some(KeyEndpoint::Excluding(starting_key)),
-            true,
+            SortDirection::Ascending,
             vec![
                 b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
             ],
@@ -193,18 +190,22 @@ mod tests {
 
         // Test descending from key before db start.
         let starting_key = b"a".to_vec();
-        check(Some(KeyEndpoint::Excluding(starting_key)), false, vec![]);
+        check(
+            Some(KeyEndpoint::Excluding(starting_key)),
+            SortDirection::Descending,
+            vec![],
+        );
 
         // Test ascending from existing key.
         let starting_key = b"ba".to_vec();
         check(
             Some(KeyEndpoint::Including(starting_key.clone())),
-            true,
+            SortDirection::Ascending,
             vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
         );
         check(
             Some(KeyEndpoint::Excluding(starting_key)),
-            true,
+            SortDirection::Ascending,
             vec![b"bb", b"bc", b"ca", b"cb", b"cc"],
         );
 
@@ -212,7 +213,7 @@ mod tests {
         let starting_key = b"00".to_vec();
         check(
             Some(KeyEndpoint::Including(starting_key)),
-            true,
+            SortDirection::Ascending,
             vec![
                 b"aa", b"ab", b"ac", b"ba", b"bb", b"bc", b"ca", b"cb", b"cc",
             ],
@@ -222,12 +223,12 @@ mod tests {
         let starting_key = b"bc".to_vec();
         check(
             Some(KeyEndpoint::Including(starting_key.clone())),
-            false,
+            SortDirection::Descending,
             vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
         check(
             Some(KeyEndpoint::Excluding(starting_key)),
-            false,
+            SortDirection::Descending,
             vec![b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
 
@@ -235,7 +236,7 @@ mod tests {
         let starting_key = b"ad".to_vec();
         check(
             Some(KeyEndpoint::Including(starting_key)),
-            true,
+            SortDirection::Ascending,
             vec![b"ba", b"bb", b"bc", b"ca", b"cb", b"cc"],
         );
 
@@ -243,7 +244,7 @@ mod tests {
         let starting_key = b"bd".to_vec();
         check(
             Some(KeyEndpoint::Including(starting_key)),
-            false,
+            SortDirection::Descending,
             vec![b"bc", b"bb", b"ba", b"ac", b"ab", b"aa"],
         );
 
@@ -251,7 +252,7 @@ mod tests {
         let starting_key = b"dd".to_vec();
         check(
             Some(KeyEndpoint::Including(starting_key)),
-            false,
+            SortDirection::Descending,
             vec![
                 b"cc", b"cb", b"ca", b"bc", b"bb", b"ba", b"ac", b"ab", b"aa",
             ],
@@ -259,6 +260,10 @@ mod tests {
 
         // Test ascending from key past db end.
         let starting_key = b"dd".to_vec();
-        check(Some(KeyEndpoint::Including(starting_key)), true, vec![]);
+        check(
+            Some(KeyEndpoint::Including(starting_key)),
+            SortDirection::Ascending,
+            vec![],
+        );
     }
 }

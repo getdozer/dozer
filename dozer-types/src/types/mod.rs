@@ -121,7 +121,7 @@ impl SortDirection {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum IndexDefinition {
     /// The sorted inverted index, supporting `Eq` filter on multiple fields and `LT`, `LTE`, `GT`, `GTE` filter on at most one field.
-    SortedInverted(Vec<(usize, SortDirection)>),
+    SortedInverted(Vec<usize>),
     /// Full text index, supporting `Contains`, `MatchesAny` and `MatchesAll` filter on exactly one field.
     FullText(usize),
 }

@@ -1,7 +1,4 @@
-use dozer_types::types::{
-    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier,
-    SortDirection::{Ascending, Descending},
-};
+use dozer_types::types::{FieldDefinition, IndexDefinition, Schema, SchemaIdentifier};
 
 pub fn schema_0() -> (Schema, Vec<IndexDefinition>) {
     (
@@ -14,7 +11,7 @@ pub fn schema_0() -> (Schema, Vec<IndexDefinition>) {
             }],
             primary_index: vec![0],
         },
-        vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
+        vec![IndexDefinition::SortedInverted(vec![0])],
     )
 }
 
@@ -42,13 +39,11 @@ pub fn schema_1() -> (Schema, Vec<IndexDefinition>) {
             primary_index: vec![0],
         },
         vec![
-            IndexDefinition::SortedInverted(vec![(0, Ascending)]),
-            IndexDefinition::SortedInverted(vec![(1, Ascending)]),
-            IndexDefinition::SortedInverted(vec![(2, Ascending)]),
+            IndexDefinition::SortedInverted(vec![0]),
+            IndexDefinition::SortedInverted(vec![1]),
+            IndexDefinition::SortedInverted(vec![2]),
             // composite index
-            IndexDefinition::SortedInverted(vec![(0, Ascending), (1, Ascending)]),
-            // descending index
-            IndexDefinition::SortedInverted(vec![(2, Descending)]),
+            IndexDefinition::SortedInverted(vec![0, 1]),
         ],
     )
 }
@@ -80,7 +75,7 @@ pub fn schema_empty_primary_index() -> (Schema, Vec<IndexDefinition>) {
             }],
             primary_index: vec![],
         },
-        vec![IndexDefinition::SortedInverted(vec![(0, Ascending)])],
+        vec![IndexDefinition::SortedInverted(vec![0])],
     )
 }
 
@@ -103,7 +98,7 @@ pub fn schema_multi_indices() -> (Schema, Vec<IndexDefinition>) {
             primary_index: vec![0],
         },
         vec![
-            IndexDefinition::SortedInverted(vec![(0, Ascending)]),
+            IndexDefinition::SortedInverted(vec![0]),
             IndexDefinition::FullText(1),
         ],
     )
