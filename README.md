@@ -50,7 +50,7 @@ cd dozer
 ```bash
 curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash -s -- -d
 cd dozer
-docker compose -f tests/simple_e2e_example/docker-compose.yml up
+docker compose -f <path-to-yaml-config> up
 ```
 <br>
 
@@ -87,7 +87,7 @@ Check out this module for above [end-to-end examples](./examples/README.md).
     - Create your own connector using Rust
     - Automatic schema evolution and validation
 - **Transform in REAL-TIME**
-    - Use SQL to perform joins, aggregations and filer operations in real time across sources.
+    - Use SQL to perform joins, aggregations and filter operations in real time across sources.
     - Use it like an ORM; Map relational data to object entities using Dozer SQL extensions
     - Build custom functions for aggregation, selection etc. using WASM
 - **Optimize for serving**

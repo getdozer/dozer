@@ -1,5 +1,6 @@
 use crate::{errors::GenerationError, PipelineDetails};
 use dozer_cache::cache::Cache;
+use dozer_types::log::error;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::FieldType;
 use handlebars::Handlebars;
@@ -8,7 +9,6 @@ use prost_reflect::DescriptorPool;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::Path;
-use dozer_types::log::error;
 
 use super::utils::{create_descriptor_set, get_proto_descriptor};
 
@@ -18,7 +18,7 @@ pub struct ProtoMetadata {
     import_libs: Vec<String>,
     messages: Vec<RPCMessage>,
     package_name: String,
-    plural_lower_name: String,
+    lower_name: String,
     plural_pascal_name: String,
     pascal_name: String,
 }
@@ -139,7 +139,7 @@ impl ProtoGenerator<'_> {
             package_name,
             messages,
             import_libs,
-            plural_lower_name: self.schema_name.to_lowercase(),
+            lower_name: self.schema_name.to_lowercase(),
             plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
             pascal_name: self.schema_name.to_pascal_case().to_singular(),
         };
