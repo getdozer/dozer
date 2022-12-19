@@ -153,14 +153,6 @@ fn test_sort_options_query_deserialize() {
             SortOption::new("b".into(), Descending),
         ],
     );
-    // Fields get sorted.
-    test_deserialize_sort_options(
-        json!({"b": "asc", "a": "desc"}),
-        vec![
-            SortOption::new("a".into(), Descending),
-            SortOption::new("b".into(), Ascending),
-        ],
-    );
 
     test_deserialize_sort_options_error(json!(""));
     test_deserialize_sort_options_error(json!(1));

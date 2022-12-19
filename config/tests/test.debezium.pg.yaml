@@ -1,4 +1,4 @@
-postgres_source_authentication: !PostgresAuthentication
+postgres_source_authentication: !Postgres
   user: ${POSTGRES_USER}
   password: ${POSTGRES_PASSWORD}
   host: ${POSTGRES_HOST}

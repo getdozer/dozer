@@ -18,7 +18,7 @@ api:
 connections:
   - name: products
     db_type: Kafka
-    authentication: !KafkaAuthentication
+    authentication: !Kafka
       broker: ${DEBEZIUM_KAFKA_BROKER}
       topic: ${DEBEZIUM_KAFKA_TOPIC}
 
@@ -26,8 +26,8 @@ sources:
   - name: products
     table_name: ${DEBEZIUM_TABLE_NAME}
     connection: !Ref products
-    history_type: null
-    refresh_config: RealTime
+    columns:
+      - id
 
 endpoints:
   - name: products
