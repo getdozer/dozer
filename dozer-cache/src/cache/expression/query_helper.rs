@@ -1,9 +1,8 @@
 use crate::errors::{validate_query, QueryValidationError, QueryValidationError::*};
 use dozer_types::serde_json::{self, Value};
-use dozer_types::types::SortDirection;
 
 use super::super::expression::{FilterExpression, Operator};
-use super::SortOption;
+use super::{SortDirection, SortOption};
 
 fn validate_field_name(key: &str) -> Result<(), QueryValidationError> {
     if !key.eq("_")

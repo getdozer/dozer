@@ -80,44 +80,6 @@ impl Schema {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub enum SortDirection {
-    Ascending,
-    Descending,
-}
-
-impl SortDirection {
-    pub fn convert_str(s: &str) -> Option<Self> {
-        match s {
-            "asc" => Some(SortDirection::Ascending),
-            "desc" => Some(SortDirection::Descending),
-            _ => None,
-        }
-    }
-
-    pub fn to_str(&self) -> &'static str {
-        match self {
-            SortDirection::Ascending => "asc",
-            SortDirection::Descending => "desc",
-        }
-    }
-
-    pub fn to_u8(&self) -> u8 {
-        match self {
-            SortDirection::Ascending => 0,
-            SortDirection::Descending => 1,
-        }
-    }
-
-    pub fn from_u8(v: u8) -> Option<Self> {
-        match v {
-            0 => Some(SortDirection::Ascending),
-            1 => Some(SortDirection::Descending),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum IndexDefinition {
     /// The sorted inverted index, supporting `Eq` filter on multiple fields and `LT`, `LTE`, `GT`, `GTE` filter on at most one field.
@@ -207,6 +169,3 @@ pub enum Operation {
     Insert { new: Record },
     Update { old: Record, new: Record },
 }
-
-#[cfg(test)]
-pub mod tests;

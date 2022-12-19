@@ -1,9 +1,9 @@
 mod helper;
 mod planner;
-use dozer_types::types::{Field, SortDirection};
+use dozer_types::types::Field;
 pub use planner::QueryPlanner;
 
-use super::expression::Operator;
+use super::expression::{Operator, SortDirection};
 
 #[cfg(test)]
 mod tests;

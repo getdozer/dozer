@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
-use dozer_types::types::SortDirection;
 use lmdb::Cursor;
 use lmdb_sys::{
     MDB_FIRST, MDB_LAST, MDB_NEXT, MDB_NEXT_NODUP, MDB_PREV, MDB_PREV_NODUP, MDB_SET_RANGE,
 };
+
+use crate::cache::expression::SortDirection;
 
 #[derive(Debug, Clone)]
 pub enum KeyEndpoint {
@@ -125,12 +126,14 @@ impl<'txn, C: Cursor<'txn>> CacheIterator<'txn, C> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::types::SortDirection;
     use lmdb::{Transaction, WriteFlags};
 
-    use crate::cache::lmdb::{
-        utils::{init_db, init_env},
-        CacheOptions,
+    use crate::cache::{
+        expression::SortDirection,
+        lmdb::{
+            utils::{init_db, init_env},
+            CacheOptions,
+        },
     };
 
     use super::{CacheIterator, KeyEndpoint};

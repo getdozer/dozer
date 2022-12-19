@@ -5,7 +5,7 @@ use super::{
     iterator::{CacheIterator, KeyEndpoint},
 };
 use crate::cache::{
-    expression::{Operator, QueryExpression},
+    expression::{Operator, QueryExpression, SortDirection},
     index::{self},
     lmdb::{
         cache::IndexMetaData,
@@ -17,7 +17,6 @@ use crate::errors::{
     CacheError::{self},
     IndexError,
 };
-use dozer_types::types::SortDirection;
 use dozer_types::{
     bincode,
     types::{Field, IndexDefinition, Record, Schema},

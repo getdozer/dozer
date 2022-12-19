@@ -1,6 +1,5 @@
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::serde_json::Value;
-use dozer_types::types::SortDirection;
 mod query_helper;
 mod query_serde;
 
@@ -137,3 +136,27 @@ impl SortOption {
 /// A wrapper of `Vec<SortOption>`, for customizing the `Serialize` and `Deserialize` implementation.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SortOptions(pub Vec<SortOption>);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(crate = "self::serde")]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+
+impl SortDirection {
+    pub fn convert_str(s: &str) -> Option<Self> {
+        match s {
+            "asc" => Some(SortDirection::Ascending),
+            "desc" => Some(SortDirection::Descending),
+            _ => None,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            SortDirection::Ascending => "asc",
+            SortDirection::Descending => "desc",
+        }
+    }
+}

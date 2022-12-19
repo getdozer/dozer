@@ -1,14 +1,11 @@
 use super::{Plan, QueryPlanner};
 use crate::cache::{
-    expression::{self, FilterExpression, Operator, QueryExpression, SortOption},
+    expression::{self, FilterExpression, Operator, QueryExpression, SortDirection, SortOption},
     plan::{IndexScanKind, SortedInvertedRangeQuery},
     test_utils,
 };
 
-use dozer_types::{
-    serde_json::Value,
-    types::{Field, SortDirection},
-};
+use dozer_types::{serde_json::Value, types::Field};
 
 #[test]
 fn test_generate_plan_simple() {

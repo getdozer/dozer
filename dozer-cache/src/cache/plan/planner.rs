@@ -1,8 +1,8 @@
-use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
+use crate::cache::expression::{FilterExpression, Operator, QueryExpression, SortDirection};
 use crate::errors::PlanError;
 use dozer_types::json_value_to_field;
 use dozer_types::types::{Field, FieldDefinition, Schema};
-use dozer_types::types::{FieldType, IndexDefinition, SortDirection};
+use dozer_types::types::{FieldType, IndexDefinition};
 
 use super::helper::{RangeQuery, RangeQueryKind};
 use super::{helper, IndexScan, Plan, SeqScan};

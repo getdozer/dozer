@@ -1,7 +1,7 @@
-use dozer_types::types::{Field, SortDirection};
+use dozer_types::types::Field;
 use itertools::{Either, Itertools};
 
-use crate::cache::expression::Operator;
+use crate::cache::expression::{Operator, SortDirection};
 
 use super::{IndexFilter, IndexScanKind, SortedInvertedRangeQuery};
 
