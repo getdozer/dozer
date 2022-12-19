@@ -1,4 +1,5 @@
 use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_types::crossbeam::channel::Sender;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,15 +11,13 @@ use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
-use dozer_core::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
-use dozer_core::dag::errors::ExecutionError::{self};
+use dozer_core::dag::dag::{Dag, NodeType, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::NodeHandle;
 use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
-use dozer_types::crossbeam;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 
@@ -54,7 +53,7 @@ impl Executor {
 
     pub fn run(
         &self,
-        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        notifier: Option<Sender<PipelineRequest>>,
         _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let mut connection_map: HashMap<Connection, Vec<TableInfo>> = HashMap::new();
@@ -112,34 +111,19 @@ impl Executor {
                     vec![DEFAULT_PORT_HANDLE],
                     cache,
                     api_endpoint,
+                    notifier.clone(),
                 )),
-                "sink",
+                cache_endpoint.endpoint.id(),
             );
 
             pipeline
                 .connect_nodes(
                     "aggregation",
                     Some(DEFAULT_PORT_HANDLE),
-                    "sink",
+                    cache_endpoint.endpoint.id(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
                 .map_err(OrchestrationError::ExecutionError)?;
-
-            for (table_name, endpoint) in in_handle.into_iter() {
-                let port = match table_map.get(&table_name) {
-                    Some(port) => Ok(port),
-                    None => Err(OrchestrationError::PortNotFound(table_name)),
-                }?;
-
-                pipeline
-                    .connect_nodes(
-                        from_handle,
-                        Some(DEFAULT_PORT_HANDLE),
-                        "product",
-                        Some(to_port),
-                    )
-                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-            }
         }
 
         let path = self.home_dir.join("pipeline");
