@@ -18,9 +18,6 @@ use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
-use dozer_sql::sqlparser::ast::Statement;
-use dozer_sql::sqlparser::dialect::GenericDialect;
-use dozer_sql::sqlparser::parser::Parser;
 use dozer_types::crossbeam;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
@@ -96,6 +93,7 @@ impl Executor {
             self.ingestor.to_owned(),
             self.iterator.to_owned(),
         );
+
         let mut parent_dag = Dag::new();
         parent_dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
         let running_wait = self.running.clone();
@@ -109,22 +107,22 @@ impl Executor {
                 .build_pipeline(&api_endpoint.sql)
                 .map_err(OrchestrationError::SqlStatementFailed)?;
 
-            parent_dag.merge(Some(idx as u16), dag);
-
-            let sink_handle = NodeHandle::new(Some(idx as u16), "sink".to_string());
-
-            // Initialize Sink
-            let sink = CacheSinkFactory::new(
-                vec![DEFAULT_PORT_HANDLE],
-                cache,
-                api_endpoint,
-                notifier.clone(),
+            pipeline.add_sink(
+                Arc::new(CacheSinkFactory::new(
+                    vec![DEFAULT_PORT_HANDLE],
+                    cache,
+                    api_endpoint,
+                )),
+                "sink",
             );
-            parent_dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
 
-            // Connect Pipeline to Sink
-            parent_dag
-                .connect(out_handle, Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE))
+            pipeline
+                .connect_nodes(
+                    "aggregation",
+                    Some(DEFAULT_PORT_HANDLE),
+                    "sink",
+                    Some(DEFAULT_PORT_HANDLE),
+                )
                 .map_err(OrchestrationError::ExecutionError)?;
 
             for (table_name, endpoint) in in_handle.into_iter() {
@@ -133,11 +131,12 @@ impl Executor {
                     None => Err(OrchestrationError::PortNotFound(table_name)),
                 }?;
 
-                // Connect source from Parent Dag to Processor
-                parent_dag
-                    .connect(
-                        Endpoint::new(source_handle.clone(), port.to_owned()),
-                        endpoint,
+                pipeline
+                    .connect_nodes(
+                        from_handle,
+                        Some(DEFAULT_PORT_HANDLE),
+                        "product",
+                        Some(to_port),
                     )
                     .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
             }
