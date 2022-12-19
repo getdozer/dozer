@@ -35,15 +35,6 @@
 
 <br>
 
-## Why use Dozer?
-
-- Create **blazing fast** end to end APIs in minutes with a simple configuration.
-- Build and rapidly iterate on customer facing data apps.
-- Extend Dozer with **custom connectors, operators and Api transformations** using **WASM**.
-- Built in **Rust** with performance and extensibility in mind.
-
-<br>
-
 ## Quick Start
 
 Download the latest stable binary or source code for a quick start. Check out our latest release details [here](https://github.com/getdozer/dozer/releases/latest).
@@ -61,6 +52,15 @@ curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWnt
 cd dozer
 docker compose -f tests/simple_e2e_example/docker-compose.yml up
 ```
+<br>
+
+## Why use Dozer?
+
+- Create **blazing fast** end to end APIs in minutes with a simple configuration.
+- Build and rapidly iterate on customer facing data apps.
+- Extend Dozer with **custom connectors, operators and Api transformations** using **WASM**.
+- Built in **Rust** with performance and extensibility in mind.
+
 <br>
 
 ## End-to-end Examples
