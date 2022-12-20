@@ -1402,6 +1402,7 @@ dependencies = [
  "postgres-protocol",
  "postgres-types",
  "rand 0.8.5",
+ "regex",
  "reqwest",
  "schema_registry_converter",
  "serial_test",

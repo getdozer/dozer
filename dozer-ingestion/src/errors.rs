@@ -143,6 +143,12 @@ pub enum PostgresConnectorError {
 
     #[error("LSN not stored for replication slot")]
     LSNNotStoredError,
+
+    #[error("Table name \"{0}\" not valid")]
+    TableNameNotValid(String),
+
+    #[error("Column name \"{0}\" not valid")]
+    ColumnNameNotValid(String),
 }
 
 #[derive(Error, Debug, Eq, PartialEq)]
