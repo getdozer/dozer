@@ -27,7 +27,7 @@ pub async fn load_database(
     let mongo_db = mongo_client.database("dozer-tests:cache");
     let mongo_collection = mongo_db.collection::<Film>("films");
     mongo_collection.delete_many(doc! {}, None).await.unwrap();
-    mongo_collection.drop_indexes(None).await.unwrap();
+    let _ignore_error = mongo_collection.drop_indexes(None).await;
 
     mongo_collection
         .create_index(
