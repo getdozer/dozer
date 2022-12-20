@@ -1,8 +1,8 @@
-use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
+use crate::cache::expression::{FilterExpression, Operator, QueryExpression, SortDirection};
 use crate::errors::PlanError;
 use dozer_types::json_value_to_field;
 use dozer_types::types::{Field, FieldDefinition, Schema};
-use dozer_types::types::{FieldType, IndexDefinition, SortDirection};
+use dozer_types::types::{FieldType, IndexDefinition};
 
 use super::helper::{RangeQuery, RangeQueryKind};
 use super::{helper, IndexScan, Plan, SeqScan};
@@ -195,7 +195,7 @@ impl IndexScanKind {
                 if !eq_filters
                     .iter()
                     .zip(fields)
-                    .all(|(filter, field)| filter.0 == field.0 && filter.1 == field.1)
+                    .all(|(filter, field)| filter.0 == *field)
                 {
                     return false;
                 }
@@ -204,8 +204,7 @@ impl IndexScanKind {
                         return false;
                     }
                     let last_field = fields.last().unwrap();
-                    range_query.field_index == last_field.0
-                        && range_query.sort_direction == last_field.1
+                    range_query.field_index == *last_field
                 } else {
                     true
                 }
