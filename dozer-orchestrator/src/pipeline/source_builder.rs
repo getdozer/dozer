@@ -25,9 +25,12 @@ impl SourceBuilder {
             sources
                 .into_iter()
                 .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
-                    acc.entry(a.connection.name.clone())
-                        .or_default()
-                        .push(a.clone());
+                    if let Some(conn) = a.connection.clone() {
+                        acc.entry(conn.name.clone())
+                            .or_default()
+                            .push(a.clone());
+                    }
+
                     acc
                 });
 
@@ -37,8 +40,10 @@ impl SourceBuilder {
             .iter()
             .for_each(|(conn, sources_group)| {
                 let first_source = sources_group.get(0).unwrap();
-                let grouped_connector_sources =
-                    get_connector_outputs(first_source.connection.clone(), sources_group.clone());
+
+                if let Some(connection) = &first_source.connection {
+                    let grouped_connector_sources =
+                        get_connector_outputs(connection.clone(), sources_group.clone());
 
                 for same_connection_sources in grouped_connector_sources {
                     let mut ports = HashMap::new();
@@ -78,50 +83,34 @@ impl SourceBuilder {
 mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
     use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
+    use dozer_types::ingestion_types::SnowflakeConfig;
     use dozer_types::models::app_config::Config;
-    use dozer_types::serde_yaml;
-    use std::collections::HashMap;
     use std::sync::Arc;
 
     use dozer_core::dag::appsource::{AppSourceId, AppSourceMappings};
-    use dozer_core::dag::forwarder::LocalChannelForwarder;
-    use dozer_types::ingestion_types::IngestionOperation;
-    use dozer_types::models::connection::{Authentication, Connection, DBType};
-    use dozer_types::models::source::{RefreshConfig, Source};
-    use include_dir::{include_dir, Dir};
-
-    #[cfg(not(doc))]
-    static TESTS_CONFIG_DIR: Dir<'_> = include_dir!("config/tests/local");
-    #[cfg(doc)]
-    static TESTS_CONFIG_DIR: Dir<'_> = include_dir!("../config/tests/local");
-
-    pub fn load_config(file_name: &str) -> &str {
-        TESTS_CONFIG_DIR
-            .get_file(file_name)
-            .unwrap()
-            .contents_utf8()
-            .unwrap()
-    }
+    use dozer_types::models::connection::{
+        Authentication, Connection, DBType, PostgresAuthentication,
+    };
+    use dozer_types::models::source::Source;
 
     #[test]
     fn load_multi_sources() {
-        let config = serde_yaml::from_str::<Config>(load_config("test.multi.yaml")).unwrap();
-
         let pg_conn = Connection {
-            db_type: DBType::Postgres,
-            authentication: Authentication::PostgresAuthentication {
+            authentication: Some(Authentication::Postgres(PostgresAuthentication {
                 user: "".to_string(),
                 password: "".to_string(),
                 host: "".to_string(),
                 port: 0,
                 database: "".to_string(),
-            },
-            name: "pg_conn".to_string(),
+            })),
             id: None,
+            app_id: None,
+            db_type: DBType::Postgres.into(),
+            name: "pg_conn".to_string(),
         };
+
         let snow_conn = Connection {
-            db_type: DBType::Snowflake,
-            authentication: Authentication::SnowflakeAuthentication {
+            authentication: Some(Authentication::Snowflake(SnowflakeConfig {
                 server: "".to_string(),
                 user: "".to_string(),
                 password: "".to_string(),
@@ -130,12 +119,15 @@ mod tests {
                 schema: "".to_string(),
                 warehouse: "".to_string(),
                 driver: None,
-            },
-            name: "snow".to_string(),
+            })),
             id: None,
+            app_id: None,
+            db_type: DBType::Snowflake.into(),
+            name: "snow".to_string(),
         };
 
         let config = Config {
+            id: None,
             app_name: "multi".to_string(),
             api: Default::default(),
             connections: vec![pg_conn.clone(), snow_conn.clone()],
@@ -144,37 +136,37 @@ mod tests {
                     id: None,
                     name: "customers".to_string(),
                     table_name: "customers".to_string(),
-                    columns: None,
-                    connection: pg_conn.clone(),
-                    history_type: None,
-                    refresh_config: RefreshConfig::RealTime,
+                    columns: vec!["id".to_string()],
+                    connection: Some(pg_conn.clone()),
+                    refresh_config: None,
+                    app_id: None,
                 },
                 Source {
                     id: None,
                     name: "addresses".to_string(),
                     table_name: "addresses".to_string(),
-                    columns: None,
-                    connection: pg_conn.clone(),
-                    history_type: None,
-                    refresh_config: RefreshConfig::RealTime,
+                    columns: vec!["id".to_string()],
+                    connection: Some(pg_conn.clone()),
+                    refresh_config: None,
+                    app_id: None,
                 },
                 Source {
                     id: None,
                     name: "prices".to_string(),
                     table_name: "prices".to_string(),
-                    columns: None,
-                    connection: snow_conn.clone(),
-                    history_type: None,
-                    refresh_config: RefreshConfig::RealTime,
+                    columns: vec!["id".to_string()],
+                    connection: Some(snow_conn.clone()),
+                    refresh_config: None,
+                    app_id: None,
                 },
                 Source {
                     id: None,
                     name: "prices_history".to_string(),
                     table_name: "prices_history".to_string(),
-                    columns: None,
-                    connection: snow_conn.clone(),
-                    history_type: None,
-                    refresh_config: RefreshConfig::RealTime,
+                    columns: vec!["id".to_string()],
+                    connection: Some(snow_conn.clone()),
+                    refresh_config: None,
+                    app_id: None,
                 },
             ],
             endpoints: vec![],

@@ -26,7 +26,7 @@ pub struct NewConnectorSourceFactory {
 // TODO: Move this to sources.rs when everything is connected proeprly
 
 impl SourceFactory for NewConnectorSourceFactory {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         todo!()
     }
 
@@ -39,7 +39,7 @@ impl SourceFactory for NewConnectorSourceFactory {
 
     fn build(
         &self,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(NewConnectorSource {
             ingestor: self.ingestor.clone(),
@@ -63,7 +63,7 @@ impl Source for NewConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        from_seq: Option<u64>,
+        _from_seq: Option<u64>,
     ) -> Result<(), ExecutionError> {
         let mut connector = get_connector(self.connection.to_owned())
             .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
@@ -92,7 +92,7 @@ impl Source for NewConnectorSource {
                             .get(&schema_id)
                             .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
                             .unwrap();
-                        fw.send(op.seq_no, op.operation.to_owned(), port.to_owned())?
+                        fw.send(op.seq_no, 0,op.operation.to_owned(), port.to_owned())?
                     }
                     (_, IngestionOperation::SchemaUpdate(table_name, schema)) => {
                         let schema_id = get_schema_id(schema.identifier.as_ref())?;
@@ -105,7 +105,6 @@ impl Source for NewConnectorSource {
                         schema_map.insert(schema_id, port.to_owned());
                         //  fw.update_schema(schema.clone(), port.to_owned())?
                     }
-                    _ => {}
                 }
             } else {
                 break;

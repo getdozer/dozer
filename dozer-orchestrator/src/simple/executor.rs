@@ -125,14 +125,14 @@ impl Executor {
         );
         let mut app = App::new(asm);
 
-        for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
+        for cache_endpoint in self.cache_endpoints.iter().cloned() {
             let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
-            let api_endpoint = cache_endpoint.endpoint;
+            let api_endpoint = cache_endpoint.endpoint.clone();
             let _api_endpoint_name = api_endpoint.name.clone();
             let cache = cache_endpoint.cache;
 
-            let pipeline = PipelineBuilder {}
+            let mut pipeline = PipelineBuilder {}
                 .build_pipeline(&api_endpoint.sql)
                 .map_err(OrchestrationError::SqlStatementFailed)?;
 
