@@ -99,13 +99,20 @@ Check out this module for above [end-to-end examples](./examples/README.md).
     - gRPC and REST APIs automatically generated
     - Protobuf an Open API documentation
     - TypeSafe APIs
-  - Realtime Streaming
-  
+    - Realtime Streaming
+
 <br>
 
 ## Contributing
 
 ### Contributors / Developers
+
+#### Build Dependencies
+
+- [`Rust`](https://rustup.rs)
+- [`protoc`](https://github.com/protocolbuffers/protobuf/releases) latest release on your `PATH`
+- `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
+- `openssl` (brew install pkg-config openssl on MacOS)
 
 Please refeer to this [module](./dozer-ingestion/tests) on how to **test/build/implement a new connector**.
 

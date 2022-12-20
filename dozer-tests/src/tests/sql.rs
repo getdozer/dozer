@@ -1,17 +1,6 @@
-use crate::{
-    sql_tests::{download, get_inserts_from_csv},
-    TestFramework,
-};
+use crate::{init::init, sql_tests::get_inserts_from_csv, TestFramework};
 use dozer_types::tracing::info;
-use std::sync::Once;
 
-static INIT: Once = Once::new();
-fn init() {
-    INIT.call_once(|| {
-        dozer_tracing::init_telemetry(false).unwrap();
-        download("actor");
-    });
-}
 fn setup() -> TestFramework {
     let tables = vec![
         (

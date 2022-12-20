@@ -13,11 +13,15 @@ use crate::{
     CacheEndpoint, PipelineDetails,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
+use dozer_types::types::Schema;
 use futures_util::FutureExt;
 use std::{collections::HashMap, env, path::PathBuf, time::Duration};
 
 use tokio::{
-    sync::{broadcast, oneshot},
+    sync::{
+        broadcast::{self, Receiver},
+        oneshot,
+    },
     time::timeout,
 };
 use tokio_stream::StreamExt;
@@ -32,25 +36,22 @@ use super::{
     generated::films::{EventType, FilmEventRequest},
     test_utils::mock_event_notifier,
 };
-fn setup_typed_service() -> TypedService {
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
+pub fn setup_pipeline() -> (
+    HashMap<String, PipelineDetails>,
+    HashMap<String, Schema>,
+    Receiver<PipelineRequest>,
+) {
     let schema_name = String::from("films");
     let (schema, _) = test_utils::get_schema();
     let endpoint = test_utils::get_endpoint();
     let pipeline_details = PipelineDetails {
-        schema_name: schema_name.to_owned(),
+        schema_name: schema_name.clone(),
         cache_endpoint: CacheEndpoint {
             cache: test_utils::initialize_cache(&schema_name, None),
             endpoint,
         },
     };
-    let path = out_dir
-        .join("generated_films.bin")
-        .to_string_lossy()
-        .to_string();
-
-    let (_, desc) = get_proto_descriptor(path).unwrap();
 
     let event_notifier = mock_event_notifier();
     let (tx, rx1) = broadcast::channel::<PipelineRequest>(16);
@@ -60,6 +61,22 @@ fn setup_typed_service() -> TypedService {
 
     let mut schema_map = HashMap::new();
     schema_map.insert("films".to_string(), schema);
+
+    (pipeline_map, schema_map, rx1)
+}
+
+fn setup_typed_service() -> TypedService {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    let path = out_dir
+        .join("generated_films.bin")
+        .to_string_lossy()
+        .to_string();
+
+    let (_, desc) = get_proto_descriptor(path).unwrap();
+
+    let (pipeline_map, schema_map, rx1) = setup_pipeline();
+
     TypedService::new(desc, pipeline_map, schema_map, rx1)
 }
 
