@@ -88,15 +88,13 @@ fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConn
 fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
     let column_name_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
-        t.columns.as_ref().map_or(Ok(()), |columns| {
+        if let Some(columns) = &t.columns {
             for column in columns {
                 if !column_name_regex.is_match(column) {
                     return Err(PostgresConnectorError::ColumnNameNotValid(column.clone()));
                 }
             }
-
-            Ok(())
-        })?
+        }
     }
 
     Ok(())
