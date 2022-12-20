@@ -1,7 +1,9 @@
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
 use crate::internal::internal_pipeline_server::start_internal_pipeline_server;
-use crate::utils::{get_api_dir, get_grpc_config, get_pipeline_dir, get_rest_config};
+use crate::utils::{
+    get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_dir, get_rest_config,
+};
 use crate::Orchestrator;
 use dozer_api::actix_web::dev::ServerHandle;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
@@ -90,7 +92,7 @@ impl Orchestrator for SimpleOrchestrator {
         let running2 = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
-        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+        let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self
             .config
@@ -98,7 +100,7 @@ impl Orchestrator for SimpleOrchestrator {
             .iter()
             .map(|e| {
                 let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(pipeline_home_dir.join(e.name.clone()));
+                cache_common_options.set_path(cache_dir.join(e.name.clone()));
                 CacheEndpoint {
                     cache: Arc::new(
                         LmdbCache::new(CacheOptions {
@@ -187,6 +189,7 @@ impl Orchestrator for SimpleOrchestrator {
         });
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self
             .config
@@ -194,7 +197,7 @@ impl Orchestrator for SimpleOrchestrator {
             .iter()
             .map(|e| {
                 let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(pipeline_home_dir.join(e.name.clone()));
+                cache_common_options.set_path(cache_dir.join(e.name.clone()));
                 CacheEndpoint {
                     cache: Arc::new(
                         LmdbCache::new(CacheOptions {

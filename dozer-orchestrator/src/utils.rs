@@ -15,6 +15,10 @@ pub fn get_pipeline_dir(config: Config) -> PathBuf {
     )
 }
 
+pub fn get_cache_dir(config: Config) -> PathBuf {
+    PathBuf::from(format!("{:}/cache", config.home_dir))
+}
+
 pub fn get_api_dir(config: Config) -> PathBuf {
     PathBuf::from(
         config
