@@ -5,7 +5,7 @@ services:
     image: debezium/postgres:13
     volumes:
       - ./pg_hba.conf:/var/lib/foo/pg_hba.conf
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init_users.sql:/docker-entrypoint-initdb.d/init_users.sql
     command: postgres -c hba_file=/var/lib/foo/pg_hba.conf
     environment:
       POSTGRES_DB: users

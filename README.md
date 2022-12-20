@@ -1,75 +1,118 @@
-### Dozer [![CI](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg)](https://github.com/getdozer/dozer/actions/workflows/dozer.yaml) [![Coverage Status](https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV&kill_cache=1)](https://coveralls.io/github/getdozer/dozer?branch=main)
+<div align="center">
+    <a target="_blank" href="https://getdozer.io/">
+        <br><img src="https://getdozer.io/assets/logo-green.svg" width=40%><br>
+    </a>
+</div>
 
-This repository follows a `cargo workspace` structure with several packages. 
+<h3 align="center">
+     Data APIs, done right!
+</h3>
+<p align="center">
+     ⚡️ Open-source platform to build, publish and manage blazing-fast real-time data APIs in minutes ⚡️
+</p>
+
+[//]: # (Badges for md)
+[//]: # (Reference: https://shields.io/)
+[//]: # ([![GitHub stars]&#40;https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000&#41;]&#40;https://gitHub.com/getdozer/dozer/stargazers/&#41;)
+[//]: # ([![GitHub Workflow Status]&#40;https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat&#41;]&#40;https://github.com/getdozer/dozer/actions/workflows/dozer.yaml&#41;)
+[//]: # ([![CI]&#40;https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg&#41;]&#40;https://github.com/getdozer/dozer/actions/workflows/dozer.yaml&#41;)
+[//]: # ([![Coverage Status]&#40;https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV&kill_cache=1&#41;]&#40;https://coveralls.io/github/getdozer/dozer?branch=main&#41;)
+[//]: # ([![Doc reference]&#40;https://img.shields.io/badge/doc-reference-green?style=flat&#41;]&#40;&#41;)
+[//]: # ([![Join on Discord]&#40;https://img.shields.io/badge/join-on%20discord-primary?style=flat&#41;]&#40;&#41;)
+[//]: # ([![License]&#40;https://img.shields.io/badge/license-ELv2-informational?style=flat&#41;]&#40;https://github.com/getdozer/dozer/blob/main/LICENSE.txt&#41;)
+
+[//]: # (Badges for html)
+<p align="center">
+  <a href="https://gitHub.com/getdozer/dozer/stargazers/" target="_blank"><img src="https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000" alt="stars"></a>
+  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg" alt="CI"></a>
+  <a href="https://coveralls.io/github/getdozer/dozer?branch=main" target="_blank"><img src="https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV&style=flat" alt="Coverage Status"></a>
+  <a><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a>
+  <a><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>
+  <a href="https://github.com/meilisearch/meilisearch/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
+</p>
+
+[//]: # (  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>)
+
+<br>
+
+## Quick Start
+
+Download the latest stable binary or source code for a quick start. Check out our latest release details [here](https://github.com/getdozer/dozer/releases/latest).
+
+#### Using binary
+```bash
+curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash
+cd dozer
+./dozer
 ```
-dozer
-|
-|-- dozer-admin           # gRPC APIs for Dozer Admin UI
-|-- dozer-ingestion       # Ingestion & Connectors
-|-- dozer-api             # Data APIs in REST & gRPC
-|-- dozer-cache           # Cache Implementation
-|-- dozer-core            # Dozer Libaries such as dag, state_store
-|-- dozer-orchestrator    # Dozer Orchestrator & Cli
-|-- dozer-types           # Dozer Types
-|-- tests                 # End to end test cases & Samples
+
+#### Using docker
+```bash
+curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash -s -- -d
+cd dozer
+docker compose -f <path-to-yaml-config> up
 ```
+<br>
+
+## Why use Dozer?
+
+- Create **blazing fast** end to end APIs in minutes with a simple configuration.
+- Build and rapidly iterate on customer facing data apps.
+- Extend Dozer with **custom connectors, operators and Api transformations** using **WASM**.
+- Built in **Rust** with performance and extensibility in mind.
+
+<br>
+
+## End-to-end Examples
+
+### What can you build with Dozer?
+
+1. Hypercharge your **Postgres** by offloading read APIs to `Dozer`
+2. **Real time ML predictions** deployed as APIs from **Snowflake**
+3. **Real time Ethereum Stats** published as a grafana dashboard
+
+[//]: # (### Screenshots)
+
+Check out this module for above [end-to-end examples](./examples/README.md).
 
 
-### Samples
-[Samples](./tests/README.md) can be found under tests folder. 
-[End to End Dozer Sample](./tests/simple_e2e_example/README.md)
-[Postgres as an Iterator](./tests/connectors/postgres_as_iterator/README.md)
+[//]: # (## Architecture)
 
-#### Running a sample
-Each of the samples have a `docker-compose.yaml` file. 
+<br>
 
-Using docker
-```
-docker-compose up
-```
+## Features
 
-Using binary
-```
-dozer run
-dozer run -c dozer-config.yaml
-```
+- **Connect your sources**
+    - Import real time data from Postgres as CDC, Snowflake Table Stream etc.
+    - Create your own connector using Rust
+    - Automatic schema evolution and validation
+- **Transform in REAL-TIME**
+    - Use SQL to perform joins, aggregations and filter operations in real time across sources.
+    - Use it like an ORM; Map relational data to object entities using Dozer SQL extensions
+    - Build custom functions for aggregation, selection etc. using WASM
+- **Optimize for serving**
+    - Define indices with a simple configuration
+    - Support for multiple indices such as Inverted, Full Text, Compound, Geo (Coming soon!) etc.
+    - Apply filter and sort operations on cached data
+    - Support for Push and Pull queries
+- **Publish blazing fast APIs**
+    - gRPC and REST APIs automatically generated
+    - Protobuf an Open API documentation
+    - TypeSafe APIs
+    - Realtime Streaming
 
+<br>
 
-## Local development
+## Contributing
 
-### Build Dependencies
+### Contributors / Developers
+
+#### Build Dependencies
 
 - [`Rust`](https://rustup.rs)
 - [`protoc`](https://github.com/protocolbuffers/protobuf/releases) latest release on your `PATH`
 - `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
 - `openssl` (brew install pkg-config openssl on MacOS)
 
-### Test Dependencies
+Please refeer to this [module](./dozer-ingestion/tests) on how to **test/build/implement a new connector**.
 
-- `wget` (`brew install wget` on MacOS)
-- `mongodb` running on `localhost:27017`
-
-### Local development
-
-By default `config` file is loaded from `dozer-config.yaml`
-```
-# Initialize config
-cp config/sample/dozer-config.sample.yaml dozer-config.yaml
-
-# Run
-cargo run 
-```
-or with a config file
-```
-cargo run -c dozer-config.sample.yaml
-```
-
-### Running individual modules
-dozer-api are instantiated part of `dozer` (short for `dozer-orchestrator`).
-
-They can be run separately for local testing using `--bin` flags.
-Individual 
-```
-cargo run --bin dozer
-cargo run --bin dozer-api
-```

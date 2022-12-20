@@ -1,5 +1,6 @@
 use crate::{errors::GenerationError, PipelineDetails};
 use dozer_cache::cache::Cache;
+use dozer_types::log::error;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::FieldType;
 use handlebars::Handlebars;
@@ -17,7 +18,7 @@ pub struct ProtoMetadata {
     import_libs: Vec<String>,
     messages: Vec<RPCMessage>,
     package_name: String,
-    plural_lower_name: String,
+    lower_name: String,
     plural_pascal_name: String,
     pascal_name: String,
 }
@@ -43,6 +44,9 @@ pub struct ProtoGenerator<'a> {
 }
 
 fn safe_name(name: &str) -> String {
+    if name.contains('-') {
+        error!("Name of the endpoint should not contains `-`.");
+    }
     name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
 }
 impl ProtoGenerator<'_> {
@@ -127,7 +131,6 @@ impl ProtoGenerator<'_> {
 
     pub fn get_metadata(&self) -> Result<ProtoMetadata, GenerationError> {
         let package_name = format!("dozer.generated.{}", self.schema_name);
-        let _service_name = self.schema_name.to_pascal_case().to_plural();
 
         let messages = vec![self.resource_message()];
 
@@ -136,7 +139,7 @@ impl ProtoGenerator<'_> {
             package_name,
             messages,
             import_libs,
-            plural_lower_name: self.schema_name.to_lowercase().to_plural(),
+            lower_name: self.schema_name.to_lowercase(),
             plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
             pascal_name: self.schema_name.to_pascal_case().to_singular(),
         };
@@ -164,7 +167,7 @@ impl ProtoGenerator<'_> {
         let resource_path = format!(
             "{}/{}.proto",
             self.folder_path,
-            self.schema_name.to_lowercase().to_plural()
+            self.schema_name.to_lowercase()
         );
         let mut resource_file = std::fs::File::create(resource_path.clone())
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
@@ -205,7 +208,7 @@ fn convert_dozer_type_to_proto_type(field_type: FieldType) -> Result<String, Gen
     match field_type {
         FieldType::UInt => Ok("uint64".to_owned()),
         FieldType::Int => Ok("int64".to_owned()),
-        FieldType::Float => Ok("float".to_owned()),
+        FieldType::Float => Ok("double".to_owned()),
         FieldType::Boolean => Ok("bool".to_owned()),
         FieldType::String => Ok("string".to_owned()),
         FieldType::Decimal => Ok("float64".to_owned()),

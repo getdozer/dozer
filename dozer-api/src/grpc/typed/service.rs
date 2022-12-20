@@ -84,7 +84,7 @@ where
                 (
                     format!(
                         "dozer.generated.{}.{}",
-                        endpoint_name.to_lowercase().to_plural(),
+                        endpoint_name.to_lowercase(),
                         endpoint_name.to_pascal_case().to_plural()
                     ),
                     details,
