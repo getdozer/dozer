@@ -5,6 +5,7 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{NodeHandle, PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::index_comparator::compare_join_keys;
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
@@ -32,7 +33,7 @@ impl ProductProcessor {
     }
 
     fn init_store(&mut self, env: &mut dyn Environment) -> Result<(), PipelineError> {
-        self.db = Some(env.open_database("product", true)?);
+        self.db = Some(env.open_database("product", true, Some(compare_join_keys))?);
         Ok(())
     }
 

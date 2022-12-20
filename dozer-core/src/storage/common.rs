@@ -1,4 +1,6 @@
 #![allow(clippy::type_complexity)]
+use lmdb_sys::MDB_cmp_func;
+
 use crate::storage::errors::StorageError;
 
 pub struct Database {
@@ -26,7 +28,12 @@ pub trait EnvironmentManager: Environment {
 }
 
 pub trait Environment {
-    fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError>;
+    fn open_database(
+        &mut self,
+        name: &str,
+        dup_keys: bool,
+        comparator: MDB_cmp_func,
+    ) -> Result<Database, StorageError>;
 }
 
 pub trait RenewableRwTransaction: Send + Sync {
