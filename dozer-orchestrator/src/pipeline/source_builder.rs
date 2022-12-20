@@ -26,9 +26,7 @@ impl SourceBuilder {
                 .into_iter()
                 .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
                     if let Some(conn) = a.connection.clone() {
-                        acc.entry(conn.name.clone())
-                            .or_default()
-                            .push(a.clone());
+                        acc.entry(conn.name.clone()).or_default().push(a.clone());
                     }
 
                     acc
