@@ -1,3 +1,5 @@
+use crate::read_csv::read_csv;
+
 use super::SqlMapper;
 use dozer_types::errors::types;
 use dozer_types::ordered_float::OrderedFloat;
@@ -5,8 +7,6 @@ use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier};
 use sqlparser::ast::{Expr, ObjectName};
 use std::error::Error;
-use std::path::Path;
-use std::process::Command;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -256,40 +256,5 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
             })
             .collect(),
         primary_index: vec![0],
-    }
-}
-
-pub fn read_csv(folder_name: &str, name: &str) -> Result<csv::Reader<std::fs::File>, csv::Error> {
-    let current_dir = std::env::current_dir().unwrap();
-    let paths = vec![
-        current_dir.join(format!("../target/debug/{}-data/{}.csv", folder_name, name)),
-        current_dir.join(format!("./target/debug/{}-data/{}.csv", folder_name, name)),
-    ];
-
-    let mut err = None;
-    for path in paths {
-        let rdr = csv::Reader::from_path(path);
-        match rdr {
-            Ok(rdr) => return Ok(rdr),
-            Err(e) => err = Some(Err(e)),
-        }
-    }
-    err.unwrap()
-}
-
-pub fn download(folder_name: &str) {
-    let path = std::env::current_dir()
-        .unwrap()
-        .join(format!("../target/debug/{}-data", folder_name));
-    let exists = Path::new(&path).is_dir();
-    if !exists {
-        let exit_status = Command::new("bash")
-            .arg("-C")
-            .arg(format!("./scripts/download_{}.sh", folder_name))
-            .spawn()
-            .expect("sh command failed to start")
-            .wait()
-            .expect("failed to wait");
-        assert!(exit_status.success());
     }
 }

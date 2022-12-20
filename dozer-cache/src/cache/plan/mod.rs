@@ -1,9 +1,9 @@
 mod helper;
 mod planner;
-use dozer_types::types::{Field, SortDirection};
+use dozer_types::types::Field;
 pub use planner::QueryPlanner;
 
-use super::expression::Operator;
+use super::expression::{Operator, SortDirection};
 
 #[cfg(test)]
 mod tests;
@@ -24,7 +24,7 @@ pub struct IndexScan {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IndexScanKind {
     SortedInverted {
-        eq_filters: Vec<(usize, SortDirection, Field)>,
+        eq_filters: Vec<(usize, Field)>,
         range_query: Option<SortedInvertedRangeQuery>,
     },
     FullText {

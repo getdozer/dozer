@@ -216,24 +216,17 @@ impl PostgresIteratorHandler {
     ) -> Result<bool, ConnectorError> {
         let details = Arc::clone(&self.details);
 
-        let replication_slot_info_query = format!(
-            r#"SELECT * FROM pg_replication_slots where slot_name = '{}';"#,
-            details.slot_name
-        );
+        let replication_slot_info_query = "SELECT * FROM pg_replication_slots where slot_name = ?";
 
         let slot_query_row = client
             .borrow_mut()
-            .simple_query(&replication_slot_info_query)
+            .query_opt(replication_slot_info_query, &[&details.slot_name])
             .map_err(|_e| {
                 debug!("failed to begin txn for replication");
                 ConnectorError::PostgresConnectorError(PostgresConnectorError::FetchReplicationSlot)
             })?;
 
-        if let SimpleQueryMessage::Row(_row) = &slot_query_row[0] {
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        Ok(slot_query_row.is_some())
     }
 
     fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {

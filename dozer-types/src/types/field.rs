@@ -168,6 +168,90 @@ impl Field {
             Field::Null => 11,
         }
     }
+
+    pub fn as_uint(&self) -> Option<u64> {
+        match self {
+            Field::UInt(i) => Some(*i),
+            _ => None,
+        }
+    }
+
+    pub fn as_int(&self) -> Option<i64> {
+        match self {
+            Field::Int(i) => Some(*i),
+            _ => None,
+        }
+    }
+
+    pub fn as_float(&self) -> Option<f64> {
+        match self {
+            Field::Float(f) => Some(f.0),
+            _ => None,
+        }
+    }
+
+    pub fn as_boolean(&self) -> Option<bool> {
+        match self {
+            Field::Boolean(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn as_string(&self) -> Option<&str> {
+        match self {
+            Field::String(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Field::Text(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_binary(&self) -> Option<&[u8]> {
+        match self {
+            Field::Binary(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    pub fn as_decimal(&self) -> Option<&Decimal> {
+        match self {
+            Field::Decimal(d) => Some(d),
+            _ => None,
+        }
+    }
+
+    pub fn as_timestamp(&self) -> Option<DateTime<FixedOffset>> {
+        match self {
+            Field::Timestamp(t) => Some(*t),
+            _ => None,
+        }
+    }
+
+    pub fn as_date(&self) -> Option<NaiveDate> {
+        match self {
+            Field::Date(d) => Some(*d),
+            _ => None,
+        }
+    }
+
+    pub fn as_bson(&self) -> Option<&[u8]> {
+        match self {
+            Field::Bson(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    pub fn as_null(&self) -> Option<()> {
+        match self {
+            Field::Null => Some(()),
+            _ => None,
+        }
+    }
 }
 
 impl<'a> FieldBorrow<'a> {
@@ -204,7 +288,7 @@ pub enum FieldType {
     Bson,
 }
 
-/// Can't put it in `tests` module because of https://github.com/rust-lang/cargo/issues/8379
+/// Can't put it in `tests` module because of <https://github.com/rust-lang/cargo/issues/8379>
 /// and we need this function in `dozer-cache`.
 pub fn field_test_cases() -> impl Iterator<Item = Field> {
     [

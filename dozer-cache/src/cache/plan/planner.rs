@@ -1,8 +1,8 @@
-use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
+use crate::cache::expression::{FilterExpression, Operator, QueryExpression, SortDirection};
 use crate::errors::PlanError;
 use dozer_types::json_value_to_field;
 use dozer_types::types::{Field, FieldDefinition, Schema};
-use dozer_types::types::{FieldType, IndexDefinition, SortDirection};
+use dozer_types::types::{FieldType, IndexDefinition};
 
 use super::helper::{RangeQuery, RangeQueryKind};
 use super::{helper, IndexScan, Plan, SeqScan};
@@ -195,7 +195,7 @@ impl IndexScanKind {
                 if !eq_filters
                     .iter()
                     .zip(fields)
-                    .all(|(filter, field)| filter.0 == field.0 && filter.1 == field.1)
+                    .all(|(filter, field)| filter.0 == *field)
                 {
                     return false;
                 }
@@ -204,10 +204,9 @@ impl IndexScanKind {
                         return false;
                     }
                     let last_field = fields.last().unwrap();
-                    range_query.field_index == last_field.0
-                        && range_query.sort_direction == last_field.1
+                    range_query.field_index == *last_field
                 } else {
-                    true
+                    fields.len() == eq_filters.len()
                 }
             }
             (IndexScanKind::FullText { filter }, IndexDefinition::FullText(field_index)) => {
@@ -248,5 +247,74 @@ fn is_single_field_sorted_inverted(index: &IndexDefinition) -> bool {
         // `fields.len() == 1` criteria must be kept the same with `comparator.rs`.
         IndexDefinition::SortedInverted(fields) => fields.len() == 1,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cache::plan::SortedInvertedRangeQuery;
+
+    use super::*;
+
+    #[test]
+    fn test_is_supported_by_index() {
+        let check_sorted_inverted =
+            |eq_filters: Vec<usize>, range_query: Option<usize>, index, expected: bool| {
+                assert_eq!(
+                    IndexScanKind::SortedInverted {
+                        eq_filters: eq_filters
+                            .into_iter()
+                            .map(|index| (index, Field::Null))
+                            .collect(),
+                        range_query: range_query.map(|index| SortedInvertedRangeQuery {
+                            field_index: index,
+                            sort_direction: SortDirection::Ascending,
+                            operator_and_value: None,
+                        })
+                    }
+                    .is_supported_by_index(&IndexDefinition::SortedInverted(index)),
+                    expected
+                );
+            };
+
+        check_sorted_inverted(vec![0], None, vec![0], true);
+        check_sorted_inverted(vec![0], None, vec![1], false);
+        check_sorted_inverted(vec![0], None, vec![0, 1], false);
+        check_sorted_inverted(vec![0, 1], None, vec![0], false);
+        check_sorted_inverted(vec![0, 1], None, vec![0, 1], true);
+        check_sorted_inverted(vec![], Some(0), vec![0], true);
+        check_sorted_inverted(vec![0], Some(1), vec![0, 1], true);
+        check_sorted_inverted(vec![0], Some(1), vec![0, 1, 2], false);
+        check_sorted_inverted(vec![0], Some(1), vec![0, 2], false);
+        check_sorted_inverted(vec![0], Some(1), vec![0], false);
+
+        let full_text_scan = IndexScanKind::FullText {
+            filter: IndexFilter {
+                field_index: 0,
+                op: Operator::Contains,
+                val: Field::Null,
+            },
+        };
+        assert_eq!(
+            full_text_scan.is_supported_by_index(&IndexDefinition::FullText(0)),
+            true
+        );
+        assert_eq!(
+            full_text_scan.is_supported_by_index(&IndexDefinition::FullText(1)),
+            false
+        );
+
+        assert_eq!(
+            full_text_scan.is_supported_by_index(&IndexDefinition::SortedInverted(vec![0])),
+            false
+        );
+        assert_eq!(
+            IndexScanKind::SortedInverted {
+                eq_filters: vec![(0, Field::Null)],
+                range_query: None
+            }
+            .is_supported_by_index(&IndexDefinition::FullText(0)),
+            false
+        );
     }
 }

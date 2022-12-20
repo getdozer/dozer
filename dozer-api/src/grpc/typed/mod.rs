@@ -9,7 +9,7 @@ mod helper;
 pub use service::TypedService;
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 #[derive(Debug, Clone)]
 pub struct TypedRequest {

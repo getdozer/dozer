@@ -1,4 +1,4 @@
-mod service;
+pub mod service;
 mod test_utils;
 mod utils;
 // To be used in tests

@@ -1,12 +1,15 @@
 use crate::cache::expression::FilterExpression;
 use crate::cache::expression::Operator;
 use crate::cache::expression::SortOptions;
-use crate::cache::expression::{QueryExpression, SortOption};
+use crate::cache::expression::{
+    QueryExpression,
+    SortDirection::{Ascending, Descending},
+    SortOption,
+};
 use crate::errors::CacheError;
 use dozer_types::serde_json;
 use dozer_types::serde_json::json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::SortDirection::{Ascending, Descending};
 
 #[test]
 fn test_operators() -> Result<(), CacheError> {

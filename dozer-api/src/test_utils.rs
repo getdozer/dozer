@@ -2,10 +2,7 @@ use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
-    types::{
-        FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier,
-        SortDirection::Ascending,
-    },
+    types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
 };
 use std::sync::Arc;
 
@@ -42,7 +39,7 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
     let secondary_indexes = fields
         .iter()
         .enumerate()
-        .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![(idx, Ascending)]))
+        .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![idx]))
         .collect();
     (
         Schema {
@@ -95,11 +92,11 @@ pub fn initialize_cache(
 ) -> Arc<LmdbCache> {
     let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
+    cache
+        .insert_schema(schema_name, &schema, &secondary_indexes)
+        .unwrap();
     let records = get_sample_records(schema.clone());
     for record in records {
-        cache
-            .insert_schema(schema_name, &schema, &secondary_indexes)
-            .unwrap();
         cache.insert(&record).unwrap();
     }
     cache

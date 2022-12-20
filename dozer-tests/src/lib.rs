@@ -4,4 +4,13 @@ mod sql_tests;
 pub use sql_tests::TestFramework;
 
 #[cfg(test)]
+mod cache_tests;
+
+#[cfg(test)]
+mod init;
+
+#[cfg(test)]
+mod read_csv;
+
+#[cfg(test)]
 mod tests;
