@@ -11,6 +11,7 @@ use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::lock_api::RwLockWriteGuard;
 use dozer_types::parking_lot::{RawRwLock, RwLock};
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
+use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;

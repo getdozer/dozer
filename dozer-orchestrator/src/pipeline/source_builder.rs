@@ -15,33 +15,20 @@ const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
 impl SourceBuilder {
     pub fn build_source_manager(
-        sources: Vec<Source>,
+        grouped_connections: HashMap<String, Vec<Source>>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
     ) -> AppSourceManager {
         let mut asm = AppSourceManager::new();
 
-        let grouped_connections =
-            sources
-                .into_iter()
-                .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
-                    if let Some(conn) = a.connection.clone() {
-                        acc.entry(conn.name.clone()).or_default().push(a.clone());
-                    }
-
-                    acc
-                });
-
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
 
-        grouped_connections
-            .iter()
-            .for_each(|(conn, sources_group)| {
-                let first_source = sources_group.get(0).unwrap();
+        for (conn, sources_group) in grouped_connections {
+            let first_source = sources_group.get(0).unwrap();
 
-                if let Some(connection) = &first_source.connection {
-                    let grouped_connector_sources =
-                        get_connector_outputs(connection.clone(), sources_group.clone());
+            if let Some(connection) = &first_source.connection {
+                let grouped_connector_sources =
+                    get_connector_outputs(connection.clone(), sources_group.clone());
 
                 for same_connection_sources in grouped_connector_sources {
                     let mut ports = HashMap::new();
@@ -63,17 +50,31 @@ impl SourceBuilder {
                         iterator: Arc::clone(&iterator),
                         ports: ports.clone(),
                         tables,
-                        connection: first_source.connection.clone(),
+                        connection: connection.clone(),
                     };
+
                     asm.add(AppSource::new(
                         conn.clone(),
                         Arc::new(source_factory),
                         ports,
                     ));
                 }
-            });
+            }
+        }
 
         asm
+    }
+
+    pub fn group_connections(sources: Vec<Source>) -> HashMap<String, Vec<Source>> {
+        sources
+            .into_iter()
+            .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
+                if let Some(conn) = a.connection.clone() {
+                    acc.entry(conn.name).or_default().push(a);
+                }
+
+                acc
+            })
     }
 }
 
@@ -173,6 +174,7 @@ mod tests {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         let iterator_ref = Arc::clone(&iterator);
+
         let asm =
             SourceBuilder::build_source_manager(config.sources.clone(), ingestor, iterator_ref);
 

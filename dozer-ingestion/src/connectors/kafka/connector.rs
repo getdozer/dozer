@@ -82,7 +82,7 @@ impl Connector for KafkaConnector {
         todo!()
     }
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
 

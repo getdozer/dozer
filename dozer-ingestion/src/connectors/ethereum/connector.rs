@@ -207,7 +207,7 @@ impl Connector for EthConnector {
         todo!()
     }
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         // Return contract parsing error
         for contract in &self.config.contracts {
             let res: Result<Contract, serde_json::Error> = serde_json::from_str(&contract.abi);

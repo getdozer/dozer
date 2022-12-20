@@ -14,6 +14,7 @@ use dozer_types::models::source::Source;
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, NodeType, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
+use dozer_ingestion::connectors::TableInfo;
 use dozer_core::dag::node::NodeHandle;
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -107,19 +108,26 @@ impl Executor {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
     ) -> Result<(), OrchestrationError> {
-        let source_handle = NodeHandle::new(None, "src".to_string());
+        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
+        for (_, sources_group) in &grouped_connections {
+            let first_source = sources_group.get(0).unwrap();
 
-        let (connection_map, table_map) = Self::get_connection_map(&self.sources)?;
-        let source = ConnectorSourceFactory::new(
-            connection_map,
-            table_map.clone(),
-            self.ingestor.to_owned(),
-            self.iterator.to_owned(),
-        );
-        let running_wait = self.running.clone();
+            if let Some(connection) = &first_source.connection {
+                let tables = sources_group
+                    .iter()
+                    .map(|source| TableInfo {
+                        name: source.table_name.clone(),
+                        id: 0,
+                        columns: Some(source.columns.clone()),
+                    })
+                    .collect();
+
+                validate(connection.clone(), tables)?;
+            }
+        }
 
         let asm = SourceBuilder::build_source_manager(
-            self.sources.clone(),
+            grouped_connections,
             self.ingestor.clone(),
             self.iterator.clone(),
         );

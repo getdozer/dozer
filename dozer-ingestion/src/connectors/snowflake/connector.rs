@@ -109,7 +109,7 @@ impl Connector for SnowflakeConnector {
 
     fn stop(&self) {}
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
 }
