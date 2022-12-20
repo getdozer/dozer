@@ -14,12 +14,14 @@ use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::CacheSinkFactory;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
+use dozer_ingestion::connectors::TableInfo;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::parking_lot::RwLock;
 
 use crate::errors::OrchestrationError;
+use crate::validate;
 
 pub struct Executor {
     sources: Vec<Source>,
@@ -53,8 +55,26 @@ impl Executor {
         notifier: Option<Sender<PipelineRequest>>,
         _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
+        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
+        for (_, sources_group) in &grouped_connections {
+            let first_source = sources_group.get(0).unwrap();
+
+            if let Some(connection) = &first_source.connection {
+                let tables = sources_group
+                    .iter()
+                    .map(|source| TableInfo {
+                        name: source.table_name.clone(),
+                        id: 0,
+                        columns: Some(source.columns.clone()),
+                    })
+                    .collect();
+
+                validate(connection.clone(), tables)?;
+            }
+        }
+
         let asm = SourceBuilder::build_source_manager(
-            self.sources.clone(),
+            grouped_connections,
             self.ingestor.clone(),
             self.iterator.clone(),
         )?;

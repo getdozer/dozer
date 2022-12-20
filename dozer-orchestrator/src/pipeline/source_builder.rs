@@ -1,6 +1,5 @@
 use crate::errors::OrchestrationError;
 use crate::pipeline::connector_source::NewConnectorSourceFactory;
-use crate::validate;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -15,69 +14,66 @@ const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
 impl SourceBuilder {
     pub fn build_source_manager(
-        sources: Vec<Source>,
+        grouped_connections: HashMap<String, Vec<Source>>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Result<AppSourceManager, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
-        let grouped_connections =
-            sources
-                .into_iter()
-                .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
-                    if let Some(conn) = a.connection.clone() {
-                        acc.entry(conn.name).or_default().push(a);
-                    }
-
-                    acc
-                });
-
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
 
-        grouped_connections
-            .iter()
-            .for_each(|(conn, sources_group)| {
-                let first_source = sources_group.get(0).unwrap();
+        for (conn, sources_group) in grouped_connections {
+            let first_source = sources_group.get(0).unwrap();
 
-                if let Some(connection) = &first_source.connection {
-                    let grouped_connector_sources =
-                        get_connector_outputs(connection.clone(), sources_group.clone());
+            if let Some(connection) = &first_source.connection {
+                let grouped_connector_sources =
+                    get_connector_outputs(connection.clone(), sources_group.clone());
 
-                    for same_connection_sources in grouped_connector_sources {
-                        let mut ports = HashMap::new();
-                        let mut tables = vec![];
-                        for source in same_connection_sources {
-                            ports.insert(source.table_name.clone(), port);
+                for same_connection_sources in grouped_connector_sources {
+                    let mut ports = HashMap::new();
+                    let mut tables = vec![];
+                    for source in same_connection_sources {
+                        ports.insert(source.table_name.clone(), port);
 
-                            tables.push(TableInfo {
-                                name: source.table_name,
-                                id: port as u32,
-                                columns: Some(source.columns),
-                            });
+                        tables.push(TableInfo {
+                            name: source.table_name,
+                            id: port as u32,
+                            columns: Some(source.columns),
+                        });
 
-                            port += 1;
-                        }
-
-                        let _ = validate(connection.to_owned())
-                            .map_err(OrchestrationError::ConnectorError);
-
-                        let source_factory = NewConnectorSourceFactory {
-                            ingestor: Arc::clone(&ingestor),
-                            iterator: Arc::clone(&iterator),
-                            ports: ports.clone(),
-                            tables,
-                            connection: connection.clone(),
-                        };
-                        asm.add(AppSource::new(
-                            conn.clone(),
-                            Arc::new(source_factory),
-                            ports,
-                        ));
+                        port += 1;
                     }
+
+                    let source_factory = NewConnectorSourceFactory {
+                        ingestor: Arc::clone(&ingestor),
+                        iterator: Arc::clone(&iterator),
+                        ports: ports.clone(),
+                        tables,
+                        connection: connection.clone(),
+                    };
+
+                    asm.add(AppSource::new(
+                        conn.clone(),
+                        Arc::new(source_factory),
+                        ports,
+                    ));
                 }
-            });
+            }
+        }
 
         Ok(asm)
+    }
+
+    pub fn group_connections(sources: Vec<Source>) -> HashMap<String, Vec<Source>> {
+        sources
+            .into_iter()
+            .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
+                if let Some(conn) = a.connection.clone() {
+                    acc.entry(conn.name).or_default().push(a);
+                }
+
+                acc
+            })
     }
 }
 
@@ -177,6 +173,7 @@ mod tests {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         let iterator_ref = Arc::clone(&iterator);
+
         let asm =
             SourceBuilder::build_source_manager(config.sources.clone(), ingestor, iterator_ref)
                 .unwrap_or_else(|_e| panic!("Unable to create the Source manager"));

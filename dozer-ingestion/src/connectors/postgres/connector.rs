@@ -110,8 +110,12 @@ impl Connector for PostgresConnector {
         Ok(())
     }
 
-    fn validate(&self) -> Result<(), ConnectorError> {
-        validate_connection(self.conn_config.clone(), self.tables.clone(), None)?;
+    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+        validate_connection(
+            self.conn_config.clone(),
+            tables.or(self.tables.clone()),
+            None,
+        )?;
         Ok(())
     }
 

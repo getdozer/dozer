@@ -68,7 +68,7 @@ impl Connector for EventsConnector {
         Ok(())
     }
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
 

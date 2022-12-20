@@ -39,7 +39,7 @@ pub trait Connector: Send + Sync {
     ) -> Result<(), ConnectorError>;
     fn start(&self) -> Result<(), ConnectorError>;
     fn stop(&self);
-    fn validate(&self) -> Result<(), ConnectorError>;
+    fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
