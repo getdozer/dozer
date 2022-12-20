@@ -1,21 +1,7 @@
 version: '3.8'
 services:
-  dozer-postgres:
-    links:
-      - postgres
-    container_name: 1-dozer
-    build:
-      dockerfile: ./postgres.Dockerfile
-    ports:
-      - "8080:8080"
-      - "50052:50052"
-      - "50051:50051"
-    volumes:
-      - ./../../../config/log4rs.sample.yaml:/usr/dozer/log4rs.yaml
-      - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
-    command: ""
   postgres:
-    container_name: 1-postgres
+    container_name: 1-postgres-sample
     image: debezium/postgres:13
     volumes:
       - ./pg_hba.conf:/var/lib/stock-sample/pg_hba.conf
