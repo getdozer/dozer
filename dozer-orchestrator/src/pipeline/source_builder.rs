@@ -24,7 +24,7 @@ impl SourceBuilder {
                 .into_iter()
                 .fold(HashMap::<String, Vec<Source>>::new(), |mut acc, a| {
                     if let Some(conn) = a.connection.clone() {
-                        acc.entry(conn.name.clone()).or_default().push(a.clone());
+                        acc.entry(conn.name).or_default().push(a);
                     }
 
                     acc
@@ -183,7 +183,7 @@ mod tests {
                 ),
                 AppSourceId::new(
                     config.sources.get(1).unwrap().table_name.clone(),
-                    Some(pg_conn.name.clone()),
+                    Some(pg_conn.name),
                 ),
             ])
             .unwrap();
@@ -202,7 +202,7 @@ mod tests {
         let snowflake_source_2_mapping: Vec<AppSourceMappings> = asm
             .get(vec![AppSourceId::new(
                 config.sources.get(3).unwrap().table_name.clone(),
-                Some(snow_conn.name.clone()),
+                Some(snow_conn.name),
             )])
             .unwrap();
 
