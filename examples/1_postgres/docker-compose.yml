@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   postgres:
-    container_name: 1-hypercharge-postgres-sample
+    container_name: 1-postgres-sample
     image: debezium/postgres:13
     volumes:
       - ./pg_hba.conf:/var/lib/stock-sample/pg_hba.conf
