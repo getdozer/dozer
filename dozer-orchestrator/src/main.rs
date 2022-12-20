@@ -7,16 +7,13 @@ use dozer_orchestrator::Orchestrator;
 
 use dozer_types::constants::DEFAULT_HOME_DIR;
 use dozer_types::crossbeam::channel;
-use dozer_types::log::{info, error};
+use dozer_types::log::info;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{panic, process, thread};
 use std::time::Duration;
-use log::warn;
 use tokio::runtime::Runtime;
-use dozer_core::dag::errors::ExecutionError::ConnectorError;
-use dozer_types::tracing::debug;
 
 fn main() -> Result<(), OrchestrationError> {
     let orig_hook = panic::take_hook();
