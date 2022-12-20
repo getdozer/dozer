@@ -83,7 +83,7 @@ impl<'a> DagMetadataManager<'a> {
         }
 
         let mut env = LmdbEnvironmentManager::create(path, format!("{}", name).as_str())?;
-        let db = env.open_database(METADATA_DB_NAME, false)?;
+        let db = env.open_database(METADATA_DB_NAME, false, None)?;
         let txn = env.create_txn()?;
 
         let cur = txn.open_cursor(&db)?;
@@ -275,7 +275,7 @@ impl<'a> DagMetadataManager<'a> {
 
             let mut env =
                 LmdbEnvironmentManager::create(self.path, format!("{}", node.0).as_str())?;
-            let db = env.open_database(METADATA_DB_NAME, false)?;
+            let db = env.open_database(METADATA_DB_NAME, false, None)?;
             let mut txn = env.create_txn()?;
 
             for (handle, schema) in curr_node_schema.output_schemas.iter() {

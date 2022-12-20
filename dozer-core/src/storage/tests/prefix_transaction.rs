@@ -22,7 +22,7 @@ fn test_prefix_tx() {
     chk!(fs::create_dir(tmp_dir.path()));
 
     let mut env = chk!(LmdbEnvironmentManager::create(tmp_dir.path(), "test"));
-    let db = chk!(env.open_database("test_db", false));
+    let db = chk!(env.open_database("test_db", false, None));
     let tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
         Arc::new(RwLock::new(chk!(env.create_txn())));
 

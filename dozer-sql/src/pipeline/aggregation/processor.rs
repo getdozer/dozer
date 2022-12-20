@@ -93,9 +93,9 @@ impl AggregationProcessor {
     }
 
     fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
-        self.db = Some(txn.open_database("aggr", false)?);
-        self.aggregators_db = Some(txn.open_database("aggr_data", false)?);
-        self.meta_db = Some(txn.open_database("meta", false)?);
+        self.db = Some(txn.open_database("aggr", false, None)?);
+        self.aggregators_db = Some(txn.open_database("aggr_data", false, None)?);
+        self.meta_db = Some(txn.open_database("meta", false, None)?);
         Ok(())
     }
 
