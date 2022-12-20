@@ -1,7 +1,8 @@
 use super::Config;
 use dozer_types::{
+    constants::DEFAULT_HOME_DIR,
     models::{
-        api_config::{default_api_config, ApiConfig, ApiGrpc, ApiRest},
+        api_config::{default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiRest},
         api_endpoint::ApiEndpoint,
         connection::{Authentication, Connection, PostgresAuthentication},
         source::{RefreshConfig, Source},
@@ -11,6 +12,7 @@ use dozer_types::{
 fn test_yml_content_full() -> &'static str {
     r#"
     app_name: dozer-config-sample
+    home_dir: './.dozer'
     api:
       rest:
         port: 8080
@@ -25,9 +27,11 @@ fn test_yml_content_full() -> &'static str {
       api_internal:
         port: 50052
         host: '[::1]'
+        home_dir: './.dozer/api'
       pipeline_internal:
         port: 50053
         host: '[::1]'
+        home_dir: './.dozer/pipeline'
     connections:
       - db_type: Postgres
         authentication: !Postgres
@@ -177,6 +181,16 @@ fn test_api_config() -> ApiConfig {
             web: true,
         }),
         auth: false,
+        api_internal: Some(ApiInternal {
+            port: 50052,
+            host: "[::1]".to_owned(),
+            home_dir: format!("{:}/api", DEFAULT_HOME_DIR.to_owned()),
+        }),
+        pipeline_internal: Some(ApiInternal {
+            port: 50053,
+            host: "[::1]".to_owned(),
+            home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),
+        }),
         ..Default::default()
     }
 }
@@ -187,6 +201,7 @@ fn test_config() -> Config {
     let api_config = test_api_config();
     Config {
         app_name: "dozer-config-sample".to_owned(),
+        home_dir: DEFAULT_HOME_DIR.to_owned(),
         api: Some(api_config),
         connections: vec![test_connection],
         sources: vec![test_source],
