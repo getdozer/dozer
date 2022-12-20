@@ -1,7 +1,7 @@
 name: Release
 on:
   push:
-#    branches: [release, release-*]
+    # branches: [release, release-*]
     tags:
       - "v*.*.*"
 env:
