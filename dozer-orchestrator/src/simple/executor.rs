@@ -97,12 +97,12 @@ impl Executor {
         parent_dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
         let running_wait = self.running.clone();
 
-        for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
-            let api_endpoint = cache_endpoint.endpoint;
+        for cache_endpoint in self.cache_endpoints.iter().cloned() {
+            let api_endpoint = cache_endpoint.endpoint.clone();
             let _api_endpoint_name = api_endpoint.name.clone();
             let cache = cache_endpoint.cache;
 
-            let pipeline = PipelineBuilder {}
+            let mut pipeline = PipelineBuilder {}
                 .build_pipeline(&api_endpoint.sql)
                 .map_err(OrchestrationError::SqlStatementFailed)?;
 
