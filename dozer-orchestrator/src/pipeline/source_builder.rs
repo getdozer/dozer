@@ -1,4 +1,6 @@
+use crate::errors::OrchestrationError;
 use crate::pipeline::connector_source::NewConnectorSourceFactory;
+use crate::validate;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -16,7 +18,7 @@ impl SourceBuilder {
         sources: Vec<Source>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
-    ) -> AppSourceManager {
+    ) -> Result<AppSourceManager, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
         let grouped_connections =
@@ -56,6 +58,9 @@ impl SourceBuilder {
                             port += 1;
                         }
 
+                        let _ = validate(connection.to_owned())
+                            .map_err(OrchestrationError::ConnectorError);
+
                         let source_factory = NewConnectorSourceFactory {
                             ingestor: Arc::clone(&ingestor),
                             iterator: Arc::clone(&iterator),
@@ -72,7 +77,7 @@ impl SourceBuilder {
                 }
             });
 
-        asm
+        Ok(asm)
     }
 }
 
@@ -173,7 +178,8 @@ mod tests {
 
         let iterator_ref = Arc::clone(&iterator);
         let asm =
-            SourceBuilder::build_source_manager(config.sources.clone(), ingestor, iterator_ref);
+            SourceBuilder::build_source_manager(config.sources.clone(), ingestor, iterator_ref)
+                .unwrap_or_else(|_e| panic!("Unable to create the Source manager"));
 
         let pg_source_mapping: Vec<AppSourceMappings> = asm
             .get(vec![

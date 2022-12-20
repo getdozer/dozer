@@ -57,7 +57,7 @@ impl Executor {
             self.sources.clone(),
             self.ingestor.clone(),
             self.iterator.clone(),
-        );
+        )?;
 
         let running_wait = self.running.clone();
 
