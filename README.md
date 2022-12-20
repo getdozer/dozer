@@ -103,9 +103,9 @@ Check out this module for above [end-to-end examples](./examples/README.md).
   
 <br>
 
-[//]: # (## Contributing)
+## Contributing
 
-[//]: # ()
-[//]: # (- User)
+### Contributors / Developers
 
-[//]: # (- Contributor / Developer)
+Please refeer to this [module](./dozer-ingestion/tests) on how to **test/build/implement a new connector**.
+
