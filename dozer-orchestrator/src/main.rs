@@ -11,11 +11,21 @@ use dozer_types::log::{info, error};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
+use std::{panic, process, thread};
 use std::time::Duration;
+use log::warn;
 use tokio::runtime::Runtime;
+use dozer_core::dag::errors::ExecutionError::ConnectorError;
+use dozer_types::tracing::debug;
 
 fn main() -> Result<(), OrchestrationError> {
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        // invoke the default handler and exit the process
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
+
     let tracing_thread = thread::spawn(|| {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
@@ -65,7 +75,8 @@ fn main() -> Result<(), OrchestrationError> {
         let (tx, rx) = channel::unbounded::<bool>();
         thread::spawn(move || dozer.run_apps(running, Some(tx)).map_err(|e| {
             error!("Dozer APP error: {:#?}", e);
-        }));
+            e
+        }).unwrap());
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
