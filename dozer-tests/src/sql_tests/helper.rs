@@ -7,8 +7,6 @@ use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SchemaIdentifier};
 use sqlparser::ast::{Expr, ObjectName};
 use std::error::Error;
-use std::path::Path;
-use std::process::Command;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -258,22 +256,5 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
             })
             .collect(),
         primary_index: vec![0],
-    }
-}
-
-pub fn download(folder_name: &str) {
-    let path = std::env::current_dir()
-        .unwrap()
-        .join(format!("../target/debug/{}-data", folder_name));
-    let exists = Path::new(&path).is_dir();
-    if !exists {
-        let exit_status = Command::new("bash")
-            .arg("-C")
-            .arg(format!("./scripts/download_{}.sh", folder_name))
-            .spawn()
-            .expect("sh command failed to start")
-            .wait()
-            .expect("failed to wait");
-        assert!(exit_status.success());
     }
 }

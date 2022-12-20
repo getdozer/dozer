@@ -7,6 +7,9 @@ pub use sql_tests::TestFramework;
 mod cache_tests;
 
 #[cfg(test)]
+mod init;
+
+#[cfg(test)]
 mod read_csv;
 
 #[cfg(test)]

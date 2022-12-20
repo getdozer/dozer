@@ -4,13 +4,16 @@ use dozer_cache::cache::{Cache, CacheOptions, LmdbCache};
 use dozer_types::{chrono::DateTime, types::IndexDefinition};
 use mongodb::{options::ClientOptions, Client, Collection, IndexModel};
 
-use crate::{cache_tests::string_record_to_record, read_csv::read_csv, sql_tests::download};
+use crate::{cache_tests::string_record_to_record, init::init, read_csv::read_csv};
 
 use super::{film_schema, Film};
 
 pub async fn load_database(
     secondary_indexes: &[IndexDefinition],
 ) -> (LmdbCache, &'static str, Collection<Film>) {
+    // Initialize tracing and data.
+    init();
+
     // Create cache and insert schema.
     let schema = film_schema();
     let schema_name = "film";
@@ -39,8 +42,7 @@ pub async fn load_database(
         .await
         .unwrap();
 
-    // Download csv and create reader.
-    download("actor");
+    // Create reader.
     let mut csv = read_csv("actor", "film").unwrap();
 
     // Insert records into cache and mongodb.
