@@ -73,10 +73,7 @@ fn main() -> Result<(), OrchestrationError> {
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
-        thread::spawn(move || dozer.run_apps(running, Some(tx)).map_err(|e| {
-            error!("Dozer APP error: {:#?}", e);
-            e
-        }).unwrap());
+        thread::spawn(move || dozer.run_apps(running, Some(tx)).unwrap());
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
