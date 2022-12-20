@@ -54,7 +54,7 @@ impl PipelineBuilder {
                 "FROM clause doesn't support \"Comma Syntax\"".to_string(),
             ));
         }
-        
+
         let product = ProductProcessorFactory::new(select.from[0].clone());
         let input_tables = get_input_tables(&select.from[0])?;
         let input_endpoints = self.get_input_endpoints(&input_tables)?;
