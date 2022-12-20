@@ -226,7 +226,7 @@ impl PostgresIteratorHandler {
                 ConnectorError::PostgresConnectorError(PostgresConnectorError::FetchReplicationSlot)
             })?;
 
-        Ok(slot_query_row.map_or(false, |_| true))
+        Ok(slot_query_row.is_some())
     }
 
     fn replicate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
