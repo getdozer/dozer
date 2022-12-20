@@ -11,8 +11,8 @@ use dozer_types::log::info;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::{panic, process, thread};
 use std::time::Duration;
+use std::{panic, process, thread};
 use tokio::runtime::Runtime;
 
 fn main() -> Result<(), OrchestrationError> {
