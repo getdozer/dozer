@@ -6,6 +6,7 @@ use crate::errors::ConnectorError::InvalidQueryError;
 use crate::errors::PostgresConnectorError;
 use postgres::Client;
 use postgres_types::PgLsn;
+use regex::Regex;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
@@ -73,11 +74,40 @@ fn validate_wal_level(client: &mut Client) -> Result<(), ConnectorError> {
     }
 }
 
+fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
+    let table_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
+    for t in table_info {
+        if !table_regex.is_match(&t.name) {
+            return Err(PostgresConnectorError::TableNameNotValid(t.name.clone()));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
+    let column_name_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
+    for t in table_info {
+        if let Some(columns) = &t.columns {
+            for column in columns {
+                if !column_name_regex.is_match(column) {
+                    return Err(PostgresConnectorError::ColumnNameNotValid(column.clone()));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_tables(client: &mut Client, table_info: Vec<TableInfo>) -> Result<(), ConnectorError> {
     let mut tables_names: HashMap<String, bool> = HashMap::new();
     table_info.iter().for_each(|t| {
         tables_names.insert(t.name.clone(), true);
     });
+
+    validate_tables_names(&table_info)?;
+    validate_columns_names(&table_info)?;
 
     let table_name_keys: Vec<String> = tables_names.keys().cloned().collect();
     let result = client
@@ -159,7 +189,9 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), ConnectorEr
 
 #[cfg(test)]
 mod tests {
-    use crate::connectors::postgres::connection::validator::validate_connection;
+    use crate::connectors::postgres::connection::validator::{
+        validate_columns_names, validate_connection, validate_tables, validate_tables_names,
+    };
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
 
     use postgres_types::PgLsn;
@@ -394,6 +426,46 @@ mod tests {
             client
                 .query(r#"SELECT pg_drop_replication_slot($1);"#, &[&slot_name])
                 .expect("Slot drop failed");
+        }
+    }
+
+    #[test]
+    fn test_validate_tables_names() {
+        let tables_with_result = vec![
+            ("test", true),
+            ("Test", false),
+            (";Drop table test", false),
+            ("test_with_underscore", true),
+        ];
+
+        for (table_name, expected_result) in tables_with_result {
+            let res = validate_tables_names(&vec![TableInfo {
+                name: table_name.to_string(),
+                id: 0,
+                columns: None,
+            }]);
+
+            assert_eq!(expected_result, res.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_validate_column_names() {
+        let columns_names_with_result = vec![
+            ("test", true),
+            ("Test", false),
+            (";Drop table test", false),
+            ("test_with_underscore", true),
+        ];
+
+        for (column_name, expected_result) in columns_names_with_result {
+            let res = validate_columns_names(&vec![TableInfo {
+                name: "column_test_table".to_string(),
+                id: 0,
+                columns: Some(vec![column_name.to_string()]),
+            }]);
+
+            assert_eq!(expected_result, res.is_ok());
         }
     }
 
