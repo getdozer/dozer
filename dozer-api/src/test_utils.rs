@@ -92,11 +92,11 @@ pub fn initialize_cache(
 ) -> Arc<LmdbCache> {
     let cache = Arc::new(LmdbCache::new(CacheOptions::default()).unwrap());
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
+    cache
+        .insert_schema(schema_name, &schema, &secondary_indexes)
+        .unwrap();
     let records = get_sample_records(schema.clone());
     for record in records {
-        cache
-            .insert_schema(schema_name, &schema, &secondary_indexes)
-            .unwrap();
         cache.insert(&record).unwrap();
     }
     cache
