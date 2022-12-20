@@ -7,7 +7,7 @@ use dozer_orchestrator::Orchestrator;
 
 use dozer_types::constants::DEFAULT_HOME_DIR;
 use dozer_types::crossbeam::channel;
-use dozer_types::log::info;
+use dozer_types::log::{info, error};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -63,7 +63,9 @@ fn main() -> Result<(), OrchestrationError> {
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
-        thread::spawn(move || dozer.run_apps(running, Some(tx)));
+        thread::spawn(move || dozer.run_apps(running, Some(tx)).map_err(|e| {
+            error!("Dozer APP error: {:#?}", e);
+        }));
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
