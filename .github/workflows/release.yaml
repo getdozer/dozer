@@ -1,9 +1,9 @@
 name: Release
 on:
   push:
-    branches: [release, release-*]
-#    tags:
-#      - "v*.*.*"
+#    branches: [release, release-*]
+    tags:
+      - "v*.*.*"
 env:
   CARGO_TERM_COLOR: always
 
