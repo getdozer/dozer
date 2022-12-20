@@ -2,25 +2,23 @@
 
 Features used:
 - Initialize project from [yaml](./docker-compose.yml) with docker
-- Setup postgresql source with [pre-processed stock price dataset](./data/README.md) [init_stocks.sql](./scripts/init_stocks.sql)
+- Setup postgresql source with pre-processed stock price dataset [init_stocks.sql](./scripts/init_stocks.sql)
 - Ingestion from postgresql source
 - SQL execution and gRPC & REST API endpoints creation from [yaml](./dozer-config.yaml)
 
 [//]: # (- Creation of embeddable React widget)
 
-<br>
 
 ### Download Pre-processed Dataset
 
 ```bash
-cd ./scripts
-./download_stocks.sh
+./scripts/download_stocks.sh
 ```
 
 ### Run
 
 ```bash
-docker-compose up --build
+docker-compose up
 ```
 
 ```bash
@@ -104,12 +102,14 @@ Endpoint details are coming from above yaml for REST APIs.
 </div>
 </details>
 
+<br>
+
 ## Kaggle Stock Price Datasets
 
 This test case is based on Kaggle's Stock Price Datasets and pre-processed to be used.
 Check out [kaggle](https://www.kaggle.com/datasets/jacksoncrow/stock-market-dataset) for more details on this open source dataset.
 
-#### Pre-processing of the dataset
+#### Dataset Pre-processing
 ```bash
 # Remove headers from all tables
 sed -i '' 1d *.csv
