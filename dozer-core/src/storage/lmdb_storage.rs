@@ -9,6 +9,7 @@ use crate::storage::lmdb_sys::{
     PutOptions as LmdbPutOptions, Transaction as LmdbTransaction,
 };
 use libc::size_t;
+use lmdb_sys::MDB_cmp_func;
 use std::fs;
 use std::path::Path;
 
@@ -73,7 +74,12 @@ impl EnvironmentManager for LmdbEnvironmentManager {
 }
 
 impl Environment for LmdbEnvironmentManager {
-    fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError> {
+    fn open_database(
+        &mut self,
+        name: &str,
+        dup_keys: bool,
+        comparator: MDB_cmp_func,
+    ) -> Result<Database, StorageError> {
         let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
         let mut db_opts = LmdbDatabaseOptions::default();
         db_opts.create = true;
@@ -81,6 +87,10 @@ impl Environment for LmdbEnvironmentManager {
         let db = tx
             .open_database(name.to_string(), db_opts)
             .map_err(InternalDbError)?;
+        if let Some(comparator) = comparator {
+            db.set_compare(&tx, Some(comparator))?;
+        }
+
         tx.commit().map_err(InternalDbError)?;
         self.dbs.push(db);
         Ok(Database::new(self.dbs.len() - 1))
