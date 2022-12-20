@@ -11,11 +11,18 @@ use dozer_types::log::info;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
+use std::{panic, process, thread};
 use tokio::runtime::Runtime;
 
 fn main() -> Result<(), OrchestrationError> {
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        // invoke the default handler and exit the process
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
+
     let tracing_thread = thread::spawn(|| {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
@@ -63,7 +70,7 @@ fn main() -> Result<(), OrchestrationError> {
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
-        thread::spawn(move || dozer.run_apps(running, Some(tx)));
+        thread::spawn(move || dozer.run_apps(running, Some(tx)).unwrap());
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
