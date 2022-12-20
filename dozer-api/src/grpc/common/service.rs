@@ -59,7 +59,7 @@ impl CommonGrpcService for CommonService {
         &self,
         _: Request<GetEndpointsRequest>,
     ) -> Result<Response<GetEndpointsResponse>, Status> {
-        let endpoints = self.pipeline_map.iter().map(|(k, _)| k).cloned().collect();
+        let endpoints = self.pipeline_map.keys().cloned().collect();
         Ok(Response::new(GetEndpointsResponse { endpoints }))
     }
 
