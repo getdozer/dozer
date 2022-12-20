@@ -33,6 +33,9 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: MongoDB in GitHub Actions
+        uses: supercharge/mongodb-github-action@1.8.0
+
       - uses: ./.github/workflows/setup-snowflake-and-kafka
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
