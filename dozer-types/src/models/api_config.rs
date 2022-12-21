@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+
+use crate::constants::DEFAULT_HOME_DIR;
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 #[serde(default = "default_api_config")]
 pub struct ApiConfig {
@@ -51,18 +53,22 @@ pub struct ApiInternal {
     pub port: u32,
     #[prost(string, tag = "2")]
     pub host: String,
+    #[prost(string, tag = "3")]
+    pub home_dir: String,
 }
 
 fn default_api_internal() -> Option<ApiInternal> {
     Some(ApiInternal {
         port: 50052,
         host: "[::1]".to_owned(),
+        home_dir: format!("{:}/api", DEFAULT_HOME_DIR.to_owned()),
     })
 }
 fn default_pipeline_internal() -> Option<ApiInternal> {
     Some(ApiInternal {
         port: 50053,
         host: "[::1]".to_owned(),
+        home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),
     })
 }
 fn default_api_rest() -> Option<ApiRest> {

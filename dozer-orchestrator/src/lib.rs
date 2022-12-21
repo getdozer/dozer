@@ -12,9 +12,9 @@ use dozer_types::{
     models::{api_config::ApiConfig, api_endpoint::ApiEndpoint, source::Source},
 };
 use errors::OrchestrationError;
-
 #[cfg(test)]
 mod test_utils;
+mod utils;
 
 pub trait Orchestrator {
     fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self;

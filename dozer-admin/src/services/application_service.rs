@@ -66,6 +66,7 @@ impl AppService {
                     connections: connections.0,
                     sources: sources.0,
                     endpoints: endpoints.0,
+                    home_dir: "".to_owned(),
                 }),
             })
         } else {

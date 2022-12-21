@@ -151,8 +151,8 @@ impl Executor {
             }
         }
 
-        let path = self.home_dir.join("pipeline");
-        fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
+        let path = &self.home_dir;
+        fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
         let mut exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
 
         exec.start()?;

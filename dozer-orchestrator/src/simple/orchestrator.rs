@@ -1,6 +1,9 @@
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
 use crate::internal::internal_pipeline_server::start_internal_pipeline_server;
+use crate::utils::{
+    get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_dir, get_rest_config,
+};
 use crate::Orchestrator;
 use dozer_api::actix_web::dev::ServerHandle;
 use dozer_api::grpc::internal_grpc::PipelineRequest;
@@ -17,7 +20,7 @@ use dozer_types::models::app_config::Config;
 use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use dozer_types::serde_yaml;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
@@ -27,20 +30,17 @@ pub struct SimpleOrchestrator {
     pub cache_common_options: CacheCommonOptions,
     pub cache_read_options: CacheReadOptions,
     pub cache_write_options: CacheWriteOptions,
-    // Home directory where all files will be located
-    pub home_dir: PathBuf,
 }
 
 impl SimpleOrchestrator {
-    pub fn new(home_dir: PathBuf, config: Config) -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
-            home_dir,
             config,
             ..Default::default()
         }
     }
     fn write_internal_config(&self) -> Result<(), OrchestrationError> {
-        let path = Path::new(&self.home_dir).join("internal_config");
+        let path = Path::new(&self.config.home_dir).join("internal_config");
         if path.exists() {
             fs::remove_dir_all(&path).unwrap();
         }
@@ -92,6 +92,7 @@ impl Orchestrator for SimpleOrchestrator {
         let running2 = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
+        let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self
             .config
@@ -99,7 +100,7 @@ impl Orchestrator for SimpleOrchestrator {
             .iter()
             .map(|e| {
                 let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(self.home_dir.join(e.name.clone()));
+                cache_common_options.set_path(cache_dir.join(e.name.clone()));
                 CacheEndpoint {
                     cache: Arc::new(
                         LmdbCache::new(CacheOptions {
@@ -128,13 +129,7 @@ impl Orchestrator for SimpleOrchestrator {
             });
 
             // Initialize API Server
-            let rest_config = self
-                .config
-                .to_owned()
-                .api
-                .unwrap_or_default()
-                .rest
-                .unwrap_or_default();
+            let rest_config = get_rest_config(self.config.to_owned());
             tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config);
                 api_server
@@ -144,14 +139,9 @@ impl Orchestrator for SimpleOrchestrator {
             });
 
             // Initialize GRPC Server
-            let grpc_config = self
-                .config
-                .to_owned()
-                .api
-                .unwrap_or_default()
-                .grpc
-                .unwrap_or_default();
-            let grpc_server = grpc::ApiServer::new(receiver, grpc_config, true);
+            let grpc_config = get_grpc_config(self.config.to_owned());
+            let api_dir = get_api_dir(self.config.to_owned());
+            let grpc_server = grpc::ApiServer::new(receiver, grpc_config, true, api_dir);
             tokio::spawn(async move {
                 grpc_server
                     .run(ce2, running2.to_owned(), receiver_shutdown)
@@ -176,6 +166,7 @@ impl Orchestrator for SimpleOrchestrator {
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
+        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
         let executor_running = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
@@ -198,6 +189,7 @@ impl Orchestrator for SimpleOrchestrator {
         });
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self
             .config
@@ -205,7 +197,7 @@ impl Orchestrator for SimpleOrchestrator {
             .iter()
             .map(|e| {
                 let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(self.home_dir.join(e.name.clone()));
+                cache_common_options.set_path(cache_dir.join(e.name.clone()));
                 CacheEndpoint {
                     cache: Arc::new(
                         LmdbCache::new(CacheOptions {
@@ -233,7 +225,7 @@ impl Orchestrator for SimpleOrchestrator {
             ingestor,
             iterator,
             running,
-            self.home_dir.to_owned(),
+            pipeline_home_dir,
         );
         executor.run(Some(sender), executor_running)
     }
