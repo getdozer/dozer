@@ -6,6 +6,7 @@ pub mod channels;
 pub mod dag;
 mod dag_metadata;
 mod dag_schemas;
+pub mod epochs_manager;
 pub mod errors;
 pub mod executor;
 mod executor_utils;
