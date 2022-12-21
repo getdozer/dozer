@@ -8,21 +8,10 @@ Features used:
 
 [//]: # (- Creation of embeddable React widget)
 
-
-### Download Pre-processed Dataset
-
-```bash
-./scripts/download_stocks.sh
-```
-
 ### Run
 
 ```bash
-docker-compose up
-```
-
-```bash
-cargo run
+docker-compose up --build
 ```
 
 <br>
