@@ -1,15 +1,15 @@
 use crate::errors::{CacheError, IndexError, QueryError};
 use dozer_types::types::{Field, IndexDefinition, Record, Schema};
-use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
+use lmdb::{RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
 
-use super::cache::IndexMetaData;
+use super::cache::{IndexMetaData, PrimaryIndexDatabase};
 
 pub struct Indexer {
-    pub primary_index: Database,
+    pub primary_index: PrimaryIndexDatabase,
     pub index_metadata: Arc<IndexMetaData>,
 }
 impl Indexer {
@@ -27,8 +27,7 @@ impl Indexer {
 
         if !schema.primary_index.is_empty() {
             let primary_key = index::get_primary_key(&schema.primary_index, &record.values);
-            txn.put(self.primary_index, &primary_key, &id, WriteFlags::default())
-                .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+            self.primary_index.insert(&mut txn, &primary_key, id)?;
         }
 
         if secondary_indexes.is_empty() {
@@ -67,8 +66,7 @@ impl Indexer {
         primary_key: &[u8],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
-        txn.del(self.primary_index, &primary_key, None)
-            .map_err(QueryError::DeleteValue)?;
+        self.primary_index.delete(txn, primary_key)?;
 
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let db = self.index_metadata.get_db(schema, idx);

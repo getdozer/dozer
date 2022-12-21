@@ -1,14 +1,11 @@
 use std::{cmp::Ordering, sync::Arc};
 
-use super::{
-    helper,
-    iterator::{CacheIterator, KeyEndpoint},
-};
+use super::iterator::{CacheIterator, KeyEndpoint};
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
     index::{self},
     lmdb::{
-        cache::IndexMetaData,
+        cache::{IndexMetaData, RecordDatabase},
         query::{helper::lmdb_cmp, intersection::intersection},
     },
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
@@ -21,10 +18,10 @@ use dozer_types::{
     bincode,
     types::{Field, IndexDefinition, Record, Schema},
 };
-use lmdb::{Database, RoTransaction, Transaction};
+use lmdb::{RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
-    db: Database,
+    db: RecordDatabase,
     index_metadata: Arc<IndexMetaData>,
     txn: &'a RoTransaction<'a>,
     schema: &'a Schema,
@@ -34,7 +31,7 @@ pub struct LmdbQueryHandler<'a> {
 }
 impl<'a> LmdbQueryHandler<'a> {
     pub fn new(
-        db: Database,
+        db: RecordDatabase,
         index_metadata: Arc<IndexMetaData>,
         txn: &'a RoTransaction,
         schema: &'a Schema,
@@ -86,10 +83,7 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     pub fn iterate_and_deserialize(&self) -> Result<Vec<Record>, CacheError> {
-        let cursor = self
-            .txn
-            .open_ro_cursor(self.db)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let cursor = self.db.open_ro_cursor(self.txn)?;
         CacheIterator::new(cursor, None, SortDirection::Ascending)
             .skip(self.query.skip)
             .take(self.query.limit)
@@ -135,7 +129,7 @@ impl<'a> LmdbQueryHandler<'a> {
     ) -> Result<Vec<Record>, CacheError> {
         ids.skip(self.query.skip)
             .take(self.query.limit)
-            .map(|id| helper::get(self.txn, self.db, id.as_ref()))
+            .map(|id| self.db.get(self.txn, id.as_ref().try_into().unwrap()))
             .collect()
     }
 }

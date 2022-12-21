@@ -57,7 +57,11 @@ mod tests {
     };
     use lmdb_sys::mdb_cmp;
 
-    use crate::cache::{index::get_secondary_index, lmdb::utils, CacheOptions};
+    use crate::cache::{
+        index::get_secondary_index,
+        lmdb::utils::{self, DatabaseCreateOptions},
+        CacheOptions,
+    };
 
     use super::*;
 
@@ -141,7 +145,15 @@ mod tests {
     fn setup(num_fields: usize) -> (Environment, Database) {
         let options = CacheOptions::default();
         let env = utils::init_env(&options).unwrap();
-        let db = utils::init_db(&env, Some("test"), &options, true, false).unwrap();
+        let db = utils::init_db(
+            &env,
+            Some("test"),
+            Some(DatabaseCreateOptions {
+                allow_dup: true,
+                fixed_length_key: false,
+            }),
+        )
+        .unwrap();
         let fields = (0..num_fields).into_iter().collect::<Vec<_>>();
         set_sorted_inverted_comparator(&env, db, &fields).unwrap();
         (env, db)

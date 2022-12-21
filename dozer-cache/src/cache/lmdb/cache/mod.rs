@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use dozer_types::bincode;
-
 pub use lmdb;
-use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction};
 
 use dozer_types::types::{IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
@@ -12,11 +10,10 @@ use dozer_types::types::{Schema, SchemaIdentifier};
 use super::super::Cache;
 use super::indexer::Indexer;
 use super::query::handler::LmdbQueryHandler;
-use super::query::helper;
-use super::{comparator, utils, CacheOptions};
+use super::utils::DatabaseCreateOptions;
+use super::{comparator, utils, CacheOptions, CacheOptionsKind};
 use crate::cache::expression::QueryExpression;
-use crate::cache::index;
-use crate::errors::{CacheError, QueryError};
+use crate::errors::CacheError;
 
 pub struct IndexMetaData {
     //schema_id, secondary_key
@@ -47,22 +44,21 @@ impl IndexMetaData {
     }
 }
 
+mod primary_index_database;
+mod record_database;
+mod schema_database;
+
+pub use primary_index_database::PrimaryIndexDatabase;
+pub use record_database::RecordDatabase;
+use schema_database::SchemaDatabase;
+
 pub struct LmdbCache {
     env: Environment,
-    db: Database,
-    primary_index: Database,
+    db: RecordDatabase,
+    primary_index: PrimaryIndexDatabase,
     index_metadata: Arc<IndexMetaData>,
-    schema_db: Database,
+    schema_db: SchemaDatabase,
     cache_options: CacheOptions,
-}
-
-pub fn get_schema_key(schema_id: &SchemaIdentifier) -> Vec<u8> {
-    [
-        "sc".as_bytes(),
-        schema_id.id.to_be_bytes().as_ref(),
-        schema_id.version.to_be_bytes().as_ref(),
-    ]
-    .join("#".as_bytes())
 }
 
 impl LmdbCache {
@@ -73,10 +69,11 @@ impl LmdbCache {
     }
     pub fn new(cache_options: CacheOptions) -> Result<Self, CacheError> {
         let env = utils::init_env(&cache_options)?;
-        let db = utils::init_db(&env, Some("records"), &cache_options, false, true)?;
-        let primary_index =
-            utils::init_db(&env, Some("primary_index"), &cache_options, false, false)?;
-        let schema_db = utils::init_db(&env, Some("schemas"), &cache_options, false, false)?;
+
+        let create_if_not_exist = matches!(cache_options.kind, CacheOptionsKind::Write(_));
+        let db = RecordDatabase::new(&env, create_if_not_exist)?;
+        let primary_index = PrimaryIndexDatabase::new(&env, create_if_not_exist)?;
+        let schema_db = SchemaDatabase::new(&env, create_if_not_exist)?;
         Ok(Self {
             env,
             db,
@@ -94,15 +91,7 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        let id = helper::lmdb_stat(txn, self.db)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?
-            .ms_entries as u64;
-        let id = id.to_be_bytes();
-        let encoded: Vec<u8> =
-            bincode::serialize(&record).map_err(CacheError::map_serialization_error)?;
-
-        txn.put(self.db, &id, &encoded.as_slice(), WriteFlags::default())
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        let id = self.db.insert(txn, record)?;
 
         let indexer = Indexer {
             primary_index: self.primary_index,
@@ -114,69 +103,6 @@ impl LmdbCache {
         Ok(())
     }
 
-    pub fn insert_schema_with_txn(
-        &self,
-        txn: &mut RwTransaction,
-        schema: &Schema,
-        name: &str,
-        secondary_indexes: &[IndexDefinition],
-    ) -> Result<(), CacheError> {
-        let encoded: Vec<u8> = bincode::serialize(&(schema, secondary_indexes))
-            .map_err(CacheError::map_serialization_error)?;
-        let schema_id = schema.to_owned().identifier.unwrap();
-        let key = get_schema_key(&schema_id);
-
-        // Insert Schema with {id, version}
-        txn.put::<Vec<u8>, Vec<u8>>(self.schema_db, &key, &encoded, WriteFlags::default())
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
-
-        let schema_id_bytes =
-            bincode::serialize(&schema_id).map_err(CacheError::map_serialization_error)?;
-
-        // Insert Reverse key lookup for schema by name
-        let schema_key = index::get_schema_reverse_key(name);
-
-        txn.put::<Vec<u8>, Vec<u8>>(
-            self.schema_db,
-            &schema_key,
-            &schema_id_bytes,
-            WriteFlags::default(),
-        )
-        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
-
-        Ok(())
-    }
-
-    fn get_schema_from_reverse_key(
-        &self,
-        name: &str,
-        txn: &RoTransaction,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let schema_reverse_key = index::get_schema_reverse_key(name);
-        let schema_identifier = txn
-            .get(self.schema_db, &schema_reverse_key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
-        let schema_id: SchemaIdentifier = bincode::deserialize(schema_identifier)
-            .map_err(CacheError::map_deserialization_error)?;
-
-        let schema = self.get_schema_and_indexes(txn, &schema_id)?;
-
-        Ok(schema)
-    }
-
-    fn get_schema_and_indexes<T: Transaction>(
-        &self,
-        txn: &T,
-        schema_identifier: &SchemaIdentifier,
-    ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
-        let key = get_schema_key(schema_identifier);
-        let schema = txn
-            .get(self.schema_db, &key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
-        let schema = bincode::deserialize(schema).map_err(CacheError::map_deserialization_error)?;
-        Ok(schema)
-    }
-
     pub fn get_schema_and_indexes_from_record<T: Transaction>(
         &self,
         txn: &T,
@@ -184,26 +110,12 @@ impl LmdbCache {
     ) -> Result<(Schema, Vec<IndexDefinition>), CacheError> {
         let schema_identifier = record
             .schema_id
-            .to_owned()
-            .map_or(Err(CacheError::SchemaIdentifierNotFound), Ok)?;
-        self.get_schema_and_indexes(txn, &schema_identifier)
+            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+        self.schema_db.get_schema(txn, schema_identifier)
     }
 
     fn get_with_txn<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<Record, CacheError> {
-        let id = txn
-            .get(self.primary_index, &key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
-        helper::get(txn, self.db, id)
-    }
-
-    fn delete_record_with_txn(
-        &self,
-        txn: &mut RwTransaction,
-        key: &[u8],
-    ) -> Result<[u8; 8], lmdb::Error> {
-        let id: [u8; 8] = txn.get(self.primary_index, &key)?.try_into().unwrap();
-        txn.del(self.db, &id, None)?;
-        Ok(id)
+        self.db.get(txn, self.primary_index.get(txn, key)?)
     }
 
     pub fn delete_with_txn(
@@ -214,9 +126,8 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        let id = self
-            .delete_record_with_txn(txn, key)
-            .map_err(QueryError::DeleteValue)?;
+        let id = self.primary_index.get(txn, key)?;
+        self.db.delete(txn, id)?;
 
         let indexer = Indexer {
             primary_index: self.primary_index,
@@ -284,7 +195,7 @@ impl Cache for LmdbCache {
             .env
             .begin_ro_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let (schema, secondary_indexes) = self.get_schema_from_reverse_key(name, &txn)?;
+        let (schema, secondary_indexes) = self.schema_db.get_schema_from_name(&txn, name)?;
 
         let handler = LmdbQueryHandler::new(
             self.db,
@@ -328,7 +239,7 @@ impl Cache for LmdbCache {
             .env
             .begin_ro_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let schema = self.get_schema_from_reverse_key(name, &txn)?;
+        let schema = self.schema_db.get_schema_from_name(&txn, name)?;
         Ok(schema)
     }
 
@@ -337,7 +248,8 @@ impl Cache for LmdbCache {
             .env
             .begin_ro_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        self.get_schema_and_indexes(&txn, schema_identifier)
+        self.schema_db
+            .get_schema(&txn, *schema_identifier)
             .map(|(schema, _)| schema)
     }
     fn insert_schema(
@@ -350,7 +262,14 @@ impl Cache for LmdbCache {
         for (idx, index) in secondary_indexes.iter().enumerate() {
             let key = IndexMetaData::get_key(schema, idx);
             let name = format!("index_#{}", key);
-            let db = utils::init_db(&self.env, Some(&name), &self.cache_options, true, false)?;
+            let db = utils::init_db(
+                &self.env,
+                Some(&name),
+                Some(DatabaseCreateOptions {
+                    allow_dup: true,
+                    fixed_length_key: false,
+                }),
+            )?;
 
             if let IndexDefinition::SortedInverted(fields) = index {
                 comparator::set_sorted_inverted_comparator(&self.env, db, fields)
@@ -364,7 +283,8 @@ impl Cache for LmdbCache {
             .env
             .begin_rw_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        self.insert_schema_with_txn(&mut txn, schema, name, secondary_indexes)?;
+        self.schema_db
+            .insert(&mut txn, name, schema, secondary_indexes)?;
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
