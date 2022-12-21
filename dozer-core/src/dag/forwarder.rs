@@ -1,6 +1,7 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
+use crate::dag::epoch_manager::{Epoch, EpochManager};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
@@ -114,23 +115,24 @@ impl StateWriter {
 
     pub fn store_commit_info(
         &mut self,
-        source: &NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
+        states: &HashMap<NodeHandle, (u64, u64)>,
     ) -> Result<(), ExecutionError> {
         //
-        let mut full_key = vec![SOURCE_ID_IDENTIFIER];
-        full_key.extend(source.to_bytes());
 
-        let mut value: Vec<u8> = Vec::with_capacity(16);
-        value.extend(txid.to_be_bytes());
-        value.extend(seq_in_tx.to_be_bytes());
+        for (source, seq) in states.iter() {
+            let mut full_key = vec![SOURCE_ID_IDENTIFIER];
+            full_key.extend(source.to_bytes());
 
-        self.tx
-            .write()
-            .put(&self.meta_db, full_key.as_slice(), value.as_slice())?;
+            let mut value: Vec<u8> = Vec::with_capacity(16);
+            value.extend(seq.0.to_be_bytes());
+            value.extend(seq.1.to_be_bytes());
+
+            self.tx
+                .write()
+                .put(&self.meta_db, full_key.as_slice(), value.as_slice())?;
+        }
+
         self.tx.write().commit_and_renew()?;
-
         Ok(())
     }
 
@@ -156,35 +158,30 @@ pub struct LocalChannelForwarder {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     curr_txid: u64,
     curr_seq_in_tx: u64,
-    commit_size: u32,
-    commit_counter: u32,
-    max_commit_time: Duration,
-    last_commit_time: Instant,
     owner: NodeHandle,
     state_writer: StateWriter,
     stateful: bool,
+    epoch_manager: Option<Arc<RwLock<EpochManager>>>,
+    curr_epoch: u64,
 }
 
 impl LocalChannelForwarder {
     pub(crate) fn new_source_forwarder(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        commit_size: u32,
-        commit_threshold_max: Duration,
         state_writer: StateWriter,
         stateful: bool,
+        epoch_manager: Arc<RwLock<EpochManager>>,
     ) -> Self {
         Self {
             senders,
             curr_txid: 0,
             curr_seq_in_tx: 0,
-            commit_size,
-            commit_counter: 0,
             owner,
             state_writer,
-            max_commit_time: commit_threshold_max,
-            last_commit_time: Instant::now(),
             stateful,
+            epoch_manager: Some(epoch_manager),
+            curr_epoch: 0,
         }
     }
 
@@ -198,13 +195,11 @@ impl LocalChannelForwarder {
             senders,
             curr_txid: 0,
             curr_seq_in_tx: 0,
-            commit_size: 0,
-            commit_counter: 0,
             owner,
             state_writer: rec_store_writer,
-            max_commit_time: Duration::from_millis(0),
-            last_commit_time: Instant::now(),
             stateful,
+            epoch_manager: None,
+            curr_epoch: 0,
         }
     }
 
@@ -269,25 +264,23 @@ impl LocalChannelForwarder {
         Ok(())
     }
 
-    pub fn store_and_send_commit(
-        &mut self,
-        source_node: NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-    ) -> Result<(), ExecutionError> {
+    pub fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         info!(
-            "[{}] Checkpointing (source: {}, epoch: {}:{})",
-            self.owner, source_node, txid, seq_in_tx
+            "[{}] Checkpointing (epoch: {}, details: {})",
+            self.owner,
+            epoch.id,
+            epoch
+                .details
+                .iter()
+                .map(|e| format!("{} -> {}:{}", e.0, e.1 .0, e.1 .1))
+                .fold(String::new(), |a, b| a + ", " + b.as_str())
         );
-        self.state_writer
-            .store_commit_info(&source_node, txid, seq_in_tx)?;
+        self.state_writer.store_commit_info(&epoch.details)?;
 
         for senders in &self.senders {
             for sender in senders.1 {
                 internal_err!(sender.send(ExecutorOperation::Commit {
-                    source: source_node.clone(),
-                    txid,
-                    seq_in_tx
+                    epoch: epoch.clone()
                 }))?;
             }
         }
@@ -296,20 +289,29 @@ impl LocalChannelForwarder {
     }
 
     pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
-        self.store_and_send_commit(self.owner.clone(), self.curr_txid, self.curr_seq_in_tx)?;
+        let closed_epoch = self
+            .epoch_manager
+            .as_ref()
+            .unwrap()
+            .write()
+            .close_and_poll_epoch(&self.owner);
+
+        if let Some(closed_epoch) = closed_epoch {
+            self.store_and_send_commit(&closed_epoch)?;
+        }
+
         self.send_term_and_wait()
     }
 
-    fn timeout_commit_needed(&self) -> bool {
-        (!self.max_commit_time.is_zero())
-            && self.last_commit_time.elapsed().gt(&self.max_commit_time)
-    }
-
     pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
-        if self.timeout_commit_needed() && self.commit_counter > 0 {
-            self.store_and_send_commit(self.owner.clone(), self.curr_txid, self.curr_seq_in_tx)?;
-            self.commit_counter = 0;
-            self.last_commit_time = Instant::now();
+        let closed_epoch = self
+            .epoch_manager
+            .as_ref()
+            .unwrap()
+            .write()
+            .poll_epoch(&self.owner);
+        if let Some(closed_epoch) = closed_epoch {
+            self.store_and_send_commit(&closed_epoch)?;
         }
         Ok(())
     }
@@ -323,16 +325,18 @@ impl SourceChannelForwarder for LocalChannelForwarder {
         op: Operation,
         port: PortHandle,
     ) -> Result<(), ExecutionError> {
-        self.curr_txid = txid;
-        self.curr_seq_in_tx = seq_in_tx;
-
-        if self.commit_counter >= self.commit_size || self.timeout_commit_needed() {
-            self.store_and_send_commit(self.owner.clone(), txid, seq_in_tx)?;
-            self.commit_counter = 0;
-            self.last_commit_time = Instant::now();
-        }
+        //
         self.send_op(op, port)?;
-        self.commit_counter += 1;
+        let closed_epoch = self
+            .epoch_manager
+            .as_ref()
+            .unwrap()
+            .write()
+            .add_op_to_epoch(&self.owner, txid, seq_in_tx)?;
+
+        if let Some(closed_epoch) = closed_epoch {
+            self.store_and_send_commit(&closed_epoch)?;
+        }
         Ok(())
     }
 }

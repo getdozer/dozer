@@ -133,9 +133,7 @@ pub trait Processor {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
     fn commit(
         &self,
-        source: &NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
+        states: &HashMap<NodeHandle, (u64, u64)>,
         tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError>;
     fn process(
@@ -164,9 +162,7 @@ pub trait Sink {
     fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError>;
     fn commit(
         &mut self,
-        source: &NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
+        states: &HashMap<NodeHandle, (u64, u64)>,
         tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError>;
     fn process(

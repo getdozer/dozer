@@ -24,6 +24,7 @@ use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 
+use crate::dag::epoch_manager::{Epoch, EpochManager};
 use log::info;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -59,21 +60,10 @@ pub(crate) enum InputPortState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
-    Delete {
-        old: Record,
-    },
-    Insert {
-        new: Record,
-    },
-    Update {
-        old: Record,
-        new: Record,
-    },
-    Commit {
-        source: NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-    },
+    Delete { old: Record },
+    Insert { new: Record },
+    Update { old: Record, new: Record },
+    Commit { epoch: Epoch },
     Terminate,
 }
 
@@ -331,6 +321,7 @@ impl<'a> DagExecutor<'a> {
 
     fn start_source(
         &self,
+        epoch_manager: Arc<RwLock<EpochManager>>,
         handle: NodeHandle,
         src_factory: Arc<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -389,8 +380,6 @@ impl<'a> DagExecutor<'a> {
             let mut dag_fw = LocalChannelForwarder::new_source_forwarder(
                 handle,
                 senders,
-                lt_executor_options.commit_sz,
-                lt_executor_options.commit_time_threshold,
                 StateWriter::new(
                     state_meta.meta_db,
                     port_databases,
@@ -400,7 +389,9 @@ impl<'a> DagExecutor<'a> {
                     HashMap::new(),
                 ),
                 true,
+                epoch_manager,
             );
+
             loop {
                 let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
                 match lt_stop_req.load(Ordering::Relaxed) {
@@ -493,18 +484,9 @@ impl<'a> DagExecutor<'a> {
             loop {
                 let index = sel.ready();
                 match internal_err!(receivers_ls[index].recv())? {
-                    ExecutorOperation::Commit {
-                        txid,
-                        seq_in_tx,
-                        source,
-                    } => {
-                        proc.commit(
-                            &source,
-                            txid,
-                            seq_in_tx,
-                            &mut SharedTransaction::new(&master_tx),
-                        )?;
-                        fw.store_and_send_commit(source, txid, seq_in_tx)?;
+                    ExecutorOperation::Commit { epoch } => {
+                        proc.commit(&epoch.details, &mut SharedTransaction::new(&master_tx))?;
+                        fw.store_and_send_commit(&epoch)?;
                     }
                     ExecutorOperation::Terminate => {
                         port_states[index] = InputPortState::Terminated;
@@ -577,22 +559,19 @@ impl<'a> DagExecutor<'a> {
                         info!("[{}] Terminating: Exiting message loop", handle);
                         return Ok(());
                     }
-                    ExecutorOperation::Commit {
-                        txid,
-                        seq_in_tx,
-                        source,
-                    } => {
+                    ExecutorOperation::Commit { epoch } => {
                         info!(
-                            "[{}] Checkpointing (source: {}, epoch: {}:{})",
-                            handle, source, txid, seq_in_tx
+                            "[{}] Checkpointing (epoch: {}, details: {})",
+                            handle,
+                            epoch.id,
+                            epoch
+                                .details
+                                .iter()
+                                .map(|e| format!("{} -> {}:{}", e.0, e.1 .0, e.1 .1))
+                                .fold(String::new(), |a, b| a + ", " + b.as_str())
                         );
-                        snk.commit(
-                            &source,
-                            txid,
-                            seq_in_tx,
-                            &mut SharedTransaction::new(&master_tx),
-                        )?;
-                        state_writer.store_commit_info(&source, txid, seq_in_tx)?;
+                        snk.commit(&epoch.details, &mut SharedTransaction::new(&master_tx))?;
+                        state_writer.store_commit_info(&epoch.details)?;
                     }
                     op => {
                         let data_op = map_to_op(op)?;
@@ -614,6 +593,11 @@ impl<'a> DagExecutor<'a> {
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
+        let epoch_manager: Arc<RwLock<EpochManager>> = Arc::new(RwLock::new(EpochManager::new(
+            self.options.commit_time_threshold,
+            self.options.commit_sz as u64,
+            self.consistency_metadata.clone(),
+        )));
 
         for (handle, factory) in self.dag.get_sinks() {
             let join_handle = self.start_sink(
@@ -648,6 +632,7 @@ impl<'a> DagExecutor<'a> {
 
         for (handle, factory) in self.dag.get_sources() {
             let join_handle = self.start_source(
+                epoch_manager.clone(),
                 handle.clone(),
                 factory.clone(),
                 senders

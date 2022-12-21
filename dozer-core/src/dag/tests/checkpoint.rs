@@ -17,7 +17,7 @@ use tempdir::TempDir;
 
 #[test]
 fn test_checkpoint_consistency() {
-    init_log4rs();
+    dozer_tracing::init_telemetry(false).unwrap();
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
 
@@ -28,7 +28,7 @@ fn test_checkpoint_consistency() {
 
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            25_000,
+            250_000,
             latch.clone(),
             true,
         ))),
@@ -36,7 +36,7 @@ fn test_checkpoint_consistency() {
     );
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            50_000,
+            500_000,
             latch.clone(),
             true,
         ))),
@@ -47,7 +47,7 @@ fn test_checkpoint_consistency() {
         proc_handle.clone(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch))),
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(500_000 + 250_000, latch))),
         sink_handle.clone(),
     );
 

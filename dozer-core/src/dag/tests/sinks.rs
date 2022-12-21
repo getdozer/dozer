@@ -59,9 +59,7 @@ impl Sink for CountingSink {
 
     fn commit(
         &mut self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _details: &HashMap<NodeHandle, (u64, u64)>,
         _tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
