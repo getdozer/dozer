@@ -11,7 +11,7 @@ use sqlparser::ast::{TableFactor, TableWithJoins};
 use crate::pipeline::{errors::PipelineError, expression::builder::normalize_ident};
 
 use super::{
-    join::{JoinOperator, JoinOperatorType, JoinTable},
+    join::{JoinOperator, JoinOperatorType, JoinTable, ReverseJoinOperator},
     processor::ProductProcessor,
 };
 
@@ -126,80 +126,65 @@ pub fn build_join_chain(
 ) -> Result<HashMap<PortHandle, JoinTable>, PipelineError> {
     let mut input_tables = HashMap::new();
 
-    let left_join_table = get_join_table(&from.relation)?;
-    input_tables.insert(0 as PortHandle, left_join_table);
+    let mut left_join_table = get_join_table(&from.relation)?;
+    input_tables.insert(0 as PortHandle, left_join_table.clone());
 
     for (index, join) in from.joins.iter().enumerate() {
-        let right_join_table = get_join_table(&join.relation)?;
+        let mut right_join_table = get_join_table(&join.relation)?;
 
-        let right_join_operator =
-            JoinOperator::new(JoinOperatorType::Inner, (index + 1) as PortHandle, 0, 0);
-        input_tables.get_mut(&(index as PortHandle)).unwrap().right = Some(right_join_operator);
+        let (join_op, reverse_join_op) = match &join.join_operator {
+            sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
+                sqlparser::ast::JoinConstraint::On(expression) => {
+                    let (left_keys, right_keys) =
+                        parse_join_constraint(expression, &left_join_table, &right_join_table)?;
 
-        // right_join_table.left = match &join.join_operator {
-        //     sqlparser::ast::JoinOperator::Inner(constraint) => {
-        //         match constraint {
-        //             sqlparser::ast::JoinConstraint::On(expression) => todo!(),
-        //             sqlparser::ast::JoinConstraint::Using(expression) => {
-        //                 return Err(PipelineError::InvalidQuery(
-        //                     "Join Constraint USING is not Supported".to_string(),
-        //                 ))
-        //             }
-        //             sqlparser::ast::JoinConstraint::Natural => {
-        //                 return Err(PipelineError::InvalidQuery(
-        //                     "Natural Join is not Supported".to_string(),
-        //                 ))
-        //             }
-        //             sqlparser::ast::JoinConstraint::None => {
-        //                 return Err(PipelineError::InvalidQuery(
-        //                     "Join Constraint without ON is not Supported".to_string(),
-        //                 ))
-        //             }
-        //         };
+                    (
+                        Some(JoinOperator::new(
+                            JoinOperatorType::Inner,
+                            (index + 1) as PortHandle,
+                            right_keys,
+                        )),
+                        Some(ReverseJoinOperator::new(
+                            JoinOperatorType::Inner,
+                            (index) as PortHandle,
+                            left_keys,
+                        )),
+                    )
+                }
+                _ => {
+                    return Err(PipelineError::InvalidQuery(
+                        "Unsupported Join constraint".to_string(),
+                    ))
+                }
+            },
+            _ => {
+                return Err(PipelineError::InvalidQuery(
+                    "Unsupported Join type".to_string(),
+                ))
+            }
+        };
 
-        //         Some(ReverseJoinOperator::new(
-        //             JoinOperatorType::Inner,
-        //             (index) as PortHandle,
-        //             0,
-        //             0,
-        //         ))
-        //     }
-        //     sqlparser::ast::JoinOperator::LeftOuter(constraint) => {
-        //         return Err(PipelineError::InvalidQuery(
-        //             "Left Outer Join is not Supported".to_string(),
-        //         ))
-        //     }
-        //     sqlparser::ast::JoinOperator::RightOuter(constraint) => {
-        //         return Err(PipelineError::InvalidQuery(
-        //             "Right Outer Join is not Supported".to_string(),
-        //         ))
-        //     }
-        //     sqlparser::ast::JoinOperator::FullOuter(constraint) => {
-        //         return Err(PipelineError::InvalidQuery(
-        //             "Full Outer Join is not Supported".to_string(),
-        //         ))
-        //     }
-        //     sqlparser::ast::JoinOperator::CrossJoin => {
-        //         return Err(PipelineError::InvalidQuery(
-        //             "Cross Join is not Supported".to_string(),
-        //         ))
-        //     }
-        //     sqlparser::ast::JoinOperator::CrossApply => {
-        //         return Err(PipelineError::InvalidQuery(
-        //             "Cross Apply is not Supported".to_string(),
-        //         ))
-        //     }
-        //     sqlparser::ast::JoinOperator::OuterApply => {
-        //         return Err(PipelineError::InvalidQuery(
-        //             "Outer Apply is not Supported".to_string(),
-        //         ))
-        //     }
-        // };
+        input_tables.get_mut(&(index as PortHandle)).unwrap().right = join_op;
+
+        right_join_table.left = reverse_join_op;
 
         input_tables.insert((index + 1) as PortHandle, right_join_table.clone());
+
+        left_join_table = input_tables
+            .get_mut(&(index as PortHandle))
+            .unwrap()
+            .clone();
     }
 
     Ok(input_tables)
+}
+
+fn parse_join_constraint(
+    expression: &sqlparser::ast::Expr,
+    left_join_table: &JoinTable,
+    right_join_table: &JoinTable,
+) -> Result<(Vec<usize>, Vec<usize>), PipelineError> {
+    todo!()
 }
 
 // fn get_constraint_keys(expression: SqlExpr) -> Result<Ident, PipelineError> {
