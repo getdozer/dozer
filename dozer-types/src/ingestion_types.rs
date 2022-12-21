@@ -51,6 +51,8 @@ pub struct EthConfig {
     #[prost(string, tag = "2")]
     pub wss_url: String,
     #[prost(string, tag = "3")]
+    pub https_url: String,
+    #[prost(string, tag = "4")]
     pub name: String,
 }
 

@@ -1,3 +1,4 @@
+use core::time;
 use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::Connector;
@@ -9,6 +10,7 @@ use crate::{
 use dozer_types::ingestion_types::{EthConfig, EthFilter, IngestionMessage};
 use dozer_types::parking_lot::RwLock;
 use futures::StreamExt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::runtime::Runtime;
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
@@ -102,16 +104,40 @@ impl Connector for EthConnector {
     fn start(&self) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
+
+        let https_url = self.config.https_url.to_owned();
+
         let filter = self.filter.to_owned();
+        let filter_https = filter.clone();
+
         let connector_id = self.id;
+
         let ingestor = self
             .ingestor
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(wss_url, filter, ingestor, connector_id).await })
+
+        let ingestor_https = ingestor.clone();
+
+        Runtime::new().unwrap().block_on(async {
+            let counter = Arc::new(AtomicUsize::new(0));
+
+            let counter_https = counter.clone();
+            // get past events separately
+            tokio::spawn(async move {
+                get_past_events(
+                    https_url,
+                    filter_https,
+                    ingestor_https,
+                    connector_id,
+                    counter_https,
+                )
+                .await
+            });
+
+            _run(wss_url, filter, ingestor, connector_id, counter).await
+        })
     }
 
     fn stop(&self) {}
@@ -126,13 +152,14 @@ impl Connector for EthConnector {
 }
 
 #[allow(unreachable_code)]
-async fn run(
+async fn _run(
     wss_url: String,
     filter: Filter,
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
+    counter: Arc<AtomicUsize>,
 ) -> Result<(), ConnectorError> {
-    let client = helper::get_client(&wss_url).await.unwrap();
+    let client = helper::get_wss_client(&wss_url).await.unwrap();
 
     let stream = client
         .eth_subscribe()
@@ -141,18 +168,10 @@ async fn run(
         .unwrap();
 
     tokio::pin!(stream);
-    let mut idx = 0;
-
-    // Send a schema update.
-    ingestor
-        .write()
-        .handle_message((
-            connector_id,
-            IngestionMessage::Schema(TABLE_NAME.to_string(), helper::get_eth_schema()),
-        ))
-        .map_err(ConnectorError::IngestorError)?;
 
     loop {
+        let idx = counter.fetch_add(1, Ordering::Relaxed);
+
         let msg = stream.next().await;
 
         let msg = msg
@@ -164,7 +183,42 @@ async fn run(
             .write()
             .handle_message((connector_id, IngestionMessage::OperationEvent(msg)))
             .map_err(ConnectorError::IngestorError)?;
-        idx += 1;
+    }
+    Ok(())
+}
+
+#[allow(unreachable_code)]
+async fn get_past_events(
+    https_url: String,
+    filter: Filter,
+    ingestor: Arc<RwLock<Ingestor>>,
+    connector_id: u64,
+    counter: Arc<AtomicUsize>,
+) -> Result<(), ConnectorError> {
+    let client = helper::get_https_client(&https_url).await.unwrap();
+
+    let filter = client
+        .eth_filter()
+        .create_logs_filter(filter)
+        .await
+        .map_err(ConnectorError::EthError)?;
+
+    let stream = filter.stream(time::Duration::from_secs(1));
+    tokio::pin!(stream);
+
+    loop {
+        let idx = counter.fetch_add(1, Ordering::Relaxed);
+        let msg = stream.next().await;
+
+        let msg = msg
+            .map_or(Err(ConnectorError::EmptyMessage), Ok)?
+            .map_err(ConnectorError::EthError)?;
+
+        let msg = helper::map_log_to_event(msg, idx);
+        ingestor
+            .write()
+            .handle_message((connector_id, IngestionMessage::OperationEvent(msg)))
+            .map_err(ConnectorError::IngestorError)?;
     }
     Ok(())
 }

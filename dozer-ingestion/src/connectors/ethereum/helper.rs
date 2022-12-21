@@ -2,13 +2,17 @@ use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
 };
 
-use web3::transports::WebSocket;
+use web3::transports::{Http, WebSocket};
 use web3::types::Log;
 
-pub async fn get_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Error> {
+pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Error> {
     Ok(web3::Web3::new(
         web3::transports::WebSocket::new(url).await?,
     ))
+}
+
+pub async fn get_https_client(url: &str) -> Result<web3::Web3<Http>, web3::Error> {
+    Ok(web3::Web3::new(web3::transports::Http::new(url)?))
 }
 
 pub fn map_log_to_event(log: Log, idx: usize) -> OperationEvent {
