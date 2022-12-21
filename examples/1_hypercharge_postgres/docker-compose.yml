@@ -1,13 +1,27 @@
 version: '3.8'
 services:
+  dozer-postgres:
+    depends_on:
+      - postgres
+    links:
+      - postgres
+    container_name: 1-hypercharge-postgres-dozer
+    image: public.ecr.aws/k7k6x1d4/dozer:latest
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
+    command: "-c /usr/dozer/dozer-config.yaml"
+
   postgres:
     container_name: 1-postgres-sample
     image: debezium/postgres:13
+    build:
+      dockerfile: postgres.Dockerfile
     volumes:
       - ./pg_hba.conf:/var/lib/stock-sample/pg_hba.conf
       - ./scripts/init_stocks.sql:/docker-entrypoint-initdb.d/init_stocks.sql
-      - ./data/stock_price.csv:/var/lib/stock-sample/data/stock_price.csv
-      - ./data/symbols_valid_meta.csv:/var/lib/stock-sample/data/symbols_valid_meta.csv
     command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
     environment:
       POSTGRES_DB: stocks
