@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 dozer-ingestion={path= "../../.." }
+dozer-tracing={path= "../../.." }
 log = "0.4.17"
 log4rs = "1.1.1"
 
