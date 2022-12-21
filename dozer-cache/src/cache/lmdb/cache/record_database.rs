@@ -34,7 +34,7 @@ impl RecordDatabase {
         let encoded: Vec<u8> =
             bincode::serialize(&record).map_err(CacheError::map_serialization_error)?;
 
-        txn.put(self.0, &id, &encoded.as_slice(), WriteFlags::default())
+        txn.put(self.0, &id, &encoded.as_slice(), WriteFlags::NO_OVERWRITE)
             .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         Ok(id)

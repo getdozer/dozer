@@ -28,7 +28,7 @@ impl PrimaryIndexDatabase {
         key: &[u8],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
-        txn.put(self.0, &key, &id, WriteFlags::default())
+        txn.put(self.0, &key, &id, WriteFlags::NO_OVERWRITE)
             .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))
     }
 

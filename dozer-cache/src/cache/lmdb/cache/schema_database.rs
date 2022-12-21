@@ -41,7 +41,7 @@ impl SchemaDatabase {
         let key = get_schema_key(schema_id);
 
         // Insert Schema with {id, version}
-        txn.put::<Vec<u8>, Vec<u8>>(self.0, &key, &encoded, WriteFlags::default())
+        txn.put::<Vec<u8>, Vec<u8>>(self.0, &key, &encoded, WriteFlags::NO_OVERWRITE)
             .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         let schema_id_bytes =
@@ -50,8 +50,13 @@ impl SchemaDatabase {
         // Insert Reverse key lookup for schema by name
         let schema_key = get_schema_reverse_key(schema_name);
 
-        txn.put::<Vec<u8>, Vec<u8>>(self.0, &schema_key, &schema_id_bytes, WriteFlags::default())
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        txn.put::<Vec<u8>, Vec<u8>>(
+            self.0,
+            &schema_key,
+            &schema_id_bytes,
+            WriteFlags::NO_OVERWRITE,
+        )
+        .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
 
         Ok(())
     }
