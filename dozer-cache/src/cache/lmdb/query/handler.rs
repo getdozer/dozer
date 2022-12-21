@@ -6,7 +6,7 @@ use crate::cache::{
     index,
     lmdb::{
         cache::{RecordDatabase, SecondaryIndexDatabases},
-        query::{helper::lmdb_cmp, intersection::intersection},
+        query::intersection::intersection,
     },
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
@@ -16,7 +16,7 @@ use dozer_types::{
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
-use lmdb::{RoTransaction, Transaction};
+use lmdb::RoTransaction;
 
 pub struct LmdbQueryHandler<'a> {
     db: RecordDatabase,
@@ -109,15 +109,12 @@ impl<'a> LmdbQueryHandler<'a> {
             direction,
         } = get_range_spec(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
 
-        let cursor = self
-            .txn
-            .open_ro_cursor(index_db)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let cursor = index_db.open_ro_cursor(self.txn)?;
 
         Ok(CacheIterator::new(cursor, start, direction)
             .take_while(move |(key, _)| {
                 if let Some(end_key) = &end {
-                    match lmdb_cmp(self.txn, index_db, key, end_key.key()) {
+                    match index_db.cmp(self.txn, key, end_key.key()) {
                         Ordering::Less => matches!(direction, SortDirection::Ascending),
                         Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
                         Ordering::Greater => matches!(direction, SortDirection::Descending),

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use dozer_types::parking_lot::RwLock;
 pub use lmdb;
-use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction};
+use lmdb::{Environment, RoTransaction, RwTransaction, Transaction};
 
 use dozer_types::types::{IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
@@ -11,20 +11,21 @@ use dozer_types::types::{Schema, SchemaIdentifier};
 use super::super::Cache;
 use super::indexer::Indexer;
 use super::query::handler::LmdbQueryHandler;
-use super::utils::DatabaseCreateOptions;
-use super::{comparator, utils, CacheOptions, CacheOptionsKind};
+use super::{utils, CacheOptions, CacheOptionsKind};
 use crate::cache::expression::QueryExpression;
 use crate::errors::CacheError;
 
 mod primary_index_database;
 mod record_database;
 mod schema_database;
+mod secondary_index_database;
 
 pub use primary_index_database::PrimaryIndexDatabase;
 pub use record_database::RecordDatabase;
 use schema_database::SchemaDatabase;
+use secondary_index_database::SecondaryIndexDatabase;
 
-pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), Database>;
+pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), SecondaryIndexDatabase>;
 
 pub struct LmdbCache {
     env: Environment,
@@ -42,17 +43,34 @@ impl LmdbCache {
             .map_err(|e| CacheError::InternalError(Box::new(e)))
     }
     pub fn new(cache_options: CacheOptions) -> Result<Self, CacheError> {
+        // Create environment.
         let env = utils::init_env(&cache_options)?;
 
+        // Create or open must have databases.
         let create_if_not_exist = matches!(cache_options.kind, CacheOptionsKind::Write(_));
         let db = RecordDatabase::new(&env, create_if_not_exist)?;
         let primary_index = PrimaryIndexDatabase::new(&env, create_if_not_exist)?;
         let schema_db = SchemaDatabase::new(&env, create_if_not_exist)?;
+
+        // Open existing secondary index databases.
+        let mut secondary_indexe_databases = HashMap::default();
+        let schemas = schema_db.get_all_schemas(&env)?;
+        for (schema, secondary_indexes) in schemas {
+            let schema_id = schema
+                .identifier
+                .ok_or(CacheError::SchemaIdentifierNotFound)?;
+            for (index, index_definition) in secondary_indexes.iter().enumerate() {
+                let db =
+                    SecondaryIndexDatabase::new(&env, &schema, index, index_definition, false)?;
+                secondary_indexe_databases.insert((schema_id, index), db);
+            }
+        }
+
         Ok(Self {
             env,
             db,
             primary_index,
-            secondary_indexes: Arc::new(RwLock::new(Default::default())),
+            secondary_indexes: Arc::new(RwLock::new(secondary_indexe_databases)),
             schema_db,
             cache_options,
         })
@@ -238,21 +256,7 @@ impl Cache for LmdbCache {
 
         // Create a db for each index
         for (idx, index) in secondary_indexes.iter().enumerate() {
-            let name = format!("index_#{}_#{}_#{}", schema_id.id, schema_id.version, idx);
-            let db = utils::init_db(
-                &self.env,
-                Some(&name),
-                Some(DatabaseCreateOptions {
-                    allow_dup: true,
-                    fixed_length_key: false,
-                }),
-            )?;
-
-            if let IndexDefinition::SortedInverted(fields) = index {
-                comparator::set_sorted_inverted_comparator(&self.env, db, fields)
-                    .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-            }
-
+            let db = SecondaryIndexDatabase::new(&self.env, &schema, idx, index, true)?;
             self.secondary_indexes.write().insert((schema_id, idx), db);
         }
 

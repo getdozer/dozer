@@ -1,9 +1,9 @@
-use crate::errors::{CacheError, IndexError, QueryError};
+use crate::errors::{CacheError, IndexError};
 use dozer_types::{
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
-use lmdb::{RwTransaction, Transaction, WriteFlags};
+use lmdb::{RwTransaction, Transaction};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -50,15 +50,13 @@ impl Indexer {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
-                    txn.put(db, &secondary_key, &id, WriteFlags::default())
-                        .map_err(QueryError::InsertValue)?;
+                    db.insert(&mut txn, &secondary_key, id)?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        txn.put(db, &secondary_key, &id, WriteFlags::default())
-                            .map_err(QueryError::InsertValue)?;
+                        db.insert(&mut txn, &secondary_key, id)?;
                     }
                 }
             }
@@ -92,15 +90,13 @@ impl Indexer {
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
-                    txn.del(db, &secondary_key, Some(&id))
-                        .map_err(QueryError::DeleteValue)?;
+                    db.delete(txn, &secondary_key, id)?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        txn.del(db, &secondary_key, Some(&id))
-                            .map_err(QueryError::DeleteValue)?;
+                        db.delete(txn, &secondary_key, id)?;
                     }
                 }
             }

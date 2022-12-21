@@ -1,5 +1,5 @@
 use dozer_types::types::{Field, Record, Schema};
-use lmdb::{Cursor, RoTransaction, Transaction};
+use lmdb::{Cursor, RoTransaction};
 
 use crate::cache::{Cache, LmdbCache};
 
@@ -25,7 +25,7 @@ pub fn get_indexes(cache: &LmdbCache) -> Vec<Vec<(&[u8], &[u8])>> {
 
     let mut items = Vec::new();
     for db in secondary_indexes.read().values().copied() {
-        let mut cursor = txn.open_ro_cursor(db).unwrap();
+        let mut cursor = db.open_ro_cursor(&txn).unwrap();
         items.push(
             cursor
                 .iter_dup()

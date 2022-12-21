@@ -2,7 +2,7 @@ use dozer_types::{
     bincode,
     types::{IndexDefinition, Schema, SchemaIdentifier},
 };
-use lmdb::{Database, Environment, RwTransaction, Transaction, WriteFlags};
+use lmdb::{Cursor, Database, Environment, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
     cache::lmdb::utils::{self, DatabaseCreateOptions},
@@ -85,6 +85,29 @@ impl SchemaDatabase {
         let schema = bincode::deserialize(schema).map_err(CacheError::map_deserialization_error)?;
         Ok(schema)
     }
+
+    pub fn get_all_schemas(
+        &self,
+        env: &Environment,
+    ) -> Result<Vec<(Schema, Vec<IndexDefinition>)>, CacheError> {
+        let txn = env
+            .begin_ro_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let mut cursor = txn
+            .open_ro_cursor(self.0)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+
+        let mut result = vec![];
+        for item in cursor.iter_start() {
+            let (key, value) = item.map_err(QueryError::GetValue)?;
+            if key.starts_with(b"sc#") {
+                let schema: (Schema, Vec<IndexDefinition>) =
+                    bincode::deserialize(value).map_err(CacheError::map_deserialization_error)?;
+                result.push(schema);
+            }
+        }
+        Ok(result)
+    }
 }
 
 fn get_schema_key(schema_id: SchemaIdentifier) -> Vec<u8> {
@@ -152,5 +175,14 @@ mod tests {
             (schema.clone(), secondary_indexes.clone())
         );
         txn.commit().unwrap();
+
+        assert_eq!(
+            writer.get_all_schemas(&env).unwrap(),
+            vec![(schema.clone(), secondary_indexes.clone())]
+        );
+        assert_eq!(
+            reader.get_all_schemas(&env).unwrap(),
+            vec![(schema.clone(), secondary_indexes.clone())]
+        );
     }
 }

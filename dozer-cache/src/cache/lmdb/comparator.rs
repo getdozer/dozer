@@ -15,7 +15,7 @@ pub fn set_sorted_inverted_comparator(
     };
 
     if let Some(comparator) = comparator {
-        let txn = env.begin_rw_txn()?;
+        let txn = env.begin_ro_txn()?;
         unsafe {
             assert_eq!(
                 mdb_set_compare(txn.txn(), db.dbi(), Some(comparator)),
