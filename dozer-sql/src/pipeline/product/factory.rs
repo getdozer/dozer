@@ -6,7 +6,7 @@ use dozer_core::dag::{
     node::{OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::Schema;
-use sqlparser::ast::{TableFactor, TableWithJoins};
+use sqlparser::ast::{Expr as SqlExpr, TableFactor, TableWithJoins};
 
 use crate::pipeline::{errors::PipelineError, expression::builder::normalize_ident};
 
@@ -184,6 +184,48 @@ fn parse_join_constraint(
     left_join_table: &JoinTable,
     right_join_table: &JoinTable,
 ) -> Result<(Vec<usize>, Vec<usize>), PipelineError> {
+    match expression {
+        sqlparser::ast::Expr::BinaryOp { left, op, right } => match op {
+            sqlparser::ast::BinaryOperator::And => {
+                let (mut left_keys, mut right_keys) =
+                    parse_join_constraint(left, left_join_table, right_join_table)?;
+
+                let (mut left_keys_from_right, mut right_keys_from_right) =
+                    parse_join_constraint(right, left_join_table, right_join_table)?;
+                left_keys.append(&mut left_keys_from_right);
+                right_keys.append(&mut right_keys_from_right);
+
+                Ok((left_keys, right_keys))
+            }
+            sqlparser::ast::BinaryOperator::Eq => { 
+
+                let left_key = match left {
+                    SqlExpr::Identifier(ident) => parse_identifier(ident)?,
+                    _ => return Err(PipelineError::InvalidQuery(
+                        "Unsupported Join constraint".to_string(),
+                    )),
+                };
+
+                let right_key = match right {
+                    SqlExpr::Identifier(ident) => parse_identifier(ident)?,
+                    _ => return Err(PipelineError::InvalidQuery(
+                        "Unsupported Join constraint".to_string(),
+                    )),
+                }
+
+                Ok(vec![left_key], vec![right_key])
+        },
+            _ => Err(PipelineError::InvalidQuery(
+                "Unsupported Join constraint".to_string(),
+            )),
+        },
+        _ => Err(PipelineError::InvalidQuery(
+            "Unsupported Join constraint".to_string(),
+        )),
+    }
+}
+
+fn parse_identifier(ident: &sqlparser::ast::Ident) -> Result<usize, PipelineError> {
     todo!()
 }
 
