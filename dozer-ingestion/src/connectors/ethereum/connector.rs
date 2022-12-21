@@ -13,10 +13,13 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 use futures::StreamExt;
 
+use super::sender::EthSender;
+use futures::future::{BoxFuture, FutureExt};
 use tokio::runtime::Runtime;
 use web3::ethabi::Contract;
+use web3::transports::WebSocket;
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, Log, H256, U64};
-
+use web3::Web3;
 pub struct EthConnector {
     pub id: u64,
     config: EthConfig,
@@ -30,11 +33,17 @@ impl EthConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
 
-        // Optionally add a block_no filter
+        // Optionally add a from_block filter
         let builder = match filter.from_block {
             Some(block_no) => builder.from_block(BlockNumber::Number(U64::from(block_no))),
             None => builder,
         };
+        // Optionally add a to_block filter
+        let builder = match filter.to_block {
+            Some(block_no) => builder.to_block(BlockNumber::Number(U64::from(block_no))),
+            None => builder,
+        };
+
         // Optionally Add Address filter
         let builder = match filter.addresses.is_empty() {
             false => {
@@ -155,15 +164,15 @@ impl Connector for EthConnector {
             .clone();
 
         Runtime::new().unwrap().block_on(async {
-            run(
+            let sender = EthSender::new(
                 wss_url,
                 filter,
                 ingestor,
                 connector_id,
                 self.contract.to_owned(),
                 self.tables.to_owned(),
-            )
-            .await
+            );
+            sender.run().await;
         })
     }
 
@@ -185,110 +194,4 @@ impl Connector for EthConnector {
 
         Ok(())
     }
-}
-
-#[allow(unreachable_code)]
-pub async fn run(
-    wss_url: String,
-    filter: EthFilter,
-    ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
-    contract: Option<Contract>,
-    tables: Option<Vec<TableInfo>>,
-) -> Result<(), ConnectorError> {
-    let client = helper::get_wss_client(&wss_url).await.unwrap();
-
-    // Get current block no.
-    let current_block = client
-        .eth()
-        .block_number()
-        .await
-        .map_err(ConnectorError::EthError)?
-        .as_u64();
-
-    let from_block = filter.from_block();
-
-    // Get past logs till last block per block
-    for block_no in from_block..(current_block) {
-        let mut filter = filter.clone();
-        filter.from_block = Some(block_no);
-
-        let logs = client
-            .eth()
-            .logs(EthConnector::build_filter(&filter))
-            .await
-            .map_err(ConnectorError::EthError)?;
-
-        info!("Block: {}, logs length: {}", block_no, logs.len());
-        for msg in logs {
-            process_log(
-                msg,
-                ingestor.clone(),
-                connector_id,
-                contract.to_owned(),
-                tables.to_owned(),
-            )?;
-        }
-    }
-
-    // Create a filter from the last block to check for changes
-    let mut filter = filter.clone();
-    filter.from_block = Some(current_block);
-
-    info!("Fetching from current_block ..Block: {}", current_block);
-
-    let filter = client
-        .eth_filter()
-        .create_logs_filter(EthConnector::build_filter(&filter))
-        .await
-        .map_err(ConnectorError::EthError)?;
-
-    let stream = filter.stream(time::Duration::from_secs(1));
-
-    tokio::pin!(stream);
-
-    loop {
-        let msg = stream.next().await;
-
-        let msg = msg
-            .map_or(Err(ConnectorError::EmptyMessage), Ok)?
-            .map_err(ConnectorError::EthError)?;
-
-        process_log(
-            msg,
-            ingestor.clone(),
-            connector_id,
-            contract.to_owned(),
-            tables.to_owned(),
-        )?;
-    }
-    Ok(())
-}
-
-fn process_log(
-    msg: Log,
-    ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
-    contract: Option<Contract>,
-    tables: Option<Vec<TableInfo>>,
-) -> Result<(), ConnectorError> {
-    if let Some(op) = helper::map_log_to_event(msg.to_owned()) {
-        // Write eth_log record
-        ingestor
-            .write()
-            .handle_message((connector_id, IngestionMessage::OperationEvent(op)))
-            .map_err(ConnectorError::IngestorError)?;
-
-        // write event record optionally
-        if let Some(ref contract) = contract {
-            let op = helper::decode_event(msg.to_owned(), contract.to_owned(), tables);
-            if let Some(op) = op {
-                ingestor
-                    .write()
-                    .handle_message((connector_id, IngestionMessage::OperationEvent(op)))
-                    .map_err(ConnectorError::IngestorError)?;
-            }
-        }
-    }
-    Ok(())
 }

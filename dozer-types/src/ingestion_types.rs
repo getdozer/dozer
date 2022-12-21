@@ -38,9 +38,11 @@ pub struct EthFilter {
     // Starting block
     #[prost(uint64, optional, tag = "1")]
     pub from_block: Option<u64>,
-    #[prost(string, repeated, tag = "2")]
-    pub addresses: Vec<String>,
+    #[prost(uint64, optional, tag = "2")]
+    pub to_block: Option<u64>,
     #[prost(string, repeated, tag = "3")]
+    pub addresses: Vec<String>,
+    #[prost(string, repeated, tag = "4")]
     pub topics: Vec<String>,
 }
 
