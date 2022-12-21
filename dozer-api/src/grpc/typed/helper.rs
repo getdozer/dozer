@@ -15,7 +15,7 @@ fn get_response_descriptor(
         "query" => {
             let query_path = format!(
                 "dozer.generated.{}.Query{}Response",
-                endpoint_name.to_lowercase().to_plural(),
+                endpoint_name.to_lowercase(),
                 endpoint_name.to_pascal_case().to_plural(),
             );
 
@@ -25,7 +25,7 @@ fn get_response_descriptor(
         "on_event" => {
             let query_path = format!(
                 "dozer.generated.{}.{}Event",
-                endpoint_name.to_lowercase().to_plural(),
+                endpoint_name.to_lowercase(),
                 endpoint_name.to_pascal_case().to_singular(),
             );
 
@@ -39,7 +39,7 @@ fn get_response_descriptor(
 fn get_resource_desc(desc: &DescriptorPool, endpoint_name: &str) -> MessageDescriptor {
     let msg_path = format!(
         "dozer.generated.{}.{}",
-        endpoint_name.to_lowercase().to_plural(),
+        endpoint_name.to_lowercase(),
         endpoint_name.to_pascal_case().to_singular(),
     );
 
@@ -80,7 +80,7 @@ fn internal_record_to_pb(
 ) -> DynamicMessage {
     let msg_path = format!(
         "dozer.generated.{}.{}",
-        endpoint_name.to_lowercase().to_plural(),
+        endpoint_name.to_lowercase(),
         endpoint_name.to_pascal_case().to_singular(),
     );
     let resource_desc = desc

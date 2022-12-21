@@ -11,7 +11,7 @@ members = [
   "dozer-tracing",
   "dozer-tests",
 ]
-exclude = ["tests/**/**", "config/**/**"]
+exclude = ["dozer-ingestion/tests/**/**", "config/**/**"]
 
 [patch.crates-io]
 postgres = { git = "https://github.com/getdozer/rust-postgres" }

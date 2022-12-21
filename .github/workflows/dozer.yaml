@@ -85,4 +85,4 @@ jobs:
           cargo fmt -- --check
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose --features mongodb
