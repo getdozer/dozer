@@ -22,7 +22,7 @@ impl FieldDefinition {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct SchemaIdentifier {
     pub id: u32,
     pub version: u16,
@@ -73,10 +73,6 @@ impl Schema {
             Some(v) => Ok(v),
             _ => Err(TypeError::InvalidFieldName(name.to_string())),
         }
-    }
-
-    pub fn get_id(&self) -> u32 {
-        self.identifier.clone().unwrap().id
     }
 }
 

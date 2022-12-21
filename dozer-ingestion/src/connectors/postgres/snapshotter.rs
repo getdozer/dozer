@@ -97,7 +97,6 @@ impl PostgresSnapshotter {
                             table_info.name.to_string(),
                             schema
                                 .identifier
-                                .clone()
                                 .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
                             &msg,
                             columns,
