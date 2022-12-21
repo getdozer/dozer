@@ -6,6 +6,8 @@ use web3::ethabi::{Contract, RawLog};
 use web3::transports::WebSocket;
 use web3::types::Log;
 
+use crate::connectors::TableInfo;
+
 pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Error> {
     Ok(web3::Web3::new(
         web3::transports::WebSocket::new(url).await?,
@@ -37,10 +39,10 @@ pub fn get_contract_event_schemas(contract: &Contract) -> Vec<(String, Schema)> 
         }
 
         schemas.push((
-            event.name.to_owned(),
+            event.name.to_owned().to_lowercase(),
             Schema {
                 identifier: Some(SchemaIdentifier {
-                    id: (idx + 1) as u32,
+                    id: (idx + 2) as u32,
                     version: 1,
                 }),
                 fields,
@@ -51,7 +53,11 @@ pub fn get_contract_event_schemas(contract: &Contract) -> Vec<(String, Schema)> 
     schemas
 }
 
-pub fn decode_event(log: Log, contract: Contract) -> OperationEvent {
+pub fn decode_event(
+    log: Log,
+    contract: Contract,
+    tables: Option<Vec<TableInfo>>,
+) -> Option<OperationEvent> {
     // Topics 0, 1, 2 should be name, buyer, seller in most cases
     let name = log
         .topics
@@ -59,47 +65,53 @@ pub fn decode_event(log: Log, contract: Contract) -> OperationEvent {
         .expect("name is expected")
         .to_owned()
         .to_string();
+    let is_table_required = tables.map_or(true, |tables| {
+        tables.iter().find(|t| t.name == name).is_some()
+    });
+    if is_table_required {
+        let seq_no = get_id(&log) + 1;
 
-    let seq_no = get_id(&log) + 1;
+        let (idx, event) = contract
+            .events
+            .values()
+            .flatten()
+            .into_iter()
+            .enumerate()
+            .find(|(_, evt)| evt.signature().to_string() == name)
+            .expect(&format!("event is not found with signature: {}", name));
 
-    let (idx, event) = contract
-        .events
-        .values()
-        .flatten()
-        .into_iter()
-        .enumerate()
-        .find(|(_, evt)| evt.signature().to_string() == name)
-        .expect(&format!("event is not found with signature: {}", name));
+        // let event = contract.event(&name_str).unwrap();
+        let parsed_event = event
+            .parse_log(RawLog {
+                topics: log.topics,
+                data: log.data.0,
+            })
+            .expect(&format!(
+                "parsing event failed: block_no: {}, txn_hash: {}",
+                log.block_number.unwrap(),
+                log.transaction_hash.unwrap()
+            ));
+        // info!("Event: {:?}", parsed_event);
 
-    // let event = contract.event(&name_str).unwrap();
-    let parsed_event = event
-        .parse_log(RawLog {
-            topics: log.topics,
-            data: log.data.0,
-        })
-        .expect(&format!(
-            "parsing event failed: block_no: {}, txn_hash: {}",
-            log.block_number.unwrap(),
-            log.transaction_hash.unwrap()
-        ));
-    // info!("Event: {:?}", parsed_event);
-
-    let values = parsed_event
-        .params
-        .into_iter()
-        .map(|p| map_abitype_to_field(p.value))
-        .collect();
-    OperationEvent {
-        seq_no,
-        operation: Operation::Insert {
-            new: Record {
-                schema_id: Some(SchemaIdentifier {
-                    id: (idx + 1) as u32,
-                    version: 1,
-                }),
-                values,
+        let values = parsed_event
+            .params
+            .into_iter()
+            .map(|p| map_abitype_to_field(p.value))
+            .collect();
+        Some(OperationEvent {
+            seq_no,
+            operation: Operation::Insert {
+                new: Record {
+                    schema_id: Some(SchemaIdentifier {
+                        id: (idx + 2) as u32,
+                        version: 1,
+                    }),
+                    values,
+                },
             },
-        },
+        })
+    } else {
+        None
     }
 }
 pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
@@ -188,23 +200,6 @@ pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
     ];
 
     (idx, values)
-}
-
-pub fn get_columns() -> Vec<String> {
-    vec![
-        "id".to_string(),
-        "address".to_string(),
-        "topics".to_string(),
-        "data".to_string(),
-        "block_hash".to_string(),
-        "block_number".to_string(),
-        "transaction_hash".to_string(),
-        "transaction_index".to_string(),
-        "log_index".to_string(),
-        "transaction_log_index".to_string(),
-        "log_type".to_string(),
-        "removed".to_string(),
-    ]
 }
 pub fn get_eth_schema() -> Schema {
     Schema {

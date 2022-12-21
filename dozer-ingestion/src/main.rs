@@ -32,6 +32,12 @@ fn main() -> Result<(), ConnectorError> {
                 wss_url,
             },
         );
+
+        let schemas = eth_connector.get_schemas(None)?;
+        for schema in schemas {
+            info!("{:?}", schema.0);
+        }
+
         eth_connector.initialize(ingestor, None)?;
         eth_connector.start()
     });

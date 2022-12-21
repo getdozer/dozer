@@ -21,6 +21,7 @@ pub struct EthConnector {
     pub id: u64,
     config: EthConfig,
     contract: Option<Contract>,
+    tables: Option<Vec<TableInfo>>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
@@ -78,6 +79,7 @@ impl EthConnector {
             id,
             config,
             contract,
+            tables: None,
             ingestor: None,
         }
     }
@@ -86,18 +88,28 @@ impl EthConnector {
 impl Connector for EthConnector {
     fn get_schemas(
         &self,
-        _: Option<Vec<TableInfo>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         let schemas = vec![(ETH_LOGS_TABLE.to_string(), helper::get_eth_schema())];
         let schemas = if let Some(contract) = &self.contract {
             let event_schemas = helper::get_contract_event_schemas(contract);
 
-            Ok([schemas, event_schemas].concat())
+            [schemas, event_schemas].concat()
         } else {
-            Ok(schemas)
+            schemas
+        };
+
+        let schemas = if let Some(tables) = tables {
+            schemas
+                .iter()
+                .filter(|(n, _)| tables.iter().find(|t| t.name == n.to_owned()).is_some())
+                .cloned()
+                .collect()
+        } else {
+            schemas
         };
         info!("Initializing schemas: {:?}", schemas);
-        schemas
+        Ok(schemas)
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
@@ -107,7 +119,7 @@ impl Connector for EthConnector {
             .iter()
             .enumerate()
             .map(|(id, (name, schema))| TableInfo {
-                name: name.to_string(),
+                name: name.to_string().to_lowercase(),
                 id: id as u32,
                 columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
             })
@@ -118,9 +130,10 @@ impl Connector for EthConnector {
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
-        _: Option<Vec<TableInfo>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         self.ingestor = Some(ingestor);
+        self.tables = tables;
         Ok(())
     }
 
@@ -148,6 +161,7 @@ impl Connector for EthConnector {
                 ingestor,
                 connector_id,
                 self.contract.to_owned(),
+                self.tables.to_owned(),
             )
             .await
         })
@@ -180,6 +194,7 @@ pub async fn run(
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
     contract: Option<Contract>,
+    tables: Option<Vec<TableInfo>>,
 ) -> Result<(), ConnectorError> {
     let client = helper::get_wss_client(&wss_url).await.unwrap();
 
@@ -206,7 +221,13 @@ pub async fn run(
 
         info!("Block: {}, logs length: {}", block_no, logs.len());
         for msg in logs {
-            process_log(msg, ingestor.clone(), connector_id, contract.to_owned())?;
+            process_log(
+                msg,
+                ingestor.clone(),
+                connector_id,
+                contract.to_owned(),
+                tables.to_owned(),
+            )?;
         }
     }
 
@@ -233,7 +254,13 @@ pub async fn run(
             .map_or(Err(ConnectorError::EmptyMessage), Ok)?
             .map_err(ConnectorError::EthError)?;
 
-        process_log(msg, ingestor.clone(), connector_id, contract.to_owned())?;
+        process_log(
+            msg,
+            ingestor.clone(),
+            connector_id,
+            contract.to_owned(),
+            tables.to_owned(),
+        )?;
     }
     Ok(())
 }
@@ -243,6 +270,7 @@ fn process_log(
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
     contract: Option<Contract>,
+    tables: Option<Vec<TableInfo>>,
 ) -> Result<(), ConnectorError> {
     if let Some(op) = helper::map_log_to_event(msg.to_owned()) {
         // Write eth_log record
@@ -253,11 +281,13 @@ fn process_log(
 
         // write event record optionally
         if let Some(ref contract) = contract {
-            let op = helper::decode_event(msg.to_owned(), contract.to_owned());
-            ingestor
-                .write()
-                .handle_message((connector_id, IngestionMessage::OperationEvent(op)))
-                .map_err(ConnectorError::IngestorError)?;
+            let op = helper::decode_event(msg.to_owned(), contract.to_owned(), tables);
+            if let Some(op) = op {
+                ingestor
+                    .write()
+                    .handle_message((connector_id, IngestionMessage::OperationEvent(op)))
+                    .map_err(ConnectorError::IngestorError)?;
+            }
         }
     }
     Ok(())
