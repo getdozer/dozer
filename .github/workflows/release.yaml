@@ -1,7 +1,9 @@
 name: Release
 on:
+  pull_request:
+    branches: [release-sample]
   push:
-    # branches: [release, release-*]
+    branches: [release, release-*]
     tags:
       - "v*.*.*"
 env:
