@@ -256,7 +256,7 @@ impl Cache for LmdbCache {
 
         // Create a db for each index
         for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = SecondaryIndexDatabase::new(&self.env, &schema, idx, index, true)?;
+            let db = SecondaryIndexDatabase::new(&self.env, schema, idx, index, true)?;
             self.secondary_indexes.write().insert((schema_id, idx), db);
         }
 
