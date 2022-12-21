@@ -1,2 +1,2 @@
 pub mod connector;
-mod helper;
+pub mod helper;

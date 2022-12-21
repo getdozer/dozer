@@ -50,10 +50,9 @@ pub struct EthConfig {
     pub filter: Option<EthFilter>,
     #[prost(string, tag = "2")]
     pub wss_url: String,
-    #[prost(string, tag = "3")]
-    pub https_url: String,
-    #[prost(string, tag = "4")]
-    pub name: String,
+
+    #[prost(message, tag = "4")]
+    pub contract_abi: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
