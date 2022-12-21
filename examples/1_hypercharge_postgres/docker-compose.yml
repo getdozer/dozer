@@ -13,9 +13,10 @@ services:
     volumes:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
     command: "-c /usr/dozer/dozer-config.yaml"
+    networks: ["dozer_net"]
 
   postgres:
-    container_name: 1-postgres-sample
+    container_name: 1-hypercharge-postgres
     image: debezium/postgres:13
     build:
       dockerfile: postgres.Dockerfile
@@ -35,3 +36,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+networks:
+  dozer_net:
+    enable_ipv6: true
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    ipam:
+      driver: default
+      config:
+        - subnet: fd00:0:0:1::/64
+          gateway: fd00:0:0:1::1
