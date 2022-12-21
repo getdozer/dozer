@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
     codegen::{self, *},
-    Code, Request, Response, Status,
+    Code, Request, Response, Status
 };
 pub struct TypedService {
     accept_compression_encodings: EnabledCompressionEncodings,
@@ -24,7 +24,7 @@ pub struct TypedService {
     descriptor: DescriptorPool,
     pipeline_map: HashMap<String, PipelineDetails>,
     schema_map: HashMap<String, Schema>,
-    event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>
 }
 impl Clone for TypedService {
     fn clone(&self) -> Self {
@@ -34,7 +34,7 @@ impl Clone for TypedService {
             descriptor: self.descriptor.clone(),
             pipeline_map: self.pipeline_map.clone(),
             schema_map: self.schema_map.clone(),
-            event_notifier: self.event_notifier.resubscribe(),
+            event_notifier: self.event_notifier.resubscribe()
         }
     }
 }
@@ -44,7 +44,7 @@ impl TypedService {
         descriptor: DescriptorPool,
         pipeline_map: HashMap<String, PipelineDetails>,
         schema_map: HashMap<String, Schema>,
-        event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+        event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>
     ) -> Self {
         TypedService {
             accept_compression_encodings: Default::default(),
@@ -52,7 +52,7 @@ impl TypedService {
             descriptor,
             pipeline_map,
             schema_map,
-            event_notifier,
+            event_notifier
         }
     }
 }

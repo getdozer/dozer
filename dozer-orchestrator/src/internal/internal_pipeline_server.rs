@@ -1,6 +1,6 @@
 use std::{net::ToSocketAddrs, pin::Pin};
 
-use dozer_types::{models::app_config::Config, crossbeam};
+use dozer_types::{models::app_config::Config, crossbeam, tracing::warn};
 use tokio::runtime::Runtime;
 use tonic::{transport::Server, Response, Status, codegen::futures_core::Stream};
 use crossbeam::channel::Receiver;
@@ -30,7 +30,6 @@ impl InternalPipelineService for InternalPipelineServer {
             receiver: self.receiver.to_owned(),
         };
         let in_stream = tokio_stream::iter(iterator);
-
         let mut stream = Box::pin(in_stream);
         tokio::spawn(async move {
             while let Some(item) = stream.next().await {
@@ -39,12 +38,12 @@ impl InternalPipelineService for InternalPipelineServer {
                         // item (server response) was queued to be send to client
                     }
                     Err(_item) => {
-                        // output_stream was build from rx and both are dropped
+                        warn!("output_stream was build from rx and both are dropped");
                         break;
                     }
                 }
             }
-            println!("\tclient disconnected");
+            warn!("client disconnected");
         });
 
         let output_stream = ReceiverStream::new(rx);
