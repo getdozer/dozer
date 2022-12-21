@@ -3,26 +3,24 @@ use std::{cmp::Ordering, sync::Arc};
 use super::iterator::{CacheIterator, KeyEndpoint};
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
-    index::{self},
+    index,
     lmdb::{
-        cache::{IndexMetaData, RecordDatabase},
+        cache::{RecordDatabase, SecondaryIndexDatabases},
         query::{helper::lmdb_cmp, intersection::intersection},
     },
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
-use crate::errors::{
-    CacheError::{self},
-    IndexError,
-};
+use crate::errors::{CacheError, IndexError};
 use dozer_types::{
     bincode,
+    parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
 use lmdb::{RoTransaction, Transaction};
 
 pub struct LmdbQueryHandler<'a> {
     db: RecordDatabase,
-    index_metadata: Arc<IndexMetaData>,
+    secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
     txn: &'a RoTransaction<'a>,
     schema: &'a Schema,
     secondary_indexes: &'a [IndexDefinition],
@@ -32,7 +30,7 @@ pub struct LmdbQueryHandler<'a> {
 impl<'a> LmdbQueryHandler<'a> {
     pub fn new(
         db: RecordDatabase,
-        index_metadata: Arc<IndexMetaData>,
+        secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
         txn: &'a RoTransaction,
         schema: &'a Schema,
         secondary_indexes: &'a [IndexDefinition],
@@ -41,7 +39,7 @@ impl<'a> LmdbQueryHandler<'a> {
     ) -> Self {
         Self {
             db,
-            index_metadata,
+            secondary_index_databases,
             txn,
             schema,
             secondary_indexes,
@@ -95,7 +93,15 @@ impl<'a> LmdbQueryHandler<'a> {
         &'a self,
         index_scan: &IndexScan,
     ) -> Result<impl Iterator<Item = &'a [u8]> + 'a, CacheError> {
-        let index_db = self.index_metadata.get_db(self.schema, index_scan.index_id);
+        let schema_id = self
+            .schema
+            .identifier
+            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+        let index_db = *self
+            .secondary_index_databases
+            .read()
+            .get(&(schema_id, index_scan.index_id))
+            .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
 
         let RangeSpec {
             start,

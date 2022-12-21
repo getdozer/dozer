@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
+use dozer_types::parking_lot::RwLock;
 pub use lmdb;
 use lmdb::{Database, Environment, RoTransaction, RwTransaction, Transaction};
 
@@ -15,35 +16,6 @@ use super::{comparator, utils, CacheOptions, CacheOptionsKind};
 use crate::cache::expression::QueryExpression;
 use crate::errors::CacheError;
 
-pub struct IndexMetaData {
-    //schema_id, secondary_key
-    indexes: RwLock<HashMap<usize, Database>>,
-}
-impl Default for IndexMetaData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-impl IndexMetaData {
-    pub fn new() -> Self {
-        Self {
-            indexes: RwLock::new(HashMap::new()),
-        }
-    }
-
-    pub fn get_key(schema: &Schema, idx: usize) -> usize {
-        schema.identifier.as_ref().unwrap().id as usize * 100000 + idx
-    }
-
-    pub fn insert_index(&self, key: usize, db: Database) {
-        self.indexes.write().map(|mut h| h.insert(key, db)).unwrap();
-    }
-    pub fn get_db(&self, schema: &Schema, idx: usize) -> Database {
-        let key = Self::get_key(schema, idx);
-        self.indexes.read().unwrap().get(&key).unwrap().to_owned()
-    }
-}
-
 mod primary_index_database;
 mod record_database;
 mod schema_database;
@@ -52,11 +24,13 @@ pub use primary_index_database::PrimaryIndexDatabase;
 pub use record_database::RecordDatabase;
 use schema_database::SchemaDatabase;
 
+pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), Database>;
+
 pub struct LmdbCache {
     env: Environment,
     db: RecordDatabase,
     primary_index: PrimaryIndexDatabase,
-    index_metadata: Arc<IndexMetaData>,
+    secondary_indexes: Arc<RwLock<SecondaryIndexDatabases>>,
     schema_db: SchemaDatabase,
     cache_options: CacheOptions,
 }
@@ -78,7 +52,7 @@ impl LmdbCache {
             env,
             db,
             primary_index,
-            index_metadata: Arc::new(IndexMetaData::default()),
+            secondary_indexes: Arc::new(RwLock::new(Default::default())),
             schema_db,
             cache_options,
         })
@@ -95,7 +69,7 @@ impl LmdbCache {
 
         let indexer = Indexer {
             primary_index: self.primary_index,
-            index_metadata: self.index_metadata.clone(),
+            secondary_indexes: self.secondary_indexes.clone(),
         };
 
         indexer.build_indexes(txn, record, schema, secondary_indexes, id)?;
@@ -131,7 +105,7 @@ impl LmdbCache {
 
         let indexer = Indexer {
             primary_index: self.primary_index,
-            index_metadata: self.index_metadata.clone(),
+            secondary_indexes: self.secondary_indexes.clone(),
         };
         indexer.delete_indexes(txn, record, schema, secondary_indexes, key, id)
     }
@@ -199,7 +173,7 @@ impl Cache for LmdbCache {
 
         let handler = LmdbQueryHandler::new(
             self.db,
-            self.index_metadata.clone(),
+            self.secondary_indexes.clone(),
             &txn,
             &schema,
             &secondary_indexes,
@@ -258,10 +232,13 @@ impl Cache for LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
+        let schema_id = schema
+            .identifier
+            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+
         // Create a db for each index
         for (idx, index) in secondary_indexes.iter().enumerate() {
-            let key = IndexMetaData::get_key(schema, idx);
-            let name = format!("index_#{}", key);
+            let name = format!("index_#{}_#{}_#{}", schema_id.id, schema_id.version, idx);
             let db = utils::init_db(
                 &self.env,
                 Some(&name),
@@ -276,7 +253,7 @@ impl Cache for LmdbCache {
                     .map_err(|e| CacheError::InternalError(Box::new(e)))?;
             }
 
-            self.index_metadata.insert_index(key, db);
+            self.secondary_indexes.write().insert((schema_id, idx), db);
         }
 
         let mut txn: RwTransaction = self
@@ -296,15 +273,11 @@ impl Cache for LmdbCache {
 mod tests {
     use super::*;
 
-    impl IndexMetaData {
-        pub fn get_all_raw(&self) -> HashMap<usize, Database> {
-            self.indexes.read().unwrap().to_owned()
-        }
-    }
-
     impl LmdbCache {
-        pub fn get_index_metadata(&self) -> (&Environment, Arc<IndexMetaData>) {
-            (&self.env, self.index_metadata.clone())
+        pub fn get_env_and_secondary_indexes(
+            &self,
+        ) -> (&Environment, &RwLock<SecondaryIndexDatabases>) {
+            (&self.env, &self.secondary_indexes)
         }
     }
 }

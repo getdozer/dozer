@@ -1,16 +1,19 @@
 use crate::errors::{CacheError, IndexError, QueryError};
-use dozer_types::types::{Field, IndexDefinition, Record, Schema};
+use dozer_types::{
+    parking_lot::RwLock,
+    types::{Field, IndexDefinition, Record, Schema},
+};
 use lmdb::{RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
 
-use super::cache::{IndexMetaData, PrimaryIndexDatabase};
+use super::cache::{PrimaryIndexDatabase, SecondaryIndexDatabases};
 
 pub struct Indexer {
     pub primary_index: PrimaryIndexDatabase,
-    pub index_metadata: Arc<IndexMetaData>,
+    pub secondary_indexes: Arc<RwLock<SecondaryIndexDatabases>>,
 }
 impl Indexer {
     pub fn build_indexes(
@@ -21,6 +24,10 @@ impl Indexer {
         secondary_indexes: &[IndexDefinition],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
+        let schema_id = schema
+            .identifier
+            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+
         let mut txn = parent_txn
             .begin_nested_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
@@ -34,7 +41,11 @@ impl Indexer {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }
         for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = self.index_metadata.get_db(schema, idx);
+            let db = *self
+                .secondary_indexes
+                .read()
+                .get(&(schema_id, idx))
+                .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
@@ -68,8 +79,15 @@ impl Indexer {
     ) -> Result<(), CacheError> {
         self.primary_index.delete(txn, primary_key)?;
 
+        let schema_id = schema
+            .identifier
+            .ok_or(CacheError::SchemaIdentifierNotFound)?;
         for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = self.index_metadata.get_db(schema, idx);
+            let db = *self
+                .secondary_indexes
+                .read()
+                .get(&(schema_id, idx))
+                .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {

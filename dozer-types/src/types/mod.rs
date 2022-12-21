@@ -22,7 +22,7 @@ impl FieldDefinition {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct SchemaIdentifier {
     pub id: u32,
     pub version: u16,

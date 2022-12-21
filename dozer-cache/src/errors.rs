@@ -25,6 +25,8 @@ pub enum CacheError {
     SchemaIdentifierNotFound,
     #[error("Path not initialized for Cache Reader")]
     PathNotInitialized,
+    #[error("Secondary index database is not found")]
+    SecondaryIndexDatabaseNotFound,
 }
 
 impl CacheError {
