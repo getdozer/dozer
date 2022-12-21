@@ -37,21 +37,12 @@
 
 ## Quick Start
 
-Download the latest stable binary or source code for a quick start. Check out our latest release details [here](https://github.com/getdozer/dozer/releases/latest).
-
-#### Using binary
-```bash
-curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash
-cd dozer
-./dozer
-```
-
 #### Using docker
 ```bash
-curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash -s -- -d
-cd dozer
-docker compose -f <path-to-yaml-config> up
+docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
 ```
+Check out our latest release details [here](https://github.com/getdozer/dozer/releases/latest).
+
 <br>
 
 ## Why use Dozer?
