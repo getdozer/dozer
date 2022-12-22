@@ -28,7 +28,6 @@ enum Type {
   Timestamp = 8;
   Date = 9;
   Bson = 10;
-  Null = 11;
 }
 message SchemaEvent {
   string endpoint = 1;
