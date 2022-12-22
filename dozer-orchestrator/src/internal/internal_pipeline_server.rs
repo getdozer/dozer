@@ -1,19 +1,19 @@
 use std::{net::ToSocketAddrs, pin::Pin};
 
-use dozer_types::{models::app_config::Config, crossbeam, tracing::warn};
-use tokio::runtime::Runtime;
-use tonic::{transport::Server, Response, Status, codegen::futures_core::Stream};
 use crossbeam::channel::Receiver;
 use dozer_api::grpc::internal_grpc::{
     internal_pipeline_service_server::{self, InternalPipelineService},
     GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, PipelineResponse,
     RestartPipelineRequest, RestartPipelineResponse,
 };
+use dozer_types::{crossbeam, models::app_config::Config, tracing::warn};
+use tokio::runtime::Runtime;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
 
 pub struct InternalPipelineServer {
     app_config: Config,
-    receiver: Receiver<PipelineResponse>
+    receiver: Receiver<PipelineResponse>,
 }
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<PipelineResponse, Status>> + Send>>;
 
@@ -33,14 +33,9 @@ impl InternalPipelineService for InternalPipelineServer {
         let mut stream = Box::pin(in_stream);
         tokio::spawn(async move {
             while let Some(item) = stream.next().await {
-                match tx.send(Result::<_, Status>::Ok(item)).await {
-                    Ok(_) => {
-                        // item (server response) was queued to be send to client
-                    }
-                    Err(_item) => {
-                        warn!("output_stream was build from rx and both are dropped");
-                        break;
-                    }
+                if let Err(_item) = tx.send(Result::<_, Status>::Ok(item)).await {
+                    warn!("output_stream was build from rx and both are dropped");
+                    break;
                 }
             }
             warn!("client disconnected");
@@ -67,17 +62,20 @@ impl InternalPipelineService for InternalPipelineServer {
     }
 }
 
-pub fn start_internal_pipeline_server(app_config: Config, receiver: Receiver<PipelineResponse>) -> Result<(), tonic::transport::Error> {
+pub fn start_internal_pipeline_server(
+    app_config: Config,
+    receiver: Receiver<PipelineResponse>,
+) -> Result<(), tonic::transport::Error> {
     let rt = Runtime::new().unwrap();
     rt.block_on(_start_internal_pipeline_server(app_config, receiver))
 }
 async fn _start_internal_pipeline_server(
     app_config: Config,
-    receiver: Receiver<PipelineResponse>
+    receiver: Receiver<PipelineResponse>,
 ) -> Result<(), tonic::transport::Error> {
     let server = InternalPipelineServer {
         app_config: app_config.to_owned(),
-        receiver
+        receiver,
     };
     let internal_config = app_config
         .api
@@ -92,7 +90,6 @@ async fn _start_internal_pipeline_server(
         .serve(addr.next().unwrap())
         .await
 }
-
 
 struct InternalIterator {
     receiver: Receiver<PipelineResponse>,

@@ -54,7 +54,6 @@ pub fn on_event<T: Send + 'static>(
         }
         None => None,
     };
-
     let api_helper = ApiHelper::new(pipeline_details.clone(), None)?;
     let schema = api_helper
         .get_schema()

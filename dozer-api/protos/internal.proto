@@ -4,10 +4,6 @@ syntax = "proto3";
 package dozer.internal;
 import "types.proto";
 
-service InternalApiService {
-  // rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse);
-}
-
 service InternalPipelineService {
   rpc StreamPipelineRequest(PipelineRequest) returns ( stream PipelineResponse);
   rpc GetConfig(GetAppConfigRequest) returns (GetAppConfigResponse);
