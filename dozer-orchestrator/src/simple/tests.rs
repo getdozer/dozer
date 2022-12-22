@@ -103,7 +103,7 @@ fn single_source_sink_impl(schema: Schema) {
             executor_running,
             tmp_path,
         );
-        match executor.run(None, running) {
+        match executor.run(None) {
             Ok(_) => {}
             Err(e) => warn!("Exiting: {:?}", e),
         }

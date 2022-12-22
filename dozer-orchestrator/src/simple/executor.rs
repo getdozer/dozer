@@ -108,7 +108,6 @@ impl Executor {
     pub fn run(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-        _running: Arc<AtomicBool>,
     ) -> Result<(), OrchestrationError> {
         let source_handle = NodeHandle::new(None, "src".to_string());
 
@@ -176,17 +175,16 @@ impl Executor {
 
         let path = &self.home_dir;
         fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let mut exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
+        let mut exec = DagExecutor::new(
+            &parent_dag,
+            path.as_path(),
+            ExecutorOptions::default(),
+            running_wait,
+        )?;
 
         exec.start()?;
-        // Waiting for Ctrl+C
-        while running_wait.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(200));
-        }
 
-        exec.stop();
         exec.join()
-            .map_err(|_e| OrchestrationError::InternalServerError)?;
-        Ok(())
+            .map_err(|e| OrchestrationError::ExecutionError(e))
     }
 }

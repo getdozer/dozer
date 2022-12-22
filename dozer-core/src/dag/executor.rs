@@ -141,7 +141,7 @@ pub struct DagExecutor<'a> {
     join_handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>,
     path: PathBuf,
     options: ExecutorOptions,
-    stop_req: Arc<AtomicBool>,
+    running: Arc<AtomicBool>,
     consistency_metadata: HashMap<NodeHandle, (u64, u64)>,
 }
 
@@ -168,6 +168,7 @@ impl<'a> DagExecutor<'a> {
         dag: &'a Dag,
         path: &Path,
         options: ExecutorOptions,
+        running: Arc<AtomicBool>,
     ) -> Result<Self, ExecutionError> {
         //
 
@@ -198,7 +199,7 @@ impl<'a> DagExecutor<'a> {
             path: path.to_path_buf(),
             join_handles: HashMap::new(),
             options,
-            stop_req: Arc::new(AtomicBool::new(false)),
+            running,
             consistency_metadata,
         })
     }
@@ -342,7 +343,7 @@ impl<'a> DagExecutor<'a> {
         let (st_sender, st_receiver) =
             bounded::<(PortHandle, u64, u64, Operation)>(self.options.channel_buffer_sz);
         let st_src_factory = src_factory.clone();
-        let st_stop_req = self.stop_req.clone();
+        let st_running = self.running.clone();
         let st_output_schemas = schemas.output_schemas.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
         let start_seq = *self
@@ -353,7 +354,7 @@ impl<'a> DagExecutor<'a> {
         let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
             let src = st_src_factory.build(st_output_schemas)?;
             let r = src.start(&mut fw, Some(start_seq));
-            st_stop_req.store(true, Ordering::Relaxed);
+            st_running.store(false, Ordering::SeqCst);
             r
         });
 
@@ -363,7 +364,7 @@ impl<'a> DagExecutor<'a> {
         let lt_edges = self.dag.edges.clone();
         let lt_record_stores = self.record_stores.clone();
         let lt_executor_options = self.options.clone();
-        let lt_stop_req = self.stop_req.clone();
+        let lt_running = self.running.clone();
         let lt_term_barrier = self.term_barrier.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
 
@@ -403,13 +404,13 @@ impl<'a> DagExecutor<'a> {
             );
             loop {
                 let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
-                match lt_stop_req.load(Ordering::Relaxed) {
-                    true => {
+                match lt_running.load(Ordering::SeqCst) {
+                    false => {
                         dag_fw.commit_and_terminate()?;
                         lt_term_barrier.wait();
                         break;
                     }
-                    false => match r {
+                    true => match r {
                         Err(RecvTimeoutError::Timeout) => {
                             dag_fw.trigger_commit_if_needed()?;
                         }
@@ -663,7 +664,7 @@ impl<'a> DagExecutor<'a> {
     }
 
     pub fn stop(&self) {
-        self.stop_req.store(true, Ordering::Relaxed);
+        self.running.store(false, Ordering::Relaxed);
     }
 
     pub fn join(mut self) -> Result<(), ExecutionError> {

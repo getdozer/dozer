@@ -83,13 +83,17 @@ fn main() -> Result<(), OrchestrationError> {
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
-        thread::spawn(move || dozer.run_apps(running, Some(tx)).unwrap());
+
+        let pipeline_thread = thread::spawn(move || dozer.run_apps(running, Some(tx)).unwrap());
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
 
-        dozer_api.run_api(running_api)
+        thread::spawn(move || dozer_api.run_api(running_api).unwrap());
+
+        pipeline_thread.join().unwrap();
+        Ok(())
     };
-    tracing_thread.join().unwrap();
+    // tracing_thread.join().unwrap();
     res
 }

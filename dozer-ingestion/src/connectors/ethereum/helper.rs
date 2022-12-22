@@ -135,13 +135,12 @@ pub fn decode_event(
 }
 pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
     match f {
-        web3::ethabi::Token::Address(f) => Field::String(f.to_string()),
+        web3::ethabi::Token::Address(f) => Field::String(format!("{:?}", f)),
         web3::ethabi::Token::FixedBytes(f) => Field::Binary(f),
         web3::ethabi::Token::Bytes(f) => Field::Binary(f),
-        web3::ethabi::Token::Int(_f) => Field::Int(0),
-        web3::ethabi::Token::Uint(_f) => Field::UInt(0),
-        // web3::ethabi::Token::Int(f) => Field::Int(f.as_u64() as i64),
-        // web3::ethabi::Token::Uint(f) => Field::UInt(f.as_u64()),
+        // TODO: Convert i64 appropriately
+        web3::ethabi::Token::Int(f) => Field::Int(f.low_u32() as i64),
+        web3::ethabi::Token::Uint(f) => Field::UInt(f.as_u64()),
         web3::ethabi::Token::Bool(f) => Field::Boolean(f),
         web3::ethabi::Token::String(f) => Field::String(f),
         web3::ethabi::Token::FixedArray(f)

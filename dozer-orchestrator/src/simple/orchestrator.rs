@@ -154,7 +154,6 @@ impl Orchestrator for SimpleOrchestrator {
     ) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
-        let executor_running = running.clone();
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineRequest>();
 
@@ -214,6 +213,6 @@ impl Orchestrator for SimpleOrchestrator {
             running,
             pipeline_home_dir,
         );
-        executor.run(Some(sender), executor_running)
+        executor.run(Some(sender))
     }
 }

@@ -15,6 +15,7 @@ use dozer_types::types::{Field, Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -238,7 +239,12 @@ fn test_run_dag_reacord_reader() {
     };
 
     let tmp_dir = chk!(TempDir::new("test"));
-    let mut executor = chk!(DagExecutor::new(&dag, tmp_dir.path(), options));
+    let mut executor = chk!(DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        options,
+        Arc::new(AtomicBool::new(true))
+    ));
 
     chk!(executor.start());
     assert!(executor.join().is_ok());
@@ -287,7 +293,8 @@ fn test_run_dag_reacord_reader_from_src() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());
