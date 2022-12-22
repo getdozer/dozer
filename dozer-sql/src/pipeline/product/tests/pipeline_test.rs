@@ -243,7 +243,7 @@ fn test_single_table_pipeline() {
         NodeHandle::new(Some(1), String::from("sink")),
     );
 
-    let input_point = in_handle.remove("users").unwrap();
+    let input_point = in_handle.remove("Users").unwrap();
 
     let _source_to_users = dag.connect(
         Endpoint::new(

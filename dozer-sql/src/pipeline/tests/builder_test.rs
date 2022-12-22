@@ -181,7 +181,7 @@ fn test_pipeline_builder() {
         NodeHandle::new(Some(1), String::from("sink")),
     );
 
-    let input_point = in_handle.remove("users").unwrap();
+    let input_point = in_handle.remove("Users").unwrap();
 
     let _source_to_input = dag.connect(
         Endpoint::new(
