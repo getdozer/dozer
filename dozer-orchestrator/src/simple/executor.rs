@@ -114,11 +114,11 @@ impl Executor {
             app.add_pipeline(pipeline);
         }
 
-        let dag = app.get_dag().unwrap();
+        let parent_dag = app.get_dag().unwrap();
 
-        let path = self.home_dir.join("pipeline");
-        fs::create_dir_all(&path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let mut exec = DagExecutor::new(&dag, path.as_path(), ExecutorOptions::default())?;
+        let path = &self.home_dir;
+        fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
+        let mut exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
 
         exec.start()?;
         // Waiting for Ctrl+C
