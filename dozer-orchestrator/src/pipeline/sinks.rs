@@ -12,7 +12,7 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::tracing::info;
+
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};

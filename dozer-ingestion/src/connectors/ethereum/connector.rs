@@ -78,8 +78,7 @@ impl EthConnector {
     pub fn new(id: u64, config: EthConfig) -> Self {
         let contract: Option<Contract> = config
             .contract_abi
-            .to_owned()
-            .map_or(None, |s| Some(serde_json::from_str(&s).unwrap()));
+            .to_owned().map(|s| serde_json::from_str(&s).unwrap());
 
         let schema_map = Self::build_schema_map(&contract);
         Self {
@@ -127,7 +126,7 @@ impl Connector for EthConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|(n, _)| tables.iter().find(|t| t.name == n.to_owned()).is_some())
+                .filter(|(n, _)| tables.iter().any(|t| t.name == *n))
                 .cloned()
                 .collect()
         } else {
@@ -169,7 +168,7 @@ impl Connector for EthConnector {
             .config
             .filter
             .to_owned()
-            .unwrap_or(EthFilter::default());
+            .unwrap_or_default();
 
         let connector_id = self.id;
 

@@ -24,7 +24,7 @@ pub fn get_contract_event_schemas(
     schema_map: HashMap<String, usize>,
 ) -> Vec<(String, Schema)> {
     let mut schemas = vec![];
-    for event in contract.events.values().flatten().into_iter() {
+    for event in contract.events.values().flatten() {
         let mut fields = vec![];
         for input in event.inputs.to_owned() {
             fields.push(FieldDefinition {
@@ -87,7 +87,7 @@ pub fn decode_event(
         .flatten()
         .into_iter()
         .find(|evt| evt.signature().to_string() == name)
-        .expect(&format!("event is not found with signature: {}", name));
+        .unwrap_or_else(|| panic!("event is not found with signature: {}", name));
 
     let schema_id = schema_map
         .get(&event.name)
@@ -95,7 +95,7 @@ pub fn decode_event(
         .to_owned();
 
     let is_table_required = tables.map_or(true, |tables| {
-        tables.iter().find(|t| t.name == event.name).is_some()
+        tables.iter().any(|t| t.name == event.name)
     });
     if is_table_required {
         // let event = contract.event(&name_str).unwrap();
@@ -104,11 +104,9 @@ pub fn decode_event(
                 topics: log.topics,
                 data: log.data.0,
             })
-            .expect(&format!(
-                "parsing event failed: block_no: {}, txn_hash: {}",
+            .unwrap_or_else(|_| panic!("parsing event failed: block_no: {}, txn_hash: {}",
                 log.block_number.unwrap(),
-                log.transaction_hash.unwrap()
-            ));
+                log.transaction_hash.unwrap()));
         // info!("Event: {:?}", parsed_event);
 
         let values = parsed_event
@@ -156,12 +154,12 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
 pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationEvent> {
     // Check if table is requested
     let is_table_required = details.tables.as_ref().map_or(true, |tables| {
-        tables.iter().find(|t| t.name == ETH_LOGS_TABLE).is_some()
+        tables.iter().any(|t| t.name == ETH_LOGS_TABLE)
     });
 
     if !is_table_required {
         None
-    } else if let Some(_) = log.log_index {
+    } else if log.log_index.is_some() {
         let (idx, values) = map_log_to_values(log);
         Some(OperationEvent {
             seq_no: idx,
@@ -184,8 +182,8 @@ pub fn get_id(log: &Log) -> u64 {
         .as_u64();
 
     let log_idx = log.log_index.expect("expected for non pendning").as_u64();
-    let idx = block_no * 100_000 + log_idx * 2;
-    idx
+    
+    block_no * 100_000 + log_idx * 2
 }
 pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
     let block_no = log

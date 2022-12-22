@@ -112,7 +112,7 @@ fn single_source_sink_impl(schema: Schema) {
     // Insert each record and query cache
     for (a, b, c) in items {
         let record = Record::new(
-            schema.identifier.clone(),
+            schema.identifier,
             vec![Field::Int(a), Field::String(b), Field::Int(c)],
         );
         ingestor2

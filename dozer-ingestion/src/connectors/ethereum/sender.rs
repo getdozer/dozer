@@ -176,7 +176,7 @@ fn process_log(
 ) -> Result<(), ConnectorError> {
     
     // Filter pending logs. log.log_index is None for pending State
-    if let None = msg.log_index {
+    if msg.log_index.is_none() {
         Ok(())
     } else {
         if let Some(op) = helper::map_log_to_event(msg.to_owned(), details.clone()) {
@@ -192,7 +192,7 @@ fn process_log(
         
         // write event record optionally
         if let Some(ref contract) = details.contract {
-            let op = helper::decode_event(msg.to_owned(), contract.to_owned(), details.tables.clone(), details.schema_map.clone());
+            let op = helper::decode_event(msg, contract.to_owned(), details.tables.clone(), details.schema_map.clone());
             if let Some(op) = op {
                 trace!("Writing event : {:?}", op);   
                 details.ingestor
