@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
 };
@@ -7,6 +9,9 @@ use web3::transports::WebSocket;
 use web3::types::Log;
 
 use crate::connectors::TableInfo;
+
+use super::connector::ETH_LOGS_TABLE;
+use super::sender::EthDetails;
 
 pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Error> {
     Ok(web3::Web3::new(
@@ -135,8 +140,15 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
         ),
     }
 }
-pub fn map_log_to_event(log: Log) -> Option<OperationEvent> {
-    if let Some(_) = log.log_index {
+pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationEvent> {
+    // Check if table is requested
+    let is_table_required = details.tables.as_ref().map_or(true, |tables| {
+        tables.iter().find(|t| t.name == ETH_LOGS_TABLE).is_some()
+    });
+
+    if !is_table_required {
+        None
+    } else if let Some(_) = log.log_index {
         let (idx, values) = map_log_to_values(log);
         Some(OperationEvent {
             seq_no: idx,

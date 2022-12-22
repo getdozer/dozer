@@ -23,7 +23,7 @@ pub struct EthConnector {
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
-const ETH_LOGS_TABLE: &str = "eth_logs";
+pub const ETH_LOGS_TABLE: &str = "eth_logs";
 impl EthConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
@@ -102,6 +102,7 @@ impl Connector for EthConnector {
         } else {
             schemas
         };
+        info!("Initializing schemas: {:?}", schemas);
 
         let schemas = if let Some(tables) = tables {
             schemas

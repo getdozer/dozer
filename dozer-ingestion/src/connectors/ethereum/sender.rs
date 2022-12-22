@@ -21,7 +21,7 @@ use web3::transports::WebSocket;
 use web3::types::{Log};
 use web3::Web3;
 
-use super::connector::EthConnector;
+use super::connector::{EthConnector};
 
 pub struct EthDetails {
     wss_url: String,
@@ -29,7 +29,7 @@ pub struct EthDetails {
       ingestor: Arc<RwLock<Ingestor>>,
       connector_id: u64,
       contract: Option<Contract>,
-      tables: Option<Vec<TableInfo>>,
+      pub tables: Option<Vec<TableInfo>>,
   }
   
   impl EthDetails {
@@ -171,7 +171,8 @@ fn process_log(
     details: Arc<EthDetails>,
     msg: Log,
 ) -> Result<(), ConnectorError> {
-    if let Some(op) = helper::map_log_to_event(msg.to_owned()) {
+    
+    if let Some(op) = helper::map_log_to_event(msg.to_owned(), details.clone()) {
         // Write eth_log record
         details.ingestor
             .write()

@@ -24,8 +24,8 @@ fn main() -> Result<(), ConnectorError> {
             // crypto punks - https://etherscan.io/address/0xb47e3cd837ddf8e4c57f05d70ab865de6e193bbb
             EthConfig {
                 filter: Some(EthFilter {
-                    // from_block: Some(16227379),
-                    from_block: Some(0),
+                    from_block: Some(16227379),
+                    // from_block: Some(0),
                     to_block: None,
                     addresses: vec!["0xb47e3cd837ddf8e4c57f05d70ab865de6e193bbb".to_string()],
                     topics: vec![],
