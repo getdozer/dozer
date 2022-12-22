@@ -78,7 +78,8 @@ impl EthConnector {
     pub fn new(id: u64, config: EthConfig) -> Self {
         let contract: Option<Contract> = config
             .contract_abi
-            .to_owned().map(|s| serde_json::from_str(&s).unwrap());
+            .to_owned()
+            .map(|s| serde_json::from_str(&s).unwrap());
 
         let schema_map = Self::build_schema_map(&contract);
         Self {
@@ -164,11 +165,7 @@ impl Connector for EthConnector {
     fn start(&self) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
-        let filter = self
-            .config
-            .filter
-            .to_owned()
-            .unwrap_or_default();
+        let filter = self.config.filter.to_owned().unwrap_or_default();
 
         let connector_id = self.id;
 

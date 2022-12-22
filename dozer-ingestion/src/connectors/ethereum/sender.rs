@@ -1,7 +1,6 @@
 use core::time;
 use std::collections::HashMap;
-use std::{sync::Arc};
-
+use std::sync::Arc;
 
 use crate::ingestion::Ingestor;
 use crate::{
@@ -14,43 +13,49 @@ use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
 
-
 use futures::future::{BoxFuture, FutureExt};
 
 use web3::ethabi::Contract;
 use web3::transports::WebSocket;
-use web3::types::{Log};
+use web3::types::Log;
 use web3::Web3;
 
-use super::connector::{EthConnector};
+use super::connector::EthConnector;
 
 pub struct EthDetails {
     wss_url: String,
-      filter: EthFilter,
-      ingestor: Arc<RwLock<Ingestor>>,
-      connector_id: u64,
-      contract: Option<Contract>,
-      pub tables: Option<Vec<TableInfo>>,
-      pub schema_map: HashMap<String, usize>,
-  }
-  
-  impl EthDetails {
-    
-  pub fn new(
-      wss_url: String,
-      filter: EthFilter,
-      ingestor: Arc<RwLock<Ingestor>>,
-      connector_id: u64,
-      contract: Option<Contract>,
-      tables: Option<Vec<TableInfo>>,
-      schema_map: HashMap<String, usize>,
-  ) -> Self {
-    EthDetails { wss_url, filter, ingestor, connector_id, contract, tables, schema_map }
-  }
-  }
+    filter: EthFilter,
+    ingestor: Arc<RwLock<Ingestor>>,
+    connector_id: u64,
+    contract: Option<Contract>,
+    pub tables: Option<Vec<TableInfo>>,
+    pub schema_map: HashMap<String, usize>,
+}
+
+impl EthDetails {
+    pub fn new(
+        wss_url: String,
+        filter: EthFilter,
+        ingestor: Arc<RwLock<Ingestor>>,
+        connector_id: u64,
+        contract: Option<Contract>,
+        tables: Option<Vec<TableInfo>>,
+        schema_map: HashMap<String, usize>,
+    ) -> Self {
+        EthDetails {
+            wss_url,
+            filter,
+            ingestor,
+            connector_id,
+            contract,
+            tables,
+            schema_map,
+        }
+    }
+}
 
 #[allow(unreachable_code)]
-pub async fn run(    details: Arc<EthDetails>) -> Result<(), ConnectorError> {
+pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
     let client = helper::get_wss_client(&details.wss_url).await.unwrap();
 
     // Get current block no.
@@ -88,10 +93,7 @@ pub async fn run(    details: Arc<EthDetails>) -> Result<(), ConnectorError> {
             .map_or(Err(ConnectorError::EmptyMessage), Ok)?
             .map_err(ConnectorError::EthError)?;
 
-        process_log(
-            details.clone(),
-            msg,
-        )?;
+        process_log(details.clone(), msg)?;
     }
     Ok(())
 }
@@ -104,7 +106,10 @@ pub fn fetch_logs(
     depth: usize,
 ) -> BoxFuture<'static, Result<(), ConnectorError>> {
     let filter = details.filter.clone();
-    let depth_str = (0..depth).map(|_| " ".to_string()).collect::<Vec<String>>().join("");
+    let depth_str = (0..depth)
+        .map(|_| " ".to_string())
+        .collect::<Vec<String>>()
+        .join("");
     async move {
         let mut applied_filter = filter.clone();
         applied_filter.from_block = Some(block_start);
@@ -113,7 +118,6 @@ pub fn fetch_logs(
 
         match res {
             Ok(logs) => {
-                
                 info!(" {} Fetched: {} , block_start: {},block_end: {}, depth: {}", depth_str, logs.len(), block_start, block_end, depth);
                 for msg in logs {
                     process_log(
@@ -128,19 +132,15 @@ pub fn fetch_logs(
                     // Infura returns a RpcError if the no of records are more than 10000
                     // { code: ServerError(-32005), message: "query returned more than 10000 results", data: None }
                     // break it down into half on each error and exit after 10 errors in a specific branch
-
-                    
                     if rpc_error.code.code() == -32005 {
-                        
-                        info!("{} More than 10000 records, block_start: {},block_end: {}, depth: {}", depth_str, block_start, block_end, depth);
-                        
+                        info!("{} More than 10000 records, block_start: {},block_end: {}, depth: {}", depth_str, block_start, block_end, depth);                
                         if depth > 100 {
                             Err(ConnectorError::EthTooManyRecurisions(depth))
                         } else {
                             let middle = (block_start + block_end) / 2;
                             info!("{} Splitting in two calls block_start: {}, middle: {}, block_end: {}", depth_str,block_start, block_end, middle);
                             fetch_logs(
-                                details.clone(), 
+                                details.clone(),
                                 client.clone(),
                                 block_start,
                                 middle,
@@ -150,13 +150,12 @@ pub fn fetch_logs(
 
                             fetch_logs(
                                 details,
-                                client.clone(),           
+                                client.clone(),
                                 middle,
                                 block_end,
                                 depth + 1,
                             )
                             .await?;
-
                             Ok(())
                         }
                     } else {
@@ -170,11 +169,7 @@ pub fn fetch_logs(
     .boxed()
 }
 
-fn process_log(
-    details: Arc<EthDetails>,
-    msg: Log,
-) -> Result<(), ConnectorError> {
-    
+fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError> {
     // Filter pending logs. log.log_index is None for pending State
     if msg.log_index.is_none() {
         Ok(())
@@ -182,29 +177,34 @@ fn process_log(
         if let Some(op) = helper::map_log_to_event(msg.to_owned(), details.clone()) {
             trace!("Writing log : {:?}", op);
             // Write eth_log record
-            details.ingestor
-            .write()
-            .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
-            .map_err(ConnectorError::IngestorError)?;
+            details
+                .ingestor
+                .write()
+                .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
+                .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Ignoring log : {:?}", msg);
         }
-        
+
         // write event record optionally
         if let Some(ref contract) = details.contract {
-            let op = helper::decode_event(msg, contract.to_owned(), details.tables.clone(), details.schema_map.clone());
+            let op = helper::decode_event(
+                msg,
+                contract.to_owned(),
+                details.tables.clone(),
+                details.schema_map.clone(),
+            );
             if let Some(op) = op {
-                trace!("Writing event : {:?}", op);   
-                details.ingestor
+                trace!("Writing event : {:?}", op);
+                details
+                    .ingestor
                     .write()
                     .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
                     .map_err(ConnectorError::IngestorError)?;
             } else {
-                trace!("Writing event : {:?}", op);  
+                trace!("Writing event : {:?}", op);
             }
         }
         Ok(())
-    } 
+    }
 }
-
-

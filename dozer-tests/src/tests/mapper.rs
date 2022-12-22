@@ -92,10 +92,7 @@ fn test_framework_to_dozer_types() {
         .map_operation_to_sql(
             &"actor".to_string(),
             Operation::Update {
-                old: Record {
-                    schema_id,
-                    values,
-                },
+                old: Record { schema_id, values },
                 new: Record {
                     schema_id,
                     values: new_values.clone(),
