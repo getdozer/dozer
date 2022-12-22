@@ -70,8 +70,9 @@ impl Executor {
         Ok(schema_map)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_connection_map(
-        sources: &Vec<Source>,
+        sources: &[Source],
     ) -> Result<(HashMap<Connection, Vec<TableInfo>>, HashMap<String, u16>), OrchestrationError>
     {
         let mut connection_map: HashMap<Connection, Vec<TableInfo>> = HashMap::new();

@@ -26,7 +26,7 @@ pub fn get_contract_event_schemas(
     let mut schemas = vec![];
     for event in contract.events.values().flatten() {
         let mut fields = vec![];
-        for input in event.inputs.to_owned() {
+        for input in event.inputs.iter().cloned() {
             fields.push(FieldDefinition {
                 name: input.name,
                 typ: match input.kind {
@@ -94,9 +94,8 @@ pub fn decode_event(
         .expect("schema is missing")
         .to_owned();
 
-    let is_table_required = tables.map_or(true, |tables| {
-        tables.iter().any(|t| t.name == event.name)
-    });
+    let is_table_required =
+        tables.map_or(true, |tables| tables.iter().any(|t| t.name == event.name));
     if is_table_required {
         // let event = contract.event(&name_str).unwrap();
         let parsed_event = event
@@ -104,9 +103,13 @@ pub fn decode_event(
                 topics: log.topics,
                 data: log.data.0,
             })
-            .unwrap_or_else(|_| panic!("parsing event failed: block_no: {}, txn_hash: {}",
-                log.block_number.unwrap(),
-                log.transaction_hash.unwrap()));
+            .unwrap_or_else(|_| {
+                panic!(
+                    "parsing event failed: block_no: {}, txn_hash: {}",
+                    log.block_number.unwrap(),
+                    log.transaction_hash.unwrap()
+                )
+            });
         // info!("Event: {:?}", parsed_event);
 
         let values = parsed_event
@@ -182,7 +185,7 @@ pub fn get_id(log: &Log) -> u64 {
         .as_u64();
 
     let log_idx = log.log_index.expect("expected for non pendning").as_u64();
-    
+
     block_no * 100_000 + log_idx * 2
 }
 pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {

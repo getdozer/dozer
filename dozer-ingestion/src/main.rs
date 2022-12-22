@@ -13,7 +13,8 @@ fn main() -> Result<(), ConnectorError> {
     dozer_tracing::init_telemetry(false).unwrap();
 
     // SET ENV variable `ETH_WSS_URL`
-    let wss_url = std::env::var("ETH_WSS_URL").unwrap_or("wss://localhost:8545".to_string());
+    let wss_url =
+        std::env::var("ETH_WSS_URL").unwrap_or_else(|_| "wss://localhost:8545".to_string());
 
     info!("Initializing with WSS: {}", wss_url);
 
