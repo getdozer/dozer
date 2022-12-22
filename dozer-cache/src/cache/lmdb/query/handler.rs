@@ -1,31 +1,26 @@
 use std::{cmp::Ordering, sync::Arc};
 
-use super::{
-    helper,
-    iterator::{CacheIterator, KeyEndpoint},
-};
+use super::iterator::{CacheIterator, KeyEndpoint};
 use crate::cache::{
     expression::{Operator, QueryExpression, SortDirection},
-    index::{self},
+    index,
     lmdb::{
-        cache::IndexMetaData,
-        query::{helper::lmdb_cmp, intersection::intersection},
+        cache::{RecordDatabase, SecondaryIndexDatabases},
+        query::intersection::intersection,
     },
     plan::{IndexScan, IndexScanKind, Plan, QueryPlanner, SortedInvertedRangeQuery},
 };
-use crate::errors::{
-    CacheError::{self},
-    IndexError,
-};
+use crate::errors::{CacheError, IndexError};
 use dozer_types::{
     bincode,
+    parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
-use lmdb::{Database, RoTransaction, Transaction};
+use lmdb::RoTransaction;
 
 pub struct LmdbQueryHandler<'a> {
-    db: Database,
-    index_metadata: Arc<IndexMetaData>,
+    db: RecordDatabase,
+    secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
     txn: &'a RoTransaction<'a>,
     schema: &'a Schema,
     secondary_indexes: &'a [IndexDefinition],
@@ -34,8 +29,8 @@ pub struct LmdbQueryHandler<'a> {
 }
 impl<'a> LmdbQueryHandler<'a> {
     pub fn new(
-        db: Database,
-        index_metadata: Arc<IndexMetaData>,
+        db: RecordDatabase,
+        secondary_index_databases: Arc<RwLock<SecondaryIndexDatabases>>,
         txn: &'a RoTransaction,
         schema: &'a Schema,
         secondary_indexes: &'a [IndexDefinition],
@@ -44,7 +39,7 @@ impl<'a> LmdbQueryHandler<'a> {
     ) -> Self {
         Self {
             db,
-            index_metadata,
+            secondary_index_databases,
             txn,
             schema,
             secondary_indexes,
@@ -86,10 +81,7 @@ impl<'a> LmdbQueryHandler<'a> {
     }
 
     pub fn iterate_and_deserialize(&self) -> Result<Vec<Record>, CacheError> {
-        let cursor = self
-            .txn
-            .open_ro_cursor(self.db)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let cursor = self.db.open_ro_cursor(self.txn)?;
         CacheIterator::new(cursor, None, SortDirection::Ascending)
             .skip(self.query.skip)
             .take(self.query.limit)
@@ -101,7 +93,15 @@ impl<'a> LmdbQueryHandler<'a> {
         &'a self,
         index_scan: &IndexScan,
     ) -> Result<impl Iterator<Item = &'a [u8]> + 'a, CacheError> {
-        let index_db = self.index_metadata.get_db(self.schema, index_scan.index_id);
+        let schema_id = self
+            .schema
+            .identifier
+            .ok_or(CacheError::SchemaIdentifierNotFound)?;
+        let index_db = *self
+            .secondary_index_databases
+            .read()
+            .get(&(schema_id, index_scan.index_id))
+            .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
 
         let RangeSpec {
             start,
@@ -109,15 +109,12 @@ impl<'a> LmdbQueryHandler<'a> {
             direction,
         } = get_range_spec(&index_scan.kind, index_scan.is_single_field_sorted_inverted)?;
 
-        let cursor = self
-            .txn
-            .open_ro_cursor(index_db)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let cursor = index_db.open_ro_cursor(self.txn)?;
 
         Ok(CacheIterator::new(cursor, start, direction)
             .take_while(move |(key, _)| {
                 if let Some(end_key) = &end {
-                    match lmdb_cmp(self.txn, index_db, key, end_key.key()) {
+                    match index_db.cmp(self.txn, key, end_key.key()) {
                         Ordering::Less => matches!(direction, SortDirection::Ascending),
                         Ordering::Equal => matches!(end_key, KeyEndpoint::Including(_)),
                         Ordering::Greater => matches!(direction, SortDirection::Descending),
@@ -135,7 +132,7 @@ impl<'a> LmdbQueryHandler<'a> {
     ) -> Result<Vec<Record>, CacheError> {
         ids.skip(self.query.skip)
             .take(self.query.limit)
-            .map(|id| helper::get(self.txn, self.db, id.as_ref()))
+            .map(|id| self.db.get(self.txn, id.as_ref().try_into().unwrap()))
             .collect()
     }
 }
