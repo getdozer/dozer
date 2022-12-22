@@ -207,7 +207,7 @@ impl Sink for CacheSink {
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
-        if self.counter % 100 == 0 {
+        if self.counter % 30 == 0 {
             self.pb.set_message(format!(
                 "{}: Count: {}, Elapsed time: {:.2?}",
                 self.api_endpoint.name.to_owned(),

@@ -1,6 +1,6 @@
 use clap::Parser;
 use dozer_orchestrator::cli::load_config;
-use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands};
+use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
@@ -60,7 +60,24 @@ fn main() -> Result<(), OrchestrationError> {
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => dozer.run_apps(running, None),
             },
-            Commands::Ps => todo!(),
+            Commands::Connector(sources) => match sources.command {
+                ConnectorCommands::Ls => {
+                    let connection_map = dozer.list_connectors()?;
+                    for (c, tables) in connection_map {
+                        info!("------------Connection: {} ------------", c);
+                        info!("");
+                        for (schema_name, schema) in tables {
+                            info!("Schema: {}", schema_name);
+
+                            for f in schema.fields {
+                                info!("  {}    -       {:?}", f.name, f.typ);
+                            }
+                            info!("");
+                        }
+                    }
+                    Ok(())
+                }
+            },
         }
     } else {
         let mut dozer_api = dozer.clone();

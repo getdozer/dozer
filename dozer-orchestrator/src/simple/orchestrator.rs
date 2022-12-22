@@ -15,10 +15,10 @@ use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::app_config::Config;
-use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use dozer_types::serde_yaml;
+use dozer_types::types::Schema;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -66,23 +66,10 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn add_api_config(&mut self, api_config: ApiConfig) -> &mut Self {
-        self.config.api = Some(api_config);
-        self
-    }
-
-    fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self {
-        for source in sources.iter() {
-            self.config.sources.push(source.to_owned());
-        }
-        self
-    }
-
-    fn add_endpoints(&mut self, endpoints: Vec<ApiEndpoint>) -> &mut Self {
-        for endpoint in endpoints.iter() {
-            self.config.endpoints.push(endpoint.to_owned());
-        }
-        self
+    fn list_connectors(
+        &self,
+    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+        Executor::get_tables(&self.config.connections)
     }
 
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
