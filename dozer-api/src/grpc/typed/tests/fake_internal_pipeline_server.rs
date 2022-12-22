@@ -26,7 +26,7 @@ impl InternalPipelineService for FakeInternalPipelineServer {
     ) -> Result<Response<ResponseStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1000);
         thread::spawn(move || loop {
-            thread::sleep(time::Duration::from_millis(1000));
+            thread::sleep(time::Duration::from_millis(100));
             let fake_event = PipelineResponse {
                 endpoint: "films".to_string(),
                 api_event: Some(ApiEvent::Op(Operation {

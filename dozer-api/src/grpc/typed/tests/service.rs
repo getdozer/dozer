@@ -116,8 +116,8 @@ async fn test_grpc_query() {
 }
 
 #[tokio::test]
-async fn test_typed_streaming() {
-    let (_sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
+async fn test_typed_streaming1() {
+    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
     let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
     let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
         default_pipeline_internal.host,
@@ -129,12 +129,12 @@ async fn test_typed_streaming() {
         let typed_service = setup_typed_service();
         Server::builder()
             .add_service(typed_service)
-            .serve_with_shutdown("127.0.0.1:14032".parse().unwrap(), rx.map(drop))
+            .serve_with_shutdown("127.0.0.1:14321".parse().unwrap(), rx.map(drop))
             .await
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(1001)).await;
-    let address = "http://127.0.0.1:14032".to_owned();
+    let address = "http://127.0.0.1:14321".to_owned();
     let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
 
     let request = FilmEventRequest {
@@ -151,7 +151,29 @@ async fn test_typed_streaming() {
         let response: FilmEvent = item.unwrap();
         assert!(response.new.is_some());
     }
-    drop(stream);
+    _ = sender_shutdown_internal.send(());
+}
+
+#[tokio::test]
+async fn test_typed_streaming2() {
+    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
+    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
+        default_pipeline_internal.host,
+        default_pipeline_internal.port,
+        rx_internal,
+    ));
+    let (_tx, rx) = oneshot::channel::<()>();
+    let _jh = tokio::spawn(async move {
+        let typed_service = setup_typed_service();
+        Server::builder()
+            .add_service(typed_service)
+            .serve_with_shutdown("127.0.0.1:14322".parse().unwrap(), rx.map(drop))
+            .await
+            .unwrap();
+    });
+    tokio::time::sleep(Duration::from_millis(1001)).await;
+    let address = "http://127.0.0.1:14322".to_owned();
     let request = FilmEventRequest {
         r#type: EventType::All as i32,
         filter: Some(r#"{ "film_id": 32 }"#.into()),
@@ -163,11 +185,33 @@ async fn test_typed_streaming() {
         .unwrap()
         .into_inner();
     let mut stream = stream.take(1);
-    let a = stream.next().await;
-    let response = a.unwrap().unwrap();
-    assert!(response.new.is_some());
-    drop(stream);
+    while let Some(item) = stream.next().await {
+        let response: FilmEvent = item.unwrap();
+        assert!(response.new.is_some());
+    }
+    _ = sender_shutdown_internal.send(());
+}
 
+#[tokio::test]
+async fn test_typed_streaming3() {
+    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
+    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
+        default_pipeline_internal.host,
+        default_pipeline_internal.port,
+        rx_internal,
+    ));
+    let (_tx, rx) = oneshot::channel::<()>();
+    let _jh = tokio::spawn(async move {
+        let typed_service = setup_typed_service();
+        Server::builder()
+            .add_service(typed_service)
+            .serve_with_shutdown("127.0.0.1:14323".parse().unwrap(), rx.map(drop))
+            .await
+            .unwrap();
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let address = "http://127.0.0.1:14323".to_owned();
     let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
     let request = FilmEventRequest {
         r#type: EventType::All as i32,
@@ -178,8 +222,7 @@ async fn test_typed_streaming() {
         .await
         .unwrap()
         .into_inner();
-    assert!(timeout(Duration::from_secs(1), stream.next())
-        .await
-        .is_err());
-    drop(stream);
+    let error_timeout = timeout(Duration::from_secs(1), stream.next()).await;
+    assert!(error_timeout.is_err() || error_timeout.unwrap().is_none());
+    _ = sender_shutdown_internal.send(());
 }
