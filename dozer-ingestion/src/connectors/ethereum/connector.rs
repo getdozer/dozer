@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::Connector;
@@ -13,13 +14,14 @@ use dozer_types::serde_json;
 
 use super::sender::{run, EthDetails};
 use tokio::runtime::Runtime;
-use web3::ethabi::Contract;
+use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 pub struct EthConnector {
     pub id: u64,
     config: EthConfig,
     contract: Option<Contract>,
     tables: Option<Vec<TableInfo>>,
+    schema_map: HashMap<String, usize>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
@@ -79,13 +81,30 @@ impl EthConnector {
             .to_owned()
             .map_or(None, |s| Some(serde_json::from_str(&s).unwrap()));
 
+        let schema_map = Self::build_schema_map(&contract);
         Self {
             id,
             config,
             contract,
+            schema_map,
             tables: None,
             ingestor: None,
         }
+    }
+
+    fn build_schema_map(contract: &Option<Contract>) -> HashMap<String, usize> {
+        let mut schema_map = HashMap::new();
+        schema_map.insert(ETH_LOGS_TABLE.to_string(), 1);
+
+        if let Some(contract) = contract {
+            let mut events: Vec<&Event> = contract.events.values().flatten().collect();
+            events.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
+
+            for (idx, evt) in events.iter().enumerate() {
+                schema_map.insert(evt.name.to_string(), 2 + idx);
+            }
+        }
+        schema_map
     }
 }
 
@@ -96,7 +115,8 @@ impl Connector for EthConnector {
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
         let schemas = vec![(ETH_LOGS_TABLE.to_string(), helper::get_eth_schema())];
         let schemas = if let Some(contract) = &self.contract {
-            let event_schemas = helper::get_contract_event_schemas(contract);
+            let event_schemas =
+                helper::get_contract_event_schemas(contract, self.schema_map.to_owned());
 
             [schemas, event_schemas].concat()
         } else {
@@ -124,7 +144,7 @@ impl Connector for EthConnector {
             .iter()
             .enumerate()
             .map(|(id, (name, schema))| TableInfo {
-                name: name.to_string().to_lowercase(),
+                name: name.to_string(),
                 id: id as u32,
                 columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
             })
@@ -167,6 +187,7 @@ impl Connector for EthConnector {
                 connector_id,
                 self.contract.to_owned(),
                 self.tables.to_owned(),
+                self.schema_map.to_owned(),
             ));
             run(details).await
         })

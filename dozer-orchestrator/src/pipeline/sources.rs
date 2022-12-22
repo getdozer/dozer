@@ -10,6 +10,7 @@ use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
+use log::info;
 
 use std::collections::HashMap;
 
@@ -66,6 +67,7 @@ impl ConnectorSourceFactory {
                 port_map.insert(schema_id, *port);
             }
         }
+
         Ok((schema_map, port_map))
     }
 }
@@ -142,6 +144,7 @@ impl Source for ConnectorSource {
                         .get(&schema_id)
                         .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
                         .unwrap();
+                    info!("{:?}", op);
                     fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
                 }
             } else {

@@ -1,8 +1,8 @@
-use std::sync::Arc;
-
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
 };
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use web3::ethabi::{Contract, RawLog};
 use web3::transports::WebSocket;
@@ -19,9 +19,12 @@ pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Er
     ))
 }
 
-pub fn get_contract_event_schemas(contract: &Contract) -> Vec<(String, Schema)> {
+pub fn get_contract_event_schemas(
+    contract: &Contract,
+    schema_map: HashMap<String, usize>,
+) -> Vec<(String, Schema)> {
     let mut schemas = vec![];
-    for (idx, event) in contract.events.values().flatten().into_iter().enumerate() {
+    for event in contract.events.values().flatten().into_iter() {
         let mut fields = vec![];
         for input in event.inputs.to_owned() {
             fields.push(FieldDefinition {
@@ -43,11 +46,16 @@ pub fn get_contract_event_schemas(contract: &Contract) -> Vec<(String, Schema)> 
             });
         }
 
+        let schema_id = schema_map
+            .get(&event.name)
+            .expect("schema is missing")
+            .to_owned();
+
         schemas.push((
-            event.name.to_owned().to_lowercase(),
+            event.name.to_owned(),
             Schema {
                 identifier: Some(SchemaIdentifier {
-                    id: (idx + 2) as u32,
+                    id: schema_id as u32,
                     version: 1,
                 }),
                 fields,
@@ -62,6 +70,7 @@ pub fn decode_event(
     log: Log,
     contract: Contract,
     tables: Option<Vec<TableInfo>>,
+    schema_map: HashMap<String, usize>,
 ) -> Option<OperationEvent> {
     // Topics 0, 1, 2 should be name, buyer, seller in most cases
     let name = log
@@ -70,21 +79,25 @@ pub fn decode_event(
         .expect("name is expected")
         .to_owned()
         .to_string();
+    let seq_no = get_id(&log) + 1;
+
+    let event = contract
+        .events
+        .values()
+        .flatten()
+        .into_iter()
+        .find(|evt| evt.signature().to_string() == name)
+        .expect(&format!("event is not found with signature: {}", name));
+
+    let schema_id = schema_map
+        .get(&event.name)
+        .expect("schema is missing")
+        .to_owned();
+
     let is_table_required = tables.map_or(true, |tables| {
-        tables.iter().find(|t| t.name == name).is_some()
+        tables.iter().find(|t| t.name == event.name).is_some()
     });
     if is_table_required {
-        let seq_no = get_id(&log) + 1;
-
-        let (idx, event) = contract
-            .events
-            .values()
-            .flatten()
-            .into_iter()
-            .enumerate()
-            .find(|(_, evt)| evt.signature().to_string() == name)
-            .expect(&format!("event is not found with signature: {}", name));
-
         // let event = contract.event(&name_str).unwrap();
         let parsed_event = event
             .parse_log(RawLog {
@@ -108,7 +121,7 @@ pub fn decode_event(
             operation: Operation::Insert {
                 new: Record {
                     schema_id: Some(SchemaIdentifier {
-                        id: (idx + 2) as u32,
+                        id: schema_id as u32,
                         version: 1,
                     }),
                     values,

@@ -1,4 +1,5 @@
 use core::time;
+use std::collections::HashMap;
 use std::{sync::Arc};
 
 
@@ -8,7 +9,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
-use dozer_types::log::info;
+use dozer_types::log::{info, trace};
 use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
@@ -30,6 +31,7 @@ pub struct EthDetails {
       connector_id: u64,
       contract: Option<Contract>,
       pub tables: Option<Vec<TableInfo>>,
+      pub schema_map: HashMap<String, usize>,
   }
   
   impl EthDetails {
@@ -41,8 +43,9 @@ pub struct EthDetails {
       connector_id: u64,
       contract: Option<Contract>,
       tables: Option<Vec<TableInfo>>,
+      schema_map: HashMap<String, usize>,
   ) -> Self {
-    EthDetails { wss_url, filter, ingestor, connector_id, contract, tables }
+    EthDetails { wss_url, filter, ingestor, connector_id, contract, tables, schema_map }
   }
   }
 
@@ -172,25 +175,36 @@ fn process_log(
     msg: Log,
 ) -> Result<(), ConnectorError> {
     
-    if let Some(op) = helper::map_log_to_event(msg.to_owned(), details.clone()) {
-        // Write eth_log record
-        details.ingestor
+    // Filter pending logs. log.log_index is None for pending State
+    if let None = msg.log_index {
+        Ok(())
+    } else {
+        if let Some(op) = helper::map_log_to_event(msg.to_owned(), details.clone()) {
+            trace!("Writing log : {:?}", op);
+            // Write eth_log record
+            details.ingestor
             .write()
             .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
             .map_err(ConnectorError::IngestorError)?;
-
+        } else {
+            trace!("Ignoring log : {:?}", msg);
+        }
+        
         // write event record optionally
         if let Some(ref contract) = details.contract {
-            let op = helper::decode_event(msg.to_owned(), contract.to_owned(), details.tables.clone());
+            let op = helper::decode_event(msg.to_owned(), contract.to_owned(), details.tables.clone(), details.schema_map.clone());
             if let Some(op) = op {
+                trace!("Writing event : {:?}", op);   
                 details.ingestor
                     .write()
                     .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
                     .map_err(ConnectorError::IngestorError)?;
+            } else {
+                trace!("Writing event : {:?}", op);  
             }
         }
-    }
-    Ok(())
+        Ok(())
+    } 
 }
 
 
