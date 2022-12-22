@@ -66,7 +66,7 @@ fn single_source_sink_impl(schema: Schema) {
     let ingestor2 = ingestor.clone();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
-    let executor_running = running.clone();
+    let executor_running = running;
 
     // Initialize a schema.
     ingestor2
@@ -103,7 +103,7 @@ fn single_source_sink_impl(schema: Schema) {
             executor_running,
             tmp_path,
         );
-        match executor.run(None, running) {
+        match executor.run(None) {
             Ok(_) => {}
             Err(e) => warn!("Exiting: {:?}", e),
         }
@@ -112,7 +112,7 @@ fn single_source_sink_impl(schema: Schema) {
     // Insert each record and query cache
     for (a, b, c) in items {
         let record = Record::new(
-            schema.identifier.clone(),
+            schema.identifier,
             vec![Field::Int(a), Field::String(b), Field::Int(c)],
         );
         ingestor2

@@ -1,6 +1,6 @@
 use clap::Parser;
 use dozer_orchestrator::cli::load_config;
-use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands};
+use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
@@ -20,7 +20,7 @@ fn main() -> Result<(), OrchestrationError> {
         process::exit(1);
     }));
 
-    let tracing_thread = thread::spawn(|| {
+    let _tracing_thread = thread::spawn(|| {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
             dozer_tracing::init_telemetry(false).unwrap();
@@ -60,19 +60,39 @@ fn main() -> Result<(), OrchestrationError> {
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => dozer.run_apps(running, None),
             },
-            Commands::Ps => todo!(),
+            Commands::Connector(sources) => match sources.command {
+                ConnectorCommands::Ls => {
+                    let connection_map = dozer.list_connectors()?;
+                    for (c, tables) in connection_map {
+                        info!("------------Connection: {} ------------", c);
+                        info!("");
+                        for (schema_name, schema) in tables {
+                            info!("Schema: {}", schema_name);
+
+                            for f in schema.fields {
+                                info!("  {}    -       {:?}", f.name, f.typ);
+                            }
+                            info!("");
+                        }
+                    }
+                    Ok(())
+                }
+            },
         }
     } else {
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
-        thread::spawn(move || dozer.run_apps(running, Some(tx)).unwrap());
+
+        let pipeline_thread = thread::spawn(move || dozer.run_apps(running, Some(tx)).unwrap());
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
 
-        dozer_api.run_api(running_api)
+        thread::spawn(move || dozer_api.run_api(running_api).unwrap());
+
+        pipeline_thread.join().unwrap();
+        Ok(())
     };
-    tracing_thread.join().unwrap();
     res
 }

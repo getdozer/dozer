@@ -66,6 +66,7 @@ impl ConnectorSourceFactory {
                 port_map.insert(schema_id, *port);
             }
         }
+
         Ok((schema_map, port_map))
     }
 }

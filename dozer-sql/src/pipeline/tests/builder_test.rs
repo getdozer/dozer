@@ -17,6 +17,7 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::fs;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
 
@@ -181,7 +182,7 @@ fn test_pipeline_builder() {
         NodeHandle::new(Some(1), String::from("sink")),
     );
 
-    let input_point = in_handle.remove("users").unwrap();
+    let input_point = in_handle.remove("Users").unwrap();
 
     let _source_to_input = dag.connect(
         Endpoint::new(
@@ -209,7 +210,13 @@ fn test_pipeline_builder() {
     let now = Instant::now();
 
     let tmp_dir = TempDir::new("test").unwrap();
-    let mut executor = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default()).unwrap();
+    let mut executor = DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true)),
+    )
+    .unwrap();
 
     executor
         .start()

@@ -21,7 +21,7 @@ pub enum Commands {
     #[command(arg_required_else_help = true)]
     Api(Api),
     App(App),
-    Ps,
+    Connector(Connector),
 }
 
 #[derive(Debug, Args)]
@@ -36,6 +36,13 @@ pub struct Api {
 pub struct App {
     #[command(subcommand)]
     pub command: AppCommands,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Connector {
+    #[command(subcommand)]
+    pub command: ConnectorCommands,
 }
 
 #[derive(Debug, Subcommand)]
@@ -54,4 +61,9 @@ pub enum ApiCommands {
 #[derive(Debug, Subcommand)]
 pub enum AppCommands {
     Run,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ConnectorCommands {
+    Ls,
 }

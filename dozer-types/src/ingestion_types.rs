@@ -38,9 +38,11 @@ pub struct EthFilter {
     // Starting block
     #[prost(uint64, optional, tag = "1")]
     pub from_block: Option<u64>,
-    #[prost(string, repeated, tag = "2")]
-    pub addresses: Vec<String>,
+    #[prost(uint64, optional, tag = "2")]
+    pub to_block: Option<u64>,
     #[prost(string, repeated, tag = "3")]
+    pub addresses: Vec<String>,
+    #[prost(string, repeated, tag = "4")]
     pub topics: Vec<String>,
 }
 
@@ -50,8 +52,9 @@ pub struct EthConfig {
     pub filter: Option<EthFilter>,
     #[prost(string, tag = "2")]
     pub wss_url: String,
-    #[prost(string, tag = "3")]
-    pub name: String,
+
+    #[prost(message, tag = "4")]
+    pub contract_abi: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
