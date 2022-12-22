@@ -30,7 +30,7 @@ async fn test_grpc_common_query() {
         .await
         .unwrap()
         .into_inner();
-    assert!(response.records.len() > 0);
+    assert!(!response.records.is_empty());
 }
 
 #[tokio::test]
