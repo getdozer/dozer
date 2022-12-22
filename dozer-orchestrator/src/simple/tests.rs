@@ -66,7 +66,7 @@ fn single_source_sink_impl(schema: Schema) {
     let ingestor2 = ingestor.clone();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
-    let executor_running = running.clone();
+    let executor_running = running;
 
     // Initialize a schema.
     ingestor2

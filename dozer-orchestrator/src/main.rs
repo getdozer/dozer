@@ -20,7 +20,7 @@ fn main() -> Result<(), OrchestrationError> {
         process::exit(1);
     }));
 
-    let tracing_thread = thread::spawn(|| {
+    let _tracing_thread = thread::spawn(|| {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
             dozer_tracing::init_telemetry(false).unwrap();
@@ -94,6 +94,5 @@ fn main() -> Result<(), OrchestrationError> {
         pipeline_thread.join().unwrap();
         Ok(())
     };
-    // tracing_thread.join().unwrap();
     res
 }

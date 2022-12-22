@@ -10,7 +10,6 @@ use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
-use log::info;
 
 use std::collections::HashMap;
 

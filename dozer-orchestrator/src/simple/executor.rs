@@ -2,10 +2,10 @@ use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
-use std::{fs, thread};
+
+use std::fs;
 
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
@@ -184,7 +184,6 @@ impl Executor {
 
         exec.start()?;
 
-        exec.join()
-            .map_err(|e| OrchestrationError::ExecutionError(e))
+        exec.join().map_err(OrchestrationError::ExecutionError)
     }
 }

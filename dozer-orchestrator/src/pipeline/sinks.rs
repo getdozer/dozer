@@ -178,12 +178,9 @@ impl Sink for CacheSink {
         _tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError> {
         if let Some(txn) = self.txn.take() {
-            println!("IN SINK - COMMMIT:  IF");
             txn.commit().map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
             })?;
-        } else {
-            println!("IN SINK - COMMMIT:  ELSE");
         }
         Ok(())
     }
@@ -210,7 +207,7 @@ impl Sink for CacheSink {
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
-        if self.counter % 1 == 0 {
+        if self.counter % 10 == 0 {
             self.pb.set_message(format!(
                 "{}: Count: {}, Elapsed time: {:.2?}",
                 self.api_endpoint.name.to_owned(),
@@ -253,7 +250,6 @@ impl Sink for CacheSink {
                 })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
-        println!("IN SINKS: {:?}", op);
         match op {
             Operation::Delete { old } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
