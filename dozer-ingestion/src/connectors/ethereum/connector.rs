@@ -1,4 +1,3 @@
-use core::time;
 use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::Connector;
@@ -7,19 +6,15 @@ use crate::{
     connectors::{ethereum::helper, TableInfo},
     errors::ConnectorError,
 };
-use dozer_types::ingestion_types::{EthConfig, EthFilter, IngestionMessage};
+use dozer_types::ingestion_types::{EthConfig, EthFilter};
 use dozer_types::log::info;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
-use futures::StreamExt;
 
-use super::sender::EthSender;
-use futures::future::{BoxFuture, FutureExt};
+use super::sender::{run, EthDetails};
 use tokio::runtime::Runtime;
 use web3::ethabi::Contract;
-use web3::transports::WebSocket;
-use web3::types::{Address, BlockNumber, Filter, FilterBuilder, Log, H256, U64};
-use web3::Web3;
+use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 pub struct EthConnector {
     pub id: u64,
     config: EthConfig,
@@ -164,15 +159,15 @@ impl Connector for EthConnector {
             .clone();
 
         Runtime::new().unwrap().block_on(async {
-            let sender = EthSender::new(
+            let details = Arc::new(EthDetails::new(
                 wss_url,
                 filter,
                 ingestor,
                 connector_id,
                 self.contract.to_owned(),
                 self.tables.to_owned(),
-            );
-            sender.run().await;
+            ));
+            run(details).await
         })
     }
 

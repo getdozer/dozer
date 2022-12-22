@@ -23,31 +23,32 @@ use web3::Web3;
 
 use super::connector::EthConnector;
 
-pub struct EthSender {
-  wss_url: String,
-    filter: EthFilter,
-    ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
-    contract: Option<Contract>,
-    tables: Option<Vec<TableInfo>>,
-}
-
-impl EthSender {
-  #[allow(unreachable_code)]
-pub async fn new(
+pub struct EthDetails {
     wss_url: String,
-    filter: EthFilter,
-    ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
-    contract: Option<Contract>,
-    tables: Option<Vec<TableInfo>>,
-) -> Self {
-  EthSender { wss_url, filter, ingestor, connector_id, contract, tables }
-}
+      filter: EthFilter,
+      ingestor: Arc<RwLock<Ingestor>>,
+      connector_id: u64,
+      contract: Option<Contract>,
+      tables: Option<Vec<TableInfo>>,
+  }
+  
+  impl EthDetails {
+    
+  pub fn new(
+      wss_url: String,
+      filter: EthFilter,
+      ingestor: Arc<RwLock<Ingestor>>,
+      connector_id: u64,
+      contract: Option<Contract>,
+      tables: Option<Vec<TableInfo>>,
+  ) -> Self {
+    EthDetails { wss_url, filter, ingestor, connector_id, contract, tables }
+  }
+  }
 
 #[allow(unreachable_code)]
-pub async fn run(&self) -> Result<(), ConnectorError> {
-    let client = helper::get_wss_client(&self.wss_url).await.unwrap();
+pub async fn run(    details: Arc<EthDetails>) -> Result<(), ConnectorError> {
+    let client = helper::get_wss_client(&details.wss_url).await.unwrap();
 
     // Get current block no.
     let block_end = client
@@ -57,19 +58,12 @@ pub async fn run(&self) -> Result<(), ConnectorError> {
         .map_err(ConnectorError::EthError)?
         .as_u64();
 
-    let block_start = self.filter.from_block();
+    let block_start = details.filter.from_block();
 
-    let logs = self.fetch_logs(client.clone(), block_start, block_end, 0).await?;
-
-    for msg in logs {
-        self.process_log(
-            msg,
-        )?;
-    }
-    // }
+    fetch_logs(details.clone(), client.clone(), block_start, block_end, 0).await?;
 
     // Create a filter from the last block to check for changes
-    let mut filter = self.filter.clone();
+    let mut filter = details.filter.clone();
     filter.from_block = Some(block_end);
 
     info!("Fetching from block ..: {}", block_end);
@@ -91,7 +85,8 @@ pub async fn run(&self) -> Result<(), ConnectorError> {
             .map_or(Err(ConnectorError::EmptyMessage), Ok)?
             .map_err(ConnectorError::EthError)?;
 
-        self.process_log(
+        process_log(
+            details.clone(),
             msg,
         )?;
     }
@@ -99,21 +94,32 @@ pub async fn run(&self) -> Result<(), ConnectorError> {
 }
 
 pub fn fetch_logs(
-  &self,
+    details: Arc<EthDetails>,
     client: Web3<WebSocket>,
-    
     block_start: u64,
     block_end: u64,
     depth: usize,
-) -> BoxFuture<'static, Result<Vec<Log>, ConnectorError>> {
+) -> BoxFuture<'static, Result<(), ConnectorError>> {
+    let filter = details.filter.clone();
+    let depth_str = (0..depth).map(|_| " ".to_string()).collect::<Vec<String>>().join("");
     async move {
-        let mut applied_filter = self.filter.clone();
+        let mut applied_filter = filter.clone();
         applied_filter.from_block = Some(block_start);
         applied_filter.to_block = Some(block_end);
         let res = client.eth().logs(EthConnector::build_filter(&applied_filter)).await;
 
         match res {
-            Ok(res) => Ok(res),
+            Ok(logs) => {
+                
+                info!(" {} Fetched: {} , block_start: {},block_end: {}, depth: {}", depth_str, logs.len(), block_start, block_end, depth);
+                for msg in logs {
+                    process_log(
+                        details.clone(),
+                        msg,
+                    )?;
+                }
+                Ok(())
+            },
             Err(e) => match &e {
                 web3::Error::Rpc(rpc_error) => {
                     // Infura returns a RpcError if the no of records are more than 10000
@@ -122,7 +128,7 @@ pub fn fetch_logs(
 
                     
                     if rpc_error.code.code() == -32005 {
-                        let depth_str = (0..depth).map(|_| " ".to_string()).collect::<Vec<String>>().join("");
+                        
                         info!("{} More than 10000 records, block_start: {},block_end: {}, depth: {}", depth_str, block_start, block_end, depth);
                         
                         if depth > 100 {
@@ -130,16 +136,17 @@ pub fn fetch_logs(
                         } else {
                             let middle = (block_start + block_end) / 2;
                             info!("{} Splitting in two calls block_start: {}, middle: {}, block_end: {}", depth_str,block_start, block_end, middle);
-                            let left = self.fetch_logs(
+                            fetch_logs(
+                                details.clone(), 
                                 client.clone(),
-                                
                                 block_start,
                                 middle,
                                 depth + 1,
                             )
                             .await?;
 
-                            let right = self.fetch_logs(
+                            fetch_logs(
+                                details,
                                 client.clone(),           
                                 middle,
                                 block_end,
@@ -147,7 +154,7 @@ pub fn fetch_logs(
                             )
                             .await?;
 
-                            Ok([left, right].concat())
+                            Ok(())
                         }
                     } else {
                         Err(ConnectorError::EthError(e))
@@ -161,23 +168,23 @@ pub fn fetch_logs(
 }
 
 fn process_log(
-  &self,
+    details: Arc<EthDetails>,
     msg: Log,
 ) -> Result<(), ConnectorError> {
     if let Some(op) = helper::map_log_to_event(msg.to_owned()) {
         // Write eth_log record
-        self.ingestor
+        details.ingestor
             .write()
-            .handle_message((self.connector_id, IngestionMessage::OperationEvent(op)))
+            .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
             .map_err(ConnectorError::IngestorError)?;
 
         // write event record optionally
-        if let Some(ref contract) = self.contract {
-            let op = helper::decode_event(msg.to_owned(), contract.to_owned(), self.tables);
+        if let Some(ref contract) = details.contract {
+            let op = helper::decode_event(msg.to_owned(), contract.to_owned(), details.tables.clone());
             if let Some(op) = op {
-                self.ingestor
+                details.ingestor
                     .write()
-                    .handle_message((self.connector_id, IngestionMessage::OperationEvent(op)))
+                    .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
                     .map_err(ConnectorError::IngestorError)?;
             }
         }
@@ -185,4 +192,4 @@ fn process_log(
     Ok(())
 }
 
-}
+
