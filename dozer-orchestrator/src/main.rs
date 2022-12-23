@@ -15,6 +15,7 @@ use tokio::runtime::Runtime;
 fn main() {
     if let Err(e) = run() {
         error!("{}", e);
+        process::exit(1);
     }
 }
 
