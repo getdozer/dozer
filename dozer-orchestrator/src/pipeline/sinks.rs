@@ -182,6 +182,14 @@ impl Sink for CacheSink {
                 ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
             })?;
         }
+        // Update Counter on commit
+        self.pb.set_message(format!(
+            "{}: Count: {}, Elapsed time: {:.2?}",
+            self.api_endpoint.name.to_owned(),
+            self.counter,
+            self.before.elapsed(),
+        ));
+
         Ok(())
     }
 
@@ -207,14 +215,6 @@ impl Sink for CacheSink {
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
-        if self.counter % 10 == 0 {
-            self.pb.set_message(format!(
-                "{}: Count: {}, Elapsed time: {:.2?}",
-                self.api_endpoint.name.to_owned(),
-                self.counter,
-                self.before.elapsed(),
-            ));
-        }
 
         if self.txn.is_none() {
             let txn = self.cache.begin_rw_txn().map_err(|e| {
