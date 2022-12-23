@@ -38,9 +38,9 @@ pub fn get_contract_event_schemas(
                     web3::ethabi::ParamType::Bool => FieldType::Boolean,
                     web3::ethabi::ParamType::String => FieldType::String,
                     // TODO: These are to be mapped to appropriate types
-                    web3::ethabi::ParamType::Array(_) => FieldType::String,
-                    web3::ethabi::ParamType::FixedArray(_, _) => FieldType::String,
-                    web3::ethabi::ParamType::Tuple(_) => FieldType::String,
+                    web3::ethabi::ParamType::Array(_)
+                    | web3::ethabi::ParamType::FixedArray(_, _)
+                    | web3::ethabi::ParamType::Tuple(_) => FieldType::Text,
                 },
                 nullable: false,
             });
@@ -145,7 +145,7 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
         web3::ethabi::Token::String(f) => Field::String(f),
         web3::ethabi::Token::FixedArray(f)
         | web3::ethabi::Token::Array(f)
-        | web3::ethabi::Token::Tuple(f) => Field::String(
+        | web3::ethabi::Token::Tuple(f) => Field::Text(
             f.iter()
                 .map(|f| f.to_string())
                 .collect::<Vec<String>>()
