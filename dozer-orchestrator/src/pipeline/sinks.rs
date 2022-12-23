@@ -11,7 +11,7 @@ use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::log::debug;
+use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
@@ -177,11 +177,6 @@ impl Sink for CacheSink {
         _seq_in_tx: u64,
         _tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError> {
-        if let Some(txn) = self.txn.take() {
-            txn.commit().map_err(|e| {
-                ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
-            })?;
-        }
         // Update Counter on commit
         self.pb.set_message(format!(
             "{}: Count: {}, Elapsed time: {:.2?}",
@@ -189,7 +184,11 @@ impl Sink for CacheSink {
             self.counter,
             self.before.elapsed(),
         ));
-
+        if let Some(txn) = self.txn.take() {
+            txn.commit().map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
+            })?;
+        }
         Ok(())
     }
 
@@ -198,6 +197,11 @@ impl Sink for CacheSink {
 
         // Insert schemas into cache
         for (_, (schema, secondary_indexes)) in self.input_schemas.iter() {
+            info!(
+                "SINK: Initializing output schema on endpoint: {}",
+                self.api_endpoint.name
+            );
+            schema.print().printstd();
             self.cache
                 .insert_schema(&self.api_endpoint.name, schema, secondary_indexes)
                 .map_err(|e| {

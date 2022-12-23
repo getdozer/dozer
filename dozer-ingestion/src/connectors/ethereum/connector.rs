@@ -8,7 +8,6 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter};
-use dozer_types::log::info;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
@@ -106,18 +105,19 @@ impl EthConnector {
     fn build_schema_map(contracts: &HashMap<String, ContractTuple>) -> HashMap<H256, usize> {
         let mut schema_map = HashMap::new();
 
-        let mut idx = 0;
+        let mut signatures = vec![];
         for contract_tuple in contracts.values() {
             let contract = contract_tuple.0.clone();
-            let mut events: Vec<&Event> = contract.events.values().flatten().collect();
-            events.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
-
+            let events: Vec<&Event> = contract.events.values().flatten().collect();
             for evt in events {
-                schema_map.insert(evt.signature(), 2 + idx);
-                idx += 1;
+                signatures.push(evt.signature());
             }
         }
+        signatures.sort();
 
+        for (idx, signature) in signatures.iter().enumerate() {
+            schema_map.insert(signature.to_owned(), 2 + idx);
+        }
         schema_map
     }
 }
@@ -144,7 +144,6 @@ impl Connector for EthConnector {
         } else {
             schemas
         };
-        info!("Initializing schemas: {:?}", schemas);
         Ok(schemas)
     }
 
