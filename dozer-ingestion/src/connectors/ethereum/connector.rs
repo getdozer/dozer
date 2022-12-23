@@ -23,7 +23,7 @@ pub struct EthConnector {
     contracts: HashMap<String, ContractTuple>,
     tables: Option<Vec<TableInfo>>,
     // contract_signacture -> SchemaID
-    schema_map: HashMap<String, usize>,
+    schema_map: HashMap<H256, usize>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
@@ -93,6 +93,7 @@ impl EthConnector {
         }
 
         let schema_map = Self::build_schema_map(&contracts);
+        println!("Schema map : {:?}", schema_map);
         Self {
             id,
             config,
@@ -103,7 +104,7 @@ impl EthConnector {
         }
     }
 
-    fn build_schema_map(contracts: &HashMap<String, ContractTuple>) -> HashMap<String, usize> {
+    fn build_schema_map(contracts: &HashMap<String, ContractTuple>) -> HashMap<H256, usize> {
         let mut schema_map = HashMap::new();
 
         let mut idx = 0;
@@ -113,7 +114,7 @@ impl EthConnector {
             events.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
             for evt in events {
-                schema_map.insert(evt.signature().to_string(), 2 + idx);
+                schema_map.insert(evt.signature(), 2 + idx);
                 idx += 1;
             }
         }

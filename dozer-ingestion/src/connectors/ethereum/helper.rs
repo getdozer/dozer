@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use web3::ethabi::RawLog;
 use web3::transports::WebSocket;
-use web3::types::Log;
+use web3::types::{Log, H256};
 
 use crate::connectors::TableInfo;
 
@@ -21,7 +21,7 @@ pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Er
 
 pub fn get_contract_event_schemas(
     contracts: HashMap<String, ContractTuple>,
-    schema_map: HashMap<String, usize>,
+    schema_map: HashMap<H256, usize>,
 ) -> Vec<(String, Schema)> {
     let mut schemas = vec![];
 
@@ -49,7 +49,7 @@ pub fn get_contract_event_schemas(
             }
 
             let schema_id = schema_map
-                .get(&event.signature().to_string())
+                .get(&event.signature())
                 .expect("schema is missing")
                 .to_owned();
 
@@ -73,7 +73,7 @@ pub fn decode_event(
     log: Log,
     contracts: HashMap<String, ContractTuple>,
     tables: Option<Vec<TableInfo>>,
-    schema_map: HashMap<String, usize>,
+    schema_map: HashMap<H256, usize>,
 ) -> Option<OperationEvent> {
     // Topics 0, 1, 2 should be name, buyer, seller in most cases
     let name = log
@@ -99,7 +99,7 @@ pub fn decode_event(
         .unwrap_or_else(|| panic!("event is not found with signature: {}", name));
 
     let schema_id = schema_map
-        .get(&event.signature().to_string())
+        .get(&event.signature())
         .expect("schema is missing")
         .to_owned();
 
