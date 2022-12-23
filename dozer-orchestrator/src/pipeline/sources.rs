@@ -36,7 +36,7 @@ impl ConnectorSourceFactory {
         let (schema_map, port_map) =
             Self::get_schema_map(&connection_map, &table_map).expect("Cannot initialize schemas");
 
-        for (port, schema) in schema_map.to_owned() {
+        for (port, schema) in &schema_map {
             info!("Initialzing schema on port : {}", port);
             schema.print().printstd();
         }
