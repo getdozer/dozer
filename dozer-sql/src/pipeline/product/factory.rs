@@ -197,24 +197,31 @@ fn parse_join_constraint(
 
                 Ok((left_keys, right_keys))
             }
-            sqlparser::ast::BinaryOperator::Eq => { 
-
-                let left_key = match left {
-                    SqlExpr::Identifier(ident) => parse_identifier(ident)?,
-                    _ => return Err(PipelineError::InvalidQuery(
-                        "Unsupported Join constraint".to_string(),
-                    )),
+            sqlparser::ast::BinaryOperator::Eq => {
+                let left_key = match *left.clone() {
+                    SqlExpr::Identifier(ident) => {
+                        parse_identifier(&ident, left_join_table, right_join_table)?
+                    }
+                    _ => {
+                        return Err(PipelineError::InvalidQuery(
+                            "Unsupported Join constraint".to_string(),
+                        ))
+                    }
                 };
 
-                let right_key = match right {
-                    SqlExpr::Identifier(ident) => parse_identifier(ident)?,
-                    _ => return Err(PipelineError::InvalidQuery(
-                        "Unsupported Join constraint".to_string(),
-                    )),
-                }
+                let right_key = match *right.clone() {
+                    SqlExpr::Identifier(ident) => {
+                        parse_identifier(&ident, left_join_table, right_join_table)?
+                    }
+                    _ => {
+                        return Err(PipelineError::InvalidQuery(
+                            "Unsupported Join constraint".to_string(),
+                        ))
+                    }
+                };
 
-                Ok(vec![left_key], vec![right_key])
-        },
+                Ok((vec![left_key], vec![right_key]))
+            }
             _ => Err(PipelineError::InvalidQuery(
                 "Unsupported Join constraint".to_string(),
             )),
@@ -225,7 +232,11 @@ fn parse_join_constraint(
     }
 }
 
-fn parse_identifier(ident: &sqlparser::ast::Ident) -> Result<usize, PipelineError> {
+fn parse_identifier(
+    ident: &sqlparser::ast::Ident,
+    left_join_table: &JoinTable,
+    right_join_table: &JoinTable,
+) -> Result<usize, PipelineError> {
     todo!()
 }
 

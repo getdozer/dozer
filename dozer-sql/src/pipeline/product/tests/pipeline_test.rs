@@ -50,11 +50,11 @@ impl SourceFactory for UserTestSourceFactory {
                 false,
             )
             .field(
-                FieldDefinition::new(String::from("DepartmentID"), FieldType::Int, false),
+                FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
                 false,
             )
             .field(
-                FieldDefinition::new(String::from("Salary"), FieldType::Float, false),
+                FieldDefinition::new(String::from("salary"), FieldType::Float, false),
                 false,
             )
             .clone())
@@ -102,6 +102,12 @@ impl Source for UserTestSource {
 /// Test Source
 pub struct DepartmentTestSourceFactory {
     output_ports: Vec<PortHandle>,
+}
+
+impl DepartmentTestSourceFactory {
+    pub fn new(output_ports: Vec<PortHandle>) -> Self {
+        Self { output_ports }
+    }
 }
 
 impl SourceFactory for DepartmentTestSourceFactory {
@@ -217,7 +223,7 @@ impl Sink for TestSink {
 
 #[test]
 fn test_single_table_pipeline() {
-    let sql = "SELECT name FROM Users WHERE Salary>1 GROUP BY name";
+    let sql = "SELECT conn.Users.name, d.name FROM Users u JOIN Department d ON u.department_id = d.id WHERE u.salary>1";
 
     let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
@@ -231,6 +237,8 @@ fn test_single_table_pipeline() {
 
     let user_source = UserTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
+    let department_source = DepartmentTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE]);
+
     let sink = TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE]);
 
     dag.add_node(
@@ -239,18 +247,33 @@ fn test_single_table_pipeline() {
     );
 
     dag.add_node(
+        NodeType::Source(Arc::new(department_source)),
+        NodeHandle::new(Some(1), String::from("department")),
+    );
+
+    dag.add_node(
         NodeType::Sink(Arc::new(sink)),
         NodeHandle::new(Some(1), String::from("sink")),
     );
 
-    let input_point = in_handle.remove("users").unwrap();
+    let users_input = in_handle.remove("users").unwrap();
 
-    let _source_to_users = dag.connect(
+    let _users_to_dag = dag.connect(
         Endpoint::new(
             NodeHandle::new(Some(1), String::from("users")),
             DEFAULT_PORT_HANDLE,
         ),
-        Endpoint::new(input_point.node, input_point.port),
+        Endpoint::new(users_input.node, users_input.port),
+    );
+
+    let department_input = in_handle.remove("department").unwrap();
+
+    let _department_to_dag = dag.connect(
+        Endpoint::new(
+            NodeHandle::new(Some(1), String::from("department")),
+            DEFAULT_PORT_HANDLE,
+        ),
+        Endpoint::new(department_input.node, department_input.port),
     );
 
     let _output_to_sink = dag.connect(
