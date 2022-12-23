@@ -145,7 +145,7 @@ pub fn decode_event(
 }
 
 pub fn get_table_name(contract_tuple: &ContractTuple, event_name: &str) -> String {
-    format!("{}.{}", contract_tuple.1, event_name)
+    format!("{}_{}", contract_tuple.1, event_name)
 }
 
 pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
