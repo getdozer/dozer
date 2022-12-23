@@ -1,15 +1,18 @@
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
-use crate::internal::internal_pipeline_server::start_internal_pipeline_server;
 use crate::utils::{
-    get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_dir, get_rest_config,
+    get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_config, get_pipeline_dir,
+    get_rest_config,
 };
 use crate::Orchestrator;
-use dozer_api::actix_web::dev::ServerHandle;
-use dozer_api::grpc::internal_grpc::PipelineRequest;
-use dozer_api::grpc::{start_internal_api_client, start_internal_api_server};
-use dozer_api::CacheEndpoint;
-use dozer_api::{grpc, rest};
+use dozer_api::{
+    actix_web::dev::ServerHandle,
+    grpc::{
+        self, internal::internal_pipeline_server::start_internal_pipeline_server,
+        internal_grpc::PipelineResponse,
+    },
+    rest, CacheEndpoint,
+};
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_ingestion::ingestion::IngestionConfig;
@@ -76,7 +79,6 @@ impl Orchestrator for SimpleOrchestrator {
         let (tx, rx) = unbounded::<ServerHandle>();
         let running2 = running.clone();
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<PipelineRequest>();
         let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self
@@ -102,17 +104,9 @@ impl Orchestrator for SimpleOrchestrator {
         let ce2 = cache_endpoints.clone();
         let ce3 = cache_endpoints;
 
-        let app_config = self.config.to_owned();
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
-            // Initialize Internal Server
-            tokio::spawn(async move {
-                start_internal_api_server(app_config, sender)
-                    .await
-                    .expect("Failed to initialize internal server")
-            });
-
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             tokio::spawn(async move {
@@ -126,7 +120,8 @@ impl Orchestrator for SimpleOrchestrator {
             // Initialize GRPC Server
             let grpc_config = get_grpc_config(self.config.to_owned());
             let api_dir = get_api_dir(self.config.to_owned());
-            let grpc_server = grpc::ApiServer::new(receiver, grpc_config, true, api_dir);
+            let pipeline_config = get_pipeline_config(self.config.to_owned());
+            let grpc_server = grpc::ApiServer::new(grpc_config, true, api_dir, pipeline_config);
             tokio::spawn(async move {
                 grpc_server
                     .run(ce2, running2.to_owned(), receiver_shutdown)
@@ -153,23 +148,10 @@ impl Orchestrator for SimpleOrchestrator {
         self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<PipelineRequest>();
-
-        let internal_api_config = self
-            .config
-            .to_owned()
-            .api
-            .unwrap_or_default()
-            .api_internal
-            .unwrap_or_default();
-        // Initialize Internal Server Client
-        let _internal_api_thread = thread::spawn(move || {
-            start_internal_api_client(internal_api_config, receiver);
-        });
-
+        let (sender, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
         let _intern_pipeline_thread = thread::spawn(move || {
-            _ = start_internal_pipeline_server(internal_app_config);
+            _ = start_internal_pipeline_server(internal_app_config, receiver);
         });
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
