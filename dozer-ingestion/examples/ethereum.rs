@@ -9,7 +9,7 @@ use dozer_types::{
 };
 use std::{process, thread};
 
-fn main() -> Result<(), ConnectorError> {
+fn main() {
     dozer_tracing::init_telemetry(false).unwrap();
 
     // SET ENV variable `ETH_WSS_URL`
@@ -19,7 +19,7 @@ fn main() -> Result<(), ConnectorError> {
     info!("Initializing with WSS: {}", wss_url);
 
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-    let t = thread::spawn(move || -> Result<(), ConnectorError> {
+    thread::spawn(move || -> Result<(), ConnectorError> {
         let mut eth_connector = EthConnector::new(
             1,
             // crypto punks - https://etherscan.io/address/0xb47e3cd837ddf8e4c57f05d70ab865de6e193bbb
@@ -59,8 +59,4 @@ fn main() -> Result<(), ConnectorError> {
         }
         idx += 1;
     }
-
-    t.join().unwrap()?;
-
-    Ok(())
 }
