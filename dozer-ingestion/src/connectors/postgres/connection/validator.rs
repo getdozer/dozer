@@ -190,7 +190,7 @@ fn validate_limit_of_replications(client: &mut Client) -> Result<(), ConnectorEr
 #[cfg(test)]
 mod tests {
     use crate::connectors::postgres::connection::validator::{
-        validate_columns_names, validate_connection, validate_tables, validate_tables_names,
+        validate_columns_names, validate_connection, validate_tables_names,
     };
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
 

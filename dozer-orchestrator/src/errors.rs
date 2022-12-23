@@ -11,12 +11,6 @@ use dozer_types::{serde_yaml, thiserror};
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
-    #[error("Couldnt read file")]
-    FailedToLoadFile(#[source] std::io::Error),
-    #[error("Failed to parse dozer config..")]
-    FailedToParseYaml(#[source] BoxedError),
-    #[error("Failed to validate dozer config..")]
-    FailedToParseValidateYaml(#[source] BoxedError),
     #[error("Failed to write config yaml")]
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize dozer config..")]
@@ -34,7 +28,10 @@ pub enum OrchestrationError {
     #[error(transparent)]
     ConnectorError(#[from] ConnectorError),
 
-    #[error("Port not found with the table name")]
+    #[error(transparent)]
+    CliError(#[from] CliError),
+
+    #[error("Can't find the table name ({0:?}) in the sources provided.")]
     PortNotFound(String),
 
     #[error("Failed to initialize internal server")]
@@ -45,4 +42,14 @@ pub enum OrchestrationError {
 
     #[error(transparent)]
     RecvError(#[from] RecvError),
+}
+
+#[derive(Error, Debug)]
+pub enum CliError {
+    #[error("Can't find the configuration file at: {0:?}")]
+    FailedToLoadFile(String),
+    #[error("Failed to parse dozer config..")]
+    FailedToParseYaml(#[source] BoxedError),
+    #[error("Failed to validate dozer config..")]
+    FailedToParseValidateYaml(#[source] BoxedError),
 }

@@ -1,10 +1,11 @@
-use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_api::grpc::internal_grpc::PipelineResponse;
+use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
-use std::{fs, thread};
+
+use std::fs;
 
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
@@ -14,7 +15,7 @@ use dozer_core::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::NodeHandle;
-use dozer_ingestion::connectors::TableInfo;
+use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
@@ -54,19 +55,33 @@ impl Executor {
             running,
         }
     }
+    pub fn get_tables(
+        connections: &Vec<Connection>,
+    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+        let mut schema_map = HashMap::new();
+        for connection in connections {
+            validate(connection.to_owned())?;
 
-    pub fn run(
-        &self,
-        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
-        _running: Arc<AtomicBool>,
-    ) -> Result<(), OrchestrationError> {
+            let connector = get_connector(connection.to_owned())?;
+            let schema_tuples = connector.get_schemas(None)?;
+            schema_map.insert(connection.name.to_owned(), schema_tuples);
+        }
+
+        Ok(schema_map)
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub fn get_connection_map(
+        sources: &[Source],
+    ) -> Result<(HashMap<Connection, Vec<TableInfo>>, HashMap<String, u16>), OrchestrationError>
+    {
         let mut connection_map: HashMap<Connection, Vec<TableInfo>> = HashMap::new();
         let mut table_map: HashMap<String, u16> = HashMap::new();
 
         // Initialize Source
         // For every pipeline, there will be one Source implementation
         // that can take multiple Connectors on different ports.
-        for (table_id, (idx, source)) in self.sources.iter().cloned().enumerate().enumerate() {
+        for (table_id, (idx, source)) in sources.iter().cloned().enumerate().enumerate() {
             validate(source.connection.to_owned().unwrap())?;
 
             let table_name = source.table_name.clone();
@@ -87,9 +102,16 @@ impl Executor {
 
             table_map.insert(table_name, idx.try_into().unwrap());
         }
+        Ok((connection_map, table_map))
+    }
 
+    pub fn run(
+        &self,
+        notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+    ) -> Result<(), OrchestrationError> {
         let source_handle = NodeHandle::new(None, "src".to_string());
 
+        let (connection_map, table_map) = Self::get_connection_map(&self.sources)?;
         let source = ConnectorSourceFactory::new(
             connection_map,
             table_map.clone(),
@@ -153,17 +175,15 @@ impl Executor {
 
         let path = &self.home_dir;
         fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let mut exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
+        let mut exec = DagExecutor::new(
+            &parent_dag,
+            path.as_path(),
+            ExecutorOptions::default(),
+            running_wait,
+        )?;
 
         exec.start()?;
-        // Waiting for Ctrl+C
-        while running_wait.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(200));
-        }
 
-        exec.stop();
-        exec.join()
-            .map_err(|_e| OrchestrationError::InternalServerError)?;
-        Ok(())
+        exec.join().map_err(OrchestrationError::ExecutionError)
     }
 }

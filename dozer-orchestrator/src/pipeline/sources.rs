@@ -140,8 +140,7 @@ impl Source for ConnectorSource {
                     let port = self
                         .port_map
                         .get(&schema_id)
-                        .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
-                        .unwrap();
+                        .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)?;
                     fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
                 }
             } else {
