@@ -161,7 +161,7 @@ pub struct LocalChannelForwarder {
     owner: NodeHandle,
     state_writer: StateWriter,
     stateful: bool,
-    epoch_manager: Option<Arc<RwLock<EpochManager>>>,
+    epoch_manager: Arc<RwLock<EpochManager>>,
     curr_epoch: u64,
 }
 
@@ -180,7 +180,7 @@ impl LocalChannelForwarder {
             owner,
             state_writer,
             stateful,
-            epoch_manager: Some(epoch_manager),
+            epoch_manager,
             curr_epoch: 0,
         }
     }
@@ -190,6 +190,7 @@ impl LocalChannelForwarder {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         rec_store_writer: StateWriter,
         stateful: bool,
+        epoch_manager: Arc<RwLock<EpochManager>>,
     ) -> Self {
         Self {
             senders,
@@ -198,7 +199,7 @@ impl LocalChannelForwarder {
             owner,
             state_writer: rec_store_writer,
             stateful,
-            epoch_manager: None,
+            epoch_manager,
             curr_epoch: 0,
         }
     }
@@ -265,16 +266,7 @@ impl LocalChannelForwarder {
     }
 
     pub fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        info!(
-            "[{}] Checkpointing (epoch: {}, details: {})",
-            self.owner,
-            epoch.id,
-            epoch
-                .details
-                .iter()
-                .map(|e| format!("{} -> {}:{}", e.0, e.1 .0, e.1 .1))
-                .fold(String::new(), |a, b| a + ", " + b.as_str())
-        );
+        info!("[{}] Checkpointing ({})", self.owner, epoch);
         self.state_writer.store_commit_info(&epoch.details)?;
 
         for senders in &self.senders {
@@ -289,12 +281,7 @@ impl LocalChannelForwarder {
     }
 
     pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
-        let closed_epoch = self
-            .epoch_manager
-            .as_ref()
-            .unwrap()
-            .write()
-            .close_and_poll_epoch(&self.owner);
+        let closed_epoch = self.epoch_manager.write().close_and_poll_epoch(&self.owner);
 
         if let Some(closed_epoch) = closed_epoch {
             self.store_and_send_commit(&closed_epoch)?;
@@ -304,12 +291,7 @@ impl LocalChannelForwarder {
     }
 
     pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
-        let closed_epoch = self
-            .epoch_manager
-            .as_ref()
-            .unwrap()
-            .write()
-            .poll_epoch(&self.owner);
+        let closed_epoch = self.epoch_manager.write().poll_epoch(&self.owner);
         if let Some(closed_epoch) = closed_epoch {
             self.store_and_send_commit(&closed_epoch)?;
         }
@@ -327,12 +309,10 @@ impl SourceChannelForwarder for LocalChannelForwarder {
     ) -> Result<(), ExecutionError> {
         //
         self.send_op(op, port)?;
-        let closed_epoch = self
-            .epoch_manager
-            .as_ref()
-            .unwrap()
-            .write()
-            .add_op_to_epoch(&self.owner, txid, seq_in_tx)?;
+        let closed_epoch =
+            self.epoch_manager
+                .write()
+                .add_op_to_epoch(&self.owner, txid, seq_in_tx)?;
 
         if let Some(closed_epoch) = closed_epoch {
             self.store_and_send_commit(&closed_epoch)?;

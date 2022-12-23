@@ -21,14 +21,19 @@ fn test_checkpoint_consistency() {
     let mut dag = Dag::new();
     let latch = Arc::new(CountDownLatch::new(1));
 
-    let source1_handle = NodeHandle::new(Some(1), 1.to_string());
-    let source2_handle = NodeHandle::new(Some(1), 2.to_string());
-    let proc_handle = NodeHandle::new(Some(1), 3.to_string());
-    let sink_handle = NodeHandle::new(Some(1), 4.to_string());
+    let SRC1_HANDLE_ID = "SRC_1".to_string();
+    let SRC2_HANDLE_ID = "SRC_2".to_string();
+    let PROC_HANDLE_ID = "PRC".to_string();
+    let SNK_HANDLE_ID = "SNK".to_string();
+
+    let source1_handle = NodeHandle::new(Some(1), SRC1_HANDLE_ID);
+    let source2_handle = NodeHandle::new(Some(1), SRC2_HANDLE_ID);
+    let proc_handle = NodeHandle::new(Some(1), PROC_HANDLE_ID);
+    let sink_handle = NodeHandle::new(Some(1), SNK_HANDLE_ID);
 
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            250_000,
+            25_000,
             latch.clone(),
             true,
         ))),
@@ -36,7 +41,7 @@ fn test_checkpoint_consistency() {
     );
     dag.add_node(
         NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            500_000,
+            50_000,
             latch.clone(),
             true,
         ))),
@@ -47,7 +52,7 @@ fn test_checkpoint_consistency() {
         proc_handle.clone(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(500_000 + 250_000, latch))),
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(50_000 + 25_000, latch))),
         sink_handle.clone(),
     );
 

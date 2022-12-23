@@ -425,6 +425,7 @@ impl<'a> DagExecutor<'a> {
 
     pub fn start_processor(
         &self,
+        epoch_manager: Arc<RwLock<EpochManager>>,
         handle: NodeHandle,
         proc_factory: Arc<dyn ProcessorFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -475,6 +476,7 @@ impl<'a> DagExecutor<'a> {
                     lt_input_schemas,
                 ),
                 true,
+                epoch_manager,
             );
 
             let mut port_states: Vec<InputPortState> =
@@ -560,16 +562,7 @@ impl<'a> DagExecutor<'a> {
                         return Ok(());
                     }
                     ExecutorOperation::Commit { epoch } => {
-                        info!(
-                            "[{}] Checkpointing (epoch: {}, details: {})",
-                            handle,
-                            epoch.id,
-                            epoch
-                                .details
-                                .iter()
-                                .map(|e| format!("{} -> {}:{}", e.0, e.1 .0, e.1 .1))
-                                .fold(String::new(), |a, b| a + ", " + b.as_str())
-                        );
+                        info!("[{}] Checkpointing ({})", handle, epoch);
                         snk.commit(&epoch.details, &mut SharedTransaction::new(&master_tx))?;
                         state_writer.store_commit_info(&epoch.details)?;
                     }
@@ -615,6 +608,7 @@ impl<'a> DagExecutor<'a> {
 
         for (handle, factory) in self.dag.get_processors() {
             let join_handle = self.start_processor(
+                epoch_manager.clone(),
                 handle.clone(),
                 factory.clone(),
                 senders
