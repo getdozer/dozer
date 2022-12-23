@@ -177,11 +177,6 @@ impl Sink for CacheSink {
         _seq_in_tx: u64,
         _tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError> {
-        if let Some(txn) = self.txn.take() {
-            txn.commit().map_err(|e| {
-                ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
-            })?;
-        }
         // Update Counter on commit
         self.pb.set_message(format!(
             "{}: Count: {}, Elapsed time: {:.2?}",
@@ -189,7 +184,11 @@ impl Sink for CacheSink {
             self.counter,
             self.before.elapsed(),
         ));
-
+        if let Some(txn) = self.txn.take() {
+            txn.commit().map_err(|e| {
+                ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
+            })?;
+        }
         Ok(())
     }
 
