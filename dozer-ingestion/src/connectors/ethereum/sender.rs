@@ -15,21 +15,20 @@ use futures::StreamExt;
 
 use futures::future::{BoxFuture, FutureExt};
 
-use web3::ethabi::Contract;
 use web3::transports::WebSocket;
-use web3::types::Log;
+use web3::types::{Log, H256};
 use web3::Web3;
 
-use super::connector::EthConnector;
+use super::connector::{ContractTuple, EthConnector};
 
 pub struct EthDetails {
     wss_url: String,
     filter: EthFilter,
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
-    contracts: HashMap<String, Contract>,
+    contracts: HashMap<String, ContractTuple>,
     pub tables: Option<Vec<TableInfo>>,
-    pub schema_map: HashMap<(String, String), usize>,
+    pub schema_map: HashMap<H256, usize>,
 }
 
 impl EthDetails {
@@ -38,9 +37,9 @@ impl EthDetails {
         filter: EthFilter,
         ingestor: Arc<RwLock<Ingestor>>,
         connector_id: u64,
-        contracts: HashMap<String, Contract>,
+        contracts: HashMap<String, ContractTuple>,
         tables: Option<Vec<TableInfo>>,
-        schema_map: HashMap<(String, String), usize>,
+        schema_map: HashMap<H256, usize>,
     ) -> Self {
         EthDetails {
             wss_url,

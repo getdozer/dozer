@@ -59,8 +59,10 @@ pub struct EthConfig {
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EthContract {
     #[prost(string, tag = "1")]
-    pub address: String,
+    pub name: String,
     #[prost(string, tag = "2")]
+    pub address: String,
+    #[prost(string, tag = "3")]
     pub abi: String,
 }
 

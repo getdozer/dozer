@@ -19,13 +19,17 @@ use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 pub struct EthConnector {
     pub id: u64,
     config: EthConfig,
-    // Address-> contract
-    contracts: HashMap<String, Contract>,
+    // Address -> (contract, contract_name)
+    contracts: HashMap<String, ContractTuple>,
     tables: Option<Vec<TableInfo>>,
-    // (Address, Name) -> SchemaID
-    schema_map: HashMap<(String, String), usize>,
+    // contract_signacture -> SchemaID
+    schema_map: HashMap<H256, usize>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
+
+#[derive(Debug, Clone)]
+// (Contract, Name)
+pub struct ContractTuple(pub Contract, pub String);
 
 pub const ETH_LOGS_TABLE: &str = "eth_logs";
 impl EthConnector {
@@ -82,7 +86,10 @@ impl EthConnector {
 
         for c in &config.contracts {
             let contract = serde_json::from_str(&c.abi).expect("unable to parse contract from abi");
-            contracts.insert(c.address.to_string().to_lowercase(), contract);
+            contracts.insert(
+                c.address.to_string().to_lowercase(),
+                ContractTuple(contract, c.name.to_string()),
+            );
         }
 
         let schema_map = Self::build_schema_map(&contracts);
@@ -96,16 +103,17 @@ impl EthConnector {
         }
     }
 
-    fn build_schema_map(contracts: &HashMap<String, Contract>) -> HashMap<(String, String), usize> {
+    fn build_schema_map(contracts: &HashMap<String, ContractTuple>) -> HashMap<H256, usize> {
         let mut schema_map = HashMap::new();
 
         let mut idx = 0;
-        for (address, contract) in contracts {
+        for contract_tuple in contracts.values() {
+            let contract = contract_tuple.0.clone();
             let mut events: Vec<&Event> = contract.events.values().flatten().collect();
             events.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
             for evt in events {
-                schema_map.insert((address.to_string(), evt.name.to_string()), 2 + idx);
+                schema_map.insert(evt.signature(), 2 + idx);
                 idx += 1;
             }
         }
