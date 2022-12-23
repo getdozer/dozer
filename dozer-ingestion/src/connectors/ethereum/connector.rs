@@ -93,7 +93,6 @@ impl EthConnector {
         }
 
         let schema_map = Self::build_schema_map(&contracts);
-        println!("Schema map : {:?}", schema_map);
         Self {
             id,
             config,
