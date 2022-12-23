@@ -56,6 +56,9 @@ fn run() -> Result<(), OrchestrationError> {
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
+            Commands::Init(_init) => {
+                dozer.init()
+            },
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
                     render_logo();

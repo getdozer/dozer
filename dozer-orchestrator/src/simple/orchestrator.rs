@@ -66,10 +66,8 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
-        Executor::get_tables(&self.config.connections)
+    fn init(&mut self) -> Result<(), OrchestrationError> {
+        Ok(())
     }
 
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
@@ -214,5 +212,11 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_home_dir,
         );
         executor.run(Some(sender))
+    }
+
+    fn list_connectors(
+        &self,
+    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+        Executor::get_tables(&self.config.connections)
     }
 }

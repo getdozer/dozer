@@ -22,6 +22,7 @@ pub enum Commands {
     Api(Api),
     App(App),
     Connector(Connector),
+    Init(Init),
 }
 
 #[derive(Debug, Args)]
@@ -44,6 +45,10 @@ pub struct Connector {
     #[command(subcommand)]
     pub command: ConnectorCommands,
 }
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Init {}
 
 #[derive(Debug, Subcommand)]
 pub enum ApiCommands {
