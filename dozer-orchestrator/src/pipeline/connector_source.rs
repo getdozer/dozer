@@ -25,9 +25,42 @@ pub struct NewConnectorSourceFactory {
 
 // TODO: Move this to sources.rs when everything is connected proeprly
 
+impl NewConnectorSourceFactory {
+    fn get_schema_name_by_port(&self, port: &PortHandle) -> Option<&str> {
+        for (key, val) in self.ports.iter() {
+            if val == port {
+                return Some(key);
+            }
+        }
+        None
+    }
+}
 impl SourceFactory for NewConnectorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        todo!()
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        self.get_schema_name_by_port(port).map_or(
+            Err(ExecutionError::PortNotFoundInSource(*port)),
+            |schema_name| {
+                let mut connector = get_connector(self.connection.to_owned())
+                    .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
+
+                let tables: Vec<TableInfo> = self
+                    .tables
+                    .iter()
+                    .filter(|t| t.name == schema_name)
+                    .cloned()
+                    .collect();
+
+                connector
+                    .get_schemas(Some(tables))
+                    .map(|result| {
+                        result.get(0).map_or(
+                            Err(ExecutionError::FailedToGetOutputSchema(schema_name)),
+                            |(_, schema)| Ok(schema.clone()),
+                        )
+                    })
+                    .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?
+            },
+        )
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
