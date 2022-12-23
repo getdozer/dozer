@@ -5,6 +5,7 @@ pub mod internal;
 mod shared_impl;
 pub mod typed;
 pub mod types_helper;
+mod auth_interceptor;
 pub mod types {
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("dozer.types"); // The string specified here must match the proto package name

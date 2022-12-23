@@ -1366,6 +1366,7 @@ dependencies = [
  "tonic-build",
  "tonic-reflection",
  "tonic-web",
+ "tower",
  "tracing-actix-web",
 ]
 

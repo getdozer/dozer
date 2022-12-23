@@ -30,6 +30,7 @@ tokio-stream = "0.1.11"
 crossbeam = "0.8.2"
 async-trait = "0.1.58"
 tracing-actix-web = "0.6.2"
+tower = "0.4.13"
 
 
 [build-dependencies]

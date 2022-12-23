@@ -7,6 +7,7 @@ use super::{
     },
     typed::TypedService,
 };
+use crate::grpc::auth_interceptor::auth_interceptor;
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
@@ -170,8 +171,15 @@ impl ApiServer {
             event_notifier: rx1.resubscribe(),
         });
 
+        // middleware
+        let layer = tower::ServiceBuilder::new()
+            // Interceptors can be also be applied as middleware
+            .layer(tonic::service::interceptor(auth_interceptor))
+            .into_inner();
+
         let mut grpc_router = Server::builder()
             .accept_http1(true)
+            .layer(layer)
             .concurrency_limit_per_connection(32)
             .add_service(
                 tonic_web::config()
