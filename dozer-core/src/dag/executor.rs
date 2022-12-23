@@ -19,14 +19,14 @@ use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, EnvironmentManager, RenewableRwTransaction};
 
 use crate::storage::transactions::SharedTransaction;
-use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
+use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Select, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 
 use crate::dag::epoch_manager::{Epoch, EpochManager};
 use log::info;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -482,13 +482,28 @@ impl<'a> DagExecutor<'a> {
             let mut port_states: Vec<InputPortState> =
                 handles_ls.iter().map(|_h| InputPortState::Open).collect();
 
+            let mut readable_ports: Vec<bool> = receivers_ls.iter().map(|e| true).collect();
+            let mut commits_received: usize = 0;
+
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
+                if !readable_ports[index] {
+                    continue;
+                }
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Commit { epoch } => {
-                        proc.commit(&epoch.details, &mut SharedTransaction::new(&master_tx))?;
-                        fw.store_and_send_commit(&epoch)?;
+                        commits_received += 1;
+                        readable_ports[index] = false;
+
+                        if commits_received == receivers_ls.len() {
+                            proc.commit(&epoch.details, &mut SharedTransaction::new(&master_tx))?;
+                            fw.store_and_send_commit(&epoch)?;
+                            commits_received = 0;
+                            for v in &mut readable_ports {
+                                *v = true;
+                            }
+                        }
                     }
                     ExecutorOperation::Terminate => {
                         port_states[index] = InputPortState::Terminated;
@@ -553,18 +568,33 @@ impl<'a> DagExecutor<'a> {
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
 
+            let mut readable_ports: Vec<bool> = receivers_ls.iter().map(|e| true).collect();
+            let mut commits_received: usize = 0;
+
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
+                if !readable_ports[index] {
+                    continue;
+                }
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Terminate => {
                         info!("[{}] Terminating: Exiting message loop", handle);
                         return Ok(());
                     }
                     ExecutorOperation::Commit { epoch } => {
-                        info!("[{}] Checkpointing ({})", handle, epoch);
-                        snk.commit(&epoch.details, &mut SharedTransaction::new(&master_tx))?;
-                        state_writer.store_commit_info(&epoch.details)?;
+                        commits_received += 1;
+                        readable_ports[index] = false;
+
+                        if commits_received == receivers_ls.len() {
+                            info!("[{}] Checkpointing ({})", handle, epoch);
+                            snk.commit(&epoch.details, &mut SharedTransaction::new(&master_tx))?;
+                            state_writer.store_commit_info(&epoch.details)?;
+                            commits_received = 0;
+                            for v in &mut readable_ports {
+                                *v = true;
+                            }
+                        }
                     }
                     op => {
                         let data_op = map_to_op(op)?;
