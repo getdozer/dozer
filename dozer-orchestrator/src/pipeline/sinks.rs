@@ -1,5 +1,5 @@
-use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
-use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
+use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{
@@ -26,7 +26,7 @@ pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    notifier: Option<Sender<PipelineRequest>>,
+    notifier: Option<Sender<PipelineResponse>>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -53,7 +53,7 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        notifier: Option<Sender<PipelineRequest>>,
+        notifier: Option<Sender<PipelineResponse>>,
     ) -> Self {
         Self {
             input_ports,
@@ -166,7 +166,7 @@ pub struct CacheSink {
     input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
-    notifier: Option<Sender<PipelineRequest>>,
+    notifier: Option<Sender<PipelineResponse>>,
 }
 
 impl Sink for CacheSink {
@@ -244,7 +244,7 @@ impl Sink for CacheSink {
         if let Some(notifier) = &self.notifier {
             let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
             notifier
-                .try_send(PipelineRequest {
+                .try_send(PipelineResponse {
                     endpoint: self.api_endpoint.name.to_owned(),
                     api_event: Some(ApiEvent::Op(op)),
                 })
@@ -287,7 +287,7 @@ impl CacheSink {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
-        notifier: Option<Sender<PipelineRequest>>,
+        notifier: Option<Sender<PipelineResponse>>,
     ) -> Self {
         Self {
             txn: None,

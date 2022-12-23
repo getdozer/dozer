@@ -1431,6 +1431,7 @@ dependencies = [
  "serde_json",
  "tempdir",
  "tokio",
+ "tokio-stream",
  "tonic",
  "uuid 1.2.1",
 ]
