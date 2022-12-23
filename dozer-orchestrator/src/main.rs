@@ -1,25 +1,28 @@
 use clap::Parser;
-use dozer_orchestrator::cli::load_config;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
+use dozer_orchestrator::cli::{load_config, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use dozer_types::crossbeam::channel;
-use dozer_types::log::info;
+use dozer_types::log::{debug, error, info};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{panic, process, thread};
 use tokio::runtime::Runtime;
 
-fn main() -> Result<(), OrchestrationError> {
-    let orig_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        // invoke the default handler and exit the process
-        orig_hook(panic_info);
-        process::exit(1);
-    }));
+fn main() {
+    if let Err(e) = run() {
+        error!("{}", e);
+    }
+}
 
+fn render_logo() {
+    info!("{}", LOGO);
+}
+
+fn run() -> Result<(), OrchestrationError> {
     let _tracing_thread = thread::spawn(|| {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
@@ -27,14 +30,13 @@ fn main() -> Result<(), OrchestrationError> {
         });
     });
     thread::sleep(Duration::from_millis(50));
-    info!(
-        "
-      ____   ___ __________ ____
-     |  _ \\ / _ \\__  / ____|  _ \\
-     | | | | | | |/ /|  _| | |_) |
-     | |_| | |_| / /_| |___|  _ <
-     |____/ \\___/____|_____|_| \\_\\"
-    );
+
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        // invoke the default handler and exit the process
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
 
     let cli = Cli::parse();
     let running = Arc::new(AtomicBool::new(true));
@@ -50,15 +52,21 @@ fn main() -> Result<(), OrchestrationError> {
     let configuration = load_config(cli.config_path)?;
     let mut dozer = Dozer::new(configuration);
 
-    let res = if let Some(cmd) = cli.cmd {
+    if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
             Commands::Api(api) => match api.command {
-                ApiCommands::Run => dozer.run_api(running),
+                ApiCommands::Run => {
+                    render_logo();
+                    dozer.run_api(running)
+                }
                 ApiCommands::GenerateToken => todo!(),
             },
             Commands::App(apps) => match apps.command {
-                AppCommands::Run => dozer.run_apps(running, None),
+                AppCommands::Run => {
+                    render_logo();
+                    dozer.run_apps(running, None)
+                }
             },
             Commands::Connector(sources) => match sources.command {
                 ConnectorCommands::Ls => {
@@ -80,19 +88,30 @@ fn main() -> Result<(), OrchestrationError> {
             },
         }
     } else {
+        render_logo();
+
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        let pipeline_thread = thread::spawn(move || dozer.run_apps(running, Some(tx)).unwrap());
+        let pipeline_thread = thread::spawn(move || {
+            if let Err(e) = dozer.run_apps(running, Some(tx)) {
+                debug!("{:?}", e);
+                panic!("Error in pipeline: {}", e);
+            }
+        });
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
 
-        thread::spawn(move || dozer_api.run_api(running_api).unwrap());
+        thread::spawn(move || {
+            if let Err(e) = dozer_api.run_api(running_api) {
+                debug!("{:?}", e);
+                panic!("Error in Api: {}", e);
+            }
+        });
 
         pipeline_thread.join().unwrap();
         Ok(())
-    };
-    res
+    }
 }

@@ -27,9 +27,9 @@ pub struct EthDetails {
     filter: EthFilter,
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
-    contract: Option<Contract>,
+    contracts: HashMap<String, Contract>,
     pub tables: Option<Vec<TableInfo>>,
-    pub schema_map: HashMap<String, usize>,
+    pub schema_map: HashMap<(String, String), usize>,
 }
 
 impl EthDetails {
@@ -38,16 +38,16 @@ impl EthDetails {
         filter: EthFilter,
         ingestor: Arc<RwLock<Ingestor>>,
         connector_id: u64,
-        contract: Option<Contract>,
+        contracts: HashMap<String, Contract>,
         tables: Option<Vec<TableInfo>>,
-        schema_map: HashMap<String, usize>,
+        schema_map: HashMap<(String, String), usize>,
     ) -> Self {
         EthDetails {
             wss_url,
             filter,
             ingestor,
             connector_id,
-            contract,
+            contracts,
             tables,
             schema_map,
         }
@@ -56,7 +56,9 @@ impl EthDetails {
 
 #[allow(unreachable_code)]
 pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
-    let client = helper::get_wss_client(&details.wss_url).await.unwrap();
+    let client = helper::get_wss_client(&details.wss_url)
+        .await
+        .map_err(ConnectorError::EthError)?;
 
     // Get current block no.
     let block_end = client
@@ -187,24 +189,24 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
         }
 
         // write event record optionally
-        if let Some(ref contract) = details.contract {
-            let op = helper::decode_event(
-                msg,
-                contract.to_owned(),
-                details.tables.clone(),
-                details.schema_map.clone(),
-            );
-            if let Some(op) = op {
-                trace!("Writing event : {:?}", op);
-                details
-                    .ingestor
-                    .write()
-                    .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
-                    .map_err(ConnectorError::IngestorError)?;
-            } else {
-                trace!("Writing event : {:?}", op);
-            }
+
+        let op = helper::decode_event(
+            msg,
+            details.contracts.to_owned(),
+            details.tables.clone(),
+            details.schema_map.clone(),
+        );
+        if let Some(op) = op {
+            trace!("Writing event : {:?}", op);
+            details
+                .ingestor
+                .write()
+                .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
+                .map_err(ConnectorError::IngestorError)?;
+        } else {
+            trace!("Writing event : {:?}", op);
         }
+
         Ok(())
     }
 }

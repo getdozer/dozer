@@ -19,9 +19,11 @@ use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 pub struct EthConnector {
     pub id: u64,
     config: EthConfig,
-    contract: Option<Contract>,
+    // Address-> contract
+    contracts: HashMap<String, Contract>,
     tables: Option<Vec<TableInfo>>,
-    schema_map: HashMap<String, usize>,
+    // (Address, Name) -> SchemaID
+    schema_map: HashMap<(String, String), usize>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
@@ -76,34 +78,38 @@ impl EthConnector {
     }
 
     pub fn new(id: u64, config: EthConfig) -> Self {
-        let contract: Option<Contract> = config
-            .contract_abi
-            .to_owned()
-            .map(|s| serde_json::from_str(&s).unwrap());
+        let mut contracts = HashMap::new();
 
-        let schema_map = Self::build_schema_map(&contract);
+        for c in &config.contracts {
+            let contract = serde_json::from_str(&c.abi).expect("unable to parse contract from abi");
+            contracts.insert(c.address.to_string().to_lowercase(), contract);
+        }
+
+        let schema_map = Self::build_schema_map(&contracts);
         Self {
             id,
             config,
-            contract,
+            contracts,
             schema_map,
             tables: None,
             ingestor: None,
         }
     }
 
-    fn build_schema_map(contract: &Option<Contract>) -> HashMap<String, usize> {
+    fn build_schema_map(contracts: &HashMap<String, Contract>) -> HashMap<(String, String), usize> {
         let mut schema_map = HashMap::new();
-        schema_map.insert(ETH_LOGS_TABLE.to_string(), 1);
 
-        if let Some(contract) = contract {
+        let mut idx = 0;
+        for (address, contract) in contracts {
             let mut events: Vec<&Event> = contract.events.values().flatten().collect();
             events.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
-            for (idx, evt) in events.iter().enumerate() {
-                schema_map.insert(evt.name.to_string(), 2 + idx);
+            for evt in events {
+                schema_map.insert((address.to_string(), evt.name.to_string()), 2 + idx);
+                idx += 1;
             }
         }
+
         schema_map
     }
 }
@@ -113,16 +119,13 @@ impl Connector for EthConnector {
         &self,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        let schemas = vec![(ETH_LOGS_TABLE.to_string(), helper::get_eth_schema())];
-        let schemas = if let Some(contract) = &self.contract {
-            let event_schemas =
-                helper::get_contract_event_schemas(contract, self.schema_map.to_owned());
+        let mut schemas = vec![(ETH_LOGS_TABLE.to_string(), helper::get_eth_schema())];
 
-            [schemas, event_schemas].concat()
-        } else {
-            schemas
-        };
-        info!("Initializing schemas: {:?}", schemas);
+        let event_schemas = helper::get_contract_event_schemas(
+            self.contracts.to_owned(),
+            self.schema_map.to_owned(),
+        );
+        schemas.extend(event_schemas);
 
         let schemas = if let Some(tables) = tables {
             schemas
@@ -181,7 +184,7 @@ impl Connector for EthConnector {
                 filter,
                 ingestor,
                 connector_id,
-                self.contract.to_owned(),
+                self.contracts.to_owned(),
                 self.tables.to_owned(),
                 self.schema_map.to_owned(),
             ));
@@ -196,14 +199,13 @@ impl Connector for EthConnector {
     }
 
     fn validate(&self) -> Result<(), ConnectorError> {
-        if let Some(contract_abi) = self.config.contract_abi.to_owned() {
-            let res: Result<Contract, serde_json::Error> = serde_json::from_str(&contract_abi);
-
-            // Return contract parsing error
+        for contract in &self.config.contracts {
+            let res: Result<Contract, serde_json::Error> = serde_json::from_str(&contract.abi);
             if let Err(e) = res {
                 return Err(ConnectorError::map_serialization_error(e));
             }
         }
+        // Return contract parsing error
 
         Ok(())
     }
