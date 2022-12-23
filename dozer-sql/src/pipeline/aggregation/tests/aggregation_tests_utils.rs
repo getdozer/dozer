@@ -3,9 +3,8 @@ use dozer_core::{
         dag::DEFAULT_PORT_HANDLE,
         node::{PortHandle, Processor},
     },
-    storage::{common::RenewableRwTransaction, lmdb_storage::LmdbEnvironmentManager},
+    storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
 };
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, DATE_FORMAT,
 };
@@ -17,20 +16,16 @@ use crate::pipeline::{
     errors::PipelineError,
 };
 
-type AggregationTransaction = dozer_types::parking_lot::lock_api::RwLock<
-    dozer_types::parking_lot::RawRwLock,
-    Box<dyn RenewableRwTransaction>,
->;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 pub(crate) fn init_processor(
     sql: &str,
     input_schemas: HashMap<PortHandle, Schema>,
-) -> Result<(AggregationProcessor, Arc<AggregationTransaction>), PipelineError> {
+) -> Result<(AggregationProcessor, SharedTransaction), PipelineError> {
     let select = get_select(sql)?;
 
     let input_schema = input_schemas
@@ -50,10 +45,10 @@ pub(crate) fn init_processor(
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     processor
-        .init(storage.as_environment())
+        .init(&mut storage)
         .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
-    let tx = Arc::new(RwLock::new(storage.create_txn().unwrap()));
+    let tx = storage.create_txn().unwrap();
 
     Ok((processor, tx))
 }
@@ -191,11 +186,7 @@ pub fn get_date_field(val: &str) -> Field {
 macro_rules! output {
     ($processor:expr, $inp:expr, $tx:expr) => {
         $processor
-            .aggregate(
-                &mut SharedTransaction::new(&$tx),
-                &$processor.db.clone().unwrap(),
-                $inp,
-            )
+            .aggregate(&mut $tx.write(), $processor.db.unwrap(), $inp)
             .unwrap_or_else(|_e| panic!("Error executing aggregate"))
     };
 }

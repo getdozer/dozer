@@ -4,7 +4,8 @@ use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{NodeHandle, PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
-use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::common::Database;
+use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
@@ -31,7 +32,7 @@ impl ProductProcessor {
         }
     }
 
-    fn init_store(&mut self, env: &mut dyn Environment) -> Result<(), PipelineError> {
+    fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
         self.db = Some(env.open_database("product", true)?);
         Ok(())
     }
@@ -40,7 +41,7 @@ impl ProductProcessor {
         &self,
         _from_port: PortHandle,
         record: &Record,
-        _txn: &mut dyn RwTransaction,
+        _txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Operation {
         Operation::Delete {
@@ -52,7 +53,7 @@ impl ProductProcessor {
         &self,
         from_port: PortHandle,
         record: &Record,
-        _txn: &mut dyn RwTransaction,
+        _txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<Vec<Record>, ExecutionError> {
         if let Some(input_table) = self.join_tables.get(&from_port) {
@@ -76,7 +77,7 @@ impl ProductProcessor {
         _from_port: PortHandle,
         old: &Record,
         new: &Record,
-        _txn: &mut dyn RwTransaction,
+        _txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Operation {
         Operation::Update {
@@ -91,7 +92,7 @@ impl ProductProcessor {
 }
 
 impl Processor for ProductProcessor {
-    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         internal_err!(self.init_store(state))
     }
 
@@ -100,7 +101,7 @@ impl Processor for ProductProcessor {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -110,7 +111,7 @@ impl Processor for ProductProcessor {
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        txn: &mut dyn RwTransaction,
+        txn: &SharedTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         match op {

@@ -12,7 +12,7 @@ use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use crate::storage::common::{Environment, RwTransaction};
+use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
 
@@ -69,7 +69,7 @@ struct ErrorProcessor {
 }
 
 impl Processor for ErrorProcessor {
-    fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -78,7 +78,7 @@ impl Processor for ErrorProcessor {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -88,7 +88,7 @@ impl Processor for ErrorProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.count += 1;
@@ -484,7 +484,7 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -493,7 +493,7 @@ impl Sink for ErrSink {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -502,7 +502,7 @@ impl Sink for ErrSink {
         &mut self,
         _from_port: PortHandle,
         _op: Operation,
-        _state: &mut dyn RwTransaction,
+        _state: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;
