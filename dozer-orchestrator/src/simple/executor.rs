@@ -1,5 +1,5 @@
+use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_types::types::Schema;
-use dozer_api::grpc::internal_grpc::{PipelineRequest, PipelineResponse};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -107,7 +107,7 @@ impl Executor {
 
     pub fn run(
         &self,
-        notifier: Option<crossbeam::channel::Sender<PipelineRequest>>,
+        notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
     ) -> Result<(), OrchestrationError> {
         let source_handle = NodeHandle::new(None, "src".to_string());
 

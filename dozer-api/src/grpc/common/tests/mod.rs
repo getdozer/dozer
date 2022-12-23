@@ -3,7 +3,9 @@ use crate::grpc::{
         common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
         OnEventRequest, QueryRequest,
     },
-    typed::tests::service::setup_pipeline,
+    typed::tests::{
+        fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, service::setup_pipeline,
+    },
     types::{value, EventType, FieldDefinition, OperationType, Type, Value},
 };
 use dozer_types::models::api_config::default_api_config;
