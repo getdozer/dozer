@@ -1,12 +1,12 @@
 use clap::{Args, Parser, Subcommand};
 
+use super::{DESCRIPTION, LOGO};
+
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
 #[command(
-    about = "CLI to interact with dozer components",
-    long_about = " Dozer lets you publish blazing fast data apis directly from your data sources. \
-    Dozer on the fly moves, transforms, caches data and expose them as APIs in the form of gRPC and REST. \
-    "
+    about = format!("{} \n {}", LOGO, DESCRIPTION),
+    long_about = format!("{} \n {}", LOGO, DESCRIPTION),
 )]
 pub struct Cli {
     #[arg(short = 'c', long, default_value = "./dozer-config.yaml")]

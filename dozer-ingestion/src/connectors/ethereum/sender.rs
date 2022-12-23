@@ -56,7 +56,9 @@ impl EthDetails {
 
 #[allow(unreachable_code)]
 pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
-    let client = helper::get_wss_client(&details.wss_url).await.unwrap();
+    let client = helper::get_wss_client(&details.wss_url)
+        .await
+        .map_err(ConnectorError::EthError)?;
 
     // Get current block no.
     let block_end = client
