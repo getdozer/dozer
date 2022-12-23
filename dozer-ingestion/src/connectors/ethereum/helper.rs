@@ -103,7 +103,7 @@ pub fn decode_event(
         .expect("schema is missing")
         .to_owned();
 
-    let table_name = get_table_name(&contract_tuple, &event.name);
+    let table_name = get_table_name(contract_tuple, &event.name);
     let is_table_required =
         tables.map_or(true, |tables| tables.iter().any(|t| t.name == table_name));
     if is_table_required {

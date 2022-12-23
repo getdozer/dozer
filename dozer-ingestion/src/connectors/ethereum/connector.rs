@@ -108,7 +108,7 @@ impl EthConnector {
         let mut schema_map = HashMap::new();
 
         let mut idx = 0;
-        for (_, contract_tuple) in contracts {
+        for contract_tuple in contracts.values() {
             let contract = contract_tuple.0.clone();
             let mut events: Vec<&Event> = contract.events.values().flatten().collect();
             events.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
