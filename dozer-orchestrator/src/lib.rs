@@ -1,17 +1,15 @@
 pub mod cli;
 pub mod errors;
-pub mod internal;
 pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
+use dozer_types::{crossbeam::channel::Sender, types::Schema};
+use errors::OrchestrationError;
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicBool, Arc},
 };
-
-use dozer_types::{crossbeam::channel::Sender, types::Schema};
-use errors::OrchestrationError;
 #[cfg(test)]
 mod test_utils;
 mod utils;

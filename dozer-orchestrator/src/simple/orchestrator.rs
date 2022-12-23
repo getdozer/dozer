@@ -1,15 +1,18 @@
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
-use crate::internal::internal_pipeline_server::start_internal_pipeline_server;
 use crate::utils::{
     get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_config, get_pipeline_dir,
     get_rest_config,
 };
 use crate::Orchestrator;
-use dozer_api::actix_web::dev::ServerHandle;
-use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_api::CacheEndpoint;
-use dozer_api::{grpc, rest};
+use dozer_api::{
+    actix_web::dev::ServerHandle,
+    grpc::{
+        self, internal::internal_pipeline_server::start_internal_pipeline_server,
+        internal_grpc::PipelineResponse,
+    },
+    rest, CacheEndpoint,
+};
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_ingestion::ingestion::IngestionConfig;

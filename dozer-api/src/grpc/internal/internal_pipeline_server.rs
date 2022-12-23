@@ -1,12 +1,11 @@
-use std::{net::ToSocketAddrs, pin::Pin};
-
-use crossbeam::channel::Receiver;
-use dozer_api::grpc::internal_grpc::{
+use crate::grpc::internal_grpc::{
     internal_pipeline_service_server::{self, InternalPipelineService},
     GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, PipelineResponse,
     RestartPipelineRequest, RestartPipelineResponse,
 };
+use crossbeam::channel::Receiver;
 use dozer_types::{crossbeam, models::app_config::Config, tracing::warn};
+use std::{net::ToSocketAddrs, pin::Pin};
 use tokio::runtime::Runtime;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
