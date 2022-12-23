@@ -19,6 +19,9 @@ pub use indexmap;
 pub use log;
 pub use ordered_float;
 pub use parking_lot;
+#[macro_use]
+pub extern crate prettytable;
+
 pub use rust_decimal;
 pub use serde;
 pub use serde_json;

@@ -6,6 +6,7 @@ use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use dozer_types::crossbeam::channel;
 use dozer_types::log::{debug, error, info};
+use dozer_types::prettytable::{row, Table};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -72,18 +73,18 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Connector(sources) => match sources.command {
                 ConnectorCommands::Ls => {
                     let connection_map = dozer.list_connectors()?;
+                    let mut table_parent = Table::new();
                     for (c, tables) in connection_map {
-                        info!("------------Connection: {} ------------", c);
-                        info!("");
-                        for (schema_name, schema) in tables {
-                            info!("Schema: {}", schema_name);
+                        table_parent.add_row(row!["Connection", "Table", "Columns"]);
 
-                            for f in schema.fields {
-                                info!("  {}    -       {:?}", f.name, f.typ);
-                            }
-                            info!("");
+                        for (schema_name, schema) in tables {
+                            let schema_table = schema.print();
+
+                            table_parent.add_row(row![c, schema_name, schema_table]);
                         }
+                        table_parent.add_empty_row();
                     }
+                    table_parent.printstd();
                     Ok(())
                 }
             },

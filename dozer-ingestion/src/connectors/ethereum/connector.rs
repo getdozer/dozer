@@ -8,7 +8,6 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter};
-use dozer_types::log::info;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
@@ -145,7 +144,6 @@ impl Connector for EthConnector {
         } else {
             schemas
         };
-        info!("Initializing schemas: {:?}", schemas);
         Ok(schemas)
     }
 
