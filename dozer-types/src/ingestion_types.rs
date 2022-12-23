@@ -52,9 +52,16 @@ pub struct EthConfig {
     pub filter: Option<EthFilter>,
     #[prost(string, tag = "2")]
     pub wss_url: String,
+    #[prost(message, repeated, tag = "3")]
+    pub contracts: Vec<EthContract>,
+}
 
-    #[prost(message, tag = "4")]
-    pub contract_abi: Option<String>,
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct EthContract {
+    #[prost(string, tag = "1")]
+    pub address: String,
+    #[prost(string, tag = "2")]
+    pub abi: String,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
