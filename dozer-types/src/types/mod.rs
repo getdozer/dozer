@@ -80,9 +80,9 @@ impl Schema {
 
     pub fn print(&self) -> Table {
         let mut table = Table::new();
-        table.add_row(row!["Field", "Type"]);
+        table.add_row(row!["Field", "Type", "Nullable"]);
         for f in &self.fields {
-            table.add_row(row![f.name, format!("{:?}", f.typ)]);
+            table.add_row(row![f.name, format!("{:?}", f.typ), f.nullable]);
         }
         table
     }
