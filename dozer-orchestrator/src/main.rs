@@ -16,7 +16,6 @@ use tokio::runtime::Runtime;
 
 fn main() {
     if let Err(e) = run() {
-        debug!("{:?}", e);
         error!("{}", e);
     }
 }
@@ -99,7 +98,8 @@ fn run() -> Result<(), OrchestrationError> {
 
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.run_apps(running, Some(tx)) {
-                panic!("Dozer Pipeline: {}", e.to_string());
+                debug!("{:?}", e);
+                panic!("Error in pipeline: {}", e.to_string());
             }
         });
 
@@ -108,7 +108,8 @@ fn run() -> Result<(), OrchestrationError> {
 
         thread::spawn(move || {
             if let Err(e) = dozer_api.run_api(running_api) {
-                panic!("Dozer Api: {}", e.to_string());
+                debug!("{:?}", e);
+                panic!("Error in Api: {}", e.to_string());
             }
         });
 

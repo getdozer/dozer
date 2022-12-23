@@ -31,7 +31,7 @@ pub enum OrchestrationError {
     #[error(transparent)]
     CliError(#[from] CliError),
 
-    #[error("Port not found with the table name")]
+    #[error("Can't find the table name ({0:?}) in the sources provided.")]
     PortNotFound(String),
 
     #[error("Failed to initialize internal server")]
