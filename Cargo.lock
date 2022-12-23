@@ -1427,7 +1427,6 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "indicatif",
- "log",
  "serde",
  "serde_json",
  "tempdir",

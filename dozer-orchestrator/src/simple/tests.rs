@@ -13,6 +13,7 @@ use dozer_cache::cache::{expression::QueryExpression, test_utils, Cache, CacheOp
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::{
     ingestion_types::IngestionMessage,
+    log::warn,
     models::{
         self,
         api_endpoint::{ApiEndpoint, ApiIndex},
@@ -20,7 +21,6 @@ use dozer_types::{
     },
     types::{Field, OperationEvent, Record, Schema},
 };
-use log::warn;
 use serde_json::{json, Value};
 use tempdir::TempDir;
 
