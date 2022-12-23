@@ -46,6 +46,10 @@ pub enum ExecutionError {
     AmbiguousSourceIdentifier(AppSourceId),
     #[error("Inconsistent checkpointing data")]
     InconsistentCheckpointMetadata,
+    #[error("Port not found for source: {0}")]
+    PortNotFoundInSource(PortHandle),
+    #[error("Failed to get output schema: {0}")]
+    FailedToGetOutputSchema(String),
 
     // Error forwarders
     #[error(transparent)]
