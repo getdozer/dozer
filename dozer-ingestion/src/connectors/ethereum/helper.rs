@@ -87,7 +87,7 @@ pub fn decode_event(
     let address = format!("{:?}", log.address);
     let contract = contracts
         .get(&address)
-        .expect(&format!("no contract found for address: {}", address));
+        .unwrap_or_else(|| panic!("no contract found for address: {}", address));
 
     let event = contract
         .events

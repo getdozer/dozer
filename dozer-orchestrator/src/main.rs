@@ -99,7 +99,7 @@ fn run() -> Result<(), OrchestrationError> {
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.run_apps(running, Some(tx)) {
                 debug!("{:?}", e);
-                panic!("Error in pipeline: {}", e.to_string());
+                panic!("Error in pipeline: {}", e);
             }
         });
 
@@ -109,7 +109,7 @@ fn run() -> Result<(), OrchestrationError> {
         thread::spawn(move || {
             if let Err(e) = dozer_api.run_api(running_api) {
                 debug!("{:?}", e);
-                panic!("Error in Api: {}", e.to_string());
+                panic!("Error in Api: {}", e);
             }
         });
 
