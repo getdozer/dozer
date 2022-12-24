@@ -29,4 +29,4 @@ ENV PATH="$PATH:/usr/local/protoc/bin"
 
 WORKDIR /usr/dozer
 #CMD ["bash"]
-ENTRYPOINT ["dozer"]
+CMD ["dozer"]
