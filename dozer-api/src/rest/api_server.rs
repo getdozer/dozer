@@ -83,13 +83,14 @@ impl ApiServer {
             Error = actix_web::Error,
         >,
     > {
-        let app = App::new()
+        let mut app = App::new()
             .wrap(Logger::default())
             .wrap(TracingLogger::default());
 
-        // Injecting API Security
-        let app = app.app_data(security.to_owned());
-
+        if let Some(api_security) = security.to_owned() {
+            // Injecting API Security
+            app = app.app_data(api_security.to_owned());
+        }
         let is_auth_configured = security.is_some();
         let auth_middleware =
             Condition::new(is_auth_configured, HttpAuthentication::bearer(validate));
