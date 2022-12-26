@@ -6,7 +6,7 @@ use crate::{
     field_extract_i64, field_extract_timestamp, to_bytes, try_unwrap,
 };
 
-use dozer_core::storage::common::{Database, RwTransaction};
+use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp};
@@ -42,7 +42,7 @@ impl MaxAggregator {
         new: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
             (FieldType::Date, _) => {
@@ -135,7 +135,7 @@ impl MaxAggregator {
         new: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
             (FieldType::Date, _) => {
@@ -239,7 +239,7 @@ impl MaxAggregator {
         old: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, old) {
             (FieldType::Date, _) => {
@@ -360,7 +360,7 @@ impl MaxAggregator {
         val_delta: u8,
         decr: bool,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) {
         let get_prev_count = try_unwrap!(ptx.get(aggregators_db, key));
         let prev_count = deserialize_u8!(get_prev_count);
@@ -379,7 +379,7 @@ impl MaxAggregator {
 
     fn calc_f64_max(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<f64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut maximum = f64::MIN;
@@ -394,7 +394,7 @@ impl MaxAggregator {
 
     fn calc_decimal_max(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<dozer_types::rust_decimal::Decimal, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut maximum = dozer_types::rust_decimal::Decimal::MIN;
@@ -409,7 +409,7 @@ impl MaxAggregator {
 
     fn calc_timestamp_max(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<DateTime<FixedOffset>, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut maximum = DateTime::<FixedOffset>::MIN_UTC;
@@ -424,7 +424,7 @@ impl MaxAggregator {
 
     fn calc_date_max(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<NaiveDate, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut maximum = NaiveDate::MIN;
@@ -443,7 +443,7 @@ impl MaxAggregator {
 
     fn calc_i64_max(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<i64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut maximum = i64::MIN;

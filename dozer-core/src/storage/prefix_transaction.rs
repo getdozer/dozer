@@ -1,13 +1,18 @@
-use crate::storage::common::{Database, RoCursor, RwCursor, RwTransaction};
+use lmdb::RoCursor;
+
+use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
+
+use super::common::Seek;
+use super::lmdb_storage::LmdbExclusiveTransaction;
 
 pub struct PrefixTransaction<'a> {
     prefix: [u8; 4],
-    tx: &'a mut dyn RwTransaction,
+    tx: &'a mut LmdbExclusiveTransaction,
 }
 
 impl<'a> PrefixTransaction<'a> {
-    pub fn new(tx: &'a mut dyn RwTransaction, prefix: u32) -> Self {
+    pub fn new(tx: &'a mut LmdbExclusiveTransaction, prefix: u32) -> Self {
         Self {
             tx,
             prefix: prefix.to_be_bytes(),
@@ -15,9 +20,9 @@ impl<'a> PrefixTransaction<'a> {
     }
 }
 
-impl<'a> RwTransaction for PrefixTransaction<'a> {
+impl<'a> PrefixTransaction<'a> {
     #[inline]
-    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+    pub fn get(&self, db: Database, key: &[u8]) -> Result<Option<&[u8]>, StorageError> {
         let mut full_key = Vec::with_capacity(key.len() + self.prefix.len());
         full_key.extend(self.prefix);
         full_key.extend(key);
@@ -25,7 +30,7 @@ impl<'a> RwTransaction for PrefixTransaction<'a> {
     }
 
     #[inline]
-    fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
+    pub fn put(&mut self, db: Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
         let mut full_key = Vec::with_capacity(key.len() + self.prefix.len());
         full_key.extend(self.prefix);
         full_key.extend(key);
@@ -33,9 +38,9 @@ impl<'a> RwTransaction for PrefixTransaction<'a> {
     }
 
     #[inline]
-    fn del(
+    pub fn del(
         &mut self,
-        db: &Database,
+        db: Database,
         key: &[u8],
         value: Option<&[u8]>,
     ) -> Result<bool, StorageError> {
@@ -45,26 +50,26 @@ impl<'a> RwTransaction for PrefixTransaction<'a> {
         self.tx.del(db, &full_key, value)
     }
 
-    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError> {
-        let cursor = self.tx.open_cursor(db)?;
-        Ok(Box::new(PrefixReaderWriterCursor::new(cursor, self.prefix)))
+    pub fn open_cursor(&self, db: Database) -> Result<PrefixReaderCursor, StorageError> {
+        let cursor = self.tx.open_ro_cursor(db)?;
+        Ok(PrefixReaderCursor::new(cursor, self.prefix))
     }
 }
 
-pub struct PrefixReaderWriterCursor {
+pub struct PrefixReaderCursor<'txn> {
     prefix: [u8; 4],
-    inner: Box<dyn RwCursor>,
+    inner: RoCursor<'txn>,
 }
 
-impl PrefixReaderWriterCursor {
-    pub fn new(inner: Box<dyn RwCursor>, prefix: [u8; 4]) -> Self {
+impl<'txn> PrefixReaderCursor<'txn> {
+    pub fn new(inner: RoCursor<'txn>, prefix: [u8; 4]) -> Self {
         Self { inner, prefix }
     }
 }
 
-impl RoCursor for PrefixReaderWriterCursor {
+impl<'txn> PrefixReaderCursor<'txn> {
     #[inline]
-    fn seek_gte(&self, key: &[u8]) -> Result<bool, StorageError> {
+    pub fn seek_gte(&self, key: &[u8]) -> Result<bool, StorageError> {
         let mut full_key = Vec::with_capacity(key.len() + self.prefix.len());
         full_key.extend(self.prefix);
         full_key.extend(key);
@@ -72,7 +77,7 @@ impl RoCursor for PrefixReaderWriterCursor {
     }
 
     #[inline]
-    fn seek(&self, key: &[u8]) -> Result<bool, StorageError> {
+    pub fn seek(&self, key: &[u8]) -> Result<bool, StorageError> {
         let mut full_key = Vec::with_capacity(key.len() + self.prefix.len());
         full_key.extend(self.prefix);
         full_key.extend(key);
@@ -80,15 +85,8 @@ impl RoCursor for PrefixReaderWriterCursor {
     }
 
     #[inline]
-    fn seek_partial(&self, key: &[u8]) -> Result<bool, StorageError> {
-        let mut full_key = Vec::with_capacity(key.len() + self.prefix.len());
-        full_key.extend(self.prefix);
-        full_key.extend(key);
-        self.inner.seek_partial(&full_key)
-    }
-
-    #[inline]
-    fn read(&self) -> Result<Option<(&[u8], &[u8])>, StorageError> {
+    #[allow(clippy::type_complexity)]
+    pub fn read(&self) -> Result<Option<(&[u8], &[u8])>, StorageError> {
         match self.inner.read()? {
             Some((k, v)) => Ok(Some((&k[self.prefix.len()..], v))),
             None => Ok(None),
@@ -96,7 +94,7 @@ impl RoCursor for PrefixReaderWriterCursor {
     }
 
     #[inline]
-    fn next(&self) -> Result<bool, StorageError> {
+    pub fn next(&self) -> Result<bool, StorageError> {
         if !self.inner.next()? {
             return Ok(false);
         }
@@ -107,7 +105,7 @@ impl RoCursor for PrefixReaderWriterCursor {
     }
 
     #[inline]
-    fn prev(&self) -> Result<bool, StorageError> {
+    pub fn prev(&self) -> Result<bool, StorageError> {
         if !self.inner.prev()? {
             return Ok(false);
         }
@@ -118,12 +116,12 @@ impl RoCursor for PrefixReaderWriterCursor {
     }
 
     #[inline]
-    fn first(&self) -> Result<bool, StorageError> {
+    pub fn first(&self) -> Result<bool, StorageError> {
         self.inner.seek_gte(&self.prefix)
     }
 
     #[inline]
-    fn last(&self) -> Result<bool, StorageError> {
+    pub fn last(&self) -> Result<bool, StorageError> {
         let mut next_prefix = self.prefix;
         next_prefix[self.prefix.len() - 1] += 1;
 
@@ -142,15 +140,5 @@ impl RoCursor for PrefixReaderWriterCursor {
         } else {
             Ok(false)
         }
-    }
-}
-
-impl RwCursor for PrefixReaderWriterCursor {
-    #[inline]
-    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
-        let mut full_key = Vec::with_capacity(key.len() + self.prefix.len());
-        full_key.extend(self.prefix);
-        full_key.extend(key);
-        self.inner.put(&full_key, value)
     }
 }

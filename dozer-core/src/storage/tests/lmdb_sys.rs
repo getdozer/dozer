@@ -1,76 +1,66 @@
-use crate::storage::lmdb_sys::{
-    Database, DatabaseOptions, EnvOptions, Environment, LmdbError, PutOptions, Transaction,
-};
+use lmdb::{Database, DatabaseFlags, Environment, EnvironmentFlags, Transaction, WriteFlags};
 use log::info;
-use std::sync::Arc;
 use std::{fs, thread};
 use tempdir::TempDir;
 
-macro_rules! chk {
-    ($stmt:expr) => {
-        $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
-    };
-}
+use crate::storage::{common::Seek, errors::StorageError};
 
 #[test]
 fn test_cursor_duplicate_keys() {
-    let tmp_dir = chk!(TempDir::new("example"));
+    let tmp_dir = TempDir::new("example").unwrap();
     if tmp_dir.path().exists() {
-        chk!(fs::remove_dir_all(tmp_dir.path()));
+        fs::remove_dir_all(tmp_dir.path()).unwrap();
     }
-    chk!(fs::create_dir(tmp_dir.path()));
+    fs::create_dir(tmp_dir.path()).unwrap();
 
-    let mut env_opt = EnvOptions::default();
-    env_opt.no_sync = true;
-    env_opt.max_dbs = Some(10);
-    env_opt.map_size = Some(1024 * 1024 * 1024);
-    env_opt.writable_mem_map = true;
+    let mut builder = Environment::new();
+    builder.set_flags(EnvironmentFlags::NO_SYNC | EnvironmentFlags::WRITE_MAP);
+    builder.set_max_dbs(10);
+    builder.set_map_size(1024 * 1024 * 1024);
 
-    let env = Arc::new(chk!(Environment::new(
-        tmp_dir.path().to_str().unwrap().to_string(),
-        env_opt
-    )));
-    let mut tx = chk!(Transaction::begin(&env, false));
+    let env = builder.open(tmp_dir.path()).unwrap();
+    let db = env
+        .create_db(Some("test"), DatabaseFlags::DUP_SORT)
+        .unwrap();
 
-    let mut db_opt = DatabaseOptions::default();
-    db_opt.allow_duplicate_keys = true;
-    let db = chk!(Database::open(&env, &tx, "test".to_string(), Some(db_opt)));
+    let mut tx = env.begin_rw_txn().unwrap();
 
     for k in 1..3 {
         for i in 'a'..'s' {
-            chk!(tx.put(
-                &db,
-                format!("key_{}", k).as_bytes(),
-                format!("val_{}", i).as_bytes(),
-                PutOptions::default(),
-            ));
+            tx.put(
+                db,
+                &format!("key_{}", k).as_bytes(),
+                &format!("val_{}", i).as_bytes(),
+                WriteFlags::default(),
+            )
+            .unwrap();
         }
     }
 
-    let cursor = chk!(tx.open_cursor(&db));
+    let cursor = tx.open_ro_cursor(db).unwrap();
 
-    let r = chk!(cursor.seek("key_100".as_bytes()));
+    let r = cursor.seek("key_100".as_bytes()).unwrap();
     assert!(!r);
 
-    let r = chk!(cursor.seek("key_1".as_bytes()));
+    let r = cursor.seek("key_1".as_bytes()).unwrap();
     assert!(r);
 
     for i in 'a'..='z' {
-        let r = chk!(cursor.read()).unwrap();
+        let r = cursor.read().unwrap().unwrap();
         if r.0 != "key_1".as_bytes() {
             break;
         }
 
         assert_eq!(r.0, "key_1".as_bytes());
         assert_eq!(r.1, format!("val_{}", i).as_bytes());
-        let _r = chk!(cursor.next());
+        let _r = cursor.next().unwrap();
     }
 
     for i in 'a'..='z' {
-        let r = chk!(cursor.read()).unwrap();
+        let r = cursor.read().unwrap().unwrap();
         assert_eq!(r.0, "key_2".as_bytes());
         assert_eq!(r.1, format!("val_{}", i).as_bytes());
-        let r = chk!(cursor.next());
+        let r = cursor.next().unwrap();
 
         if !r {
             break;
@@ -79,32 +69,24 @@ fn test_cursor_duplicate_keys() {
 }
 
 fn create_env() -> (Environment, Database) {
-    let tmp_dir = chk!(TempDir::new("concurrent"));
+    let tmp_dir = TempDir::new("concurrent").unwrap();
     if tmp_dir.path().exists() {
-        chk!(fs::remove_dir_all(tmp_dir.path()));
+        fs::remove_dir_all(tmp_dir.path()).unwrap();
     }
-    chk!(fs::create_dir(tmp_dir.path()));
+    fs::create_dir(tmp_dir.path()).unwrap();
 
-    let mut env_opt = EnvOptions::default();
-    env_opt.no_sync = true;
-    env_opt.max_dbs = Some(10);
-    env_opt.max_readers = Some(10);
-    env_opt.map_size = Some(1024 * 1024 * 1024);
-    env_opt.writable_mem_map = false;
-    env_opt.no_sync = true;
-    env_opt.no_locking = true;
-    env_opt.no_thread_local_storage = true;
+    let mut builder = Environment::new();
+    builder.set_flags(
+        EnvironmentFlags::NO_SYNC | EnvironmentFlags::NO_LOCK | EnvironmentFlags::NO_TLS,
+    );
+    builder.set_max_dbs(10);
+    builder.set_max_readers(10);
+    builder.set_map_size(1024 * 1024 * 1024);
 
-    let mut env = chk!(Environment::new(
-        tmp_dir.path().to_str().unwrap().to_string(),
-        env_opt
-    ));
-
-    let mut tx = chk!(env.tx_begin(false));
-    let mut db_opt = DatabaseOptions::default();
-    db_opt.allow_duplicate_keys = false;
-    let db = chk!(Database::open(&env, &tx, "test".to_string(), Some(db_opt)));
-    chk!(tx.commit());
+    let env = builder.open(tmp_dir.path()).unwrap();
+    let db = env
+        .create_db(Some("test"), DatabaseFlags::default())
+        .unwrap();
 
     (env, db)
 }
@@ -114,19 +96,19 @@ fn test_concurrent_tx() {
     //  log4rs::init_file("./log4rs.yaml", Default::default())
     //      .unwrap_or_else(|_e| panic!("Unable to find log4rs config file"));
 
-    let mut e1 = create_env();
-    let mut e2 = create_env();
+    let e1 = create_env();
+    let e2 = create_env();
 
-    let t1 = thread::spawn(move || -> Result<(), LmdbError> {
+    let t1 = thread::spawn(move || -> Result<(), StorageError> {
         for i in 1..=1_000_u64 {
-            let mut tx = chk!(e1.0.tx_begin(false));
+            let mut tx = e1.0.begin_rw_txn().unwrap();
             tx.put(
-                &e1.1,
+                e1.1,
                 &i.to_le_bytes(),
                 &i.to_le_bytes(),
-                PutOptions::default(),
+                WriteFlags::default(),
             )?;
-            chk!(tx.commit());
+            tx.commit().unwrap();
             if i % 10000 == 0 {
                 info!("Writer 1: {}", i)
             }
@@ -134,16 +116,16 @@ fn test_concurrent_tx() {
         Ok(())
     });
 
-    let t2 = thread::spawn(move || -> Result<(), LmdbError> {
+    let t2 = thread::spawn(move || -> Result<(), StorageError> {
         for i in 1..=1_000_u64 {
-            let mut tx = chk!(e2.0.tx_begin(false));
+            let mut tx = e2.0.begin_rw_txn().unwrap();
             tx.put(
-                &e2.1,
+                e2.1,
                 &i.to_le_bytes(),
                 &i.to_le_bytes(),
-                PutOptions::default(),
+                WriteFlags::default(),
             )?;
-            chk!(tx.commit());
+            tx.commit().unwrap();
             if i % 10000 == 0 {
                 info!("Writer 2: {}", i)
             }

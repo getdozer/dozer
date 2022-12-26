@@ -6,7 +6,7 @@ use crate::{
     field_extract_i64, field_extract_timestamp, to_bytes, try_unwrap,
 };
 
-use dozer_core::storage::common::{Database, RwTransaction};
+use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp};
@@ -42,7 +42,7 @@ impl MinAggregator {
         new: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
             (FieldType::Date, _) => {
@@ -149,7 +149,7 @@ impl MinAggregator {
         new: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
             (FieldType::Date, _) => {
@@ -267,7 +267,7 @@ impl MinAggregator {
         old: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, old) {
             (FieldType::Date, _) => {
@@ -388,7 +388,7 @@ impl MinAggregator {
         val_delta: u8,
         decr: bool,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) {
         let get_prev_count = try_unwrap!(ptx.get(aggregators_db, key));
         let prev_count = deserialize_u8!(get_prev_count);
@@ -407,7 +407,7 @@ impl MinAggregator {
 
     fn calc_f64_min(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<f64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = f64::MAX;
@@ -422,7 +422,7 @@ impl MinAggregator {
 
     fn calc_decimal_min(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<dozer_types::rust_decimal::Decimal, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = dozer_types::rust_decimal::Decimal::MAX;
@@ -437,7 +437,7 @@ impl MinAggregator {
 
     fn calc_timestamp_min(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<DateTime<FixedOffset>, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = DateTime::<FixedOffset>::MAX_UTC;
@@ -452,7 +452,7 @@ impl MinAggregator {
 
     fn calc_date_min(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<NaiveDate, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = NaiveDate::MAX;
@@ -471,7 +471,7 @@ impl MinAggregator {
 
     fn calc_i64_min(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<i64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut minimum = i64::MAX;

@@ -9,7 +9,7 @@ use dozer_cache::cache::{
 use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
-use dozer_core::storage::common::{Environment, RwTransaction};
+use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::crossbeam::channel::Sender;
 use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -175,7 +175,7 @@ impl Sink for CacheSink {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         // Update Counter on commit
         self.pb.set_message(format!(
@@ -192,7 +192,7 @@ impl Sink for CacheSink {
         Ok(())
     }
 
-    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising CacheSink: {}", self.api_endpoint.name);
 
         // Insert schemas into cache
@@ -215,7 +215,7 @@ impl Sink for CacheSink {
         &mut self,
         from_port: PortHandle,
         op: Operation,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
@@ -314,22 +314,17 @@ mod tests {
 
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::{NodeHandle, Sink};
-    use dozer_core::storage::common::RenewableRwTransaction;
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
-    use dozer_core::storage::transactions::SharedTransaction;
-    use dozer_types::parking_lot::RwLock;
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
-    use std::sync::Arc;
     use tempdir::TempDir;
 
     #[test]
     // This test cases covers update of records when primary key changes because of value change in primary_key
     fn update_record_when_primary_changes() {
         let tmp_dir = TempDir::new("example").unwrap();
-        let mut env = LmdbEnvironmentManager::create(tmp_dir.path(), "test").unwrap();
-        let txn: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-            Arc::new(RwLock::new(env.create_txn().unwrap()));
+        let env = LmdbEnvironmentManager::create(tmp_dir.path(), "test").unwrap();
+        let txn = env.create_txn().unwrap();
 
         let schema = test_utils::get_schema();
         let secondary_indexes: Vec<IndexDefinition> = schema
@@ -375,19 +370,13 @@ mod tests {
             },
         };
 
-        let mut t = SharedTransaction::new(&txn);
-        sink.process(
-            DEFAULT_PORT_HANDLE,
-            insert_operation,
-            &mut t,
-            &HashMap::new(),
-        )
-        .unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn, &HashMap::new())
+            .unwrap();
         sink.commit(
             &NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
             0,
             0,
-            &mut t,
+            &txn,
         )
         .unwrap();
 
@@ -396,18 +385,13 @@ mod tests {
 
         assert_eq!(initial_values, record.values);
 
-        sink.process(
-            DEFAULT_PORT_HANDLE,
-            update_operation,
-            &mut t,
-            &HashMap::new(),
-        )
-        .unwrap();
+        sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn, &HashMap::new())
+            .unwrap();
         sink.commit(
             &NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
             0,
             1,
-            &mut t,
+            &txn,
         )
         .unwrap();
 

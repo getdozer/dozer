@@ -8,12 +8,15 @@ use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{NodeHandle, PortHandle, Processor};
+use dozer_core::storage::lmdb_storage::{
+    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
+};
 use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
 use dozer_types::types::{Field, Operation, Record, Schema};
 
 use dozer_core::dag::record_store::RecordReader;
-use dozer_core::storage::common::{Database, Environment, RwTransaction};
+use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use std::{collections::HashMap, mem::size_of_val};
@@ -92,7 +95,7 @@ impl AggregationProcessor {
         }
     }
 
-    fn init_store(&mut self, txn: &mut dyn Environment) -> Result<(), PipelineError> {
+    fn init_store(&mut self, txn: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
         self.db = Some(txn.open_database("aggr", false)?);
         self.aggregators_db = Some(txn.open_database("aggr_data", false)?);
         self.meta_db = Some(txn.open_database("meta", false)?);
@@ -113,8 +116,8 @@ impl AggregationProcessor {
         Ok(vec)
     }
 
-    fn get_counter(&self, txn: &mut dyn RwTransaction) -> Result<u32, PipelineError> {
-        let meta_db = self
+    fn get_counter(&self, txn: &mut LmdbExclusiveTransaction) -> Result<u32, PipelineError> {
+        let meta_db = *self
             .meta_db
             .as_ref()
             .ok_or(PipelineError::InternalStorageError(InvalidDatabase))?;
@@ -178,7 +181,7 @@ impl AggregationProcessor {
 
     fn calc_and_fill_measures(
         &self,
-        txn: &mut dyn RwTransaction,
+        txn: &mut LmdbExclusiveTransaction,
         cur_state: &Option<Vec<u8>>,
         deleted_record: Option<&Record>,
         inserted_record: Option<&Record>,
@@ -211,7 +214,7 @@ impl AggregationProcessor {
                             &inserted_field,
                             measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
-                            self.aggregators_db.as_ref().unwrap(),
+                            self.aggregators_db.unwrap(),
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -222,7 +225,7 @@ impl AggregationProcessor {
                             &inserted_field,
                             measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
-                            self.aggregators_db.as_ref().unwrap(),
+                            self.aggregators_db.unwrap(),
                         )?;
                         (prefix, r)
                     }
@@ -237,7 +240,7 @@ impl AggregationProcessor {
                             &deleted_field,
                             measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
-                            self.aggregators_db.as_ref().unwrap(),
+                            self.aggregators_db.unwrap(),
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -248,7 +251,7 @@ impl AggregationProcessor {
                             &deleted_field,
                             measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
-                            self.aggregators_db.as_ref().unwrap(),
+                            self.aggregators_db.unwrap(),
                         )?;
                         (prefix, r)
                     }
@@ -266,7 +269,7 @@ impl AggregationProcessor {
                             &updated_field,
                             measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
-                            self.aggregators_db.as_ref().unwrap(),
+                            self.aggregators_db.unwrap(),
                         )?;
                         (curr.prefix, r)
                     } else {
@@ -278,7 +281,7 @@ impl AggregationProcessor {
                             &updated_field,
                             measure.0.get_type(&self.input_schema)?,
                             &mut p_tx,
-                            self.aggregators_db.as_ref().unwrap(),
+                            self.aggregators_db.unwrap(),
                         )?;
                         (prefix, r)
                     }
@@ -296,8 +299,8 @@ impl AggregationProcessor {
 
     fn update_segment_count(
         &self,
-        txn: &mut dyn RwTransaction,
-        db: &Database,
+        txn: &mut LmdbExclusiveTransaction,
+        db: Database,
         key: Vec<u8>,
         delta: u64,
         decr: bool,
@@ -325,8 +328,8 @@ impl AggregationProcessor {
 
     fn agg_delete(
         &self,
-        txn: &mut dyn RwTransaction,
-        db: &Database,
+        txn: &mut LmdbExclusiveTransaction,
+        db: Database,
         old: &Record,
     ) -> Result<Operation, PipelineError> {
         let size = self.out_measures.len() + self.out_dimensions.len();
@@ -345,7 +348,7 @@ impl AggregationProcessor {
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
         let prev_count = self.update_segment_count(txn, db, record_count_key, 1, true)?;
 
-        let cur_state = txn.get(db, record_key.as_slice())?;
+        let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
         let new_state = self.calc_and_fill_measures(
             txn,
             &cur_state,
@@ -380,8 +383,8 @@ impl AggregationProcessor {
 
     fn agg_insert(
         &self,
-        txn: &mut dyn RwTransaction,
-        db: &Database,
+        txn: &mut LmdbExclusiveTransaction,
+        db: Database,
         new: &Record,
     ) -> Result<Operation, PipelineError> {
         let size = self.out_measures.len() + self.out_dimensions.len();
@@ -400,7 +403,7 @@ impl AggregationProcessor {
         let record_count_key = self.get_record_key(&record_hash, AGG_COUNT_DATASET_ID)?;
         self.update_segment_count(txn, db, record_count_key, 1, false)?;
 
-        let cur_state = txn.get(db, record_key.as_slice())?;
+        let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
         let new_state = self.calc_and_fill_measures(
             txn,
             &cur_state,
@@ -432,8 +435,8 @@ impl AggregationProcessor {
 
     fn agg_update(
         &self,
-        txn: &mut dyn RwTransaction,
-        db: &Database,
+        txn: &mut LmdbExclusiveTransaction,
+        db: Database,
         old: &Record,
         new: &Record,
         record_hash: Vec<u8>,
@@ -443,7 +446,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, size);
         let record_key = self.get_record_key(&record_hash, AGG_VALUES_DATASET_ID)?;
 
-        let cur_state = txn.get(db, record_key.as_slice())?;
+        let cur_state = txn.get(db, record_key.as_slice())?.map(|b| b.to_vec());
         let new_state = self.calc_and_fill_measures(
             txn,
             &cur_state,
@@ -469,8 +472,8 @@ impl AggregationProcessor {
 
     pub fn aggregate(
         &self,
-        txn: &mut dyn RwTransaction,
-        db: &Database,
+        txn: &mut LmdbExclusiveTransaction,
+        db: Database,
         op: Operation,
     ) -> Result<Vec<Operation>, PipelineError> {
         match op {
@@ -526,7 +529,7 @@ fn get_key(
 }
 
 impl Processor for AggregationProcessor {
-    fn init(&mut self, state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         internal_err!(self.init_store(state))
     }
 
@@ -535,7 +538,7 @@ impl Processor for AggregationProcessor {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -545,12 +548,12 @@ impl Processor for AggregationProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        txn: &mut dyn RwTransaction,
+        txn: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
-        match &self.db {
+        match self.db {
             Some(d) => {
-                let ops = internal_err!(self.aggregate(txn, d, op))?;
+                let ops = internal_err!(self.aggregate(&mut txn.write(), d, op))?;
                 for fop in ops {
                     fw.send(fop, DEFAULT_PORT_HANDLE)?;
                 }
