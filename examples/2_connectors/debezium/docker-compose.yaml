@@ -1,11 +1,13 @@
 version: '2'
 services:
+
   zookeeper:
     image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
     ports:
       - 2181:2181
       - 2888:2888
       - 3888:3888
+
   kafka:
     image: quay.io/debezium/kafka:${DEBEZIUM_VERSION}
     ports:
@@ -15,6 +17,7 @@ services:
     environment:
       - ZOOKEEPER_CONNECT=zookeeper:2181
       - KAFKA_ADVERTISED_HOST_NAME=192.168.1.81
+
   postgres:
     image: quay.io/debezium/example-postgres:${DEBEZIUM_VERSION}
     ports:
@@ -22,6 +25,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+
   connect:
     image: quay.io/debezium/connect:${DEBEZIUM_VERSION}
     ports:
@@ -35,6 +39,7 @@ services:
       - CONFIG_STORAGE_TOPIC=my_connect_configs
       - OFFSET_STORAGE_TOPIC=my_connect_offsets
       - STATUS_STORAGE_TOPIC=my_connect_statuses
+
 # For testing newer connector versions, unpack the connector archive into this
 # directory and uncomment the lines below
 #    volumes:

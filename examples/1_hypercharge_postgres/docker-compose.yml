@@ -8,7 +8,6 @@ services:
         condition: service_healthy
     links:
       - postgres
-    
     build: ../
     ports:
       # REST APIs are published on port 8080
@@ -29,8 +28,6 @@ services:
     volumes:
       - sample-data:/var/lib/stock-sample/data
     networks: ["dozer_net"]
-
-  
 
   postgres:
     depends_on:
@@ -55,6 +52,7 @@ services:
       timeout: 5s
       retries: 5
     networks: ["dozer_net"]
+
 networks:
   dozer_net:
     enable_ipv6: true

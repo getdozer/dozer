@@ -11,6 +11,9 @@ Features used:
 ### Run
 
 ```bash
+# For Apple silicons pre-setting
+# export DOCKER_DEFAULT_PLATFORM=linux/amd64
+
 docker-compose up --build
 ```
 

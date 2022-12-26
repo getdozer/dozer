@@ -1,5 +1,6 @@
 version: '3.8'
 services:
+
   dozer-snowflake:
     container_name: dozer_snowflake
     networks: ["dozer_net"]
@@ -8,7 +9,9 @@ services:
       context: ../../../
       dockerfile: snowflake.Dockerfile
     ports:
+      # REST APIs are published on port 8080
       - "8080:8080"
+      # gRPC are available over 50051
       - "50052:50052"
     volumes:
       - ./../../../config/log4rs.sample.yaml:/usr/dozer/log4rs.yaml
