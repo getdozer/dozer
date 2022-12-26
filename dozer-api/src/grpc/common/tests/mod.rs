@@ -2,11 +2,11 @@ use tonic::Request;
 
 use crate::grpc::{
     common_grpc::{
-        common_grpc_service_server::CommonGrpcService, EventType, GetEndpointsRequest,
-        GetFieldsRequest, OnEventRequest, QueryRequest,
+        common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
+        OnEventRequest, QueryRequest,
     },
     typed::tests::service::setup_pipeline,
-    types::{value, FieldDefinition, OperationType, Type, Value},
+    types::{value, EventType, FieldDefinition, OperationType, Type, Value},
 };
 
 use super::CommonService;
@@ -30,7 +30,7 @@ async fn test_grpc_common_query() {
         .await
         .unwrap()
         .into_inner();
-    assert!(response.records.len() > 0);
+    assert!(!response.records.is_empty());
 }
 
 #[tokio::test]

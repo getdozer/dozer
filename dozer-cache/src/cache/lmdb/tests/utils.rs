@@ -9,7 +9,7 @@ pub fn insert_rec_1(
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
     let record = Record::new(
-        schema.identifier.clone(),
+        schema.identifier,
         vec![
             Field::Int(a),
             b.map_or(Field::Null, Field::String),
@@ -24,7 +24,7 @@ pub fn get_indexes(cache: &LmdbCache) -> Vec<Vec<(&[u8], &[u8])>> {
     let txn: RoTransaction = env.begin_ro_txn().unwrap();
 
     let mut items = Vec::new();
-    for db in secondary_indexes.read().values().copied() {
+    for db in secondary_indexes.read().values() {
         let mut cursor = db.open_ro_cursor(&txn).unwrap();
         items.push(
             cursor

@@ -11,11 +11,11 @@ use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::Sender;
+use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};
-use log::debug;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
@@ -207,7 +207,7 @@ impl Sink for CacheSink {
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
-        if self.counter % 100 == 0 {
+        if self.counter % 10 == 0 {
             self.pb.set_message(format!(
                 "{}: Count: {}, Elapsed time: {:.2?}",
                 self.api_endpoint.name.to_owned(),
@@ -250,7 +250,6 @@ impl Sink for CacheSink {
                 })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
-
         match op {
             Operation::Delete { old } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
