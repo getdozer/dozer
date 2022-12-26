@@ -23,6 +23,7 @@ pub trait Orchestrator {
     ) -> Result<(), OrchestrationError>;
     fn list_connectors(&self)
         -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError>;
+    fn generate_token(&self) -> Result<String, OrchestrationError>;
 }
 
 // Re-exports

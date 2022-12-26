@@ -9,6 +9,7 @@ pub fn load_config(config_path: String) -> Result<Config, CliError> {
         .map_err(|_| CliError::FailedToLoadFile(config_path))?;
     let config =
         serde_yaml::from_str(&contents).map_err(|e| CliError::FailedToParseYaml(Box::new(e)))?;
+    println!("==== config {:?}", config);
     Ok(config)
 }
 

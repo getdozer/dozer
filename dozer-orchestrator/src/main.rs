@@ -67,9 +67,10 @@ fn run() -> Result<(), OrchestrationError> {
                     dozer.run_api(running)
                 }
                 ApiCommands::GenerateToken => {
-                    println!("==== hit Generate token");
+                    let token = dozer.generate_token()?;
+                    info!("token: {:?} ", token);
                     Ok(())
-                },
+                }
             },
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => {

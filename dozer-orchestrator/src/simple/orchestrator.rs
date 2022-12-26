@@ -5,6 +5,8 @@ use crate::utils::{
     get_rest_config,
 };
 use crate::Orchestrator;
+use clap::Error;
+use dozer_api::auth::{Access, Authorizer};
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
@@ -69,12 +71,6 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
-        Executor::get_tables(&self.config.connections)
-    }
-
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         // Channel to communicate CtrlC with API Server
@@ -196,5 +192,30 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_home_dir,
         );
         executor.run(Some(sender))
+    }
+
+    fn list_connectors(
+        &self,
+    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+        Executor::get_tables(&self.config.connections)
+    }
+
+    fn generate_token(&self) -> Result<String, OrchestrationError> {
+        if let Some(api_config) = self.config.api.to_owned() {
+            if let Some(api_security) = api_config.api_security {
+                match api_security {
+                    dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
+                        let auth = Authorizer::new(secret.to_owned(), None, None);
+                        let token = auth.generate_token(Access::All, None).map_err(|err| {
+                            OrchestrationError::GenerateTokenFailed(err.to_string())
+                        })?;
+                        return Ok(token);
+                    }
+                }
+            }
+        }
+        return Err(OrchestrationError::GenerateTokenFailed(
+            "Missing api config or security input".to_owned(),
+        ));
     }
 }
