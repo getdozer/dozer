@@ -41,16 +41,10 @@ message EthereumAuthentication {
   EthereumFilter filter = 1;
   string wss_url = 2;
   string name = 3;
-  repeated EthContract contracts = 4;
 }
 
 message EthereumFilter {
   optional uint64 from_block = 1;
   repeated string addresses = 2;
   repeated string topics = 3;
-}
-message EthContract {
-  string name = 1;
-  string address = 2;
-  string abi = 3;
 }

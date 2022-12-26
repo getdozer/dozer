@@ -1,27 +1,24 @@
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
+use crate::internal::internal_pipeline_server::start_internal_pipeline_server;
 use crate::utils::{
-    get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_config, get_pipeline_dir,
-    get_rest_config,
+    get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_dir, get_rest_config,
 };
 use crate::Orchestrator;
-use dozer_api::{
-    actix_web::dev::ServerHandle,
-    grpc::{
-        self, internal::internal_pipeline_server::start_internal_pipeline_server,
-        internal_grpc::PipelineResponse,
-    },
-    rest, CacheEndpoint,
-};
+use dozer_api::actix_web::dev::ServerHandle;
+use dozer_api::grpc::internal_grpc::PipelineRequest;
+use dozer_api::grpc::{start_internal_api_client, start_internal_api_server};
+use dozer_api::CacheEndpoint;
+use dozer_api::{grpc, rest};
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::app_config::Config;
+use dozer_types::models::{api_endpoint::ApiEndpoint, source::Source};
 use dozer_types::serde_yaml;
-use dozer_types::types::Schema;
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -69,10 +66,23 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
-        Executor::get_tables(&self.config.connections)
+    fn add_api_config(&mut self, api_config: ApiConfig) -> &mut Self {
+        self.config.api = Some(api_config);
+        self
+    }
+
+    fn add_sources(&mut self, sources: Vec<Source>) -> &mut Self {
+        for source in sources.iter() {
+            self.config.sources.push(source.to_owned());
+        }
+        self
+    }
+
+    fn add_endpoints(&mut self, endpoints: Vec<ApiEndpoint>) -> &mut Self {
+        for endpoint in endpoints.iter() {
+            self.config.endpoints.push(endpoint.to_owned());
+        }
+        self
     }
 
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
@@ -81,6 +91,7 @@ impl Orchestrator for SimpleOrchestrator {
         let (tx, rx) = unbounded::<ServerHandle>();
         let running2 = running.clone();
         // gRPC notifier channel
+        let (sender, receiver) = channel::unbounded::<PipelineRequest>();
         let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self
@@ -106,9 +117,17 @@ impl Orchestrator for SimpleOrchestrator {
         let ce2 = cache_endpoints.clone();
         let ce3 = cache_endpoints;
 
+        let app_config = self.config.to_owned();
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
+            // Initialize Internal Server
+            tokio::spawn(async move {
+                start_internal_api_server(app_config, sender)
+                    .await
+                    .expect("Failed to initialize internal server")
+            });
+
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             tokio::spawn(async move {
@@ -122,8 +141,7 @@ impl Orchestrator for SimpleOrchestrator {
             // Initialize GRPC Server
             let grpc_config = get_grpc_config(self.config.to_owned());
             let api_dir = get_api_dir(self.config.to_owned());
-            let pipeline_config = get_pipeline_config(self.config.to_owned());
-            let grpc_server = grpc::ApiServer::new(grpc_config, true, api_dir, pipeline_config);
+            let grpc_server = grpc::ApiServer::new(receiver, grpc_config, true, api_dir);
             tokio::spawn(async move {
                 grpc_server
                     .run(ce2, running2.to_owned(), receiver_shutdown)
@@ -149,11 +167,25 @@ impl Orchestrator for SimpleOrchestrator {
     ) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+        let executor_running = running.clone();
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<PipelineResponse>();
+        let (sender, receiver) = channel::unbounded::<PipelineRequest>();
+
+        let internal_api_config = self
+            .config
+            .to_owned()
+            .api
+            .unwrap_or_default()
+            .api_internal
+            .unwrap_or_default();
+        // Initialize Internal Server Client
+        let _internal_api_thread = thread::spawn(move || {
+            start_internal_api_client(internal_api_config, receiver);
+        });
+
         let internal_app_config = self.config.to_owned();
         let _intern_pipeline_thread = thread::spawn(move || {
-            _ = start_internal_pipeline_server(internal_app_config, receiver);
+            _ = start_internal_pipeline_server(internal_app_config);
         });
         // Ingestion Channe;
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
@@ -195,6 +227,6 @@ impl Orchestrator for SimpleOrchestrator {
             running,
             pipeline_home_dir,
         );
-        executor.run(Some(sender))
+        executor.run(Some(sender), executor_running)
     }
 }

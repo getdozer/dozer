@@ -4,7 +4,7 @@ use super::{
     DynamicMessage, TypedResponse,
 };
 use crate::{
-    grpc::{internal_grpc::PipelineResponse, shared_impl},
+    grpc::{internal_grpc::PipelineRequest, shared_impl},
     PipelineDetails,
 };
 use actix_web::http::StatusCode;
@@ -24,7 +24,7 @@ pub struct TypedService {
     descriptor: DescriptorPool,
     pipeline_map: HashMap<String, PipelineDetails>,
     schema_map: HashMap<String, Schema>,
-    event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 }
 impl Clone for TypedService {
     fn clone(&self) -> Self {
@@ -44,7 +44,7 @@ impl TypedService {
         descriptor: DescriptorPool,
         pipeline_map: HashMap<String, PipelineDetails>,
         schema_map: HashMap<String, Schema>,
-        event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+        event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
     ) -> Self {
         TypedService {
             accept_compression_encodings: Default::default(),
@@ -148,8 +148,9 @@ where
                         struct EventService(
                             PipelineDetails,
                             DescriptorPool,
-                            tokio::sync::broadcast::Receiver<PipelineResponse>,
+                            tokio::sync::broadcast::Receiver<PipelineRequest>,
                         );
+
                         impl tonic::server::ServerStreamingService<DynamicMessage> for EventService {
                             type Response = TypedResponse;
 
@@ -226,7 +227,7 @@ fn on_event(
     request: Request<DynamicMessage>,
     pipeline_details: PipelineDetails,
     desc: DescriptorPool,
-    event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
     let request = request.into_inner();
     let filter = request.get_field_by_name("filter");

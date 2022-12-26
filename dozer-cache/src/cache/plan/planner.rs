@@ -295,14 +295,26 @@ mod tests {
                 val: Field::Null,
             },
         };
-        assert!(full_text_scan.is_supported_by_index(&IndexDefinition::FullText(0)),);
-        assert!(!full_text_scan.is_supported_by_index(&IndexDefinition::FullText(1)));
+        assert_eq!(
+            full_text_scan.is_supported_by_index(&IndexDefinition::FullText(0)),
+            true
+        );
+        assert_eq!(
+            full_text_scan.is_supported_by_index(&IndexDefinition::FullText(1)),
+            false
+        );
 
-        assert!(!full_text_scan.is_supported_by_index(&IndexDefinition::SortedInverted(vec![0])),);
-        assert!(!IndexScanKind::SortedInverted {
-            eq_filters: vec![(0, Field::Null)],
-            range_query: None
-        }
-        .is_supported_by_index(&IndexDefinition::FullText(0)),);
+        assert_eq!(
+            full_text_scan.is_supported_by_index(&IndexDefinition::SortedInverted(vec![0])),
+            false
+        );
+        assert_eq!(
+            IndexScanKind::SortedInverted {
+                eq_filters: vec![(0, Field::Null)],
+                range_query: None
+            }
+            .is_supported_by_index(&IndexDefinition::FullText(0)),
+            false
+        );
     }
 }

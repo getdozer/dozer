@@ -2,13 +2,10 @@ use crate::{
     generator::protoc::utils::get_proto_descriptor,
     grpc::{
         client_server::ApiServer,
-        internal_grpc::PipelineResponse,
+        internal_grpc::PipelineRequest,
         typed::{
-            tests::{
-                fake_internal_pipeline_server::start_fake_internal_grpc_pipeline,
-                generated::films::{
-                    films_client::FilmsClient, FilmEvent, QueryFilmsRequest, QueryFilmsResponse,
-                },
+            tests::generated::films::{
+                films_client::FilmsClient, FilmEvent, QueryFilmsRequest, QueryFilmsResponse,
             },
             TypedService,
         },
@@ -16,12 +13,10 @@ use crate::{
     CacheEndpoint, PipelineDetails,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
-use dozer_types::{models::api_config::default_api_config, types::Schema};
+use dozer_types::types::Schema;
 use futures_util::FutureExt;
 use std::{collections::HashMap, env, path::PathBuf, time::Duration};
 
-use super::generated::films::{EventType, FilmEventRequest};
-use crate::test_utils;
 use tokio::{
     sync::{
         broadcast::{self, Receiver},
@@ -35,10 +30,17 @@ use tonic::{
     Request,
 };
 
+use crate::test_utils;
+
+use super::{
+    generated::films::{EventType, FilmEventRequest},
+    test_utils::mock_event_notifier,
+};
+
 pub fn setup_pipeline() -> (
     HashMap<String, PipelineDetails>,
     HashMap<String, Schema>,
-    Receiver<PipelineResponse>,
+    Receiver<PipelineRequest>,
 ) {
     let schema_name = String::from("films");
     let (schema, _) = test_utils::get_schema();
@@ -51,9 +53,9 @@ pub fn setup_pipeline() -> (
         },
     };
 
-    let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
-    let default_api_internal = default_api_config().pipeline_internal.unwrap_or_default();
-    ApiServer::setup_broad_cast_channel(tx, default_api_internal).unwrap();
+    let event_notifier = mock_event_notifier();
+    let (tx, rx1) = broadcast::channel::<PipelineRequest>(16);
+    ApiServer::setup_broad_cast_channel(tx, event_notifier).unwrap();
     let mut pipeline_map = HashMap::new();
     pipeline_map.insert("films".to_string(), pipeline_details);
 
@@ -116,26 +118,23 @@ async fn test_grpc_query() {
 }
 
 #[tokio::test]
-async fn test_typed_streaming1() {
-    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
-    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
-        default_pipeline_internal.host,
-        default_pipeline_internal.port,
-        rx_internal,
-    ));
+async fn test_typed_streaming() {
+    let typed_service = setup_typed_service();
     let (_tx, rx) = oneshot::channel::<()>();
+
     let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service();
         Server::builder()
             .add_service(typed_service)
-            .serve_with_shutdown("127.0.0.1:14321".parse().unwrap(), rx.map(drop))
+            .serve_with_shutdown("127.0.0.1:14032".parse().unwrap(), rx.map(drop))
             .await
             .unwrap();
     });
-    tokio::time::sleep(Duration::from_millis(1001)).await;
-    let address = "http://127.0.0.1:14321".to_owned();
-    let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let channel = Endpoint::from_static("http://127.0.0.1:14032")
+        .connect()
+        .await
+        .unwrap();
+    let mut client = FilmsClient::new(channel);
 
     let request = FilmEventRequest {
         r#type: EventType::All as i32,
@@ -151,68 +150,21 @@ async fn test_typed_streaming1() {
         let response: FilmEvent = item.unwrap();
         assert!(response.new.is_some());
     }
-    _ = sender_shutdown_internal.send(());
-}
+    drop(stream);
 
-#[tokio::test]
-async fn test_typed_streaming2() {
-    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
-    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
-        default_pipeline_internal.host,
-        default_pipeline_internal.port,
-        rx_internal,
-    ));
-    let (_tx, rx) = oneshot::channel::<()>();
-    let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service();
-        Server::builder()
-            .add_service(typed_service)
-            .serve_with_shutdown("127.0.0.1:14322".parse().unwrap(), rx.map(drop))
-            .await
-            .unwrap();
-    });
-    tokio::time::sleep(Duration::from_millis(1001)).await;
-    let address = "http://127.0.0.1:14322".to_owned();
     let request = FilmEventRequest {
         r#type: EventType::All as i32,
         filter: Some(r#"{ "film_id": 32 }"#.into()),
     };
-    let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
-    let stream = client
+    let mut stream = client
         .on_event(Request::new(request))
         .await
         .unwrap()
         .into_inner();
-    let mut stream = stream.take(1);
-    while let Some(item) = stream.next().await {
-        let response: FilmEvent = item.unwrap();
-        assert!(response.new.is_some());
-    }
-    _ = sender_shutdown_internal.send(());
-}
+    let response = stream.next().await.unwrap().unwrap();
+    assert!(response.new.is_some());
+    drop(stream);
 
-#[tokio::test]
-async fn test_typed_streaming3() {
-    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
-    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
-        default_pipeline_internal.host,
-        default_pipeline_internal.port,
-        rx_internal,
-    ));
-    let (_tx, rx) = oneshot::channel::<()>();
-    let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service();
-        Server::builder()
-            .add_service(typed_service)
-            .serve_with_shutdown("127.0.0.1:14323".parse().unwrap(), rx.map(drop))
-            .await
-            .unwrap();
-    });
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    let address = "http://127.0.0.1:14323".to_owned();
-    let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
     let request = FilmEventRequest {
         r#type: EventType::All as i32,
         filter: Some(r#"{ "film_id": 0 }"#.into()),
@@ -222,7 +174,8 @@ async fn test_typed_streaming3() {
         .await
         .unwrap()
         .into_inner();
-    let error_timeout = timeout(Duration::from_secs(1), stream.next()).await;
-    assert!(error_timeout.is_err() || error_timeout.unwrap().is_none());
-    _ = sender_shutdown_internal.send(());
+    assert!(timeout(Duration::from_secs(1), stream.next())
+        .await
+        .is_err());
+    drop(stream);
 }

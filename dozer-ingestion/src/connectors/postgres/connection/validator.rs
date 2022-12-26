@@ -17,7 +17,7 @@ pub fn validate_connection(
 ) -> Result<(), ConnectorError> {
     let mut client = super::helper::connect(config)?;
     validate_details(client.borrow_mut())?;
-    validate_user(client.borrow_mut()).map_err(ConnectorError::PostgresConnectorError)?;
+    validate_user(client.borrow_mut())?;
 
     if let Some(tables_info) = tables {
         validate_tables(client.borrow_mut(), tables_info)?;
@@ -42,33 +42,15 @@ fn validate_details(client: &mut Client) -> Result<(), ConnectorError> {
     Ok(())
 }
 
-fn validate_user(client: &mut Client) -> Result<(), PostgresConnectorError> {
+fn validate_user(client: &mut Client) -> Result<(), ConnectorError> {
     client
         .query_one(
-            "
-                SELECT r.rolcanlogin AS can_login, r.rolreplication AS is_replication_role,
-                    ARRAY(SELECT b.rolname
-                             FROM pg_catalog.pg_auth_members m
-                                      JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid)
-                             WHERE m.member = r.oid
-                    ) &&
-                      '{rds_superuser, rdsadmin, rdsrepladmin, rds_replication}'::name[] AS is_aws_replication_role
-                FROM pg_roles r
-                WHERE r.rolname = current_user
-            ",
+            "SELECT * FROM pg_user WHERE usename = \"current_user\"() AND userepl = true",
             &[],
         )
-        .map_or(Err(PostgresConnectorError::ReplicationIsNotAvailableForUserError), |row| {
-            let can_login: bool = row.get("can_login");
-            let is_replication_role: bool = row.get("is_replication_role");
-            let is_aws_replication_role: bool = row.get("is_aws_replication_role");
+        .map_err(|_e| PostgresConnectorError::ReplicationIsNotAvailableForUserError)?;
 
-            if can_login && (is_replication_role || is_aws_replication_role) {
-                Ok(())
-            } else {
-                Err(PostgresConnectorError::ReplicationIsNotAvailableForUserError)
-            }
-        })
+    Ok(())
 }
 
 fn validate_wal_level(client: &mut Client) -> Result<(), ConnectorError> {

@@ -13,7 +13,7 @@ fn query_secondary() {
     let cache = LmdbCache::new(CacheOptions::default()).unwrap();
     let (schema, seconary_indexes) = test_utils::schema_1();
     let record = Record::new(
-        schema.identifier,
+        schema.identifier.clone(),
         vec![
             Field::Int(1),
             Field::String("test".to_string()),
@@ -49,7 +49,7 @@ fn query_secondary() {
     // Full text query.
     let (schema, secondary_indexes) = test_utils::schema_full_text_single();
     let record = Record::new(
-        schema.identifier,
+        schema.identifier.clone(),
         vec![Field::String("today is a good day".into())],
     );
 
@@ -199,7 +199,7 @@ fn query_secondary_multi_indices() {
     ] {
         cache
             .insert(&Record {
-                schema_id: schema.identifier,
+                schema_id: schema.identifier.clone(),
                 values: vec![Field::Int(id), Field::String(text.into())],
             })
             .unwrap();
@@ -228,7 +228,7 @@ fn query_secondary_multi_indices() {
         records,
         vec![
             Record {
-                schema_id: schema.identifier,
+                schema_id: schema.identifier.clone(),
                 values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
             },
             Record {
@@ -270,7 +270,7 @@ fn test_query_record(
         .into_iter()
         .map(|(a, b, c)| {
             Record::new(
-                schema.identifier,
+                schema.identifier.clone(),
                 vec![Field::Int(a), Field::String(b), Field::Int(c)],
             )
         })

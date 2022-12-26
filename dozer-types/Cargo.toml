@@ -24,7 +24,6 @@ log = "0.4.17"
 serde_yaml = "0.9.14"
 prost = "0.11.3"
 fp_rust = "0.3.5"
-prettytable-rs = "0.9.0"
 
 [features]
 snowflake=[]

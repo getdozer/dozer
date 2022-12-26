@@ -1,5 +1,5 @@
-pub mod fake_internal_pipeline_server;
 pub mod service;
+mod test_utils;
 mod utils;
 // To be used in tests
 pub mod types {

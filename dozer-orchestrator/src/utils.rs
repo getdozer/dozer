@@ -1,19 +1,20 @@
 use dozer_types::models::{
-    api_config::{ApiGrpc, ApiInternal, ApiRest},
+    api_config::{ApiGrpc, ApiRest},
     app_config::Config,
 };
 use std::path::PathBuf;
 
 pub fn get_pipeline_dir(config: Config) -> PathBuf {
-    PathBuf::from(get_pipeline_config(config).home_dir)
+    PathBuf::from(
+        config
+            .api
+            .unwrap_or_default()
+            .pipeline_internal
+            .unwrap_or_default()
+            .home_dir,
+    )
 }
-pub fn get_pipeline_config(config: Config) -> ApiInternal {
-    config
-        .api
-        .unwrap_or_default()
-        .pipeline_internal
-        .unwrap_or_default()
-}
+
 pub fn get_cache_dir(config: Config) -> PathBuf {
     PathBuf::from(format!("{:}/cache", config.home_dir))
 }

@@ -1,19 +1,16 @@
-use crate::errors::{CacheError, IndexError};
-use dozer_types::{
-    parking_lot::RwLock,
-    types::{Field, IndexDefinition, Record, Schema},
-};
-use lmdb::{RwTransaction, Transaction};
+use crate::errors::{CacheError, IndexError, QueryError};
+use dozer_types::types::{Field, IndexDefinition, Record, Schema};
+use lmdb::{Database, RwTransaction, Transaction, WriteFlags};
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cache::index::{self, get_full_text_secondary_index};
 
-use super::cache::{PrimaryIndexDatabase, SecondaryIndexDatabases};
+use super::cache::IndexMetaData;
 
 pub struct Indexer {
-    pub primary_index: PrimaryIndexDatabase,
-    pub secondary_indexes: Arc<RwLock<SecondaryIndexDatabases>>,
+    pub primary_index: Database,
+    pub index_metadata: Arc<IndexMetaData>,
 }
 impl Indexer {
     pub fn build_indexes(
@@ -24,39 +21,34 @@ impl Indexer {
         secondary_indexes: &[IndexDefinition],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
-        let schema_id = schema
-            .identifier
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
-
         let mut txn = parent_txn
             .begin_nested_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
         if !schema.primary_index.is_empty() {
             let primary_key = index::get_primary_key(&schema.primary_index, &record.values);
-            self.primary_index.insert(&mut txn, &primary_key, id)?;
+            txn.put(self.primary_index, &primary_key, &id, WriteFlags::default())
+                .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
         }
 
         if secondary_indexes.is_empty() {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }
         for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = *self
-                .secondary_indexes
-                .read()
-                .get(&(schema_id, idx))
-                .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
+            let db = self.index_metadata.get_db(schema, idx);
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
-                    db.insert(&mut txn, &secondary_key, id)?;
+                    txn.put(db, &secondary_key, &id, WriteFlags::default())
+                        .map_err(QueryError::InsertValue)?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        db.insert(&mut txn, &secondary_key, id)?;
+                        txn.put(db, &secondary_key, &id, WriteFlags::default())
+                            .map_err(QueryError::InsertValue)?;
                     }
                 }
             }
@@ -75,28 +67,24 @@ impl Indexer {
         primary_key: &[u8],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
-        self.primary_index.delete(txn, primary_key)?;
+        txn.del(self.primary_index, &primary_key, None)
+            .map_err(QueryError::DeleteValue)?;
 
-        let schema_id = schema
-            .identifier
-            .ok_or(CacheError::SchemaIdentifierNotFound)?;
         for (idx, index) in secondary_indexes.iter().enumerate() {
-            let db = *self
-                .secondary_indexes
-                .read()
-                .get(&(schema_id, idx))
-                .ok_or(CacheError::SecondaryIndexDatabaseNotFound)?;
+            let db = self.index_metadata.get_db(schema, idx);
 
             match index {
                 IndexDefinition::SortedInverted(fields) => {
                     let secondary_key = Self::_build_index_sorted_inverted(fields, &record.values);
-                    db.delete(txn, &secondary_key, id)?;
+                    txn.del(db, &secondary_key, Some(&id))
+                        .map_err(QueryError::DeleteValue)?;
                 }
                 IndexDefinition::FullText(field_index) => {
                     for secondary_key in
                         Self::_build_indices_full_text(*field_index, &record.values)?
                     {
-                        db.delete(txn, &secondary_key, id)?;
+                        txn.del(db, &secondary_key, Some(&id))
+                            .map_err(QueryError::DeleteValue)?;
                     }
                 }
             }

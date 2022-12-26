@@ -1,5 +1,5 @@
-use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
-use dozer_api::grpc::internal_grpc::PipelineResponse;
+use dozer_api::grpc::internal_grpc::pipeline_request::ApiEvent;
+use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_api::grpc::types_helper;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{
@@ -11,11 +11,11 @@ use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::{Environment, RwTransaction};
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::log::{debug, info};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};
+use log::debug;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
@@ -26,7 +26,7 @@ pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
-    notifier: Option<Sender<PipelineResponse>>,
+    notifier: Option<Sender<PipelineRequest>>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -53,7 +53,7 @@ impl CacheSinkFactory {
         input_ports: Vec<PortHandle>,
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
-        notifier: Option<Sender<PipelineResponse>>,
+        notifier: Option<Sender<PipelineRequest>>,
     ) -> Self {
         Self {
             input_ports,
@@ -166,7 +166,7 @@ pub struct CacheSink {
     input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
-    notifier: Option<Sender<PipelineResponse>>,
+    notifier: Option<Sender<PipelineRequest>>,
 }
 
 impl Sink for CacheSink {
@@ -177,13 +177,6 @@ impl Sink for CacheSink {
         _seq_in_tx: u64,
         _tx: &mut dyn RwTransaction,
     ) -> Result<(), ExecutionError> {
-        // Update Counter on commit
-        self.pb.set_message(format!(
-            "{}: Count: {}, Elapsed time: {:.2?}",
-            self.api_endpoint.name.to_owned(),
-            self.counter,
-            self.before.elapsed(),
-        ));
         if let Some(txn) = self.txn.take() {
             txn.commit().map_err(|e| {
                 ExecutionError::SinkError(SinkError::CacheCommitTransactionFailed(Box::new(e)))
@@ -197,11 +190,6 @@ impl Sink for CacheSink {
 
         // Insert schemas into cache
         for (_, (schema, secondary_indexes)) in self.input_schemas.iter() {
-            info!(
-                "SINK: Initializing output schema on endpoint: {}",
-                self.api_endpoint.name
-            );
-            schema.print().printstd();
             self.cache
                 .insert_schema(&self.api_endpoint.name, schema, secondary_indexes)
                 .map_err(|e| {
@@ -219,6 +207,14 @@ impl Sink for CacheSink {
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.counter += 1;
+        if self.counter % 100 == 0 {
+            self.pb.set_message(format!(
+                "{}: Count: {}, Elapsed time: {:.2?}",
+                self.api_endpoint.name.to_owned(),
+                self.counter,
+                self.before.elapsed(),
+            ));
+        }
 
         if self.txn.is_none() {
             let txn = self.cache.begin_rw_txn().map_err(|e| {
@@ -248,12 +244,13 @@ impl Sink for CacheSink {
         if let Some(notifier) = &self.notifier {
             let op = types_helper::map_operation(self.api_endpoint.name.to_owned(), &op);
             notifier
-                .try_send(PipelineResponse {
+                .try_send(PipelineRequest {
                     endpoint: self.api_endpoint.name.to_owned(),
                     api_event: Some(ApiEvent::Op(op)),
                 })
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
+
         match op {
             Operation::Delete { old } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
@@ -291,7 +288,7 @@ impl CacheSink {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
-        notifier: Option<Sender<PipelineResponse>>,
+        notifier: Option<Sender<PipelineRequest>>,
     ) -> Self {
         Self {
             txn: None,

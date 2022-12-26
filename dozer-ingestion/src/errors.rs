@@ -67,9 +67,6 @@ pub enum ConnectorError {
     #[error("Error in Eth Connection")]
     EthError(#[source] web3::Error),
 
-    #[error("Failed fetching after {0} recursions")]
-    EthTooManyRecurisions(usize),
-
     #[error("Received empty message in connector")]
     EmptyMessage,
 }

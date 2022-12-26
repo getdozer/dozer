@@ -17,7 +17,6 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 use fp_rust::sync::CountDownLatch;
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use tempdir::TempDir;
@@ -151,8 +150,7 @@ fn test_run_dag_proc_err_panic() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -218,8 +216,7 @@ fn test_run_dag_proc_err_2() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -286,8 +283,7 @@ fn test_run_dag_proc_err_3() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -429,8 +425,7 @@ fn test_run_dag_src_err() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -565,8 +560,7 @@ fn test_run_dag_sink_err() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -617,8 +611,7 @@ fn test_run_dag_sink_err_panic() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());

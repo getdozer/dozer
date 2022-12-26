@@ -52,41 +52,37 @@ pub fn init_env(options: &CacheOptions) -> Result<Environment, CacheError> {
     }
 }
 
-pub struct DatabaseCreateOptions {
-    pub allow_dup: bool,
-    pub fixed_length_key: bool,
-}
-
 pub fn init_db(
     env: &Environment,
     name: Option<&str>,
-    create_options: Option<DatabaseCreateOptions>,
+    options: &CacheOptions,
+    allow_dup: bool,
+    fixed_length_key: bool,
 ) -> Result<Database, CacheError> {
-    if let Some(DatabaseCreateOptions {
-        allow_dup,
-        fixed_length_key,
-    }) = create_options
-    {
-        let mut flags = DatabaseFlags::default();
-        if allow_dup {
-            flags.set(DatabaseFlags::DUP_SORT, true);
-            if fixed_length_key {
-                flags.set(DatabaseFlags::INTEGER_DUP, true);
+    match options.kind {
+        CacheOptionsKind::Write(_) => {
+            let mut flags = DatabaseFlags::default();
+            if allow_dup {
+                flags.set(DatabaseFlags::DUP_SORT, true);
+                if fixed_length_key {
+                    flags.set(DatabaseFlags::INTEGER_DUP, true);
+                }
+            } else if fixed_length_key {
+                flags.set(DatabaseFlags::INTEGER_KEY, true);
             }
-        } else if fixed_length_key {
-            flags.set(DatabaseFlags::INTEGER_KEY, true);
+
+            let db = env
+                .create_db(name, flags)
+                .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+
+            Ok(db)
         }
-
-        let db = env
-            .create_db(name, flags)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-
-        Ok(db)
-    } else {
-        let db = env
-            .open_db(name)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        Ok(db)
+        CacheOptionsKind::ReadOnly(_) => {
+            let db = env
+                .open_db(name)
+                .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+            Ok(db)
+        }
     }
 }
 pub fn _cursor_dump(mut cursor: RoCursor) -> Vec<(&[u8], &[u8])> {
@@ -103,7 +99,7 @@ mod tests {
     use lmdb::{Transaction, WriteFlags};
 
     use crate::cache::lmdb::{
-        utils::{_cursor_dump, init_db, init_env, DatabaseCreateOptions},
+        utils::{_cursor_dump, init_db, init_env},
         CacheOptions,
     };
 
@@ -112,15 +108,7 @@ mod tests {
         let options = CacheOptions::default();
         let env = init_env(&options).unwrap();
 
-        let db = init_db(
-            &env,
-            Some("test"),
-            Some(DatabaseCreateOptions {
-                allow_dup: true,
-                fixed_length_key: true,
-            }),
-        )
-        .unwrap();
+        let db = init_db(&env, Some("test"), &options, true, true).unwrap();
 
         let mut txn = env.begin_rw_txn().unwrap();
 

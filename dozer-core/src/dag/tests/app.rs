@@ -17,7 +17,6 @@ use crate::dag::tests::sources::{
 use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use tempdir::TempDir;
@@ -331,8 +330,7 @@ fn test_app_dag() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     //  thread::sleep(Duration::from_millis(3000));

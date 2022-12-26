@@ -1,0 +1,14 @@
+/target
+docker/sample_db
+docker/pagila/
+.idea/
+db/embedded/
+db/test
+dozer-ingestion/db/test/
+Cargo.lock
+dozer-core/.data
+
+.vscode
+docker/data/
+dozer-sql/data
+*.mdb

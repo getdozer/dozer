@@ -14,8 +14,14 @@ message QueryRequest {
   optional string query = 2;
 }
 
+enum EventType {
+  ALL = 0;
+  INSERT_ONLY = 1;
+  UPDATE_ONLY = 2;
+  DELETE_ONLY = 3;
+}
 message OnEventRequest {
-  dozer.types.EventType type = 1;
+  EventType type = 1;
   string endpoint = 2;
   optional string filter = 3;
 }

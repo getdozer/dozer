@@ -85,7 +85,7 @@ fn fake_dbconnection(db_type: DBType) -> DbConnection {
             ..Default::default()
         },
         DBType::Ethereum => DbConnection {
-            auth: r#"{"Ethereum":{"filter":{"from_block":0,"addresses":[],"topics":[]},"wss_url":"wss:link","name":"eth_logs", "contracts": []}}"#.to_owned(),
+            auth: r#"{"Ethereum":{"filter":{"from_block":0,"addresses":[],"topics":[]},"wss_url":"wss:link","name":"eth_logs"}}"#.to_owned(),
             name: "eth_connection".to_owned(),
             db_type: "ethereum".to_owned(),
             ..Default::default()

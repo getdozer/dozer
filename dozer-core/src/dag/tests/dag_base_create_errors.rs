@@ -17,7 +17,6 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use fp_rust::sync::CountDownLatch;
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use tempdir::TempDir;
@@ -103,8 +102,7 @@ fn test_create_src_err() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -151,8 +149,7 @@ fn test_create_src_panic() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -253,8 +250,7 @@ fn test_create_proc_err() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -305,8 +301,7 @@ fn test_create_proc_panic() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());

@@ -8,7 +8,6 @@ use crate::dag::node::{
 };
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
 
@@ -260,14 +259,12 @@ fn test_init_metadata() {
     let _exec = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
     let _exec = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     let mut dag = Dag::new();
@@ -301,11 +298,6 @@ fn test_init_metadata() {
         Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
     ));
 
-    let exec = DagExecutor::new(
-        &dag,
-        tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true)),
-    );
+    let exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default());
     assert!(exec.is_err());
 }

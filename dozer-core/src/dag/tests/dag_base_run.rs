@@ -19,7 +19,6 @@ use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -131,8 +130,7 @@ fn test_run_dag() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -183,8 +181,7 @@ fn test_run_dag_and_stop() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -323,8 +320,7 @@ fn test_run_dag_2_sources_stateless() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -390,8 +386,7 @@ fn test_run_dag_2_sources_stateful() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());
@@ -450,8 +445,7 @@ fn test_run_dag_1_source_2_ports_stateless() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default(),
-        Arc::new(AtomicBool::new(true))
+        ExecutorOptions::default()
     ));
 
     chk!(executor.start());

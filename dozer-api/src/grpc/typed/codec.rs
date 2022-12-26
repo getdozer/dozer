@@ -1,5 +1,5 @@
 use prost_reflect::prost::Message;
-use prost_reflect::{DynamicMessage, MethodDescriptor};
+use prost_reflect::{DynamicMessage, MethodDescriptor, ReflectMessage};
 use tonic::{
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
     Status,
@@ -37,6 +37,7 @@ impl Encoder for TypedCodec {
     type Error = Status;
 
     fn encode(&mut self, request: Self::Item, dst: &mut EncodeBuf<'_>) -> Result<(), Self::Error> {
+        debug_assert_eq!(request.message.descriptor(), self.0.output());
         request
             .message
             .encode(dst)

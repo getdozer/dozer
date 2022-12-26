@@ -4,6 +4,7 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use std::sync::Arc;
 mod api_helper;
 mod generator;
+
 #[derive(Clone)]
 pub struct CacheEndpoint {
     pub cache: Arc<LmdbCache>,

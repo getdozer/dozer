@@ -18,7 +18,6 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use std::time::Duration;
@@ -281,13 +280,8 @@ impl TestPipeline {
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-        let mut exec = DagExecutor::new(
-            &dag,
-            tmp_dir.path(),
-            ExecutorOptions::default(),
-            Arc::new(AtomicBool::new(true)),
-        )
-        .unwrap_or_else(|_e| panic!("Unable to create exec"));
+        let mut exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default())
+            .unwrap_or_else(|_e| panic!("Unable to create exec"));
         exec.start()?;
         exec.join()?;
 

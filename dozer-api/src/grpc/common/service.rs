@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
-use crate::grpc::internal_grpc::PipelineResponse;
+use crate::grpc::internal_grpc::PipelineRequest;
 use crate::grpc::shared_impl;
 use crate::grpc::types_helper::map_record;
 use crate::{api_helper, PipelineDetails};
@@ -21,7 +21,7 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     pub pipeline_map: HashMap<String, PipelineDetails>,
-    pub event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    pub event_notifier: tokio::sync::broadcast::Receiver<PipelineRequest>,
 }
 
 #[tonic::async_trait]

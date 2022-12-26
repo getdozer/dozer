@@ -31,10 +31,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "dozer_types::models::connection::Connection",
         )
         .extern_path(
-            ".dozer_admin_grpc.EthContract",
-            "dozer_types::ingestion_types::EthContract",
-        )
-        .extern_path(
             ".dozer_admin_grpc.EthereumFilter",
             "dozer_types::ingestion_types::EthereumFilter",
         )

@@ -2,13 +2,6 @@ syntax = "proto3";
 
 package dozer.types;
 
-enum EventType {
-  ALL = 0;
-  INSERT_ONLY = 1;
-  UPDATE_ONLY = 2;
-  DELETE_ONLY = 3;
-}
-
 enum OperationType {
   INSERT = 0;
   DELETE = 1;
@@ -35,6 +28,7 @@ enum Type {
   Timestamp = 8;
   Date = 9;
   Bson = 10;
+  Null = 11;
 }
 message SchemaEvent {
   string endpoint = 1;

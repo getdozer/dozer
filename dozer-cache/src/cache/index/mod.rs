@@ -66,6 +66,10 @@ pub fn get_full_text_secondary_index(token: &str) -> Vec<u8> {
     token.as_bytes().to_vec()
 }
 
+pub fn get_schema_reverse_key(name: &str) -> Vec<u8> {
+    ["schema_name_".as_bytes(), name.as_bytes()].join("#".as_bytes())
+}
+
 fn get_composite_secondary_index(fields: &[&Field]) -> Vec<u8> {
     fn get_field_encoding_len(field: &Field) -> usize {
         8 + field.encoding_len()

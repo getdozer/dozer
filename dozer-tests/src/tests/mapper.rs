@@ -31,7 +31,7 @@ fn test_framework_to_dozer_types() {
     assert_eq!(
         Operation::Insert {
             new: Record {
-                schema_id,
+                schema_id: schema_id.clone(),
                 values: values.clone()
             }
         },
@@ -47,11 +47,11 @@ fn test_framework_to_dozer_types() {
     assert_eq!(
         Operation::Update {
             old: Record {
-                schema_id,
+                schema_id: schema_id.clone(),
                 values: values.clone()
             },
             new: Record {
-                schema_id,
+                schema_id: schema_id.clone(),
                 values: new_values.clone()
             }
         },
@@ -68,7 +68,7 @@ fn test_framework_to_dozer_types() {
     assert_eq!(
         Operation::Delete {
             old: Record {
-                schema_id,
+                schema_id: schema_id.clone(),
                 values: new_values.clone()
             },
         },
@@ -80,7 +80,7 @@ fn test_framework_to_dozer_types() {
             &"actor".to_string(),
             Operation::Insert {
                 new: Record {
-                    schema_id,
+                    schema_id: schema_id.clone(),
                     values: values.clone(),
                 },
             },
@@ -92,9 +92,12 @@ fn test_framework_to_dozer_types() {
         .map_operation_to_sql(
             &"actor".to_string(),
             Operation::Update {
-                old: Record { schema_id, values },
+                old: Record {
+                    schema_id: schema_id.clone(),
+                    values,
+                },
                 new: Record {
-                    schema_id,
+                    schema_id: schema_id.clone(),
                     values: new_values.clone(),
                 },
             },
@@ -144,7 +147,7 @@ fn test_null_inserts() {
     assert_eq!(
         Operation::Insert {
             new: Record {
-                schema_id,
+                schema_id: schema_id.clone(),
                 values: values.clone()
             }
         },
@@ -161,7 +164,7 @@ fn test_null_inserts() {
             mutex_mapper.clone(),
             "select actor_id from actor;",
             &Schema {
-                identifier: schema_id,
+                identifier: schema_id.clone(),
                 fields: vec![FieldDefinition {
                     name: "actor_id".to_string(),
                     typ: dozer_types::types::FieldType::Int,
@@ -172,7 +175,7 @@ fn test_null_inserts() {
         )
         .unwrap(),
         vec![Record {
-            schema_id,
+            schema_id: schema_id.clone(),
             values: vec![Field::Int(1)]
         }],
         "are to be equal"
@@ -183,7 +186,7 @@ fn test_null_inserts() {
             mutex_mapper,
             "select * from actor;",
             &Schema {
-                identifier: schema_id,
+                identifier: schema_id.clone(),
                 fields: vec![
                     FieldDefinition {
                         name: "actor_id".to_string(),

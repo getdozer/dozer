@@ -2,10 +2,10 @@ use dozer_api::grpc::internal_grpc::PipelineRequest;
 use dozer_core::dag::app::App;
 use dozer_types::crossbeam::channel::Sender;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-
-use std::fs;
+use std::time::Duration;
+use std::{fs, thread};
 
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
@@ -48,20 +48,6 @@ impl Executor {
             iterator,
             running,
         }
-    }
-    pub fn get_tables(
-        connections: &Vec<Connection>,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
-        let mut schema_map = HashMap::new();
-        for connection in connections {
-            validate(connection.to_owned())?;
-
-            let connector = get_connector(connection.to_owned())?;
-            let schema_tuples = connector.get_schemas(None)?;
-            schema_map.insert(connection.name.to_owned(), schema_tuples);
-        }
-
-        Ok(schema_map)
     }
 
     pub fn run(
@@ -132,15 +118,17 @@ impl Executor {
 
         let path = &self.home_dir;
         fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
-        let mut exec = DagExecutor::new(
-            &parent_dag,
-            path.as_path(),
-            ExecutorOptions::default(),
-            running_wait,
-        )?;
+        let mut exec = DagExecutor::new(&parent_dag, path.as_path(), ExecutorOptions::default())?;
 
         exec.start()?;
+        // Waiting for Ctrl+C
+        while running_wait.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(200));
+        }
 
-        exec.join().map_err(OrchestrationError::ExecutionError)
+        exec.stop();
+        exec.join()
+            .map_err(|_e| OrchestrationError::InternalServerError)?;
+        Ok(())
     }
 }
