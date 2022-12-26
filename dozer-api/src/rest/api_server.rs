@@ -1,7 +1,7 @@
 use super::api_generator;
 use crate::{
     auth::{
-        api::{auth_route, validate, ApiSecurity},
+        api::{auth_route, validate},
         Access,
     },
     CacheEndpoint, PipelineDetails,
@@ -14,8 +14,11 @@ use actix_web::{
     rt, web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::{crossbeam::channel::Sender, models::api_config::ApiRest};
+use dozer_types::{
+    models::api_security::ApiSecurity,
+    serde::{self, Deserialize, Serialize},
+};
 use futures_util::FutureExt;
 use tracing_actix_web::TracingLogger;
 
@@ -31,7 +34,7 @@ pub struct ApiServer {
     shutdown_timeout: u64,
     port: u16,
     cors: CorsOptions,
-    security: ApiSecurity,
+    security: Option<ApiSecurity>,
     url: String,
 }
 
@@ -41,19 +44,19 @@ impl Default for ApiServer {
             shutdown_timeout: 0,
             port: 8080,
             cors: CorsOptions::Permissive,
-            security: ApiSecurity::None,
+            security: None,
             url: "0.0.0.0".to_owned(),
         }
     }
 }
 
 impl ApiServer {
-    pub fn new(rest_config: ApiRest) -> Self {
+    pub fn new(rest_config: ApiRest, security: Option<ApiSecurity>) -> Self {
         Self {
             shutdown_timeout: 0,
             port: rest_config.port as u16,
             cors: CorsOptions::Permissive,
-            security: ApiSecurity::None,
+            security,
             url: rest_config.url,
         }
     }
@@ -68,7 +71,7 @@ impl ApiServer {
     }
 
     pub fn create_app_entry(
-        security: ApiSecurity,
+        security: Option<ApiSecurity>,
         cors: CorsOptions,
         cache_endpoints: Vec<CacheEndpoint>,
     ) -> App<
@@ -87,7 +90,7 @@ impl ApiServer {
         // Injecting API Security
         let app = app.app_data(security.to_owned());
 
-        let is_auth_configured = matches!(security, ApiSecurity::Jwt(_));
+        let is_auth_configured = security.is_some();
         let auth_middleware =
             Condition::new(is_auth_configured, HttpAuthentication::bearer(validate));
 

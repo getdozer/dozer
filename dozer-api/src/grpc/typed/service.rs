@@ -4,6 +4,7 @@ use super::{
     DynamicMessage, TypedResponse,
 };
 use crate::{
+    auth::Access,
     grpc::{internal_grpc::PipelineResponse, shared_impl},
     PipelineDetails,
 };
@@ -69,7 +70,6 @@ where
     }
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
         // full name will be in the format of `/dozer.generated.users.Users/query`
-
         let current_path: Vec<&str> = req.uri().path().split('/').collect();
 
         let method_name = current_path[current_path.len() - 1];
@@ -205,9 +205,13 @@ fn query(
     pipeline_details: PipelineDetails,
     desc: DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
+    let parts = request.into_parts();
+    let extensions = parts.1;
+    let query_request = parts.2;
+    let access = extensions.get::<Access>();
+
     let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
-    let request = request.into_inner();
-    let query = request.get_field_by_name("query");
+    let query = query_request.get_field_by_name("query");
     let query = query
         .as_ref()
         .map(|query| {
@@ -217,7 +221,7 @@ fn query(
         })
         .transpose()?;
 
-    let (_, records) = shared_impl::query(pipeline_details, query)?;
+    let (_, records) = shared_impl::query(pipeline_details, query, access)?;
     let res = query_response_to_typed_response(records, &desc, &endpoint_name);
     Ok(Response::new(res))
 }
@@ -228,8 +232,11 @@ fn on_event(
     desc: DescriptorPool,
     event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
-    let request = request.into_inner();
-    let filter = request.get_field_by_name("filter");
+    let parts = request.into_parts();
+    let extensions = parts.1;
+    let query_request = parts.2;
+    let access = extensions.get::<Access>();
+    let filter = query_request.get_field_by_name("filter");
     let filter = filter
         .as_ref()
         .map(|filter| {
@@ -243,6 +250,7 @@ fn on_event(
         pipeline_details,
         filter,
         event_notifier,
+        access.cloned(),
         move |op, endpoint| Some(Ok(on_event_to_typed_response(op, &desc, &endpoint))),
     )
 }

@@ -1,3 +1,4 @@
+use dozer_types::models::api_security::ApiSecurity;
 use jsonwebtoken::{
     decode, encode, errors::ErrorKind, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
@@ -76,6 +77,13 @@ impl Authorizer {
     }
 }
 
+impl From<ApiSecurity> for Authorizer {
+    fn from(value: ApiSecurity) -> Self {
+        match value {
+            ApiSecurity::Jwt(secret) => Authorizer::new(secret, None, None),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::Access;

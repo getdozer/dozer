@@ -1,4 +1,5 @@
 use super::{
+    auth_middleware::AuthMiddlewareLayer,
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
     internal_grpc::{
@@ -7,14 +8,16 @@ use super::{
     },
     typed::TypedService,
 };
-use crate::grpc::auth_interceptor::auth_interceptor;
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
 use dozer_cache::cache::Cache;
 use dozer_types::{
     log::info,
-    models::api_config::{ApiGrpc, ApiInternal},
+    models::{
+        api_config::{ApiGrpc, ApiInternal},
+        api_security::ApiSecurity,
+    },
     types::Schema,
 };
 use futures_util::{FutureExt, StreamExt};
@@ -37,24 +40,10 @@ pub struct ApiServer {
     url: String,
     api_dir: PathBuf,
     pipeline_config: ApiInternal,
+    security: Option<ApiSecurity>,
 }
 
 impl ApiServer {
-    pub fn new(
-        grpc_config: ApiGrpc,
-        dynamic: bool,
-        api_dir: PathBuf,
-        pipeline_config: ApiInternal,
-    ) -> Self {
-        Self {
-            port: grpc_config.port as u16,
-            web: grpc_config.web,
-            url: grpc_config.url,
-            dynamic,
-            api_dir,
-            pipeline_config,
-        }
-    }
     async fn connect_internal_client(
         pipeline_config: ApiInternal,
     ) -> Result<Streaming<PipelineResponse>, GRPCError> {
@@ -69,23 +58,6 @@ impl ApiServer {
             .map_err(|err| GRPCError::InternalError(Box::new(err)))?;
         let stream: Streaming<PipelineResponse> = stream_response.into_inner();
         Ok(stream)
-    }
-
-    pub fn setup_broad_cast_channel(
-        sender: broadcast::Sender<PipelineResponse>,
-        pipeline_config: ApiInternal,
-    ) -> Result<(), GRPCError> {
-        tokio::spawn(async move {
-            let mut stream = ApiServer::connect_internal_client(pipeline_config.to_owned())
-                .await
-                .unwrap();
-            while let Some(event_response) = stream.next().await {
-                if let Ok(event) = event_response {
-                    let _ = sender.send(event);
-                }
-            }
-        });
-        Ok(())
     }
     fn get_dynamic_service(
         &self,
@@ -144,6 +116,24 @@ impl ApiServer {
         Ok((typed_service, inflection_service))
     }
 
+    pub fn new(
+        grpc_config: ApiGrpc,
+        dynamic: bool,
+        api_dir: PathBuf,
+        pipeline_config: ApiInternal,
+        security: Option<ApiSecurity>,
+    ) -> Self {
+        Self {
+            port: grpc_config.port as u16,
+            web: grpc_config.web,
+            url: grpc_config.url,
+            dynamic,
+            api_dir,
+            pipeline_config,
+            security,
+        }
+    }
+
     pub async fn run(
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
@@ -170,11 +160,9 @@ impl ApiServer {
             pipeline_map: pipeline_map.to_owned(),
             event_notifier: rx1.resubscribe(),
         });
-
         // middleware
         let layer = tower::ServiceBuilder::new()
-            // Interceptors can be also be applied as middleware
-            .layer(tonic::service::interceptor(auth_interceptor))
+            .layer(AuthMiddlewareLayer::new(self.security.to_owned()))
             .into_inner();
 
         let mut grpc_router = Server::builder()
@@ -208,5 +196,22 @@ impl ApiServer {
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await
             .map_err(|e| GRPCError::InternalError(Box::new(e)))
+    }
+
+    pub fn setup_broad_cast_channel(
+        sender: broadcast::Sender<PipelineResponse>,
+        pipeline_config: ApiInternal,
+    ) -> Result<(), GRPCError> {
+        tokio::spawn(async move {
+            let mut stream = ApiServer::connect_internal_client(pipeline_config.to_owned())
+                .await
+                .unwrap();
+            while let Some(event_response) = stream.next().await {
+                if let Ok(event) = event_response {
+                    let _ = sender.send(event);
+                }
+            }
+        });
+        Ok(())
     }
 }
