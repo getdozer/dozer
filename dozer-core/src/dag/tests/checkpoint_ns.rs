@@ -10,6 +10,7 @@ use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT
 
 use fp_rust::sync::CountDownLatch;
 
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use tempdir::TempDir;
@@ -83,7 +84,8 @@ fn test_checpoint_consistency_ns() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());

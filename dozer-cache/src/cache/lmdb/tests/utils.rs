@@ -1,5 +1,5 @@
 use dozer_types::types::{Field, Record, Schema};
-use lmdb::{Cursor, RoTransaction, Transaction};
+use lmdb::{Cursor, RoTransaction};
 
 use crate::cache::{Cache, LmdbCache};
 
@@ -9,7 +9,7 @@ pub fn insert_rec_1(
     (a, b, c): (i64, Option<String>, Option<i64>),
 ) {
     let record = Record::new(
-        schema.identifier.clone(),
+        schema.identifier,
         vec![
             Field::Int(a),
             b.map_or(Field::Null, Field::String),
@@ -20,13 +20,12 @@ pub fn insert_rec_1(
 }
 
 pub fn get_indexes(cache: &LmdbCache) -> Vec<Vec<(&[u8], &[u8])>> {
-    let (env, index_metadata) = cache.get_index_metadata();
+    let (env, secondary_indexes) = cache.get_env_and_secondary_indexes();
     let txn: RoTransaction = env.begin_ro_txn().unwrap();
 
-    let indexes = index_metadata.get_all_raw();
     let mut items = Vec::new();
-    for (_, db) in indexes {
-        let mut cursor = txn.open_ro_cursor(db).unwrap();
+    for db in secondary_indexes.read().values() {
+        let mut cursor = db.open_ro_cursor(&txn).unwrap();
         items.push(
             cursor
                 .iter_dup()

@@ -131,7 +131,7 @@ mod tests {
     use crate::cache::{
         expression::SortDirection,
         lmdb::{
-            utils::{init_db, init_env},
+            utils::{init_db, init_env, DatabaseCreateOptions},
             CacheOptions,
         },
     };
@@ -142,7 +142,15 @@ mod tests {
     fn test_cache_iterator() {
         let options = CacheOptions::default();
         let env = init_env(&options).unwrap();
-        let db = init_db(&env, None, &options, true, false).unwrap();
+        let db = init_db(
+            &env,
+            None,
+            Some(DatabaseCreateOptions {
+                allow_dup: true,
+                fixed_length_key: false,
+            }),
+        )
+        .unwrap();
 
         // Insert test data.
         let mut txn = env.begin_rw_txn().unwrap();

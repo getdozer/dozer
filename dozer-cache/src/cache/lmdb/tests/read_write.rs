@@ -1,6 +1,8 @@
+use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::cache::lmdb::{CacheCommonOptions, CacheOptionsKind, CacheWriteOptions};
 use crate::cache::CacheReadOptions;
 use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, Cache, CacheOptions, LmdbCache};
+use dozer_types::serde_json::Value;
 use dozer_types::types::Field;
 use tempdir::TempDir;
 #[test]
@@ -55,4 +57,18 @@ fn read_and_write() {
         ];
         assert_eq!(rec.values, values, "should be equal");
     }
+    let records = cache_reader
+        .query(
+            "sample",
+            &QueryExpression {
+                filter: Some(FilterExpression::Simple(
+                    "a".to_string(),
+                    Operator::EQ,
+                    Value::from(1),
+                )),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(records.len(), 1);
 }

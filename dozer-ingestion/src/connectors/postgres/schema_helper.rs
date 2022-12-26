@@ -39,7 +39,7 @@ impl SchemaHelper {
                 let columns = Some(schema.fields.iter().map(|f| f.name.clone()).collect());
                 TableInfo {
                     name: name.clone(),
-                    id: schema.identifier.clone().unwrap().id,
+                    id: schema.identifier.unwrap().id,
                     columns,
                 }
             })

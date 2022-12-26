@@ -1,7 +1,7 @@
 mod client_server;
 pub mod common;
+pub mod internal;
 // pub mod dynamic;
-pub mod internal_api_server;
 mod shared_impl;
 pub mod typed;
 pub mod types_helper;
@@ -14,13 +14,8 @@ pub mod common_grpc {
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("dozer.common"); // The string specified here must match the proto package name
 }
-
 pub mod internal_grpc {
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("dozer.internal");
 }
-
 pub use client_server::ApiServer;
-pub use internal_api_server::{
-    start_internal_api_client, start_internal_api_server, InternalServer,
-};

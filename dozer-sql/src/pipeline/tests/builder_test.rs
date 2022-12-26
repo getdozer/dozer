@@ -17,6 +17,7 @@ use log::debug;
 
 use std::collections::HashMap;
 use std::fs;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
 
@@ -200,7 +201,13 @@ fn test_pipeline_builder() {
     let now = Instant::now();
 
     let tmp_dir = TempDir::new("test").unwrap();
-    let mut executor = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default()).unwrap();
+    let mut executor = DagExecutor::new(
+        &dag,
+        tmp_dir.path(),
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true)),
+    )
+    .unwrap();
 
     executor
         .start()

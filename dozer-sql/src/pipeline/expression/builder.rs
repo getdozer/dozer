@@ -374,6 +374,6 @@ fn parse_sql_string(s: &str) -> Result<(Box<Expression>, bool), PipelineError> {
 pub(crate) fn normalize_ident(id: &Ident) -> String {
     match id.quote_style {
         Some(_) => id.value.clone(),
-        None => id.value.to_ascii_lowercase(),
+        None => id.value.clone(),
     }
 }

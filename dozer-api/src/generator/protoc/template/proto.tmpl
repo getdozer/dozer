@@ -23,15 +23,8 @@ message Query{{plural_pascal_name}}Request { optional string query = 1; }
 
 message Query{{plural_pascal_name}}Response { repeated {{pascal_name}} data = 1; }
 
-enum EventType {
-  ALL = 0;
-  INSERT_ONLY = 1;
-  UPDATE_ONLY = 2;
-  DELETE_ONLY = 3;
-}
-
 message {{pascal_name}}EventRequest {
-  EventType type = 1;
+  dozer.types.EventType type = 1;
   optional string filter = 2;
 }
 

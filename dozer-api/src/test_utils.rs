@@ -95,7 +95,7 @@ pub fn initialize_cache(
     cache
         .insert_schema(schema_name, &schema, &secondary_indexes)
         .unwrap();
-    let records = get_sample_records(schema.clone());
+    let records = get_sample_records(schema);
     for record in records {
         cache.insert(&record).unwrap();
     }
@@ -113,7 +113,7 @@ pub fn get_sample_records(schema: Schema) -> Vec<Record> {
             (film_id, description, release_year)
         {
             let record = Record::new(
-                schema.identifier.clone(),
+                schema.identifier,
                 vec![
                     Field::UInt(film_id),
                     Field::String(description.to_string()),
