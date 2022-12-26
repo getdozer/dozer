@@ -16,9 +16,9 @@ use crate::dag::executor_utils::{
 use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Database, EnvironmentManager, RenewableRwTransaction};
+use crate::storage::common::Database;
+use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
-use crate::storage::transactions::SharedTransaction;
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
@@ -101,12 +101,12 @@ impl Display for ExecutorOperation {
 }
 
 pub(crate) struct StorageMetadata {
-    pub env: Box<dyn EnvironmentManager>,
+    pub env: LmdbEnvironmentManager,
     pub meta_db: Database,
 }
 
 impl StorageMetadata {
-    pub fn new(env: Box<dyn EnvironmentManager>, meta_db: Database) -> Self {
+    pub fn new(env: LmdbEnvironmentManager, meta_db: Database) -> Self {
         Self { env, meta_db }
     }
 }
@@ -371,11 +371,9 @@ impl<'a> DagExecutor<'a> {
             let _output_schemas = HashMap::<PortHandle, Schema>::new();
             let mut state_meta = init_component(&handle, lt_path.as_path(), |_e| Ok(()))?;
 
-            let port_databases =
-                create_ports_databases(state_meta.env.as_environment(), &lt_output_ports)?;
+            let port_databases = create_ports_databases(&mut state_meta.env, &lt_output_ports)?;
 
-            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+            let master_tx = state_meta.env.create_txn()?;
 
             fill_ports_record_readers(
                 &handle,
@@ -394,7 +392,7 @@ impl<'a> DagExecutor<'a> {
                 StateWriter::new(
                     state_meta.meta_db,
                     port_databases,
-                    master_tx.clone(),
+                    master_tx,
                     None,
                     lt_output_schemas,
                     HashMap::new(),
@@ -454,13 +452,10 @@ impl<'a> DagExecutor<'a> {
                 proc_factory.build(lt_input_schemas.clone(), lt_output_schemas.clone())?;
             let mut state_meta = init_component(&handle, lt_path.as_path(), |e| proc.init(e))?;
 
-            let port_databases = create_ports_databases(
-                state_meta.env.as_environment(),
-                &proc_factory.get_output_ports(),
-            )?;
+            let port_databases =
+                create_ports_databases(&mut state_meta.env, &proc_factory.get_output_ports())?;
 
-            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+            let master_tx = state_meta.env.create_txn()?;
 
             fill_ports_record_readers(
                 &handle,
@@ -498,12 +493,7 @@ impl<'a> DagExecutor<'a> {
                         seq_in_tx,
                         source,
                     } => {
-                        proc.commit(
-                            &source,
-                            txid,
-                            seq_in_tx,
-                            &mut SharedTransaction::new(&master_tx),
-                        )?;
+                        proc.commit(&source, txid, seq_in_tx, &master_tx)?;
                         fw.store_and_send_commit(source, txid, seq_in_tx)?;
                     }
                     ExecutorOperation::Terminate => {
@@ -524,13 +514,7 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                         let data_op = map_to_op(op)?;
-                        proc.process(
-                            handles_ls[index],
-                            data_op,
-                            &mut fw,
-                            &mut SharedTransaction::new(&master_tx),
-                            reader,
-                        )?;
+                        proc.process(handles_ls[index], data_op, &mut fw, &master_tx, reader)?;
                     }
                 }
             }
@@ -553,10 +537,9 @@ impl<'a> DagExecutor<'a> {
 
         Ok(thread::spawn(move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build(lt_input_schemas.clone())?;
-            let mut state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
+            let state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
 
-            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+            let master_tx = state_meta.env.create_txn()?;
 
             let mut state_writer = StateWriter::new(
                 state_meta.meta_db,
@@ -586,12 +569,7 @@ impl<'a> DagExecutor<'a> {
                             "[{}] Checkpointing (source: {}, epoch: {}:{})",
                             handle, source, txid, seq_in_tx
                         );
-                        snk.commit(
-                            &source,
-                            txid,
-                            seq_in_tx,
-                            &mut SharedTransaction::new(&master_tx),
-                        )?;
+                        snk.commit(&source, txid, seq_in_tx, &master_tx)?;
                         state_writer.store_commit_info(&source, txid, seq_in_tx)?;
                     }
                     op => {
@@ -600,12 +578,7 @@ impl<'a> DagExecutor<'a> {
                         let reader = guard
                             .get(&handle)
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-                        snk.process(
-                            handles_ls[index],
-                            data_op,
-                            &mut SharedTransaction::new(&master_tx),
-                            reader,
-                        )?;
+                        snk.process(handles_ls[index], data_op, &master_tx, reader)?;
                     }
                 }
             }

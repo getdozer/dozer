@@ -1,59 +1,47 @@
-use crate::storage::common::{RenewableRwTransaction, RwTransaction};
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-use crate::storage::prefix_transaction::PrefixTransaction;
-use crate::storage::transactions::SharedTransaction;
-use dozer_types::parking_lot::RwLock;
 use std::fs;
-use std::sync::Arc;
+
 use tempdir::TempDir;
 
-macro_rules! chk {
-    ($stmt:expr) => {
-        $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
-    };
-}
+use crate::storage::{
+    lmdb_storage::{LmdbEnvironmentManager, SharedTransaction},
+    prefix_transaction::PrefixTransaction,
+};
 
 #[test]
 fn test_prefix_tx() {
-    let tmp_dir = chk!(TempDir::new("example"));
+    let tmp_dir = TempDir::new("example").unwrap();
     if tmp_dir.path().exists() {
-        chk!(fs::remove_dir_all(tmp_dir.path()));
+        fs::remove_dir_all(tmp_dir.path()).unwrap();
     }
-    chk!(fs::create_dir(tmp_dir.path()));
+    fs::create_dir(tmp_dir.path()).unwrap();
 
-    let mut env = chk!(LmdbEnvironmentManager::create(tmp_dir.path(), "test"));
-    let db = chk!(env.open_database("test_db", false));
-    let tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-        Arc::new(RwLock::new(chk!(env.create_txn())));
+    let mut env = LmdbEnvironmentManager::create(tmp_dir.path(), "test").unwrap();
+    let db = env.open_database("test_db", false).unwrap();
+    let tx = env.create_txn().unwrap();
+    let mut tx = SharedTransaction::try_unwrap(tx).unwrap();
 
-    let tx0 = tx.clone();
-    let tx1 = tx.clone();
-    let tx2 = tx.clone();
-    let tx3 = tx.clone();
+    const PREFIX0: u32 = 100;
+    const PREFIX1: u32 = 101;
+    const PREFIX2: u32 = 102;
+    const PREFIX3: u32 = 103;
 
-    let mut shared0 = SharedTransaction::new(&tx0);
-    let mut shared1 = SharedTransaction::new(&tx1);
-    let mut shared2 = SharedTransaction::new(&tx2);
-    let mut shared3 = SharedTransaction::new(&tx3);
+    let mut ptx0 = PrefixTransaction::new(&mut tx, PREFIX0);
+    ptx0.put(db, "a0".as_bytes(), "a0".as_bytes()).unwrap();
+    ptx0.put(db, "a1".as_bytes(), "a1".as_bytes()).unwrap();
+    ptx0.put(db, "a2".as_bytes(), "a2".as_bytes()).unwrap();
 
-    let mut ptx0 = PrefixTransaction::new(&mut shared0, 100);
-    let mut ptx1 = PrefixTransaction::new(&mut shared1, 101);
-    let mut ptx2 = PrefixTransaction::new(&mut shared2, 102);
-    let ptx3 = PrefixTransaction::new(&mut shared3, 103);
+    let mut ptx1 = PrefixTransaction::new(&mut tx, PREFIX1);
+    ptx1.put(db, "b0".as_bytes(), "b0".as_bytes()).unwrap();
+    ptx1.put(db, "b1".as_bytes(), "b1".as_bytes()).unwrap();
+    ptx1.put(db, "b2".as_bytes(), "b2".as_bytes()).unwrap();
 
-    chk!(ptx0.put(&db, "a0".as_bytes(), "a0".as_bytes()));
-    chk!(ptx0.put(&db, "a1".as_bytes(), "a1".as_bytes()));
-    chk!(ptx0.put(&db, "a2".as_bytes(), "a2".as_bytes()));
+    let mut ptx2 = PrefixTransaction::new(&mut tx, PREFIX2);
+    ptx2.put(db, "c0".as_bytes(), "c0".as_bytes()).unwrap();
+    ptx2.put(db, "c1".as_bytes(), "c1".as_bytes()).unwrap();
+    ptx2.put(db, "c2".as_bytes(), "c2".as_bytes()).unwrap();
 
-    chk!(ptx1.put(&db, "b0".as_bytes(), "b0".as_bytes()));
-    chk!(ptx1.put(&db, "b1".as_bytes(), "b1".as_bytes()));
-    chk!(ptx1.put(&db, "b2".as_bytes(), "b2".as_bytes()));
-
-    chk!(ptx2.put(&db, "c0".as_bytes(), "c0".as_bytes()));
-    chk!(ptx2.put(&db, "c1".as_bytes(), "c1".as_bytes()));
-    chk!(ptx2.put(&db, "c2".as_bytes(), "c2".as_bytes()));
-
-    let cur = ptx1.open_cursor(&db).unwrap();
+    let ptx1 = PrefixTransaction::new(&mut tx, PREFIX1);
+    let cur = ptx1.open_cursor(db).unwrap();
     let _r = cur.seek_gte("b0".as_bytes());
     let mut ctr = 0;
     loop {
@@ -65,80 +53,81 @@ fn test_prefix_tx() {
         }
     }
     assert_eq!(ctr, 3);
+    drop(cur);
 
+    let ptx0 = PrefixTransaction::new(&mut tx, PREFIX0);
     assert_eq!(
-        chk!(ptx0.get(&db, "a0".as_bytes())).unwrap(),
+        ptx0.get(db, "a0".as_bytes()).unwrap().unwrap(),
         "a0".as_bytes()
     );
-    assert_eq!(chk!(ptx0.get(&db, "b0".as_bytes())), None);
+    assert_eq!(ptx0.get(db, "b0".as_bytes()).unwrap(), None);
 
+    let ptx1 = PrefixTransaction::new(&mut tx, PREFIX1);
     assert_eq!(
-        chk!(ptx1.get(&db, "b0".as_bytes())).unwrap(),
+        ptx1.get(db, "b0".as_bytes()).unwrap().unwrap(),
         "b0".as_bytes()
     );
-    assert_eq!(chk!(ptx1.get(&db, "a0".as_bytes())), None);
+    assert_eq!(ptx1.get(db, "a0".as_bytes()).unwrap(), None);
 
-    let ptx1_cur = chk!(ptx1.open_cursor(&db));
+    let ptx1_cur = ptx1.open_cursor(db).unwrap();
 
-    assert!(chk!(ptx1_cur.seek_gte("b1".as_bytes())));
-    assert_eq!(chk!(ptx1_cur.read()).unwrap().0, "b1".as_bytes());
+    assert!(ptx1_cur.seek_gte("b1".as_bytes()).unwrap());
+    assert_eq!(ptx1_cur.read().unwrap().unwrap().0, "b1".as_bytes());
 
-    assert!(chk!(ptx1_cur.first()));
-    assert_eq!(chk!(ptx1_cur.read()).unwrap().0, "b0".as_bytes());
+    assert!(ptx1_cur.first().unwrap());
+    assert_eq!(ptx1_cur.read().unwrap().unwrap().0, "b0".as_bytes());
 
-    assert!(chk!(ptx1_cur.last()));
-    assert_eq!(chk!(ptx1_cur.read()).unwrap().0, "b2".as_bytes());
+    assert!(ptx1_cur.last().unwrap());
+    assert_eq!(ptx1_cur.read().unwrap().unwrap().0, "b2".as_bytes());
 
-    let ptx1_cur_1 = chk!(ptx1.open_cursor(&db));
+    drop(ptx1_cur);
 
-    assert!(chk!(ptx1_cur_1.seek_gte("b1".as_bytes())));
-    assert_eq!(chk!(ptx1_cur_1.read()).unwrap().0, "b1".as_bytes());
+    let ptx1_cur_1 = ptx1.open_cursor(db).unwrap();
 
-    assert!(chk!(ptx1_cur_1.first()));
-    assert_eq!(chk!(ptx1_cur_1.read()).unwrap().0, "b0".as_bytes());
+    assert!(ptx1_cur_1.seek_gte("b1".as_bytes()).unwrap());
+    assert_eq!(ptx1_cur_1.read().unwrap().unwrap().0, "b1".as_bytes());
 
-    assert!(chk!(ptx1_cur_1.last()));
-    assert_eq!(chk!(ptx1_cur_1.read()).unwrap().0, "b2".as_bytes());
+    assert!(ptx1_cur_1.first().unwrap());
+    assert_eq!(ptx1_cur_1.read().unwrap().unwrap().0, "b0".as_bytes());
 
-    let ptx2_cur = chk!(ptx2.open_cursor(&db));
+    assert!(ptx1_cur_1.last().unwrap());
+    assert_eq!(ptx1_cur_1.read().unwrap().unwrap().0, "b2".as_bytes());
 
-    assert!(chk!(ptx2_cur.seek_gte("c1".as_bytes())));
-    assert_eq!(chk!(ptx2_cur.read()).unwrap().0, "c1".as_bytes());
+    drop(ptx1_cur_1);
 
-    assert!(chk!(ptx2_cur.first()));
-    assert_eq!(chk!(ptx2_cur.read()).unwrap().0, "c0".as_bytes());
+    let ptx2 = PrefixTransaction::new(&mut tx, PREFIX2);
+    let ptx2_cur = ptx2.open_cursor(db).unwrap();
 
-    assert!(chk!(ptx2_cur.last()));
-    assert_eq!(chk!(ptx2_cur.read()).unwrap().0, "c2".as_bytes());
+    assert!(ptx2_cur.seek_gte("c1".as_bytes()).unwrap());
+    assert_eq!(ptx2_cur.read().unwrap().unwrap().0, "c1".as_bytes());
 
-    let ptx0_cur = chk!(ptx0.open_cursor(&db));
+    assert!(ptx2_cur.first().unwrap());
+    assert_eq!(ptx2_cur.read().unwrap().unwrap().0, "c0".as_bytes());
 
-    assert!(chk!(ptx0_cur.seek_gte("a1".as_bytes())));
-    assert_eq!(chk!(ptx0_cur.read()).unwrap().0, "a1".as_bytes());
+    assert!(ptx2_cur.last().unwrap());
+    assert_eq!(ptx2_cur.read().unwrap().unwrap().0, "c2".as_bytes());
 
-    assert!(chk!(ptx0_cur.first()));
-    assert_eq!(chk!(ptx0_cur.read()).unwrap().0, "a0".as_bytes());
+    drop(ptx2_cur);
 
-    assert!(chk!(ptx0_cur.last()));
-    assert_eq!(chk!(ptx0_cur.read()).unwrap().0, "a2".as_bytes());
+    let ptx0 = PrefixTransaction::new(&mut tx, PREFIX0);
+    let ptx0_cur = ptx0.open_cursor(db).unwrap();
 
-    let ptx3_cur = chk!(ptx3.open_cursor(&db));
+    assert!(ptx0_cur.seek_gte("a1".as_bytes()).unwrap());
+    assert_eq!(ptx0_cur.read().unwrap().unwrap().0, "a1".as_bytes());
 
-    assert!(!chk!(ptx3_cur.seek_gte("a1".as_bytes())));
-    assert_eq!(chk!(ptx3_cur.read()), None);
-    assert!(!chk!(ptx3_cur.first()));
-    assert!(!chk!(ptx3_cur.last()));
+    assert!(ptx0_cur.first().unwrap());
+    assert_eq!(ptx0_cur.read().unwrap().unwrap().0, "a0".as_bytes());
 
-    chk!(ptx3_cur.put("d0".as_bytes(), "d1".as_bytes()));
-    chk!(ptx3_cur.put("d1".as_bytes(), "d2".as_bytes()));
-    chk!(ptx3_cur.put("d2".as_bytes(), "d2".as_bytes()));
+    assert!(ptx0_cur.last().unwrap());
+    assert_eq!(ptx0_cur.read().unwrap().unwrap().0, "a2".as_bytes());
 
-    assert!(chk!(ptx3_cur.seek_gte("d1".as_bytes())));
-    assert_eq!(chk!(ptx3_cur.read()).unwrap().0, "d1".as_bytes());
+    drop(ptx0_cur);
 
-    assert!(chk!(ptx3_cur.first()));
-    assert_eq!(chk!(ptx3_cur.read()).unwrap().0, "d0".as_bytes());
+    let ptx3 = PrefixTransaction::new(&mut tx, PREFIX3);
+    let ptx3_cur = ptx3.open_cursor(db).unwrap();
 
-    assert!(chk!(ptx3_cur.last()));
-    assert_eq!(chk!(ptx3_cur.read()).unwrap().0, "d2".as_bytes());
+    assert!(!ptx3_cur.seek_gte("a1".as_bytes()).unwrap());
+    assert_eq!(ptx3_cur.read().unwrap(), None);
+    assert!(!ptx3_cur.first().unwrap());
+    assert!(!ptx3_cur.last().unwrap());
 }

@@ -10,7 +10,7 @@ use dozer_core::dag::node::{
     SourceFactory,
 };
 use dozer_core::dag::record_store::RecordReader;
-use dozer_core::storage::common::{Environment, RwTransaction};
+use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
@@ -127,7 +127,7 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -136,7 +136,7 @@ impl Sink for TestSink {
         &mut self,
         _from_port: PortHandle,
         _op: Operation,
-        _state: &mut dyn RwTransaction,
+        _state: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         Ok(())
@@ -147,7 +147,7 @@ impl Sink for TestSink {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

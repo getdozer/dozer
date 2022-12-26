@@ -5,9 +5,10 @@ use crate::dag::errors::ExecutionError::{
     InvalidCheckpointState, InvalidNodeHandle, MetadataAlreadyExists,
 };
 use crate::dag::node::{NodeHandle, PortHandle};
+use crate::storage::common::Seek;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
+use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 
@@ -85,8 +86,9 @@ impl<'a> DagMetadataManager<'a> {
         let mut env = LmdbEnvironmentManager::create(path, format!("{}", name).as_str())?;
         let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
+        let txn = SharedTransaction::try_unwrap(txn).unwrap();
 
-        let cur = txn.open_cursor(&db)?;
+        let cur = txn.open_ro_cursor(db)?;
         if !cur.first()? {
             return Err(ExecutionError::InternalDatabaseError(
                 StorageError::InvalidRecord,
@@ -276,7 +278,8 @@ impl<'a> DagMetadataManager<'a> {
             let mut env =
                 LmdbEnvironmentManager::create(self.path, format!("{}", node.0).as_str())?;
             let db = env.open_database(METADATA_DB_NAME, false)?;
-            let mut txn = env.create_txn()?;
+            let txn = env.create_txn()?;
+            let mut txn = SharedTransaction::try_unwrap(txn).unwrap();
 
             for (handle, schema) in curr_node_schema.output_schemas.iter() {
                 let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];
@@ -285,7 +288,7 @@ impl<'a> DagMetadataManager<'a> {
                     typ: "Schema".to_string(),
                     reason: Box::new(e),
                 })?;
-                txn.put(&db, &key, &value)?;
+                txn.put(db, &key, &value)?;
             }
 
             for (handle, schema) in curr_node_schema.input_schemas.iter() {
@@ -295,7 +298,7 @@ impl<'a> DagMetadataManager<'a> {
                     typ: "Schema".to_string(),
                     reason: Box::new(e),
                 })?;
-                txn.put(&db, &key, &value)?;
+                txn.put(db, &key, &value)?;
             }
 
             for (source, _factory) in &self.dag.get_sources() {
@@ -306,7 +309,7 @@ impl<'a> DagMetadataManager<'a> {
                 value.extend(0_u64.to_be_bytes());
                 value.extend(0_u64.to_be_bytes());
 
-                txn.put(&db, &key, &value)?;
+                txn.put(db, &key, &value)?;
             }
 
             txn.commit_and_renew()?;

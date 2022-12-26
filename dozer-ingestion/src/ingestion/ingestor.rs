@@ -91,8 +91,6 @@ impl Ingestor {
     }
 }
 
-unsafe impl Sync for Ingestor {}
-
 #[cfg(test)]
 mod tests {
     use crate::ingestion::IngestionConfig;

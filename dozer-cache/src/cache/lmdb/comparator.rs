@@ -170,7 +170,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::needless_lifetimes)]
     fn get_composite_key_checker<'a>(num_fields: usize) -> impl Fn(&[i64], &[i64], Ordering) + 'a {
         let (env, db) = setup(num_fields);
         move |a: &[i64], b: &[i64], expected: Ordering| {

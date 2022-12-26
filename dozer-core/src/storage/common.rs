@@ -1,77 +1,68 @@
-#![allow(clippy::type_complexity)]
+pub use lmdb::{Cursor, Database, RwTransaction, Transaction};
+use lmdb_sys::{MDB_GET_CURRENT, MDB_SET, MDB_SET_RANGE};
+
 use crate::storage::errors::StorageError;
 
-pub struct Database {
-    pub id: usize,
-}
+pub trait Seek<'txn>: Cursor<'txn> {
+    fn seek(&self, key: &[u8]) -> Result<bool, StorageError> {
+        match self.get(Some(key), None, MDB_SET) {
+            Ok(_) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
 
-impl Database {
-    pub fn new(id: usize) -> Self {
-        Self { id }
+    fn seek_gte(&self, key: &[u8]) -> Result<bool, StorageError> {
+        match self.get(Some(key), None, MDB_SET_RANGE) {
+            Ok(_) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn read(&'txn self) -> Result<Option<(&[u8], &[u8])>, StorageError> {
+        match self.get(None, None, MDB_GET_CURRENT) {
+            Ok((key, value)) => Ok(Some((
+                key.expect("MDB_GET_CURRENT should always return some data when found"),
+                value,
+            ))),
+            Err(lmdb::Error::NotFound) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn next(&self) -> Result<bool, StorageError> {
+        match self.get(None, None, lmdb_sys::MDB_NEXT) {
+            Ok(_) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn prev(&self) -> Result<bool, StorageError> {
+        match self.get(None, None, lmdb_sys::MDB_PREV) {
+            Ok(_) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn first(&self) -> Result<bool, StorageError> {
+        match self.get(None, None, lmdb_sys::MDB_FIRST) {
+            Ok(_) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn last(&self) -> Result<bool, StorageError> {
+        match self.get(None, None, lmdb_sys::MDB_LAST) {
+            Ok(_) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
     }
 }
 
-impl Clone for Database {
-    fn clone(&self) -> Self {
-        Database { id: self.id }
-    }
-}
-
-unsafe impl Send for Database {}
-unsafe impl Sync for Database {}
-
-pub trait EnvironmentManager: Environment {
-    fn as_environment(&mut self) -> &mut dyn Environment;
-    fn create_txn(&mut self) -> Result<Box<dyn RenewableRwTransaction>, StorageError>;
-}
-
-pub trait Environment {
-    fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError>;
-}
-
-pub trait RenewableRwTransaction: Send + Sync {
-    fn commit_and_renew(&mut self) -> Result<(), StorageError>;
-    fn abort_and_renew(&mut self) -> Result<(), StorageError>;
-    fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
-    fn del(
-        &mut self,
-        db: &Database,
-        key: &[u8],
-        value: Option<&[u8]>,
-    ) -> Result<bool, StorageError>;
-    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError>;
-    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
-    fn open_ro_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError>;
-}
-
-pub trait RoTransaction {
-    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
-    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError>;
-}
-
-pub trait RwTransaction {
-    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
-    fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
-    fn del(
-        &mut self,
-        db: &Database,
-        key: &[u8],
-        value: Option<&[u8]>,
-    ) -> Result<bool, StorageError>;
-    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError>;
-}
-
-pub trait RoCursor {
-    fn seek_gte(&self, key: &[u8]) -> Result<bool, StorageError>;
-    fn seek(&self, key: &[u8]) -> Result<bool, StorageError>;
-    fn seek_partial(&self, key: &[u8]) -> Result<bool, StorageError>;
-    fn read(&self) -> Result<Option<(&[u8], &[u8])>, StorageError>;
-    fn next(&self) -> Result<bool, StorageError>;
-    fn prev(&self) -> Result<bool, StorageError>;
-    fn first(&self) -> Result<bool, StorageError>;
-    fn last(&self) -> Result<bool, StorageError>;
-}
-
-pub trait RwCursor: RoCursor {
-    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
-}
+impl<'txn, C: Cursor<'txn>> Seek<'txn> for C {}
