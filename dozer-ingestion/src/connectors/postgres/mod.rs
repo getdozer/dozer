@@ -5,8 +5,8 @@ pub mod iterator;
 pub mod replicator;
 mod schema_helper;
 pub mod snapshotter;
-#[cfg(test)]
+#[cfg(any(test, feature = "postgres_bench"))]
 pub mod test_utils;
-#[cfg(test)]
+#[cfg(any(test, feature = "postgres_bench"))]
 pub mod tests;
 pub mod xlog_mapper;
