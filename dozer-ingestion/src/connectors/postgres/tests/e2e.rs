@@ -1,18 +1,12 @@
 use crate::connectors::postgres::tests::client::TestPostgresClient;
-use crate::connectors::{get_connector, TableInfo};
-use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::app_config::Config;
-use dozer_types::models::connection::Connection;
 
 use crate::connectors::postgres::test_utils::get_iterator;
-use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
 use dozer_types::types::{Field, Operation};
 use rand::Rng;
-use std::sync::Arc;
-use std::thread;
 
 #[ignore]
 #[test]
