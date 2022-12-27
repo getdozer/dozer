@@ -1449,6 +1449,7 @@ dependencies = [
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
+ "handlebars",
  "indicatif",
  "serde",
  "serde_json",
@@ -2000,9 +2001,9 @@ checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
 name = "handlebars"
-version = "4.3.5"
+version = "4.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "433e4ab33f1213cdc25b5fa45c76881240cfe79284cf2b395e8b9e312a30a2fd"
+checksum = "035ef95d03713f2c347a72547b7cd38cbc9af7cd51e6099fb62d586d4a6dee3a"
 dependencies = [
  "log",
  "pest",
