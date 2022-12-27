@@ -1,6 +1,7 @@
 use crate::dag::node::NodeHandle;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Epoch {
@@ -29,5 +30,25 @@ impl Display for Epoch {
             .map(|e| format!("{} -> {}:{}", e.0, e.1 .0, e.1 .1))
             .fold(String::new(), |a, b| a + ", " + b.as_str());
         f.write_str(format!("epoch: {}, details: {}", self.id, details_str).as_str())
+    }
+}
+
+pub(crate) struct EpochManager {
+    commit_max_ops_count: u32,
+    commit_curr_ops_count: u32,
+    commit_max_duration: Duration,
+    commit_last: Instant,
+    curr_epoch: u64,
+}
+
+impl EpochManager {
+    pub fn new(commit_max_ops_count: u32, commit_max_duration: Duration) -> Self {
+        Self {
+            commit_max_ops_count,
+            commit_curr_ops_count: 0,
+            commit_max_duration,
+            commit_last: Instant::now(),
+            curr_epoch: 0,
+        }
     }
 }

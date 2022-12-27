@@ -24,7 +24,7 @@ use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 
-use crate::dag::epoch::Epoch;
+use crate::dag::epoch::{Epoch, EpochManager};
 use log::info;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -326,6 +326,7 @@ impl<'a> DagExecutor<'a> {
         src_factory: Arc<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         schemas: &NodeSchemas,
+        epoch_manager: Arc<RwLock<EpochManager>>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         //
         //
@@ -573,6 +574,10 @@ impl<'a> DagExecutor<'a> {
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
+        let epoch_manager: Arc<RwLock<EpochManager>> = Arc::new(RwLock::new(EpochManager::new(
+            self.options.commit_sz,
+            self.options.commit_time_threshold,
+        )));
 
         for (handle, factory) in self.dag.get_sinks() {
             let join_handle = self
@@ -620,6 +625,7 @@ impl<'a> DagExecutor<'a> {
                     self.schemas
                         .get(&handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    epoch_manager.clone(),
                 )
                 .unwrap();
             self.join_handles.insert(handle.clone(), join_handle);
