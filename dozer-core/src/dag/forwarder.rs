@@ -6,15 +6,14 @@ use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
-use crate::storage::common::{Database, RenewableRwTransaction};
+use crate::storage::common::Database;
 use crate::storage::errors::StorageError::SerializationError;
+use crate::storage::lmdb_storage::SharedTransaction;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use log::info;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -24,14 +23,14 @@ pub(crate) struct StateWriter {
     output_schemas: HashMap<PortHandle, Schema>,
     input_schemas: HashMap<PortHandle, Schema>,
     input_ports: Option<Vec<PortHandle>>,
-    tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+    tx: SharedTransaction,
 }
 
 impl StateWriter {
     pub fn new(
         meta_db: Database,
         dbs: HashMap<PortHandle, StateOptions>,
-        tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+        tx: SharedTransaction,
         input_ports: Option<Vec<PortHandle>>,
         output_schemas: HashMap<PortHandle, Schema>,
         input_schemas: HashMap<PortHandle, Schema>,
@@ -47,10 +46,10 @@ impl StateWriter {
     }
 
     fn write_record(
-        db: &Database,
+        db: Database,
         rec: &Record,
         schema: &Schema,
-        tx: &mut Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+        tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let key = rec.get_key(&schema.primary_index);
         let value = bincode::serialize(&rec).map_err(|e| SerializationError {
@@ -62,16 +61,16 @@ impl StateWriter {
     }
 
     fn retr_record(
-        db: &Database,
+        db: Database,
         key: &[u8],
-        tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+        tx: &SharedTransaction,
     ) -> Result<Record, ExecutionError> {
+        let tx = tx.read();
         let curr = tx
-            .read()
             .get(db, key)?
             .ok_or_else(ExecutionError::RecordNotFound)?;
 
-        let r: Record = bincode::deserialize(&curr).map_err(|e| SerializationError {
+        let r: Record = bincode::deserialize(curr).map_err(|e| SerializationError {
             typ: "Record".to_string(),
             reason: Box::new(e),
         })?;
@@ -87,23 +86,23 @@ impl StateWriter {
 
             match op {
                 Operation::Insert { new } => {
-                    StateWriter::write_record(&opts.db, &new, schema, &mut self.tx)?;
+                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
                     Ok(Operation::Insert { new })
                 }
                 Operation::Delete { mut old } => {
                     let key = old.get_key(&schema.primary_index);
                     if opts.options.retrieve_old_record_for_deletes {
-                        old = StateWriter::retr_record(&opts.db, &key, &self.tx)?;
+                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
                     }
-                    self.tx.write().del(&opts.db, &key, None)?;
+                    self.tx.write().del(opts.db, &key, None)?;
                     Ok(Operation::Delete { old })
                 }
                 Operation::Update { mut old, new } => {
                     let key = old.get_key(&schema.primary_index);
                     if opts.options.retrieve_old_record_for_updates {
-                        old = StateWriter::retr_record(&opts.db, &key, &self.tx)?;
+                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
                     }
-                    StateWriter::write_record(&opts.db, &new, schema, &mut self.tx)?;
+                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
                     Ok(Operation::Update { old, new })
                 }
             }
@@ -128,7 +127,7 @@ impl StateWriter {
 
         self.tx
             .write()
-            .put(&self.meta_db, full_key.as_slice(), value.as_slice())?;
+            .put(self.meta_db, full_key.as_slice(), value.as_slice())?;
         self.tx.write().commit_and_renew()?;
 
         Ok(())

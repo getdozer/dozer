@@ -173,7 +173,7 @@ jobs:
       - id: bench
         name: Run Bench
         continue-on-error: true
-        run: cargo criterion --features snowflake,debezium_bench
+        run: cargo criterion --features snowflake,debezium_bench,postgres_bench
 
       - name: Get current date
         id: date
