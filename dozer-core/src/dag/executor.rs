@@ -424,48 +424,7 @@ impl<'a> DagExecutor<'a> {
                         return Err(ChannelDisconnected);
                     }
                 }
-
-                // match lt_running.load(Ordering::SeqCst) {
-                //     false => {
-                //         // dag_fw.commit_and_terminate()?;
-                //         // lt_term_barrier.wait();
-                //         // break;
-                //     }
-                //     true => match r {
-                //         Err(RecvTimeoutError::Timeout) => {
-                //             dag_fw.trigger_commit_if_needed()?;
-                //         }
-                //         Err(RecvTimeoutError::Disconnected) => {
-                //             return Err(ChannelDisconnected);
-                //         }
-                //         Ok((port, txid, seq_in_tx, Operation::Insert { new })) => {
-                //             dag_fw.send_and_trigger_commit_if_needed(
-                //                 txid,
-                //                 seq_in_tx,
-                //                 Operation::Insert { new },
-                //                 port,
-                //             )?;
-                //         }
-                //         Ok((port, txid, seq_in_tx, Operation::Delete { old })) => {
-                //             dag_fw.send_and_trigger_commit_if_needed(
-                //                 txid,
-                //                 seq_in_tx,
-                //                 Operation::Delete { old },
-                //                 port,
-                //             )?;
-                //         }
-                //         Ok((port, txid, seq_in_tx, Operation::Update { old, new })) => {
-                //             dag_fw.send_and_trigger_commit_if_needed(
-                //                 txid,
-                //                 seq_in_tx,
-                //                 Operation::Update { old, new },
-                //                 port,
-                //             )?;
-                //         }
-                //     },
-                // }
             }
-            Ok(())
         };
 
         Ok(thread::spawn(|| lt_thread_fct().unwrap()))
@@ -707,7 +666,7 @@ impl<'a> DagExecutor<'a> {
     }
 
     pub fn stop(&self) {
-        self.running.store(false, Ordering::Relaxed);
+        self.running.store(false, Ordering::SeqCst);
     }
 
     pub fn join(mut self) -> Result<(), ExecutionError> {

@@ -5,12 +5,8 @@ use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
-use crate::dag::tests::sinks::{
-    CountingSinkFactory, CountingSinkFactory2, COUNTING_SINK_INPUT_PORT,
-};
-use crate::dag::tests::sources::{
-    GeneratorSourceFactory, GeneratorSourceFactory2, GENERATOR_SOURCE_OUTPUT_PORT,
-};
+use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
+use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
 use fp_rust::sync::CountDownLatch;
@@ -40,7 +36,7 @@ fn test_checkpoint_consistency() {
     let sink_handle = NodeHandle::new(Some(1), SINK_HANDLE_ID.to_string());
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory2::new(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
             SRC1_MSG_COUNT,
             latch.clone(),
             true,
@@ -48,7 +44,7 @@ fn test_checkpoint_consistency() {
         source1_handle.clone(),
     );
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory2::new(
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
             SRC2_MSG_COUNT,
             latch.clone(),
             true,
@@ -60,7 +56,7 @@ fn test_checkpoint_consistency() {
         proc_handle.clone(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory2::new(
+        NodeType::Sink(Arc::new(CountingSinkFactory::new(
             SRC1_MSG_COUNT + SRC2_MSG_COUNT,
             latch,
         ))),
@@ -135,9 +131,9 @@ fn test_checkpoint_consistency() {
 
 #[test]
 fn test_checkpoint_consistency_resume() {
-    init_log4rs();
+    dozer_tracing::init_telemetry(false).unwrap();
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(3));
 
     let source1_handle = NodeHandle::new(Some(1), 1.to_string());
     let source2_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -209,7 +205,7 @@ fn test_checkpoint_consistency_resume() {
     }
 
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(3));
 
     let source1_handle = NodeHandle::new(Some(1), 1.to_string());
     let source2_handle = NodeHandle::new(Some(1), 2.to_string());

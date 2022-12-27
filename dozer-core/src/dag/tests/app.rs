@@ -18,7 +18,7 @@ use dozer_types::types::Schema;
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 
 use tempdir::TempDir;
 
@@ -172,7 +172,7 @@ fn test_apps_source_manager_lookup_multiple_ports() {
 
 #[test]
 fn test_app_dag() {
-    let latch = Arc::new(CountDownLatch::new(2));
+    let latch = Arc::new(Barrier::new(4));
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(

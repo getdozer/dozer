@@ -16,7 +16,7 @@ use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
 use crate::dag::epoch::Epoch;
@@ -183,7 +183,7 @@ fn test_run_dag_reacord_reader() {
 
     const TOT: u64 = 1_000_000;
 
-    let sync = Arc::new(CountDownLatch::new(1));
+    let sync = Arc::new(Barrier::new(2));
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), false);
     let passthrough = PassthroughProcessorFactory::new();
@@ -253,7 +253,7 @@ fn test_run_dag_reacord_reader_from_src() {
 
     const TOT: u64 = 1_000_000;
 
-    let sync = Arc::new(CountDownLatch::new(1));
+    let sync = Arc::new(Barrier::new(2));
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), true);
     let record_reader = RecordReaderProcessorFactory::new();
