@@ -85,60 +85,61 @@ pub fn decode_event(
     let seq_no = get_id(&log) + 1;
 
     let address = format!("{:?}", log.address);
-    let contract_tuple = contracts
-        .get(&address)
-        .unwrap_or_else(|| panic!("no contract found for address: {}", address));
 
-    let event = contract_tuple
-        .0
-        .events
-        .values()
-        .flatten()
-        .into_iter()
-        .find(|evt| evt.signature().to_string() == name)
-        .unwrap_or_else(|| panic!("event is not found with signature: {}", name));
-
-    let schema_id = schema_map
-        .get(&event.signature())
-        .expect("schema is missing")
-        .to_owned();
-
-    let table_name = get_table_name(contract_tuple, &event.name);
-    let is_table_required =
-        tables.map_or(true, |tables| tables.iter().any(|t| t.name == table_name));
-    if is_table_required {
-        // let event = contract.event(&name_str).unwrap();
-        let parsed_event = event
-            .parse_log(RawLog {
-                topics: log.topics,
-                data: log.data.0,
-            })
-            .unwrap_or_else(|_| {
-                panic!(
-                    "parsing event failed: block_no: {}, txn_hash: {}",
-                    log.block_number.unwrap(),
-                    log.transaction_hash.unwrap()
-                )
-            });
-        // info!("Event: {:?}", parsed_event);
-
-        let values = parsed_event
-            .params
+    if let Some(contract_tuple) = contracts.get(&address) {
+        let event = contract_tuple
+            .0
+            .events
+            .values()
+            .flatten()
             .into_iter()
-            .map(|p| map_abitype_to_field(p.value))
-            .collect();
-        Some(OperationEvent {
-            seq_no,
-            operation: Operation::Insert {
-                new: Record {
-                    schema_id: Some(SchemaIdentifier {
-                        id: schema_id as u32,
-                        version: 1,
-                    }),
-                    values,
+            .find(|evt| evt.signature().to_string() == name)
+            .unwrap_or_else(|| panic!("event is not found with signature: {}", name));
+
+        let schema_id = schema_map
+            .get(&event.signature())
+            .expect("schema is missing")
+            .to_owned();
+
+        let table_name = get_table_name(contract_tuple, &event.name);
+        let is_table_required =
+            tables.map_or(true, |tables| tables.iter().any(|t| t.name == table_name));
+        if is_table_required {
+            // let event = contract.event(&name_str).unwrap();
+            let parsed_event = event
+                .parse_log(RawLog {
+                    topics: log.topics,
+                    data: log.data.0,
+                })
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "parsing event failed: block_no: {}, txn_hash: {}",
+                        log.block_number.unwrap(),
+                        log.transaction_hash.unwrap()
+                    )
+                });
+            // info!("Event: {:?}", parsed_event);
+
+            let values = parsed_event
+                .params
+                .into_iter()
+                .map(|p| map_abitype_to_field(p.value))
+                .collect();
+            Some(OperationEvent {
+                seq_no,
+                operation: Operation::Insert {
+                    new: Record {
+                        schema_id: Some(SchemaIdentifier {
+                            id: schema_id as u32,
+                            version: 1,
+                        }),
+                        values,
+                    },
                 },
-            },
-        })
+            })
+        } else {
+            None
+        }
     } else {
         None
     }

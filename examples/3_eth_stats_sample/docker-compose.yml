@@ -1,7 +1,9 @@
 version: '3.9'
 services:
   dozer:
-    container_name: dozer
+    depends_on:
+      ethereum:
+        condition: service_healthy
     build: ../
     ports:
       # REST APIs are published on port 8080
@@ -13,8 +15,23 @@ services:
       - ./.dozer:/usr/dozer/.dozer
     networks: ["dozer_net"]
 
+  ethereum:
+    build: ./
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./ganache_data:/ganache_data
+    healthcheck:
+      test: curl -sf -X POST --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http:// 0.0.0.0:8545
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: ["dozer_net"]
+        
+
 networks:
   dozer_net:
+    name: "dozer_net"
     enable_ipv6: true
     driver: bridge
     driver_opts:
@@ -24,6 +41,3 @@ networks:
       config:
         - subnet: fd00:0:0:1::/64
           gateway: fd00:0:0:1::1
-
-volumes:
-  sample-data:
