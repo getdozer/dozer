@@ -89,7 +89,7 @@ impl ApiServer {
 
         if let Some(api_security) = security.to_owned() {
             // Injecting API Security
-            app = app.app_data(api_security.to_owned());
+            app = app.app_data(api_security);
         }
         let is_auth_configured = security.is_some();
         let auth_middleware =

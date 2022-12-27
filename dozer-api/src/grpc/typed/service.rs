@@ -1,15 +1,15 @@
 use super::{
     codec::TypedCodec,
-    helper::{on_event_to_typed_response, query_response_to_typed_response},
+    helper::{on_event_to_typed_response, query_response_to_typed_response, token_response},
     DynamicMessage, TypedResponse,
 };
 use crate::{
-    auth::Access,
+    auth::{Access, Authorizer},
     grpc::{internal_grpc::PipelineResponse, shared_impl},
     PipelineDetails,
 };
 use actix_web::http::StatusCode;
-use dozer_types::types::Schema;
+use dozer_types::{models::api_security::ApiSecurity, types::Schema};
 use futures_util::future;
 use inflector::Inflector;
 use prost_reflect::DescriptorPool;
@@ -26,6 +26,7 @@ pub struct TypedService {
     pipeline_map: HashMap<String, PipelineDetails>,
     schema_map: HashMap<String, Schema>,
     event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    security: Option<ApiSecurity>,
 }
 impl Clone for TypedService {
     fn clone(&self) -> Self {
@@ -36,6 +37,7 @@ impl Clone for TypedService {
             pipeline_map: self.pipeline_map.clone(),
             schema_map: self.schema_map.clone(),
             event_notifier: self.event_notifier.resubscribe(),
+            security: self.security.to_owned(),
         }
     }
 }
@@ -46,6 +48,7 @@ impl TypedService {
         pipeline_map: HashMap<String, PipelineDetails>,
         schema_map: HashMap<String, Schema>,
         event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+        security: Option<ApiSecurity>,
     ) -> Self {
         TypedService {
             accept_compression_encodings: Default::default(),
@@ -54,6 +57,7 @@ impl TypedService {
             pipeline_map,
             schema_map,
             event_notifier,
+            security,
         }
     }
 }
@@ -71,7 +75,7 @@ where
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
         // full name will be in the format of `/dozer.generated.users.Users/query`
         let current_path: Vec<&str> = req.uri().path().split('/').collect();
-
+        let security = self.security.to_owned();
         let method_name = current_path[current_path.len() - 1];
 
         let req_service_name = current_path[current_path.len() - 2];
@@ -126,7 +130,6 @@ where
                 match method_name {
                     "query" => {
                         struct QueryService(PipelineDetails, DescriptorPool);
-
                         impl tonic::server::UnaryService<DynamicMessage> for QueryService {
                             type Response = TypedResponse;
                             type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
@@ -179,6 +182,26 @@ where
                         Box::pin(async move {
                             let method = EventService(pipeline_details, desc, event_notifier);
                             let res = grpc.server_streaming(method, req).await;
+                            Ok(res)
+                        })
+                    }
+                    "token" => {
+                        struct AuthService(PipelineDetails, DescriptorPool, Option<ApiSecurity>);
+                        impl tonic::server::UnaryService<DynamicMessage> for AuthService {
+                            type Response = TypedResponse;
+                            type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
+                            fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
+                                let pipeline_details = self.0.clone();
+                                let desc = self.1.clone();
+                                let security = self.2.clone();
+                                let response = token(request, security, desc, pipeline_details);
+                                future::ready(response)
+                            }
+                        }
+                        Box::pin(async move {
+                            // let security = self.security.to_owned();
+                            let method = AuthService(pipeline_details, desc, security);
+                            let res = grpc.unary(method, req).await;
                             Ok(res)
                         })
                     }
@@ -253,4 +276,23 @@ fn on_event(
         access.cloned(),
         move |op, endpoint| Some(Ok(on_event_to_typed_response(op, &desc, &endpoint))),
     )
+}
+
+fn token(
+    request: Request<DynamicMessage>,
+    security: Option<ApiSecurity>,
+    desc: DescriptorPool,
+    pipeline_details: PipelineDetails,
+) -> Result<Response<TypedResponse>, Status> {
+    if let Some(security) = security {
+        let _parts = request.into_parts();
+        let endpoint_name = pipeline_details.cache_endpoint.endpoint.name;
+
+        let auth = Authorizer::from(security);
+        let token = auth.generate_token(Access::All, None).unwrap();
+        let res = token_response(token, &desc, &endpoint_name);
+        Ok(Response::new(res))
+    } else {
+        Err(Status::unavailable("security config unavailable"))
+    }
 }

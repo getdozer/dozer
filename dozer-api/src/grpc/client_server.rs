@@ -101,6 +101,7 @@ impl ApiServer {
         let proto_res = ProtoGenerator::generate(
             generated_path.to_string_lossy().to_string(),
             pipeline_map.to_owned(),
+            self.security.to_owned(),
         )?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
@@ -112,6 +113,7 @@ impl ApiServer {
             pipeline_map,
             schema_map,
             rx1.resubscribe(),
+            self.security.to_owned(),
         );
         Ok((typed_service, inflection_service))
     }
