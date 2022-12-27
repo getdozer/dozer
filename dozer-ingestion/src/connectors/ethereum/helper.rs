@@ -4,13 +4,13 @@ use dozer_types::types::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use web3::ethabi::{Contract, RawLog};
+use web3::ethabi::RawLog;
 use web3::transports::WebSocket;
-use web3::types::Log;
+use web3::types::{Log, H256};
 
 use crate::connectors::TableInfo;
 
-use super::connector::ETH_LOGS_TABLE;
+use super::connector::{ContractTuple, ETH_LOGS_TABLE};
 use super::sender::EthDetails;
 
 pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Error> {
@@ -20,13 +20,13 @@ pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Er
 }
 
 pub fn get_contract_event_schemas(
-    contracts: HashMap<String, Contract>,
-    schema_map: HashMap<(String, String), usize>,
+    contracts: HashMap<String, ContractTuple>,
+    schema_map: HashMap<H256, usize>,
 ) -> Vec<(String, Schema)> {
     let mut schemas = vec![];
 
-    for (address, contract) in contracts {
-        for event in contract.events.values().flatten() {
+    for (_, contract_tuple) in contracts {
+        for event in contract_tuple.0.events.values().flatten() {
             let mut fields = vec![];
             for input in event.inputs.iter().cloned() {
                 fields.push(FieldDefinition {
@@ -49,12 +49,12 @@ pub fn get_contract_event_schemas(
             }
 
             let schema_id = schema_map
-                .get(&(address.to_string(), event.name.to_string()))
+                .get(&event.signature())
                 .expect("schema is missing")
                 .to_owned();
 
             schemas.push((
-                event.name.to_owned(),
+                get_table_name(&contract_tuple, &event.name),
                 Schema {
                     identifier: Some(SchemaIdentifier {
                         id: schema_id as u32,
@@ -71,9 +71,9 @@ pub fn get_contract_event_schemas(
 
 pub fn decode_event(
     log: Log,
-    contracts: HashMap<String, Contract>,
+    contracts: HashMap<String, ContractTuple>,
     tables: Option<Vec<TableInfo>>,
-    schema_map: HashMap<(String, String), usize>,
+    schema_map: HashMap<H256, usize>,
 ) -> Option<OperationEvent> {
     // Topics 0, 1, 2 should be name, buyer, seller in most cases
     let name = log
@@ -85,11 +85,12 @@ pub fn decode_event(
     let seq_no = get_id(&log) + 1;
 
     let address = format!("{:?}", log.address);
-    let contract = contracts
+    let contract_tuple = contracts
         .get(&address)
         .unwrap_or_else(|| panic!("no contract found for address: {}", address));
 
-    let event = contract
+    let event = contract_tuple
+        .0
         .events
         .values()
         .flatten()
@@ -98,12 +99,13 @@ pub fn decode_event(
         .unwrap_or_else(|| panic!("event is not found with signature: {}", name));
 
     let schema_id = schema_map
-        .get(&(address, event.name.to_string()))
+        .get(&event.signature())
         .expect("schema is missing")
         .to_owned();
 
+    let table_name = get_table_name(contract_tuple, &event.name);
     let is_table_required =
-        tables.map_or(true, |tables| tables.iter().any(|t| t.name == event.name));
+        tables.map_or(true, |tables| tables.iter().any(|t| t.name == table_name));
     if is_table_required {
         // let event = contract.event(&name_str).unwrap();
         let parsed_event = event
@@ -141,6 +143,11 @@ pub fn decode_event(
         None
     }
 }
+
+pub fn get_table_name(contract_tuple: &ContractTuple, event_name: &str) -> String {
+    format!("{}_{}", contract_tuple.1, event_name)
+}
+
 pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
     match f {
         web3::ethabi::Token::Address(f) => Field::String(format!("{:?}", f)),

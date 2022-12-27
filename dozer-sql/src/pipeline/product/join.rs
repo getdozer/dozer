@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use dozer_core::dag::node::PortHandle;
 use dozer_core::dag::record_store::RecordReader;
-use dozer_core::storage::common::{Database, RwTransaction};
 use dozer_core::storage::errors::StorageError;
+use dozer_core::storage::lmdb_storage::{Database, LmdbExclusiveTransaction};
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
 use dozer_types::errors::types::TypeError;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Field, Record};
 use sqlparser::ast::TableFactor;
 
@@ -46,7 +48,7 @@ pub trait JoinExecutor: Send + Sync {
         &self,
         record: Vec<Record>,
         db: &Database,
-        txn: &mut dyn RwTransaction,
+        txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
         reader: &HashMap<PortHandle, RecordReader>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
@@ -103,7 +105,7 @@ impl JoinExecutor for JoinOperator {
         &self,
         records: Vec<Record>,
         db: &Database,
-        txn: &mut dyn RwTransaction,
+        txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
         readers: &HashMap<PortHandle, RecordReader>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
@@ -177,7 +179,7 @@ impl JoinExecutor for ReverseJoinOperator {
         &self,
         _record: &Record,
         _db: &Database,
-        _txn: &mut dyn RwTransaction,
+        _txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
     ) -> Result<(), ExecutionError> {
         todo!()
     }
@@ -267,7 +269,7 @@ pub trait IndexUpdater: Send + Sync {
     fn index_insert(
         &self,
         record: &Record,
-        txn: &mut dyn RwTransaction,
+        txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
         reader: &HashMap<PortHandle, RecordReader>,
     );
 }
@@ -276,7 +278,7 @@ impl IndexUpdater for JoinOperator {
     fn index_insert(
         &self,
         _record: &Record,
-        _txn: &mut dyn RwTransaction,
+        _txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) {
         todo!()
@@ -287,7 +289,7 @@ impl IndexUpdater for ReverseJoinOperator {
     fn index_insert(
         &self,
         _record: &Record,
-        _txn: &mut dyn RwTransaction,
+        _txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) {
         todo!()

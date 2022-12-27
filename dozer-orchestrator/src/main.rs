@@ -5,7 +5,8 @@ use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use dozer_types::crossbeam::channel;
-use dozer_types::log::{debug, error, info};
+use dozer_types::log::{error, info};
+use dozer_types::prettytable::{row, Table};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,10 +33,14 @@ fn run() -> Result<(), OrchestrationError> {
     });
     thread::sleep(Duration::from_millis(50));
 
-    let orig_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
-        // invoke the default handler and exit the process
-        orig_hook(panic_info);
+        if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
+            error!("{}", e);
+        } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            error!("{s:?}");
+        } else {
+            error!("{}", panic_info);
+        }
         process::exit(1);
     }));
 
@@ -72,18 +77,18 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Connector(sources) => match sources.command {
                 ConnectorCommands::Ls => {
                     let connection_map = dozer.list_connectors()?;
+                    let mut table_parent = Table::new();
                     for (c, tables) in connection_map {
-                        info!("------------Connection: {} ------------", c);
-                        info!("");
-                        for (schema_name, schema) in tables {
-                            info!("Schema: {}", schema_name);
+                        table_parent.add_row(row!["Connection", "Table", "Columns"]);
 
-                            for f in schema.fields {
-                                info!("  {}    -       {:?}", f.name, f.typ);
-                            }
-                            info!("");
+                        for (schema_name, schema) in tables {
+                            let schema_table = schema.print();
+
+                            table_parent.add_row(row![c, schema_name, schema_table]);
                         }
+                        table_parent.add_empty_row();
                     }
+                    table_parent.printstd();
                     Ok(())
                 }
             },
@@ -97,8 +102,7 @@ fn run() -> Result<(), OrchestrationError> {
 
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.run_apps(running, Some(tx)) {
-                debug!("{:?}", e);
-                panic!("Error in pipeline: {}", e);
+                std::panic::panic_any(e);
             }
         });
 
@@ -107,8 +111,7 @@ fn run() -> Result<(), OrchestrationError> {
 
         thread::spawn(move || {
             if let Err(e) = dozer_api.run_api(running_api) {
-                debug!("{:?}", e);
-                panic!("Error in Api: {}", e);
+                std::panic::panic_any(e);
             }
         });
 

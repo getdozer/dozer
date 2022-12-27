@@ -10,7 +10,7 @@ use crate::dag::record_store::RecordReader;
 use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use crate::storage::common::{Environment, RwTransaction};
+use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
@@ -71,7 +71,7 @@ impl ProcessorFactory for PassthroughProcessorFactory {
 pub(crate) struct PassthroughProcessor {}
 
 impl Processor for PassthroughProcessor {
-    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -80,7 +80,7 @@ impl Processor for PassthroughProcessor {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -90,7 +90,7 @@ impl Processor for PassthroughProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
         _readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, PASSTHROUGH_PROCESSOR_OUTPUT_PORT)
@@ -143,7 +143,7 @@ pub(crate) struct RecordReaderProcessor {
 }
 
 impl Processor for RecordReaderProcessor {
-    fn init(&mut self, _tx: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -152,7 +152,7 @@ impl Processor for RecordReaderProcessor {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -162,7 +162,7 @@ impl Processor for RecordReaderProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let v = readers

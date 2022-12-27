@@ -6,9 +6,9 @@ use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Database, Environment, EnvironmentManager, RenewableRwTransaction};
+use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
-use crate::storage::lmdb_storage::LmdbEnvironmentManager;
+use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
@@ -17,12 +17,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub(crate) struct StorageMetadata {
-    pub env: Box<dyn EnvironmentManager>,
+    pub env: LmdbEnvironmentManager,
     pub meta_db: Database,
 }
 
 impl StorageMetadata {
-    pub fn new(env: Box<dyn EnvironmentManager>, meta_db: Database) -> Self {
+    pub fn new(env: LmdbEnvironmentManager, meta_db: Database) -> Self {
         Self { env, meta_db }
     }
 }
@@ -33,11 +33,11 @@ pub(crate) fn init_component<F>(
     mut init_f: F,
 ) -> Result<StorageMetadata, ExecutionError>
 where
-    F: FnMut(&mut dyn Environment) -> Result<(), ExecutionError>,
+    F: FnMut(&mut LmdbEnvironmentManager) -> Result<(), ExecutionError>,
 {
     let mut env = LmdbEnvironmentManager::create(base_path, format!("{}", node_handle).as_str())?;
-    let db = env.open_database(METADATA_DB_NAME, false, None)?;
-    init_f(env.as_environment())?;
+    let db = env.open_database(METADATA_DB_NAME, false)?;
+    init_f(&mut env)?;
     Ok(StorageMetadata::new(env, db))
 }
 #[inline]
@@ -177,7 +177,7 @@ pub(crate) struct StateOptions {
 }
 
 pub(crate) fn create_ports_databases(
-    env: &mut dyn Environment,
+    env: &mut LmdbEnvironmentManager,
     ports: &Vec<OutputPortDef>,
 ) -> Result<HashMap<PortHandle, StateOptions>, StorageError> {
     let mut port_databases = HashMap::<PortHandle, StateOptions>::new();
@@ -186,7 +186,6 @@ pub(crate) fn create_ports_databases(
             let db = env.open_database(
                 format!("{}_{}", PORT_STATE_KEY, out_port.handle).as_str(),
                 false,
-                None,
             )?;
             port_databases.insert(
                 out_port.handle,
@@ -204,7 +203,7 @@ pub(crate) fn fill_ports_record_readers(
     handle: &NodeHandle,
     edges: &[Edge],
     port_databases: &HashMap<PortHandle, StateOptions>,
-    master_tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+    master_tx: &SharedTransaction,
     record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     output_ports: &Vec<OutputPortDef>,
 ) {
@@ -216,7 +215,7 @@ pub(crate) fn fill_ports_record_readers(
                     r.port,
                     RecordReader::new(
                         master_tx.clone(),
-                        port_databases.get(&out_port.handle).unwrap().db.clone(),
+                        port_databases.get(&out_port.handle).unwrap().db,
                     ),
                 );
             }

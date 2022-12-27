@@ -4,24 +4,22 @@ syntax = "proto3";
 package dozer.internal;
 import "types.proto";
 
-service InternalApiService {
-  rpc StreamPipelineRequest(stream PipelineRequest) returns (PipelineResponse);
-}
-
 service InternalPipelineService {
+  rpc StreamPipelineRequest(PipelineRequest) returns ( stream PipelineResponse);
   rpc GetConfig(GetAppConfigRequest) returns (GetAppConfigResponse);
   rpc Restart(RestartPipelineRequest) returns (RestartPipelineResponse); 
 }
 
 // ---------------- Api ------------------------
 message PipelineRequest {
+}
+message PipelineResponse {
   string endpoint = 1;
   oneof api_event {
     dozer.types.SchemaEvent schema = 2;
     dozer.types.Operation op = 3;
   }
 }
-message PipelineResponse {}
 
 // ---------------- Pipeline ------------------------
 message RestartPipelineRequest {}

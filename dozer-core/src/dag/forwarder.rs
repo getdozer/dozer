@@ -6,15 +6,14 @@ use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
-use crate::storage::common::{Database, RenewableRwTransaction};
+use crate::storage::common::Database;
 use crate::storage::errors::StorageError::SerializationError;
+use crate::storage::lmdb_storage::SharedTransaction;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use log::info;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -24,14 +23,14 @@ pub(crate) struct StateWriter {
     output_schemas: HashMap<PortHandle, Schema>,
     input_schemas: HashMap<PortHandle, Schema>,
     input_ports: Option<Vec<PortHandle>>,
-    tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+    tx: SharedTransaction,
 }
 
 impl StateWriter {
     pub fn new(
         meta_db: Database,
         dbs: HashMap<PortHandle, StateOptions>,
-        tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+        tx: SharedTransaction,
         input_ports: Option<Vec<PortHandle>>,
         output_schemas: HashMap<PortHandle, Schema>,
         input_schemas: HashMap<PortHandle, Schema>,
@@ -47,10 +46,10 @@ impl StateWriter {
     }
 
     fn write_record(
-        db: &Database,
+        db: Database,
         rec: &Record,
         schema: &Schema,
-        tx: &mut Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+        tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let key = rec.get_key(&schema.primary_index);
         let value = bincode::serialize(&rec).map_err(|e| SerializationError {
@@ -62,16 +61,16 @@ impl StateWriter {
     }
 
     fn retr_record(
-        db: &Database,
+        db: Database,
         key: &[u8],
-        tx: &Arc<RwLock<Box<dyn RenewableRwTransaction>>>,
+        tx: &SharedTransaction,
     ) -> Result<Record, ExecutionError> {
+        let tx = tx.read();
         let curr = tx
-            .read()
             .get(db, key)?
             .ok_or_else(ExecutionError::RecordNotFound)?;
 
-        let r: Record = bincode::deserialize(&curr).map_err(|e| SerializationError {
+        let r: Record = bincode::deserialize(curr).map_err(|e| SerializationError {
             typ: "Record".to_string(),
             reason: Box::new(e),
         })?;
@@ -87,23 +86,23 @@ impl StateWriter {
 
             match op {
                 Operation::Insert { new } => {
-                    StateWriter::write_record(&opts.db, &new, schema, &mut self.tx)?;
+                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
                     Ok(Operation::Insert { new })
                 }
                 Operation::Delete { mut old } => {
                     let key = old.get_key(&schema.primary_index);
                     if opts.options.retrieve_old_record_for_deletes {
-                        old = StateWriter::retr_record(&opts.db, &key, &self.tx)?;
+                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
                     }
-                    self.tx.write().del(&opts.db, &key, None)?;
+                    self.tx.write().del(opts.db, &key, None)?;
                     Ok(Operation::Delete { old })
                 }
                 Operation::Update { mut old, new } => {
                     let key = old.get_key(&schema.primary_index);
                     if opts.options.retrieve_old_record_for_updates {
-                        old = StateWriter::retr_record(&opts.db, &key, &self.tx)?;
+                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
                     }
-                    StateWriter::write_record(&opts.db, &new, schema, &mut self.tx)?;
+                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
                     Ok(Operation::Update { old, new })
                 }
             }
@@ -128,7 +127,7 @@ impl StateWriter {
 
         self.tx
             .write()
-            .put(&self.meta_db, full_key.as_slice(), value.as_slice())?;
+            .put(self.meta_db, full_key.as_slice(), value.as_slice())?;
         self.tx.write().commit_and_renew()?;
 
         Ok(())
@@ -152,62 +151,14 @@ impl StateWriter {
     }
 }
 
-pub struct LocalChannelForwarder {
-    senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-    curr_txid: u64,
-    curr_seq_in_tx: u64,
-    commit_size: u32,
-    commit_counter: u32,
-    max_commit_time: Duration,
-    last_commit_time: Instant,
+pub(crate) struct ChannelManager {
     owner: NodeHandle,
+    senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     state_writer: StateWriter,
     stateful: bool,
 }
 
-impl LocalChannelForwarder {
-    pub(crate) fn new_source_forwarder(
-        owner: NodeHandle,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        commit_size: u32,
-        commit_threshold_max: Duration,
-        state_writer: StateWriter,
-        stateful: bool,
-    ) -> Self {
-        Self {
-            senders,
-            curr_txid: 0,
-            curr_seq_in_tx: 0,
-            commit_size,
-            commit_counter: 0,
-            owner,
-            state_writer,
-            max_commit_time: commit_threshold_max,
-            last_commit_time: Instant::now(),
-            stateful,
-        }
-    }
-
-    pub(crate) fn new_processor_forwarder(
-        owner: NodeHandle,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        rec_store_writer: StateWriter,
-        stateful: bool,
-    ) -> Self {
-        Self {
-            senders,
-            curr_txid: 0,
-            curr_seq_in_tx: 0,
-            commit_size: 0,
-            commit_counter: 0,
-            owner,
-            state_writer: rec_store_writer,
-            max_commit_time: Duration::from_millis(0),
-            last_commit_time: Instant::now(),
-            stateful,
-        }
-    }
-
+impl ChannelManager {
     #[inline]
     fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
         if self.stateful {
@@ -294,10 +245,40 @@ impl LocalChannelForwarder {
 
         Ok(())
     }
+    pub fn new(
+        owner: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        state_writer: StateWriter,
+        stateful: bool,
+    ) -> Self {
+        Self {
+            owner,
+            senders,
+            state_writer,
+            stateful,
+        }
+    }
+}
 
+pub(crate) struct SourceChannelManager {
+    source_handle: NodeHandle,
+    manager: ChannelManager,
+    curr_txid: u64,
+    curr_seq_in_tx: u64,
+    commit_size: u32,
+    commit_counter: u32,
+    max_commit_time: Duration,
+    last_commit_time: Instant,
+}
+
+impl SourceChannelManager {
     pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
-        self.store_and_send_commit(self.owner.clone(), self.curr_txid, self.curr_seq_in_tx)?;
-        self.send_term_and_wait()
+        self.manager.store_and_send_commit(
+            self.manager.owner.clone(),
+            self.curr_txid,
+            self.curr_seq_in_tx,
+        )?;
+        self.manager.send_term_and_wait()
     }
 
     fn timeout_commit_needed(&self) -> bool {
@@ -307,15 +288,39 @@ impl LocalChannelForwarder {
 
     pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
         if self.timeout_commit_needed() && self.commit_counter > 0 {
-            self.store_and_send_commit(self.owner.clone(), self.curr_txid, self.curr_seq_in_tx)?;
+            self.manager.store_and_send_commit(
+                self.source_handle.clone(),
+                self.curr_txid,
+                self.curr_seq_in_tx,
+            )?;
             self.commit_counter = 0;
             self.last_commit_time = Instant::now();
         }
         Ok(())
     }
+
+    pub fn new(
+        owner: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        commit_size: u32,
+        commit_threshold_max: Duration,
+        state_writer: StateWriter,
+        stateful: bool,
+    ) -> Self {
+        Self {
+            manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
+            curr_txid: 0,
+            curr_seq_in_tx: 0,
+            commit_size,
+            commit_counter: 0,
+            max_commit_time: commit_threshold_max,
+            last_commit_time: Instant::now(),
+            source_handle: owner,
+        }
+    }
 }
 
-impl SourceChannelForwarder for LocalChannelForwarder {
+impl SourceChannelForwarder for SourceChannelManager {
     fn send(
         &mut self,
         txid: u64,
@@ -327,18 +332,50 @@ impl SourceChannelForwarder for LocalChannelForwarder {
         self.curr_seq_in_tx = seq_in_tx;
 
         if self.commit_counter >= self.commit_size || self.timeout_commit_needed() {
-            self.store_and_send_commit(self.owner.clone(), txid, seq_in_tx)?;
+            self.manager
+                .store_and_send_commit(self.source_handle.clone(), txid, seq_in_tx)?;
             self.commit_counter = 0;
             self.last_commit_time = Instant::now();
         }
-        self.send_op(op, port)?;
+        self.manager.send_op(op, port)?;
         self.commit_counter += 1;
         Ok(())
     }
 }
 
-impl ProcessorChannelForwarder for LocalChannelForwarder {
+pub(crate) struct ProcessorChannelManager {
+    manager: ChannelManager,
+}
+
+impl ProcessorChannelManager {
+    pub fn new(
+        owner: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        state_writer: StateWriter,
+        stateful: bool,
+    ) -> Self {
+        Self {
+            manager: ChannelManager::new(owner, senders, state_writer, stateful),
+        }
+    }
+
+    pub fn store_and_send_commit(
+        &mut self,
+        source_node: NodeHandle,
+        txid: u64,
+        seq_in_tx: u64,
+    ) -> Result<(), ExecutionError> {
+        self.manager
+            .store_and_send_commit(source_node, txid, seq_in_tx)
+    }
+
+    pub fn send_term_and_wait(&self) -> Result<(), ExecutionError> {
+        self.manager.send_term_and_wait()
+    }
+}
+
+impl ProcessorChannelForwarder for ProcessorChannelManager {
     fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.send_op(op, port)
+        self.manager.send_op(op, port)
     }
 }

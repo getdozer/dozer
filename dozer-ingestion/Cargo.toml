@@ -40,8 +40,9 @@ dozer-tracing = {path = "../dozer-tracing"}
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc", "dep:include_dir"]
-# workaroud to ignore debezium benchmarking whne running `cargo criterion` without any parameters
+# workaroud to ignore debezium benchmarking when running `cargo criterion` without any parameters
 debezium_bench = []
+postgres_bench = ["dep:include_dir"]
 
 [[bench]]
 name = "snowflake"
@@ -52,3 +53,8 @@ required-features = ["snowflake"]
 name = "debezium"
 harness = false
 required-features = ["debezium_bench"]
+
+[[bench]]
+name = "postgres"
+harness = false
+required-features = ["postgres_bench"]

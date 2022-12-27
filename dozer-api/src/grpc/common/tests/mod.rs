@@ -1,13 +1,16 @@
-use tonic::Request;
-
 use crate::grpc::{
     common_grpc::{
         common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
         OnEventRequest, QueryRequest,
     },
-    typed::tests::service::setup_pipeline,
+    typed::tests::{
+        fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, service::setup_pipeline,
+    },
     types::{value, EventType, FieldDefinition, OperationType, Type, Value},
 };
+use dozer_types::models::api_config::default_api_config;
+use tokio::sync::oneshot;
+use tonic::Request;
 
 use super::CommonService;
 
@@ -88,6 +91,14 @@ async fn test_grpc_common_get_fields() {
 
 #[tokio::test]
 async fn test_grpc_common_on_event() {
+    // start fake internal pipeline
+    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
+    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let _jh = tokio::spawn(start_fake_internal_grpc_pipeline(
+        default_pipeline_internal.host,
+        default_pipeline_internal.port,
+        rx_internal,
+    ));
     let service = setup_common_service();
     let mut rx = service
         .on_event(Request::new(OnEventRequest {
@@ -100,6 +111,8 @@ async fn test_grpc_common_on_event() {
         .into_inner()
         .into_inner();
     let operation = rx.recv().await.unwrap().unwrap();
+    _ = sender_shutdown_internal.send(());
+    drop(rx);
     assert_eq!(operation.endpoint_name, "films".to_string());
     assert_eq!(operation.typ, OperationType::Insert as i32);
     assert_eq!(

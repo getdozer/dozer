@@ -50,6 +50,7 @@ message EthereumFilter {
   repeated string topics = 3;
 }
 message EthContract {
-  string address = 1;
-  string abi = 2;
+  string name = 1;
+  string address = 2;
+  string abi = 3;
 }

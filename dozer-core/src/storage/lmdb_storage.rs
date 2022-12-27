@@ -1,25 +1,22 @@
-use crate::storage::common::{
-    Database, Environment, EnvironmentManager, RenewableRwTransaction, RoCursor, RwCursor,
-};
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::InternalDbError;
-use crate::storage::lmdb_sys::{
-    Cursor as LmdbCursor, CursorPutOptions as LmdbCursorPutOptions, Database as LmdbDatabase,
-    DatabaseOptions as LmdbDatabaseOptions, EnvOptions, Environment as LmdbEnvironment,
-    PutOptions as LmdbPutOptions, Transaction as LmdbTransaction,
-};
+use dozer_types::parking_lot::RwLock;
 use libc::size_t;
-use lmdb_sys::MDB_cmp_func;
+use lmdb::{
+    Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor, RwCursor, RwTransaction,
+    Transaction, WriteFlags,
+};
 use std::fs;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::sync::Arc;
 
 const DEFAULT_MAX_DBS: u32 = 256;
 const DEFAULT_MAX_READERS: u32 = 256;
 const DEFAULT_MAX_MAP_SZ: size_t = 1024 * 1024 * 1024;
 
 pub struct LmdbEnvironmentManager {
-    inner: LmdbEnvironment,
-    dbs: Vec<LmdbDatabase>,
+    inner: Environment,
 }
 
 impl LmdbEnvironmentManager {
@@ -33,193 +30,159 @@ impl LmdbEnvironmentManager {
         let _ = fs::remove_file(full_path);
     }
 
-    pub fn create(
-        base_path: &Path,
-        name: &str,
-    ) -> Result<Box<dyn EnvironmentManager>, StorageError> {
+    pub fn create(base_path: &Path, name: &str) -> Result<Self, StorageError> {
         let full_path = base_path.join(Path::new(name));
 
-        let mut env_opt = EnvOptions::default();
+        let mut builder = Environment::new();
+        builder.set_max_dbs(DEFAULT_MAX_DBS);
+        builder.set_map_size(DEFAULT_MAX_MAP_SZ);
+        builder.set_max_readers(DEFAULT_MAX_READERS);
+        builder.set_flags(
+            EnvironmentFlags::NO_SUB_DIR | EnvironmentFlags::NO_TLS | EnvironmentFlags::NO_LOCK,
+        );
 
-        env_opt.max_dbs = Some(DEFAULT_MAX_DBS);
-        env_opt.map_size = Some(DEFAULT_MAX_MAP_SZ);
-        env_opt.max_readers = Some(DEFAULT_MAX_READERS);
-        env_opt.writable_mem_map = false;
-        env_opt.no_subdir = true;
-        env_opt.no_thread_local_storage = true;
-        env_opt.no_locking = true;
-
-        let env = LmdbEnvironment::new(full_path.to_str().unwrap().to_string(), env_opt)
-            .map_err(InternalDbError)?;
-        Ok(Box::new(LmdbEnvironmentManager {
-            inner: env,
-            dbs: Vec::new(),
-        }))
-    }
-}
-
-impl EnvironmentManager for LmdbEnvironmentManager {
-    fn as_environment(&mut self) -> &mut dyn Environment {
-        self
+        let env = builder.open(&full_path).map_err(InternalDbError)?;
+        Ok(LmdbEnvironmentManager { inner: env })
     }
 
-    fn create_txn(&mut self) -> Result<Box<dyn RenewableRwTransaction>, StorageError> {
-        let tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
-        Ok(Box::new(LmdbExclusiveTransaction::new(
-            self.inner.clone(),
-            tx,
-            self.dbs.clone(),
-        )))
+    pub fn create_txn(self) -> Result<SharedTransaction, StorageError> {
+        Ok(SharedTransaction::new(LmdbExclusiveTransaction::new(
+            self.inner,
+        )?))
     }
-}
 
-impl Environment for LmdbEnvironmentManager {
-    fn open_database(
-        &mut self,
-        name: &str,
-        dup_keys: bool,
-        comparator: MDB_cmp_func,
-    ) -> Result<Database, StorageError> {
-        let mut tx = self.inner.tx_begin(false).map_err(InternalDbError)?;
-        let mut db_opts = LmdbDatabaseOptions::default();
-        db_opts.create = true;
-        db_opts.allow_duplicate_keys = dup_keys;
-        let db = tx
-            .open_database(name.to_string(), db_opts)
-            .map_err(InternalDbError)?;
-        if let Some(comparator) = comparator {
-            db.set_compare(&tx, Some(comparator))?;
+    pub fn open_database(&mut self, name: &str, dup_keys: bool) -> Result<Database, StorageError> {
+        let mut flags = DatabaseFlags::default();
+        if dup_keys {
+            flags |= DatabaseFlags::DUP_SORT;
         }
-
-        tx.commit().map_err(InternalDbError)?;
-        self.dbs.push(db);
-        Ok(Database::new(self.dbs.len() - 1))
+        let db = self
+            .inner
+            .create_db(Some(name), flags)
+            .map_err(InternalDbError)?;
+        Ok(db)
     }
 }
 
-struct LmdbExclusiveTransaction {
-    env: LmdbEnvironment,
-    inner: LmdbTransaction,
-    dbs: Vec<LmdbDatabase>,
+#[derive(Debug, Clone)]
+pub struct SharedTransaction(Arc<RwLock<LmdbExclusiveTransaction>>);
+
+impl SharedTransaction {
+    fn new(inner: LmdbExclusiveTransaction) -> Self {
+        Self(Arc::new(RwLock::new(inner)))
+    }
+
+    pub fn try_unwrap(this: SharedTransaction) -> Result<LmdbExclusiveTransaction, Self> {
+        Arc::try_unwrap(this.0)
+            .map(|lock| lock.into_inner())
+            .map_err(Self)
+    }
+
+    pub fn write(&self) -> impl DerefMut<Target = LmdbExclusiveTransaction> + '_ {
+        self.0.write()
+    }
+
+    pub fn read(&self) -> impl Deref<Target = LmdbExclusiveTransaction> + '_ {
+        self.0.read()
+    }
 }
+
+// SAFETY:
+// - `SharedTransaction` can only be created from `LmdbEnvironmentManager::create_txn`.
+// - `LmdbEnvironmentManager` is opened with `NO_TLS` and `NO_LOCK`.
+// - Inner `lmdb::RwTransaction` is protected by `RwLock`.
+unsafe impl Send for SharedTransaction {}
+unsafe impl Sync for SharedTransaction {}
+
+#[derive(Debug)]
+pub struct LmdbExclusiveTransaction {
+    inner: Option<RwTransaction<'static>>,
+    env: Environment,
+}
+
+const PANIC_MESSAGE: &str =
+    "LmdbExclusiveTransaction cannot be used after `commit_and_renew` fails.";
 
 impl LmdbExclusiveTransaction {
-    pub fn new(env: LmdbEnvironment, inner: LmdbTransaction, dbs: Vec<LmdbDatabase>) -> Self {
-        Self { env, inner, dbs }
+    pub fn new(env: Environment) -> Result<Self, StorageError> {
+        let inner = env.begin_rw_txn()?;
+        // SAFETY:
+        // - `inner` does not reference data in `env`, it only has to be outlived by `env`.
+        // - We never expose `inner` to outside, so no one can observe its `'static` lifetime.
+        // - `inner` is dropped before `env`, guaranteed by `Rust` drop order.
+        let inner =
+            unsafe { std::mem::transmute::<RwTransaction<'_>, RwTransaction<'static>>(inner) };
+        Ok(Self {
+            inner: Some(inner),
+            env,
+        })
     }
-}
 
-impl RenewableRwTransaction for LmdbExclusiveTransaction {
-    fn commit_and_renew(&mut self) -> Result<(), StorageError> {
-        self.inner.commit().map_err(InternalDbError)?;
-        self.inner = self.env.tx_begin(false)?;
-        Ok(())
-    }
-
-    fn abort_and_renew(&mut self) -> Result<(), StorageError> {
-        self.inner.abort().map_err(InternalDbError)?;
-        self.inner = self.env.tx_begin(false)?;
+    /// If this method fails, following calls to `self` will panic.
+    pub fn commit_and_renew(&mut self) -> Result<(), StorageError> {
+        self.inner.take().expect(PANIC_MESSAGE).commit()?;
+        let inner = self.env.begin_rw_txn()?;
+        // SAFETY: Same as `new`.
+        let inner =
+            unsafe { std::mem::transmute::<RwTransaction<'_>, RwTransaction<'static>>(inner) };
+        self.inner = Some(inner);
         Ok(())
     }
 
     #[inline]
-    fn put(&mut self, db: &Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
+    pub fn put(&mut self, db: Database, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
         self.inner
-            .put(&self.dbs[db.id], key, value, LmdbPutOptions::default())
+            .as_mut()
+            .expect(PANIC_MESSAGE)
+            .put(db, &key, &value, WriteFlags::default())
             .map_err(InternalDbError)
     }
 
     #[inline]
-    fn del(
+    pub fn del(
         &mut self,
-        db: &Database,
+        db: Database,
         key: &[u8],
         value: Option<&[u8]>,
     ) -> Result<bool, StorageError> {
-        self.inner
-            .del(&self.dbs[db.id], key, value)
-            .map_err(InternalDbError)
-    }
-
-    #[inline]
-    fn open_cursor(&self, db: &Database) -> Result<Box<dyn RwCursor>, StorageError> {
-        let cursor = self.inner.open_cursor(&self.dbs[db.id])?;
-        Ok(Box::new(ReaderWriterCursor::new(cursor)))
-    }
-
-    #[inline]
-    fn get(&self, db: &Database, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        Ok(self
+        match self
             .inner
-            .get(&self.dbs[db.id], key)
-            .map_err(InternalDbError)?
-            .map(Vec::from))
+            .as_mut()
+            .expect(PANIC_MESSAGE)
+            .del(db, &key, value)
+        {
+            Ok(()) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
     }
 
     #[inline]
-    fn open_ro_cursor(&self, db: &Database) -> Result<Box<dyn RoCursor>, StorageError> {
-        let cursor = self.inner.open_cursor(&self.dbs[db.id])?;
-        Ok(Box::new(ReaderWriterCursor::new(cursor)))
-    }
-}
-
-pub struct ReaderWriterCursor {
-    inner: LmdbCursor,
-}
-
-impl ReaderWriterCursor {
-    pub fn new(inner: LmdbCursor) -> Self {
-        Self { inner }
-    }
-}
-
-impl RoCursor for ReaderWriterCursor {
-    #[inline]
-    fn seek_gte(&self, key: &[u8]) -> Result<bool, StorageError> {
-        self.inner.seek_gte(key).map_err(InternalDbError)
+    pub fn open_cursor(&mut self, db: Database) -> Result<RwCursor, StorageError> {
+        let cursor = self
+            .inner
+            .as_mut()
+            .expect(PANIC_MESSAGE)
+            .open_rw_cursor(db)?;
+        Ok(cursor)
     }
 
     #[inline]
-    fn seek(&self, key: &[u8]) -> Result<bool, StorageError> {
-        self.inner.seek(key).map_err(InternalDbError)
+    pub fn get(&self, db: Database, key: &[u8]) -> Result<Option<&[u8]>, StorageError> {
+        match self.inner.as_ref().expect(PANIC_MESSAGE).get(db, &key) {
+            Ok(value) => Ok(Some(value)),
+            Err(lmdb::Error::NotFound) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
     }
 
     #[inline]
-    fn seek_partial(&self, key: &[u8]) -> Result<bool, StorageError> {
-        self.inner.seek_partial(key).map_err(InternalDbError)
-    }
-
-    #[inline]
-    fn read(&self) -> Result<Option<(&[u8], &[u8])>, StorageError> {
-        self.inner.read().map_err(InternalDbError)
-    }
-
-    #[inline]
-    fn next(&self) -> Result<bool, StorageError> {
-        self.inner.next().map_err(InternalDbError)
-    }
-
-    #[inline]
-    fn prev(&self) -> Result<bool, StorageError> {
-        self.inner.prev().map_err(InternalDbError)
-    }
-
-    #[inline]
-    fn first(&self) -> Result<bool, StorageError> {
-        self.inner.first().map_err(InternalDbError)
-    }
-
-    #[inline]
-    fn last(&self) -> Result<bool, StorageError> {
-        self.inner.last().map_err(InternalDbError)
-    }
-}
-
-impl RwCursor for ReaderWriterCursor {
-    #[inline]
-    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
-        self.inner
-            .put(key, value, &LmdbCursorPutOptions::default())
-            .map_err(InternalDbError)
+    pub fn open_ro_cursor(&self, db: Database) -> Result<RoCursor, StorageError> {
+        let cursor = self
+            .inner
+            .as_ref()
+            .expect(PANIC_MESSAGE)
+            .open_ro_cursor(db)?;
+        Ok(cursor)
     }
 }
