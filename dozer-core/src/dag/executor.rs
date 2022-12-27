@@ -662,11 +662,6 @@ impl<'a> DagExecutor<'a> {
                     if j.is_finished() {
                         let r = self.join_handles.remove(handle).unwrap().join();
                         finished += 1;
-                        // match r {
-                        //     Ok(Err(e)) => return Err(e),
-                        //     Err(_e) => return Err(InternalThreadPanic),
-                        //     _ => finished += 1,
-                        // }
                     }
                 }
             }
