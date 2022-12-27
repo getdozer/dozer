@@ -75,7 +75,7 @@ fn setup_typed_service() -> TypedService {
 
     let (pipeline_map, schema_map, rx1) = setup_pipeline();
 
-    TypedService::new(desc, pipeline_map, schema_map, rx1)
+    TypedService::new(desc, pipeline_map, schema_map, rx1, None)
 }
 
 #[tokio::test]

@@ -23,7 +23,7 @@ fn test_generate_proto_and_descriptor() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
 
-    let res = ProtoGenerator::generate(tmp_dir_path, map).unwrap();
+    let res = ProtoGenerator::generate(tmp_dir_path, map, None).unwrap();
 
     let msg = res
         .descriptor
