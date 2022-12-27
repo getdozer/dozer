@@ -95,7 +95,7 @@ pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>
         .block_on(async { deploy_contract(wss_url.clone(), my_account).await });
 
     let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-    let ingestor_pr = ingestor.clone();
+    let ingestor_pr = ingestor;
 
     let cloned_contract = contract.clone();
     let _t = thread::spawn(move || {
