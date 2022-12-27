@@ -11,21 +11,23 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 ## Environment
-- **Dozer version**: 
-- **OS Version**:
-- **Deployment**:
-- **Source type and version**:
+- **Dozer version**: example 0.1.2
+- **OS Version**: Ubuntu 20.04.5
+- **Deployment**: Docker
+- **Source type and version**: example PostgreSQL 9.2
 
 
 ## To Reproduce
 Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+
+1. Run cli command '....'
+2. Insert a new record '....'
+3. Update a record '....'
+...
+N. See error
 
 ## Expected behavior
 A clear and concise description of what you expected to happen.
 
-## Screenshots
-If applicable, add screenshots to help explain your problem.
+## Logs
+If applicable, add logs to help explain your problem.
