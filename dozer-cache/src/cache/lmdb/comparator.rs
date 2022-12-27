@@ -15,7 +15,7 @@ pub fn set_sorted_inverted_comparator(
     };
 
     if let Some(comparator) = comparator {
-        let txn = env.begin_rw_txn()?;
+        let txn = env.begin_ro_txn()?;
         unsafe {
             assert_eq!(
                 mdb_set_compare(txn.txn(), db.dbi(), Some(comparator)),
@@ -57,7 +57,11 @@ mod tests {
     };
     use lmdb_sys::mdb_cmp;
 
-    use crate::cache::{index::get_secondary_index, lmdb::utils, CacheOptions};
+    use crate::cache::{
+        index::get_secondary_index,
+        lmdb::utils::{self, DatabaseCreateOptions},
+        CacheOptions,
+    };
 
     use super::*;
 
@@ -141,7 +145,15 @@ mod tests {
     fn setup(num_fields: usize) -> (Environment, Database) {
         let options = CacheOptions::default();
         let env = utils::init_env(&options).unwrap();
-        let db = utils::init_db(&env, Some("test"), &options, true, false).unwrap();
+        let db = utils::init_db(
+            &env,
+            Some("test"),
+            Some(DatabaseCreateOptions {
+                allow_dup: true,
+                fixed_length_key: false,
+            }),
+        )
+        .unwrap();
         let fields = (0..num_fields).into_iter().collect::<Vec<_>>();
         set_sorted_inverted_comparator(&env, db, &fields).unwrap();
         (env, db)
@@ -170,7 +182,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::needless_lifetimes)]
     fn get_composite_key_checker<'a>(num_fields: usize) -> impl Fn(&[i64], &[i64], Ordering) + 'a {
         let (env, db) = setup(num_fields);
         move |a: &[i64], b: &[i64], expected: Ordering| {

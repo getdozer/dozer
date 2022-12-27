@@ -156,7 +156,7 @@ pub fn map_sqlite_to_record(
         values.push(val);
     }
     let record = Record {
-        schema_id: schema.identifier.clone(),
+        schema_id: schema.identifier,
         values,
     };
     Ok(record)

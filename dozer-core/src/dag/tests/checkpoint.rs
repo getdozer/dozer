@@ -11,6 +11,7 @@ use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use tempdir::TempDir;
@@ -70,7 +71,8 @@ fn test_checkpoint_consistency() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());
@@ -168,7 +170,8 @@ fn test_checkpoint_consistency_resume() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());
@@ -238,7 +241,8 @@ fn test_checkpoint_consistency_resume() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());

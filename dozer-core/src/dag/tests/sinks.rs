@@ -1,7 +1,7 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Environment, RwTransaction};
+use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 use log::info;
@@ -53,7 +53,7 @@ pub(crate) struct CountingSink {
     term_latch: Arc<CountDownLatch>,
 }
 impl Sink for CountingSink {
-    fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -62,7 +62,7 @@ impl Sink for CountingSink {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -71,7 +71,7 @@ impl Sink for CountingSink {
         &mut self,
         _from_port: PortHandle,
         _op: Operation,
-        _state: &mut dyn RwTransaction,
+        _state: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         self.current += 1;

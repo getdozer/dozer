@@ -7,18 +7,18 @@ use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
     ChannelDisconnected, IncompatibleSchemas, InconsistentCheckpointMetadata, InternalError,
-    InternalThreadPanic, InvalidNodeHandle,
+    InvalidNodeHandle,
 };
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, index_edges,
     init_component, init_select, map_to_op,
 };
-use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
+use crate::dag::forwarder::{ProcessorChannelManager, SourceChannelManager, StateWriter};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
-use crate::storage::common::{Database, EnvironmentManager, RenewableRwTransaction};
+use crate::storage::common::Database;
+use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
-use crate::storage::transactions::SharedTransaction;
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
@@ -101,12 +101,12 @@ impl Display for ExecutorOperation {
 }
 
 pub(crate) struct StorageMetadata {
-    pub env: Box<dyn EnvironmentManager>,
+    pub env: LmdbEnvironmentManager,
     pub meta_db: Database,
 }
 
 impl StorageMetadata {
-    pub fn new(env: Box<dyn EnvironmentManager>, meta_db: Database) -> Self {
+    pub fn new(env: LmdbEnvironmentManager, meta_db: Database) -> Self {
         Self { env, meta_db }
     }
 }
@@ -138,10 +138,10 @@ pub struct DagExecutor<'a> {
     schemas: HashMap<NodeHandle, NodeSchemas>,
     term_barrier: Arc<Barrier>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    join_handles: HashMap<NodeHandle, JoinHandle<Result<(), ExecutionError>>>,
+    join_handles: HashMap<NodeHandle, JoinHandle<()>>,
     path: PathBuf,
     options: ExecutorOptions,
-    stop_req: Arc<AtomicBool>,
+    running: Arc<AtomicBool>,
     consistency_metadata: HashMap<NodeHandle, (u64, u64)>,
 }
 
@@ -168,6 +168,7 @@ impl<'a> DagExecutor<'a> {
         dag: &'a Dag,
         path: &Path,
         options: ExecutorOptions,
+        running: Arc<AtomicBool>,
     ) -> Result<Self, ExecutionError> {
         //
 
@@ -198,7 +199,7 @@ impl<'a> DagExecutor<'a> {
             path: path.to_path_buf(),
             join_handles: HashMap::new(),
             options,
-            stop_req: Arc::new(AtomicBool::new(false)),
+            running,
             consistency_metadata,
         })
     }
@@ -335,14 +336,14 @@ impl<'a> DagExecutor<'a> {
         src_factory: Arc<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         schemas: &NodeSchemas,
-    ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
+    ) -> Result<JoinHandle<()>, ExecutionError> {
         //
         //
 
         let (st_sender, st_receiver) =
             bounded::<(PortHandle, u64, u64, Operation)>(self.options.channel_buffer_sz);
         let st_src_factory = src_factory.clone();
-        let st_stop_req = self.stop_req.clone();
+        let st_running = self.running.clone();
         let st_output_schemas = schemas.output_schemas.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
         let start_seq = *self
@@ -353,7 +354,7 @@ impl<'a> DagExecutor<'a> {
         let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
             let src = st_src_factory.build(st_output_schemas)?;
             let r = src.start(&mut fw, Some(start_seq));
-            st_stop_req.store(true, Ordering::Relaxed);
+            st_running.store(false, Ordering::SeqCst);
             r
         });
 
@@ -363,19 +364,17 @@ impl<'a> DagExecutor<'a> {
         let lt_edges = self.dag.edges.clone();
         let lt_record_stores = self.record_stores.clone();
         let lt_executor_options = self.options.clone();
-        let lt_stop_req = self.stop_req.clone();
+        let lt_running = self.running.clone();
         let lt_term_barrier = self.term_barrier.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
 
-        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
+        let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let _output_schemas = HashMap::<PortHandle, Schema>::new();
             let mut state_meta = init_component(&handle, lt_path.as_path(), |_e| Ok(()))?;
 
-            let port_databases =
-                create_ports_databases(state_meta.env.as_environment(), &lt_output_ports)?;
+            let port_databases = create_ports_databases(&mut state_meta.env, &lt_output_ports)?;
 
-            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+            let master_tx = state_meta.env.create_txn()?;
 
             fill_ports_record_readers(
                 &handle,
@@ -386,7 +385,7 @@ impl<'a> DagExecutor<'a> {
                 &lt_output_ports,
             );
 
-            let mut dag_fw = LocalChannelForwarder::new_source_forwarder(
+            let mut dag_fw = SourceChannelManager::new(
                 handle,
                 senders,
                 lt_executor_options.commit_sz,
@@ -394,7 +393,7 @@ impl<'a> DagExecutor<'a> {
                 StateWriter::new(
                     state_meta.meta_db,
                     port_databases,
-                    master_tx.clone(),
+                    master_tx,
                     None,
                     lt_output_schemas,
                     HashMap::new(),
@@ -403,13 +402,13 @@ impl<'a> DagExecutor<'a> {
             );
             loop {
                 let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
-                match lt_stop_req.load(Ordering::Relaxed) {
-                    true => {
+                match lt_running.load(Ordering::SeqCst) {
+                    false => {
                         dag_fw.commit_and_terminate()?;
                         lt_term_barrier.wait();
                         break;
                     }
-                    false => match r {
+                    true => match r {
                         Err(RecvTimeoutError::Timeout) => {
                             dag_fw.trigger_commit_if_needed()?;
                         }
@@ -429,7 +428,9 @@ impl<'a> DagExecutor<'a> {
                 }
             }
             Ok(())
-        }))
+        };
+
+        Ok(thread::spawn(|| lt_thread_fct().unwrap()))
     }
 
     pub fn start_processor(
@@ -439,7 +440,7 @@ impl<'a> DagExecutor<'a> {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         schemas: &NodeSchemas,
-    ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
+    ) -> Result<JoinHandle<()>, ExecutionError> {
         //
         let lt_path = self.path.clone();
         let lt_output_ports = proc_factory.get_output_ports();
@@ -449,18 +450,15 @@ impl<'a> DagExecutor<'a> {
         let lt_output_schemas = schemas.output_schemas.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
-        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
+        let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let mut proc =
                 proc_factory.build(lt_input_schemas.clone(), lt_output_schemas.clone())?;
             let mut state_meta = init_component(&handle, lt_path.as_path(), |e| proc.init(e))?;
 
-            let port_databases = create_ports_databases(
-                state_meta.env.as_environment(),
-                &proc_factory.get_output_ports(),
-            )?;
+            let port_databases =
+                create_ports_databases(&mut state_meta.env, &proc_factory.get_output_ports())?;
 
-            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+            let master_tx = state_meta.env.create_txn()?;
 
             fill_ports_record_readers(
                 &handle,
@@ -472,7 +470,7 @@ impl<'a> DagExecutor<'a> {
             );
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
-            let mut fw = LocalChannelForwarder::new_processor_forwarder(
+            let mut fw = ProcessorChannelManager::new(
                 handle.clone(),
                 senders,
                 StateWriter::new(
@@ -498,12 +496,7 @@ impl<'a> DagExecutor<'a> {
                         seq_in_tx,
                         source,
                     } => {
-                        proc.commit(
-                            &source,
-                            txid,
-                            seq_in_tx,
-                            &mut SharedTransaction::new(&master_tx),
-                        )?;
+                        proc.commit(&source, txid, seq_in_tx, &master_tx)?;
                         fw.store_and_send_commit(source, txid, seq_in_tx)?;
                     }
                     ExecutorOperation::Terminate => {
@@ -524,17 +517,13 @@ impl<'a> DagExecutor<'a> {
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
                         let data_op = map_to_op(op)?;
-                        proc.process(
-                            handles_ls[index],
-                            data_op,
-                            &mut fw,
-                            &mut SharedTransaction::new(&master_tx),
-                            reader,
-                        )?;
+                        proc.process(handles_ls[index], data_op, &mut fw, &master_tx, reader)?;
                     }
                 }
             }
-        }))
+        };
+
+        Ok(thread::spawn(|| lt_thread_fct().unwrap()))
     }
 
     pub fn start_sink(
@@ -543,7 +532,7 @@ impl<'a> DagExecutor<'a> {
         snk_factory: Arc<dyn SinkFactory>,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         schemas: &NodeSchemas,
-    ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
+    ) -> Result<JoinHandle<()>, ExecutionError> {
         //
 
         let lt_path = self.path.clone();
@@ -551,12 +540,11 @@ impl<'a> DagExecutor<'a> {
         let _lt_term_barrier = self.term_barrier.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
-        Ok(thread::spawn(move || -> Result<(), ExecutionError> {
+        let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build(lt_input_schemas.clone())?;
-            let mut state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
+            let state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
 
-            let master_tx: Arc<RwLock<Box<dyn RenewableRwTransaction>>> =
-                Arc::new(RwLock::new(state_meta.env.create_txn()?));
+            let master_tx = state_meta.env.create_txn()?;
 
             let mut state_writer = StateWriter::new(
                 state_meta.meta_db,
@@ -586,12 +574,7 @@ impl<'a> DagExecutor<'a> {
                             "[{}] Checkpointing (source: {}, epoch: {}:{})",
                             handle, source, txid, seq_in_tx
                         );
-                        snk.commit(
-                            &source,
-                            txid,
-                            seq_in_tx,
-                            &mut SharedTransaction::new(&master_tx),
-                        )?;
+                        snk.commit(&source, txid, seq_in_tx, &master_tx)?;
                         state_writer.store_commit_info(&source, txid, seq_in_tx)?;
                     }
                     op => {
@@ -600,70 +583,73 @@ impl<'a> DagExecutor<'a> {
                         let reader = guard
                             .get(&handle)
                             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-                        snk.process(
-                            handles_ls[index],
-                            data_op,
-                            &mut SharedTransaction::new(&master_tx),
-                            reader,
-                        )?;
+                        snk.process(handles_ls[index], data_op, &master_tx, reader)?;
                     }
                 }
             }
-        }))
+        };
+
+        Ok(thread::spawn(|| lt_thread_fct().unwrap()))
     }
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
 
         for (handle, factory) in self.dag.get_sinks() {
-            let join_handle = self.start_sink(
-                handle.clone(),
-                factory.clone(),
-                receivers
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                self.schemas
-                    .get(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-            )?;
+            let join_handle = self
+                .start_sink(
+                    handle.clone(),
+                    factory.clone(),
+                    receivers
+                        .remove(&handle)
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    self.schemas
+                        .get(&handle)
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                )
+                .unwrap();
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
         for (handle, factory) in self.dag.get_processors() {
-            let join_handle = self.start_processor(
-                handle.clone(),
-                factory.clone(),
-                senders
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                receivers
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                self.schemas
-                    .get(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-            )?;
+            let join_handle = self
+                .start_processor(
+                    handle.clone(),
+                    factory.clone(),
+                    senders
+                        .remove(&handle)
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    receivers
+                        .remove(&handle)
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    self.schemas
+                        .get(&handle)
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                )
+                .unwrap();
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
         for (handle, factory) in self.dag.get_sources() {
-            let join_handle = self.start_source(
-                handle.clone(),
-                factory.clone(),
-                senders
-                    .remove(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                self.schemas
-                    .get(&handle)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-            )?;
+            let join_handle = self
+                .start_source(
+                    handle.clone(),
+                    factory.clone(),
+                    senders
+                        .remove(&handle)
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    self.schemas
+                        .get(&handle)
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                )
+                .unwrap();
             self.join_handles.insert(handle.clone(), join_handle);
         }
         Ok(())
     }
 
     pub fn stop(&self) {
-        self.stop_req.store(true, Ordering::Relaxed);
+        self.running.store(false, Ordering::Relaxed);
     }
 
     pub fn join(mut self) -> Result<(), ExecutionError> {
@@ -674,12 +660,8 @@ impl<'a> DagExecutor<'a> {
             for handle in &handles {
                 if let Some(j) = self.join_handles.get(handle) {
                     if j.is_finished() {
-                        let r = self.join_handles.remove(handle).unwrap().join();
-                        match r {
-                            Ok(Err(e)) => return Err(e),
-                            Err(_e) => return Err(InternalThreadPanic),
-                            _ => finished += 1,
-                        }
+                        let _r = self.join_handles.remove(handle).unwrap().join();
+                        finished += 1;
                     }
                 }
             }

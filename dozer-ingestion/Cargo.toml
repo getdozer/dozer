@@ -28,17 +28,21 @@ include_dir = {version = "0.7.3", optional = true }
 schema_registry_converter = { version = "3.1.0", features = ["blocking", "avro"] }
 regex = "1"
 
+
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
 serial_test = "0.9.0"
 rand = "0.8.5"
 include_dir = "0.7.3"
+dozer-tracing = {path = "../dozer-tracing"}
+
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc", "dep:include_dir"]
-# workaroud to ignore debezium benchmarking whne running `cargo criterion` without any parameters
+# workaroud to ignore debezium benchmarking when running `cargo criterion` without any parameters
 debezium_bench = []
+postgres_bench = ["dep:include_dir"]
 
 [[bench]]
 name = "snowflake"
@@ -49,3 +53,8 @@ required-features = ["snowflake"]
 name = "debezium"
 harness = false
 required-features = ["debezium_bench"]
+
+[[bench]]
+name = "postgres"
+harness = false
+required-features = ["postgres_bench"]

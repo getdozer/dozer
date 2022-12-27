@@ -7,6 +7,7 @@ use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
+use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
@@ -34,6 +35,11 @@ impl ConnectorSourceFactory {
     ) -> Self {
         let (schema_map, port_map) =
             Self::get_schema_map(&connection_map, &table_map).expect("Cannot initialize schemas");
+
+        for (port, schema) in &schema_map {
+            info!("Initialzing schema on port : {}", port);
+            schema.print().printstd();
+        }
         Self {
             connection_map,
             table_map,
@@ -140,8 +146,7 @@ impl Source for ConnectorSource {
                     let port = self
                         .port_map
                         .get(&schema_id)
-                        .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
-                        .unwrap();
+                        .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)?;
                     fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
                 }
             } else {

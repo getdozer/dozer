@@ -63,7 +63,7 @@ impl Aggregator {
         new: &Field,
         return_type: FieldType,
         txn: &mut PrefixTransaction,
-        agg_db: &Database,
+        agg_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match &self {
             Aggregator::Avg => AvgAggregator::insert(cur_state, new, return_type, txn, agg_db),
@@ -81,7 +81,7 @@ impl Aggregator {
         new: &Field,
         return_type: FieldType,
         txn: &mut PrefixTransaction,
-        agg_db: &Database,
+        agg_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match &self {
             Aggregator::Avg => AvgAggregator::update(cur_state, old, new, return_type, txn, agg_db),
@@ -98,7 +98,7 @@ impl Aggregator {
         old: &Field,
         return_type: FieldType,
         txn: &mut PrefixTransaction,
-        agg_db: &Database,
+        agg_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match &self {
             Aggregator::Avg => AvgAggregator::delete(cur_state, old, return_type, txn, agg_db),

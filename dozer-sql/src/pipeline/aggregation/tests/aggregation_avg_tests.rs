@@ -7,7 +7,6 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_75_FLOAT, FIELD_75_INT, FIELD_NULL, ITALY, SINGAPORE,
 };
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_core::storage::transactions::SharedTransaction;
 use dozer_types::types::FieldType::{Decimal, Float, Int};
 use std::collections::HashMap;
 

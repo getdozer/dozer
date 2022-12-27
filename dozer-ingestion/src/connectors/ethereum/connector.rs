@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::Connector;
@@ -9,27 +10,43 @@ use crate::{
 use dozer_types::ingestion_types::{EthConfig, EthFilter, IngestionMessage};
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
-use futures::StreamExt;
-use tokio::runtime::Runtime;
-use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
+use dozer_types::serde_json;
 
+use super::sender::{run, EthDetails};
+use tokio::runtime::Runtime;
+use web3::ethabi::{Contract, Event};
+use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 pub struct EthConnector {
     pub id: u64,
-    filter: Filter,
     config: EthConfig,
+    // Address -> (contract, contract_name)
+    contracts: HashMap<String, ContractTuple>,
+    tables: Option<Vec<TableInfo>>,
+    // contract_signacture -> SchemaID
+    schema_map: HashMap<H256, usize>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
 }
 
-const TABLE_NAME: &str = "eth_logs";
+#[derive(Debug, Clone)]
+// (Contract, Name)
+pub struct ContractTuple(pub Contract, pub String);
+
+pub const ETH_LOGS_TABLE: &str = "eth_logs";
 impl EthConnector {
     pub fn build_filter(filter: &EthFilter) -> Filter {
         let builder = FilterBuilder::default();
 
-        // Optionally add a block_no filter
+        // Optionally add a from_block filter
         let builder = match filter.from_block {
             Some(block_no) => builder.from_block(BlockNumber::Number(U64::from(block_no))),
             None => builder,
         };
+        // Optionally add a to_block filter
+        let builder = match filter.to_block {
+            Some(block_no) => builder.to_block(BlockNumber::Number(U64::from(block_no))),
+            None => builder,
+        };
+
         // Optionally Add Address filter
         let builder = match filter.addresses.is_empty() {
             false => {
@@ -65,54 +82,122 @@ impl EthConnector {
     }
 
     pub fn new(id: u64, config: EthConfig) -> Self {
-        let filter = Self::build_filter(&config.to_owned().filter.unwrap());
+        let mut contracts = HashMap::new();
+
+        for c in &config.contracts {
+            let contract = serde_json::from_str(&c.abi).expect("unable to parse contract from abi");
+            contracts.insert(
+                c.address.to_string().to_lowercase(),
+                ContractTuple(contract, c.name.to_string()),
+            );
+        }
+
+        let schema_map = Self::build_schema_map(&contracts);
         Self {
             id,
             config,
-            filter,
+            contracts,
+            schema_map,
+            tables: None,
             ingestor: None,
         }
+    }
+
+    fn build_schema_map(contracts: &HashMap<String, ContractTuple>) -> HashMap<H256, usize> {
+        let mut schema_map = HashMap::new();
+
+        let mut signatures = vec![];
+        for contract_tuple in contracts.values() {
+            let contract = contract_tuple.0.clone();
+            let events: Vec<&Event> = contract.events.values().flatten().collect();
+            for evt in events {
+                signatures.push(evt.signature());
+            }
+        }
+        signatures.sort();
+
+        for (idx, signature) in signatures.iter().enumerate() {
+            schema_map.insert(signature.to_owned(), 2 + idx);
+        }
+        schema_map
     }
 }
 
 impl Connector for EthConnector {
     fn get_schemas(
         &self,
-        _: Option<Vec<TableInfo>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        Ok(vec![(TABLE_NAME.to_string(), helper::get_eth_schema())])
+        let mut schemas = vec![(ETH_LOGS_TABLE.to_string(), helper::get_eth_schema())];
+
+        let event_schemas = helper::get_contract_event_schemas(
+            self.contracts.to_owned(),
+            self.schema_map.to_owned(),
+        );
+        schemas.extend(event_schemas);
+
+        let schemas = if let Some(tables) = tables {
+            schemas
+                .iter()
+                .filter(|(n, _)| tables.iter().any(|t| t.name == *n))
+                .cloned()
+                .collect()
+        } else {
+            schemas
+        };
+        Ok(schemas)
     }
 
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError> {
-        Ok(vec![TableInfo {
-            name: TABLE_NAME.to_string(),
-            id: 1,
-            columns: Some(helper::get_columns()),
-        }])
+        let schemas = self.get_schemas(None)?;
+
+        let tables = schemas
+            .iter()
+            .enumerate()
+            .map(|(id, (name, schema))| TableInfo {
+                name: name.to_string(),
+                id: id as u32,
+                columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
+            })
+            .collect();
+        Ok(tables)
     }
 
     fn initialize(
         &mut self,
         ingestor: Arc<RwLock<Ingestor>>,
-        _: Option<Vec<TableInfo>>,
+        tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
         self.ingestor = Some(ingestor);
+        self.tables = tables;
         Ok(())
     }
 
     fn start(&self) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
-        let filter = self.filter.to_owned();
+        let filter = self.config.filter.to_owned().unwrap_or_default();
+
         let connector_id = self.id;
+
         let ingestor = self
             .ingestor
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
-        Runtime::new()
-            .unwrap()
-            .block_on(async { run(wss_url, filter, ingestor, connector_id).await })
+
+        Runtime::new().unwrap().block_on(async {
+            let details = Arc::new(EthDetails::new(
+                wss_url,
+                filter,
+                ingestor,
+                connector_id,
+                self.contracts.to_owned(),
+                self.tables.to_owned(),
+                self.schema_map.to_owned(),
+            ));
+            run(details).await
+        })
     }
 
     fn stop(&self) {}

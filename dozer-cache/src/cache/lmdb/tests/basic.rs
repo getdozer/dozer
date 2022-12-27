@@ -51,7 +51,7 @@ fn insert_and_get_schema() {
 fn insert_get_and_delete_record() {
     let val = "bar".to_string();
     let (cache, schema, secondary_indexes) = _setup();
-    let record = Record::new(schema.identifier.clone(), vec![Field::String(val.clone())]);
+    let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
     cache
         .insert_schema("docs", &schema, &secondary_indexes)
         .unwrap();
@@ -73,7 +73,7 @@ fn insert_and_query_record_impl(
     secondary_indexes: Vec<IndexDefinition>,
 ) {
     let val = "bar".to_string();
-    let record = Record::new(schema.identifier.clone(), vec![Field::String(val)]);
+    let record = Record::new(schema.identifier, vec![Field::String(val)]);
 
     cache
         .insert_schema("docs", &schema, &secondary_indexes)

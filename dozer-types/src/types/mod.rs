@@ -1,4 +1,7 @@
+use std::fmt::Display;
+
 use crate::errors::types::TypeError;
+use prettytable::Table;
 use serde::{self, Deserialize, Serialize};
 
 mod field;
@@ -22,7 +25,7 @@ impl FieldDefinition {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct SchemaIdentifier {
     pub id: u32,
     pub version: u16,
@@ -75,8 +78,20 @@ impl Schema {
         }
     }
 
-    pub fn get_id(&self) -> u32 {
-        self.identifier.clone().unwrap().id
+    pub fn print(&self) -> Table {
+        let mut table = Table::new();
+        table.add_row(row!["Field", "Type", "Nullable"]);
+        for f in &self.fields {
+            table.add_row(row![f.name, format!("{:?}", f.typ), f.nullable]);
+        }
+        table
+    }
+}
+
+impl Display for Schema {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let table = self.print();
+        table.fmt(f)
     }
 }
 

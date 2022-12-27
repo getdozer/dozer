@@ -14,11 +14,12 @@ use crate::dag::tests::sources::{
     DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1, DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
-use crate::storage::common::{Environment, RwTransaction};
+use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 use fp_rust::sync::CountDownLatch;
 
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -60,7 +61,7 @@ impl ProcessorFactory for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -69,7 +70,7 @@ impl Processor for NoopProcessor {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -79,7 +80,7 @@ impl Processor for NoopProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
@@ -130,7 +131,8 @@ fn test_run_dag() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());
@@ -181,7 +183,8 @@ fn test_run_dag_and_stop() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());
@@ -235,7 +238,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn init(&mut self, _state: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -244,7 +247,7 @@ impl Processor for NoopJoinProcessor {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -254,7 +257,7 @@ impl Processor for NoopJoinProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         fw.send(op, DEFAULT_PORT_HANDLE)
@@ -320,7 +323,8 @@ fn test_run_dag_2_sources_stateless() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());
@@ -386,7 +390,8 @@ fn test_run_dag_2_sources_stateful() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());
@@ -445,7 +450,8 @@ fn test_run_dag_1_source_2_ports_stateless() {
     let mut executor = chk!(DagExecutor::new(
         &dag,
         tmp_dir.path(),
-        ExecutorOptions::default()
+        ExecutorOptions::default(),
+        Arc::new(AtomicBool::new(true))
     ));
 
     chk!(executor.start());

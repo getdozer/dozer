@@ -10,7 +10,7 @@ use dozer_core::dag::node::{
 
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::record_store::RecordReader;
-use dozer_core::storage::common::{Environment, RwTransaction};
+use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::log::debug;
@@ -18,6 +18,7 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use std::time::Duration;
@@ -167,7 +168,7 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn init(&mut self, _env: &mut dyn Environment) -> Result<(), ExecutionError> {
+    fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
         debug!("SINK: Initialising TestSink");
         Ok(())
     }
@@ -176,7 +177,7 @@ impl Sink for TestSink {
         &mut self,
         _from_port: PortHandle,
         op: Operation,
-        _state: &mut dyn RwTransaction,
+        _state: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         let sql = self
@@ -204,7 +205,7 @@ impl Sink for TestSink {
         _source: &NodeHandle,
         _txid: u64,
         _seq_in_tx: u64,
-        _tx: &mut dyn RwTransaction,
+        _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -280,8 +281,13 @@ impl TestPipeline {
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));
 
-        let mut exec = DagExecutor::new(&dag, tmp_dir.path(), ExecutorOptions::default())
-            .unwrap_or_else(|_e| panic!("Unable to create exec"));
+        let mut exec = DagExecutor::new(
+            &dag,
+            tmp_dir.path(),
+            ExecutorOptions::default(),
+            Arc::new(AtomicBool::new(true)),
+        )
+        .unwrap_or_else(|_e| panic!("Unable to create exec"));
         exec.start()?;
         exec.join()?;
 
