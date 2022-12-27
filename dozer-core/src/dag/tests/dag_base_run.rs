@@ -139,6 +139,7 @@ fn test_run_dag() {
 }
 
 #[test]
+#[ignore]
 fn test_run_dag_and_stop() {
     init_log4rs();
 
