@@ -244,12 +244,12 @@ fn test_single_table_pipeline() {
 
     dag.add_node(
         NodeType::Source(Arc::new(user_source)),
-        NodeHandle::new(Some(1), String::from("users")),
+        NodeHandle::new(Some(1), String::from("Users")),
     );
 
     dag.add_node(
         NodeType::Source(Arc::new(department_source)),
-        NodeHandle::new(Some(1), String::from("department")),
+        NodeHandle::new(Some(1), String::from("Department")),
     );
 
     dag.add_node(
@@ -257,21 +257,21 @@ fn test_single_table_pipeline() {
         NodeHandle::new(Some(1), String::from("sink")),
     );
 
-    let users_input = in_handle.remove("users").unwrap();
+    let users_input = in_handle.remove("Users").unwrap();
 
     let _users_to_dag = dag.connect(
         Endpoint::new(
-            NodeHandle::new(Some(1), String::from("users")),
+            NodeHandle::new(Some(1), String::from("Users")),
             DEFAULT_PORT_HANDLE,
         ),
         Endpoint::new(users_input.node, users_input.port),
     );
 
-    let department_input = in_handle.remove("department").unwrap();
+    let department_input = in_handle.remove("Department").unwrap();
 
     let _department_to_dag = dag.connect(
         Endpoint::new(
-            NodeHandle::new(Some(1), String::from("department")),
+            NodeHandle::new(Some(1), String::from("Department")),
             DEFAULT_PORT_HANDLE,
         ),
         Endpoint::new(department_input.node, department_input.port),

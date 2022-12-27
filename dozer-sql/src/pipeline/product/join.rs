@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use dozer_core::dag::node::PortHandle;
 use dozer_core::dag::record_store::RecordReader;
+use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError;
-use dozer_core::storage::lmdb_storage::{Database, LmdbExclusiveTransaction};
+use dozer_core::storage::lmdb_storage::LmdbExclusiveTransaction;
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
 use dozer_types::errors::types::TypeError;
 use dozer_types::parking_lot::RwLock;
@@ -48,7 +49,7 @@ pub trait JoinExecutor: Send + Sync {
         &self,
         record: Vec<Record>,
         db: &Database,
-        txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
+        txn: &mut LmdbExclusiveTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
@@ -57,7 +58,7 @@ pub trait JoinExecutor: Send + Sync {
         &self,
         record: &Record,
         db: &Database,
-        txn: &mut dyn RwTransaction,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -94,7 +95,7 @@ impl JoinOperator {
         &self,
         _join_key: Vec<u8>,
         _db: &Database,
-        _transaction: &mut dyn RwTransaction,
+        _transaction: &mut LmdbExclusiveTransaction,
     ) -> Result<Vec<u8>, ExecutionError> {
         todo!()
     }
@@ -105,7 +106,7 @@ impl JoinExecutor for JoinOperator {
         &self,
         records: Vec<Record>,
         db: &Database,
-        txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
+        txn: &mut LmdbExclusiveTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
         _join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
@@ -130,7 +131,7 @@ impl JoinExecutor for JoinOperator {
         &self,
         record: &Record,
         db: &Database,
-        txn: &mut dyn RwTransaction,
+        txn: &mut LmdbExclusiveTransaction,
     ) -> Result<(), ExecutionError> {
         let mut transaction = PrefixTransaction::new(txn, self.prefix);
 
@@ -138,7 +139,7 @@ impl JoinExecutor for JoinOperator {
 
         let value: Vec<u8> = vec![0x00_u8]; // record.id;
 
-        transaction.put(db, &key, &value)?;
+        transaction.put(*db, &key, &value)?;
 
         Ok(())
     }
@@ -179,7 +180,7 @@ impl JoinExecutor for ReverseJoinOperator {
         &self,
         _record: &Record,
         _db: &Database,
-        _txn: &Arc<RwLock<LmdbExclusiveTransaction>>,
+        _txn: &mut LmdbExclusiveTransaction,
     ) -> Result<(), ExecutionError> {
         todo!()
     }
@@ -188,7 +189,7 @@ impl JoinExecutor for ReverseJoinOperator {
         &self,
         records: Vec<Record>,
         db: &Database,
-        txn: &mut dyn RwTransaction,
+        txn: &mut LmdbExclusiveTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
@@ -219,13 +220,13 @@ impl JoinExecutor for ReverseJoinOperator {
 
 fn get_left_records(
     db: &Database,
-    txn: &mut dyn RwTransaction,
+    txn: &mut LmdbExclusiveTransaction,
     prefix: &u32,
     key: &Field,
 ) -> Result<Vec<Record>, ExecutionError> {
     let transaction = PrefixTransaction::new(txn, *prefix);
 
-    let cursor = transaction.open_cursor(db)?;
+    let cursor = transaction.open_cursor(*db)?;
 
     let mut output_records = vec![];
 
@@ -243,13 +244,12 @@ fn get_left_records(
             break;
         }
 
-        if let Some(value) = transaction.get(db, entry.1)? {
-            let record = bincode::deserialize(value.as_slice()).map_err(|e| {
-                StorageError::DeserializationError {
+        if let Some(value) = transaction.get(*db, entry.1)? {
+            let record =
+                bincode::deserialize(value).map_err(|e| StorageError::DeserializationError {
                     typ: "Schema".to_string(),
                     reason: Box::new(e),
-                }
-            })?;
+                })?;
             output_records.push(record);
         } else {
             return Err(ExecutionError::InternalDatabaseError(
