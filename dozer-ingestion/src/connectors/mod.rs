@@ -17,6 +17,8 @@ use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::sync::Arc;
+use dozer_types::models::source::Source;
+
 pub mod snowflake;
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
@@ -73,5 +75,18 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             Ok(Box::new(SnowflakeConnector::new(4, snowflake_config)))
         }
         Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
+    }
+}
+
+pub fn get_connector_outputs(connection: Connection, sources: Vec<Source>) -> Vec<Vec<Source>> {
+    match connection.authentication {
+        Some(Authentication::Postgres { .. }) => PostgresConnector::get_connection_groups(sources),
+        Some(Authentication::Ethereum { .. }) => EthConnector::get_connection_groups(sources),
+        Some(Authentication::Events(_)) => EventsConnector::get_connection_groups(sources),
+        Some(Authentication::Snowflake { .. }) => {
+            SnowflakeConnector::get_connection_groups(sources)
+        }
+        Some(Authentication::Kafka { .. }) => KafkaConnector::get_connection_groups(sources),
+        None => todo!(),
     }
 }

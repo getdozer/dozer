@@ -222,25 +222,3 @@ impl Connector for EthConnector {
         vec![sources]
     }
 }
-
-#[allow(unreachable_code)]
-async fn run(
-    wss_url: String,
-    filter: Filter,
-    ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
-) -> Result<(), ConnectorError> {
-    let client = helper::get_client(&wss_url).await.unwrap();
-
-    let stream = client
-        .eth_subscribe()
-        .subscribe_logs(filter.clone())
-        .await
-        .unwrap();
-
-    tokio::pin!(stream);
-    let mut idx = 0;
-
-        Ok(())
-    }
-}

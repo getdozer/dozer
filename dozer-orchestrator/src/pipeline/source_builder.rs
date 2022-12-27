@@ -1,9 +1,7 @@
 use crate::pipeline::connector_source::NewConnectorSourceFactory;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
-use dozer_core::dag::node::{PortHandle, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, get_connector_outputs, TableInfo};
-use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
-use dozer_types::models::connection::Connection;
+use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
+use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
@@ -39,7 +37,7 @@ impl SourceBuilder {
                         tables.push(TableInfo {
                             name: source.table_name,
                             id: port as u32,
-                            columns: source.columns,
+                            columns: Some(source.columns),
                         });
 
                         port += 1;
@@ -176,7 +174,7 @@ mod tests {
         let iterator_ref = Arc::clone(&iterator);
 
         let asm =
-            SourceBuilder::build_source_manager(config.sources.clone(), ingestor, iterator_ref);
+            SourceBuilder::build_source_manager(SourceBuilder::group_connections(config.sources.clone()), ingestor, iterator_ref);
 
         let pg_source_mapping: Vec<AppSourceMappings> = asm
             .get(vec![

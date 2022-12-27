@@ -32,9 +32,9 @@ pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 
-pub fn validate(input: Connection, tables: Vec<TableInfo>) -> Result<(), ConnectorError> {
+pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input.clone())?;
-    connection_service.validate(Some(tables)).map_err(|e| {
+    connection_service.validate(tables).map_err(|e| {
         error!(
             "Connection \"{}\" validation error: {:?}",
             input.name.clone(),

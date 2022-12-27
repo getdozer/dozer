@@ -8,10 +8,8 @@ use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::connection::Connection;
-use dozer_types::parking_lot::lock_api::RwLockWriteGuard;
-use dozer_types::parking_lot::{RawRwLock, RwLock};
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
-use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
@@ -41,7 +39,7 @@ impl SourceFactory for NewConnectorSourceFactory {
         self.get_schema_name_by_port(port).map_or(
             Err(ExecutionError::PortNotFoundInSource(*port)),
             |schema_name| {
-                let mut connector = get_connector(self.connection.to_owned())
+                let connector = get_connector(self.connection.to_owned())
                     .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
 
                 let tables: Vec<TableInfo> = self
@@ -55,7 +53,7 @@ impl SourceFactory for NewConnectorSourceFactory {
                     .get_schemas(Some(tables))
                     .map(|result| {
                         result.get(0).map_or(
-                            Err(ExecutionError::FailedToGetOutputSchema(schema_name)),
+                            Err(ExecutionError::FailedToGetOutputSchema(schema_name.to_string())),
                             |(_, schema)| Ok(schema.clone()),
                         )
                     })
@@ -97,7 +95,7 @@ impl Source for NewConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<u64>,
+        _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut connector = get_connector(self.connection.to_owned())
             .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;

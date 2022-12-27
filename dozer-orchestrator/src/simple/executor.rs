@@ -11,11 +11,9 @@ use std::fs;
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
-use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
-use dozer_core::dag::dag::{Dag, NodeType, DEFAULT_PORT_HANDLE};
+use crate::pipeline::CacheSinkFactory;
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
-use dozer_ingestion::connectors::TableInfo;
-use dozer_core::dag::node::NodeHandle;
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
@@ -26,6 +24,7 @@ use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 
 use crate::errors::OrchestrationError;
+use crate::pipeline::source_builder::SourceBuilder;
 use crate::validate;
 
 pub struct Executor {
@@ -59,7 +58,7 @@ impl Executor {
     ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
         let mut schema_map = HashMap::new();
         for connection in connections {
-            validate(connection.to_owned())?;
+            validate(connection.to_owned(), None)?;
 
             let connector = get_connector(connection.to_owned())?;
             let schema_tuples = connector.get_schemas(None)?;
@@ -81,18 +80,18 @@ impl Executor {
         // For every pipeline, there will be one Source implementation
         // that can take multiple Connectors on different ports.
         for (table_id, (idx, source)) in sources.iter().cloned().enumerate().enumerate() {
-            validate(source.connection.to_owned().unwrap())?;
-
             let table_name = source.table_name.clone();
             let connection = source
                 .connection
                 .expect("connection is expected")
-                .to_owned();
+                .clone();
             let table = TableInfo {
                 name: source.table_name,
                 id: table_id as u32,
                 columns: Some(source.columns),
             };
+
+            validate(connection.clone(), Some(vec![table.clone()]))?;
 
             connection_map
                 .entry(connection)
@@ -122,9 +121,10 @@ impl Executor {
                     })
                     .collect();
 
-                validate(connection.clone(), tables)?;
+                validate(connection.clone(), Some(tables))?;
             }
         }
+        let running_wait = self.running.clone();
 
         let asm = SourceBuilder::build_source_manager(
             grouped_connections,
@@ -149,7 +149,7 @@ impl Executor {
                     vec![DEFAULT_PORT_HANDLE],
                     cache,
                     api_endpoint,
-                    notifier,
+                    notifier.clone(),
                 )),
                 cache_endpoint.endpoint.id(),
             );
