@@ -58,7 +58,7 @@ fn run() -> Result<(), OrchestrationError> {
         // run individual servers
         match cmd {
             Commands::Init(_init) => {
-                dozer.init()
+                dozer.init(running, None)
             },
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
@@ -98,6 +98,9 @@ fn run() -> Result<(), OrchestrationError> {
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
+
+        // Initialize with schema
+        dozer.init(running.clone(), Some(tx.clone())).expect("Failed to initialize dozer with schema");
 
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.run_apps(running, Some(tx)) {

@@ -12,6 +12,7 @@ use dozer_types::models::source::Source;
 
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::NodeHandle;
@@ -105,10 +106,10 @@ impl Executor {
         Ok((connection_map, table_map))
     }
 
-    pub fn run(
+    pub fn init_dag(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
-    ) -> Result<(), OrchestrationError> {
+    ) -> Result<Dag, OrchestrationError> {
         let source_handle = NodeHandle::new(None, "src".to_string());
 
         let (connection_map, table_map) = Self::get_connection_map(&self.sources)?;
@@ -118,9 +119,9 @@ impl Executor {
             self.ingestor.to_owned(),
             self.iterator.to_owned(),
         );
+
         let mut parent_dag = Dag::new();
         parent_dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
-        let running_wait = self.running.clone();
 
         for (idx, cache_endpoint) in self.cache_endpoints.iter().cloned().enumerate() {
             let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
@@ -173,10 +174,19 @@ impl Executor {
             }
         }
 
+        Ok(parent_dag)
+    }
+
+    pub fn run_dag(
+        &self,
+        parent_dag: &Dag,
+    ) -> Result<(), OrchestrationError> {
         let path = &self.home_dir;
+        let running_wait = self.running.clone();
+
         fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
         let mut exec = DagExecutor::new(
-            &parent_dag,
+            parent_dag,
             path.as_path(),
             ExecutorOptions::default(),
             running_wait,

@@ -32,6 +32,7 @@ impl Edge {
     }
 }
 
+#[derive(Clone)]
 pub enum NodeType {
     Source(Arc<dyn SourceFactory>),
     Processor(Arc<dyn ProcessorFactory>),
@@ -43,6 +44,7 @@ pub struct Node {
     t: NodeType,
 }
 
+#[derive(Clone)]
 pub struct Dag {
     pub nodes: HashMap<NodeHandle, NodeType>,
     pub edges: Vec<Edge>,

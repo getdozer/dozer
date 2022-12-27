@@ -15,7 +15,11 @@ mod test_utils;
 mod utils;
 
 pub trait Orchestrator {
-    fn init(&mut self) -> Result<(), OrchestrationError>;
+    fn init(
+        &mut self,
+        running: Arc<AtomicBool>,
+        api_notifier: Option<Sender<bool>>,
+    ) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
