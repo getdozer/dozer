@@ -1,6 +1,7 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
+use crate::dag::epoch::Epoch;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
@@ -111,25 +112,21 @@ impl StateWriter {
         }
     }
 
-    pub fn store_commit_info(
-        &mut self,
-        source: &NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-    ) -> Result<(), ExecutionError> {
+    pub fn store_commit_info(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
         //
-        let mut full_key = vec![SOURCE_ID_IDENTIFIER];
-        full_key.extend(source.to_bytes());
+        for (source, (txid, seq_in_tx)) in &epoch_details.details {
+            let mut full_key = vec![SOURCE_ID_IDENTIFIER];
+            full_key.extend(source.to_bytes());
 
-        let mut value: Vec<u8> = Vec::with_capacity(16);
-        value.extend(txid.to_be_bytes());
-        value.extend(seq_in_tx.to_be_bytes());
+            let mut value: Vec<u8> = Vec::with_capacity(16);
+            value.extend(txid.to_be_bytes());
+            value.extend(seq_in_tx.to_be_bytes());
 
-        self.tx
-            .write()
-            .put(self.meta_db, full_key.as_slice(), value.as_slice())?;
+            self.tx
+                .write()
+                .put(self.meta_db, full_key.as_slice(), value.as_slice())?;
+        }
         self.tx.write().commit_and_renew()?;
-
         Ok(())
     }
 
@@ -220,25 +217,14 @@ impl ChannelManager {
         Ok(())
     }
 
-    pub fn store_and_send_commit(
-        &mut self,
-        source_node: NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-    ) -> Result<(), ExecutionError> {
-        info!(
-            "[{}] Checkpointing (source: {}, epoch: {}:{})",
-            self.owner, source_node, txid, seq_in_tx
-        );
-        self.state_writer
-            .store_commit_info(&source_node, txid, seq_in_tx)?;
+    pub fn store_and_send_commit(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
+        info!("[{}] Checkpointing - {}", self.owner, &epoch_details);
+        self.state_writer.store_commit_info(epoch_details)?;
 
         for senders in &self.senders {
             for sender in senders.1 {
                 internal_err!(sender.send(ExecutorOperation::Commit {
-                    source: source_node.clone(),
-                    txid,
-                    seq_in_tx
+                    epoch_details: epoch_details.clone()
                 }))?;
             }
         }
@@ -269,15 +255,17 @@ pub(crate) struct SourceChannelManager {
     commit_counter: u32,
     max_commit_time: Duration,
     last_commit_time: Instant,
+    curr_epoch: u64,
 }
 
 impl SourceChannelManager {
     pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
-        self.manager.store_and_send_commit(
+        self.manager.store_and_send_commit(&Epoch::from(
+            self.curr_epoch,
             self.manager.owner.clone(),
             self.curr_txid,
             self.curr_seq_in_tx,
-        )?;
+        ))?;
         self.manager.send_term_and_wait()
     }
 
@@ -288,13 +276,15 @@ impl SourceChannelManager {
 
     pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
         if self.timeout_commit_needed() && self.commit_counter > 0 {
-            self.manager.store_and_send_commit(
+            self.manager.store_and_send_commit(&Epoch::from(
+                self.curr_epoch,
                 self.source_handle.clone(),
                 self.curr_txid,
                 self.curr_seq_in_tx,
-            )?;
+            ))?;
             self.commit_counter = 0;
             self.last_commit_time = Instant::now();
+            self.curr_epoch += 1;
         }
         Ok(())
     }
@@ -316,6 +306,7 @@ impl SourceChannelManager {
             max_commit_time: commit_threshold_max,
             last_commit_time: Instant::now(),
             source_handle: owner,
+            curr_epoch: 0,
         }
     }
 }
@@ -332,10 +323,15 @@ impl SourceChannelForwarder for SourceChannelManager {
         self.curr_seq_in_tx = seq_in_tx;
 
         if self.commit_counter >= self.commit_size || self.timeout_commit_needed() {
-            self.manager
-                .store_and_send_commit(self.source_handle.clone(), txid, seq_in_tx)?;
+            self.manager.store_and_send_commit(&Epoch::from(
+                self.curr_epoch,
+                self.source_handle.clone(),
+                txid,
+                seq_in_tx,
+            ))?;
             self.commit_counter = 0;
             self.last_commit_time = Instant::now();
+            self.curr_epoch += 1;
         }
         self.manager.send_op(op, port)?;
         self.commit_counter += 1;
@@ -359,14 +355,8 @@ impl ProcessorChannelManager {
         }
     }
 
-    pub fn store_and_send_commit(
-        &mut self,
-        source_node: NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-    ) -> Result<(), ExecutionError> {
-        self.manager
-            .store_and_send_commit(source_node, txid, seq_in_tx)
+    pub fn store_and_send_commit(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
+        self.manager.store_and_send_commit(epoch_details)
     }
 
     pub fn send_term_and_wait(&self) -> Result<(), ExecutionError> {

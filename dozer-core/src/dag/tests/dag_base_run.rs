@@ -25,6 +25,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
+use crate::dag::epoch::Epoch;
 use tempdir::TempDir;
 
 pub(crate) struct NoopProcessorFactory {}
@@ -67,9 +68,7 @@ impl Processor for NoopProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
@@ -244,9 +243,7 @@ impl Processor for NoopJoinProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())

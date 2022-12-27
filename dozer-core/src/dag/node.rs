@@ -1,4 +1,5 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::dag::epoch::Epoch;
 use crate::dag::errors::ExecutionError;
 use crate::dag::record_store::RecordReader;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
@@ -131,13 +132,7 @@ pub trait ProcessorFactory: Send + Sync {
 
 pub trait Processor {
     fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
-    fn commit(
-        &self,
-        source: &NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-        tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError>;
+    fn commit(&self, epoch_details: &Epoch, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
         &mut self,
         from_port: PortHandle,
@@ -164,9 +159,7 @@ pub trait Sink {
     fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
     fn commit(
         &mut self,
-        source: &NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
+        epoch_details: &Epoch,
         tx: &SharedTransaction,
     ) -> Result<(), ExecutionError>;
     fn process(

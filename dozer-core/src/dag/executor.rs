@@ -24,6 +24,7 @@ use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 
+use crate::dag::epoch::Epoch;
 use log::info;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -59,21 +60,10 @@ pub(crate) enum InputPortState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
-    Delete {
-        old: Record,
-    },
-    Insert {
-        new: Record,
-    },
-    Update {
-        old: Record,
-        new: Record,
-    },
-    Commit {
-        source: NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-    },
+    Delete { old: Record },
+    Insert { new: Record },
+    Update { old: Record, new: Record },
+    Commit { epoch_details: Epoch },
     Terminate,
 }
 
@@ -491,13 +481,9 @@ impl<'a> DagExecutor<'a> {
             loop {
                 let index = sel.ready();
                 match internal_err!(receivers_ls[index].recv())? {
-                    ExecutorOperation::Commit {
-                        txid,
-                        seq_in_tx,
-                        source,
-                    } => {
-                        proc.commit(&source, txid, seq_in_tx, &master_tx)?;
-                        fw.store_and_send_commit(source, txid, seq_in_tx)?;
+                    ExecutorOperation::Commit { epoch_details } => {
+                        proc.commit(&epoch_details, &master_tx)?;
+                        fw.store_and_send_commit(&epoch_details)?;
                     }
                     ExecutorOperation::Terminate => {
                         port_states[index] = InputPortState::Terminated;
@@ -565,17 +551,10 @@ impl<'a> DagExecutor<'a> {
                         info!("[{}] Terminating: Exiting message loop", handle);
                         return Ok(());
                     }
-                    ExecutorOperation::Commit {
-                        txid,
-                        seq_in_tx,
-                        source,
-                    } => {
-                        info!(
-                            "[{}] Checkpointing (source: {}, epoch: {}:{})",
-                            handle, source, txid, seq_in_tx
-                        );
-                        snk.commit(&source, txid, seq_in_tx, &master_tx)?;
-                        state_writer.store_commit_info(&source, txid, seq_in_tx)?;
+                    ExecutorOperation::Commit { epoch_details } => {
+                        info!("[{}] Checkpointing - {}", handle, &epoch_details);
+                        snk.commit(&epoch_details, &master_tx)?;
+                        state_writer.store_commit_info(&epoch_details)?;
                     }
                     op => {
                         let data_op = map_to_op(op)?;

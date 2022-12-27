@@ -1,3 +1,4 @@
+use crate::dag::epoch::Epoch;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
 use crate::dag::record_store::RecordReader;
@@ -59,9 +60,7 @@ impl Sink for CountingSink {
 
     fn commit(
         &mut self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())

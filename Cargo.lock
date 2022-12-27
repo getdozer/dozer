@@ -1394,6 +1394,7 @@ dependencies = [
  "bincode",
  "chrono",
  "crossbeam",
+ "dozer-tracing",
  "dozer-types",
  "dyn-clone",
  "fp_rust",

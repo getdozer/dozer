@@ -19,6 +19,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::dag::epoch::Epoch;
 use tempdir::TempDir;
 
 macro_rules! chk {
@@ -77,9 +78,7 @@ impl Processor for PassthroughProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
@@ -149,9 +148,7 @@ impl Processor for RecordReaderProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
