@@ -4,13 +4,13 @@ pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
+use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_types::{crossbeam::channel::Sender, types::Schema};
 use errors::OrchestrationError;
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicBool, Arc},
 };
-use dozer_api::grpc::internal_grpc::PipelineResponse;
 
 #[cfg(test)]
 mod test_utils;
@@ -38,8 +38,8 @@ pub trait Orchestrator {
 }
 
 // Re-exports
-pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
+pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 

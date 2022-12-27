@@ -7,18 +7,21 @@ use crate::utils::{
 use crate::Orchestrator;
 use dozer_api::{
     actix_web::dev::ServerHandle,
-    grpc::{
-        self,
-        internal_grpc::PipelineResponse,
-    },
+    grpc::{self, internal_grpc::PipelineResponse},
     rest, CacheEndpoint,
 };
-use dozer_cache::cache::{Cache, CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
+use dozer_cache::cache::{
+    Cache, CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions,
+};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
+use dozer_core::dag::dag::Dag;
+use dozer_core::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
+use dozer_core::dag::node::PortHandle;
 use dozer_ingestion::ingestion::IngestionIterator;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{unbounded, Sender};
 use dozer_types::models::app_config::Config;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_yaml;
 use dozer_types::types::{IndexDefinition, Schema};
 use std::collections::HashMap;
@@ -27,10 +30,6 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use dozer_core::dag::dag::Dag;
-use dozer_core::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
-use dozer_core::dag::node::PortHandle;
-use dozer_types::parking_lot::RwLock;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -101,7 +100,9 @@ impl Orchestrator for SimpleOrchestrator {
             get_pipeline_dir(self.config.to_owned()),
         );
 
-        self.parent_dag = executor.init_dag(Some(sender)).expect("Failed to initialize dag");
+        self.parent_dag = executor
+            .init_dag(Some(sender))
+            .expect("Failed to initialize dag");
 
         // parent_dag is ready
         let schema_manager = DagSchemaManager::new(&self.parent_dag)?;
@@ -115,12 +116,14 @@ impl Orchestrator for SimpleOrchestrator {
             .enumerate()
             .map(|(i, e)| {
                 let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(get_cache_dir(self.config.to_owned()).join(e.name.clone()));
+                cache_common_options
+                    .set_path(get_cache_dir(self.config.to_owned()).join(e.name.clone()));
                 let cache_options = CacheOptions {
                     common: cache_common_options,
                     kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
                 };
-                let lmdb_cache = LmdbCache::new(cache_options).expect("Failed to initialize lmdb cache");
+                let lmdb_cache =
+                    LmdbCache::new(cache_options).expect("Failed to initialize lmdb cache");
 
                 let schema = node_schemas
                     .get(0)
@@ -136,7 +139,8 @@ impl Orchestrator for SimpleOrchestrator {
                     .map(|(idx, _f)| IndexDefinition::SortedInverted(vec![idx]))
                     .collect::<Vec<IndexDefinition>>();
 
-                lmdb_cache.insert_schema(e.name.as_str(), schema, secondary_indexes)
+                lmdb_cache
+                    .insert_schema(e.name.as_str(), schema, secondary_indexes)
                     .expect("Failed to insert schema into cache endpoint");
 
                 CacheEndpoint {

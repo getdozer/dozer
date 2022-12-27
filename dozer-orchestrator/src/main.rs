@@ -1,4 +1,6 @@
 use clap::Parser;
+use dozer_api::grpc::internal_grpc::PipelineResponse;
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{load_config, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
@@ -12,8 +14,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{panic, process, thread};
 use tokio::runtime::Runtime;
-use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
 fn main() {
     if let Err(e) = run() {
@@ -69,9 +69,7 @@ fn run() -> Result<(), OrchestrationError> {
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
-            Commands::Init(_init) => {
-                dozer.init(running, None, sender, ingestor, iterator)
-            },
+            Commands::Init(_init) => dozer.init(running, None, sender, ingestor, iterator),
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
                     render_logo();
@@ -113,14 +111,15 @@ fn run() -> Result<(), OrchestrationError> {
         let (tx, rx) = channel::unbounded::<bool>();
 
         // Initialize with schema
-        pre_dozer.init(
-            running.clone(),
-            Some(tx.clone()),
-            sender,
-            ingestor.clone(),
-            iterator.clone()
-        )
-        .expect("Failed to initialize dozer with schema");
+        pre_dozer
+            .init(
+                running.clone(),
+                Some(tx.clone()),
+                sender,
+                ingestor.clone(),
+                iterator.clone(),
+            )
+            .expect("Failed to initialize dozer with schema");
 
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.run_apps(running, Some(tx), ingestor, iterator) {

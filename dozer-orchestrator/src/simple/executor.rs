@@ -176,10 +176,7 @@ impl Executor {
         Ok(parent_dag)
     }
 
-    pub fn run_dag(
-        &self,
-        parent_dag: &Dag,
-    ) -> Result<(), OrchestrationError> {
+    pub fn run_dag(&self, parent_dag: &Dag) -> Result<(), OrchestrationError> {
         let path = &self.home_dir;
         let running_wait = self.running.clone();
 
