@@ -6,7 +6,7 @@ use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record, Schema};
 use std::sync::Arc;
 
-fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) {
+fn insert(cache: &LmdbCache, schema: &Schema, n: usize) {
     let val = format!("bar_{}", n);
 
     let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
@@ -17,13 +17,19 @@ fn insert(cache: Arc<LmdbCache>, schema: Schema, n: usize) {
     let _get_record = cache.get(&key).unwrap();
 }
 
-fn get(cache: Arc<LmdbCache>, n: usize) {
+fn delete(cache: &LmdbCache, n: usize) {
+    let val = format!("bar_{}", n);
+    let key = index::get_primary_key(&[0], &[Field::String(val)]);
+    let _ = cache.delete(&key);
+}
+
+fn get(cache: &LmdbCache, n: usize) {
     let val = format!("bar_{}", n);
     let key = index::get_primary_key(&[0], &[Field::String(val)]);
     let _get_record = cache.get(&key).unwrap();
 }
 
-fn query(cache: Arc<LmdbCache>, _n: usize) {
+fn query(cache: &LmdbCache, _n: usize) {
     let exp = QueryExpression::new(
         Some(FilterExpression::Simple(
             "foo".to_string(),
@@ -48,19 +54,21 @@ fn cache(c: &mut Criterion) {
 
     let size: usize = 1000000;
     c.bench_with_input(BenchmarkId::new("cache_insert", size), &size, |b, &s| {
-        b.iter(|| {
-            insert(Arc::clone(&cache), schema.clone(), s);
-        })
+        b.iter_batched(
+            || delete(&cache, s),
+            |_| insert(&cache, &schema, s),
+            criterion::BatchSize::NumIterations(1),
+        )
     });
 
     c.bench_with_input(BenchmarkId::new("cache_get", size), &size, |b, &s| {
         b.iter(|| {
-            get(Arc::clone(&cache), s);
+            get(&cache, s);
         })
     });
 
     c.bench_with_input(BenchmarkId::new("cache_query", size), &size, |b, &s| {
-        b.iter(|| query(Arc::clone(&cache), s))
+        b.iter(|| query(&cache, s))
     });
 }
 

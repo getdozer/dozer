@@ -5,7 +5,7 @@ use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use dozer_types::crossbeam::channel;
-use dozer_types::log::{debug, error, info};
+use dozer_types::log::{error, info};
 use dozer_types::prettytable::{row, Table};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -33,10 +33,14 @@ fn run() -> Result<(), OrchestrationError> {
     });
     thread::sleep(Duration::from_millis(50));
 
-    let orig_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
-        // invoke the default handler and exit the process
-        orig_hook(panic_info);
+        if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
+            error!("{}", e);
+        } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            error!("{s:?}");
+        } else {
+            error!("{}", panic_info);
+        }
         process::exit(1);
     }));
 
@@ -98,8 +102,7 @@ fn run() -> Result<(), OrchestrationError> {
 
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.run_apps(running, Some(tx)) {
-                debug!("{:?}", e);
-                panic!("Error in pipeline: {}", e);
+                std::panic::panic_any(e);
             }
         });
 
@@ -108,8 +111,7 @@ fn run() -> Result<(), OrchestrationError> {
 
         thread::spawn(move || {
             if let Err(e) = dozer_api.run_api(running_api) {
-                debug!("{:?}", e);
-                panic!("Error in Api: {}", e);
+                std::panic::panic_any(e);
             }
         });
 
