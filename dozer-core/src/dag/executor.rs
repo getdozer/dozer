@@ -399,9 +399,11 @@ impl<'a> DagExecutor<'a> {
             loop {
                 match st_receiver.recv_timeout(lt_executor_options.commit_time_threshold) {
                     Ok((port, txid, seq_in_tx, op)) => {
-                        let committed =
-                            dag_fw.send_and_trigger_commit_if_needed(txid, seq_in_tx, op, port)?;
-                        if committed && !lt_running.load(Ordering::SeqCst) {
+                        let stop_req = !lt_running.load(Ordering::SeqCst);
+                        let committed = dag_fw.send_and_trigger_commit_if_needed(
+                            txid, seq_in_tx, op, port, stop_req,
+                        )?;
+                        if committed && stop_req {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Waiting on term barrier", lt_handle);
                             lt_term_barrier.wait();
@@ -409,8 +411,9 @@ impl<'a> DagExecutor<'a> {
                         }
                     }
                     Err(RecvTimeoutError::Timeout) => {
-                        let committed = dag_fw.trigger_commit_if_needed()?;
-                        if committed && !lt_running.load(Ordering::SeqCst) {
+                        let stop_req = !lt_running.load(Ordering::SeqCst);
+                        let committed = dag_fw.trigger_commit_if_needed(stop_req)?;
+                        if committed && stop_req {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Waiting on term barrier", lt_handle);
                             lt_term_barrier.wait();

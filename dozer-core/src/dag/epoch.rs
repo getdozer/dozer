@@ -80,9 +80,8 @@ impl EpochManager {
 
     #[inline]
     fn should_close_epoch(&mut self) -> bool {
-        self.commit_curr_ops_count > 0
-            && (self.commit_last.elapsed().gt(&self.commit_max_duration)
-                || self.commit_curr_ops_count >= self.commit_max_ops_count)
+        (self.commit_curr_ops_count > 0 && self.commit_last.elapsed().gt(&self.commit_max_duration))
+            || (self.commit_curr_ops_count >= self.commit_max_ops_count)
     }
 
     fn close_epoch_if_possible(&mut self) -> bool {
@@ -107,6 +106,7 @@ impl EpochManager {
         &mut self,
         participant: &NodeHandle,
         advance_count: u16,
+        force: bool,
     ) -> Result<Option<ClosingEpoch>, ExecutionError> {
         //
         self.commit_curr_ops_count += advance_count as u32;
@@ -115,7 +115,7 @@ impl EpochManager {
         match self.epoch_closing {
             false => {
                 // If it is not, we check if we should close the current epoch
-                if self.should_close_epoch() {
+                if force || self.should_close_epoch() {
                     let curr_participant_state = self
                         .epoch_participants
                         .get_mut(participant)

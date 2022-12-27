@@ -250,19 +250,26 @@ impl SourceChannelManager {
         }
     }
 
-    pub fn trigger_commit_if_needed(&mut self) -> Result<bool, ExecutionError> {
-        let epoch =
-            if let Some(epoch) = self.epoch_manager.write().advance(&self.source_handle, 1)? {
-                self.manager.store_and_send_commit(&Epoch::from(
-                    epoch.id,
-                    self.source_handle.clone(),
-                    self.curr_txid,
-                    self.curr_seq_in_tx,
-                ))?;
-                Some(epoch.latch)
-            } else {
-                None
-            };
+    fn advance_and_trigger_commit_if_needed(
+        &mut self,
+        advance: u16,
+        force: bool,
+    ) -> Result<bool, ExecutionError> {
+        let epoch = if let Some(epoch) =
+            self.epoch_manager
+                .write()
+                .advance(&self.source_handle, advance, force)?
+        {
+            self.manager.store_and_send_commit(&Epoch::from(
+                epoch.id,
+                self.source_handle.clone(),
+                self.curr_txid,
+                self.curr_seq_in_tx,
+            ))?;
+            Some(epoch.latch)
+        } else {
+            None
+        };
 
         if let Some(e) = epoch {
             e.wait();
@@ -272,18 +279,23 @@ impl SourceChannelManager {
         }
     }
 
+    pub fn trigger_commit_if_needed(&mut self, force: bool) -> Result<bool, ExecutionError> {
+        self.advance_and_trigger_commit_if_needed(0, force)
+    }
+
     pub fn send_and_trigger_commit_if_needed(
         &mut self,
         txid: u64,
         seq_in_tx: u64,
         op: Operation,
         port: PortHandle,
+        force: bool,
     ) -> Result<bool, ExecutionError> {
         //
         self.curr_txid = txid;
         self.curr_seq_in_tx = seq_in_tx;
         self.manager.send_op(op, port)?;
-        self.trigger_commit_if_needed()
+        self.advance_and_trigger_commit_if_needed(1, force)
     }
 
     pub fn terminate(&mut self) -> Result<(), ExecutionError> {
