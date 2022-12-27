@@ -13,7 +13,7 @@ use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, index_edges,
     init_component, init_select, map_to_op,
 };
-use crate::dag::forwarder::{LocalChannelForwarder, StateWriter};
+use crate::dag::forwarder::{ProcessorChannelManager, SourceChannelManager, StateWriter};
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::Database;
@@ -385,7 +385,7 @@ impl<'a> DagExecutor<'a> {
                 &lt_output_ports,
             );
 
-            let mut dag_fw = LocalChannelForwarder::new_source_forwarder(
+            let mut dag_fw = SourceChannelManager::new(
                 handle,
                 senders,
                 lt_executor_options.commit_sz,
@@ -468,7 +468,7 @@ impl<'a> DagExecutor<'a> {
             );
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
-            let mut fw = LocalChannelForwarder::new_processor_forwarder(
+            let mut fw = ProcessorChannelManager::new(
                 handle.clone(),
                 senders,
                 StateWriter::new(

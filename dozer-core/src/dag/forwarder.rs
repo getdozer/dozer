@@ -151,62 +151,14 @@ impl StateWriter {
     }
 }
 
-pub struct LocalChannelForwarder {
-    senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-    curr_txid: u64,
-    curr_seq_in_tx: u64,
-    commit_size: u32,
-    commit_counter: u32,
-    max_commit_time: Duration,
-    last_commit_time: Instant,
+pub(crate) struct ChannelManager {
     owner: NodeHandle,
+    senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     state_writer: StateWriter,
     stateful: bool,
 }
 
-impl LocalChannelForwarder {
-    pub(crate) fn new_source_forwarder(
-        owner: NodeHandle,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        commit_size: u32,
-        commit_threshold_max: Duration,
-        state_writer: StateWriter,
-        stateful: bool,
-    ) -> Self {
-        Self {
-            senders,
-            curr_txid: 0,
-            curr_seq_in_tx: 0,
-            commit_size,
-            commit_counter: 0,
-            owner,
-            state_writer,
-            max_commit_time: commit_threshold_max,
-            last_commit_time: Instant::now(),
-            stateful,
-        }
-    }
-
-    pub(crate) fn new_processor_forwarder(
-        owner: NodeHandle,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        rec_store_writer: StateWriter,
-        stateful: bool,
-    ) -> Self {
-        Self {
-            senders,
-            curr_txid: 0,
-            curr_seq_in_tx: 0,
-            commit_size: 0,
-            commit_counter: 0,
-            owner,
-            state_writer: rec_store_writer,
-            max_commit_time: Duration::from_millis(0),
-            last_commit_time: Instant::now(),
-            stateful,
-        }
-    }
-
+impl ChannelManager {
     #[inline]
     fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
         if self.stateful {
@@ -293,10 +245,40 @@ impl LocalChannelForwarder {
 
         Ok(())
     }
+    pub fn new(
+        owner: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        state_writer: StateWriter,
+        stateful: bool,
+    ) -> Self {
+        Self {
+            owner,
+            senders,
+            state_writer,
+            stateful,
+        }
+    }
+}
 
+pub(crate) struct SourceChannelManager {
+    source_handle: NodeHandle,
+    manager: ChannelManager,
+    curr_txid: u64,
+    curr_seq_in_tx: u64,
+    commit_size: u32,
+    commit_counter: u32,
+    max_commit_time: Duration,
+    last_commit_time: Instant,
+}
+
+impl SourceChannelManager {
     pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
-        self.store_and_send_commit(self.owner.clone(), self.curr_txid, self.curr_seq_in_tx)?;
-        self.send_term_and_wait()
+        self.manager.store_and_send_commit(
+            self.manager.owner.clone(),
+            self.curr_txid,
+            self.curr_seq_in_tx,
+        )?;
+        self.manager.send_term_and_wait()
     }
 
     fn timeout_commit_needed(&self) -> bool {
@@ -306,15 +288,39 @@ impl LocalChannelForwarder {
 
     pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
         if self.timeout_commit_needed() && self.commit_counter > 0 {
-            self.store_and_send_commit(self.owner.clone(), self.curr_txid, self.curr_seq_in_tx)?;
+            self.manager.store_and_send_commit(
+                self.source_handle.clone(),
+                self.curr_txid,
+                self.curr_seq_in_tx,
+            )?;
             self.commit_counter = 0;
             self.last_commit_time = Instant::now();
         }
         Ok(())
     }
+
+    pub fn new(
+        owner: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        commit_size: u32,
+        commit_threshold_max: Duration,
+        state_writer: StateWriter,
+        stateful: bool,
+    ) -> Self {
+        Self {
+            manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
+            curr_txid: 0,
+            curr_seq_in_tx: 0,
+            commit_size,
+            commit_counter: 0,
+            max_commit_time: commit_threshold_max,
+            last_commit_time: Instant::now(),
+            source_handle: owner.clone(),
+        }
+    }
 }
 
-impl SourceChannelForwarder for LocalChannelForwarder {
+impl SourceChannelForwarder for SourceChannelManager {
     fn send(
         &mut self,
         txid: u64,
@@ -326,18 +332,50 @@ impl SourceChannelForwarder for LocalChannelForwarder {
         self.curr_seq_in_tx = seq_in_tx;
 
         if self.commit_counter >= self.commit_size || self.timeout_commit_needed() {
-            self.store_and_send_commit(self.owner.clone(), txid, seq_in_tx)?;
+            self.manager
+                .store_and_send_commit(self.source_handle.clone(), txid, seq_in_tx)?;
             self.commit_counter = 0;
             self.last_commit_time = Instant::now();
         }
-        self.send_op(op, port)?;
+        self.manager.send_op(op, port)?;
         self.commit_counter += 1;
         Ok(())
     }
 }
 
-impl ProcessorChannelForwarder for LocalChannelForwarder {
+pub(crate) struct ProcessorChannelManager {
+    manager: ChannelManager,
+}
+
+impl ProcessorChannelManager {
+    pub fn new(
+        owner: NodeHandle,
+        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        state_writer: StateWriter,
+        stateful: bool,
+    ) -> Self {
+        Self {
+            manager: ChannelManager::new(owner, senders, state_writer, stateful),
+        }
+    }
+
+    pub fn store_and_send_commit(
+        &mut self,
+        source_node: NodeHandle,
+        txid: u64,
+        seq_in_tx: u64,
+    ) -> Result<(), ExecutionError> {
+        self.manager
+            .store_and_send_commit(source_node, txid, seq_in_tx)
+    }
+
+    pub fn send_term_and_wait(&self) -> Result<(), ExecutionError> {
+        self.manager.send_term_and_wait()
+    }
+}
+
+impl ProcessorChannelForwarder for ProcessorChannelManager {
     fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.send_op(op, port)
+        self.manager.send_op(op, port)
     }
 }
