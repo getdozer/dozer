@@ -379,8 +379,6 @@ impl<'a> DagExecutor<'a> {
             let mut dag_fw = SourceChannelManager::new(
                 handle,
                 senders,
-                lt_executor_options.commit_sz,
-                lt_executor_options.commit_time_threshold,
                 StateWriter::new(
                     state_meta.meta_db,
                     port_databases,
@@ -390,14 +388,15 @@ impl<'a> DagExecutor<'a> {
                     HashMap::new(),
                 ),
                 true,
+                epoch_manager,
             );
             loop {
                 let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
                 match lt_running.load(Ordering::SeqCst) {
                     false => {
-                        dag_fw.commit_and_terminate()?;
-                        lt_term_barrier.wait();
-                        break;
+                        // dag_fw.commit_and_terminate()?;
+                        // lt_term_barrier.wait();
+                        // break;
                     }
                     true => match r {
                         Err(RecvTimeoutError::Timeout) => {
@@ -407,13 +406,28 @@ impl<'a> DagExecutor<'a> {
                             return Err(ChannelDisconnected);
                         }
                         Ok((port, txid, seq_in_tx, Operation::Insert { new })) => {
-                            dag_fw.send(txid, seq_in_tx, Operation::Insert { new }, port)?;
+                            dag_fw.send_and_trigger_commit_if_needed(
+                                txid,
+                                seq_in_tx,
+                                Operation::Insert { new },
+                                port,
+                            )?;
                         }
                         Ok((port, txid, seq_in_tx, Operation::Delete { old })) => {
-                            dag_fw.send(txid, seq_in_tx, Operation::Delete { old }, port)?;
+                            dag_fw.send_and_trigger_commit_if_needed(
+                                txid,
+                                seq_in_tx,
+                                Operation::Delete { old },
+                                port,
+                            )?;
                         }
                         Ok((port, txid, seq_in_tx, Operation::Update { old, new })) => {
-                            dag_fw.send(txid, seq_in_tx, Operation::Update { old, new }, port)?;
+                            dag_fw.send_and_trigger_commit_if_needed(
+                                txid,
+                                seq_in_tx,
+                                Operation::Update { old, new },
+                                port,
+                            )?;
                         }
                     },
                 }
@@ -478,13 +492,33 @@ impl<'a> DagExecutor<'a> {
             let mut port_states: Vec<InputPortState> =
                 handles_ls.iter().map(|_h| InputPortState::Open).collect();
 
+            let mut readable_ports: Vec<bool> = receivers_ls.iter().map(|e| true).collect();
+            let mut commits_received: usize = 0;
+            let mut common_epoch = Epoch::new(0, HashMap::new());
+
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
+                if !readable_ports[index] {
+                    continue;
+                }
+
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Commit { epoch_details } => {
-                        proc.commit(&epoch_details, &master_tx)?;
-                        fw.store_and_send_commit(&epoch_details)?;
+                        assert_eq!(epoch_details.id, common_epoch.id);
+                        commits_received += 1;
+                        readable_ports[index] = false;
+                        common_epoch.details.extend(epoch_details.details);
+
+                        if commits_received == receivers_ls.len() {
+                            proc.commit(&common_epoch, &master_tx)?;
+                            fw.store_and_send_commit(&common_epoch)?;
+                            common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
+                            commits_received = 0;
+                            for v in &mut readable_ports {
+                                *v = true;
+                            }
+                        }
                     }
                     ExecutorOperation::Terminate => {
                         port_states[index] = InputPortState::Terminated;
@@ -574,10 +608,6 @@ impl<'a> DagExecutor<'a> {
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
         let (mut senders, mut receivers) = index_edges(self.dag, self.options.channel_buffer_sz);
-        let epoch_manager: Arc<RwLock<EpochManager>> = Arc::new(RwLock::new(EpochManager::new(
-            self.options.commit_sz,
-            self.options.commit_time_threshold,
-        )));
 
         for (handle, factory) in self.dag.get_sinks() {
             let join_handle = self
@@ -613,6 +643,12 @@ impl<'a> DagExecutor<'a> {
                 .unwrap();
             self.join_handles.insert(handle.clone(), join_handle);
         }
+
+        let epoch_manager: Arc<RwLock<EpochManager>> = Arc::new(RwLock::new(EpochManager::new(
+            self.options.commit_sz,
+            self.options.commit_time_threshold,
+            self.dag.get_sources().iter().map(|e| e.0.clone()).collect(),
+        )));
 
         for (handle, factory) in self.dag.get_sources() {
             let join_handle = self

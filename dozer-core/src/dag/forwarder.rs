@@ -1,7 +1,7 @@
 use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
-use crate::dag::epoch::Epoch;
+use crate::dag::epoch::{Epoch, EpochManager};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
@@ -12,9 +12,11 @@ use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
+use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 use log::info;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -251,91 +253,73 @@ pub(crate) struct SourceChannelManager {
     manager: ChannelManager,
     curr_txid: u64,
     curr_seq_in_tx: u64,
-    commit_size: u32,
-    commit_counter: u32,
-    max_commit_time: Duration,
-    last_commit_time: Instant,
-    curr_epoch: u64,
+    epoch_manager: Arc<RwLock<EpochManager>>,
 }
 
 impl SourceChannelManager {
     pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
-        self.manager.store_and_send_commit(&Epoch::from(
-            self.curr_epoch,
-            self.manager.owner.clone(),
-            self.curr_txid,
-            self.curr_seq_in_tx,
-        ))?;
+        // self.manager.store_and_send_commit(&Epoch::from(
+        //     self.curr_epoch,
+        //     self.manager.owner.clone(),
+        //     self.curr_txid,
+        //     self.curr_seq_in_tx,
+        // ))?;
         self.manager.send_term_and_wait()
     }
 
-    fn timeout_commit_needed(&self) -> bool {
-        (!self.max_commit_time.is_zero())
-            && self.last_commit_time.elapsed().gt(&self.max_commit_time)
-    }
-
-    pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
-        if self.timeout_commit_needed() && self.commit_counter > 0 {
-            self.manager.store_and_send_commit(&Epoch::from(
-                self.curr_epoch,
-                self.source_handle.clone(),
-                self.curr_txid,
-                self.curr_seq_in_tx,
-            ))?;
-            self.commit_counter = 0;
-            self.last_commit_time = Instant::now();
-            self.curr_epoch += 1;
-        }
-        Ok(())
-    }
+    // fn timeout_commit_needed(&self) -> bool {
+    //     (!self.max_commit_time.is_zero())
+    //         && self.last_commit_time.elapsed().gt(&self.max_commit_time)
+    // }
 
     pub fn new(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        commit_size: u32,
-        commit_threshold_max: Duration,
         state_writer: StateWriter,
         stateful: bool,
+        epoch_manager: Arc<RwLock<EpochManager>>,
     ) -> Self {
         Self {
             manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
             curr_txid: 0,
             curr_seq_in_tx: 0,
-            commit_size,
-            commit_counter: 0,
-            max_commit_time: commit_threshold_max,
-            last_commit_time: Instant::now(),
             source_handle: owner,
-            curr_epoch: 0,
+            epoch_manager,
         }
     }
-}
 
-impl SourceChannelForwarder for SourceChannelManager {
-    fn send(
+    pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
+        let epoch =
+            if let Some(epoch) = self.epoch_manager.write().advance(&self.source_handle, 1)? {
+                self.manager.store_and_send_commit(&Epoch::from(
+                    epoch.id,
+                    self.source_handle.clone(),
+                    self.curr_txid,
+                    self.curr_seq_in_tx,
+                ))?;
+                Some(epoch.latch)
+            } else {
+                None
+            };
+
+        if let Some(e) = epoch {
+            e.wait();
+        }
+        Ok(())
+    }
+
+    pub fn send_and_trigger_commit_if_needed(
         &mut self,
         txid: u64,
         seq_in_tx: u64,
         op: Operation,
         port: PortHandle,
     ) -> Result<(), ExecutionError> {
+        //
         self.curr_txid = txid;
         self.curr_seq_in_tx = seq_in_tx;
-
-        if self.commit_counter >= self.commit_size || self.timeout_commit_needed() {
-            self.manager.store_and_send_commit(&Epoch::from(
-                self.curr_epoch,
-                self.source_handle.clone(),
-                txid,
-                seq_in_tx,
-            ))?;
-            self.commit_counter = 0;
-            self.last_commit_time = Instant::now();
-            self.curr_epoch += 1;
-        }
         self.manager.send_op(op, port)?;
-        self.commit_counter += 1;
-        Ok(())
+        self.trigger_commit_if_needed()
     }
 }
 
