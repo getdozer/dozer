@@ -28,7 +28,7 @@ fn test_checpoint_consistency_ns() {
         NodeHandle::new(None, "src1".to_string()),
         NodeHandle::new(None, "src2".to_string()),
         NodeHandle::new(None, "src3".to_string()),
-        // NodeHandle::new(None, "src4".to_string()),
+        NodeHandle::new(None, "src4".to_string()),
     ];
 
     let latch = Arc::new(Barrier::new(sources.len() * 2 - 1));

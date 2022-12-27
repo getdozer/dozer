@@ -38,12 +38,12 @@ impl Display for Epoch {
 
 pub struct ClosingEpoch {
     pub id: u64,
-    pub latch: Arc<CountDownLatch>,
+    pub barrier: Arc<Barrier>,
 }
 
 impl ClosingEpoch {
-    pub fn new(id: u64, latch: Arc<CountDownLatch>) -> Self {
-        Self { id, latch }
+    pub fn new(id: u64, barrier: Arc<Barrier>) -> Self {
+        Self { id, barrier }
     }
 }
 
@@ -54,7 +54,7 @@ pub(crate) struct EpochManager {
     commit_last: Instant,
     curr_epoch: u64,
     epoch_participants: HashMap<NodeHandle, bool>,
-    epoch_latch: Arc<CountDownLatch>,
+    epoch_barrier: Arc<Barrier>,
     epoch_closing: bool,
 }
 
@@ -74,7 +74,7 @@ impl EpochManager {
             curr_epoch: 0,
             epoch_participants: epoch_participants.into_iter().map(|e| (e, false)).collect(),
             epoch_closing: false,
-            epoch_latch: Arc::new(CountDownLatch::new(participants_count as u64)),
+            epoch_barrier: Arc::new(Barrier::new(participants_count)),
         }
     }
 
@@ -90,7 +90,7 @@ impl EpochManager {
             self.commit_curr_ops_count = 0;
             self.curr_epoch += 1;
             self.commit_last = Instant::now();
-            self.epoch_latch = Arc::new(CountDownLatch::new(self.epoch_participants.len() as u64));
+            self.epoch_barrier = Arc::new(Barrier::new(self.epoch_participants.len()));
             self.epoch_participants = self
                 .epoch_participants
                 .iter()
@@ -125,9 +125,9 @@ impl EpochManager {
                     // If we can close it, we add the current participant in the participants list
                     self.epoch_closing = true;
                     *curr_participant_state = true;
-                    self.epoch_latch.countdown();
+                    //     self.epoch_latch.countdown();
                     let closing_epoch =
-                        ClosingEpoch::new(self.curr_epoch, self.epoch_latch.clone());
+                        ClosingEpoch::new(self.curr_epoch, self.epoch_barrier.clone());
                     // Epoch might have a single participant. We check for it and, if true, we close
                     // the current epoch, otherwise we leave it open and wait for other participants
                     // to join teh closing
@@ -147,8 +147,8 @@ impl EpochManager {
                 assert_eq!(*curr_participant_state, false);
 
                 *curr_participant_state = true;
-                self.epoch_latch.countdown();
-                let closing_epoch = ClosingEpoch::new(self.curr_epoch, self.epoch_latch.clone());
+                //    self.epoch_latch.countdown();
+                let closing_epoch = ClosingEpoch::new(self.curr_epoch, self.epoch_barrier.clone());
                 self.close_epoch_if_possible();
                 Ok(Some(closing_epoch))
             }

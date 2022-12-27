@@ -266,7 +266,7 @@ impl SourceChannelManager {
                 self.curr_txid,
                 self.curr_seq_in_tx,
             ))?;
-            Some(epoch.latch)
+            Some(epoch.barrier)
         } else {
             None
         };
