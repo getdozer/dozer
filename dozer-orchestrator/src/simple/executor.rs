@@ -12,7 +12,6 @@ use dozer_types::models::source::Source;
 
 use crate::pipeline::{CacheSinkFactory, ConnectorSourceFactory};
 use dozer_core::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
-use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError::{self};
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::NodeHandle;

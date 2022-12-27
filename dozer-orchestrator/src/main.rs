@@ -12,7 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{panic, process, thread};
 use tokio::runtime::Runtime;
-use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
@@ -124,7 +123,7 @@ fn run() -> Result<(), OrchestrationError> {
         .expect("Failed to initialize dozer with schema");
 
         let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer.run_apps(running, Some(tx)) {
+            if let Err(e) = dozer.run_apps(running, Some(tx), ingestor, iterator) {
                 std::panic::panic_any(e);
             }
         });
