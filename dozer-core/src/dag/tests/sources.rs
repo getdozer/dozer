@@ -3,8 +3,11 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use fp_rust::sync::CountDownLatch;
+use libc::thread_info;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
+use std::thread;
+use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
@@ -84,7 +87,8 @@ impl Source for GeneratorSource {
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }
-        self.term_latch.wait();
+        thread::sleep(Duration::from_millis(5000));
+        // self.term_latch.wait();
         Ok(())
     }
 }
@@ -187,6 +191,87 @@ impl Source for DualPortGeneratorSource {
             )?;
         }
         self.term_latch.wait();
+        Ok(())
+    }
+}
+
+pub(crate) struct GeneratorSourceFactory2 {
+    count: u64,
+    barrier: Arc<Barrier>,
+    stateful: bool,
+}
+
+impl GeneratorSourceFactory2 {
+    pub fn new(count: u64, barrier: Arc<Barrier>, stateful: bool) -> Self {
+        Self {
+            count,
+            barrier,
+            stateful,
+        }
+    }
+}
+
+impl SourceFactory for GeneratorSourceFactory2 {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
+        Ok(Schema::empty()
+            .field(
+                FieldDefinition::new("id".to_string(), FieldType::String, false),
+                true,
+            )
+            .field(
+                FieldDefinition::new("value".to_string(), FieldType::String, false),
+                false,
+            )
+            .clone())
+    }
+
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
+            GENERATOR_SOURCE_OUTPUT_PORT,
+            OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
+        )]
+    }
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(GeneratorSource2 {
+            count: self.count,
+            barrier: self.barrier.clone(),
+        }))
+    }
+}
+
+pub(crate) struct GeneratorSource2 {
+    count: u64,
+    barrier: Arc<Barrier>,
+}
+
+impl Source for GeneratorSource2 {
+    fn start(
+        &self,
+        fw: &mut dyn SourceChannelForwarder,
+        from_seq: Option<(u64, u64)>,
+    ) -> Result<(), ExecutionError> {
+        let start = from_seq.unwrap().0;
+
+        for n in start + 1..(start + self.count + 1) {
+            fw.send(
+                n,
+                0,
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String(format!("key_{}", n)),
+                            Field::String(format!("value_{}", n)),
+                        ],
+                    ),
+                },
+                GENERATOR_SOURCE_OUTPUT_PORT,
+            )?;
+        }
+        self.barrier.wait();
         Ok(())
     }
 }

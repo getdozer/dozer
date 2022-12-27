@@ -5,14 +5,18 @@ use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::NodeHandle;
 use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
-use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
-use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use crate::dag::tests::sinks::{
+    CountingSinkFactory, CountingSinkFactory2, COUNTING_SINK_INPUT_PORT,
+};
+use crate::dag::tests::sources::{
+    GeneratorSourceFactory, GeneratorSourceFactory2, GENERATOR_SOURCE_OUTPUT_PORT,
+};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
 use fp_rust::sync::CountDownLatch;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 
 use tempdir::TempDir;
 
@@ -20,7 +24,7 @@ use tempdir::TempDir;
 fn test_checkpoint_consistency() {
     dozer_tracing::init_telemetry(false).unwrap();
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(3));
 
     const SRC1_MSG_COUNT: u64 = 50_000;
     const SRC2_MSG_COUNT: u64 = 25_000;
@@ -36,7 +40,7 @@ fn test_checkpoint_consistency() {
     let sink_handle = NodeHandle::new(Some(1), SINK_HANDLE_ID.to_string());
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+        NodeType::Source(Arc::new(GeneratorSourceFactory2::new(
             SRC1_MSG_COUNT,
             latch.clone(),
             true,
@@ -44,7 +48,7 @@ fn test_checkpoint_consistency() {
         source1_handle.clone(),
     );
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
+        NodeType::Source(Arc::new(GeneratorSourceFactory2::new(
             SRC2_MSG_COUNT,
             latch.clone(),
             true,
@@ -56,7 +60,7 @@ fn test_checkpoint_consistency() {
         proc_handle.clone(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(CountingSinkFactory::new(
+        NodeType::Sink(Arc::new(CountingSinkFactory2::new(
             SRC1_MSG_COUNT + SRC2_MSG_COUNT,
             latch,
         ))),
@@ -89,44 +93,44 @@ fn test_checkpoint_consistency() {
     chk!(executor.start());
     assert!(executor.join().is_ok());
 
-    // let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    // let c = r.get_checkpoint_consistency();
-    //
-    // match c.get(&source1_handle).unwrap() {
-    //     Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-    //     Consistency::FullyConsistent(r) => assert_eq!(r, &(SRC1_MSG_COUNT, 0)),
-    // }
-    //
-    // match c.get(&source2_handle).unwrap() {
-    //     Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
-    //     Consistency::FullyConsistent(r) => assert_eq!(r, &(SRC2_MSG_COUNT, 0)),
-    // }
-    //
-    // LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{}", proc_handle).as_str());
-    // let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
-    // let c = r.get_checkpoint_consistency();
-    //
-    // let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
-    // expected.insert(
-    //     (SRC1_MSG_COUNT, 0),
-    //     vec![source1_handle.clone(), sink_handle.clone()],
-    // );
-    // expected.insert((0_u64, 0), vec![proc_handle.clone()]);
-    // match c.get(&source1_handle).unwrap() {
-    //     Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
-    //     Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
-    // }
-    //
-    // let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
-    // expected.insert(
-    //     (SRC2_MSG_COUNT, 0),
-    //     vec![source2_handle.clone(), sink_handle],
-    // );
-    // expected.insert((0_u64, 0), vec![proc_handle]);
-    // match c.get(&source2_handle).unwrap() {
-    //     Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
-    //     Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
-    // }
+    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
+    let c = r.get_checkpoint_consistency();
+
+    match c.get(&source1_handle).unwrap() {
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(SRC1_MSG_COUNT, 0)),
+    }
+
+    match c.get(&source2_handle).unwrap() {
+        Consistency::PartiallyConsistent(_r) => panic!("Wrong consistency"),
+        Consistency::FullyConsistent(r) => assert_eq!(r, &(SRC2_MSG_COUNT, 0)),
+    }
+
+    LmdbEnvironmentManager::remove(tmp_dir.path(), format!("{}", proc_handle).as_str());
+    let r = chk!(DagMetadataManager::new(&dag, tmp_dir.path()));
+    let c = r.get_checkpoint_consistency();
+
+    let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
+    expected.insert(
+        (SRC1_MSG_COUNT, 0),
+        vec![source1_handle.clone(), sink_handle.clone()],
+    );
+    expected.insert((0_u64, 0), vec![proc_handle.clone()]);
+    match c.get(&source1_handle).unwrap() {
+        Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
+        Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
+    }
+
+    let mut expected: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
+    expected.insert(
+        (SRC2_MSG_COUNT, 0),
+        vec![source2_handle.clone(), sink_handle],
+    );
+    expected.insert((0_u64, 0), vec![proc_handle]);
+    match c.get(&source2_handle).unwrap() {
+        Consistency::PartiallyConsistent(r) => assert_eq!(r, &expected),
+        Consistency::FullyConsistent(_r) => panic!("Wrong consistency"),
+    }
 }
 
 #[test]
