@@ -17,7 +17,7 @@ services:
     volumes:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
-    command: "-c /usr/dozer/dozer-config.yaml"
+    command: "dozer -c /usr/dozer/dozer-config.yaml"
     networks: ["dozer_net"]
 
   # Initialize sample data
@@ -55,6 +55,7 @@ services:
 
 networks:
   dozer_net:
+    name: "dozer_net"
     enable_ipv6: true
     driver: bridge
     driver_opts:
