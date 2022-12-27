@@ -1,6 +1,8 @@
 use crate::{
+    auth::{Access, Authorizer},
     generator::protoc::utils::get_proto_descriptor,
     grpc::{
+        auth_middleware::AuthMiddlewareLayer,
         client_server::ApiServer,
         internal_grpc::PipelineResponse,
         typed::{
@@ -16,9 +18,12 @@ use crate::{
     CacheEndpoint, PipelineDetails,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
-use dozer_types::{models::api_config::default_api_config, types::Schema};
+use dozer_types::{
+    models::{api_config::default_api_config, api_security::ApiSecurity},
+    types::Schema,
+};
 use futures_util::FutureExt;
-use std::{collections::HashMap, env, path::PathBuf, time::Duration};
+use std::{collections::HashMap, env, path::PathBuf, str::FromStr, time::Duration};
 
 use super::generated::films::{EventType, FilmEventRequest};
 use crate::test_utils;
@@ -31,8 +36,9 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 use tonic::{
+    metadata::MetadataValue,
     transport::{Endpoint, Server},
-    Request,
+    Code, Request,
 };
 
 pub fn setup_pipeline() -> (
@@ -63,7 +69,7 @@ pub fn setup_pipeline() -> (
     (pipeline_map, schema_map, rx1)
 }
 
-fn setup_typed_service() -> TypedService {
+fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let path = out_dir
@@ -75,27 +81,68 @@ fn setup_typed_service() -> TypedService {
 
     let (pipeline_map, schema_map, rx1) = setup_pipeline();
 
-    TypedService::new(desc, pipeline_map, schema_map, rx1, None)
+    TypedService::new(desc, pipeline_map, schema_map, rx1, security)
 }
 
-#[tokio::test]
-async fn test_grpc_query() {
-    let typed_service = setup_typed_service();
-    let (_tx, rx) = oneshot::channel::<()>();
+async fn test_grpc_query_common(
+    port: u32,
+    request: QueryFilmsRequest,
+    api_security: Option<ApiSecurity>,
+    access_token: Option<String>,
+) -> Result<QueryFilmsResponse, tonic::Status> {
+    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
+    let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
+    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
+        default_pipeline_internal.host,
+        default_pipeline_internal.port,
+        rx_internal,
+    ));
 
+    let typed_service = setup_typed_service(api_security.to_owned());
+    let (_tx, rx) = oneshot::channel::<()>();
+    // middleware
+    let layer = tower::ServiceBuilder::new()
+        .layer(AuthMiddlewareLayer::new(api_security.to_owned()))
+        .into_inner();
     let _jh = tokio::spawn(async move {
         Server::builder()
+            .layer(layer)
             .add_service(typed_service)
-            .serve_with_shutdown("127.0.0.1:1402".parse().unwrap(), rx.map(drop))
+            .serve_with_shutdown(
+                format!("127.0.0.1:{:}", port).parse().unwrap(),
+                rx.map(drop),
+            )
             .await
             .unwrap();
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
-    let channel = Endpoint::from_static("http://127.0.0.1:1402")
+    let channel = Endpoint::from_str(&format!("http://127.0.0.1:{:}", port))
+        .unwrap()
         .connect()
         .await
         .unwrap();
-    let mut client = FilmsClient::new(channel);
+    if api_security.is_some() {
+        let my_token = access_token.unwrap_or_default();
+        let mut client = FilmsClient::with_interceptor(channel, move |mut req: Request<()>| {
+            let token: MetadataValue<_> = format!("Bearer {:}", my_token).parse().unwrap();
+            req.metadata_mut().insert("authorization", token);
+            Ok(req)
+        });
+        let res = client.query(Request::new(request)).await?;
+        let request_response: QueryFilmsResponse = res.into_inner();
+        _ = sender_shutdown_internal.send(());
+        Ok(request_response)
+    } else {
+        let mut client = FilmsClient::new(channel);
+        let res = client.query(Request::new(request)).await?;
+        let request_response: QueryFilmsResponse = res.into_inner();
+        _ = sender_shutdown_internal.send(());
+        Ok(request_response)
+    }
+}
+
+#[tokio::test]
+async fn test_grpc_query() {
     // create filter expression
     let filter = FilterExpression::Simple(
         "film_id".to_string(),
@@ -110,9 +157,59 @@ async fn test_grpc_query() {
     let request = QueryFilmsRequest {
         query: Some(dozer_types::serde_json::to_string(&query).unwrap()),
     };
-    let res = client.query(Request::new(request)).await.unwrap();
-    let request_response: QueryFilmsResponse = res.into_inner();
-    assert!(!request_response.data.len() > 0);
+
+    let request_response = test_grpc_query_common(1402, request, None, None).await;
+    assert!(request_response.is_ok());
+    assert!(!request_response.unwrap().data.len() > 0);
+}
+
+#[tokio::test]
+async fn test_grpc_query_with_access_token() {
+    // create filter expression
+    let filter = FilterExpression::Simple(
+        "film_id".to_string(),
+        dozer_cache::cache::expression::Operator::EQ,
+        dozer_types::serde_json::Value::from(524),
+    );
+
+    let query = QueryExpression {
+        filter: Some(filter),
+        ..QueryExpression::default()
+    };
+    let request = QueryFilmsRequest {
+        query: Some(dozer_types::serde_json::to_string(&query).unwrap()),
+    };
+    let api_security = ApiSecurity::Jwt("DXkzrlnTy6".to_owned());
+    let authorizer = Authorizer::from(api_security.to_owned());
+    let generated_token = authorizer.generate_token(Access::All, None).unwrap();
+    let request_response =
+        test_grpc_query_common(1403, request, Some(api_security), Some(generated_token)).await;
+    assert!(request_response.is_ok());
+    assert!(!request_response.unwrap().data.is_empty());
+}
+
+#[tokio::test]
+async fn test_grpc_query_with_wrong_access_token() {
+    // create filter expression
+    let filter = FilterExpression::Simple(
+        "film_id".to_string(),
+        dozer_cache::cache::expression::Operator::EQ,
+        dozer_types::serde_json::Value::from(524),
+    );
+
+    let query = QueryExpression {
+        filter: Some(filter),
+        ..QueryExpression::default()
+    };
+    let request = QueryFilmsRequest {
+        query: Some(dozer_types::serde_json::to_string(&query).unwrap()),
+    };
+    let api_security = ApiSecurity::Jwt("DXkzrlnTy6".to_owned());
+    let generated_token = "wrongrandomtoken".to_owned();
+    let request_response =
+        test_grpc_query_common(1404, request, Some(api_security), Some(generated_token)).await;
+    assert!(request_response.is_err());
+    assert!(request_response.unwrap_err().code() == Code::PermissionDenied);
 }
 
 #[tokio::test]
@@ -126,7 +223,7 @@ async fn test_typed_streaming1() {
     ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service();
+        let typed_service = setup_typed_service(None);
         Server::builder()
             .add_service(typed_service)
             .serve_with_shutdown("127.0.0.1:14321".parse().unwrap(), rx.map(drop))
@@ -165,7 +262,7 @@ async fn test_typed_streaming2() {
     ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service();
+        let typed_service = setup_typed_service(None);
         Server::builder()
             .add_service(typed_service)
             .serve_with_shutdown("127.0.0.1:14322".parse().unwrap(), rx.map(drop))
@@ -203,7 +300,7 @@ async fn test_typed_streaming3() {
     ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
-        let typed_service = setup_typed_service();
+        let typed_service = setup_typed_service(None);
         Server::builder()
             .add_service(typed_service)
             .serve_with_shutdown("127.0.0.1:14323".parse().unwrap(), rx.map(drop))
