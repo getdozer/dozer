@@ -6,7 +6,7 @@ use crate::{
     check_nan_f64, deserialize_u8, field_extract_decimal, field_extract_f64, field_extract_i64,
     to_bytes, try_unwrap,
 };
-use dozer_core::storage::common::{Database, RwTransaction};
+use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::Field::{Decimal, Float, Int};
@@ -39,7 +39,7 @@ impl AvgAggregator {
         new: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
             (FieldType::Decimal, _) => {
@@ -88,7 +88,7 @@ impl AvgAggregator {
         new: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, new) {
             (FieldType::Decimal, _) => {
@@ -144,7 +144,7 @@ impl AvgAggregator {
         old: &Field,
         return_type: FieldType,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<AggregationResult, PipelineError> {
         match (return_type, old) {
             (FieldType::Decimal, _) => {
@@ -203,7 +203,7 @@ impl AvgAggregator {
         val_delta: u8,
         decr: bool,
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) {
         let get_prev_count = try_unwrap!(ptx.get(aggregators_db, key));
         let prev_count = deserialize_u8!(get_prev_count);
@@ -222,7 +222,7 @@ impl AvgAggregator {
 
     fn calc_f64_average(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<f64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut total_count = 0_u8;
@@ -246,7 +246,7 @@ impl AvgAggregator {
 
     fn calc_decimal_average(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<dozer_types::rust_decimal::Decimal, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut total_count = 0_u8;
@@ -274,7 +274,7 @@ impl AvgAggregator {
 
     fn calc_i64_average(
         ptx: &mut PrefixTransaction,
-        aggregators_db: &Database,
+        aggregators_db: Database,
     ) -> Result<i64, PipelineError> {
         let ptx_cur = ptx.open_cursor(aggregators_db)?;
         let mut total_count = 0_u8;

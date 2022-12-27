@@ -1,5 +1,4 @@
 #![allow(clippy::enum_variant_names)]
-use crate::storage::lmdb_sys::LmdbError;
 use dozer_types::errors::internal::BoxedError;
 use thiserror::Error;
 
@@ -22,7 +21,7 @@ pub enum StorageError {
 
     // Error forwarding
     #[error(transparent)]
-    InternalDbError(#[from] LmdbError),
+    InternalDbError(#[from] lmdb::Error),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
 }

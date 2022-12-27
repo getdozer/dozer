@@ -7,7 +7,6 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 };
 use chrono::{TimeZone, Utc};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
-use dozer_core::storage::transactions::SharedTransaction;
 use dozer_types::types::Field;
 use dozer_types::types::FieldType::{Date, Decimal, Float, Int, Timestamp};
 use std::collections::HashMap;

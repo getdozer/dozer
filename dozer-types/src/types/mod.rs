@@ -1,4 +1,7 @@
+use std::fmt::Display;
+
 use crate::errors::types::TypeError;
+use prettytable::Table;
 use serde::{self, Deserialize, Serialize};
 
 mod field;
@@ -73,6 +76,22 @@ impl Schema {
             Some(v) => Ok(v),
             _ => Err(TypeError::InvalidFieldName(name.to_string())),
         }
+    }
+
+    pub fn print(&self) -> Table {
+        let mut table = Table::new();
+        table.add_row(row!["Field", "Type", "Nullable"]);
+        for f in &self.fields {
+            table.add_row(row![f.name, format!("{:?}", f.typ), f.nullable]);
+        }
+        table
+    }
+}
+
+impl Display for Schema {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let table = self.print();
+        table.fmt(f)
     }
 }
 
