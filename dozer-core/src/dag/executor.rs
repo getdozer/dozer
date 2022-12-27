@@ -134,7 +134,7 @@ impl SourceChannelForwarder for InternalChannelSourceForwarder {
 }
 
 pub struct DagExecutor<'a> {
-    pub dag: &'a Dag,
+    dag: &'a Dag,
     schemas: HashMap<NodeHandle, NodeSchemas>,
     term_barrier: Arc<Barrier>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,

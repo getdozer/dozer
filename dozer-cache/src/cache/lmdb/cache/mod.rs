@@ -53,7 +53,7 @@ impl LmdbCache {
         let schema_db = SchemaDatabase::new(&env, create_if_not_exist)?;
 
         // Open existing secondary index databases.
-        let mut secondary_indexe_databases = HashMap::default();
+        let mut secondary_indexes_databases = HashMap::default();
         let schemas = schema_db.get_all_schemas(&env)?;
         for (schema, secondary_indexes) in schemas {
             let schema_id = schema
@@ -62,7 +62,7 @@ impl LmdbCache {
             for (index, index_definition) in secondary_indexes.iter().enumerate() {
                 let db =
                     SecondaryIndexDatabase::new(&env, &schema, index, index_definition, false)?;
-                secondary_indexe_databases.insert((schema_id, index), db);
+                secondary_indexes_databases.insert((schema_id, index), db);
             }
         }
 
@@ -70,7 +70,7 @@ impl LmdbCache {
             env,
             db,
             primary_index,
-            secondary_indexes: Arc::new(RwLock::new(secondary_indexe_databases)),
+            secondary_indexes: Arc::new(RwLock::new(secondary_indexes_databases)),
             schema_db,
             cache_options,
         })

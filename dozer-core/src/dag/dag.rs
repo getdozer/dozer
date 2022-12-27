@@ -39,6 +39,7 @@ pub enum NodeType {
     Sink(Arc<dyn SinkFactory>),
 }
 
+#[derive(Clone)]
 pub struct Node {
     handle: NodeHandle,
     t: NodeType,

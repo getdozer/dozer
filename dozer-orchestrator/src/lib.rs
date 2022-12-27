@@ -10,6 +10,8 @@ use std::{
     collections::HashMap,
     sync::{atomic::AtomicBool, Arc},
 };
+use dozer_api::grpc::internal_grpc::PipelineResponse;
+
 #[cfg(test)]
 mod test_utils;
 mod utils;
@@ -19,12 +21,17 @@ pub trait Orchestrator {
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
+        sender: Sender<PipelineResponse>,
+        ingestor: Arc<RwLock<Ingestor>>,
+        iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
+        ingestor: Arc<RwLock<Ingestor>>,
+        iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Result<(), OrchestrationError>;
     fn list_connectors(&self)
         -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError>;
@@ -32,7 +39,9 @@ pub trait Orchestrator {
 
 // Re-exports
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
+use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 pub use dozer_types::models::connection::Connection;
+use dozer_types::parking_lot::RwLock;
 
 pub fn validate(input: Connection) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input)?;

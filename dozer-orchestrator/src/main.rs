@@ -12,6 +12,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{panic, process, thread};
 use tokio::runtime::Runtime;
+use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
+use dozer_api::grpc::internal_grpc::PipelineResponse;
+use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
 fn main() {
     if let Err(e) = run() {
@@ -54,11 +57,17 @@ fn run() -> Result<(), OrchestrationError> {
     let configuration = load_config(cli.config_path)?;
     let mut dozer = Dozer::new(configuration);
 
+    // Ingestion channel
+    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
+    // gRPC notifier channel
+    let (sender, _) = channel::unbounded::<PipelineResponse>();
+
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
             Commands::Init(_init) => {
-                dozer.init(running, None)
+                dozer.init(running, None, sender, ingestor, iterator)
             },
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
@@ -70,7 +79,7 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => {
                     render_logo();
-                    dozer.run_apps(running, None)
+                    dozer.run_apps(running, None, ingestor, iterator)
                 }
             },
             Commands::Connector(sources) => match sources.command {
@@ -95,15 +104,23 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
+        let mut pre_dozer = dozer.clone();
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
 
         // Initialize with schema
-        dozer.init(running.clone(), Some(tx.clone())).expect("Failed to initialize dozer with schema");
+        pre_dozer.init(
+            running.clone(),
+            Some(tx.clone()),
+            sender,
+            ingestor.clone(),
+            iterator.clone()
+        )
+        .expect("Failed to initialize dozer with schema");
 
         let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer.run_apps(running, Some(tx)) {
+            if let Err(e) = dozer.run_apps(running, Some(tx), ingestor, iterator) {
                 debug!("{:?}", e);
                 panic!("Error in pipeline: {}", e);
             }
