@@ -5,7 +5,7 @@ use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::Orchestrator;
 use dozer_types::crossbeam::channel;
-use dozer_types::log::{debug, error, info};
+use dozer_types::log::{error, info};
 use dozer_types::prettytable::{row, Table};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

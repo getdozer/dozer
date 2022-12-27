@@ -315,7 +315,7 @@ impl SourceChannelManager {
             commit_counter: 0,
             max_commit_time: commit_threshold_max,
             last_commit_time: Instant::now(),
-            source_handle: owner.clone(),
+            source_handle: owner,
         }
     }
 }

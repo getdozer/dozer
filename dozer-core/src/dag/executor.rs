@@ -6,8 +6,7 @@ use crate::dag::dag_metadata::{Consistency, DagMetadata, DagMetadataManager};
 use crate::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{
-    ChannelDisconnected, IncompatibleSchemas, InconsistentCheckpointMetadata, InternalError,
-    InternalThreadPanic, InvalidNodeHandle,
+    ChannelDisconnected, IncompatibleSchemas, InconsistentCheckpointMetadata, InternalError, InvalidNodeHandle,
 };
 use crate::dag::executor_utils::{
     build_receivers_lists, create_ports_databases, fill_ports_record_readers, index_edges,
@@ -660,7 +659,7 @@ impl<'a> DagExecutor<'a> {
             for handle in &handles {
                 if let Some(j) = self.join_handles.get(handle) {
                     if j.is_finished() {
-                        let r = self.join_handles.remove(handle).unwrap().join();
+                        let _r = self.join_handles.remove(handle).unwrap().join();
                         finished += 1;
                     }
                 }
