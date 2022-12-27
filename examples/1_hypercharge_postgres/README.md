@@ -12,9 +12,10 @@ Features used:
 
 ```bash
 docker-compose up --build
-```
 
-<br>
+# Note: For Apple silicons pre-setting
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
+```
 
 ### gRPC & REST API
 
