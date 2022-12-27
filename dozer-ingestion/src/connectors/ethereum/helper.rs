@@ -82,61 +82,63 @@ pub fn decode_event(
         .expect("name is expected")
         .to_owned()
         .to_string();
-    let seq_no = get_id(&log) + 1;
 
     let address = format!("{:?}", log.address);
 
     if let Some(contract_tuple) = contracts.get(&address) {
-        let event = contract_tuple
+        let opt_event = contract_tuple
             .0
             .events
             .values()
             .flatten()
             .into_iter()
-            .find(|evt| evt.signature().to_string() == name)
-            .unwrap_or_else(|| panic!("event is not found with signature: {}", name));
+            .find(|evt| evt.signature().to_string() == name);
 
-        let schema_id = schema_map
-            .get(&event.signature())
-            .expect("schema is missing")
-            .to_owned();
+        if let Some(event) = opt_event {
+            let schema_id = schema_map
+                .get(&event.signature())
+                .expect("schema is missing")
+                .to_owned();
 
-        let table_name = get_table_name(contract_tuple, &event.name);
-        let is_table_required =
-            tables.map_or(true, |tables| tables.iter().any(|t| t.name == table_name));
-        if is_table_required {
-            // let event = contract.event(&name_str).unwrap();
-            let parsed_event = event
-                .parse_log(RawLog {
-                    topics: log.topics,
-                    data: log.data.0,
-                })
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "parsing event failed: block_no: {}, txn_hash: {}",
-                        log.block_number.unwrap(),
-                        log.transaction_hash.unwrap()
-                    )
-                });
-            // info!("Event: {:?}", parsed_event);
+            let seq_no = get_id(&log) + schema_id as u64;
+            let table_name = get_table_name(contract_tuple, &event.name);
+            let is_table_required =
+                tables.map_or(true, |tables| tables.iter().any(|t| t.name == table_name));
+            if is_table_required {
+                // let event = contract.event(&name_str).unwrap();
+                let parsed_event = event
+                    .parse_log(RawLog {
+                        topics: log.topics,
+                        data: log.data.0,
+                    })
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "parsing event failed: block_no: {}, txn_hash: {}. Have you included the right abi to address mapping ?",
+                            log.block_number.unwrap(),
+                            log.transaction_hash.unwrap()
+                        )
+                    });
 
-            let values = parsed_event
-                .params
-                .into_iter()
-                .map(|p| map_abitype_to_field(p.value))
-                .collect();
-            Some(OperationEvent {
-                seq_no,
-                operation: Operation::Insert {
-                    new: Record {
-                        schema_id: Some(SchemaIdentifier {
-                            id: schema_id as u32,
-                            version: 1,
-                        }),
-                        values,
+                let values = parsed_event
+                    .params
+                    .into_iter()
+                    .map(|p| map_abitype_to_field(p.value))
+                    .collect();
+                Some(OperationEvent {
+                    seq_no,
+                    operation: Operation::Insert {
+                        new: Record {
+                            schema_id: Some(SchemaIdentifier {
+                                id: schema_id as u32,
+                                version: 1,
+                            }),
+                            values,
+                        },
                     },
-                },
-            })
+                })
+            } else {
+                None
+            }
         } else {
             None
         }

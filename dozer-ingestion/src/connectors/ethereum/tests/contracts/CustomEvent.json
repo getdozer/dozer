@@ -25,11 +25,9 @@
 		"type": "event"
 	},
 	{
-		"constant": false,
 		"inputs": [],
 		"name": "test",
 		"outputs": [],
-		"payable": false,
 		"stateMutability": "nonpayable",
 		"type": "function"
 	}
