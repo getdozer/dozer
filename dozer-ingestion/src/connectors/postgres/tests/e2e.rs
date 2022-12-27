@@ -1,35 +1,12 @@
 use crate::connectors::postgres::tests::client::TestPostgresClient;
-use crate::connectors::{get_connector, TableInfo};
-use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use crate::test_util::load_config;
 use dozer_types::ingestion_types::IngestionOperation;
 use dozer_types::models::app_config::Config;
-use dozer_types::models::connection::Connection;
 
-use dozer_types::parking_lot::RwLock;
+use crate::connectors::postgres::test_utils::get_iterator;
 use dozer_types::serde_yaml;
 use dozer_types::types::{Field, Operation};
 use rand::Rng;
-use std::sync::Arc;
-use std::thread;
-
-fn get_iterator(config: Connection, table_name: String) -> Arc<RwLock<IngestionIterator>> {
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-    thread::spawn(move || {
-        let tables: Vec<TableInfo> = vec![TableInfo {
-            name: table_name.clone(),
-            id: 0,
-            columns: None,
-        }];
-
-        let mut connector = get_connector(config).unwrap();
-        connector.initialize(ingestor, Some(tables)).unwrap();
-        connector.start().unwrap();
-    });
-
-    iterator
-}
 
 #[ignore]
 #[test]
