@@ -80,8 +80,9 @@ impl EpochManager {
 
     #[inline]
     fn should_close_epoch(&mut self) -> bool {
-        self.commit_last.elapsed().gt(&self.commit_max_duration)
-            || self.commit_curr_ops_count >= self.commit_max_ops_count
+        self.commit_curr_ops_count > 0
+            && (self.commit_last.elapsed().gt(&self.commit_max_duration)
+                || self.commit_curr_ops_count >= self.commit_max_ops_count)
     }
 
     fn close_epoch_if_possible(&mut self) -> bool {

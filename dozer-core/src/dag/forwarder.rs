@@ -191,29 +191,6 @@ impl ChannelManager {
             for sender in senders.1 {
                 internal_err!(sender.send(ExecutorOperation::Terminate))?;
             }
-
-            loop {
-                let mut count = 0_usize;
-                for senders in &self.senders {
-                    for sender in senders.1 {
-                        count += sender.len();
-                    }
-                }
-
-                if count > 0 {
-                    info!(
-                        "[{}] Terminating: waiting for {} messages to be flushed",
-                        self.owner, count
-                    );
-                    sleep(Duration::from_millis(500));
-                } else {
-                    info!(
-                        "[{}] Terminating: all messages flushed. Exiting message loop.",
-                        self.owner
-                    );
-                    break;
-                }
-            }
         }
 
         Ok(())
@@ -257,21 +234,6 @@ pub(crate) struct SourceChannelManager {
 }
 
 impl SourceChannelManager {
-    pub fn commit_and_terminate(&mut self) -> Result<(), ExecutionError> {
-        // self.manager.store_and_send_commit(&Epoch::from(
-        //     self.curr_epoch,
-        //     self.manager.owner.clone(),
-        //     self.curr_txid,
-        //     self.curr_seq_in_tx,
-        // ))?;
-        self.manager.send_term_and_wait()
-    }
-
-    // fn timeout_commit_needed(&self) -> bool {
-    //     (!self.max_commit_time.is_zero())
-    //         && self.last_commit_time.elapsed().gt(&self.max_commit_time)
-    // }
-
     pub fn new(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -288,7 +250,7 @@ impl SourceChannelManager {
         }
     }
 
-    pub fn trigger_commit_if_needed(&mut self) -> Result<(), ExecutionError> {
+    pub fn trigger_commit_if_needed(&mut self) -> Result<bool, ExecutionError> {
         let epoch =
             if let Some(epoch) = self.epoch_manager.write().advance(&self.source_handle, 1)? {
                 self.manager.store_and_send_commit(&Epoch::from(
@@ -304,8 +266,10 @@ impl SourceChannelManager {
 
         if let Some(e) = epoch {
             e.wait();
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     pub fn send_and_trigger_commit_if_needed(
@@ -314,12 +278,16 @@ impl SourceChannelManager {
         seq_in_tx: u64,
         op: Operation,
         port: PortHandle,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<bool, ExecutionError> {
         //
         self.curr_txid = txid;
         self.curr_seq_in_tx = seq_in_tx;
         self.manager.send_op(op, port)?;
         self.trigger_commit_if_needed()
+    }
+
+    pub fn terminate(&mut self) -> Result<(), ExecutionError> {
+        self.manager.send_term_and_wait()
     }
 }
 

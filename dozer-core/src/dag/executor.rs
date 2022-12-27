@@ -179,7 +179,9 @@ impl<'a> DagExecutor<'a> {
         Ok(Self {
             dag,
             schemas,
-            term_barrier: Arc::new(Barrier::new(dag.get_sources().len())),
+            term_barrier: Arc::new(Barrier::new(
+                dag.get_sources().len() * 2 + dag.get_processors().len() + dag.get_sinks().len(),
+            )),
             record_stores: Arc::new(RwLock::new(
                 dag.nodes
                     .iter()
@@ -331,11 +333,13 @@ impl<'a> DagExecutor<'a> {
         //
         //
 
+        let st_handle = handle.clone();
         let (st_sender, st_receiver) =
             bounded::<(PortHandle, u64, u64, Operation)>(self.options.channel_buffer_sz);
         let st_src_factory = src_factory.clone();
         let st_running = self.running.clone();
         let st_output_schemas = schemas.output_schemas.clone();
+        let st_term_barrier = self.term_barrier.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
         let start_seq = *self
             .consistency_metadata
@@ -346,10 +350,12 @@ impl<'a> DagExecutor<'a> {
             let src = st_src_factory.build(st_output_schemas)?;
             let r = src.start(&mut fw, Some(start_seq));
             st_running.store(false, Ordering::SeqCst);
+            info!("[{}-sender] Waiting on term barrier", st_handle);
+            st_term_barrier.wait();
             r
         });
 
-        let _lt_handle = handle.clone();
+        let lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_output_ports = src_factory.get_output_ports();
         let lt_edges = self.dag.edges.clone();
@@ -391,46 +397,70 @@ impl<'a> DagExecutor<'a> {
                 epoch_manager,
             );
             loop {
-                let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
-                match lt_running.load(Ordering::SeqCst) {
-                    false => {
-                        // dag_fw.commit_and_terminate()?;
-                        // lt_term_barrier.wait();
-                        // break;
+                match st_receiver.recv_timeout(lt_executor_options.commit_time_threshold) {
+                    Ok((port, txid, seq_in_tx, op)) => {
+                        let committed =
+                            dag_fw.send_and_trigger_commit_if_needed(txid, seq_in_tx, op, port)?;
+                        if committed && !lt_running.load(Ordering::SeqCst) {
+                            dag_fw.terminate()?;
+                            info!("[{}-listener] Waiting on term barrier", lt_handle);
+                            lt_term_barrier.wait();
+                            return Ok(());
+                        }
                     }
-                    true => match r {
-                        Err(RecvTimeoutError::Timeout) => {
-                            dag_fw.trigger_commit_if_needed()?;
+                    Err(RecvTimeoutError::Timeout) => {
+                        let committed = dag_fw.trigger_commit_if_needed()?;
+                        if committed && !lt_running.load(Ordering::SeqCst) {
+                            dag_fw.terminate()?;
+                            info!("[{}-listener] Waiting on term barrier", lt_handle);
+                            lt_term_barrier.wait();
+                            return Ok(());
                         }
-                        Err(RecvTimeoutError::Disconnected) => {
-                            return Err(ChannelDisconnected);
-                        }
-                        Ok((port, txid, seq_in_tx, Operation::Insert { new })) => {
-                            dag_fw.send_and_trigger_commit_if_needed(
-                                txid,
-                                seq_in_tx,
-                                Operation::Insert { new },
-                                port,
-                            )?;
-                        }
-                        Ok((port, txid, seq_in_tx, Operation::Delete { old })) => {
-                            dag_fw.send_and_trigger_commit_if_needed(
-                                txid,
-                                seq_in_tx,
-                                Operation::Delete { old },
-                                port,
-                            )?;
-                        }
-                        Ok((port, txid, seq_in_tx, Operation::Update { old, new })) => {
-                            dag_fw.send_and_trigger_commit_if_needed(
-                                txid,
-                                seq_in_tx,
-                                Operation::Update { old, new },
-                                port,
-                            )?;
-                        }
-                    },
+                    }
+                    Err(RecvTimeoutError::Disconnected) => {
+                        return Err(ChannelDisconnected);
+                    }
                 }
+
+                // match lt_running.load(Ordering::SeqCst) {
+                //     false => {
+                //         // dag_fw.commit_and_terminate()?;
+                //         // lt_term_barrier.wait();
+                //         // break;
+                //     }
+                //     true => match r {
+                //         Err(RecvTimeoutError::Timeout) => {
+                //             dag_fw.trigger_commit_if_needed()?;
+                //         }
+                //         Err(RecvTimeoutError::Disconnected) => {
+                //             return Err(ChannelDisconnected);
+                //         }
+                //         Ok((port, txid, seq_in_tx, Operation::Insert { new })) => {
+                //             dag_fw.send_and_trigger_commit_if_needed(
+                //                 txid,
+                //                 seq_in_tx,
+                //                 Operation::Insert { new },
+                //                 port,
+                //             )?;
+                //         }
+                //         Ok((port, txid, seq_in_tx, Operation::Delete { old })) => {
+                //             dag_fw.send_and_trigger_commit_if_needed(
+                //                 txid,
+                //                 seq_in_tx,
+                //                 Operation::Delete { old },
+                //                 port,
+                //             )?;
+                //         }
+                //         Ok((port, txid, seq_in_tx, Operation::Update { old, new })) => {
+                //             dag_fw.send_and_trigger_commit_if_needed(
+                //                 txid,
+                //                 seq_in_tx,
+                //                 Operation::Update { old, new },
+                //                 port,
+                //             )?;
+                //         }
+                //     },
+                // }
             }
             Ok(())
         };
@@ -447,13 +477,14 @@ impl<'a> DagExecutor<'a> {
         schemas: &NodeSchemas,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         //
+        let lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_output_ports = proc_factory.get_output_ports();
         let lt_edges = self.dag.edges.clone();
         let lt_record_stores = self.record_stores.clone();
-        let _lt_term_barrier = self.term_barrier.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
+        let lt_term_barrier = self.term_barrier.clone();
 
         let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let mut proc =
@@ -528,6 +559,8 @@ impl<'a> DagExecutor<'a> {
                         );
                         if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                             fw.send_term_and_wait()?;
+                            info!("[{}] Waiting on term barrier", lt_handle);
+                            lt_term_barrier.wait();
                             return Ok(());
                         }
                     }
@@ -558,7 +591,7 @@ impl<'a> DagExecutor<'a> {
 
         let lt_path = self.path.clone();
         let lt_record_stores = self.record_stores.clone();
-        let _lt_term_barrier = self.term_barrier.clone();
+        let lt_term_barrier = self.term_barrier.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
         let lt_thread_fct = move || -> Result<(), ExecutionError> {
@@ -583,7 +616,8 @@ impl<'a> DagExecutor<'a> {
                 let index = sel.ready();
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Terminate => {
-                        info!("[{}] Terminating: Exiting message loop", handle);
+                        info!("[{}] Waiting on term barrier", handle);
+                        lt_term_barrier.wait();
                         return Ok(());
                     }
                     ExecutorOperation::Commit { epoch_details } => {
