@@ -1,13 +1,14 @@
 use super::Config;
 use dozer_types::{
     constants::DEFAULT_HOME_DIR,
+    ingestion_types::{EthConfig, EthFilter},
     models::{
         api_config::{default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiRest},
         api_endpoint::ApiEndpoint,
         connection::{Authentication, Connection, PostgresAuthentication},
         source::{RefreshConfig, Source},
     },
-    serde_yaml, ingestion_types::{EthConfig, EthFilter},
+    serde_yaml,
 };
 fn test_yml_content_full() -> &'static str {
     r#"
