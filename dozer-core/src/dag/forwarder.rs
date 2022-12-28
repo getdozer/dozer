@@ -1,5 +1,4 @@
-use crate::dag::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-
+use crate::dag::channels::ProcessorChannelForwarder;
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
 use crate::dag::epoch::{Epoch, EpochManager};
 use crate::dag::errors::ExecutionError;
@@ -17,8 +16,6 @@ use dozer_types::types::{Operation, Record, Schema};
 use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::{Duration, Instant};
 
 pub(crate) struct StateWriter {
     meta_db: Database,

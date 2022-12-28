@@ -1,6 +1,7 @@
+#![allow(clippy::or_fun_call)]
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::NodeHandle;
-use fp_rust::sync::CountDownLatch;
+
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
@@ -85,7 +86,7 @@ impl EpochManager {
     }
 
     fn close_epoch_if_possible(&mut self) -> bool {
-        if self.epoch_participants.iter().fold(true, |a, b| a && *b.1) {
+        if self.epoch_participants.iter().all(|b| *b.1) {
             self.epoch_closing = false;
             self.commit_curr_ops_count = 0;
             self.curr_epoch += 1;
@@ -94,7 +95,7 @@ impl EpochManager {
             self.epoch_participants = self
                 .epoch_participants
                 .iter()
-                .map(|(k, v)| (k.clone(), false))
+                .map(|(k, _v)| (k.clone(), false))
                 .collect();
             true
         } else {
@@ -120,12 +121,11 @@ impl EpochManager {
                         .epoch_participants
                         .get_mut(participant)
                         .ok_or(ExecutionError::InvalidNodeHandle(participant.clone()))?;
-                    assert_eq!(*curr_participant_state, false);
+                    assert!(!*curr_participant_state);
 
                     // If we can close it, we add the current participant in the participants list
                     self.epoch_closing = true;
                     *curr_participant_state = true;
-                    //     self.epoch_latch.countdown();
                     let closing_epoch =
                         ClosingEpoch::new(self.curr_epoch, self.epoch_barrier.clone());
                     // Epoch might have a single participant. We check for it and, if true, we close
@@ -144,10 +144,9 @@ impl EpochManager {
                     .epoch_participants
                     .get_mut(participant)
                     .ok_or(ExecutionError::InvalidNodeHandle(participant.clone()))?;
-                assert_eq!(*curr_participant_state, false);
+                assert!(!*curr_participant_state);
 
                 *curr_participant_state = true;
-                //    self.epoch_latch.countdown();
                 let closing_epoch = ClosingEpoch::new(self.curr_epoch, self.epoch_barrier.clone());
                 self.close_epoch_if_possible();
                 Ok(Some(closing_epoch))

@@ -12,7 +12,7 @@ use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, Operation, Schema};
-use fp_rust::sync::CountDownLatch;
+
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;

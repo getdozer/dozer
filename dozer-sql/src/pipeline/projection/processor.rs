@@ -5,7 +5,7 @@ use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::node::{NodeHandle, PortHandle, Processor};
+use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Record};

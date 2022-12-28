@@ -14,9 +14,9 @@ use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use fp_rust::sync::CountDownLatch;
 
-use libc::exit;
+
+
 use std::collections::HashMap;
 use std::panic;
 use std::sync::atomic::AtomicBool;
@@ -76,7 +76,7 @@ impl Processor for ErrorProcessor {
         Ok(())
     }
 
-    fn commit(&self, epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -485,7 +485,7 @@ impl Sink for ErrSink {
         Ok(())
     }
 
-    fn commit(&mut self, epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

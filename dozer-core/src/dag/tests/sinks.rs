@@ -1,10 +1,10 @@
 use crate::dag::epoch::Epoch;
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
+use crate::dag::node::{PortHandle, Sink, SinkFactory};
 use crate::dag::record_store::RecordReader;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
-use fp_rust::sync::CountDownLatch;
+
 use log::info;
 use std::collections::HashMap;
 use std::sync::{Arc, Barrier};

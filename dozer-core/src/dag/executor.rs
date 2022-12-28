@@ -487,7 +487,7 @@ impl<'a> DagExecutor<'a> {
             let mut port_states: Vec<InputPortState> =
                 handles_ls.iter().map(|_h| InputPortState::Open).collect();
 
-            let mut readable_ports: Vec<bool> = receivers_ls.iter().map(|e| true).collect();
+            let mut readable_ports: Vec<bool> = receivers_ls.iter().map(|_e| true).collect();
             let mut commits_received: usize = 0;
             let mut common_epoch = Epoch::new(0, HashMap::new());
 

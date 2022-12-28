@@ -2,12 +2,12 @@ use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use fp_rust::sync::CountDownLatch;
-use libc::thread_info;
+
+
 use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
-use std::thread;
-use std::time::Duration;
+
+
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 

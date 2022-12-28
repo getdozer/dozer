@@ -8,7 +8,7 @@ use dozer_cache::cache::{
 };
 use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::{ExecutionError, SinkError};
-use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
+use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::crossbeam::channel::Sender;
@@ -171,7 +171,7 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn commit(&mut self, epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         // Update Counter on commit
         self.pb.set_message(format!(
             "{}: Count: {}, Elapsed time: {:.2?}",
@@ -310,7 +310,7 @@ mod tests {
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::{NodeHandle, Sink};
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
-    use dozer_sql::sqlparser::ast::DateTimeField::Epoch;
+    
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
     use tempdir::TempDir;

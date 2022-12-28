@@ -15,7 +15,7 @@ use crate::dag::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use dozer_types::types::Schema;
-use fp_rust::sync::CountDownLatch;
+
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Barrier};
