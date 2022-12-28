@@ -1,0 +1,12 @@
+version: '3.9'
+services:
+  ethereum:
+    build: ./
+    ports:
+      - "8545:8545"
+    healthcheck:
+      test: curl -sf -X POST --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http:// 0.0.0.0:8545
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      
