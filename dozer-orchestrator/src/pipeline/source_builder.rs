@@ -167,14 +167,18 @@ mod tests {
                 },
             ],
             endpoints: vec![],
+            home_dir: "test".to_string(),
         };
 
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         let iterator_ref = Arc::clone(&iterator);
 
-        let asm =
-            SourceBuilder::build_source_manager(SourceBuilder::group_connections(config.sources.clone()), ingestor, iterator_ref);
+        let asm = SourceBuilder::build_source_manager(
+            SourceBuilder::group_connections(config.sources.clone()),
+            ingestor,
+            iterator_ref,
+        );
 
         let pg_source_mapping: Vec<AppSourceMappings> = asm
             .get(vec![
@@ -184,7 +188,7 @@ mod tests {
                 ),
                 AppSourceId::new(
                     config.sources.get(1).unwrap().table_name.clone(),
-                    Some(pg_conn.name.clone()),
+                    Some(pg_conn.name),
                 ),
             ])
             .unwrap();
@@ -203,7 +207,7 @@ mod tests {
         let snowflake_source_2_mapping: Vec<AppSourceMappings> = asm
             .get(vec![AppSourceId::new(
                 config.sources.get(3).unwrap().table_name.clone(),
-                Some(snow_conn.name.clone()),
+                Some(snow_conn.name),
             )])
             .unwrap();
 
