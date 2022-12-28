@@ -9,6 +9,7 @@ use dozer_types::parking_lot::RwLock;
 
 use tokio::runtime::Runtime;
 
+use dozer_types::models::source::Source;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
@@ -81,8 +82,12 @@ impl Connector for KafkaConnector {
         todo!()
     }
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
+    }
+
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
+        sources.iter().map(|s| vec![s.clone()]).collect()
     }
 }
 
