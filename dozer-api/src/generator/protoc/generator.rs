@@ -1,6 +1,7 @@
 use crate::{errors::GenerationError, PipelineDetails};
 use dozer_cache::cache::Cache;
 use dozer_types::log::error;
+use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::FieldType;
 use handlebars::Handlebars;
@@ -21,6 +22,7 @@ pub struct ProtoMetadata {
     lower_name: String,
     plural_pascal_name: String,
     pascal_name: String,
+    enable_token: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +43,7 @@ pub struct ProtoGenerator<'a> {
     schema: dozer_types::types::Schema,
     schema_name: String,
     folder_path: String,
+    security: Option<ApiSecurity>,
 }
 
 fn safe_name(name: &str) -> String {
@@ -53,6 +56,7 @@ impl ProtoGenerator<'_> {
     pub fn new(
         pipeline_details: PipelineDetails,
         folder_path: String,
+        security: Option<ApiSecurity>,
     ) -> Result<Self, GenerationError> {
         let cache = pipeline_details.cache_endpoint.cache.clone();
         let schema_name = safe_name(&pipeline_details.cache_endpoint.endpoint.name);
@@ -66,6 +70,7 @@ impl ProtoGenerator<'_> {
             schema,
             schema_name,
             folder_path,
+            security,
         };
         generator.register_template()?;
         Ok(generator)
@@ -142,6 +147,7 @@ impl ProtoGenerator<'_> {
             lower_name: self.schema_name.to_lowercase(),
             plural_pascal_name: self.schema_name.to_pascal_case().to_plural(),
             pascal_name: self.schema_name.to_pascal_case().to_singular(),
+            enable_token: self.security.is_some(),
         };
         Ok(metadata)
     }
@@ -184,10 +190,11 @@ impl ProtoGenerator<'_> {
     pub fn generate(
         folder_path: String,
         pipeline_map: HashMap<String, PipelineDetails>,
+        security: Option<ApiSecurity>,
     ) -> Result<ProtoResponse, GenerationError> {
         let mut resources = vec![];
         for (endpoint_name, details) in pipeline_map {
-            let generator = ProtoGenerator::new(details, folder_path.clone())?;
+            let generator = ProtoGenerator::new(details, folder_path.clone(), security.to_owned())?;
             generator._generate_proto()?;
             resources.push(endpoint_name);
         }

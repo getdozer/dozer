@@ -14,6 +14,8 @@ service Films {
 
   // Subscribe to events on Films
   rpc on_event(FilmEventRequest) returns (stream FilmEvent);
+
+  rpc token(TokenRequest) returns (TokenResponse);
 }
 
 message Film {
@@ -42,4 +44,11 @@ message FilmEvent {
   dozer.types.OperationType typ = 1;
   optional Film old = 2;
   optional Film new = 3;
+}
+
+message TokenRequest {
+}
+
+message TokenResponse {
+  string token = 1;
 }

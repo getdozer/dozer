@@ -32,6 +32,14 @@ fn get_response_descriptor(
             desc.get_message_by_name(&query_path)
                 .unwrap_or_else(|| panic!("{}: not found", query_path))
         }
+        "token" => {
+            let token_path = format!(
+                "dozer.generated.{}.TokenResponse",
+                endpoint_name.to_lowercase(),
+            );
+            desc.get_message_by_name(&token_path)
+                .unwrap_or_else(|| panic!("{}: not found", token_path))
+        }
         _ => panic!("method not found"),
     }
 }
@@ -138,6 +146,13 @@ pub fn query_response_to_typed_response(
         .map(|rec| prost_reflect::Value::Message(record_to_pb(rec, &resource_desc)))
         .collect::<Vec<_>>();
     msg.set_field_by_name("data", prost_reflect::Value::List(resources));
+    TypedResponse::new(msg)
+}
+
+pub fn token_response(token: String, desc: &DescriptorPool, endpoint_name: &str) -> TypedResponse {
+    let token_desc = get_response_descriptor(desc, "token", endpoint_name);
+    let mut msg = DynamicMessage::new(token_desc);
+    msg.set_field_by_name("token", prost_reflect::Value::String(token));
     TypedResponse::new(msg)
 }
 

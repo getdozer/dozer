@@ -11,9 +11,8 @@ function download_glink() {
 rm -rf ./data
 mkdir -p ./data
 
-# https://medium.com/@acpanjan/download-google-drive-files-using-wget-3c2c025a8b99
 download_glink "1yojQwMtNPIKWMURhkA2Hd9JTQIk2LrLV" "./data/stock_price_data.tar.gz"
 
-cd ./data/ && tar -xzf stock_price_data.tar.gz
+cd data && tar -xzf stock_price_data.tar.gz
 rm stock_price_data.tar.gz
 

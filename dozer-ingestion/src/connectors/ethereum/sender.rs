@@ -67,7 +67,11 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
         .map_err(ConnectorError::EthError)?
         .as_u64();
 
-    let block_start = details.filter.from_block();
+    // Default to current block if from_block is not specified
+    let block_start = match details.filter.from_block {
+        Some(block_no) => block_no,
+        None => block_end,
+    };
 
     fetch_logs(details.clone(), client.clone(), block_start, block_end, 0).await?;
 

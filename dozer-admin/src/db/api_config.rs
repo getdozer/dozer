@@ -49,10 +49,10 @@ impl TryFrom<DBApiConfig> for ApiConfig {
         let grpc_value: ApiGrpc = serde_json::from_str(&item.grpc)?;
         let internal_api: ApiInternal = serde_json::from_str(&item.api_internal)?;
         let internal_pipeline: ApiInternal = serde_json::from_str(&item.pipeline_internal)?;
-
         Ok(ApiConfig {
             rest: Some(rest_value),
             grpc: Some(grpc_value),
+            api_security: None,
             api_internal: Some(internal_api),
             pipeline_internal: Some(internal_pipeline),
             auth: item.auth,
