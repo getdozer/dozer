@@ -406,6 +406,7 @@ impl<'a> DagExecutor<'a> {
                         if committed && stop_req {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Waiting on term barrier", lt_handle);
+                            drop(st_receiver);
                             lt_term_barrier.wait();
                             return Ok(());
                         }
@@ -416,6 +417,7 @@ impl<'a> DagExecutor<'a> {
                         if committed && stop_req {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Waiting on term barrier", lt_handle);
+                            drop(st_receiver);
                             lt_term_barrier.wait();
                             return Ok(());
                         }
