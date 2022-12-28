@@ -1,54 +1,83 @@
+/**
+ * Sample proto file that is similar to the service that is automatically generated.
+ *
+ * This is for the endpoint `/films` with the fields `film_id`, `description`, `rental_rate` and `release_year`.
+ *
+ * The generated gRPC proto files will be at `${home_dir}/generated/{endpoint}.proto`.
+ */
 syntax = "proto3";
 
 package dozer.generated.films;
 import "types.proto";
 
-// Sample proto file that is similar to the service
-// that is automatically generated.
-// This is for the endpoint /films with the schema id, email and phone
+// The generated service for `/films` endpoint.
 service Films {
-
-  // query based on dynamic query expression.
-  // TODO: Generated QueryRequest that can take types
+  /**
+   * Performs query. See query documentation for the query format. 
+   *
+   * If no query is specified, the first 50 records will be returned.
+   */
   rpc query(QueryFilmsRequest) returns (QueryFilmsResponse);
 
-  // Subscribe to events on Films
+  /**
+   * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
+   *
+   * This API is unstable and may change in the future.
+   */
   rpc on_event(FilmEventRequest) returns (stream FilmEvent);
 
+  // Gets the authentication token.
   rpc token(TokenRequest) returns (TokenResponse);
 }
 
-message Film {
+// Request for `query`.
+message QueryFilmsRequest {
+  // JSON query string.
+  optional string query = 1;
+}
+
+// Response for `query`.
+message QueryFilmsResponse {
+  // The list of record data.
+  repeated Film data = 1;
+}
+
+// Request for `on_event`.
+message FilmEventRequest {
+  // The event type to subscribe to.
+  dozer.types.EventType type = 1;
+  // JSON filter string.
+  optional string filter = 2;
+}
+
+// Response for `on_event`.
+message FilmEvent {
+  // The operation type.
+  dozer.types.OperationType typ = 1;
+  // Old record data, only applicable for UPDATE type.
+  optional Film old = 2;
+  // New record data.
+  optional Film new = 3;
+}
+
+/**
+ * Generated record type based on Dozer pipeline's output schema.
+ *
+ * Nullable fields will be generated as `optional` fields.
+ */
+ message Film {
   uint64 film_id = 1;
   optional string description = 2;
   optional string rental_rate = 3;
   optional uint64 release_year = 4;
 }
 
-message QueryFilmsRequest { optional string query = 1; }
-
-message QueryFilmsResponse { repeated Film data = 1; }
-
-enum EventType {
-  ALL = 0;
-  INSERT_ONLY = 1;
-  UPDATE_ONLY = 2;
-  DELETE_ONLY = 3;
-}
-message FilmEventRequest {
-  EventType type = 1;
-  optional string filter = 2;
-}
-
-message FilmEvent {
-  dozer.types.OperationType typ = 1;
-  optional Film old = 2;
-  optional Film new = 3;
-}
-
+// Request for `token`.
 message TokenRequest {
 }
 
+// Response for `token`.
 message TokenResponse {
+  // The token string.
   string token = 1;
 }
