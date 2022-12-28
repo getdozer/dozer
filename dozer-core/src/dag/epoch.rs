@@ -92,11 +92,9 @@ impl EpochManager {
             self.curr_epoch += 1;
             self.commit_last = Instant::now();
             self.epoch_barrier = Arc::new(Barrier::new(self.epoch_participants.len()));
-            self.epoch_participants = self
-                .epoch_participants
-                .keys()
-                .map(|k| (k.clone(), false))
-                .collect();
+            self.epoch_participants
+                .values_mut()
+                .for_each(|value| *value = false);
             true
         } else {
             false
