@@ -1,7 +1,5 @@
 use super::super::api_server::{ApiServer, CorsOptions};
-use crate::{
-    auth::api::ApiSecurity, generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint,
-};
+use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint};
 use dozer_types::serde_json::{json, Value};
 
 #[test]
@@ -28,7 +26,7 @@ async fn list_route() {
     schema_name.remove(0);
     let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
-        ApiSecurity::None,
+        None,
         CorsOptions::Permissive,
         vec![CacheEndpoint {
             cache,
@@ -55,7 +53,7 @@ async fn query_route() {
     schema_name.remove(0);
     let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
-        ApiSecurity::None,
+        None,
         CorsOptions::Permissive,
         vec![CacheEndpoint {
             cache,
@@ -82,7 +80,7 @@ async fn get_route() {
     schema_name.remove(0);
     let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
-        ApiSecurity::None,
+        None,
         CorsOptions::Permissive,
         vec![CacheEndpoint {
             cache,

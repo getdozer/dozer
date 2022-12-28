@@ -1,29 +1,34 @@
 use serde::{Deserialize, Serialize};
 
 use crate::constants::DEFAULT_HOME_DIR;
+
+use super::api_security::ApiSecurity;
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 #[serde(default = "default_api_config")]
 pub struct ApiConfig {
-    #[prost(message, tag = "1")]
+    #[prost(oneof = "ApiSecurity", tags = "1")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_security: Option<ApiSecurity>,
+    #[prost(message, tag = "2")]
     #[serde(default = "default_api_rest")]
     pub rest: Option<ApiRest>,
-    #[prost(message, tag = "2")]
+    #[prost(message, tag = "3")]
     #[serde(default = "default_api_grpc")]
     pub grpc: Option<ApiGrpc>,
-    #[prost(bool, tag = "3")]
+    #[prost(bool, tag = "4")]
     pub auth: bool,
-    #[prost(message, tag = "4")]
+    #[prost(message, tag = "5")]
     #[serde(default = "default_api_internal")]
     pub api_internal: Option<ApiInternal>,
-    #[prost(message, tag = "5")]
+    #[prost(message, tag = "6")]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_pipeline_internal")]
     pub pipeline_internal: Option<ApiInternal>,
-    #[prost(string, optional, tag = "6")]
+    #[prost(string, optional, tag = "7")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(string, optional, tag = "7")]
+    #[prost(string, optional, tag = "8")]
     pub id: Option<String>,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]

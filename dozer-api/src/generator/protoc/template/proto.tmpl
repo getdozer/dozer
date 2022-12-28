@@ -17,6 +17,9 @@ service {{plural_pascal_name}} {
 
   // Subscribe to events on {{plural_pascal_name}}
   rpc on_event({{pascal_name}}EventRequest) returns (stream {{pascal_name}}Event);
+  {{#if enable_token}}
+  rpc token(TokenRequest) returns (TokenResponse);
+  {{/if}}
 }
 
 message Query{{plural_pascal_name}}Request { optional string query = 1; }
@@ -42,3 +45,11 @@ message {{name}} {
 }
 {{~/each}}
 
+{{#if enable_token}}
+message TokenRequest {
+}
+
+message TokenResponse {
+  string token = 1;
+}
+{{/if}}
