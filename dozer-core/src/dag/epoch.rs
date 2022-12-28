@@ -1,4 +1,3 @@
-#![allow(clippy::or_fun_call)]
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::NodeHandle;
 
