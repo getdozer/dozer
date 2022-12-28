@@ -1,5 +1,7 @@
+use dozer_core::dag::app::App;
+use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::dag::{Endpoint, NodeType, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
     NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source,
@@ -14,9 +16,6 @@ use dozer_types::crossbeam::channel::{bounded, Receiver, Sender};
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
-use sqlparser::ast::Statement;
-use sqlparser::dialect::GenericDialect;
-use sqlparser::parser::Parser;
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
@@ -229,18 +228,7 @@ impl TestPipeline {
         }
     }
     pub fn run(&mut self) -> Result<Schema, ExecutionError> {
-        let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
-
-        let ast = Parser::parse_sql(&dialect, &self.sql).unwrap();
-
-        let statement: &Statement = &ast[0];
-
-        let builder = PipelineBuilder::new(None);
-        let (mut dag, in_handle, out_handle) =
-            builder.statement_to_pipeline(statement.clone()).unwrap();
-
-        let source_handle = NodeHandle::new(None, "source".to_string());
-        let sink_handle = NodeHandle::new(None, "sink".to_string());
+        let mut pipeline = PipelineBuilder {}.build_pipeline(&self.sql).unwrap();
 
         let schema_holder: Arc<RwLock<SchemaHolder>> =
             Arc::new(RwLock::new(SchemaHolder { schema: None }));
@@ -248,34 +236,42 @@ impl TestPipeline {
         let (sync_sender, sync_receiver) = bounded::<bool>(0);
         let ops_count = self.ops.len();
 
-        let source = TestSourceFactory::new(
-            self.schema.clone(),
-            self.ops.to_owned(),
-            Arc::new(sync_receiver),
-        );
-        let sink = TestSinkFactory::new(
-            self.mapper.clone(),
-            schema_holder.clone(),
-            Arc::new(sync_sender),
-            ops_count,
+        let mut asm = AppSourceManager::new();
+        asm.add(AppSource::new(
+            "mem".to_string(),
+            Arc::new(TestSourceFactory::new(
+                self.schema.clone(),
+                self.ops.to_owned(),
+                Arc::new(sync_receiver),
+            )),
+            vec![("actor".to_string(), DEFAULT_PORT_HANDLE)]
+                .into_iter()
+                .collect(),
+        ));
+
+        pipeline.add_sink(
+            Arc::new(TestSinkFactory::new(
+                self.mapper.clone(),
+                schema_holder.clone(),
+                Arc::new(sync_sender),
+                ops_count,
+            )),
+            "sink",
         );
 
-        dag.add_node(NodeType::Source(Arc::new(source)), source_handle.clone());
-        dag.add_node(NodeType::Sink(Arc::new(sink)), sink_handle.clone());
-
-        for (_table_name, endpoint) in in_handle.into_iter() {
-            dag.connect(
-                Endpoint::new(source_handle.clone(), DEFAULT_PORT_HANDLE),
-                Endpoint::new(endpoint.node, endpoint.port),
+        pipeline
+            .connect_nodes(
+                "aggregation",
+                Some(DEFAULT_PORT_HANDLE),
+                "sink",
+                Some(DEFAULT_PORT_HANDLE),
             )
             .unwrap();
-        }
 
-        dag.connect(
-            Endpoint::new(out_handle.node, out_handle.port),
-            Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
-        )
-        .unwrap();
+        let mut app = App::new(asm);
+        app.add_pipeline(pipeline);
+
+        let dag = app.get_dag().unwrap();
 
         let tmp_dir =
             TempDir::new("example").unwrap_or_else(|_e| panic!("Unable to create temp dir"));

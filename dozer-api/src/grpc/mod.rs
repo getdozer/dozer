@@ -2,6 +2,7 @@ mod client_server;
 pub mod common;
 pub mod internal;
 // pub mod dynamic;
+mod auth_middleware;
 mod shared_impl;
 pub mod typed;
 pub mod types_helper;

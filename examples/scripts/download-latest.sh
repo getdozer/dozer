@@ -10,20 +10,6 @@ DEFAULT='\033[0m'
 # Project name
 PNAME='dozer'
 
-# ARGUMENTS
-
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -d|--docker)
-      use_docker=true
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-
 # FUNCTIONS
 
 # Gets the OS by setting the $os variable
@@ -87,57 +73,39 @@ fill_release_variables() {
 
 download_binary() {
   fill_release_variables
-    if [ "$use_docker" = true ] ; then
-        echo "Downloading Dozer $latest source code..."
 
-        base_url="https://drive.google.com/uc?export=download&id=1uVmZsZ7ex6jMf2LM-QzJj0S43nqUQq2e"
-        binary_name="$PNAME.tar.gz"
-
-        curl -L "$base_url" -o $binary_name
-        chmod 744 "$binary_name"
-        success_download
-
-        tar -xvf $binary_name
-        rm -f $binary_name
-        mv $PNAME-$latest/ $PNAME
-        cp ./$PNAME/tests/simple_e2e_example/docker-compose.yml ./$PNAME/docker-compose.yml
-        success_unzip_remove
-    else
-        echo "Downloading Dozer binary $latest for $os, architecture $archi..."
-        case "$os" in
-            'macos')
-                base_url="https://drive.google.com/uc?export=download&id=1SWlt8tpXAtF5O0ZL5qnAnLfp-boja7IE"
-                release_file="$PNAME-$os-$archi-$latest.tar.gz"
-                binary_name="$PNAME.tar.gz"
-                ;;
-            'linux')
-                base_url="https://drive.google.com/uc?export=download&id=1vESgAKwZ4yDlGj-aOkqI6uH7_nh6Ua45"
-                release_file="$PNAME-$os-$archi-$latest.tar.gz"
-                binary_name="$PNAME.tar.gz"
-                ;;
-            *)
-                return 1
-        esac
-
-        # Fetch the Dozer binary
-        curl --fail -L "$base_url" -o $binary_name
-        if [ $? -ne 0 ]; then
-            fetch_release_failure_usage
-            exit 1
-        fi
-        mv "$release_file" "$binary_name"
-        chmod 744 "$binary_name"
-        success_download
-
-        tar -xvf $binary_name
-        rm -f $binary_name
-        mv $PNAME-$os-$archi-$latest/ $PNAME
-        success_unzip_remove
-    fi
+  echo "Downloading Dozer binary $latest for $os, architecture $archi..."
+  case "$os" in
+      'macos')
+          base_url="https://drive.google.com/uc?export=download&id=1SWlt8tpXAtF5O0ZL5qnAnLfp-boja7IE"
+          release_file="$PNAME-$os-$archi-$latest.tar.gz"
+          binary_name="$PNAME.tar.gz"
+          ;;
+      'linux')
+          base_url="https://drive.google.com/uc?export=download&id=1PLDz8MC0zKN3IEl8RCgJohtufeIC3bI1"
+          release_file="$PNAME-$os-$archi-$latest.tar.gz"
+          binary_name="$PNAME.tar.gz"
+          ;;
+      *)
+          return 1
+  esac  
+  # Fetch the Dozer binary
+  curl --fail -L "$base_url" -o $binary_name
+  if [ $? -ne 0 ]; then
+      fetch_release_failure_usage
+      exit 1
+  fi
+  mv "$release_file" "$binary_name"
+  chmod 744 "$binary_name"
+  success_download  
+  tar -xvf $binary_name
+  rm -f $binary_name
+  mv $PNAME-$os-$archi-$latest/ $PNAME
+  success_unzip_remove
+ 
 }
 
 # MAIN
-
 main() {
     download_binary
 }

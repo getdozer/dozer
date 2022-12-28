@@ -8,24 +8,14 @@ Features used:
 
 [//]: # (- Creation of embeddable React widget)
 
-
-### Download Pre-processed Dataset
-
-```bash
-./scripts/download_stocks.sh
-```
-
 ### Run
 
 ```bash
-docker-compose up
-```
+docker-compose up --build
 
-```bash
-cargo run
+# Note: For Apple silicons pre-setting
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
 ```
-
-<br>
 
 ### gRPC & REST API
 

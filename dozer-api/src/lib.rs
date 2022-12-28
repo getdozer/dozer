@@ -1,4 +1,3 @@
-mod auth;
 use dozer_cache::cache::LmdbCache;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use std::sync::Arc;
@@ -17,6 +16,7 @@ pub struct PipelineDetails {
 }
 
 // Exports
+pub mod auth;
 pub mod errors;
 pub mod grpc;
 pub mod rest;

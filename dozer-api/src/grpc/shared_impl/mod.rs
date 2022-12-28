@@ -7,6 +7,7 @@ use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Code, Response, Status};
 
+use crate::auth::Access;
 use crate::{api_helper::ApiHelper, PipelineDetails};
 
 use super::internal_grpc::pipeline_response::ApiEvent;
@@ -22,6 +23,7 @@ pub fn from_error(error: impl std::error::Error) -> Status {
 pub fn query(
     pipeline_details: PipelineDetails,
     query: Option<&str>,
+    access: Option<&Access>,
 ) -> Result<(Schema, Vec<Record>), Status> {
     let query = match query {
         Some(query) => {
@@ -33,7 +35,7 @@ pub fn query(
         }
         None => QueryExpression::default(),
     };
-    let api_helper = ApiHelper::new(pipeline_details, None)?;
+    let api_helper = ApiHelper::new(pipeline_details, access.cloned())?;
     let (schema, records) = api_helper.get_records(query).map_err(from_error)?;
     Ok((schema, records))
 }
@@ -42,6 +44,7 @@ pub fn on_event<T: Send + 'static>(
     pipeline_details: PipelineDetails,
     filter: Option<&str>,
     mut broadcast_receiver: Receiver<PipelineResponse>,
+    access: Option<Access>,
     event_mapper: impl Fn(Operation, String) -> Option<T> + Send + Sync + 'static,
 ) -> Result<Response<ReceiverStream<T>>, Status> {
     let filter = match filter {
@@ -54,7 +57,7 @@ pub fn on_event<T: Send + 'static>(
         }
         None => None,
     };
-    let api_helper = ApiHelper::new(pipeline_details.clone(), None)?;
+    let api_helper = ApiHelper::new(pipeline_details.clone(), access)?;
     let schema = api_helper
         .get_schema()
         .map_err(|_| Status::invalid_argument(&pipeline_details.cache_endpoint.endpoint.name))?;

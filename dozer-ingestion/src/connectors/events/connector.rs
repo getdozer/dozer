@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use dozer_types::models::source::Source;
 use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
 use crate::{
@@ -67,7 +68,11 @@ impl Connector for EventsConnector {
         Ok(())
     }
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
+    }
+
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
+        sources.iter().map(|s| vec![s.clone()]).collect()
     }
 }

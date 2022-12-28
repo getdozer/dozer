@@ -1,10 +1,11 @@
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
 use crate::utils::{
-    get_api_dir, get_cache_dir, get_grpc_config, get_pipeline_config, get_pipeline_dir,
-    get_rest_config,
+    get_api_dir, get_api_security_config, get_cache_dir, get_grpc_config, get_pipeline_config,
+    get_pipeline_dir, get_rest_config,
 };
 use crate::Orchestrator;
+use dozer_api::auth::{Access, Authorizer};
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
@@ -69,12 +70,6 @@ impl SimpleOrchestrator {
 }
 
 impl Orchestrator for SimpleOrchestrator {
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
-        Executor::get_tables(&self.config.connections)
-    }
-
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         // Channel to communicate CtrlC with API Server
@@ -111,8 +106,9 @@ impl Orchestrator for SimpleOrchestrator {
         rt.block_on(async {
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
+            let security = get_api_security_config(self.config.to_owned());
             tokio::spawn(async move {
-                let api_server = rest::ApiServer::new(rest_config);
+                let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
                     .run(ce3, tx)
                     .await
@@ -123,7 +119,9 @@ impl Orchestrator for SimpleOrchestrator {
             let grpc_config = get_grpc_config(self.config.to_owned());
             let api_dir = get_api_dir(self.config.to_owned());
             let pipeline_config = get_pipeline_config(self.config.to_owned());
-            let grpc_server = grpc::ApiServer::new(grpc_config, true, api_dir, pipeline_config);
+            let api_security = get_api_security_config(self.config.to_owned());
+            let grpc_server =
+                grpc::ApiServer::new(grpc_config, true, api_dir, pipeline_config, api_security);
             tokio::spawn(async move {
                 grpc_server
                     .run(ce2, running2.to_owned(), receiver_shutdown)
@@ -196,5 +194,30 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_home_dir,
         );
         executor.run(Some(sender))
+    }
+
+    fn list_connectors(
+        &self,
+    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+        Executor::get_tables(&self.config.connections)
+    }
+
+    fn generate_token(&self) -> Result<String, OrchestrationError> {
+        if let Some(api_config) = self.config.api.to_owned() {
+            if let Some(api_security) = api_config.api_security {
+                match api_security {
+                    dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
+                        let auth = Authorizer::new(secret, None, None);
+                        let token = auth.generate_token(Access::All, None).map_err(|err| {
+                            OrchestrationError::GenerateTokenFailed(err.to_string())
+                        })?;
+                        return Ok(token);
+                    }
+                }
+            }
+        }
+        Err(OrchestrationError::GenerateTokenFailed(
+            "Missing api config or security input".to_owned(),
+        ))
     }
 }

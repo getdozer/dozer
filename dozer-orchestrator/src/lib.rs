@@ -23,13 +23,23 @@ pub trait Orchestrator {
     ) -> Result<(), OrchestrationError>;
     fn list_connectors(&self)
         -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError>;
+    fn generate_token(&self) -> Result<String, OrchestrationError>;
 }
 
 // Re-exports
+use dozer_ingestion::connectors::TableInfo;
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 pub use dozer_types::models::connection::Connection;
+use dozer_types::tracing::error;
 
-pub fn validate(input: Connection) -> Result<(), ConnectorError> {
-    let connection_service = get_connector(input)?;
-    connection_service.validate()
+pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    let connection_service = get_connector(input.clone())?;
+    connection_service.validate(tables).map_err(|e| {
+        error!(
+            "Connection \"{}\" validation error: {:?}",
+            input.name.clone(),
+            e
+        );
+        e
+    })
 }

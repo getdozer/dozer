@@ -1,25 +1,11 @@
 app_name: 1-hypercharge-postgres-sample
-api:
-  rest:
-    port: 8080
-    url: "[::0]"
-    cors: true
-  grpc:
-    port: 50051
-    url: "[::0]"
-    cors: true
-    web: true
-  auth: false
-  internal:
-    port: 50052
-    host: "[::1]"
 connections:
   - db_type: Postgres
     authentication: !Postgres
       user: postgres
       password: postgres
-      host: localhost
-      port: 5432
+      host: host.docker.internal
+      port: 5434
       database: stocks
     name: stocks
 sources:

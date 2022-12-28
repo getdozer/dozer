@@ -24,7 +24,8 @@ indicatif = "0.17.1"
 ctrlc = "3.2.3"
 tonic = "0.8.3"
 tokio-stream = "0.1.11"
-
+include_dir = "0.7.3"
+handlebars = "4.3.6"
 
 [[bin]]
 edition = "2021"

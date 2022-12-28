@@ -15,6 +15,8 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize dozer config..")]
     InitializationFailed,
+    #[error("Failed to generate token: {0:?}")]
+    GenerateTokenFailed(String),
     #[error("Failed to initialize api server..")]
     ApiServerFailed(#[source] std::io::Error),
     #[error("Failed to initialize grpc server..")]

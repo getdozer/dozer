@@ -77,7 +77,7 @@ impl ProjectionProcessor {
 
 impl Processor for ProjectionProcessor {
     fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        info!("{:?}", "Initialising PreAggregation Processor");
+        info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
 
