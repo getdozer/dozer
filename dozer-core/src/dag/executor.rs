@@ -553,6 +553,7 @@ impl<'a> DagExecutor<'a> {
     ) -> Result<JoinHandle<()>, ExecutionError> {
         //
 
+        let lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_record_stores = self.record_stores.clone();
         let lt_term_barrier = self.term_barrier.clone();
@@ -575,19 +576,49 @@ impl<'a> DagExecutor<'a> {
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
 
+            let mut port_states: Vec<InputPortState> =
+                handles_ls.iter().map(|_h| InputPortState::Open).collect();
+
+            let mut readable_ports: Vec<bool> = receivers_ls.iter().map(|_e| true).collect();
+            let mut commits_received: usize = 0;
+            let mut common_epoch = Epoch::new(0, HashMap::new());
+
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
+                if !readable_ports[index] {
+                    continue;
+                }
+
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Terminate => {
-                        info!("[{}] Waiting on term barrier", handle);
-                        lt_term_barrier.wait();
-                        return Ok(());
+                        port_states[index] = InputPortState::Terminated;
+                        info!(
+                            "[{}] Received Terminate request on port {}",
+                            handle, &handles_ls[index]
+                        );
+                        if port_states.iter().all(|v| v == &InputPortState::Terminated) {
+                            info!("[{}] Waiting on term barrier", lt_handle);
+                            lt_term_barrier.wait();
+                            return Ok(());
+                        }
                     }
                     ExecutorOperation::Commit { epoch_details } => {
-                        info!("[{}] Checkpointing - {}", handle, &epoch_details);
-                        snk.commit(&epoch_details, &master_tx)?;
-                        state_writer.store_commit_info(&epoch_details)?;
+                        assert_eq!(epoch_details.id, common_epoch.id);
+                        commits_received += 1;
+                        readable_ports[index] = false;
+                        common_epoch.details.extend(epoch_details.details.clone());
+
+                        if commits_received == receivers_ls.len() {
+                            info!("[{}] Checkpointing - {}", handle, &epoch_details);
+                            snk.commit(&epoch_details, &master_tx)?;
+                            state_writer.store_commit_info(&epoch_details)?;
+                            common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
+                            commits_received = 0;
+                            for v in &mut readable_ports {
+                                *v = true;
+                            }
+                        }
                     }
                     op => {
                         let data_op = map_to_op(op)?;
