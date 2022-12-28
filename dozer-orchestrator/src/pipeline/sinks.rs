@@ -6,8 +6,9 @@ use dozer_cache::cache::{
     lmdb_rs::{self, Transaction},
     Cache, LmdbCache,
 };
+use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::{ExecutionError, SinkError};
-use dozer_core::dag::node::{NodeHandle, PortHandle, Sink, SinkFactory};
+use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::crossbeam::channel::Sender;
@@ -170,13 +171,7 @@ pub struct CacheSink {
 }
 
 impl Sink for CacheSink {
-    fn commit(
-        &mut self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         // Update Counter on commit
         self.pb.set_message(format!(
             "{}: Count: {}, Elapsed time: {:.2?}",
@@ -315,6 +310,7 @@ mod tests {
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::{NodeHandle, Sink};
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
+
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
     use tempdir::TempDir;
@@ -373,9 +369,15 @@ mod tests {
         sink.process(DEFAULT_PORT_HANDLE, insert_operation, &txn, &HashMap::new())
             .unwrap();
         sink.commit(
-            &NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
-            0,
-            0,
+            &dozer_core::dag::epoch::Epoch::new(
+                0,
+                [(
+                    NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+                    (0_u64, 0_u64),
+                )]
+                .into_iter()
+                .collect(),
+            ),
             &txn,
         )
         .unwrap();
@@ -387,13 +389,16 @@ mod tests {
 
         sink.process(DEFAULT_PORT_HANDLE, update_operation, &txn, &HashMap::new())
             .unwrap();
-        sink.commit(
-            &NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+        let epoch1 = dozer_core::dag::epoch::Epoch::new(
             0,
-            1,
-            &txn,
-        )
-        .unwrap();
+            [(
+                NodeHandle::new(Some(DEFAULT_PORT_HANDLE), "".to_string()),
+                (0_u64, 1_u64),
+            )]
+            .into_iter()
+            .collect(),
+        );
+        sink.commit(&epoch1, &txn).unwrap();
 
         // Primary key with old values
         let key = index::get_primary_key(&schema.primary_index, &initial_values);

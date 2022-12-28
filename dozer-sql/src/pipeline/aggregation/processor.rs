@@ -7,7 +7,7 @@ use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::node::{NodeHandle, PortHandle, Processor};
+use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::storage::lmdb_storage::{
     LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
 };
@@ -15,6 +15,7 @@ use dozer_types::errors::types::TypeError;
 use dozer_types::internal_err;
 use dozer_types::types::{Field, Operation, Record, Schema};
 
+use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError::InvalidDatabase;
@@ -533,13 +534,7 @@ impl Processor for AggregationProcessor {
         internal_err!(self.init_store(state))
     }
 
-    fn commit(
-        &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 

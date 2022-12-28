@@ -2,9 +2,10 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::InternalError;
-use dozer_core::dag::node::{NodeHandle, PortHandle, Processor};
+use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Record};
@@ -98,13 +99,7 @@ impl Processor for ProjectionProcessor {
         Ok(())
     }
 
-    fn commit(
-        &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

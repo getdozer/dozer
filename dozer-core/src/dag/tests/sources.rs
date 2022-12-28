@@ -2,23 +2,23 @@ use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use fp_rust::sync::CountDownLatch;
+
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
 pub(crate) struct GeneratorSourceFactory {
     count: u64,
-    term_latch: Arc<CountDownLatch>,
+    barrier: Arc<Barrier>,
     stateful: bool,
 }
 
 impl GeneratorSourceFactory {
-    pub fn new(count: u64, term_latch: Arc<CountDownLatch>, stateful: bool) -> Self {
+    pub fn new(count: u64, barrier: Arc<Barrier>, stateful: bool) -> Self {
         Self {
             count,
-            term_latch,
+            barrier,
             stateful,
         }
     }
@@ -50,14 +50,14 @@ impl SourceFactory for GeneratorSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(GeneratorSource {
             count: self.count,
-            term_latch: self.term_latch.clone(),
+            barrier: self.barrier.clone(),
         }))
     }
 }
 
 pub(crate) struct GeneratorSource {
     count: u64,
-    term_latch: Arc<CountDownLatch>,
+    barrier: Arc<Barrier>,
 }
 
 impl Source for GeneratorSource {
@@ -84,7 +84,7 @@ impl Source for GeneratorSource {
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }
-        self.term_latch.wait();
+        self.barrier.wait();
         Ok(())
     }
 }
@@ -94,15 +94,15 @@ pub(crate) const DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2: PortHandle = 2000;
 
 pub(crate) struct DualPortGeneratorSourceFactory {
     count: u64,
-    term_latch: Arc<CountDownLatch>,
+    barrier: Arc<Barrier>,
     stateful: bool,
 }
 
 impl DualPortGeneratorSourceFactory {
-    pub fn new(count: u64, term_latch: Arc<CountDownLatch>, stateful: bool) -> Self {
+    pub fn new(count: u64, barrier: Arc<Barrier>, stateful: bool) -> Self {
         Self {
             count,
-            term_latch,
+            barrier,
             stateful,
         }
     }
@@ -140,14 +140,14 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(DualPortGeneratorSource {
             count: self.count,
-            term_latch: self.term_latch.clone(),
+            barrier: self.barrier.clone(),
         }))
     }
 }
 
 pub(crate) struct DualPortGeneratorSource {
     count: u64,
-    term_latch: Arc<CountDownLatch>,
+    barrier: Arc<Barrier>,
 }
 
 impl Source for DualPortGeneratorSource {
@@ -186,7 +186,7 @@ impl Source for DualPortGeneratorSource {
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
             )?;
         }
-        self.term_latch.wait();
+        self.barrier.wait();
         Ok(())
     }
 }

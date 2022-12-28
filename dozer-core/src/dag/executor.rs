@@ -24,6 +24,7 @@ use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Record, Schema};
 
+use crate::dag::epoch::{Epoch, EpochManager};
 use log::info;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -59,21 +60,10 @@ pub(crate) enum InputPortState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
-    Delete {
-        old: Record,
-    },
-    Insert {
-        new: Record,
-    },
-    Update {
-        old: Record,
-        new: Record,
-    },
-    Commit {
-        source: NodeHandle,
-        txid: u64,
-        seq_in_tx: u64,
-    },
+    Delete { old: Record },
+    Insert { new: Record },
+    Update { old: Record, new: Record },
+    Commit { epoch_details: Epoch },
     Terminate,
 }
 
@@ -189,7 +179,9 @@ impl<'a> DagExecutor<'a> {
         Ok(Self {
             dag,
             schemas,
-            term_barrier: Arc::new(Barrier::new(dag.get_sources().len())),
+            term_barrier: Arc::new(Barrier::new(
+                dag.get_sources().len() * 2 + dag.get_processors().len() + dag.get_sinks().len(),
+            )),
             record_stores: Arc::new(RwLock::new(
                 dag.nodes
                     .iter()
@@ -336,15 +328,18 @@ impl<'a> DagExecutor<'a> {
         src_factory: Arc<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         schemas: &NodeSchemas,
+        epoch_manager: Arc<RwLock<EpochManager>>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         //
         //
 
+        let st_handle = handle.clone();
         let (st_sender, st_receiver) =
             bounded::<(PortHandle, u64, u64, Operation)>(self.options.channel_buffer_sz);
         let st_src_factory = src_factory.clone();
         let st_running = self.running.clone();
         let st_output_schemas = schemas.output_schemas.clone();
+        let st_term_barrier = self.term_barrier.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
         let start_seq = *self
             .consistency_metadata
@@ -355,10 +350,12 @@ impl<'a> DagExecutor<'a> {
             let src = st_src_factory.build(st_output_schemas)?;
             let r = src.start(&mut fw, Some(start_seq));
             st_running.store(false, Ordering::SeqCst);
+            info!("[{}-sender] Waiting on term barrier", st_handle);
+            st_term_barrier.wait();
             r
         });
 
-        let _lt_handle = handle.clone();
+        let lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_output_ports = src_factory.get_output_ports();
         let lt_edges = self.dag.edges.clone();
@@ -388,8 +385,6 @@ impl<'a> DagExecutor<'a> {
             let mut dag_fw = SourceChannelManager::new(
                 handle,
                 senders,
-                lt_executor_options.commit_sz,
-                lt_executor_options.commit_time_threshold,
                 StateWriter::new(
                     state_meta.meta_db,
                     port_databases,
@@ -399,35 +394,47 @@ impl<'a> DagExecutor<'a> {
                     HashMap::new(),
                 ),
                 true,
+                epoch_manager,
             );
             loop {
-                let r = st_receiver.recv_timeout(lt_executor_options.commit_time_threshold);
-                match lt_running.load(Ordering::SeqCst) {
-                    false => {
-                        dag_fw.commit_and_terminate()?;
-                        lt_term_barrier.wait();
-                        break;
+                match st_receiver.recv_timeout(lt_executor_options.commit_time_threshold) {
+                    Ok((port, txid, seq_in_tx, op)) => {
+                        // First check if termination was requested.
+                        let terminating = !lt_running.load(Ordering::SeqCst);
+                        // If this commit was not requested with termination at the start, we shouldn't terminate either.
+                        let terminating = dag_fw.send_and_trigger_commit_if_needed(
+                            txid,
+                            seq_in_tx,
+                            op,
+                            port,
+                            terminating,
+                        )?;
+                        if terminating {
+                            dag_fw.terminate()?;
+                            info!("[{}-listener] Waiting on term barrier", lt_handle);
+                            drop(st_receiver);
+                            lt_term_barrier.wait();
+                            return Ok(());
+                        }
                     }
-                    true => match r {
-                        Err(RecvTimeoutError::Timeout) => {
-                            dag_fw.trigger_commit_if_needed()?;
+                    Err(RecvTimeoutError::Timeout) => {
+                        // First check if termination was requested.
+                        let terminating = !lt_running.load(Ordering::SeqCst);
+                        // If this commit was not requested with termination at the start, we shouldn't terminate either.
+                        let terminating = dag_fw.trigger_commit_if_needed(terminating)?;
+                        if terminating {
+                            dag_fw.terminate()?;
+                            info!("[{}-listener] Waiting on term barrier", lt_handle);
+                            drop(st_receiver);
+                            lt_term_barrier.wait();
+                            return Ok(());
                         }
-                        Err(RecvTimeoutError::Disconnected) => {
-                            return Err(ChannelDisconnected);
-                        }
-                        Ok((port, txid, seq_in_tx, Operation::Insert { new })) => {
-                            dag_fw.send(txid, seq_in_tx, Operation::Insert { new }, port)?;
-                        }
-                        Ok((port, txid, seq_in_tx, Operation::Delete { old })) => {
-                            dag_fw.send(txid, seq_in_tx, Operation::Delete { old }, port)?;
-                        }
-                        Ok((port, txid, seq_in_tx, Operation::Update { old, new })) => {
-                            dag_fw.send(txid, seq_in_tx, Operation::Update { old, new }, port)?;
-                        }
-                    },
+                    }
+                    Err(RecvTimeoutError::Disconnected) => {
+                        return Err(ChannelDisconnected);
+                    }
                 }
             }
-            Ok(())
         };
 
         Ok(thread::spawn(|| lt_thread_fct().unwrap()))
@@ -442,13 +449,14 @@ impl<'a> DagExecutor<'a> {
         schemas: &NodeSchemas,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         //
+        let lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_output_ports = proc_factory.get_output_ports();
         let lt_edges = self.dag.edges.clone();
         let lt_record_stores = self.record_stores.clone();
-        let _lt_term_barrier = self.term_barrier.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
+        let lt_term_barrier = self.term_barrier.clone();
 
         let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let mut proc =
@@ -487,17 +495,26 @@ impl<'a> DagExecutor<'a> {
             let mut port_states: Vec<InputPortState> =
                 handles_ls.iter().map(|_h| InputPortState::Open).collect();
 
+            let mut commits_received: usize = 0;
+            let mut common_epoch = Epoch::new(0, HashMap::new());
+
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
                 match internal_err!(receivers_ls[index].recv())? {
-                    ExecutorOperation::Commit {
-                        txid,
-                        seq_in_tx,
-                        source,
-                    } => {
-                        proc.commit(&source, txid, seq_in_tx, &master_tx)?;
-                        fw.store_and_send_commit(source, txid, seq_in_tx)?;
+                    ExecutorOperation::Commit { epoch_details } => {
+                        assert_eq!(epoch_details.id, common_epoch.id);
+                        commits_received += 1;
+                        sel.remove(index);
+                        common_epoch.details.extend(epoch_details.details);
+
+                        if commits_received == receivers_ls.len() {
+                            proc.commit(&common_epoch, &master_tx)?;
+                            fw.store_and_send_commit(&common_epoch)?;
+                            common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
+                            commits_received = 0;
+                            sel = init_select(&receivers_ls);
+                        }
                     }
                     ExecutorOperation::Terminate => {
                         port_states[index] = InputPortState::Terminated;
@@ -507,6 +524,8 @@ impl<'a> DagExecutor<'a> {
                         );
                         if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                             fw.send_term_and_wait()?;
+                            info!("[{}] Waiting on term barrier", lt_handle);
+                            lt_term_barrier.wait();
                             return Ok(());
                         }
                     }
@@ -535,9 +554,10 @@ impl<'a> DagExecutor<'a> {
     ) -> Result<JoinHandle<()>, ExecutionError> {
         //
 
+        let lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_record_stores = self.record_stores.clone();
-        let _lt_term_barrier = self.term_barrier.clone();
+        let lt_term_barrier = self.term_barrier.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
         let lt_thread_fct = move || -> Result<(), ExecutionError> {
@@ -557,25 +577,41 @@ impl<'a> DagExecutor<'a> {
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
 
+            let mut port_states = vec![InputPortState::Open; handles_ls.len()];
+
+            let mut commits_received: usize = 0;
+            let mut common_epoch = Epoch::new(0, HashMap::new());
+
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Terminate => {
-                        info!("[{}] Terminating: Exiting message loop", handle);
-                        return Ok(());
-                    }
-                    ExecutorOperation::Commit {
-                        txid,
-                        seq_in_tx,
-                        source,
-                    } => {
+                        port_states[index] = InputPortState::Terminated;
                         info!(
-                            "[{}] Checkpointing (source: {}, epoch: {}:{})",
-                            handle, source, txid, seq_in_tx
+                            "[{}] Received Terminate request on port {}",
+                            handle, &handles_ls[index]
                         );
-                        snk.commit(&source, txid, seq_in_tx, &master_tx)?;
-                        state_writer.store_commit_info(&source, txid, seq_in_tx)?;
+                        if port_states.iter().all(|v| v == &InputPortState::Terminated) {
+                            info!("[{}] Waiting on term barrier", lt_handle);
+                            lt_term_barrier.wait();
+                            return Ok(());
+                        }
+                    }
+                    ExecutorOperation::Commit { epoch_details } => {
+                        assert_eq!(epoch_details.id, common_epoch.id);
+                        commits_received += 1;
+                        sel.remove(index);
+                        common_epoch.details.extend(epoch_details.details.clone());
+
+                        if commits_received == receivers_ls.len() {
+                            info!("[{}] Checkpointing - {}", handle, &epoch_details);
+                            snk.commit(&common_epoch, &master_tx)?;
+                            state_writer.store_commit_info(&common_epoch)?;
+                            common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
+                            commits_received = 0;
+                            sel = init_select(&receivers_ls);
+                        }
                     }
                     op => {
                         let data_op = map_to_op(op)?;
@@ -630,6 +666,12 @@ impl<'a> DagExecutor<'a> {
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
+        let epoch_manager: Arc<RwLock<EpochManager>> = Arc::new(RwLock::new(EpochManager::new(
+            self.options.commit_sz,
+            self.options.commit_time_threshold,
+            self.dag.get_sources().iter().map(|e| e.0.clone()).collect(),
+        )));
+
         for (handle, factory) in self.dag.get_sources() {
             let join_handle = self
                 .start_source(
@@ -641,6 +683,7 @@ impl<'a> DagExecutor<'a> {
                     self.schemas
                         .get(&handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
+                    epoch_manager.clone(),
                 )
                 .unwrap();
             self.join_handles.insert(handle.clone(), join_handle);
@@ -649,7 +692,7 @@ impl<'a> DagExecutor<'a> {
     }
 
     pub fn stop(&self) {
-        self.running.store(false, Ordering::Relaxed);
+        self.running.store(false, Ordering::SeqCst);
     }
 
     pub fn join(mut self) -> Result<(), ExecutionError> {

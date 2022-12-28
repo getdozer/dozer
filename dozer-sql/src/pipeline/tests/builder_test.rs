@@ -15,6 +15,7 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 
+use dozer_core::dag::epoch::Epoch;
 use std::collections::HashMap;
 use std::fs;
 use std::sync::atomic::AtomicBool;
@@ -143,13 +144,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(
-        &mut self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
