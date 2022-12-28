@@ -53,7 +53,9 @@ impl SourceFactory for NewConnectorSourceFactory {
                     .get_schemas(Some(tables))
                     .map(|result| {
                         result.get(0).map_or(
-                            Err(ExecutionError::FailedToGetOutputSchema(schema_name.to_string())),
+                            Err(ExecutionError::FailedToGetOutputSchema(
+                                schema_name.to_string(),
+                            )),
                             |(_, schema)| Ok(schema.clone()),
                         )
                     })
