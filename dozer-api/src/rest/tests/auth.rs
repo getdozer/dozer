@@ -1,10 +1,11 @@
 use super::super::api_server::{ApiServer, CorsOptions};
 use crate::{
-    auth::{api::ApiSecurity, Access, Authorizer},
+    auth::{Access, Authorizer},
     test_utils, CacheEndpoint,
 };
 use actix_web::{body::MessageBody, dev::ServiceResponse};
 use dozer_types::{
+    models::api_security::ApiSecurity,
     serde,
     serde::{Deserialize, Serialize},
     serde_json::{json, Value},
@@ -43,22 +44,22 @@ async fn verify_token_test() {
     let secret = "secret".to_string();
 
     // Without ApiSecurity
-    let res = check_status(ApiSecurity::None, None).await;
+    let res = check_status(None, None).await;
     assert!(res.status().is_success());
 
     // With ApiSecurity but no token
-    let res = check_status(ApiSecurity::Jwt(secret.to_owned()), None).await;
+    let res = check_status(Some(ApiSecurity::Jwt(secret.to_owned())), None).await;
     assert_eq!(res.status().as_u16(), 401, "Should be unauthorized.");
 
     let auth = Authorizer::new(secret.to_owned(), None, None);
     let token = auth.generate_token(Access::All, None).unwrap();
 
-    let res = check_status(ApiSecurity::Jwt("secret".to_string()), Some(token)).await;
+    let res = check_status(Some(ApiSecurity::Jwt("secret".to_string())), Some(token)).await;
     assert!(res.status().is_success());
 }
 
 async fn check_status(
-    security: ApiSecurity,
+    security: Option<ApiSecurity>,
     token: Option<String>,
 ) -> ServiceResponse<impl MessageBody> {
     let endpoint = test_utils::get_endpoint();
@@ -94,7 +95,7 @@ async fn _call_auth_token_api(
     let schema_name = endpoint.name.to_owned();
     let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
-        ApiSecurity::Jwt(secret.to_owned()),
+        Some(ApiSecurity::Jwt(secret.to_owned())),
         CorsOptions::Permissive,
         vec![CacheEndpoint {
             cache,

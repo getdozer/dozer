@@ -5,7 +5,7 @@ use dozer_types::ingestion_types::{
 use dozer_types::log::{debug, warn};
 use dozer_types::parking_lot::RwLock;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::IngestionConfig;
 
@@ -30,6 +30,18 @@ impl Iterator for IngestionIterator {
     type Item = (u64, IngestionOperation);
     fn next(&mut self) -> Option<Self::Item> {
         let msg = self.rx.recv();
+        match msg {
+            Ok(msg) => Some(msg),
+            Err(e) => {
+                warn!("IngestionIterator: Error in receiving {:?}", e.to_string());
+                None
+            }
+        }
+    }
+}
+impl IngestionIterator {
+    pub fn next_timeout(&mut self, timeout: Duration) -> Option<(u64, IngestionOperation)> {
+        let msg = self.rx.recv_timeout(timeout);
         match msg {
             Ok(msg) => Some(msg),
             Err(e) => {

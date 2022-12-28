@@ -1,8 +1,5 @@
 use prost_reflect::DynamicMessage;
 mod codec;
-// mod dynamic_codec;
-// mod dynamic_service;
-
 mod service;
 
 mod helper;

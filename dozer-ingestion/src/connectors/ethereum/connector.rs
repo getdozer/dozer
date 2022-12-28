@@ -144,6 +144,7 @@ impl Connector for EthConnector {
         } else {
             schemas
         };
+
         Ok(schemas)
     }
 
@@ -206,14 +207,13 @@ impl Connector for EthConnector {
     }
 
     fn validate(&self) -> Result<(), ConnectorError> {
+        // Return contract parsing error
         for contract in &self.config.contracts {
             let res: Result<Contract, serde_json::Error> = serde_json::from_str(&contract.abi);
             if let Err(e) = res {
                 return Err(ConnectorError::map_serialization_error(e));
             }
         }
-        // Return contract parsing error
-
         Ok(())
     }
 }

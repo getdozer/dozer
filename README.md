@@ -23,12 +23,12 @@
 
 [//]: # (Badges for html)
 <p align="center">
-  <a href="https://gitHub.com/getdozer/dozer/stargazers/" target="_blank"><img src="https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000" alt="stars"></a>
+  <!-- <a href="https://gitHub.com/getdozer/dozer/stargazers/" target="_blank"><img src="https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000" alt="stars"></a> -->
   <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg" alt="CI"></a>
   <a href="https://coveralls.io/github/getdozer/dozer?branch=main" target="_blank"><img src="https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV&style=flat" alt="Coverage Status"></a>
-  <a><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a>
-  <a><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>
-  <a href="https://github.com/meilisearch/meilisearch/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
+  <!-- <a><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a> -->
+  <!-- <a><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a> -->
+  <a href="https://github.com/getdozer/dozer/main/LICENSE" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
 </p>
 
 [//]: # (  <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://img.shields.io/github/workflow/status/getdozer/dozer/Dozer%20CI?style=flat" alt="build"></a>)
@@ -37,21 +37,12 @@
 
 ## Quick Start
 
-Download the latest stable binary or source code for a quick start. Check out our latest release details [here](https://github.com/getdozer/dozer/releases/latest).
-
-#### Using binary
-```bash
-curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash
-cd dozer
-./dozer
-```
-
 #### Using docker
 ```bash
-curl -L "https://drive.google.com/uc?export=download&id=1-mhZUV4HK2agyPwqpOzUWntqQzhjEJPN&confirm=9iBg" | bash -s -- -d
-cd dozer
-docker compose -f <path-to-yaml-config> up
+docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
 ```
+Check out our latest release details [here](https://github.com/getdozer/dozer/releases/latest).
+
 <br>
 
 ## Why use Dozer?

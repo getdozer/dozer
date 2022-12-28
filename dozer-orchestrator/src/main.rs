@@ -5,7 +5,7 @@ use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, Co
 use dozer_orchestrator::cli::{load_config, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
-use dozer_orchestrator::Orchestrator;
+use dozer_orchestrator::{ConnectorError, Orchestrator};
 use dozer_types::crossbeam::channel;
 use dozer_types::log::{error, info};
 use dozer_types::prettytable::{row, Table};
@@ -38,6 +38,8 @@ fn run() -> Result<(), OrchestrationError> {
     panic::set_hook(Box::new(move |panic_info| {
         if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
             error!("{}", e);
+        } else if let Some(e) = panic_info.payload().downcast_ref::<ConnectorError>() {
+            error!("{:?}", e);
         } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
             error!("{s:?}");
         } else {
@@ -75,7 +77,11 @@ fn run() -> Result<(), OrchestrationError> {
                     render_logo();
                     dozer.run_api(running)
                 }
-                ApiCommands::GenerateToken => todo!(),
+                ApiCommands::GenerateToken => {
+                    let token = dozer.generate_token()?;
+                    info!("token: {:?} ", token);
+                    Ok(())
+                }
             },
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => {
