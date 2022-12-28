@@ -7,6 +7,8 @@ mod checkpoint_ns;
 #[cfg(test)]
 mod common;
 #[cfg(test)]
+mod dag_base_create_errors;
+#[cfg(test)]
 mod dag_base_errors;
 #[cfg(test)]
 mod dag_base_run;
