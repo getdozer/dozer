@@ -1,6 +1,7 @@
 use crate::pipeline::builder::PipelineBuilder;
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::{Endpoint, NodeType, DEFAULT_PORT_HANDLE};
+use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::{
@@ -143,13 +144,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(
-        &mut self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

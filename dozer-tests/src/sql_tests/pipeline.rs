@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
+use dozer_core::dag::epoch::Epoch;
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -201,13 +202,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(
-        &mut self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
-        _tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
+    fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

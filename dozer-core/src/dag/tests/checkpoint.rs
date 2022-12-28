@@ -18,7 +18,7 @@ use tempdir::TempDir;
 
 #[test]
 fn test_checkpoint_consistency() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    //  dozer_tracing::init_telemetry(false).unwrap();
     let mut dag = Dag::new();
     let latch = Arc::new(Barrier::new(3));
 
@@ -131,7 +131,7 @@ fn test_checkpoint_consistency() {
 
 #[test]
 fn test_checkpoint_consistency_resume() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    //   dozer_tracing::init_telemetry(false).unwrap();
     let mut dag = Dag::new();
     let latch = Arc::new(Barrier::new(3));
 

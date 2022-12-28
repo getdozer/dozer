@@ -17,7 +17,7 @@ use tempdir::TempDir;
 
 #[test]
 fn test_checpoint_consistency_ns() {
-    dozer_tracing::init_telemetry(false).unwrap();
+    //  dozer_tracing::init_telemetry(false).unwrap();
 
     const MESSAGES_COUNT: u64 = 25_000;
 
