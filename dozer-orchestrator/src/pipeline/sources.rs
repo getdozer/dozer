@@ -121,12 +121,17 @@ impl Source for ConnectorSource {
         for (connection, tables) in self.connection_map.clone().into_iter() {
             let connection = connection.clone();
             let ingestor = self.ingestor.clone();
-            let t = thread::spawn(move || -> Result<(), ConnectorError> {
-                let mut connector = get_connector(connection.to_owned())?;
+            let connector_fn = || -> Result<(), ConnectorError> {
+                let mut connector = get_connector(connection)?;
 
                 connector.initialize(ingestor, Some(tables))?;
                 connector.start()?;
                 Ok(())
+            };
+            let t = thread::spawn(move || {
+                if let Err(e) = connector_fn() {
+                    std::panic::panic_any(e);
+                }
             });
             threads.push(t);
         }
@@ -155,9 +160,7 @@ impl Source for ConnectorSource {
         }
 
         for t in threads {
-            t.join()
-                .unwrap()
-                .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
+            t.join().unwrap();
         }
 
         Ok(())
