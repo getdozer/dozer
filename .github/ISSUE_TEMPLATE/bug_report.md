@@ -14,7 +14,6 @@ A clear and concise description of what the bug is.
 - **Dozer version**: example 0.1.2
 - **OS Version**: Ubuntu 20.04.5
 - **Deployment**: Docker
-- **Source type and version**: example PostgreSQL 9.2
 
 
 ## To Reproduce
