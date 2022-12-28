@@ -12,12 +12,12 @@ use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::sync::Arc;
-use dozer_types::models::source::Source;
 
 pub mod snowflake;
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
