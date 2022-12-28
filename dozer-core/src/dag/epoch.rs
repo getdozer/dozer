@@ -94,8 +94,8 @@ impl EpochManager {
             self.epoch_barrier = Arc::new(Barrier::new(self.epoch_participants.len()));
             self.epoch_participants = self
                 .epoch_participants
-                .iter()
-                .map(|(k, _v)| (k.clone(), false))
+                .keys()
+                .map(|k| (k.clone(), false))
                 .collect();
             true
         } else {
