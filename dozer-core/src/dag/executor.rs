@@ -576,10 +576,9 @@ impl<'a> DagExecutor<'a> {
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
 
-            let mut port_states: Vec<InputPortState> =
-                handles_ls.iter().map(|_h| InputPortState::Open).collect();
+            let mut port_states = vec![InputPortState::Open; handles_ls.len()];
 
-            let mut readable_ports: Vec<bool> = receivers_ls.iter().map(|_e| true).collect();
+            let mut readable_ports = vec![true; receivers_ls.len()];
             let mut commits_received: usize = 0;
             let mut common_epoch = Epoch::new(0, HashMap::new());
 
