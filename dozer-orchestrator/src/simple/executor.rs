@@ -68,47 +68,12 @@ impl Executor {
         Ok(schema_map)
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn get_connection_map(
-        sources: &[Source],
-    ) -> Result<(HashMap<Connection, Vec<TableInfo>>, HashMap<String, u16>), OrchestrationError>
-    {
-        let mut connection_map: HashMap<Connection, Vec<TableInfo>> = HashMap::new();
-        let mut table_map: HashMap<String, u16> = HashMap::new();
-
-        // Initialize Source
-        // For every pipeline, there will be one Source implementation
-        // that can take multiple Connectors on different ports.
-        for (table_id, (idx, source)) in sources.iter().cloned().enumerate().enumerate() {
-            let table_name = source.table_name.clone();
-            let connection = source
-                .connection
-                .expect("connection is expected")
-                .clone();
-            let table = TableInfo {
-                name: source.table_name,
-                id: table_id as u32,
-                columns: Some(source.columns),
-            };
-
-            validate(connection.clone(), Some(vec![table.clone()]))?;
-
-            connection_map
-                .entry(connection)
-                .and_modify(|v| v.push(table.clone()))
-                .or_insert_with(|| vec![table]);
-
-            table_map.insert(table_name, idx.try_into().unwrap());
-        }
-        Ok((connection_map, table_map))
-    }
-
     pub fn run(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
     ) -> Result<(), OrchestrationError> {
         let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
-        for (_, sources_group) in &grouped_connections {
+        for sources_group in grouped_connections.values() {
             let first_source = sources_group.get(0).unwrap();
 
             if let Some(connection) = &first_source.connection {
@@ -134,7 +99,7 @@ impl Executor {
         let mut app = App::new(asm);
 
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
-            let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+            let _dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
             let api_endpoint = cache_endpoint.endpoint.clone();
             let _api_endpoint_name = api_endpoint.name.clone();
