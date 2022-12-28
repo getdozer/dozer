@@ -1,6 +1,6 @@
 use crate::dag::channels::ProcessorChannelForwarder;
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
-use crate::dag::epoch::{Epoch, EpochManager};
+use crate::dag::epoch::{Epoch, EpochManager, EpochStatus};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
@@ -263,14 +263,14 @@ impl SourceChannelManager {
                 self.curr_txid,
                 self.curr_seq_in_tx,
             ))?;
-            Some(epoch.barrier)
+            Some((epoch.barrier, epoch.forced))
         } else {
             None
         };
 
-        if let Some(e) = epoch {
-            e.wait();
-            Ok(true)
+        if let Some((barrier, forced)) = epoch {
+            barrier.wait();
+            Ok(forced)
         } else {
             Ok(false)
         }

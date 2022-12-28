@@ -1,6 +1,7 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::NodeHandle;
 
+use log::info;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
@@ -36,14 +37,27 @@ impl Display for Epoch {
     }
 }
 
+#[derive(PartialEq)]
+pub enum EpochStatus {
+    Started,
+    Joined,
+}
+
 pub struct ClosingEpoch {
+    pub status: EpochStatus,
     pub id: u64,
     pub barrier: Arc<Barrier>,
+    pub forced: bool,
 }
 
 impl ClosingEpoch {
-    pub fn new(id: u64, barrier: Arc<Barrier>) -> Self {
-        Self { id, barrier }
+    pub fn new(status: EpochStatus, id: u64, barrier: Arc<Barrier>, forced: bool) -> Self {
+        Self {
+            status,
+            id,
+            barrier,
+            forced,
+        }
     }
 }
 
@@ -56,6 +70,7 @@ pub(crate) struct EpochManager {
     epoch_participants: HashMap<NodeHandle, bool>,
     epoch_barrier: Arc<Barrier>,
     epoch_closing: bool,
+    epoch_forced: bool,
 }
 
 impl EpochManager {
@@ -75,6 +90,7 @@ impl EpochManager {
             epoch_participants: epoch_participants.into_iter().map(|e| (e, false)).collect(),
             epoch_closing: false,
             epoch_barrier: Arc::new(Barrier::new(participants_count)),
+            epoch_forced: false,
         }
     }
 
@@ -114,6 +130,7 @@ impl EpochManager {
             false => {
                 // If it is not, we check if we should close the current epoch
                 if force || self.should_close_epoch() {
+                    self.epoch_forced = force;
                     let curr_participant_state = self
                         .epoch_participants
                         .get_mut(participant)
@@ -123,8 +140,12 @@ impl EpochManager {
                     // If we can close it, we add the current participant in the participants list
                     self.epoch_closing = true;
                     *curr_participant_state = true;
-                    let closing_epoch =
-                        ClosingEpoch::new(self.curr_epoch, self.epoch_barrier.clone());
+                    let closing_epoch = ClosingEpoch::new(
+                        EpochStatus::Started,
+                        self.curr_epoch,
+                        self.epoch_barrier.clone(),
+                        self.epoch_forced,
+                    );
                     // Epoch might have a single participant. We check for it and, if true, we close
                     // the current epoch, otherwise we leave it open and wait for other participants
                     // to join teh closing
@@ -144,7 +165,12 @@ impl EpochManager {
                 assert!(!*curr_participant_state);
 
                 *curr_participant_state = true;
-                let closing_epoch = ClosingEpoch::new(self.curr_epoch, self.epoch_barrier.clone());
+                let closing_epoch = ClosingEpoch::new(
+                    EpochStatus::Joined,
+                    self.curr_epoch,
+                    self.epoch_barrier.clone(),
+                    self.epoch_forced,
+                );
                 self.close_epoch_if_possible();
                 Ok(Some(closing_epoch))
             }

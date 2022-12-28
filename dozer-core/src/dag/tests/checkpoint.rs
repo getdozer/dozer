@@ -22,8 +22,8 @@ fn test_checkpoint_consistency() {
     let mut dag = Dag::new();
     let latch = Arc::new(Barrier::new(3));
 
-    const SRC1_MSG_COUNT: u64 = 50_000;
-    const SRC2_MSG_COUNT: u64 = 25_000;
+    const SRC1_MSG_COUNT: u64 = 5000;
+    const SRC2_MSG_COUNT: u64 = 5000;
 
     const SRC1_HANDLE_ID: &str = "SRC1";
     const SRC2_HANDLE_ID: &str = "SRC2";

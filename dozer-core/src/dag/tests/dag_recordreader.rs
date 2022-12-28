@@ -251,7 +251,7 @@ fn test_run_dag_reacord_reader() {
 fn test_run_dag_reacord_reader_from_src() {
     init_log4rs();
 
-    const TOT: u64 = 1_000_000;
+    const TOT: u64 = 1_000;
 
     let sync = Arc::new(Barrier::new(2));
 
