@@ -37,7 +37,7 @@ pub struct ApiServer {
     port: u16,
     dynamic: bool,
     web: bool,
-    url: String,
+    host: String,
     api_dir: PathBuf,
     pipeline_config: ApiInternal,
     security: Option<ApiSecurity>,
@@ -128,7 +128,7 @@ impl ApiServer {
         Self {
             port: grpc_config.port as u16,
             web: grpc_config.web,
-            url: grpc_config.url,
+            host: grpc_config.host,
             dynamic,
             api_dir,
             pipeline_config,
@@ -193,7 +193,7 @@ impl ApiServer {
         } else {
             grpc_router
         };
-        let addr = format!("{:}:{:}", self.url, self.port).parse().unwrap();
+        let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await

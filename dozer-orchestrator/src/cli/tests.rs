@@ -17,11 +17,11 @@ fn test_yml_content_full() -> &'static str {
     api:
       rest:
         port: 8080
-        url: "[::0]"
+        host: "[::0]"
         cors: true
       grpc:
         port: 50051
-        url: "[::0]"
+        host: "[::0]"
         cors: true
         web: true
       auth: false
@@ -96,11 +96,11 @@ fn test_yml_content_missing_internal_config() -> &'static str {
     api:
       rest:
         port: 8080
-        url: "[::0]"
+        host: "[::0]"
         cors: true
       grpc:
         port: 50051
-        url: "[::0]"
+        host: "[::0]"
         cors: true
         web: true
       auth: false
@@ -172,12 +172,12 @@ fn test_api_config() -> ApiConfig {
     ApiConfig {
         rest: Some(ApiRest {
             port: 8080,
-            url: "[::0]".to_owned(),
+            host: "[::0]".to_owned(),
             cors: true,
         }),
         grpc: Some(ApiGrpc {
             port: 50051,
-            url: "[::0]".to_owned(),
+            host: "[::0]".to_owned(),
             cors: true,
             web: true,
         }),
@@ -285,7 +285,7 @@ fn test_deserialize_eth_config_standard() {
     wss_url: wss://link
     contracts: []
     "#;
-    let deserializer_result = serde_yaml::from_str::<Authentication>(&eth_config).unwrap();
+    let deserializer_result = serde_yaml::from_str::<Authentication>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {
         from_block: Some(0),
         to_block: None,
@@ -309,7 +309,7 @@ fn test_deserialize_eth_config_without_empty_array() {
       from_block: 499203
     wss_url: wss://link
     "#;
-    let deserializer_result = serde_yaml::from_str::<Authentication>(&eth_config).unwrap();
+    let deserializer_result = serde_yaml::from_str::<Authentication>(eth_config).unwrap();
     let expected_eth_filter = EthFilter {
         from_block: Some(499203),
         to_block: None,

@@ -36,7 +36,7 @@ pub struct ApiRest {
     #[prost(uint32, tag = "1")]
     pub port: u32,
     #[prost(string, tag = "2")]
-    pub url: String,
+    pub host: String,
     #[prost(bool, tag = "3")]
     pub cors: bool,
 }
@@ -45,7 +45,7 @@ pub struct ApiGrpc {
     #[prost(uint32, tag = "1")]
     pub port: u32,
     #[prost(string, tag = "2")]
-    pub url: String,
+    pub host: String,
     #[prost(bool, tag = "3")]
     pub cors: bool,
     #[prost(bool, tag = "4")]
@@ -79,14 +79,14 @@ fn default_pipeline_internal() -> Option<ApiInternal> {
 fn default_api_rest() -> Option<ApiRest> {
     Some(ApiRest {
         port: 8080,
-        url: "[::0]".to_owned(),
+        host: "[::0]".to_owned(),
         cors: true,
     })
 }
 fn default_api_grpc() -> Option<ApiGrpc> {
     Some(ApiGrpc {
         port: 50051,
-        url: "[::0]".to_owned(),
+        host: "[::0]".to_owned(),
         cors: true,
         web: true,
     })
