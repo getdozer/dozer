@@ -1,7 +1,5 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::NodeHandle;
-
-use log::info;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
@@ -37,23 +35,15 @@ impl Display for Epoch {
     }
 }
 
-#[derive(PartialEq)]
-pub enum EpochStatus {
-    Started,
-    Joined,
-}
-
 pub struct ClosingEpoch {
-    pub status: EpochStatus,
     pub id: u64,
     pub barrier: Arc<Barrier>,
     pub forced: bool,
 }
 
 impl ClosingEpoch {
-    pub fn new(status: EpochStatus, id: u64, barrier: Arc<Barrier>, forced: bool) -> Self {
+    pub fn new(id: u64, barrier: Arc<Barrier>, forced: bool) -> Self {
         Self {
-            status,
             id,
             barrier,
             forced,
@@ -134,14 +124,13 @@ impl EpochManager {
                     let curr_participant_state = self
                         .epoch_participants
                         .get_mut(participant)
-                        .ok_or(ExecutionError::InvalidNodeHandle(participant.clone()))?;
+                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(participant.clone()))?;
                     assert!(!*curr_participant_state);
 
                     // If we can close it, we add the current participant in the participants list
                     self.epoch_closing = true;
                     *curr_participant_state = true;
                     let closing_epoch = ClosingEpoch::new(
-                        EpochStatus::Started,
                         self.curr_epoch,
                         self.epoch_barrier.clone(),
                         self.epoch_forced,
@@ -161,12 +150,11 @@ impl EpochManager {
                 let curr_participant_state = self
                     .epoch_participants
                     .get_mut(participant)
-                    .ok_or(ExecutionError::InvalidNodeHandle(participant.clone()))?;
+                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(participant.clone()))?;
                 assert!(!*curr_participant_state);
 
                 *curr_participant_state = true;
                 let closing_epoch = ClosingEpoch::new(
-                    EpochStatus::Joined,
                     self.curr_epoch,
                     self.epoch_barrier.clone(),
                     self.epoch_forced,

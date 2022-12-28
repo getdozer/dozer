@@ -1,6 +1,6 @@
 use crate::dag::channels::ProcessorChannelForwarder;
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
-use crate::dag::epoch::{Epoch, EpochManager, EpochStatus};
+use crate::dag::epoch::{Epoch, EpochManager};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
