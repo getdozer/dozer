@@ -18,7 +18,6 @@ use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
-use dozer_sql::sqlparser::dialect::GenericDialect;
 use dozer_types::crossbeam;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
@@ -99,8 +98,6 @@ impl Executor {
         let mut app = App::new(asm);
 
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
-            let _dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
-
             let api_endpoint = cache_endpoint.endpoint.clone();
             let _api_endpoint_name = api_endpoint.name.clone();
             let cache = cache_endpoint.cache;
@@ -116,14 +113,14 @@ impl Executor {
                     api_endpoint,
                     notifier.clone(),
                 )),
-                cache_endpoint.endpoint.id(),
+                cache_endpoint.endpoint.name.as_str(),
             );
 
             pipeline
                 .connect_nodes(
                     "aggregation",
                     Some(DEFAULT_PORT_HANDLE),
-                    cache_endpoint.endpoint.id(),
+                    cache_endpoint.endpoint.name.as_str(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
                 .map_err(OrchestrationError::ExecutionError)?;
