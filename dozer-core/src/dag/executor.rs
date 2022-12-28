@@ -495,22 +495,17 @@ impl<'a> DagExecutor<'a> {
             let mut port_states: Vec<InputPortState> =
                 handles_ls.iter().map(|_h| InputPortState::Open).collect();
 
-            let mut readable_ports = vec![true; receivers_ls.len()];
             let mut commits_received: usize = 0;
             let mut common_epoch = Epoch::new(0, HashMap::new());
 
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
-                if !readable_ports[index] {
-                    continue;
-                }
-
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Commit { epoch_details } => {
                         assert_eq!(epoch_details.id, common_epoch.id);
                         commits_received += 1;
-                        readable_ports[index] = false;
+                        sel.remove(index);
                         common_epoch.details.extend(epoch_details.details);
 
                         if commits_received == receivers_ls.len() {
@@ -518,9 +513,7 @@ impl<'a> DagExecutor<'a> {
                             fw.store_and_send_commit(&common_epoch)?;
                             common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
                             commits_received = 0;
-                            for v in &mut readable_ports {
-                                *v = true;
-                            }
+                            sel = init_select(&receivers_ls);
                         }
                     }
                     ExecutorOperation::Terminate => {
@@ -586,17 +579,12 @@ impl<'a> DagExecutor<'a> {
 
             let mut port_states = vec![InputPortState::Open; handles_ls.len()];
 
-            let mut readable_ports = vec![true; receivers_ls.len()];
             let mut commits_received: usize = 0;
             let mut common_epoch = Epoch::new(0, HashMap::new());
 
             let mut sel = init_select(&receivers_ls);
             loop {
                 let index = sel.ready();
-                if !readable_ports[index] {
-                    continue;
-                }
-
                 match internal_err!(receivers_ls[index].recv())? {
                     ExecutorOperation::Terminate => {
                         port_states[index] = InputPortState::Terminated;
@@ -613,7 +601,7 @@ impl<'a> DagExecutor<'a> {
                     ExecutorOperation::Commit { epoch_details } => {
                         assert_eq!(epoch_details.id, common_epoch.id);
                         commits_received += 1;
-                        readable_ports[index] = false;
+                        sel.remove(index);
                         common_epoch.details.extend(epoch_details.details.clone());
 
                         if commits_received == receivers_ls.len() {
@@ -622,9 +610,7 @@ impl<'a> DagExecutor<'a> {
                             state_writer.store_commit_info(&common_epoch)?;
                             common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
                             commits_received = 0;
-                            for v in &mut readable_ports {
-                                *v = true;
-                            }
+                            sel = init_select(&receivers_ls);
                         }
                     }
                     op => {
