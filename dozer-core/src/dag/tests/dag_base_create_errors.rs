@@ -15,7 +15,6 @@ use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT
 
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
-
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Barrier};

@@ -15,8 +15,6 @@ use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
-
-
 use std::collections::HashMap;
 use std::panic;
 use std::sync::atomic::AtomicBool;

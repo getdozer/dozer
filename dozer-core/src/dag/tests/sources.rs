@@ -3,11 +3,8 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
-
 use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
-
-
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 

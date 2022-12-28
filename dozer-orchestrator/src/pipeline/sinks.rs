@@ -310,7 +310,7 @@ mod tests {
     use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
     use dozer_core::dag::node::{NodeHandle, Sink};
     use dozer_core::storage::lmdb_storage::LmdbEnvironmentManager;
-    
+
     use dozer_types::types::{Field, IndexDefinition, Operation, Record, SchemaIdentifier};
     use std::collections::HashMap;
     use tempdir::TempDir;
