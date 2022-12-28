@@ -147,6 +147,10 @@ impl EpochManager {
             // if it is, we have to ensure all participants are notified before proceeding
             // to the next epoch.
             true => {
+                if !force {
+                    assert!(!self.epoch_forced, "Epoch is already closing with a forced flag but someone believes otherwise");
+                }
+
                 let curr_participant_state = self
                     .epoch_participants
                     .get_mut(participant)

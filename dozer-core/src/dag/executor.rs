@@ -399,11 +399,17 @@ impl<'a> DagExecutor<'a> {
             loop {
                 match st_receiver.recv_timeout(lt_executor_options.commit_time_threshold) {
                     Ok((port, txid, seq_in_tx, op)) => {
-                        let stop_req = !lt_running.load(Ordering::SeqCst);
-                        let committed = dag_fw.send_and_trigger_commit_if_needed(
-                            txid, seq_in_tx, op, port, stop_req,
+                        // First check if termination was requested.
+                        let terminating = !lt_running.load(Ordering::SeqCst);
+                        // If this commit was not requested with termination at the start, we shouldn't terminate either.
+                        let terminating = dag_fw.send_and_trigger_commit_if_needed(
+                            txid,
+                            seq_in_tx,
+                            op,
+                            port,
+                            terminating,
                         )?;
-                        if committed && stop_req {
+                        if terminating {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Waiting on term barrier", lt_handle);
                             drop(st_receiver);
@@ -412,9 +418,11 @@ impl<'a> DagExecutor<'a> {
                         }
                     }
                     Err(RecvTimeoutError::Timeout) => {
-                        let stop_req = !lt_running.load(Ordering::SeqCst);
-                        let committed = dag_fw.trigger_commit_if_needed(stop_req)?;
-                        if committed && stop_req {
+                        // First check if termination was requested.
+                        let terminating = !lt_running.load(Ordering::SeqCst);
+                        // If this commit was not requested with termination at the start, we shouldn't terminate either.
+                        let terminating = dag_fw.trigger_commit_if_needed(terminating)?;
+                        if terminating {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Waiting on term barrier", lt_handle);
                             drop(st_receiver);
