@@ -610,8 +610,8 @@ impl<'a> DagExecutor<'a> {
 
                         if commits_received == receivers_ls.len() {
                             info!("[{}] Checkpointing - {}", handle, &epoch_details);
-                            snk.commit(&epoch_details, &master_tx)?;
-                            state_writer.store_commit_info(&epoch_details)?;
+                            snk.commit(&common_epoch, &master_tx)?;
+                            state_writer.store_commit_info(&common_epoch)?;
                             common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
                             commits_received = 0;
                             for v in &mut readable_ports {
