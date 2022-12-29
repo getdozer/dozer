@@ -106,7 +106,7 @@ impl Ingestor {
 mod tests {
     use crate::ingestion::IngestionConfig;
 
-    use super::IngestionMessage::{Begin, Commit, OperationEvent, Schema};
+    use super::IngestionMessage::{Begin, Commit, OperationEvent};
     use super::{ChannelForwarder, IngestionOperation, Ingestor, IngestorForwarder};
     use crossbeam::channel::unbounded;
     use dozer_types::types::{Operation, Record};
@@ -142,7 +142,6 @@ mod tests {
             lsn: 412142432,
         };
 
-        let table_name = "test".to_string();
         ingestor.handle_message((1, Begin())).unwrap();
         ingestor
             .handle_message((1, OperationEvent(operation_event_message.clone())))
