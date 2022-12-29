@@ -70,6 +70,14 @@ impl Executor {
         Ok(schema_map)
     }
 
+    pub fn set_cache_endpoints(
+        &mut self,
+        cache_endpoints: Vec<CacheEndpoint>
+    ) -> Result<(), OrchestrationError> {
+        self.cache_endpoints = cache_endpoints;
+        Ok(())
+    }
+
     #[allow(clippy::type_complexity)]
     pub fn get_connection_map(
         sources: &[Source],
@@ -188,7 +196,7 @@ impl Executor {
             running_wait,
         )?;
 
-        exec.start()?;
+        exec.start().expect("Failed to start DagExecutor");
 
         exec.join().map_err(OrchestrationError::ExecutionError)
     }

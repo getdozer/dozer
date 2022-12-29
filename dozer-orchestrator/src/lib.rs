@@ -17,21 +17,12 @@ mod test_utils;
 mod utils;
 
 pub trait Orchestrator {
-    fn init(
-        &mut self,
-        running: Arc<AtomicBool>,
-        api_notifier: Option<Sender<bool>>,
-        sender: Sender<PipelineResponse>,
-        ingestor: Arc<RwLock<Ingestor>>,
-        iterator: Arc<RwLock<IngestionIterator>>,
-    ) -> Result<(), OrchestrationError>;
+    fn init(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
-        ingestor: Arc<RwLock<Ingestor>>,
-        iterator: Arc<RwLock<IngestionIterator>>,
     ) -> Result<(), OrchestrationError>;
     fn list_connectors(&self)
         -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError>;

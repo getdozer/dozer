@@ -8,32 +8,39 @@ use crate::Orchestrator;
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::{
     actix_web::dev::ServerHandle,
-    grpc::{
-        self, internal::internal_pipeline_server::start_internal_pipeline_server,
-        internal_grpc::PipelineResponse,
-    },
+    grpc::{self, internal_grpc::PipelineResponse},
     rest, CacheEndpoint,
 };
-use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
+use dozer_cache::cache::{Cache, CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
-use dozer_ingestion::ingestion::IngestionConfig;
+use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator};
 use dozer_ingestion::ingestion::Ingestor;
-use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::crossbeam::channel::{unbounded, Sender};
 use dozer_types::models::app_config::Config;
 use dozer_types::serde_yaml;
-use dozer_types::types::Schema;
+use dozer_types::types::{IndexDefinition, Schema};
 use std::collections::HashMap;
-use std::fs;
+use std::{fs, thread};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::{sync::Arc, thread};
+use std::sync::Arc;
 use tokio::sync::oneshot;
+use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
+use dozer_core::dag::dag::Dag;
+use dozer_core::dag::dag_schemas::{DagSchemaManager, NodeSchemas};
+use dozer_core::dag::node::PortHandle;
+use dozer_types::crossbeam::channel;
+use dozer_types::parking_lot::RwLock;
+use crate::pipeline::CacheSinkFactory;
+
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
     pub cache_common_options: CacheCommonOptions,
     pub cache_read_options: CacheReadOptions,
     pub cache_write_options: CacheWriteOptions,
+    pub cache_endpoints: Vec<CacheEndpoint>,
+    pub parent_dag: Dag,
 }
 
 impl SimpleOrchestrator {
@@ -67,39 +74,103 @@ impl SimpleOrchestrator {
             .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
         Ok(())
     }
+    pub fn enrich_cache_endpoints(
+        &mut self,
+        cache_endpoints: Vec<CacheEndpoint>
+    )
+    -> Result<(), OrchestrationError> {
+        self.cache_endpoints = cache_endpoints;
+        Ok(())
+    }
 }
 
 impl Orchestrator for SimpleOrchestrator {
+    fn init(
+        &mut self,
+        running: Arc<AtomicBool>,
+    ) -> Result<(), OrchestrationError> {
+        self.write_internal_config()?;
+
+        // Ingestion channel
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
+        // gRPC notifier channel
+        let (sender, _) = channel::unbounded::<PipelineResponse>();
+
+        let mut executor = Executor::new(
+            self.config.sources.clone(),
+            self.cache_endpoints.clone(),
+            ingestor.clone(),
+            iterator.clone(),
+            running.clone(),
+            get_pipeline_dir(self.config.to_owned()),
+        );
+
+        // create dag placeholder for cache endpoint enrichment
+        self.parent_dag = executor
+            .init_dag(Some(sender.clone()))
+            .expect("Failed to initialize dag");
+
+        // parent_dag is ready
+        let schema_manager = DagSchemaManager::new(&self.parent_dag)?;
+        let schema_map = schema_manager.get_all_schemas().clone();
+        let node_schemas = schema_map.values().cloned().collect::<Vec<NodeSchemas>>();
+
+        self.enrich_cache_endpoints(self
+            .config
+            .endpoints
+            .iter()
+            .enumerate()
+            .map(|(i, e)| {
+                let mut cache_common_options = self.cache_common_options.clone();
+                cache_common_options
+                    .set_path(get_cache_dir(self.config.to_owned()).join(e.name.clone()));
+                let cache_options = CacheOptions {
+                    common: cache_common_options,
+                    kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
+                };
+                let lmdb_cache =
+                    LmdbCache::new(cache_options).expect("Failed to initialize lmdb cache");
+
+                let schema = node_schemas
+                    .get(0)
+                    .unwrap()
+                    .output_schemas
+                    .get(&(i as PortHandle))
+                    .expect("Error getting schema for endpoint initialization");
+
+                // Automatically create secondary indexes
+                let secondary_indexes = CacheSinkFactory::create_secondary_indexes(schema.clone());
+
+                lmdb_cache
+                    .insert_schema(e.name.as_str(), schema, &secondary_indexes)
+                    .expect("Failed to insert schema into cache endpoint");
+
+                CacheEndpoint {
+                    cache: Arc::from(lmdb_cache),
+                    endpoint: e.to_owned(),
+                }
+            })
+            .collect()).expect("Failed to enrich orchestrator with cache endpoints");
+
+        // enrich executor with updated cache endpoint
+        executor.set_cache_endpoints(self.cache_endpoints.clone()).expect("Failed to enrich executor with cache enpoints");
+
+        self.parent_dag = executor
+            .init_dag(Some(sender))
+            .expect("Failed to initialize dag");
+
+        Ok(())
+    }
+
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
         let running2 = running.clone();
-        // gRPC notifier channel
-        let cache_dir = get_cache_dir(self.config.to_owned());
 
-        let cache_endpoints: Vec<CacheEndpoint> = self
-            .config
-            .endpoints
-            .iter()
-            .map(|e| {
-                let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(cache_dir.join(e.name.clone()));
-                CacheEndpoint {
-                    cache: Arc::new(
-                        LmdbCache::new(CacheOptions {
-                            common: cache_common_options,
-                            kind: CacheOptionsKind::ReadOnly(self.cache_read_options.clone()),
-                        })
-                        .unwrap(),
-                    ),
-                    endpoint: e.to_owned(),
-                }
-            })
-            .collect();
-
-        let ce2 = cache_endpoints.clone();
-        let ce3 = cache_endpoints;
+        let ce2 = self.cache_endpoints.clone();
+        let ce3 = self.cache_endpoints.clone();
 
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
@@ -145,37 +216,15 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        self.write_internal_config()?;
-        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
         // gRPC notifier channel
-        let (sender, receiver) = channel::unbounded::<PipelineResponse>();
+        let (_, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
         let _intern_pipeline_thread = thread::spawn(move || {
-            _ = start_internal_pipeline_server(internal_app_config, receiver);
+            _ = start_internal_pipeline_server(internal_app_config, receiver).expect("Failed to start the internal pipeline server");
         });
-        // Ingestion Channe;
-        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-        let cache_dir = get_cache_dir(self.config.to_owned());
 
-        let cache_endpoints: Vec<CacheEndpoint> = self
-            .config
-            .endpoints
-            .iter()
-            .map(|e| {
-                let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(cache_dir.join(e.name.clone()));
-                CacheEndpoint {
-                    cache: Arc::new(
-                        LmdbCache::new(CacheOptions {
-                            common: cache_common_options,
-                            kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
-                        })
-                        .unwrap(),
-                    ),
-                    endpoint: e.to_owned(),
-                }
-            })
-            .collect();
+        // Ingestion channel
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -183,17 +232,16 @@ impl Orchestrator for SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let sources = self.config.sources.clone();
-
         let executor = Executor::new(
-            sources,
-            cache_endpoints,
+            self.config.sources.clone(),
+            self.cache_endpoints.clone(),
             ingestor,
             iterator,
             running,
-            pipeline_home_dir,
+            get_pipeline_dir(self.config.to_owned()),
         );
-        executor.run(Some(sender))
+
+        executor.run_dag(&self.parent_dag)
     }
 
     fn list_connectors(

@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{panic, process, thread};
+use std::borrow::{Borrow, BorrowMut};
 use tokio::runtime::Runtime;
 
 fn main() {
@@ -62,16 +63,13 @@ fn run() -> Result<(), OrchestrationError> {
     let configuration = load_config(cli.config_path)?;
     let mut dozer = Dozer::new(configuration);
 
-    // Ingestion channel
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-    // gRPC notifier channel
-    let (sender, _) = channel::unbounded::<PipelineResponse>();
-
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
-            Commands::Init(_init) => dozer.init(running, None, sender, ingestor, iterator),
+            Commands::Init(_init) => {
+                render_logo();
+                dozer.init(running)
+            },
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
                     render_logo();
@@ -86,7 +84,7 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => {
                     render_logo();
-                    dozer.run_apps(running, None, ingestor, iterator)
+                    dozer.run_apps(running, None)
                 }
             },
             Commands::Connector(sources) => match sources.command {
@@ -111,30 +109,25 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        let mut pre_dozer = dozer.clone();
         let mut dozer_api = dozer.clone();
-
         let (tx, rx) = channel::unbounded::<bool>();
 
-        // Initialize with schema
-        pre_dozer
-            .init(
-                running.clone(),
-                Some(tx.clone()),
-                sender,
-                ingestor.clone(),
-                iterator.clone(),
-            )
+        // Initialize with static schema
+        dozer.borrow_mut()
+            .init(running.clone())
             .expect("Failed to initialize dozer with schema");
 
         let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer.run_apps(running, Some(tx), ingestor, iterator) {
+            if let Err(e) = dozer.clone().run_apps(running, Some(tx)) {
                 std::panic::panic_any(e);
             }
         });
 
         // Wait for pipeline to initialize caches before starting api server
-        rx.recv().unwrap();
+        rx.recv().expect("Failed to wait for pipeline to initialize cache before starting api server");
+
+        let cache_endpoints = dozer.cache_endpoints;
+        dozer_api.enrich_cache_endpoints(cache_endpoints).unwrap();
 
         thread::spawn(move || {
             if let Err(e) = dozer_api.run_api(running_api) {
@@ -142,7 +135,7 @@ fn run() -> Result<(), OrchestrationError> {
             }
         });
 
-        pipeline_thread.join().unwrap();
+        pipeline_thread.join().expect("Failed to join the pipeline thread");
         Ok(())
     }
 }

@@ -260,14 +260,14 @@ impl Cache for LmdbCache {
             self.secondary_indexes.write().insert((schema_id, idx), db);
         }
 
-        let mut txn: RwTransaction = self
-            .env
-            .begin_rw_txn()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        self.schema_db
-            .insert(&mut txn, name, schema, secondary_indexes)?;
-        txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        // let mut txn: RwTransaction = self
+        //     .env
+        //     .begin_rw_txn()
+        //     .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        // self.schema_db
+        //     .insert(&mut txn, name, schema, secondary_indexes)?;
+        // txn.commit()
+        //     .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
     }
 }

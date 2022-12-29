@@ -91,8 +91,13 @@ impl CacheSinkFactory {
             version: 1,
         });
 
+        let secondary_indexes = Self::create_secondary_indexes(schema.clone());
+        Ok((schema, secondary_indexes))
+    }
+
+    pub fn create_secondary_indexes(schema: Schema) -> Vec<IndexDefinition> {
         // Automatically create secondary indexes
-        let secondary_indexes = schema
+        schema
             .fields
             .iter()
             .enumerate()
@@ -113,8 +118,7 @@ impl CacheSinkFactory {
                 // Skip creating indexes
                 FieldType::Binary | FieldType::Bson => None,
             })
-            .collect();
-        Ok((schema, secondary_indexes))
+            .collect()
     }
 
     fn get_schema_hash(&self) -> u64 {
@@ -202,11 +206,13 @@ impl Sink for CacheSink {
                 self.api_endpoint.name
             );
             schema.print().printstd();
-            self.cache
-                .insert_schema(&self.api_endpoint.name, schema, secondary_indexes)
-                .map_err(|e| {
-                    ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
-                })?;
+            if self.cache.get_schema_and_indexes_by_name(&self.api_endpoint.name).is_err() {
+                self.cache
+                    .insert_schema(&self.api_endpoint.name, schema, secondary_indexes)
+                    .map_err(|e| {
+                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+                    })?;
+            }
         }
         Ok(())
     }
