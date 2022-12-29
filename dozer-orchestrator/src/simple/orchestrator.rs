@@ -224,7 +224,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let executor = Executor::new(
             sources,
-            cache_endpoints.clone(),
+            cache_endpoints,
             ingestor,
             iterator,
             Arc::new(AtomicBool::new(true)),
