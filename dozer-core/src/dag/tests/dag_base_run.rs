@@ -50,6 +50,14 @@ impl ProcessorFactory for NoopProcessorFactory {
         )]
     }
 
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -225,6 +233,14 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
             DEFAULT_PORT_HANDLE,
             OutputPortDefOptions::default(),
         )]
+    }
+
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(

@@ -57,6 +57,11 @@ impl SourceFactory for TestSourceFactory {
             .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
             .collect()
     }
+
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -141,6 +146,11 @@ impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
+
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,

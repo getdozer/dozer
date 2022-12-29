@@ -45,6 +45,11 @@ impl SourceFactory for GeneratorSourceFactory {
             OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
         )]
     }
+
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -137,6 +142,11 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
             ),
         ]
     }
+
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,

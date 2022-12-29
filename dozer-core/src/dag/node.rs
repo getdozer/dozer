@@ -101,6 +101,7 @@ impl OutputPortDef {
 pub trait SourceFactory: Send + Sync + Debug {
     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
@@ -123,6 +124,11 @@ pub trait ProcessorFactory: Send + Sync + Debug {
     ) -> Result<Schema, ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
@@ -149,6 +155,7 @@ pub trait SinkFactory: Send + Sync + Debug {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
