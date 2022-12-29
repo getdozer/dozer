@@ -91,10 +91,6 @@ impl Ingestor {
                 self.sender
                     .forward((connector_id, IngestionOperation::OperationEvent(event)))?;
             }
-            IngestionMessage::Schema(name, schema) => {
-                self.sender
-                    .forward((connector_id, IngestionOperation::SchemaUpdate(name, schema)))?;
-            }
             IngestionMessage::Commit(_event) => {
                 debug!("Batch processing took: {:.2?}", self.timer.elapsed());
             }
@@ -124,13 +120,6 @@ mod tests {
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         let mut ingestor = Ingestor::new(config, forwarder);
 
-        // Expected seq no - 1
-        let schema_message = dozer_types::types::Schema {
-            identifier: None,
-            fields: vec![],
-            primary_index: vec![],
-        };
-
         // Expected seq no - 2
         let operation_event_message = dozer_types::types::OperationEvent {
             seq_no: 0,
@@ -156,9 +145,6 @@ mod tests {
         let table_name = "test".to_string();
         ingestor.handle_message((1, Begin())).unwrap();
         ingestor
-            .handle_message((1, Schema(table_name.clone(), schema_message.clone())))
-            .unwrap();
-        ingestor
             .handle_message((1, OperationEvent(operation_event_message.clone())))
             .unwrap();
         ingestor
@@ -169,7 +155,6 @@ mod tests {
             .unwrap();
 
         let expected_op_event_message = vec![
-            IngestionOperation::SchemaUpdate(table_name, schema_message),
             IngestionOperation::OperationEvent(operation_event_message),
             IngestionOperation::OperationEvent(operation_event_message2),
         ]

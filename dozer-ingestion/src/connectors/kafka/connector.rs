@@ -72,7 +72,7 @@ impl Connector for KafkaConnector {
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
         Runtime::new().unwrap().block_on(async {
-            run(broker, topic, ingestor, connector_id, self.tables.clone()).await
+            run(broker, topic, ingestor, connector_id).await
         })
     }
 
@@ -96,7 +96,6 @@ async fn run(
     topic: String,
     ingestor: Arc<RwLock<Ingestor>>,
     connector_id: u64,
-    tables: Option<Vec<TableInfo>>,
 ) -> Result<(), ConnectorError> {
     let con = Consumer::from_hosts(vec![broker])
         .with_topic(topic)
@@ -105,7 +104,6 @@ async fn run(
         .create()
         .map_err(DebeziumConnectionError)?;
 
-    let table_name = tables.unwrap().get(0).unwrap().name.clone();
     let consumer = DebeziumStreamConsumer::default();
-    consumer.run(con, ingestor, connector_id, table_name)
+    consumer.run(con, ingestor, connector_id)
 }

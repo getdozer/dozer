@@ -43,13 +43,13 @@ impl SourceBuilder {
                         port += 1;
                     }
 
-                    let source_factory = NewConnectorSourceFactory {
-                        ingestor: Arc::clone(&ingestor),
-                        iterator: Arc::clone(&iterator),
-                        ports: ports.clone(),
+                    let source_factory = NewConnectorSourceFactory::new(
+                        Arc::clone(&ingestor),
+                        Arc::clone(&iterator),
+                        ports.clone(),
                         tables,
-                        connection: connection.clone(),
-                    };
+                        connection.clone(),
+                    );
 
                     asm.add(AppSource::new(
                         conn.clone(),

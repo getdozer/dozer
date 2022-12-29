@@ -84,8 +84,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
         &self,
         mut con: Consumer,
         ingestor: Arc<RwLock<Ingestor>>,
-        connector_id: u64,
-        table_name: String,
+        connector_id: u64
     ) -> Result<(), ConnectorError> {
         loop {
             let mss = con.poll().map_err(|e| {
@@ -111,14 +110,6 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             map_schema(&value_struct.schema, &key_struct.schema).map_err(|e| {
                                 ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
                             })?;
-
-                        ingestor
-                            .write()
-                            .handle_message((
-                                connector_id,
-                                IngestionMessage::Schema(table_name.clone(), schema.clone()),
-                            ))
-                            .map_err(ConnectorError::IngestorError)?;
 
                         // When update happens before is null.
                         // If PK value changes, then debezium creates two events - delete and insert

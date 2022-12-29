@@ -19,8 +19,6 @@ pub enum IngestionOperation {
 pub enum IngestionMessage {
     Begin(),
     OperationEvent(OperationEvent),
-    // Table Name, Schema
-    Schema(String, Schema),
     Commit(Commit),
 }
 
