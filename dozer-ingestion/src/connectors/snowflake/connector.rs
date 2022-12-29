@@ -18,6 +18,7 @@ use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[cfg(feature = "snowflake")]
 use crate::errors::SnowflakeError::ConnectionError;
+use dozer_types::models::source::Source;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
@@ -41,6 +42,10 @@ impl SnowflakeConnector {
 }
 
 impl Connector for SnowflakeConnector {
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
+        sources.iter().map(|s| vec![s.clone()]).collect()
+    }
+
     #[cfg(feature = "snowflake")]
     fn get_schemas(
         &self,
@@ -104,7 +109,7 @@ impl Connector for SnowflakeConnector {
 
     fn stop(&self) {}
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
     }
 }

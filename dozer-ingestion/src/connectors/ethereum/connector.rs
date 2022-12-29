@@ -8,6 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthConfig, EthFilter};
+use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
@@ -206,7 +207,7 @@ impl Connector for EthConnector {
         todo!()
     }
 
-    fn validate(&self) -> Result<(), ConnectorError> {
+    fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         // Return contract parsing error
         for contract in &self.config.contracts {
             let res: Result<Contract, serde_json::Error> = serde_json::from_str(&contract.abi);
@@ -215,5 +216,9 @@ impl Connector for EthConnector {
             }
         }
         Ok(())
+    }
+
+    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
+        vec![sources]
     }
 }

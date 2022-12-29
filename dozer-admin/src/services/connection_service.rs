@@ -170,7 +170,7 @@ impl ConnectionService {
         };
         let validate_result = thread::spawn(|| {
             let connector = get_connector(connection).map_err(|err| err.to_string())?;
-            connector.validate().map_err(|err| err.to_string())
+            connector.validate(None).map_err(|err| err.to_string())
         });
         validate_result
             .join()

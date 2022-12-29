@@ -1452,6 +1452,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "handlebars",
+ "include_dir",
  "indicatif",
  "serde",
  "serde_json",
