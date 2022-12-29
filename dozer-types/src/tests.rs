@@ -1,4 +1,6 @@
 #[cfg(test)]
+mod api_config_yaml_deserialize;
+#[cfg(test)]
 mod dozer_yaml_deserialize;
 #[cfg(test)]
 mod eth_yaml_deserialize;

@@ -34,21 +34,28 @@ pub struct ApiConfig {
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiRest {
     #[prost(uint32, tag = "1")]
+    #[serde(default = "default_rest_port")]
     pub port: u32,
     #[prost(string, tag = "2")]
+    #[serde(default = "default_host")]
     pub host: String,
     #[prost(bool, tag = "3")]
+    #[serde(default = "default_cors")]
     pub cors: bool,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiGrpc {
     #[prost(uint32, tag = "1")]
+    #[serde(default = "default_grpc_port")]
     pub port: u32,
     #[prost(string, tag = "2")]
+    #[serde(default = "default_host")]
     pub host: String,
     #[prost(bool, tag = "3")]
+    #[serde(default = "default_cors")]
     pub cors: bool,
     #[prost(bool, tag = "4")]
+    #[serde(default = "default_enable_web")]
     pub web: bool,
 }
 
@@ -76,20 +83,36 @@ fn default_pipeline_internal() -> Option<ApiInternal> {
         home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),
     })
 }
-fn default_api_rest() -> Option<ApiRest> {
+pub(crate) fn default_api_rest() -> Option<ApiRest> {
     Some(ApiRest {
-        port: 8080,
-        host: "[::0]".to_owned(),
-        cors: true,
+        port: default_rest_port(),
+        host: default_host(),
+        cors: default_cors(),
     })
 }
-fn default_api_grpc() -> Option<ApiGrpc> {
+pub(crate) fn default_api_grpc() -> Option<ApiGrpc> {
     Some(ApiGrpc {
-        port: 50051,
-        host: "[::0]".to_owned(),
-        cors: true,
-        web: true,
+        port: default_grpc_port(),
+        host: default_host(),
+        cors: default_cors(),
+        web: default_enable_web(),
     })
+}
+fn default_grpc_port() -> u32 {
+    50051
+}
+fn default_rest_port() -> u32 {
+    8080
+}
+fn default_enable_web() -> bool {
+    true
+}
+fn default_cors() -> bool {
+    true
+}
+
+fn default_host() -> String {
+    "[::0]".to_owned()
 }
 pub fn default_api_config() -> ApiConfig {
     ApiConfig {

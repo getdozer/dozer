@@ -3,7 +3,7 @@ use crate::{
     models::connection::Authentication,
 };
 #[test]
-fn test_deserialize_eth_config_standard() {
+fn standard() {
     let eth_config = r#"
   !Ethereum  
   filter:
@@ -30,7 +30,7 @@ fn test_deserialize_eth_config_standard() {
 }
 
 #[test]
-fn test_deserialize_eth_config_without_empty_array() {
+fn config_without_empty_array() {
     let eth_config = r#"
   !Ethereum  
   filter:

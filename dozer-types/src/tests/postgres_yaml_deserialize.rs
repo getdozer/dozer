@@ -1,6 +1,6 @@
 use crate::models::connection::{Authentication, PostgresAuthentication};
 #[test]
-fn test_deserialize_postgres_standard() {
+fn standard() {
     let posgres_config = r#"
     !Postgres
     user: postgres
@@ -21,7 +21,7 @@ fn test_deserialize_postgres_standard() {
     assert_eq!(expected, deserializer_result);
 }
 #[test]
-fn test_deserialize_postgres_error_missing_field() {
+fn error_missing_field() {
     let posgres_config = r#"
     !Postgres
     user: postgres
@@ -36,4 +36,22 @@ fn test_deserialize_postgres_error_missing_field() {
         .unwrap()
         .to_string()
         .starts_with("missing field `password`"))
+}
+
+#[test]
+fn error_wrong_tag() {
+    let posgres_config = r#"
+    !Postgres112
+    user: postgres
+    host: localhost
+    port: 5432
+    database: users
+  "#;
+    let deserializer_result = serde_yaml::from_str::<Authentication>(posgres_config);
+    assert!(deserializer_result.is_err());
+    assert!(deserializer_result
+      .err()
+      .unwrap()
+      .to_string()
+      .starts_with("unknown variant `Postgres112`, expected one of `Postgres`, `Ethereum`, `Events`, `Snowflake`, `Kafka`"))
 }
