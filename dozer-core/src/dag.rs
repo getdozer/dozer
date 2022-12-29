@@ -5,7 +5,7 @@ pub mod appsource;
 pub mod channels;
 pub mod dag;
 mod dag_metadata;
-mod dag_schemas;
+pub mod dag_schemas;
 pub mod epoch;
 pub mod errors;
 pub mod executor;

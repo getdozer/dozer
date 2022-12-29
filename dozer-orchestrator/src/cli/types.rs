@@ -22,6 +22,7 @@ pub enum Commands {
     Api(Api),
     App(App),
     Connector(Connector),
+    Init,
 }
 
 #[derive(Debug, Args)]

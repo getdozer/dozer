@@ -35,7 +35,7 @@ impl NodeSchemas {
     }
 }
 
-pub(crate) struct DagSchemaManager<'a> {
+pub struct DagSchemaManager<'a> {
     dag: &'a Dag,
     schemas: HashMap<NodeHandle, NodeSchemas>,
 }

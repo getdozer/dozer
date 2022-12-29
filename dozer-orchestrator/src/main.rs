@@ -98,6 +98,7 @@ fn run() -> Result<(), OrchestrationError> {
                     Ok(())
                 }
             },
+            Commands::Init => dozer.init(),
         }
     } else {
         render_logo();

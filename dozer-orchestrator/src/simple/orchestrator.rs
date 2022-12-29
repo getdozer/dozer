@@ -16,6 +16,7 @@ use dozer_api::{
 };
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
+use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
@@ -24,7 +25,7 @@ use dozer_types::serde_yaml;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
@@ -157,25 +158,7 @@ impl Orchestrator for SimpleOrchestrator {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
-        let cache_endpoints: Vec<CacheEndpoint> = self
-            .config
-            .endpoints
-            .iter()
-            .map(|e| {
-                let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(cache_dir.join(e.name.clone()));
-                CacheEndpoint {
-                    cache: Arc::new(
-                        LmdbCache::new(CacheOptions {
-                            common: cache_common_options,
-                            kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
-                        })
-                        .unwrap(),
-                    ),
-                    endpoint: e.to_owned(),
-                }
-            })
-            .collect();
+        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir);
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -219,5 +202,68 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::GenerateTokenFailed(
             "Missing api config or security input".to_owned(),
         ))
+    }
+
+    fn init(&mut self) -> Result<(), OrchestrationError> {
+        self.write_internal_config()?;
+        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+
+        // Ingestion Channe;
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        let cache_dir = get_cache_dir(self.config.to_owned());
+
+        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir);
+
+        let sources = self.config.sources.clone();
+
+        let executor = Executor::new(
+            sources,
+            cache_endpoints.clone(),
+            ingestor,
+            iterator,
+            Arc::new(AtomicBool::new(true)),
+            pipeline_home_dir,
+        );
+
+        let dag = executor.build_pipeline(None)?;
+
+        let sinks = dag.get_sinks();
+        let schema_manager = DagSchemaManager::new(&dag)?;
+        // Assuming the cache_endpoint will follow the same order as sinks
+        let mut ce_iterator = cache_endpoints.into_iter();
+        for (sink_handle, sink) in sinks {
+            let schemas = schema_manager.get_node_input_schemas(&sink_handle)?;
+            let schema = schemas.values().next().expect("Schema is missing in sink");
+            let ce = ce_iterator
+                .next()
+                .expect("cache_endpoint is expected to have the same length as sinks");
+
+            let endpoint_name = ce.endpoint.name;
+        }
+
+        Ok(())
+    }
+}
+
+impl SimpleOrchestrator {
+    fn get_cache_endpoints(&self, cache_dir: PathBuf) -> Vec<CacheEndpoint> {
+        self.config
+            .endpoints
+            .iter()
+            .map(|e| {
+                let mut cache_common_options = self.cache_common_options.clone();
+                cache_common_options.set_path(cache_dir.join(e.name.clone()));
+                CacheEndpoint {
+                    cache: Arc::new(
+                        LmdbCache::new(CacheOptions {
+                            common: cache_common_options,
+                            kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
+                        })
+                        .unwrap(),
+                    ),
+                    endpoint: e.to_owned(),
+                }
+            })
+            .collect()
     }
 }
