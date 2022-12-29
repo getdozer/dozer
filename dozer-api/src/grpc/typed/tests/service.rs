@@ -25,7 +25,7 @@ use dozer_types::{
 use futures_util::FutureExt;
 use std::{collections::HashMap, env, path::PathBuf, str::FromStr, time::Duration};
 
-use super::generated::films::{EventType, FilmEventRequest};
+use super::{generated::films::FilmEventRequest, types::EventType};
 use crate::test_utils;
 use tokio::{
     sync::{

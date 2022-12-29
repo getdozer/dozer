@@ -12,13 +12,14 @@ use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Field, Operation, Schema};
-use fp_rust::sync::CountDownLatch;
+
 use std::collections::HashMap;
 
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
+use crate::dag::epoch::Epoch;
 use tempdir::TempDir;
 
 macro_rules! chk {
@@ -30,6 +31,7 @@ macro_rules! chk {
 pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = 50;
 pub(crate) const PASSTHROUGH_PROCESSOR_OUTPUT_PORT: PortHandle = 60;
 
+#[derive(Debug)]
 pub(crate) struct PassthroughProcessorFactory {}
 
 impl PassthroughProcessorFactory {
@@ -59,6 +61,15 @@ impl ProcessorFactory for PassthroughProcessorFactory {
             OutputPortDefOptions::new(true, true, true),
         )]
     }
+
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -68,6 +79,7 @@ impl ProcessorFactory for PassthroughProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PassthroughProcessor {}
 
 impl Processor for PassthroughProcessor {
@@ -77,9 +89,7 @@ impl Processor for PassthroughProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
@@ -97,6 +107,7 @@ impl Processor for PassthroughProcessor {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct RecordReaderProcessorFactory {}
 
 impl RecordReaderProcessorFactory {
@@ -129,6 +140,15 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
             OutputPortDefOptions::default(),
         )]
     }
+
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -138,6 +158,7 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct RecordReaderProcessor {
     ctr: u64,
 }
@@ -149,9 +170,7 @@ impl Processor for RecordReaderProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
@@ -186,7 +205,7 @@ fn test_run_dag_reacord_reader() {
 
     const TOT: u64 = 1_000_000;
 
-    let sync = Arc::new(CountDownLatch::new(1));
+    let sync = Arc::new(Barrier::new(2));
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), false);
     let passthrough = PassthroughProcessorFactory::new();
@@ -254,9 +273,9 @@ fn test_run_dag_reacord_reader() {
 fn test_run_dag_reacord_reader_from_src() {
     init_log4rs();
 
-    const TOT: u64 = 1_000_000;
+    const TOT: u64 = 1_000;
 
-    let sync = Arc::new(CountDownLatch::new(1));
+    let sync = Arc::new(Barrier::new(2));
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), true);
     let record_reader = RecordReaderProcessorFactory::new();

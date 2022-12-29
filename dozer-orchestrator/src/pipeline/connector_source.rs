@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 
+#[derive(Debug)]
 pub struct NewConnectorSourceFactory {
     pub ingestor: Arc<RwLock<Ingestor>>,
     pub iterator: Arc<RwLock<IngestionIterator>>,
@@ -71,6 +72,10 @@ impl SourceFactory for NewConnectorSourceFactory {
             .collect()
     }
 
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -85,6 +90,7 @@ impl SourceFactory for NewConnectorSourceFactory {
     }
 }
 
+#[derive(Debug)]
 pub struct NewConnectorSource {
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,

@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use super::IngestionConfig;
 
+#[derive(Debug)]
 pub struct ChannelForwarder {
     pub sender: crossbeam::channel::Sender<(u64, IngestionOperation)>,
 }
@@ -22,6 +23,7 @@ impl IngestorForwarder for ChannelForwarder {
         }
     }
 }
+#[derive(Debug)]
 pub struct IngestionIterator {
     pub rx: Receiver<(u64, IngestionOperation)>,
 }
@@ -52,6 +54,7 @@ impl IngestionIterator {
     }
 }
 
+#[derive(Debug)]
 pub struct Ingestor {
     pub sender: Arc<Box<dyn IngestorForwarder>>,
     timer: Instant,

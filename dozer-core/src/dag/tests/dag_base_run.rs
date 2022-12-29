@@ -16,17 +16,18 @@ use crate::dag::tests::sources::{
 };
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
-use fp_rust::sync::CountDownLatch;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
 use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
+use crate::dag::epoch::Epoch;
 use tempdir::TempDir;
 
+#[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
 
 impl ProcessorFactory for NoopProcessorFactory {
@@ -49,6 +50,14 @@ impl ProcessorFactory for NoopProcessorFactory {
         )]
     }
 
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -58,6 +67,7 @@ impl ProcessorFactory for NoopProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
@@ -67,9 +77,7 @@ impl Processor for NoopProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
@@ -89,12 +97,12 @@ impl Processor for NoopProcessor {
 
 #[test]
 fn test_run_dag() {
-    init_log4rs();
+    // dozer_tracing::init_telemetry(false).unwrap();
 
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(2));
 
     let source_handle = NodeHandle::new(Some(1), 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -146,7 +154,7 @@ fn test_run_dag_and_stop() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(2));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -201,6 +209,7 @@ fn test_run_dag_and_stop() {
     ));
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopJoinProcessorFactory {}
 
 pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
@@ -226,6 +235,14 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         )]
     }
 
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -235,6 +252,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
@@ -244,9 +262,7 @@ impl Processor for NoopJoinProcessor {
 
     fn commit(
         &self,
-        _source: &NodeHandle,
-        _txid: u64,
-        _seq_in_tx: u64,
+        _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         Ok(())
@@ -271,7 +287,7 @@ fn test_run_dag_2_sources_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(3));
 
     let source1_handle = NodeHandle::new(None, 1.to_string());
     let source2_handle = NodeHandle::new(None, 2.to_string());
@@ -338,7 +354,7 @@ fn test_run_dag_2_sources_stateful() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(3));
 
     let source1_handle = NodeHandle::new(None, 1.to_string());
     let source2_handle = NodeHandle::new(None, 2.to_string());
@@ -405,7 +421,7 @@ fn test_run_dag_1_source_2_ports_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(CountDownLatch::new(1));
+    let latch = Arc::new(Barrier::new(2));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());

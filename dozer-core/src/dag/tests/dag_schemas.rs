@@ -18,6 +18,7 @@ macro_rules! chk {
     };
 }
 
+#[derive(Debug)]
 struct TestUsersSourceFactory {}
 
 impl SourceFactory for TestUsersSourceFactory {
@@ -45,6 +46,10 @@ impl SourceFactory for TestUsersSourceFactory {
         )]
     }
 
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -53,6 +58,7 @@ impl SourceFactory for TestUsersSourceFactory {
     }
 }
 
+#[derive(Debug)]
 struct TestCountriesSourceFactory {}
 
 impl SourceFactory for TestCountriesSourceFactory {
@@ -76,6 +82,10 @@ impl SourceFactory for TestCountriesSourceFactory {
         )]
     }
 
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -84,6 +94,7 @@ impl SourceFactory for TestCountriesSourceFactory {
     }
 }
 
+#[derive(Debug)]
 struct TestJoinProcessorFactory {}
 
 impl ProcessorFactory for TestJoinProcessorFactory {
@@ -113,6 +124,14 @@ impl ProcessorFactory for TestJoinProcessorFactory {
         )]
     }
 
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -122,6 +141,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 struct TestSinkFactory {}
 
 impl SinkFactory for TestSinkFactory {
@@ -134,6 +154,10 @@ impl SinkFactory for TestSinkFactory {
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
+    }
+
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(

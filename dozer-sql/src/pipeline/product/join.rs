@@ -16,7 +16,7 @@ use super::factory::get_input_name;
 
 const REVERSE_JOIN_FLAG: u32 = 0x80000000;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct JoinTable {
     pub name: String,
     pub left: Option<ReverseJoinOperator>,

@@ -15,13 +15,14 @@ use crate::dag::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use dozer_types::types::Schema;
-use fp_rust::sync::CountDownLatch;
+
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 
 use tempdir::TempDir;
 
+#[derive(Debug)]
 struct NoneSourceFactory {}
 impl SourceFactory for NoneSourceFactory {
     fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
@@ -30,6 +31,10 @@ impl SourceFactory for NoneSourceFactory {
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         todo!()
+    }
+
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(
@@ -172,7 +177,7 @@ fn test_apps_source_manager_lookup_multiple_ports() {
 
 #[test]
 fn test_app_dag() {
-    let latch = Arc::new(CountDownLatch::new(2));
+    let latch = Arc::new(Barrier::new(4));
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(

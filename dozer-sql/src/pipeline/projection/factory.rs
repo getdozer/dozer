@@ -19,6 +19,7 @@ use crate::pipeline::{
 
 use super::processor::ProjectionProcessor;
 
+#[derive(Debug)]
 pub struct ProjectionProcessorFactory {
     select: Vec<SelectItem>,
 }
@@ -97,6 +98,14 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(expressions))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
+    }
+
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 }
 

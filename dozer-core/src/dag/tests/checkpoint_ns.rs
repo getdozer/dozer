@@ -8,16 +8,14 @@ use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
-use fp_rust::sync::CountDownLatch;
-
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 
 use tempdir::TempDir;
 
 #[test]
 fn test_checpoint_consistency_ns() {
-    init_log4rs();
+    //  dozer_tracing::init_telemetry(false).unwrap();
 
     const MESSAGES_COUNT: u64 = 25_000;
 
@@ -29,9 +27,10 @@ fn test_checpoint_consistency_ns() {
         NodeHandle::new(None, "src2".to_string()),
         NodeHandle::new(None, "src3".to_string()),
         NodeHandle::new(None, "src4".to_string()),
+        NodeHandle::new(None, "src5".to_string()),
     ];
 
-    let latch = Arc::new(CountDownLatch::new((sources.len() as u64) - 1));
+    let latch = Arc::new(Barrier::new(sources.len() * 2 - 1));
 
     for src_handle in &sources {
         dag.add_node(
