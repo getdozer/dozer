@@ -28,10 +28,6 @@ impl PrimaryIndexDatabase {
         key: &[u8],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
-        if txn.get(self.0, &key).is_ok() {
-            txn.del(self.0, &key, None)
-                .map_err(|e| CacheError::QueryError(QueryError::DeleteValue(e)))?;
-        }
         txn.put(self.0, &key, &id, WriteFlags::NO_OVERWRITE)
             .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
         Ok(())
