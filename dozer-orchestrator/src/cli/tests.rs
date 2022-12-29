@@ -2,7 +2,9 @@ use super::Config;
 use dozer_types::{
     constants::DEFAULT_HOME_DIR,
     models::{
-        api_config::{default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiRest},
+        api_config::{
+            default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiPipelineInternal, ApiRest,
+        },
         api_endpoint::ApiEndpoint,
         connection::{Authentication, Connection, PostgresAuthentication},
         source::{RefreshConfig, Source},
@@ -182,11 +184,9 @@ fn test_api_config() -> ApiConfig {
         }),
         auth: false,
         api_internal: Some(ApiInternal {
-            port: 50052,
-            host: "[::1]".to_owned(),
             home_dir: format!("{:}/api", DEFAULT_HOME_DIR.to_owned()),
         }),
-        pipeline_internal: Some(ApiInternal {
+        pipeline_internal: Some(ApiPipelineInternal {
             port: 50053,
             host: "[::1]".to_owned(),
             home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),

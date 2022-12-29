@@ -2,12 +2,12 @@ use crate::db::{persistable::Persistable, pool::establish_connection};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use dotenvy::dotenv;
 use dozer_orchestrator::internal_pipeline_service_client::InternalPipelineServiceClient;
-use dozer_types::models::{api_config::ApiInternal, app_config::Config};
+use dozer_types::models::{api_config::ApiPipelineInternal, app_config::Config};
 use std::{env, error::Error, fs, process::Command};
 use tonic::transport::Channel;
 
 pub async fn init_internal_pipeline_client(
-    config: ApiInternal,
+    config: ApiPipelineInternal,
 ) -> Result<InternalPipelineServiceClient<Channel>, Box<dyn std::error::Error>> {
     let address = format!("http://{:}:{:}", config.host, config.port);
     let client = dozer_orchestrator::internal_pipeline_service_client::InternalPipelineServiceClient::connect(address).await?;

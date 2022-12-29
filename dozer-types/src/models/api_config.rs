@@ -23,7 +23,7 @@ pub struct ApiConfig {
     #[prost(message, tag = "6")]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_pipeline_internal")]
-    pub pipeline_internal: Option<ApiInternal>,
+    pub pipeline_internal: Option<ApiPipelineInternal>,
     #[prost(string, optional, tag = "7")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
@@ -60,27 +60,47 @@ pub struct ApiGrpc {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
-pub struct ApiInternal {
+pub struct ApiPipelineInternal {
     #[prost(uint32, tag = "1")]
+    #[serde(default = "default_pipeline_internal_port")]
     pub port: u32,
     #[prost(string, tag = "2")]
+    #[serde(default = "default_pipeline_internal_host")]
     pub host: String,
     #[prost(string, tag = "3")]
+    #[serde(default = "default_pipeline_internal_home_dir")]
     pub home_dir: String,
 }
 
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
+pub struct ApiInternal {
+    #[prost(string, tag = "1")]
+    #[serde(default = "default_api_internal_home_dir")]
+    pub home_dir: String,
+}
+
+fn default_api_internal_home_dir() -> String {
+    format!("{:}/api", DEFAULT_HOME_DIR.to_owned())
+}
 fn default_api_internal() -> Option<ApiInternal> {
     Some(ApiInternal {
-        port: 50052,
-        host: "[::1]".to_owned(),
         home_dir: format!("{:}/api", DEFAULT_HOME_DIR.to_owned()),
     })
 }
-fn default_pipeline_internal() -> Option<ApiInternal> {
-    Some(ApiInternal {
-        port: 50053,
-        host: "[::1]".to_owned(),
-        home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),
+fn default_pipeline_internal_port() -> u32 {
+    50053
+}
+fn default_pipeline_internal_host() -> String {
+    "[::1]".to_owned()
+}
+fn default_pipeline_internal_home_dir() -> String {
+    format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned())
+}
+pub(crate) fn default_pipeline_internal() -> Option<ApiPipelineInternal> {
+    Some(ApiPipelineInternal {
+        port: default_pipeline_internal_port(),
+        host: default_pipeline_internal_host(),
+        home_dir: default_pipeline_internal_home_dir(),
     })
 }
 pub(crate) fn default_api_rest() -> Option<ApiRest> {

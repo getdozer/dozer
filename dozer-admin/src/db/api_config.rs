@@ -12,7 +12,9 @@ use crate::diesel::ExpressionMethods;
 use crate::server::dozer_admin_grpc::Pagination;
 use diesel::{insert_into, AsChangeset, Insertable, QueryDsl, Queryable, RunQueryDsl};
 use diesel::{query_dsl::methods::FilterDsl, *};
-use dozer_types::models::api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest};
+use dozer_types::models::api_config::{
+    ApiConfig, ApiGrpc, ApiInternal, ApiPipelineInternal, ApiRest,
+};
 use schema::configs::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -48,7 +50,7 @@ impl TryFrom<DBApiConfig> for ApiConfig {
         let rest_value: ApiRest = serde_json::from_str(&item.rest)?;
         let grpc_value: ApiGrpc = serde_json::from_str(&item.grpc)?;
         let internal_api: ApiInternal = serde_json::from_str(&item.api_internal)?;
-        let internal_pipeline: ApiInternal = serde_json::from_str(&item.pipeline_internal)?;
+        let internal_pipeline: ApiPipelineInternal = serde_json::from_str(&item.pipeline_internal)?;
         Ok(ApiConfig {
             rest: Some(rest_value),
             grpc: Some(grpc_value),
