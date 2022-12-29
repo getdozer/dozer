@@ -12,6 +12,7 @@ use dozer_types::types::{Operation, Record};
 use log::info;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct ProjectionProcessor {
     expressions: Vec<(String, Expression)>,
 }

@@ -11,6 +11,7 @@ use dozer_types::types::{Field, Operation};
 use log::info;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct SelectionProcessor {
     expression: Box<Expression>,
 }

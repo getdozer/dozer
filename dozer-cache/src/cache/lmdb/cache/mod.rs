@@ -27,6 +27,7 @@ use secondary_index_database::SecondaryIndexDatabase;
 
 pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), SecondaryIndexDatabase>;
 
+#[derive(Debug)]
 pub struct LmdbCache {
     env: Environment,
     db: RecordDatabase,

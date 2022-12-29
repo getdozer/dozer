@@ -18,6 +18,7 @@ macro_rules! chk {
     };
 }
 
+#[derive(Debug)]
 struct TestUsersSourceFactory {}
 
 impl SourceFactory for TestUsersSourceFactory {
@@ -53,6 +54,7 @@ impl SourceFactory for TestUsersSourceFactory {
     }
 }
 
+#[derive(Debug)]
 struct TestCountriesSourceFactory {}
 
 impl SourceFactory for TestCountriesSourceFactory {
@@ -84,6 +86,7 @@ impl SourceFactory for TestCountriesSourceFactory {
     }
 }
 
+#[derive(Debug)]
 struct TestJoinProcessorFactory {}
 
 impl ProcessorFactory for TestJoinProcessorFactory {
@@ -122,6 +125,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 struct TestSinkFactory {}
 
 impl SinkFactory for TestSinkFactory {

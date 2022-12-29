@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 
+#[derive(Debug)]
 pub struct ConnectorSourceFactory {
     connection_map: HashMap<Connection, Vec<TableInfo>>,
     table_map: HashMap<String, u16>,
@@ -102,6 +103,7 @@ impl SourceFactory for ConnectorSourceFactory {
     }
 }
 
+#[derive(Debug)]
 pub struct ConnectorSource {
     // Multiple tables per connection
     // Connection Index in the array to List of Tables

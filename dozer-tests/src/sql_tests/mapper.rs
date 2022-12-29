@@ -11,6 +11,7 @@ pub struct SchemaResponse {
     schema: Schema,
 }
 
+#[derive(Debug)]
 pub struct SqlMapper {
     pub schema_map: HashMap<String, Schema>,
     pub conn: rusqlite::Connection,

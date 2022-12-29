@@ -15,6 +15,7 @@ use super::{
     processor::ProductProcessor,
 };
 
+#[derive(Debug)]
 pub struct ProductProcessorFactory {
     from: TableWithJoins,
 }

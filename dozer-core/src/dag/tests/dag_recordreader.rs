@@ -31,6 +31,7 @@ macro_rules! chk {
 pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = 50;
 pub(crate) const PASSTHROUGH_PROCESSOR_OUTPUT_PORT: PortHandle = 60;
 
+#[derive(Debug)]
 pub(crate) struct PassthroughProcessorFactory {}
 
 impl PassthroughProcessorFactory {
@@ -69,6 +70,7 @@ impl ProcessorFactory for PassthroughProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PassthroughProcessor {}
 
 impl Processor for PassthroughProcessor {
@@ -96,6 +98,7 @@ impl Processor for PassthroughProcessor {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct RecordReaderProcessorFactory {}
 
 impl RecordReaderProcessorFactory {
@@ -137,6 +140,7 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct RecordReaderProcessor {
     ctr: u64,
 }

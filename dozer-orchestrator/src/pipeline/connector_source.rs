@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 
+#[derive(Debug)]
 pub struct NewConnectorSourceFactory {
     pub ingestor: Arc<RwLock<Ingestor>>,
     pub iterator: Arc<RwLock<IngestionIterator>>,
@@ -85,6 +86,7 @@ impl SourceFactory for NewConnectorSourceFactory {
     }
 }
 
+#[derive(Debug)]
 pub struct NewConnectorSource {
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,

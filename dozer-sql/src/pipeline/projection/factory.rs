@@ -19,6 +19,7 @@ use crate::pipeline::{
 
 use super::processor::ProjectionProcessor;
 
+#[derive(Debug)]
 pub struct ProjectionProcessorFactory {
     select: Vec<SelectItem>,
 }
