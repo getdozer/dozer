@@ -52,7 +52,7 @@ impl ExpressionBuilder {
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         match expression {
-            SqlExpr::Identifier(ident) => self.parse_sql_column(&vec![ident.clone()], schema),
+            SqlExpr::Identifier(ident) => self.parse_sql_column(&[ident.clone()], schema),
             SqlExpr::CompoundIdentifier(ident) => self.parse_sql_column(ident, schema),
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
@@ -89,7 +89,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_column(
         &self,
-        ident: &Vec<Ident>,
+        ident: &[Ident],
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         Ok((

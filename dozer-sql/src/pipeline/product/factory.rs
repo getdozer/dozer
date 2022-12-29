@@ -242,9 +242,9 @@ fn parse_join_constraint(
 }
 
 fn parse_identifier(
-    ident: &sqlparser::ast::Ident,
-    left_join_table: &JoinTable,
-    right_join_table: &JoinTable,
+    _ident: &sqlparser::ast::Ident,
+    _left_join_table: &JoinTable,
+    _right_join_table: &JoinTable,
 ) -> Result<usize, PipelineError> {
     todo!()
 }

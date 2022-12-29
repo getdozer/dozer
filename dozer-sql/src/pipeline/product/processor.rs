@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use dozer_core::dag::errors::ExecutionError::InternalError;
 
-use super::join::JoinTable;
+use super::join::{JoinExecutor, JoinTable};
 
 /// Cartesian Product Processor
 #[derive(Debug)]
@@ -55,19 +55,35 @@ impl ProductProcessor {
         &self,
         from_port: PortHandle,
         record: &Record,
-        _txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
+        txn: &SharedTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<Vec<Record>, ExecutionError> {
+        // Get the input Table based on the port of the incoming message
         if let Some(input_table) = self.join_tables.get(&from_port) {
-            let output_records = vec![record.clone()];
+            let mut output_records = vec![record.clone()];
 
-            if let Some(_left_join) = &input_table.left {
-                todo!() // left_records = left_join.execute(record, txn, reader)?;
+            if let Some(database) = &self.db {
+                if let Some(left_join) = &input_table.left {
+                    output_records = left_join.execute(
+                        output_records,
+                        database,
+                        txn,
+                        reader,
+                        &self.join_tables,
+                    )?;
+                }
+
+                if let Some(right_join) = &input_table.right {
+                    output_records = right_join.execute(
+                        output_records,
+                        database,
+                        txn,
+                        reader,
+                        &self.join_tables,
+                    )?;
+                }
             }
 
-            if let Some(_right_join) = &input_table.right {
-                todo!() // right_records = right_join.execute(record, txn, reader)?;
-            }
             return Ok(output_records);
         }
 
