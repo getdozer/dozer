@@ -194,7 +194,7 @@ impl ProtoGenerator<'_> {
         security: Option<ApiSecurity>,
     ) -> Result<ProtoResponse, GenerationError> {
         let mut resources = vec![];
-        let generator = ProtoGenerator::new(details, folder_path.clone(), security.to_owned())?;
+        let generator = ProtoGenerator::new(details, folder_path.clone(), security)?;
         generator._generate_proto()?;
         resources.push(endpoint_name);
 
