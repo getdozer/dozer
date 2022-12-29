@@ -259,22 +259,20 @@ impl Orchestrator for SimpleOrchestrator {
 
 impl SimpleOrchestrator {
     fn get_cache_endpoints(&self, cache_dir: PathBuf) -> Result<Vec<CacheEndpoint>, OrchestrationError> {
-        Ok(self.config
-            .endpoints
-            .iter()
-            .map(|e| {
-                let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(cache_dir.join(e.name.clone()));
-                CacheEndpoint {
-                    cache: Arc::new(
-                        LmdbCache::new(CacheOptions {
-                            common: cache_common_options,
-                            kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
-                        }).map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
-                    ),
-                    endpoint: e.to_owned(),
-                }
+        let mut cache_endpoints = Vec::new();
+        for e in &self.config.endpoints {
+            let mut cache_common_options = self.cache_common_options.clone();
+            cache_common_options.set_path(cache_dir.join(e.name.clone()));
+            cache_endpoints.push(CacheEndpoint {
+                cache: Arc::new(
+                    LmdbCache::new(CacheOptions {
+                        common: cache_common_options,
+                        kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
+                    }).map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
+                ),
+                endpoint: e.to_owned(),
             })
-            .collect())
+        }
+        Ok(cache_endpoints)
     }
 }
