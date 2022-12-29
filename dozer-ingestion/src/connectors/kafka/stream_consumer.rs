@@ -10,6 +10,5 @@ pub trait StreamConsumer {
         con: Consumer,
         ingestor: Arc<RwLock<Ingestor>>,
         connector_id: u64,
-        table_name: String,
     ) -> Result<(), ConnectorError>;
 }

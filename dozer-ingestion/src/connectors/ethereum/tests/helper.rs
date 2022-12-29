@@ -107,12 +107,9 @@ pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>
     let mut op_index = HashSet::new();
     while let Some(msg) = iterator.write().next_timeout(Duration::from_millis(400)) {
         // Duplicates are to be expected in ethereum connector
-        if let (_, IngestionOperation::OperationEvent(ev)) = msg {
-            if op_index.insert(ev.seq_no) {
-                msgs.push(ev.operation);
-            }
-        } else {
-            panic!("Message in the wrong format");
+        let (_, IngestionOperation::OperationEvent(ev)) = msg;
+        if op_index.insert(ev.seq_no) {
+            msgs.push(ev.operation);
         }
     }
     (contract, msgs)

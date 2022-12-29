@@ -68,15 +68,6 @@ fn single_source_sink_impl(schema: Schema) {
     let r = running.clone();
     let executor_running = running;
 
-    // Initialize a schema.
-    ingestor2
-        .write()
-        .handle_message((
-            1,
-            IngestionMessage::Schema(table_name.to_string(), schema.clone()),
-        ))
-        .unwrap();
-
     let items: Vec<(i64, String, i64)> = vec![
         (1, "yuri".to_string(), 521),
         (2, "mega".to_string(), 521),

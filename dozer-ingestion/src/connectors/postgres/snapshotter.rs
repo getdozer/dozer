@@ -75,13 +75,6 @@ impl PostgresSnapshotter {
 
             // Ingest schema for every table
             let schema = helper::map_schema(&table_info.id, columns)?;
-            self.ingestor
-                .write()
-                .handle_message((
-                    self.connector_id,
-                    IngestionMessage::Schema(table_info.name.clone(), schema.clone()),
-                ))
-                .map_err(ConnectorError::IngestorError)?;
 
             let empty_vec: Vec<String> = Vec::new();
             for msg in client_plain

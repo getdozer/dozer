@@ -91,11 +91,11 @@ impl XlogMapper {
                 let table_option = self.relations_map.get(&relation.rel_id());
                 match table_option {
                     None => {
-                        return self.ingest_schema(relation, hash);
+                        self.ingest_schema(relation, hash)?;
                     }
                     Some(table) => {
                         if table.hash != hash {
-                            return self.ingest_schema(relation, hash);
+                            self.ingest_schema(relation, hash)?;
                         }
                     }
                 }
@@ -198,11 +198,7 @@ impl XlogMapper {
         Ok(None)
     }
 
-    fn ingest_schema(
-        &mut self,
-        relation: &RelationBody,
-        hash: u64,
-    ) -> Result<Option<IngestionMessage>, ConnectorError> {
+    fn ingest_schema(&mut self, relation: &RelationBody, hash: u64) -> Result<(), ConnectorError> {
         let rel_id = relation.rel_id();
         let existing_columns = self
             .tables_columns
@@ -226,7 +222,7 @@ impl XlogMapper {
             })
             .collect();
 
-        let table_name = relation
+        let _table_name = relation
             .name()
             .map_err(ConnectorError::RelationNotFound)?
             .to_string();
@@ -256,7 +252,7 @@ impl XlogMapper {
             });
         }
 
-        let schema = Schema {
+        let _schema = Schema {
             identifier: Some(dozer_types::types::SchemaIdentifier {
                 id: table.rel_id,
                 version: table.rel_id as u16,
@@ -267,7 +263,7 @@ impl XlogMapper {
 
         self.relations_map.insert(rel_id, table);
 
-        Ok(Some(IngestionMessage::Schema(table_name, schema)))
+        Ok(())
     }
 
     fn convert_values_to_fields(
