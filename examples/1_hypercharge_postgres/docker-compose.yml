@@ -1,24 +1,38 @@
 version: '3.9'
 services:
-  
-  dozer:
-    container_name: dozer
+  dozer-app:
+    container_name: dozer-app
+    image: 708185497968.dkr.ecr.ap-southeast-1.amazonaws.com/dozer:latest
+#    build: ../
     depends_on:
       postgres:
         condition: service_healthy
-    links:
-      - postgres
-    
-    build: ../
+    networks: [ "dozer_net" ]
+    command: "dozer -c /usr/dozer/dozer-config.yaml app run"
+    volumes:
+      - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
+      - dozer_data:/mnt/dozer
+
+  dozer-api:
+    container_name: dozer-api
+    depends_on:
+      status:
+        condition: service_completed_successfully
+
+#    build: ../
+
+    image: 708185497968.dkr.ecr.ap-southeast-1.amazonaws.com/dozer:latest
     ports:
       # REST APIs are published on port 8080
       - "8080:8080"
       # gRPC are available over 50051
       - "50051:50051"
+      # gRPC are available over 50052
+      - "50052:50052"
     volumes:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
-      - ./.dozer:/usr/dozer/.dozer
-    command: "dozer -c /usr/dozer/dozer-config.yaml"
+      - dozer_data:/mnt/dozer
+    command: "dozer -c /usr/dozer/dozer-config.yaml api run"
     networks: ["dozer_net"]
 
   # Initialize sample data
@@ -30,7 +44,12 @@ services:
       - sample-data:/var/lib/stock-sample/data
     networks: ["dozer_net"]
 
-  
+  status:
+    image: yikaus/alpine-bash
+    volumes:
+      - ./scripts:/scripts
+      - dozer_data:/mnt/dozer
+    command: "sh /scripts/status.sh"
 
   postgres:
     depends_on:
@@ -70,3 +89,5 @@ networks:
 
 volumes:
   sample-data:
+  dozer_data:
+    name: dozer_data

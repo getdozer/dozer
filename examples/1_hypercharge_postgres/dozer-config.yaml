@@ -1,4 +1,7 @@
 app_name: 1-hypercharge-postgres-sample
+
+home_dir: "/mnt/dozer"
+
 connections:
   - db_type: Postgres
     authentication: !Postgres
