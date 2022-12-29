@@ -10,14 +10,8 @@ pub struct CacheEndpoint {
 }
 
 impl CacheEndpoint {
-    pub fn new(
-        cache: Arc<LmdbCache>,
-        endpoint: ApiEndpoint,
-    ) -> Result<Self, CacheError> {
-        Ok(Self {
-            cache,
-            endpoint,
-        })
+    pub fn new(cache: Arc<LmdbCache>, endpoint: ApiEndpoint) -> Result<Self, CacheError> {
+        Ok(Self { cache, endpoint })
     }
 }
 
@@ -35,8 +29,8 @@ pub mod grpc;
 pub mod rest;
 // Re-exports
 pub use actix_web;
-pub use tokio;
 use dozer_cache::errors::CacheError;
+pub use tokio;
 
 #[cfg(test)]
 mod test_utils;

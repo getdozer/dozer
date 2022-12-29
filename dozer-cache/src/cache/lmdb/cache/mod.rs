@@ -91,8 +91,7 @@ impl LmdbCache {
             secondary_indexes: self.secondary_indexes.clone(),
         };
 
-        indexer
-            .build_indexes(txn, record, schema, secondary_indexes, id)?;
+        indexer.build_indexes(txn, record, schema, secondary_indexes, id)?;
 
         Ok(())
     }
