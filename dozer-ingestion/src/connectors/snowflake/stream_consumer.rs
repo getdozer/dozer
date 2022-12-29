@@ -13,14 +13,12 @@ use odbc::create_environment_v3;
 use std::sync::Arc;
 
 pub struct StreamConsumer {
-    connector_id: u64
+    connector_id: u64,
 }
 
 impl StreamConsumer {
     pub fn new(connector_id: u64) -> Self {
-        Self {
-            connector_id
-        }
+        Self { connector_id }
     }
 
     pub fn get_stream_table_name(table_name: &str) -> String {

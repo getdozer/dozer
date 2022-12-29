@@ -46,12 +46,9 @@ fn connector_e2e_connect_snowflake_and_read_from_stream() {
         let op = iterator.write().next();
         match op {
             None => {}
-            Some((_, ingestion_operation)) => {
-                match ingestion_operation {
-                    IngestionOperation::OperationEvent(_) => {
-                    }
-                }
-            }
+            Some((_, ingestion_operation)) => match ingestion_operation {
+                IngestionOperation::OperationEvent(_) => {}
+            },
         }
     }
 
