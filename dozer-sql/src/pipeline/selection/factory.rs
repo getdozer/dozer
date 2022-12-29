@@ -12,6 +12,7 @@ use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
 
 use super::processor::SelectionProcessor;
 
+#[derive(Debug)]
 pub struct SelectionProcessorFactory {
     statement: SqlExpr,
 }

@@ -23,6 +23,7 @@ use super::{
     processor::{AggregationProcessor, FieldRule},
 };
 
+#[derive(Debug)]
 pub struct AggregationProcessorFactory {
     select: Vec<SelectItem>,
     groupby: Vec<SqlExpr>,

@@ -16,6 +16,7 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use super::join::JoinTable;
 
 /// Cartesian Product Processor
+#[derive(Debug)]
 pub struct ProductProcessor {
     /// Join operations
     join_tables: HashMap<PortHandle, JoinTable>,

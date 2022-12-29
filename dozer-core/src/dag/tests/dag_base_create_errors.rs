@@ -21,6 +21,7 @@ use std::sync::{Arc, Barrier};
 
 use tempdir::TempDir;
 
+#[derive(Debug)]
 struct CreateErrSourceFactory {
     panic: bool,
 }
@@ -160,6 +161,7 @@ fn test_create_src_panic() {
     assert!(executor.join().is_err());
 }
 
+#[derive(Debug)]
 struct CreateErrProcessorFactory {
     panic: bool,
 }

@@ -11,7 +11,7 @@ use sqlparser::ast::TableFactor;
 
 use super::factory::get_input_name;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct JoinOperator {
     /// Type of the Join operation
     _operator: JoinOperatorType,
@@ -48,7 +48,7 @@ impl JoinOperator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ReverseJoinOperator {
     _operator: JoinOperatorType,
 
@@ -84,7 +84,7 @@ pub struct ReverseJoinOperator {
 //     }
 // }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct JoinTable {
     pub name: String,
     pub left: Option<ReverseJoinOperator>,

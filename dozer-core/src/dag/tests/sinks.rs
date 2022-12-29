@@ -11,6 +11,7 @@ use std::sync::{Arc, Barrier};
 
 pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = 90;
 
+#[derive(Debug)]
 pub(crate) struct CountingSinkFactory {
     expected: u64,
     barrier: Arc<Barrier>,
@@ -45,6 +46,7 @@ impl SinkFactory for CountingSinkFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct CountingSink {
     expected: u64,
     current: u64,

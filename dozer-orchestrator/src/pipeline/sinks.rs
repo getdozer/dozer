@@ -23,6 +23,7 @@ use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::Instant;
 
+#[derive(Debug)]
 pub struct CacheSinkFactory {
     input_ports: Vec<PortHandle>,
     cache: Arc<LmdbCache>,
@@ -158,6 +159,7 @@ impl SinkFactory for CacheSinkFactory {
     }
 }
 
+#[derive(Debug)]
 pub struct CacheSink {
     // It's not really 'static, the actual lifetime is the lifetime of `cache`. See comments in `process`.
     txn: Option<lmdb_rs::RwTransaction<'static>>,

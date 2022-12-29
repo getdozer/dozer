@@ -27,6 +27,7 @@ use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use crate::dag::epoch::Epoch;
 use tempdir::TempDir;
 
+#[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
 
 impl ProcessorFactory for NoopProcessorFactory {
@@ -58,6 +59,7 @@ impl ProcessorFactory for NoopProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
@@ -199,6 +201,7 @@ fn test_run_dag_and_stop() {
     ));
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopJoinProcessorFactory {}
 
 pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
@@ -233,6 +236,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
