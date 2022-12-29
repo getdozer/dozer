@@ -84,10 +84,7 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        let id = self
-            .db
-            .insert(txn, record)
-            .unwrap_or_else(|_| panic!("Failed to insert {:?}", record));
+        let id = self.db.insert(txn, record)?;
 
         let indexer = Indexer {
             primary_index: self.primary_index,
@@ -95,7 +92,7 @@ impl LmdbCache {
         };
 
         indexer
-            .build_indexes(txn, record, schema, secondary_indexes, id).unwrap();
+            .build_indexes(txn, record, schema, secondary_indexes, id)?;
 
         Ok(())
     }

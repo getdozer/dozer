@@ -236,14 +236,13 @@ impl Orchestrator for SimpleOrchestrator {
 
         let generated_path = api_dir.join("generated");
         if generated_path.exists() {
-            fs::remove_dir_all(&generated_path).unwrap();
+            fs::remove_dir_all(&generated_path)?;
         }
-        fs::create_dir_all(&generated_path).unwrap();
+        fs::create_dir_all(&generated_path)?;
 
         for (sink_handle, sink) in sinks {
             let schemas = schema_manager
-                .get_node_input_schemas(&sink_handle)
-                .expect("Failed to get node input schemas");
+                .get_node_input_schemas(&sink_handle)?;
             sink.prepare(
                 schemas.to_owned(),
                 generated_path.to_owned(),
@@ -270,8 +269,7 @@ impl SimpleOrchestrator {
                         LmdbCache::new(CacheOptions {
                             common: cache_common_options,
                             kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
-                        })
-                        .unwrap(),
+                        })?,
                     ),
                     endpoint: e.to_owned(),
                 }
