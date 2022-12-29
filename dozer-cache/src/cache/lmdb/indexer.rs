@@ -32,6 +32,11 @@ impl Indexer {
             .begin_nested_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
 
+        if !schema.primary_index.is_empty() {
+            let primary_key = index::get_primary_key(&schema.primary_index, &record.values);
+            self.primary_index.insert(&mut txn, &primary_key, id)?;
+        }
+
         if secondary_indexes.is_empty() {
             return Err(CacheError::IndexError(IndexError::MissingSecondaryIndexes));
         }

@@ -22,14 +22,19 @@ impl PrimaryIndexDatabase {
         Ok(Self(db))
     }
 
-    pub fn _insert(
+    pub fn insert(
         &self,
         txn: &mut RwTransaction,
         key: &[u8],
         id: [u8; 8],
     ) -> Result<(), CacheError> {
+        if txn.get(self.0, &key).is_ok() {
+            txn.del(self.0, &key, None)
+                .map_err(|e| CacheError::QueryError(QueryError::DeleteValue(e)))?;
+        }
         txn.put(self.0, &key, &id, WriteFlags::NO_OVERWRITE)
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))
+            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
+        Ok(())
     }
 
     pub fn get<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<[u8; 8], CacheError> {
@@ -60,7 +65,7 @@ mod tests {
         let id = [1u8; 8];
 
         let mut txn = env.begin_rw_txn().unwrap();
-        writer._insert(&mut txn, key, id).unwrap();
+        writer.insert(&mut txn, key, id).unwrap();
         txn.commit().unwrap();
 
         let txn = env.begin_ro_txn().unwrap();
