@@ -29,8 +29,7 @@ impl PrimaryIndexDatabase {
         id: [u8; 8],
     ) -> Result<(), CacheError> {
         txn.put(self.0, &key, &id, WriteFlags::NO_OVERWRITE)
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
-        Ok(())
+            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))
     }
 
     pub fn get<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<[u8; 8], CacheError> {
