@@ -71,9 +71,9 @@ impl Connector for KafkaConnector {
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
-        Runtime::new().unwrap().block_on(async {
-            run(broker, topic, ingestor, connector_id).await
-        })
+        Runtime::new()
+            .unwrap()
+            .block_on(async { run(broker, topic, ingestor, connector_id).await })
     }
 
     fn stop(&self) {}

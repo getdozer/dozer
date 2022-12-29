@@ -127,7 +127,6 @@ fn single_source_sink_impl(schema: Schema) {
 }
 
 #[test]
-#[ignore]
 fn single_source_sink() {
     let mut schema = test_utils::schema_1().0;
     single_source_sink_impl(schema.clone());

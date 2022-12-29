@@ -1,5 +1,4 @@
 use crate::connectors::snowflake::connection::client::Client;
-use std::collections::HashMap;
 
 use crate::errors::{ConnectorError, SnowflakeError};
 use crate::ingestion::Ingestor;
@@ -7,23 +6,20 @@ use dozer_types::ingestion_types::IngestionMessage;
 
 use dozer_types::parking_lot::RwLock;
 
-use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::connectors::snowflake::snapshotter::Snapshotter;
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
-use dozer_types::types::{Field, Operation, OperationEvent, Record, Schema, SchemaIdentifier};
+use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 use odbc::create_environment_v3;
 use std::sync::Arc;
 
 pub struct StreamConsumer {
-    connector_id: u64,
-    schemas: HashMap<String, Schema>,
+    connector_id: u64
 }
 
 impl StreamConsumer {
     pub fn new(connector_id: u64) -> Self {
         Self {
-            connector_id,
-            schemas: HashMap::new(),
+            connector_id
         }
     }
 
@@ -152,24 +148,6 @@ impl StreamConsumer {
         if let Some((schema, iterator)) = result {
             let mut truncated_schema = schema.clone();
             truncated_schema.truncate(schema.len() - 3);
-            let converted_schema = SchemaHelper::map_schema(truncated_schema)?;
-
-            let did_schema_change = self
-                .schemas
-                .get(table_name)
-                .map_or(true, |s| s.clone() != converted_schema);
-            if did_schema_change {
-                ingestor
-                    .write()
-                    .handle_message((
-                        self.connector_id,
-                        IngestionMessage::Schema(table_name.to_string(), converted_schema.clone()),
-                    ))
-                    .map_err(ConnectorError::IngestorError)?;
-
-                self.schemas
-                    .insert(table_name.to_string(), converted_schema);
-            }
 
             let columns_length = schema.len();
             let used_columns_for_schema = columns_length - 3;

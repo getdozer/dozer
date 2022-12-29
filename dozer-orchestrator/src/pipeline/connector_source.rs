@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::thread;
 
 #[derive(Debug)]
-pub struct NewConnectorSourceFactory {
+pub struct ConnectorSourceFactory {
     pub ingestor: Arc<RwLock<Ingestor>>,
     pub iterator: Arc<RwLock<IngestionIterator>>,
     pub ports: HashMap<String, u16>,
@@ -27,7 +27,7 @@ pub struct NewConnectorSourceFactory {
 
 // TODO: Move this to sources.rs when everything is connected proeprly
 
-impl NewConnectorSourceFactory {
+impl ConnectorSourceFactory {
     pub fn new(
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
@@ -74,7 +74,7 @@ impl NewConnectorSourceFactory {
     }
 }
 
-impl SourceFactory for NewConnectorSourceFactory {
+impl SourceFactory for ConnectorSourceFactory {
     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
         self.schema_map.get(port).map_or(
             Err(ExecutionError::PortNotFoundInSource(*port)),
@@ -97,7 +97,7 @@ impl SourceFactory for NewConnectorSourceFactory {
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
-        Ok(Box::new(NewConnectorSource {
+        Ok(Box::new(ConnectorSource {
             ingestor: self.ingestor.clone(),
             iterator: self.iterator.clone(),
             schema_port_map: self.schema_port_map.clone(),
@@ -108,7 +108,7 @@ impl SourceFactory for NewConnectorSourceFactory {
 }
 
 #[derive(Debug)]
-pub struct NewConnectorSource {
+pub struct ConnectorSource {
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
     schema_port_map: HashMap<u32, u16>,
@@ -116,7 +116,7 @@ pub struct NewConnectorSource {
     connection: Connection,
 }
 
-impl Source for NewConnectorSource {
+impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -151,7 +151,6 @@ impl Source for NewConnectorSource {
                             .unwrap();
                         fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
                     }
-                    _ => {}
                 }
             } else {
                 break;

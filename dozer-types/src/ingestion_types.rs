@@ -5,14 +5,12 @@ use thiserror::Error;
 
 use crate::{
     errors::internal::BoxedError,
-    types::{Commit, OperationEvent, Schema},
+    types::{Commit, OperationEvent},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IngestionOperation {
     OperationEvent(OperationEvent),
-    // Table Name, Schema
-    SchemaUpdate(String, Schema),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

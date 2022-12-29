@@ -84,7 +84,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
         &self,
         mut con: Consumer,
         ingestor: Arc<RwLock<Ingestor>>,
-        connector_id: u64
+        connector_id: u64,
     ) -> Result<(), ConnectorError> {
         loop {
             let mss = con.poll().map_err(|e| {

@@ -1,4 +1,4 @@
-use crate::pipeline::connector_source::NewConnectorSourceFactory;
+use crate::pipeline::connector_source::ConnectorSourceFactory;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -43,7 +43,7 @@ impl SourceBuilder {
                         port += 1;
                     }
 
-                    let source_factory = NewConnectorSourceFactory::new(
+                    let source_factory = ConnectorSourceFactory::new(
                         Arc::clone(&ingestor),
                         Arc::clone(&iterator),
                         ports.clone(),
