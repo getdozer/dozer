@@ -3,10 +3,10 @@ use crate::dag::epoch::Epoch;
 use crate::dag::errors::ExecutionError;
 use crate::dag::record_store::RecordReader;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use std::fs;
 use std::path::PathBuf;
 use std::str::from_utf8;
 
@@ -158,9 +158,10 @@ pub trait SinkFactory: Send + Sync + Debug {
     ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn prepare(
-        &self, 
-        input_schemas: HashMap<PortHandle, Schema>, 
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
         api_dir: PathBuf,
+        api_security: Option<ApiSecurity>,
     ) -> Result<(), ExecutionError>;
     fn build(
         &self,

@@ -7,11 +7,11 @@ use dozer_orchestrator::{ConnectorError, Orchestrator};
 use dozer_types::crossbeam::channel;
 use dozer_types::log::{error, info};
 use dozer_types::prettytable::{row, Table};
+use std::borrow::BorrowMut;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{panic, process, thread};
-use std::borrow::BorrowMut;
 use tokio::runtime::Runtime;
 
 fn main() {

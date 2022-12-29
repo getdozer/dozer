@@ -86,6 +86,14 @@ impl Schema {
         }
         table
     }
+
+    pub fn set_identifier(
+        &mut self,
+        identifier: Option<SchemaIdentifier>,
+    ) -> Result<(), TypeError> {
+        self.identifier = identifier;
+        Ok(())
+    }
 }
 
 impl Display for Schema {

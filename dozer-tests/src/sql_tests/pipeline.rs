@@ -22,6 +22,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use dozer_core::dag::epoch::Epoch;
+use dozer_types::models::api_security::ApiSecurity;
 use std::time::Duration;
 use tempdir::TempDir;
 
@@ -151,7 +152,8 @@ impl SinkFactory for TestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _api_dir: PathBuf,
+        _generated_path: PathBuf,
+        _api_security: Option<ApiSecurity>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

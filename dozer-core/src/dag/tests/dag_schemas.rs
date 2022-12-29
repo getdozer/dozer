@@ -6,6 +6,7 @@ use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
     SinkFactory, Source, SourceFactory,
 };
+use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -160,7 +161,8 @@ impl SinkFactory for TestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _api_dir: PathBuf,
+        _generated_path: PathBuf,
+        _api_security: Option<ApiSecurity>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

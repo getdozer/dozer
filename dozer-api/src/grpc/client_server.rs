@@ -23,7 +23,6 @@ use dozer_types::{
 use futures_util::{FutureExt, StreamExt};
 use std::{
     collections::HashMap,
-    fs,
     path::PathBuf,
     sync::{atomic::AtomicBool, Arc},
     thread,
@@ -32,7 +31,6 @@ use std::{
 use tokio::sync::broadcast;
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
-use crate::generator::protoc::generator::ProtoResponse;
 
 pub struct ApiServer {
     port: u16,
@@ -62,7 +60,6 @@ impl ApiServer {
     }
     fn get_dynamic_service(
         &self,
-        proto_res: ProtoResponse,
         pipeline_map: HashMap<String, PipelineDetails>,
         rx1: broadcast::Receiver<PipelineResponse>,
         _running: Arc<AtomicBool>,
@@ -92,6 +89,13 @@ impl ApiServer {
             }
         }
         info!("Starting gRPC server.");
+
+        let generated_path = self.api_dir.join("generated");
+
+        let proto_res = ProtoGenerator::read(
+            generated_path.to_string_lossy().to_string(),
+            pipeline_map.to_owned(),
+        )?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
@@ -132,7 +136,6 @@ impl ApiServer {
         cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
-        proto_res: ProtoResponse,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
@@ -171,7 +174,7 @@ impl ApiServer {
 
         let grpc_router = if self.dynamic {
             let (grpc_service, inflection_service) =
-                self.get_dynamic_service(proto_res, pipeline_map.clone(), rx1, running)?;
+                self.get_dynamic_service(pipeline_map.clone(), rx1, running)?;
             // GRPC service to handle reflection requests
             grpc_router = grpc_router.add_service(inflection_service);
             if self.web {

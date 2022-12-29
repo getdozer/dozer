@@ -22,7 +22,7 @@ impl PrimaryIndexDatabase {
         Ok(Self(db))
     }
 
-    pub fn insert(
+    pub fn _insert(
         &self,
         txn: &mut RwTransaction,
         key: &[u8],

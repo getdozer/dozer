@@ -2,7 +2,7 @@ use dozer_cache::cache::LmdbCache;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use std::sync::Arc;
 mod api_helper;
-mod generator;
+
 #[derive(Clone)]
 pub struct CacheEndpoint {
     pub cache: Arc<LmdbCache>,
@@ -18,6 +18,7 @@ pub struct PipelineDetails {
 // Exports
 pub mod auth;
 pub mod errors;
+pub mod generator;
 pub mod grpc;
 pub mod rest;
 // Re-exports

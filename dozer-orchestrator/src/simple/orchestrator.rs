@@ -20,6 +20,7 @@ use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::serde_yaml;
 use dozer_types::types::Schema;
@@ -29,7 +30,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
-use dozer_types::log::info;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -37,7 +37,6 @@ pub struct SimpleOrchestrator {
     pub cache_common_options: CacheCommonOptions,
     pub cache_read_options: CacheReadOptions,
     pub cache_write_options: CacheWriteOptions,
-    proto_res: ProtoResponse,
 }
 
 impl SimpleOrchestrator {
@@ -128,7 +127,7 @@ impl Orchestrator for SimpleOrchestrator {
                 grpc::ApiServer::new(grpc_config, true, api_dir, pipeline_config, api_security);
             tokio::spawn(async move {
                 grpc_server
-                    .run(ce2, running2.to_owned(), receiver_shutdown, self.proto_res)
+                    .run(ce2, running2.to_owned(), receiver_shutdown)
                     .await
                     .expect("Failed to initialize gRPC server")
             });
@@ -236,23 +235,27 @@ impl Orchestrator for SimpleOrchestrator {
         let schema_manager = DagSchemaManager::new(&dag)?;
         // Assuming the cache_endpoint will follow the same order as sinks
         let mut ce_iterator = cache_endpoints.into_iter();
+
+        let generated_path = api_dir.join("generated");
+        if generated_path.exists() {
+            fs::remove_dir_all(&generated_path).unwrap();
+        }
+        fs::create_dir_all(&generated_path).unwrap();
+
         for (sink_handle, sink) in sinks {
             let schemas = schema_manager
                 .get_node_input_schemas(&sink_handle)
                 .expect("Failed to get node input schemas");
-            let schema = schemas.values().next().expect("Schema is missing in sink");
-            let ce = ce_iterator
+            let _ce = ce_iterator
                 .next()
                 .expect("cache_endpoint is expected to have the same length as sinks");
 
-            let endpoint_name = ce.endpoint.name;
-            // let (grpc_service, inflection_service) = self
-            //     .generate_proto(api_dir.clone())
-            //     .expect("Failed to generate proto");
-            // self.grpc_service = grpc_service;
-            // self.inflection_service = inflection_service;
-            sink.prepare(schemas.to_owned(), PathBuf::default()).expect("Failed to prepare sink factory");
-            self.proto_res = sink.proto_res;
+            sink.prepare(
+                schemas.to_owned(),
+                generated_path.to_owned(),
+                get_api_security_config(self.config.to_owned()),
+            )
+            .expect("Failed to prepare sink factory");
         }
 
         info!("Initialized schema");

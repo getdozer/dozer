@@ -189,13 +189,33 @@ impl ProtoGenerator<'_> {
 
     pub fn generate(
         folder_path: String,
-        pipeline_map: HashMap<String, PipelineDetails>,
+        endpoint_name: String,
+        details: PipelineDetails,
         security: Option<ApiSecurity>,
     ) -> Result<ProtoResponse, GenerationError> {
         let mut resources = vec![];
-        for (endpoint_name, details) in pipeline_map {
-            let generator = ProtoGenerator::new(details, folder_path.clone(), security.to_owned())?;
-            generator._generate_proto()?;
+        let generator = ProtoGenerator::new(details, folder_path.clone(), security.to_owned())?;
+        generator._generate_proto()?;
+        resources.push(endpoint_name);
+
+        let descriptor_path = create_descriptor_set(folder_path, &resources)
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+
+        let (descriptor_bytes, descriptor) = get_proto_descriptor(descriptor_path)?;
+
+        Ok(ProtoResponse {
+            resources,
+            descriptor,
+            descriptor_bytes,
+        })
+    }
+
+    pub fn read(
+        folder_path: String,
+        pipeline_map: HashMap<String, PipelineDetails>,
+    ) -> Result<ProtoResponse, GenerationError> {
+        let mut resources = vec![];
+        for (endpoint_name, _) in pipeline_map {
             resources.push(endpoint_name);
         }
         let descriptor_path = create_descriptor_set(folder_path, &resources)

@@ -5,6 +5,7 @@ use crate::dag::record_store::RecordReader;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 
+use dozer_types::models::api_security::ApiSecurity;
 use log::info;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -39,7 +40,8 @@ impl SinkFactory for CountingSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _api_dir: PathBuf,
+        _generated_path: PathBuf,
+        _api_security: Option<ApiSecurity>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
