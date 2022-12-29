@@ -216,11 +216,9 @@ impl<'a> DagSchemaManager<'a> {
 
             match node {
                 NodeType::Source(s) => s.prepare(schemas.output_schemas.clone())?,
-                NodeType::Sink(s) => s.prepare(
-                    schemas.input_schemas.clone(),
-                    PathBuf::default(),
-                    None
-                )?,
+                NodeType::Sink(s) => {
+                    s.prepare(schemas.input_schemas.clone(), PathBuf::default(), None)?
+                }
                 NodeType::Processor(p) => p.prepare(
                     schemas.input_schemas.clone(),
                     schemas.output_schemas.clone(),

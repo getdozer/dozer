@@ -57,7 +57,8 @@ impl Indexer {
             }
         }
         txn.commit()
-            .map_err(|e| CacheError::InternalError(Box::new(e))).expect("Failed to commit transaction");
+            .map_err(|e| CacheError::InternalError(Box::new(e)))
+            .expect("Failed to commit transaction");
         Ok(())
     }
 

@@ -4,7 +4,10 @@ use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
 use dozer_api::{CacheEndpoint, PipelineDetails};
 use dozer_cache::cache::index::get_primary_key;
-use dozer_cache::cache::{lmdb_rs::{self, Transaction}, Cache, LmdbCache};
+use dozer_cache::cache::{
+    lmdb_rs::{self, Transaction},
+    Cache, LmdbCache,
+};
 use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::{ExecutionError, SinkError};
 use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
@@ -150,13 +153,16 @@ impl SinkFactory for CacheSinkFactory {
 
             let hash = self.get_schema_hash();
 
-            pipeline_schema.set_identifier(Some(SchemaIdentifier {
-                id: hash as u32,
-                version: 1,
-            })).expect("Failed to set identifier to schema");
+            pipeline_schema
+                .set_identifier(Some(SchemaIdentifier {
+                    id: hash as u32,
+                    version: 1,
+                }))
+                .expect("Failed to set identifier to schema");
 
             let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-            pipeline_schema.primary_index = create_primary_indexes(pipeline_schema.clone(), api_index.clone())?;
+            pipeline_schema.primary_index =
+                create_primary_indexes(pipeline_schema.clone(), api_index.clone())?;
 
             pipeline_schema.print().printstd();
             // Automatically create secondary indexes
@@ -167,7 +173,11 @@ impl SinkFactory for CacheSinkFactory {
                 .is_err()
             {
                 self.cache
-                    .insert_schema(&self.api_endpoint.name, &pipeline_schema, &secondary_indexes)
+                    .insert_schema(
+                        &self.api_endpoint.name,
+                        &pipeline_schema,
+                        &secondary_indexes,
+                    )
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
                     })?;
@@ -189,7 +199,8 @@ impl SinkFactory for CacheSinkFactory {
                 },
             },
             api_security,
-        ).expect("Failed to generate proto resources");
+        )
+        .expect("Failed to generate proto resources");
 
         Ok(())
     }
@@ -215,8 +226,8 @@ impl SinkFactory for CacheSinkFactory {
 
 fn create_primary_indexes(
     schema: Schema,
-    api_index: ApiIndex
-) -> Result<Vec<usize>, ExecutionError>{
+    api_index: ApiIndex,
+) -> Result<Vec<usize>, ExecutionError> {
     let mut primary_index = Vec::new();
     for name in api_index.primary_key.iter() {
         let idx = schema
@@ -300,7 +311,7 @@ impl Sink for CacheSink {
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
-            self.counter += 1;
+        self.counter += 1;
 
         if self.txn.is_none() {
             let txn = self.cache.begin_rw_txn().map_err(|e| {
@@ -351,7 +362,8 @@ impl Sink for CacheSink {
                     .insert_with_txn(txn, &new, schema, secondary_indexes)
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
-                    }).expect("Failed to insert into cache");
+                    })
+                    .expect("Failed to insert into cache");
             }
             Operation::Update { old, new } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
