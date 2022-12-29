@@ -89,6 +89,7 @@ impl OutputPortDefOptions {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct OutputPortDef {
     pub handle: PortHandle,
     pub options: OutputPortDefOptions,
