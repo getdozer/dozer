@@ -248,8 +248,7 @@ impl Orchestrator for SimpleOrchestrator {
                 schemas.to_owned(),
                 generated_path.to_owned(),
                 get_api_security_config(self.config.to_owned()),
-            )
-            .expect("Failed to prepare sink factory");
+            )?;
         }
 
         info!("Initialized schema");
