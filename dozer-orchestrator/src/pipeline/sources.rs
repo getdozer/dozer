@@ -90,6 +90,10 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect()
     }
 
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _schemas: HashMap<PortHandle, Schema>,

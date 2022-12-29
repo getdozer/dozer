@@ -49,6 +49,10 @@ impl SourceFactory for CreateErrSourceFactory {
         )]
     }
 
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -195,6 +199,14 @@ impl ProcessorFactory for CreateErrProcessorFactory {
             DEFAULT_PORT_HANDLE,
             OutputPortDefOptions::default(),
         )]
+    }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(

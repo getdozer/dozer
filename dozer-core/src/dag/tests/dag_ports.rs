@@ -31,6 +31,10 @@ impl SourceFactory for DynPortsSourceFactory {
             .collect()
     }
 
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -72,6 +76,14 @@ impl ProcessorFactory for DynPortsProcessorFactory {
             .iter()
             .map(|p| OutputPortDef::new(*p, OutputPortDefOptions::default()))
             .collect()
+    }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(

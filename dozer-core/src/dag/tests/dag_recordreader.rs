@@ -61,6 +61,15 @@ impl ProcessorFactory for PassthroughProcessorFactory {
             OutputPortDefOptions::new(true, true, true),
         )]
     }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -131,6 +140,15 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
             OutputPortDefOptions::default(),
         )]
     }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,

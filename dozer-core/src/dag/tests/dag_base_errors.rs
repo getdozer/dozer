@@ -51,6 +51,14 @@ impl ProcessorFactory for ErrorProcessorFactory {
         )]
     }
 
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -333,6 +341,11 @@ impl SourceFactory for ErrGeneratorSourceFactory {
             OutputPortDefOptions::default(),
         )]
     }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -464,6 +477,11 @@ impl SinkFactory for ErrSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }
+
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,

@@ -99,6 +99,14 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
     }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 pub(crate) fn parse_sql_select_item(

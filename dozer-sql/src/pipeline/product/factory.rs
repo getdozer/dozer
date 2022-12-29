@@ -73,6 +73,14 @@ impl ProcessorFactory for ProductProcessorFactory {
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
     }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 /// Returns a vector of input port handles and relative table name

@@ -64,6 +64,10 @@ impl SourceFactory for TestSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {}))
     }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -125,6 +129,10 @@ impl SinkFactory for TestSinkFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {}))
+    }
+
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
     }
 }
 

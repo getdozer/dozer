@@ -94,6 +94,14 @@ impl ProcessorFactory for AggregationProcessorFactory {
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
     }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 fn is_aggregation(groupby: &[SqlExpr], output_field_rules: &[FieldRule]) -> bool {
