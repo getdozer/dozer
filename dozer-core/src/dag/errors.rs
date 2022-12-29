@@ -38,6 +38,8 @@ pub enum ExecutionError {
     IncompatibleSchemas(),
     #[error("Channel disconnected")]
     ChannelDisconnected,
+    #[error("Cannot spawn worker thread: {0}")]
+    CannotSpawnWorkerThread(#[from] std::io::Error),
     #[error("Internal thread panicked")]
     InternalThreadPanic,
     #[error("Invalid source identifier {0}")]
