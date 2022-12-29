@@ -35,7 +35,7 @@ pub struct ApiServer {
     port: u16,
     cors: CorsOptions,
     security: Option<ApiSecurity>,
-    url: String,
+    host: String,
 }
 
 impl Default for ApiServer {
@@ -45,7 +45,7 @@ impl Default for ApiServer {
             port: 8080,
             cors: CorsOptions::Permissive,
             security: None,
-            url: "0.0.0.0".to_owned(),
+            host: "0.0.0.0".to_owned(),
         }
     }
 }
@@ -57,7 +57,7 @@ impl ApiServer {
             port: rest_config.port as u16,
             cors: CorsOptions::Permissive,
             security,
-            url: rest_config.url,
+            host: rest_config.host,
         }
     }
     fn get_cors(cors: CorsOptions) -> Cors {
@@ -150,7 +150,7 @@ impl ApiServer {
                 cache_endpoints.clone(),
             )
         })
-        .bind(format!("{}:{}", self.url.to_owned(), self.port.to_owned()))?
+        .bind(format!("{}:{}", self.host.to_owned(), self.port.to_owned()))?
         .shutdown_timeout(self.shutdown_timeout.to_owned())
         .run();
 

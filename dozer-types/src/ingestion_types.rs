@@ -33,7 +33,6 @@ pub trait IngestorForwarder: Send + Sync {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
-
 pub struct EthFilter {
     // Starting block
     #[prost(uint64, optional, tag = "1")]
@@ -41,8 +40,10 @@ pub struct EthFilter {
     #[prost(uint64, optional, tag = "2")]
     pub to_block: Option<u64>,
     #[prost(string, repeated, tag = "3")]
+    #[serde(default)]
     pub addresses: Vec<String>,
     #[prost(string, repeated, tag = "4")]
+    #[serde(default)]
     pub topics: Vec<String>,
 }
 
@@ -53,6 +54,7 @@ pub struct EthConfig {
     #[prost(string, tag = "2")]
     pub wss_url: String,
     #[prost(message, repeated, tag = "3")]
+    #[serde(default)]
     pub contracts: Vec<EthContract>,
 }
 

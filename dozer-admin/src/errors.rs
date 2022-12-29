@@ -7,10 +7,10 @@ use dozer_types::thiserror::Error;
 pub enum AdminError {
     #[error("Couldnt read file")]
     FailedToLoadFile(#[source] std::io::Error),
-    #[error("Failed to parse admin-dozer config..")]
+    #[error("Failed to parse admin-dozer config: {0:?}")]
     FailedToParseYaml(#[source] BoxedError),
-    #[error("Failed to parse dozer config..")]
+    #[error("Failed to parse dozer config: {0:?}")]
     FailedToParseDozerConfig(#[source] BoxedError),
-    #[error("Failed to run cli")]
+    #[error("Failed to run cli: {0:?}")]
     FailedToRunCli(#[source] Box<dyn std::error::Error>),
 }

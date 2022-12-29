@@ -1,12 +1,10 @@
-use serde::{
-    de::{IgnoredAny, Visitor},
-    Deserialize, Deserializer, Serialize,
-};
-
-use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
-
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, source::Source,
+};
+use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
+use serde::{
+    de::{self, IgnoredAny, Visitor},
+    Deserialize, Deserializer, Serialize,
 };
 #[derive(Serialize, PartialEq, Eq, Clone, prost::Message)]
 pub struct Config {
@@ -85,27 +83,45 @@ impl<'de> Deserialize<'de> for Config {
                     }
                 }
 
-                let sources = sources_value
+                let result_sources: Result<Vec<Source>, A::Error> = sources_value
                     .iter()
-                    .map(|source_value| {
-                        let connection_ref: super::source::Value =
-                            serde_yaml::from_value(source_value["connection"].to_owned()).unwrap();
+                    .enumerate()
+                    .map(|(idx, source_value)| -> Result<Source, A::Error> {
+                        let connection_ref = source_value["connection"].to_owned();
+                        if connection_ref.is_null() {
+                            return Err(de::Error::custom(format!(
+                                "sources[{:}]: missing connection ref",
+                                idx
+                            )));
+                        }
+                        let connection_ref: super::source::Value = serde_yaml::from_value(
+                            source_value["connection"].to_owned(),
+                        )
+                        .map_err(|err| {
+                            de::Error::custom(format!(
+                                "sources[{:}]: connection ref - {:} ",
+                                idx, err
+                            ))
+                        })?;
                         let super::source::Value::Ref(connection_name) = connection_ref;
-                        let mut source: Source =
-                            serde_yaml::from_value(source_value.to_owned()).unwrap();
-                        source.connection = Some(
-                            connections
-                                .iter()
-                                .find(|c| c.name == connection_name)
-                                .unwrap_or_else(|| {
-                                    panic!("Cannot find Ref connection name: {}", connection_name)
-                                })
-                                .to_owned(),
-                        );
-                        source
+                        let mut source: Source = serde_yaml::from_value(source_value.to_owned())
+                            .map_err(|err| {
+                                de::Error::custom(format!("sources[{:}]: {:} ", idx, err))
+                            })?;
+                        let connection = connections
+                            .iter()
+                            .find(|c| c.name == connection_name)
+                            .ok_or_else(|| {
+                                de::Error::custom(format!(
+                                    "sources[{:}]: Cannot find Ref connection name: {:}",
+                                    idx, connection_name
+                                ))
+                            })?;
+                        source.connection = Some(connection.to_owned());
+                        Ok(source)
                     })
                     .collect();
-
+                let sources = result_sources?;
                 Ok(Config {
                     id,
                     app_name,

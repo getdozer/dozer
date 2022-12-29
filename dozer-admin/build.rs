@@ -78,6 +78,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ".dozer_admin_grpc.ApiInternal",
             "dozer_types::models::api_config::ApiInternal",
         )
+        .extern_path(
+            ".dozer_admin_grpc.ApiPipelineInternal",
+            "dozer_types::models::api_config::ApiPipelineInternal",
+        )
         .build_client(false)
         .file_descriptor_set_path(out_dir.join("dozer_admin_grpc_descriptor.bin"))
         .compile(&["protos/api.proto"], &["proto"])
