@@ -157,8 +157,7 @@ impl SinkFactory for CacheSinkFactory {
                 .set_identifier(Some(SchemaIdentifier {
                     id: hash as u32,
                     version: 1,
-                }))
-                .expect("Failed to set identifier to schema");
+                }))?;
 
             let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
             pipeline_schema.primary_index =
@@ -199,8 +198,7 @@ impl SinkFactory for CacheSinkFactory {
                 },
             },
             api_security,
-        )
-        .expect("Failed to generate proto resources");
+        )?;
 
         Ok(())
     }

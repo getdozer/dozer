@@ -108,7 +108,7 @@ fn run() -> Result<(), OrchestrationError> {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        dozer.init().expect("Failed to initialize dozer");
+        dozer.init()?;
 
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.borrow_mut().run_apps(running, Some(tx)) {
