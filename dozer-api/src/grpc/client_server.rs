@@ -15,7 +15,7 @@ use dozer_cache::cache::Cache;
 use dozer_types::{
     log::info,
     models::{
-        api_config::{ApiGrpc, ApiInternal},
+        api_config::{ApiGrpc, ApiPipelineInternal},
         api_security::ApiSecurity,
     },
     types::Schema,
@@ -23,7 +23,6 @@ use dozer_types::{
 use futures_util::{FutureExt, StreamExt};
 use std::{
     collections::HashMap,
-    fs,
     path::PathBuf,
     sync::{atomic::AtomicBool, Arc},
     thread,
@@ -37,15 +36,15 @@ pub struct ApiServer {
     port: u16,
     dynamic: bool,
     web: bool,
-    url: String,
+    host: String,
     api_dir: PathBuf,
-    pipeline_config: ApiInternal,
+    pipeline_config: ApiPipelineInternal,
     security: Option<ApiSecurity>,
 }
 
 impl ApiServer {
     async fn connect_internal_client(
-        pipeline_config: ApiInternal,
+        pipeline_config: ApiPipelineInternal,
     ) -> Result<Streaming<PipelineResponse>, GRPCError> {
         let address = format!("http://{:}:{:}", pipeline_config.host, pipeline_config.port);
         let mut client = InternalPipelineServiceClient::connect(address)
@@ -67,7 +66,6 @@ impl ApiServer {
     ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
         let mut schema_map: HashMap<String, Schema> = HashMap::new();
 
-        // wait until all schemas are initalized
         for (endpoint_name, details) in &pipeline_map {
             let cache = details.cache_endpoint.cache.clone();
             let mut idx = 0;
@@ -90,23 +88,19 @@ impl ApiServer {
                 }
             }
         }
-        info!("Schemas initialized. Starting gRPC server.");
+        info!("Starting gRPC server.");
 
         let generated_path = self.api_dir.join("generated");
-        if generated_path.exists() {
-            fs::remove_dir_all(&generated_path).unwrap();
-        }
-        fs::create_dir_all(&generated_path).unwrap();
 
-        let proto_res = ProtoGenerator::generate(
+        let proto_res = ProtoGenerator::read(
             generated_path.to_string_lossy().to_string(),
             pipeline_map.to_owned(),
-            self.security.to_owned(),
         )?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
             .build()?;
+
         // Service handling dynamic gRPC requests.
         let typed_service = TypedService::new(
             proto_res.descriptor,
@@ -115,6 +109,7 @@ impl ApiServer {
             rx1.resubscribe(),
             self.security.to_owned(),
         );
+
         Ok((typed_service, inflection_service))
     }
 
@@ -122,13 +117,13 @@ impl ApiServer {
         grpc_config: ApiGrpc,
         dynamic: bool,
         api_dir: PathBuf,
-        pipeline_config: ApiInternal,
+        pipeline_config: ApiPipelineInternal,
         security: Option<ApiSecurity>,
     ) -> Self {
         Self {
             port: grpc_config.port as u16,
             web: grpc_config.web,
-            url: grpc_config.url,
+            host: grpc_config.host,
             dynamic,
             api_dir,
             pipeline_config,
@@ -193,7 +188,7 @@ impl ApiServer {
         } else {
             grpc_router
         };
-        let addr = format!("{:}:{:}", self.url, self.port).parse().unwrap();
+        let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await
@@ -202,7 +197,7 @@ impl ApiServer {
 
     pub fn setup_broad_cast_channel(
         sender: broadcast::Sender<PipelineResponse>,
-        pipeline_config: ApiInternal,
+        pipeline_config: ApiPipelineInternal,
     ) -> Result<(), GRPCError> {
         tokio::spawn(async move {
             let mut stream = ApiServer::connect_internal_client(pipeline_config.to_owned())

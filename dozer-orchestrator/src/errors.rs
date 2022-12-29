@@ -11,7 +11,7 @@ use dozer_types::{serde_yaml, thiserror};
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
-    #[error("Failed to write config yaml")]
+    #[error("Failed to write config yaml: {0:?}")]
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize dozer config..")]
     InitializationFailed,
@@ -25,6 +25,8 @@ pub enum OrchestrationError {
     SchemaUpdateFailed(#[source] RecvError),
     #[error("Ingestion message forwarding failed")]
     IngestionForwarderError,
+    #[error(transparent)]
+    InternalError(#[from] BoxedError),
     #[error(transparent)]
     ExecutionError(#[from] ExecutionError),
     #[error(transparent)]
@@ -50,8 +52,8 @@ pub enum OrchestrationError {
 pub enum CliError {
     #[error("Can't find the configuration file at: {0:?}")]
     FailedToLoadFile(String),
-    #[error("Failed to parse dozer config..")]
+    #[error("Failed to parse dozer config: {0:?}")]
     FailedToParseYaml(#[source] BoxedError),
-    #[error("Failed to validate dozer config..")]
+    #[error("Failed to validate dozer config: {0:?}")]
     FailedToParseValidateYaml(#[source] BoxedError),
 }

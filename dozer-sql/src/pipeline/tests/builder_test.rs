@@ -15,8 +15,10 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 use log::debug;
 
 use dozer_core::dag::epoch::Epoch;
+use dozer_types::models::api_security::ApiSecurity;
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
@@ -131,7 +133,12 @@ impl SinkFactory for TestSinkFactory {
         Ok(Box::new(TestSink {}))
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _generated_path: PathBuf,
+        _api_security: Option<ApiSecurity>,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

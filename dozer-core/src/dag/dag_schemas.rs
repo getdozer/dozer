@@ -4,6 +4,7 @@ use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 use crate::dag::node::{NodeHandle, PortHandle};
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct NodeSchemas {
@@ -35,7 +36,7 @@ impl NodeSchemas {
     }
 }
 
-pub(crate) struct DagSchemaManager<'a> {
+pub struct DagSchemaManager<'a> {
     dag: &'a Dag,
     schemas: HashMap<NodeHandle, NodeSchemas>,
 }
@@ -215,7 +216,9 @@ impl<'a> DagSchemaManager<'a> {
 
             match node {
                 NodeType::Source(s) => s.prepare(schemas.output_schemas.clone())?,
-                NodeType::Sink(s) => s.prepare(schemas.input_schemas.clone())?,
+                NodeType::Sink(s) => {
+                    s.prepare(schemas.input_schemas.clone(), PathBuf::default(), None)?
+                }
                 NodeType::Processor(p) => p.prepare(
                     schemas.input_schemas.clone(),
                     schemas.output_schemas.clone(),

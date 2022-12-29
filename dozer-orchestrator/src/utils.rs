@@ -1,5 +1,5 @@
 use dozer_types::models::{
-    api_config::{ApiConfig, ApiGrpc, ApiInternal, ApiRest},
+    api_config::{ApiConfig, ApiGrpc, ApiPipelineInternal, ApiRest},
     api_security::ApiSecurity,
     app_config::Config,
 };
@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub fn get_pipeline_dir(config: Config) -> PathBuf {
     PathBuf::from(get_pipeline_config(config).home_dir)
 }
-pub fn get_pipeline_config(config: Config) -> ApiInternal {
+pub fn get_pipeline_config(config: Config) -> ApiPipelineInternal {
     config
         .api
         .unwrap_or_default()
