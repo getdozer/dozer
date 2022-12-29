@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::errors::AdminError;
 use dozer_types::constants::DEFAULT_HOME_DIR;
-use dozer_types::models::api_config::{default_api_config, ApiInternal};
+use dozer_types::models::api_config::{default_api_config, ApiInternal, ApiPipelineInternal};
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_yaml;
 pub mod cli_process;
@@ -16,7 +16,7 @@ pub struct AdminCliConfig {
     #[serde(default = "default_api_internal")]
     pub api_internal: ApiInternal,
     #[serde(default = "default_pipeline_internal")]
-    pub pipeline_internal: ApiInternal,
+    pub pipeline_internal: ApiPipelineInternal,
     pub dozer_config: Option<String>,
     #[serde(default = "default_home_dir")]
     pub home_dir: String,
@@ -27,7 +27,7 @@ fn default_home_dir() -> String {
 fn default_api_internal() -> ApiInternal {
     AdminCliConfig::default().api_internal
 }
-fn default_pipeline_internal() -> ApiInternal {
+fn default_pipeline_internal() -> ApiPipelineInternal {
     AdminCliConfig::default().pipeline_internal
 }
 impl Default for AdminCliConfig {
