@@ -22,7 +22,7 @@ impl PrimaryIndexDatabase {
         Ok(Self(db))
     }
 
-    pub fn insert(
+    pub fn _insert(
         &self,
         txn: &mut RwTransaction,
         key: &[u8],
@@ -60,7 +60,7 @@ mod tests {
         let id = [1u8; 8];
 
         let mut txn = env.begin_rw_txn().unwrap();
-        writer.insert(&mut txn, key, id).unwrap();
+        writer._insert(&mut txn, key, id).unwrap();
         txn.commit().unwrap();
 
         let txn = env.begin_ro_txn().unwrap();

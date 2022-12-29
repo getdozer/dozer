@@ -153,11 +153,10 @@ impl SinkFactory for CacheSinkFactory {
 
             let hash = self.get_schema_hash();
 
-            pipeline_schema
-                .set_identifier(Some(SchemaIdentifier {
-                    id: hash as u32,
-                    version: 1,
-                }))?;
+            pipeline_schema.set_identifier(Some(SchemaIdentifier {
+                id: hash as u32,
+                version: 1,
+            }))?;
 
             let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
             pipeline_schema.primary_index =
@@ -184,16 +183,6 @@ impl SinkFactory for CacheSinkFactory {
                     "SinkFactory: Inserted schema for {}",
                     self.api_endpoint.name
                 );
-            } else {
-                let (schema, _) = self.cache.get_schema_and_indexes_by_name(&self.api_endpoint.name)
-                    .map_err(|e| {
-                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
-                    })?;
-                if let Some(i) = schema.identifier {
-                    if i.id != hash as u32 {
-                        panic!("Schema already exist")
-                    }
-                }
             }
         }
 
@@ -208,7 +197,8 @@ impl SinkFactory for CacheSinkFactory {
                 },
             },
             api_security,
-        ).map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+        )
+        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
         Ok(())
     }
