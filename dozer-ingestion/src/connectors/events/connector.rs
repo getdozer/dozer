@@ -73,6 +73,6 @@ impl Connector for EventsConnector {
     }
 
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
-        sources.iter().map(|s| vec![s.clone()]).collect()
+        vec![sources.clone()]
     }
 }
