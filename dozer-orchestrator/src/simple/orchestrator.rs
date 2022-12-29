@@ -233,8 +233,6 @@ impl Orchestrator for SimpleOrchestrator {
 
         let sinks = dag.get_sinks();
         let schema_manager = DagSchemaManager::new(&dag)?;
-        // Assuming the cache_endpoint will follow the same order as sinks
-        let mut ce_iterator = cache_endpoints.into_iter();
 
         let generated_path = api_dir.join("generated");
         if generated_path.exists() {
@@ -246,10 +244,6 @@ impl Orchestrator for SimpleOrchestrator {
             let schemas = schema_manager
                 .get_node_input_schemas(&sink_handle)
                 .expect("Failed to get node input schemas");
-            let _ce = ce_iterator
-                .next()
-                .expect("cache_endpoint is expected to have the same length as sinks");
-
             sink.prepare(
                 schemas.to_owned(),
                 generated_path.to_owned(),

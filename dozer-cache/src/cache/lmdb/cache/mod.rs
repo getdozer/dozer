@@ -95,8 +95,7 @@ impl LmdbCache {
         };
 
         indexer
-            .build_indexes(txn, record, schema, secondary_indexes, id)
-            .unwrap_or_else(|_| panic!("Failed to build indexes {:?}", record));
+            .build_indexes(txn, record, schema, secondary_indexes, id).unwrap();
 
         Ok(())
     }

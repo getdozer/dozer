@@ -362,8 +362,7 @@ impl Sink for CacheSink {
                     .insert_with_txn(txn, &new, schema, secondary_indexes)
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
-                    })
-                    .expect("Failed to insert into cache");
+                    })?;
             }
             Operation::Update { old, new } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
