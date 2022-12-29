@@ -100,6 +100,7 @@ fn run() -> Result<(), OrchestrationError> {
                 }
             },
             Commands::Init => dozer.init(),
+            Commands::Clean => dozer.clean(),
         }
     } else {
         render_logo();

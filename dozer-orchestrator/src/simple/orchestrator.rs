@@ -234,12 +234,10 @@ impl Orchestrator for SimpleOrchestrator {
 
         let sinks = dag.get_sinks();
         let schema_manager = DagSchemaManager::new(&dag)?;
-
         let generated_path = api_dir.join("generated");
-        if generated_path.exists() {
-            fs::remove_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+        if !generated_path.exists() {
+            fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
         }
-        fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
 
         for (sink_handle, sink) in sinks {
             let schemas = schema_manager
@@ -253,6 +251,16 @@ impl Orchestrator for SimpleOrchestrator {
 
         info!("Initialized schema");
 
+        Ok(())
+    }
+
+    fn clean(&mut self) -> Result<(), OrchestrationError> {
+        self.write_internal_config().map_err(|e| InternalError(Box::new(e)))?;
+        let api_dir = get_api_dir(self.config.to_owned());
+        let generated_path = api_dir.join("generated");
+        if generated_path.exists() {
+            fs::remove_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+        };
         Ok(())
     }
 }

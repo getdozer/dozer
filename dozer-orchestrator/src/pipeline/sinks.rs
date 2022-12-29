@@ -184,6 +184,16 @@ impl SinkFactory for CacheSinkFactory {
                     "SinkFactory: Inserted schema for {}",
                     self.api_endpoint.name
                 );
+            } else {
+                let (schema, _) = self.cache.get_schema_and_indexes_by_name(&self.api_endpoint.name)
+                    .map_err(|e| {
+                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+                    })?;
+                if let Some(i) = schema.identifier {
+                    if i.id != hash as u32 {
+                        panic!("Schema already exist")
+                    }
+                }
             }
         }
 

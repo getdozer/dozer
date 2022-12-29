@@ -16,6 +16,7 @@ mod utils;
 
 pub trait Orchestrator {
     fn init(&mut self) -> Result<(), OrchestrationError>;
+    fn clean(&mut self) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
