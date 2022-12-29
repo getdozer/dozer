@@ -1,5 +1,23 @@
 version: '3.9'
 services:
+  dozer-cache-init:
+    container_name: dozer-cache-init
+    image: yikaus/alpine-bash
+    volumes:
+      - ./scripts:/scripts
+      - dozer_data:/mnt/dozer
+    command: "sh /scripts/clear_cache.sh"
+
+  dozer-cache-ready:
+    image: yikaus/alpine-bash
+    depends_on:
+      dozer-cache-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./scripts:/scripts
+      - dozer_data:/mnt/dozer
+    command: "sh /scripts/status.sh"
+    
   dozer-app:
     container_name: dozer-app
     image: 708185497968.dkr.ecr.ap-southeast-1.amazonaws.com/dozer:latest
@@ -7,6 +25,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      dozer-cache-init:
+        condition: service_completed_successfully
     networks: [ "dozer_net" ]
     command: "dozer -c /usr/dozer/dozer-config.yaml app run"
     volumes:
@@ -16,7 +36,7 @@ services:
   dozer-api:
     container_name: dozer-api
     depends_on:
-      status:
+      dozer-cache-ready:
         condition: service_completed_successfully
 
 #    build: ../
@@ -43,13 +63,6 @@ services:
     volumes:
       - sample-data:/var/lib/stock-sample/data
     networks: ["dozer_net"]
-
-  status:
-    image: yikaus/alpine-bash
-    volumes:
-      - ./scripts:/scripts
-      - dozer_data:/mnt/dozer
-    command: "sh /scripts/status.sh"
 
   postgres:
     depends_on:
