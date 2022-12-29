@@ -17,6 +17,7 @@ use log::debug;
 use dozer_core::dag::epoch::Epoch;
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
@@ -131,7 +132,11 @@ impl SinkFactory for TestSinkFactory {
         Ok(Box::new(TestSink {}))
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+    &self,
+    _input_schemas: HashMap<PortHandle, Schema>,
+    _api_dir: PathBuf,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

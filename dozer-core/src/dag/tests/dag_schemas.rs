@@ -8,6 +8,7 @@ use crate::dag::node::{
 };
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
@@ -156,7 +157,11 @@ impl SinkFactory for TestSinkFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _api_dir: PathBuf,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 

@@ -157,7 +157,11 @@ pub trait SinkFactory: Send + Sync + Debug {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError>;
+    fn prepare(
+        &self, 
+        input_schemas: HashMap<PortHandle, Schema>, 
+        api_dir: PathBuf,
+    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,

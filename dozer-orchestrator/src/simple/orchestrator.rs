@@ -37,6 +37,7 @@ pub struct SimpleOrchestrator {
     pub cache_common_options: CacheCommonOptions,
     pub cache_read_options: CacheReadOptions,
     pub cache_write_options: CacheWriteOptions,
+    proto_res: ProtoResponse,
 }
 
 impl SimpleOrchestrator {
@@ -127,7 +128,7 @@ impl Orchestrator for SimpleOrchestrator {
                 grpc::ApiServer::new(grpc_config, true, api_dir, pipeline_config, api_security);
             tokio::spawn(async move {
                 grpc_server
-                    .run(ce2, running2.to_owned(), receiver_shutdown)
+                    .run(ce2, running2.to_owned(), receiver_shutdown, self.proto_res)
                     .await
                     .expect("Failed to initialize gRPC server")
             });
@@ -210,6 +211,7 @@ impl Orchestrator for SimpleOrchestrator {
     fn init(&mut self) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+        let api_dir = get_api_dir(self.config.to_owned());
 
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
@@ -249,7 +251,8 @@ impl Orchestrator for SimpleOrchestrator {
             //     .expect("Failed to generate proto");
             // self.grpc_service = grpc_service;
             // self.inflection_service = inflection_service;
-            sink.prepare(schemas.to_owned()).expect("Failed to prepare sink factory");
+            sink.prepare(schemas.to_owned(), PathBuf::default()).expect("Failed to prepare sink factory");
+            self.proto_res = sink.proto_res;
         }
 
         info!("Initialized schema");

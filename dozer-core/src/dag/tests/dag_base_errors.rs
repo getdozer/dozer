@@ -17,6 +17,7 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 
 use std::collections::HashMap;
 use std::panic;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Barrier};
 
@@ -478,7 +479,11 @@ impl SinkFactory for ErrSinkFactory {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _api_dir: PathBuf,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 

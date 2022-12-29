@@ -33,6 +33,7 @@ pub struct CacheSinkFactory {
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
+    pub proto_res: ProtoResponse,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -60,12 +61,14 @@ impl CacheSinkFactory {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
+        proto_res: Option<ProtoResponse>,
     ) -> Self {
         Self {
             input_ports,
             cache,
             api_endpoint,
             notifier,
+            proto_res
         }
     }
     fn get_output_schema(
@@ -134,6 +137,8 @@ impl CacheSinkFactory {
 }
 
 impl SinkFactory for CacheSinkFactory {
+    use ProtoGenerator;
+
     fn set_input_schema(
         &self,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -145,8 +150,22 @@ impl SinkFactory for CacheSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
-        // TODO: generate protoc file
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        api_dir: PathBuf,
+    ) -> Result<(), ExecutionError> {
+        let generated_path = api_dir.join("generated");
+        if generated_path.exists() {
+            fs::remove_dir_all(&generated_path).unwrap();
+        }
+        fs::create_dir_all(&generated_path).unwrap();
+
+        self.proto_res = ProtoGenerator::generate(
+            generated_path.to_string_lossy().to_string(),
+            pipeline_map.to_owned(),
+            security.to_owned(),
+        )?;
 
         Ok(())
     }

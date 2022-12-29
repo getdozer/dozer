@@ -7,6 +7,7 @@ use dozer_types::types::{Operation, Schema};
 
 use log::info;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 
 pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = 90;
@@ -35,7 +36,11 @@ impl SinkFactory for CountingSinkFactory {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _api_dir: PathBuf,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 

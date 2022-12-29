@@ -32,6 +32,7 @@ use std::{
 use tokio::sync::broadcast;
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
+use crate::generator::protoc::generator::ProtoResponse;
 
 pub struct ApiServer {
     port: u16,
@@ -61,52 +62,41 @@ impl ApiServer {
     }
     fn get_dynamic_service(
         &self,
+        proto_res: ProtoResponse,
         pipeline_map: HashMap<String, PipelineDetails>,
         rx1: broadcast::Receiver<PipelineResponse>,
         _running: Arc<AtomicBool>,
     ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
         let mut schema_map: HashMap<String, Schema> = HashMap::new();
 
-        // wait until all schemas are initialized
-        // for (endpoint_name, details) in &pipeline_map {
-        //     let cache = details.cache_endpoint.cache.clone();
-        //     let mut idx = 0;
-        //     loop {
-        //         let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
-        //
-        //         match schema_res {
-        //             Ok((schema, _)) => {
-        //                 schema_map.insert(endpoint_name.clone(), schema);
-        //                 break;
-        //             }
-        //             Err(_) => {
-        //                 info!(
-        //                     "Schema for endpoint: {} not found. Waiting...({})",
-        //                     endpoint_name, idx
-        //                 );
-        //                 thread::sleep(Duration::from_millis(300));
-        //                 idx += 1;
-        //             }
-        //         }
-        //     }
-        // }
-        info!("Starting gRPC server.");
+        for (endpoint_name, details) in &pipeline_map {
+            let cache = details.cache_endpoint.cache.clone();
+            let mut idx = 0;
+            loop {
+                let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
 
-        let generated_path = self.api_dir.join("generated");
-        if generated_path.exists() {
-            fs::remove_dir_all(&generated_path).unwrap();
+                match schema_res {
+                    Ok((schema, _)) => {
+                        schema_map.insert(endpoint_name.clone(), schema);
+                        break;
+                    }
+                    Err(_) => {
+                        info!(
+                            "Schema for endpoint: {} not found. Waiting...({})",
+                            endpoint_name, idx
+                        );
+                        thread::sleep(Duration::from_millis(300));
+                        idx += 1;
+                    }
+                }
+            }
         }
-        fs::create_dir_all(&generated_path).unwrap();
-
-        let proto_res = ProtoGenerator::generate(
-            generated_path.to_string_lossy().to_string(),
-            pipeline_map.to_owned(),
-            self.security.to_owned(),
-        )?;
+        info!("Starting gRPC server.");
 
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
             .build()?;
+
         // Service handling dynamic gRPC requests.
         let typed_service = TypedService::new(
             proto_res.descriptor,
@@ -115,6 +105,7 @@ impl ApiServer {
             rx1.resubscribe(),
             self.security.to_owned(),
         );
+
         Ok((typed_service, inflection_service))
     }
 
@@ -141,6 +132,7 @@ impl ApiServer {
         cache_endpoints: Vec<CacheEndpoint>,
         running: Arc<AtomicBool>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
+        proto_res: ProtoResponse,
     ) -> Result<(), GRPCError> {
         // create broadcast channel
         let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
@@ -179,7 +171,7 @@ impl ApiServer {
 
         let grpc_router = if self.dynamic {
             let (grpc_service, inflection_service) =
-                self.get_dynamic_service(pipeline_map.clone(), rx1, running)?;
+                self.get_dynamic_service(proto_res, pipeline_map.clone(), rx1, running)?;
             // GRPC service to handle reflection requests
             grpc_router = grpc_router.add_service(inflection_service);
             if self.web {

@@ -16,6 +16,7 @@ use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -147,7 +148,11 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _api_dir: PathBuf,
+    ) -> Result<(), ExecutionError> {
         Ok(())
     }
 
