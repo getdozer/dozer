@@ -67,30 +67,30 @@ impl ApiServer {
     ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
         let mut schema_map: HashMap<String, Schema> = HashMap::new();
 
-        // wait until all schemas are initalized
-        for (endpoint_name, details) in &pipeline_map {
-            let cache = details.cache_endpoint.cache.clone();
-            let mut idx = 0;
-            loop {
-                let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
-
-                match schema_res {
-                    Ok((schema, _)) => {
-                        schema_map.insert(endpoint_name.clone(), schema);
-                        break;
-                    }
-                    Err(_) => {
-                        info!(
-                            "Schema for endpoint: {} not found. Waiting...({})",
-                            endpoint_name, idx
-                        );
-                        thread::sleep(Duration::from_millis(300));
-                        idx += 1;
-                    }
-                }
-            }
-        }
-        info!("Schemas initialized. Starting gRPC server.");
+        // wait until all schemas are initialized
+        // for (endpoint_name, details) in &pipeline_map {
+        //     let cache = details.cache_endpoint.cache.clone();
+        //     let mut idx = 0;
+        //     loop {
+        //         let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
+        //
+        //         match schema_res {
+        //             Ok((schema, _)) => {
+        //                 schema_map.insert(endpoint_name.clone(), schema);
+        //                 break;
+        //             }
+        //             Err(_) => {
+        //                 info!(
+        //                     "Schema for endpoint: {} not found. Waiting...({})",
+        //                     endpoint_name, idx
+        //                 );
+        //                 thread::sleep(Duration::from_millis(300));
+        //                 idx += 1;
+        //             }
+        //         }
+        //     }
+        // }
+        info!("Starting gRPC server.");
 
         let generated_path = self.api_dir.join("generated");
         if generated_path.exists() {

@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{panic, process, thread};
+use std::borrow::BorrowMut;
 use tokio::runtime::Runtime;
 
 fn main() {
@@ -107,8 +108,10 @@ fn run() -> Result<(), OrchestrationError> {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
+        dozer.init().expect("Failed to initialize dozer");
+
         let pipeline_thread = thread::spawn(move || {
-            if let Err(e) = dozer.run_apps(running, Some(tx)) {
+            if let Err(e) = dozer.borrow_mut().run_apps(running, Some(tx)) {
                 std::panic::panic_any(e);
             }
         });

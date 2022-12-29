@@ -29,6 +29,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
+use dozer_types::log::info;
+
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
@@ -148,13 +150,14 @@ impl Orchestrator for SimpleOrchestrator {
     ) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
         let _intern_pipeline_thread = thread::spawn(move || {
             _ = start_internal_pipeline_server(internal_app_config, receiver);
         });
-        // Ingestion Channe;
+        // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
@@ -208,7 +211,7 @@ impl Orchestrator for SimpleOrchestrator {
         self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
 
-        // Ingestion Channe;
+        // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
@@ -232,14 +235,24 @@ impl Orchestrator for SimpleOrchestrator {
         // Assuming the cache_endpoint will follow the same order as sinks
         let mut ce_iterator = cache_endpoints.into_iter();
         for (sink_handle, sink) in sinks {
-            let schemas = schema_manager.get_node_input_schemas(&sink_handle)?;
+            let schemas = schema_manager
+                .get_node_input_schemas(&sink_handle)
+                .expect("Failed to get node input schemas");
             let schema = schemas.values().next().expect("Schema is missing in sink");
             let ce = ce_iterator
                 .next()
                 .expect("cache_endpoint is expected to have the same length as sinks");
 
             let endpoint_name = ce.endpoint.name;
+            // let (grpc_service, inflection_service) = self
+            //     .generate_proto(api_dir.clone())
+            //     .expect("Failed to generate proto");
+            // self.grpc_service = grpc_service;
+            // self.inflection_service = inflection_service;
+            sink.prepare(schemas.to_owned()).expect("Failed to prepare sink factory");
         }
+
+        info!("Initialized schema");
 
         Ok(())
     }

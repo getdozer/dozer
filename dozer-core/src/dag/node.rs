@@ -6,6 +6,8 @@ use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use std::fs;
+use std::path::PathBuf;
 use std::str::from_utf8;
 
 //pub type NodeHandle = String;

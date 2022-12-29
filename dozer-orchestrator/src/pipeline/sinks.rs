@@ -19,9 +19,13 @@ use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::fs;
 use std::hash::Hasher;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
+use dozer_api::errors::GRPCError;
+use dozer_api::grpc::typed::TypedService;
 
 #[derive(Debug)]
 pub struct CacheSinkFactory {
@@ -142,6 +146,8 @@ impl SinkFactory for CacheSinkFactory {
     }
 
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        // TODO: generate protoc file
+
         Ok(())
     }
 
@@ -204,11 +210,13 @@ impl Sink for CacheSink {
                 self.api_endpoint.name
             );
             schema.print().printstd();
-            self.cache
-                .insert_schema(&self.api_endpoint.name, schema, secondary_indexes)
-                .map_err(|e| {
-                    ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
-                })?;
+            if self.cache.get_schema_and_indexes_by_name((&self.api_endpoint.name)).is_err() {
+                self.cache
+                    .insert_schema(&self.api_endpoint.name, schema, secondary_indexes)
+                    .map_err(|e| {
+                        ExecutionError::SinkError(SinkError::SchemaUpdateFailed(Box::new(e)))
+                    })?;
+            }
         }
         Ok(())
     }
