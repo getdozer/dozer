@@ -26,6 +26,8 @@ pub enum OrchestrationError {
     #[error("Ingestion message forwarding failed")]
     IngestionForwarderError,
     #[error(transparent)]
+    InternalError(#[from] BoxedError),
+    #[error(transparent)]
     ExecutionError(#[from] ExecutionError),
     #[error(transparent)]
     ConnectorError(#[from] ConnectorError),

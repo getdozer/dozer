@@ -23,7 +23,6 @@ use dozer_types::{
 use futures_util::{FutureExt, StreamExt};
 use std::{
     collections::HashMap,
-    fs,
     path::PathBuf,
     sync::{atomic::AtomicBool, Arc},
     thread,
@@ -67,7 +66,6 @@ impl ApiServer {
     ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
         let mut schema_map: HashMap<String, Schema> = HashMap::new();
 
-        // wait until all schemas are initalized
         for (endpoint_name, details) in &pipeline_map {
             let cache = details.cache_endpoint.cache.clone();
             let mut idx = 0;
@@ -90,23 +88,19 @@ impl ApiServer {
                 }
             }
         }
-        info!("Schemas initialized. Starting gRPC server.");
+        info!("Starting gRPC server.");
 
         let generated_path = self.api_dir.join("generated");
-        if generated_path.exists() {
-            fs::remove_dir_all(&generated_path).unwrap();
-        }
-        fs::create_dir_all(&generated_path).unwrap();
 
-        let proto_res = ProtoGenerator::generate(
+        let proto_res = ProtoGenerator::read(
             generated_path.to_string_lossy().to_string(),
             pipeline_map.to_owned(),
-            self.security.to_owned(),
         )?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
             .build()?;
+
         // Service handling dynamic gRPC requests.
         let typed_service = TypedService::new(
             proto_res.descriptor,
@@ -115,6 +109,7 @@ impl ApiServer {
             rx1.resubscribe(),
             self.security.to_owned(),
         );
+
         Ok((typed_service, inflection_service))
     }
 

@@ -52,25 +52,10 @@ impl Executor {
             running,
         }
     }
-    pub fn get_tables(
-        connections: &Vec<Connection>,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
-        let mut schema_map = HashMap::new();
-        for connection in connections {
-            validate(connection.to_owned(), None)?;
-
-            let connector = get_connector(connection.to_owned())?;
-            let schema_tuples = connector.get_schemas(None)?;
-            schema_map.insert(connection.name.to_owned(), schema_tuples);
-        }
-
-        Ok(schema_map)
-    }
-
-    pub fn run(
+    pub fn build_pipeline(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
-    ) -> Result<(), OrchestrationError> {
+    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
         for sources_group in grouped_connections.values() {
             let first_source = sources_group.get(0).unwrap();
@@ -88,7 +73,6 @@ impl Executor {
                 validate(connection.clone(), Some(tables))?;
             }
         }
-        let running_wait = self.running.clone();
 
         let asm = SourceBuilder::build_source_manager(
             grouped_connections,
@@ -128,8 +112,30 @@ impl Executor {
             app.add_pipeline(pipeline);
         }
 
-        let parent_dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
+        app.get_dag().map_err(OrchestrationError::ExecutionError)
+    }
+    pub fn get_tables(
+        connections: &Vec<Connection>,
+    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+        let mut schema_map = HashMap::new();
+        for connection in connections {
+            validate(connection.to_owned(), None)?;
 
+            let connector = get_connector(connection.to_owned())?;
+            let schema_tuples = connector.get_schemas(None)?;
+            schema_map.insert(connection.name.to_owned(), schema_tuples);
+        }
+
+        Ok(schema_map)
+    }
+
+    pub fn run(
+        &self,
+        notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+    ) -> Result<(), OrchestrationError> {
+        let running_wait = self.running.clone();
+
+        let parent_dag = self.build_pipeline(notifier)?;
         let path = &self.home_dir;
         fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
         let mut exec = DagExecutor::new(

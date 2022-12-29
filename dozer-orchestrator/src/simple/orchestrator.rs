@@ -16,18 +16,22 @@ use dozer_api::{
 };
 use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, CacheWriteOptions};
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
+use dozer_core::dag::dag_schemas::DagSchemaManager;
+use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::serde_yaml;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
+
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
     pub config: Config,
@@ -147,35 +151,18 @@ impl Orchestrator for SimpleOrchestrator {
     ) -> Result<(), OrchestrationError> {
         self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
         let _intern_pipeline_thread = thread::spawn(move || {
             _ = start_internal_pipeline_server(internal_app_config, receiver);
         });
-        // Ingestion Channe;
+        // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
-        let cache_endpoints: Vec<CacheEndpoint> = self
-            .config
-            .endpoints
-            .iter()
-            .map(|e| {
-                let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(cache_dir.join(e.name.clone()));
-                CacheEndpoint {
-                    cache: Arc::new(
-                        LmdbCache::new(CacheOptions {
-                            common: cache_common_options,
-                            kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
-                        })
-                        .unwrap(),
-                    ),
-                    endpoint: e.to_owned(),
-                }
-            })
-            .collect();
+        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -219,5 +206,86 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::GenerateTokenFailed(
             "Missing api config or security input".to_owned(),
         ))
+    }
+
+    fn init(&mut self) -> Result<(), OrchestrationError> {
+        self.write_internal_config()
+            .map_err(|e| InternalError(Box::new(e)))?;
+        let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
+        let api_dir = get_api_dir(self.config.to_owned());
+
+        // Ingestion channel
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        let cache_dir = get_cache_dir(self.config.to_owned());
+
+        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
+
+        let sources = self.config.sources.clone();
+
+        let executor = Executor::new(
+            sources,
+            cache_endpoints,
+            ingestor,
+            iterator,
+            Arc::new(AtomicBool::new(true)),
+            pipeline_home_dir,
+        );
+
+        let dag = executor.build_pipeline(None)?;
+
+        let sinks = dag.get_sinks();
+        let schema_manager = DagSchemaManager::new(&dag)?;
+        let generated_path = api_dir.join("generated");
+        if !generated_path.exists() {
+            fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+        }
+
+        for (sink_handle, sink) in sinks {
+            let schemas = schema_manager.get_node_input_schemas(&sink_handle)?;
+            sink.prepare(
+                schemas.to_owned(),
+                generated_path.to_owned(),
+                get_api_security_config(self.config.to_owned()),
+            )?;
+        }
+
+        info!("Initialized schema");
+
+        Ok(())
+    }
+
+    fn clean(&mut self) -> Result<(), OrchestrationError> {
+        self.write_internal_config()
+            .map_err(|e| InternalError(Box::new(e)))?;
+        let api_dir = get_api_dir(self.config.to_owned());
+        let generated_path = api_dir.join("generated");
+        if generated_path.exists() {
+            fs::remove_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+        };
+        Ok(())
+    }
+}
+
+impl SimpleOrchestrator {
+    fn get_cache_endpoints(
+        &self,
+        cache_dir: PathBuf,
+    ) -> Result<Vec<CacheEndpoint>, OrchestrationError> {
+        let mut cache_endpoints = Vec::new();
+        for e in &self.config.endpoints {
+            let mut cache_common_options = self.cache_common_options.clone();
+            cache_common_options.set_path(cache_dir.join(e.name.clone()));
+            cache_endpoints.push(CacheEndpoint {
+                cache: Arc::new(
+                    LmdbCache::new(CacheOptions {
+                        common: cache_common_options,
+                        kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
+                    })
+                    .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
+                ),
+                endpoint: e.to_owned(),
+            })
+        }
+        Ok(cache_endpoints)
     }
 }
