@@ -198,7 +198,7 @@ impl SinkFactory for CacheSinkFactory {
                 },
             },
             api_security,
-        )?;
+        ).map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
         Ok(())
     }

@@ -3,10 +3,22 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use std::sync::Arc;
 mod api_helper;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CacheEndpoint {
     pub cache: Arc<LmdbCache>,
     pub endpoint: ApiEndpoint,
+}
+
+impl CacheEndpoint {
+    pub fn new(
+        cache: Arc<LmdbCache>,
+        endpoint: ApiEndpoint,
+    ) -> Result<Self, CacheError> {
+        Ok(Self {
+            cache,
+            endpoint,
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -24,6 +36,8 @@ pub mod rest;
 // Re-exports
 pub use actix_web;
 pub use tokio;
+use dozer_cache::errors::CacheError;
+use dozer_types::errors::types::TypeError;
 
 #[cfg(test)]
 mod test_utils;

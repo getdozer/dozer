@@ -30,6 +30,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
+use dozer_core::dag::errors::ExecutionError::InternalError;
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -161,7 +162,7 @@ impl Orchestrator for SimpleOrchestrator {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
-        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir);
+        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -208,7 +209,7 @@ impl Orchestrator for SimpleOrchestrator {
     }
 
     fn init(&mut self) -> Result<(), OrchestrationError> {
-        self.write_internal_config()?;
+        self.write_internal_config().map_err(|e| InternalError(Box::new(e)))?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
         let api_dir = get_api_dir(self.config.to_owned());
 
@@ -216,7 +217,7 @@ impl Orchestrator for SimpleOrchestrator {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
-        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir);
+        let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
 
         let sources = self.config.sources.clone();
 
@@ -236,9 +237,9 @@ impl Orchestrator for SimpleOrchestrator {
 
         let generated_path = api_dir.join("generated");
         if generated_path.exists() {
-            fs::remove_dir_all(&generated_path)?;
+            fs::remove_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
         }
-        fs::create_dir_all(&generated_path)?;
+        fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
 
         for (sink_handle, sink) in sinks {
             let schemas = schema_manager
@@ -257,8 +258,8 @@ impl Orchestrator for SimpleOrchestrator {
 }
 
 impl SimpleOrchestrator {
-    fn get_cache_endpoints(&self, cache_dir: PathBuf) -> Vec<CacheEndpoint> {
-        self.config
+    fn get_cache_endpoints(&self, cache_dir: PathBuf) -> Result<Vec<CacheEndpoint>, OrchestrationError> {
+        Ok(self.config
             .endpoints
             .iter()
             .map(|e| {
@@ -269,11 +270,11 @@ impl SimpleOrchestrator {
                         LmdbCache::new(CacheOptions {
                             common: cache_common_options,
                             kind: CacheOptionsKind::Write(self.cache_write_options.clone()),
-                        })?,
+                        }).map_err(|e| OrchestrationError::InternalError(Box::new(e)))?,
                     ),
                     endpoint: e.to_owned(),
                 }
             })
-            .collect()
+            .collect())
     }
 }
