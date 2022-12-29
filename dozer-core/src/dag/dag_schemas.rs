@@ -205,4 +205,23 @@ impl<'a> DagSchemaManager<'a> {
     pub fn get_all_schemas(&self) -> &HashMap<NodeHandle, NodeSchemas> {
         &self.schemas
     }
+
+    pub fn prepare(&self) -> Result<(), ExecutionError> {
+        for (handle, node) in &self.dag.nodes {
+            let schemas = self
+                .schemas
+                .get(handle)
+                .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+
+            match node {
+                NodeType::Source(s) => s.prepare(schemas.output_schemas.clone())?,
+                NodeType::Sink(s) => s.prepare(schemas.input_schemas.clone())?,
+                NodeType::Processor(p) => p.prepare(
+                    schemas.input_schemas.clone(),
+                    schemas.output_schemas.clone(),
+                )?,
+            }
+        }
+        Ok(())
+    }
 }

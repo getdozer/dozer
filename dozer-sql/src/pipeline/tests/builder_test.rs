@@ -65,7 +65,7 @@ impl SourceFactory for TestSourceFactory {
         Ok(Box::new(TestSource {}))
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 }
@@ -131,7 +131,7 @@ impl SinkFactory for TestSinkFactory {
         Ok(Box::new(TestSink {}))
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

@@ -35,7 +35,7 @@ impl SinkFactory for CountingSinkFactory {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 

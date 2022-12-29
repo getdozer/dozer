@@ -33,7 +33,7 @@ impl SourceFactory for NoneSourceFactory {
         todo!()
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 

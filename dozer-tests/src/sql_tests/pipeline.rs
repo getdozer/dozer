@@ -58,7 +58,7 @@ impl SourceFactory for TestSourceFactory {
             .collect()
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -147,7 +147,7 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 

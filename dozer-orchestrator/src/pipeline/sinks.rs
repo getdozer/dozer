@@ -141,7 +141,7 @@ impl SinkFactory for CacheSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 

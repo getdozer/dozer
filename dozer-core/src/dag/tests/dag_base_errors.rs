@@ -53,8 +53,8 @@ impl ProcessorFactory for ErrorProcessorFactory {
 
     fn prepare(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -342,7 +342,7 @@ impl SourceFactory for ErrGeneratorSourceFactory {
         )]
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -478,7 +478,7 @@ impl SinkFactory for ErrSinkFactory {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 

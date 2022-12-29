@@ -46,7 +46,7 @@ impl SourceFactory for TestUsersSourceFactory {
         )]
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -82,7 +82,7 @@ impl SourceFactory for TestCountriesSourceFactory {
         )]
     }
 
-    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 
@@ -126,8 +126,8 @@ impl ProcessorFactory for TestJoinProcessorFactory {
 
     fn prepare(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        _input_schemas: HashMap<PortHandle, Schema>,
+        _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
@@ -156,7 +156,7 @@ impl SinkFactory for TestSinkFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 
