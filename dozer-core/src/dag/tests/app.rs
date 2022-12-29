@@ -22,6 +22,7 @@ use std::sync::{Arc, Barrier};
 
 use tempdir::TempDir;
 
+#[derive(Debug)]
 struct NoneSourceFactory {}
 impl SourceFactory for NoneSourceFactory {
     fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
@@ -30,6 +31,10 @@ impl SourceFactory for NoneSourceFactory {
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         todo!()
+    }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(

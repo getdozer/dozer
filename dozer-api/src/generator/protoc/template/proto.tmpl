@@ -1,6 +1,6 @@
-syntax = "proto3";
-
 // Dozer Generated for {{package_name}}
+
+syntax = "proto3";
 package {{package_name}};
 
 
@@ -11,32 +11,60 @@ import "{{this}}";
 // Endpoint /{{lower_name}}
 service {{plural_pascal_name}} {
 
-  // query based on dynamic query expression.
-  // TODO: Generated QueryRequest that can take types
+  /**
+   * Performs query. See query documentation for the query format. 
+   *
+   * If no query is specified, the first 50 records will be returned.
+   */
   rpc query(Query{{plural_pascal_name}}Request) returns (Query{{plural_pascal_name}}Response);
 
-  // Subscribe to events on {{plural_pascal_name}}
+  /**
+   * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
+   *
+   * This API is unstable and may change in the future.
+   */
   rpc on_event({{pascal_name}}EventRequest) returns (stream {{pascal_name}}Event);
   {{#if enable_token}}
+  // Gets the authentication token.
   rpc token(TokenRequest) returns (TokenResponse);
   {{/if}}
 }
 
-message Query{{plural_pascal_name}}Request { optional string query = 1; }
+// Request for `query`.
+message Query{{plural_pascal_name}}Request {
+  // JSON query string.
+  optional string query = 1;
+}
 
-message Query{{plural_pascal_name}}Response { repeated {{pascal_name}} data = 1; }
+// Response for `query`.
+message Query{{plural_pascal_name}}Response {
+  // The list of record data.
+  repeated {{pascal_name}} data = 1;
+}
 
+// Request for `on_event`.
 message {{pascal_name}}EventRequest {
+  // The event type to subscribe to.
   dozer.types.EventType type = 1;
+  // JSON filter string.
   optional string filter = 2;
 }
 
+// Response for `on_event`.
 message {{pascal_name}}Event {
+  // The operation type.
   dozer.types.OperationType typ = 1;
+  // Old record data, only applicable for UPDATE type.
   optional {{pascal_name}} old = 2;
+  // New record data.
   optional {{pascal_name}} new = 3;
 }
 
+/**
+ * {{pascal_name}} record type.
+ * 
+ * Nullable fields will be generated as `optional` fields.
+ */
 {{#each messages}}
 message {{name}} {
  {{#each props}}
@@ -46,10 +74,13 @@ message {{name}} {
 {{~/each}}
 
 {{#if enable_token}}
+// Request for `token`.
 message TokenRequest {
 }
 
+// Response for `token`.
 message TokenResponse {
+  // The token string.
   string token = 1;
 }
 {{/if}}

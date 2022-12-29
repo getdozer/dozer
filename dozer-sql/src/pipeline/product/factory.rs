@@ -15,6 +15,7 @@ use super::{
     processor::ProductProcessor,
 };
 
+#[derive(Debug)]
 pub struct ProductProcessorFactory {
     from: TableWithJoins,
 }
@@ -71,6 +72,14 @@ impl ProcessorFactory for ProductProcessorFactory {
             Ok(join_tables) => Ok(Box::new(ProductProcessor::new(join_tables))),
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
+    }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 }
 

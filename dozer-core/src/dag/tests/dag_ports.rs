@@ -8,6 +8,7 @@ use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct DynPortsSourceFactory {
     output_ports: Vec<PortHandle>,
 }
@@ -30,6 +31,10 @@ impl SourceFactory for DynPortsSourceFactory {
             .collect()
     }
 
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -38,6 +43,7 @@ impl SourceFactory for DynPortsSourceFactory {
     }
 }
 
+#[derive(Debug)]
 pub struct DynPortsProcessorFactory {
     input_ports: Vec<PortHandle>,
     output_ports: Vec<PortHandle>,
@@ -70,6 +76,14 @@ impl ProcessorFactory for DynPortsProcessorFactory {
             .iter()
             .map(|p| OutputPortDef::new(*p, OutputPortDefOptions::default()))
             .collect()
+    }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(

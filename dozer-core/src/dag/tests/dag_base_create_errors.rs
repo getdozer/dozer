@@ -21,6 +21,7 @@ use std::sync::{Arc, Barrier};
 
 use tempdir::TempDir;
 
+#[derive(Debug)]
 struct CreateErrSourceFactory {
     panic: bool,
 }
@@ -46,6 +47,10 @@ impl SourceFactory for CreateErrSourceFactory {
             DEFAULT_PORT_HANDLE,
             OutputPortDefOptions::default(),
         )]
+    }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(
@@ -160,6 +165,7 @@ fn test_create_src_panic() {
     assert!(executor.join().is_err());
 }
 
+#[derive(Debug)]
 struct CreateErrProcessorFactory {
     panic: bool,
 }
@@ -193,6 +199,14 @@ impl ProcessorFactory for CreateErrProcessorFactory {
             DEFAULT_PORT_HANDLE,
             OutputPortDefOptions::default(),
         )]
+    }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 
     fn build(

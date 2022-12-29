@@ -5,7 +5,7 @@ use crate::dag::record_store::RecordReader;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8;
 
 //pub type NodeHandle = String;
@@ -98,16 +98,17 @@ impl OutputPortDef {
     }
 }
 
-pub trait SourceFactory: Send + Sync {
+pub trait SourceFactory: Send + Sync + Debug {
     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError>;
 }
 
-pub trait Source {
+pub trait Source: Debug {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -115,7 +116,7 @@ pub trait Source {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait ProcessorFactory: Send + Sync {
+pub trait ProcessorFactory: Send + Sync + Debug {
     fn get_output_schema(
         &self,
         output_port: &PortHandle,
@@ -123,6 +124,11 @@ pub trait ProcessorFactory: Send + Sync {
     ) -> Result<Schema, ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
@@ -130,7 +136,7 @@ pub trait ProcessorFactory: Send + Sync {
     ) -> Result<Box<dyn Processor>, ExecutionError>;
 }
 
-pub trait Processor {
+pub trait Processor: Debug {
     fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
     fn commit(&self, epoch_details: &Epoch, tx: &SharedTransaction) -> Result<(), ExecutionError>;
     fn process(
@@ -143,19 +149,20 @@ pub trait Processor {
     ) -> Result<(), ExecutionError>;
 }
 
-pub trait SinkFactory: Send + Sync {
+pub trait SinkFactory: Send + Sync + Debug {
     fn set_input_schema(
         &self,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError>;
 }
 
-pub trait Sink {
+pub trait Sink: Debug {
     fn init(&mut self, state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError>;
     fn commit(
         &mut self,

@@ -1,36 +1,78 @@
+/**
+ * The _common_ gRPC API handles Pull and Push queries of all endpoints with a single service, `CommonGrpcService`.
+ */
 syntax = "proto3";
 
 package dozer.common;
 import "types.proto";
+
+/**
+ * The service that handles Pull and Push queries of all endpoints.
+ */
 service CommonGrpcService {
+  /**
+   * Performs query on an endpoint. See [Query](../query) for the query format.
+   *
+   * If no query is specified, the first 50 records will be returned.
+   */
   rpc query(QueryRequest) returns (QueryResponse);
+  /**
+   * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
+   *
+   * This API is unstable and may change in the future.
+   */
   rpc OnEvent(OnEventRequest) returns (stream dozer.types.Operation);
+  // Gets all the endpoints Dozer is currently serving.
   rpc getEndpoints(GetEndpointsRequest) returns (GetEndpointsResponse);
+  // Gets the field description of an endpoint.
   rpc getFields(GetFieldsRequest) returns (GetFieldsResponse);
 }
 
+// Request for `query`.
 message QueryRequest {
+  // The name of the endpoint to query.
   string endpoint = 1;
+  // JSON query string.
   optional string query = 2;
 }
 
+// Request for `OnEvent`.
 message OnEventRequest {
+  // The event type to subscribe to.
   dozer.types.EventType type = 1;
+  // The name of the endpoint to subscribe to.
   string endpoint = 2;
+  // JSON filter string.
   optional string filter = 3;
 }
 
-message GetFieldsRequest { string endpoint = 1; }
+// Request for `getFields`.
+message GetFieldsRequest {
+  // The endpoint name.
+  string endpoint = 1;
+}
+
+// Response for `getFields`.
 message GetFieldsResponse {
+  // The list of indexes of the keys that are used as the primary index.
   repeated int32 primary_index = 1;
+  // The list of field definitions.
   repeated dozer.types.FieldDefinition fields = 2;
 }
 
+// Response for `query`.
 message QueryResponse {
+  // The list of field definitions.
   repeated dozer.types.FieldDefinition fields = 1;
+  // The list of record data.
   repeated dozer.types.Record records = 2;
 }
 
+// Request for `getEndpoints`.
 message GetEndpointsRequest {}
 
-message GetEndpointsResponse { repeated string endpoints = 1; }
+// Response for `getEndpoints`.
+message GetEndpointsResponse {
+  // List of endpoint names.
+  repeated string endpoints = 1;
+}

@@ -12,6 +12,7 @@ use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
 
 use super::processor::SelectionProcessor;
 
+#[derive(Debug)]
 pub struct SelectionProcessorFactory {
     statement: SqlExpr,
 }
@@ -61,5 +62,13 @@ impl ProcessorFactory for SelectionProcessorFactory {
             Ok(expression) => Ok(Box::new(SelectionProcessor::new(expression))),
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
+    }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 }

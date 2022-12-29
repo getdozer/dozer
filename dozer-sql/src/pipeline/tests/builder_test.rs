@@ -6,8 +6,7 @@ use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source,
-    SourceFactory,
+    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
@@ -23,6 +22,7 @@ use std::sync::Arc;
 use tempdir::TempDir;
 
 /// Test Source
+#[derive(Debug)]
 pub struct TestSourceFactory {
     output_ports: Vec<PortHandle>,
 }
@@ -64,8 +64,13 @@ impl SourceFactory for TestSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(TestSource {}))
     }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
+#[derive(Debug)]
 pub struct TestSource {}
 
 impl Source for TestSource {
@@ -96,6 +101,7 @@ impl Source for TestSource {
     }
 }
 
+#[derive(Debug)]
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
 }
@@ -124,8 +130,13 @@ impl SinkFactory for TestSinkFactory {
     ) -> Result<Box<dyn Sink>, ExecutionError> {
         Ok(Box::new(TestSink {}))
     }
+
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
+#[derive(Debug)]
 pub struct TestSink {}
 
 impl Sink for TestSink {

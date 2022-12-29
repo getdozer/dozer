@@ -23,6 +23,7 @@ use super::{
     processor::{AggregationProcessor, FieldRule},
 };
 
+#[derive(Debug)]
 pub struct AggregationProcessorFactory {
     select: Vec<SelectItem>,
     groupby: Vec<SqlExpr>,
@@ -92,6 +93,14 @@ impl ProcessorFactory for AggregationProcessorFactory {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(expressions))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
+    }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
     }
 }
 

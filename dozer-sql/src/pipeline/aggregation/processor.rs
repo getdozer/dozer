@@ -63,6 +63,7 @@ impl<'a> AggregationData<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct AggregationProcessor {
     out_dimensions: Vec<(Box<Expression>, usize)>,
     out_measures: Vec<(Box<Expression>, Box<Aggregator>, usize)>,

@@ -27,6 +27,7 @@ use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use crate::dag::epoch::Epoch;
 use tempdir::TempDir;
 
+#[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
 
 impl ProcessorFactory for NoopProcessorFactory {
@@ -49,6 +50,14 @@ impl ProcessorFactory for NoopProcessorFactory {
         )]
     }
 
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -58,6 +67,7 @@ impl ProcessorFactory for NoopProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
@@ -199,6 +209,7 @@ fn test_run_dag_and_stop() {
     ));
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopJoinProcessorFactory {}
 
 pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
@@ -224,6 +235,14 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         )]
     }
 
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -233,6 +252,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {

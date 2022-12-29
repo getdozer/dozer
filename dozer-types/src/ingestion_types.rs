@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -28,7 +30,7 @@ pub enum IngestorError {
     ChannelError(#[from] BoxedError),
 }
 
-pub trait IngestorForwarder: Send + Sync {
+pub trait IngestorForwarder: Send + Sync + Debug {
     fn forward(&self, msg: (u64, IngestionOperation)) -> Result<(), IngestorError>;
 }
 

@@ -4,8 +4,7 @@ use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source,
-    SourceFactory,
+    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
@@ -28,6 +27,7 @@ use tempdir::TempDir;
 use super::helper::get_table_create_sql;
 use super::SqlMapper;
 
+#[derive(Debug)]
 pub struct TestSourceFactory {
     output_ports: Vec<PortHandle>,
     ops: Vec<Operation>,
@@ -57,6 +57,11 @@ impl SourceFactory for TestSourceFactory {
             .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
             .collect()
     }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -68,6 +73,7 @@ impl SourceFactory for TestSourceFactory {
     }
 }
 
+#[derive(Debug)]
 pub struct TestSource {
     ops: Vec<Operation>,
     term_latch: Arc<Receiver<bool>>,
@@ -90,10 +96,12 @@ impl Source for TestSource {
     }
 }
 
+#[derive(Debug)]
 pub struct SchemaHolder {
     pub schema: Option<Schema>,
 }
 
+#[derive(Debug)]
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
     mapper: Arc<Mutex<SqlMapper>>,
@@ -138,6 +146,11 @@ impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
+
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -150,6 +163,7 @@ impl SinkFactory for TestSinkFactory {
     }
 }
 
+#[derive(Debug)]
 pub struct TestSink {
     mapper: Arc<Mutex<SqlMapper>>,
     term_latch: Arc<Sender<bool>>,

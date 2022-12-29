@@ -31,6 +31,7 @@ macro_rules! chk {
 pub(crate) const PASSTHROUGH_PROCESSOR_INPUT_PORT: PortHandle = 50;
 pub(crate) const PASSTHROUGH_PROCESSOR_OUTPUT_PORT: PortHandle = 60;
 
+#[derive(Debug)]
 pub(crate) struct PassthroughProcessorFactory {}
 
 impl PassthroughProcessorFactory {
@@ -60,6 +61,15 @@ impl ProcessorFactory for PassthroughProcessorFactory {
             OutputPortDefOptions::new(true, true, true),
         )]
     }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -69,6 +79,7 @@ impl ProcessorFactory for PassthroughProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PassthroughProcessor {}
 
 impl Processor for PassthroughProcessor {
@@ -96,6 +107,7 @@ impl Processor for PassthroughProcessor {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct RecordReaderProcessorFactory {}
 
 impl RecordReaderProcessorFactory {
@@ -128,6 +140,15 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
             OutputPortDefOptions::default(),
         )]
     }
+
+    fn prepare(
+        &self,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -137,6 +158,7 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct RecordReaderProcessor {
     ctr: u64,
 }

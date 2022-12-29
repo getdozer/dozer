@@ -8,6 +8,7 @@ use std::sync::{Arc, Barrier};
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
+#[derive(Debug)]
 pub(crate) struct GeneratorSourceFactory {
     count: u64,
     barrier: Arc<Barrier>,
@@ -44,6 +45,11 @@ impl SourceFactory for GeneratorSourceFactory {
             OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
         )]
     }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -55,6 +61,7 @@ impl SourceFactory for GeneratorSourceFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct GeneratorSource {
     count: u64,
     barrier: Arc<Barrier>,
@@ -92,6 +99,7 @@ impl Source for GeneratorSource {
 pub(crate) const DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1: PortHandle = 1000;
 pub(crate) const DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2: PortHandle = 2000;
 
+#[derive(Debug)]
 pub(crate) struct DualPortGeneratorSourceFactory {
     count: u64,
     barrier: Arc<Barrier>,
@@ -134,6 +142,11 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
             ),
         ]
     }
+
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -145,6 +158,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct DualPortGeneratorSource {
     count: u64,
     barrier: Arc<Barrier>,
