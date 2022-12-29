@@ -30,9 +30,9 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Barrier};
-use std::thread;
+use std::sync::Arc;
 use std::thread::JoinHandle;
+use std::thread::{self, Builder};
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -126,7 +126,6 @@ impl SourceChannelForwarder for InternalChannelSourceForwarder {
 pub struct DagExecutor<'a> {
     dag: &'a Dag,
     schemas: HashMap<NodeHandle, NodeSchemas>,
-    term_barrier: Arc<Barrier>,
     record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
     path: PathBuf,
@@ -179,9 +178,6 @@ impl<'a> DagExecutor<'a> {
         Ok(Self {
             dag,
             schemas,
-            term_barrier: Arc::new(Barrier::new(
-                dag.get_sources().len() * 2 + dag.get_processors().len() + dag.get_sinks().len(),
-            )),
             record_stores: Arc::new(RwLock::new(
                 dag.nodes
                     .iter()
@@ -274,21 +270,21 @@ impl<'a> DagExecutor<'a> {
         let st_src_factory = src_factory.clone();
         let st_running = self.running.clone();
         let st_output_schemas = schemas.output_schemas.clone();
-        let st_term_barrier = self.term_barrier.clone();
         let mut fw = InternalChannelSourceForwarder::new(st_sender);
         let start_seq = *self
             .consistency_metadata
             .get(&handle)
             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
 
-        let _st_handle = thread::spawn(move || -> Result<(), ExecutionError> {
-            let src = st_src_factory.build(st_output_schemas)?;
-            let r = src.start(&mut fw, Some(start_seq));
-            st_running.store(false, Ordering::SeqCst);
-            info!("[{}-sender] Waiting on term barrier", st_handle);
-            st_term_barrier.wait();
-            r
-        });
+        let _st_handle = Builder::new().name(format!("{}-sender", handle)).spawn(
+            move || -> Result<(), ExecutionError> {
+                let src = st_src_factory.build(st_output_schemas)?;
+                let r = src.start(&mut fw, Some(start_seq));
+                st_running.store(false, Ordering::SeqCst);
+                info!("[{}-sender] Quit", st_handle);
+                r
+            },
+        )?;
 
         let lt_handle = handle.clone();
         let lt_path = self.path.clone();
@@ -297,19 +293,18 @@ impl<'a> DagExecutor<'a> {
         let lt_record_stores = self.record_stores.clone();
         let lt_executor_options = self.options.clone();
         let lt_running = self.running.clone();
-        let lt_term_barrier = self.term_barrier.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
 
         let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let _output_schemas = HashMap::<PortHandle, Schema>::new();
-            let mut state_meta = init_component(&handle, lt_path.as_path(), |_e| Ok(()))?;
+            let mut state_meta = init_component(&lt_handle, lt_path.as_path(), |_e| Ok(()))?;
 
             let port_databases = create_ports_databases(&mut state_meta.env, &lt_output_ports)?;
 
             let master_tx = state_meta.env.create_txn()?;
 
             fill_ports_record_readers(
-                &handle,
+                &lt_handle,
                 &lt_edges,
                 &port_databases,
                 &master_tx,
@@ -318,7 +313,7 @@ impl<'a> DagExecutor<'a> {
             );
 
             let mut dag_fw = SourceChannelManager::new(
-                handle,
+                lt_handle.clone(),
                 senders,
                 StateWriter::new(
                     state_meta.meta_db,
@@ -331,6 +326,7 @@ impl<'a> DagExecutor<'a> {
                 true,
                 epoch_manager,
             );
+
             loop {
                 match st_receiver.recv_timeout(lt_executor_options.commit_time_threshold) {
                     Ok((port, txid, seq_in_tx, op)) => {
@@ -348,7 +344,6 @@ impl<'a> DagExecutor<'a> {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Quitting", lt_handle);
                             drop(st_receiver);
-                            lt_term_barrier.wait();
                             return Ok(());
                         }
                     }
@@ -361,18 +356,30 @@ impl<'a> DagExecutor<'a> {
                             dag_fw.terminate()?;
                             info!("[{}-listener] Quitting", lt_handle);
                             drop(st_receiver);
-                            lt_term_barrier.wait();
                             return Ok(());
                         }
                     }
                     Err(RecvTimeoutError::Disconnected) => {
-                        return Err(ChannelDisconnected);
+                        // First check if termination was requested.
+                        let terminating = !lt_running.load(Ordering::SeqCst);
+                        // If this commit was not requested with termination at the start, we shouldn't terminate either.
+                        let terminating = dag_fw.trigger_commit_if_needed(terminating)?;
+                        if terminating {
+                            dag_fw.terminate()?;
+                            info!("[{}-listener] Quit", lt_handle);
+                            drop(st_receiver);
+                            return Ok(());
+                        } else {
+                            return Err(ChannelDisconnected);
+                        }
                     }
                 }
             }
         };
 
-        Ok(thread::spawn(|| lt_thread_fct().unwrap()))
+        Ok(Builder::new()
+            .name(format!("{}-listener", handle))
+            .spawn(|| lt_thread_fct().unwrap())?)
     }
 
     pub fn start_processor(
@@ -391,12 +398,11 @@ impl<'a> DagExecutor<'a> {
         let lt_record_stores = self.record_stores.clone();
         let lt_output_schemas = schemas.output_schemas.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
-        let lt_term_barrier = self.term_barrier.clone();
 
         let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let mut proc =
                 proc_factory.build(lt_input_schemas.clone(), lt_output_schemas.clone())?;
-            let mut state_meta = init_component(&handle, lt_path.as_path(), |e| proc.init(e))?;
+            let mut state_meta = init_component(&lt_handle, lt_path.as_path(), |e| proc.init(e))?;
 
             let port_databases =
                 create_ports_databases(&mut state_meta.env, &proc_factory.get_output_ports())?;
@@ -404,7 +410,7 @@ impl<'a> DagExecutor<'a> {
             let master_tx = state_meta.env.create_txn()?;
 
             fill_ports_record_readers(
-                &handle,
+                &lt_handle,
                 &lt_edges,
                 &port_databases,
                 &master_tx,
@@ -414,7 +420,7 @@ impl<'a> DagExecutor<'a> {
 
             let (handles_ls, receivers_ls) = build_receivers_lists(receivers);
             let mut fw = ProcessorChannelManager::new(
-                handle.clone(),
+                lt_handle.clone(),
                 senders,
                 StateWriter::new(
                     state_meta.meta_db,
@@ -455,20 +461,19 @@ impl<'a> DagExecutor<'a> {
                         port_states[index] = InputPortState::Terminated;
                         info!(
                             "[{}] Received Terminate request on port {}",
-                            handle, &handles_ls[index]
+                            lt_handle, &handles_ls[index]
                         );
                         if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                             fw.send_term_and_wait()?;
-                            info!("[{}] Waiting on term barrier", lt_handle);
-                            lt_term_barrier.wait();
+                            info!("[{}] Quit", lt_handle);
                             return Ok(());
                         }
                     }
                     op => {
                         let guard = lt_record_stores.read();
                         let reader = guard
-                            .get(&handle)
-                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                            .get(&lt_handle)
+                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(lt_handle.clone()))?;
 
                         let data_op = map_to_op(op)?;
                         proc.process(handles_ls[index], data_op, &mut fw, &master_tx, reader)?;
@@ -477,7 +482,9 @@ impl<'a> DagExecutor<'a> {
             }
         };
 
-        Ok(thread::spawn(|| lt_thread_fct().unwrap()))
+        Ok(Builder::new()
+            .name(handle.to_string())
+            .spawn(|| lt_thread_fct().unwrap())?)
     }
 
     pub fn start_sink(
@@ -492,12 +499,11 @@ impl<'a> DagExecutor<'a> {
         let lt_handle = handle.clone();
         let lt_path = self.path.clone();
         let lt_record_stores = self.record_stores.clone();
-        let lt_term_barrier = self.term_barrier.clone();
         let lt_input_schemas = schemas.input_schemas.clone();
 
         let lt_thread_fct = move || -> Result<(), ExecutionError> {
             let mut snk = snk_factory.build(lt_input_schemas.clone())?;
-            let state_meta = init_component(&handle, lt_path.as_path(), |e| snk.init(e))?;
+            let state_meta = init_component(&lt_handle, lt_path.as_path(), |e| snk.init(e))?;
 
             let master_tx = state_meta.env.create_txn()?;
 
@@ -525,11 +531,10 @@ impl<'a> DagExecutor<'a> {
                         port_states[index] = InputPortState::Terminated;
                         info!(
                             "[{}] Received Terminate request on port {}",
-                            handle, &handles_ls[index]
+                            lt_handle, &handles_ls[index]
                         );
                         if port_states.iter().all(|v| v == &InputPortState::Terminated) {
-                            info!("[{}] Waiting on term barrier", lt_handle);
-                            lt_term_barrier.wait();
+                            info!("[{}] Quit", lt_handle);
                             return Ok(());
                         }
                     }
@@ -540,7 +545,7 @@ impl<'a> DagExecutor<'a> {
                         common_epoch.details.extend(epoch_details.details.clone());
 
                         if commits_received == receivers_ls.len() {
-                            info!("[{}] Checkpointing - {}", handle, &epoch_details);
+                            info!("[{}] Checkpointing - {}", lt_handle, &epoch_details);
                             snk.commit(&common_epoch, &master_tx)?;
                             state_writer.store_commit_info(&common_epoch)?;
                             common_epoch = Epoch::new(common_epoch.id + 1, HashMap::new());
@@ -552,15 +557,17 @@ impl<'a> DagExecutor<'a> {
                         let data_op = map_to_op(op)?;
                         let guard = lt_record_stores.read();
                         let reader = guard
-                            .get(&handle)
-                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
+                            .get(&lt_handle)
+                            .ok_or_else(|| ExecutionError::InvalidNodeHandle(lt_handle.clone()))?;
                         snk.process(handles_ls[index], data_op, &master_tx, reader)?;
                     }
                 }
             }
         };
 
-        Ok(thread::spawn(|| lt_thread_fct().unwrap()))
+        Ok(Builder::new()
+            .name(handle.to_string())
+            .spawn(|| lt_thread_fct().unwrap())?)
     }
 
     pub fn start(&mut self) -> Result<(), ExecutionError> {
