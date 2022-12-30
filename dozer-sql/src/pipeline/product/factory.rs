@@ -281,10 +281,10 @@ fn get_join_table(relation: &TableFactor) -> Result<JoinTable, PipelineError> {
     Ok(JoinTable::from(relation))
 }
 
-fn append_schema(mut output_schema: Schema, _table: &str, current_schema: &Schema) -> Schema {
+fn append_schema(mut output_schema: Schema, table: &str, current_schema: &Schema) -> Schema {
     for mut field in current_schema.clone().fields.into_iter() {
-        let mut name = String::from(""); //String::from(table);
-                                         //name.push('.');
+        let mut name = String::from(table);
+        name.push('.');
         name.push_str(&field.name);
         field.name = name;
         output_schema.fields.push(field);

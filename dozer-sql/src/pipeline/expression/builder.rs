@@ -1,3 +1,5 @@
+use std::cmp;
+
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Schema},
@@ -94,7 +96,8 @@ impl ExpressionBuilder {
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         Ok((
             Box::new(Expression::Column {
-                index: schema.get_field_index(&ident[0].value)?.0,
+                index: get_field_index(ident, schema)?,
+                //index: schema.get_field_index(&ident[0].value)?.0,
             }),
             false,
         ))
@@ -363,6 +366,55 @@ impl ExpressionBuilder {
             },
         }
     }
+}
+
+fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineError> {
+    let mut ident_tokens = vec![];
+    for token in ident.iter() {
+        ident_tokens.push(token.value.clone());
+    }
+    let full_ident = ident_tokens.join(".");
+
+    let field_index: Option<usize> = None;
+
+    for field in schema.fields.iter() {
+        if compare_name(field.name.clone(), full_ident.clone()) && field_index.is_some() {
+            return Err(PipelineError::InvalidQuery(format!(
+                "Ambiguous Field {}",
+                full_ident
+            )));
+        }
+    }
+    if let Some(index) = field_index {
+        Ok(index)
+    } else {
+        return Err(PipelineError::InvalidQuery(format!(
+            "Field {} not found",
+            full_ident
+        )));
+    }
+}
+
+pub(crate) fn compare_name(name: String, ident: String) -> bool {
+    let left = name.split(".").collect::<Vec<&str>>();
+    let right = ident.split(".").collect::<Vec<&str>>();
+
+    let mut curr_left = left.len();
+    let mut curr_right = right.len();
+
+    let shorter = cmp::min(curr_left, curr_right);
+    let mut is_equal = false;
+    for i in 0..shorter {
+        if left[curr_left] == right[curr_right] {
+            is_equal = true;
+        } else {
+            is_equal = false;
+        }
+        curr_left -= 1;
+        curr_right -= 1;
+    }
+
+    is_equal
 }
 
 fn parse_sql_string(s: &str) -> Result<(Box<Expression>, bool), PipelineError> {
