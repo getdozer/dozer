@@ -396,8 +396,8 @@ fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineEr
 }
 
 pub(crate) fn compare_name(name: String, ident: String) -> bool {
-    let left = name.split(".").collect::<Vec<&str>>();
-    let right = ident.split(".").collect::<Vec<&str>>();
+    let left = name.split('.').collect::<Vec<&str>>();
+    let right = ident.split('.').collect::<Vec<&str>>();
 
     let mut curr_left = left.len();
     let mut curr_right = right.len();
@@ -405,10 +405,11 @@ pub(crate) fn compare_name(name: String, ident: String) -> bool {
     let shorter = cmp::min(curr_left, curr_right);
     let mut is_equal = false;
     for i in 0..shorter {
-        if left[curr_left] == right[curr_right] {
+        if left[curr_left - 1] == right[curr_right - 1] {
             is_equal = true;
         } else {
             is_equal = false;
+            break;
         }
         curr_left -= 1;
         curr_right -= 1;
