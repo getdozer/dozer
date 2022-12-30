@@ -7,6 +7,7 @@ use dozer_orchestrator::{ConnectorError, Orchestrator};
 use dozer_types::crossbeam::channel;
 use dozer_types::log::{error, info};
 use dozer_types::prettytable::{row, Table};
+use dozer_types::tracing::warn;
 use std::borrow::BorrowMut;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -99,7 +100,10 @@ fn run() -> Result<(), OrchestrationError> {
                     Ok(())
                 }
             },
-            Commands::Init => dozer.init(),
+            Commands::Init(init) => {
+                let force = init.force.is_some();
+                dozer.init(force)
+            }
             Commands::Clean => dozer.clean(),
         }
     } else {
@@ -109,7 +113,16 @@ fn run() -> Result<(), OrchestrationError> {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        dozer.init()?;
+        if let Err(e) = dozer.init(false) {
+            if let OrchestrationError::InitializationFailed(_) = e {
+                warn!(
+                    "{} is already present. Skipping initialisation..",
+                    dozer.config.home_dir.to_owned()
+                )
+            } else {
+                return Err(e);
+            }
+        }
 
         let pipeline_thread = thread::spawn(move || {
             if let Err(e) = dozer.borrow_mut().run_apps(running, Some(tx)) {

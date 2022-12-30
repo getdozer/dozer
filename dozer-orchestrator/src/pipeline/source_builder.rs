@@ -145,7 +145,7 @@ mod tests {
                     name: "prices_history".to_string(),
                     table_name: "prices_history".to_string(),
                     columns: vec!["id".to_string()],
-                    connection: Some(events2_conn.clone()),
+                    connection: Some(events2_conn),
                     refresh_config: None,
                     app_id: None,
                 },

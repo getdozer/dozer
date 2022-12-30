@@ -208,15 +208,24 @@ impl Orchestrator for SimpleOrchestrator {
         ))
     }
 
-    fn init(&mut self) -> Result<(), OrchestrationError> {
+    fn init(&mut self, force: bool) -> Result<(), OrchestrationError> {
         self.write_internal_config()
             .map_err(|e| InternalError(Box::new(e)))?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
         let api_dir = get_api_dir(self.config.to_owned());
+        let cache_dir = get_cache_dir(self.config.to_owned());
 
+        if api_dir.exists() || pipeline_home_dir.exists() || cache_dir.exists() {
+            if force {
+                self.clean()?;
+            } else {
+                return Err(OrchestrationError::InitializationFailed(
+                    self.config.home_dir.to_string(),
+                ));
+            }
+        }
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-        let cache_dir = get_cache_dir(self.config.to_owned());
 
         let cache_endpoints: Vec<CacheEndpoint> = self.get_cache_endpoints(cache_dir)?;
 
@@ -254,13 +263,12 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
+    // Cleaning the entire folder as there will be inconsistencies
+    // between pipeline, cache and generated proto files.
     fn clean(&mut self) -> Result<(), OrchestrationError> {
-        self.write_internal_config()
-            .map_err(|e| InternalError(Box::new(e)))?;
-        let api_dir = get_api_dir(self.config.to_owned());
-        let generated_path = api_dir.join("generated");
-        if generated_path.exists() {
-            fs::remove_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+        let home_dir = PathBuf::from(self.config.home_dir.clone());
+        if home_dir.exists() {
+            fs::remove_dir_all(&home_dir).map_err(|e| InternalError(Box::new(e)))?;
         };
         Ok(())
     }
