@@ -11,19 +11,17 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 ## Environment
-- **Dozer version**: example 0.1.2
-- **OS Version**: Ubuntu 20.04.5
-- **Deployment**: Docker
-
+- **Dozer version**: 0.1.2
+- **OS Version**: Ubuntu 20.04
+- **Docker Compose Version(Optional)**: 
 
 ## To Reproduce
 Steps to reproduce the behavior:
 
-1. Run cli command '....'
-2. Insert a new record '....'
-3. Update a record '....'
+1. Share your `dozer-config.yaml`
+2. Run cli command `dozer init` or `dozer app run`
 ...
-N. See error
+N. Share you error
 
 ## Expected behavior
 A clear and concise description of what you expected to happen.
