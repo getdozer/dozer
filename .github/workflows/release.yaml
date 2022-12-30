@@ -1,7 +1,7 @@
 name: Release
 on:
   push:
-    # branches: [release, release-*]
+    branches: [release, release-*]
     tags:
       - "v*.*.*"
 env:
@@ -65,14 +65,14 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-12]
+        os: [ubuntu-20.04]
         include:
           - os: ubuntu-20.04
             file_name: dozer
             asset_name: dozer-linux-amd64
-          - os: macos-12
-            file_name: dozer
-            asset_name: dozer-macos-amd64
+          # - os: macos-12
+          #   file_name: dozer
+          #   asset_name: dozer-macos-amd64
     steps:
       - uses: actions/checkout@v3
 
