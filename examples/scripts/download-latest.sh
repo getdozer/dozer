@@ -82,13 +82,13 @@ download_binary() {
           binary_name="$PNAME.tar.gz"
           ;;
       'linux')
-          base_url="https://drive.google.com/uc?export=download&id=1PLDz8MC0zKN3IEl8RCgJohtufeIC3bI1"
+          base_url="https://drive.google.com/uc?export=download&id=1fsZei4Bn4eOHFzgEAZJZdReA_7fl5dEt"
           release_file="$PNAME-$os-$archi-$latest.tar.gz"
           binary_name="$PNAME.tar.gz"
           ;;
       *)
           return 1
-  esac  
+  esac
   # Fetch the Dozer binary
   curl --fail -L "$base_url" -o $binary_name
   if [ $? -ne 0 ]; then

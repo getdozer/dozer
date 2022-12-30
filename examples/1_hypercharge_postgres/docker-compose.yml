@@ -1,11 +1,29 @@
 version: '3.9'
 services:
-  
+
+  dozer_init:
+    container_name: dozer_init
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    links:
+      - postgres
+
+    build: ../
+    volumes:
+      - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
+      - ./.dozer:/usr/dozer/.dozer
+    command: "dozer -c /usr/dozer/dozer-config.yaml init -f"
+    networks: [ "dozer_net" ]
+
   dozer:
     container_name: dozer
     depends_on:
       postgres:
         condition: service_healthy
+      dozer_init:
+        condition: service_completed_successfully
     links:
       - postgres
     
