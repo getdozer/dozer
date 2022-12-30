@@ -7,14 +7,11 @@ use crate::dag::executor::ExecutorOperation;
 use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::Database;
-use crate::storage::errors::StorageError;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
-use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
 
 pub(crate) struct StorageMetadata {
     pub env: LmdbEnvironmentManager,
@@ -157,11 +154,7 @@ pub(crate) fn build_receivers_lists(
     (handles_ls, receivers_ls)
 }
 
-pub(crate) fn get_inputs_for_output(
-    edges: &[Edge],
-    node: &NodeHandle,
-    port: &PortHandle,
-) -> Vec<Endpoint> {
+fn get_inputs_for_output(edges: &[Edge], node: &NodeHandle, port: &PortHandle) -> Vec<Endpoint> {
     edges
         .iter()
         .filter(|e| e.from.node == *node && e.from.port == *port)
@@ -171,54 +164,56 @@ pub(crate) fn get_inputs_for_output(
 
 const PORT_STATE_KEY: &str = "__PORT_STATE_";
 
+#[derive(Debug)]
 pub(crate) struct StateOptions {
     pub(crate) db: Database,
     pub(crate) options: OutputPortDefOptions,
 }
 
-pub(crate) fn create_ports_databases(
-    env: &mut LmdbEnvironmentManager,
-    ports: &Vec<OutputPortDef>,
-) -> Result<HashMap<PortHandle, StateOptions>, StorageError> {
-    let mut port_databases = HashMap::<PortHandle, StateOptions>::new();
-    for out_port in ports {
-        if out_port.options.stateful {
-            let db = env.open_database(
-                format!("{}_{}", PORT_STATE_KEY, out_port.handle).as_str(),
-                false,
-            )?;
-            port_databases.insert(
-                out_port.handle,
-                StateOptions {
-                    db,
-                    options: out_port.options.clone(),
-                },
-            );
-        }
-    }
-    Ok(port_databases)
-}
-
-pub(crate) fn fill_ports_record_readers(
+pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
     handle: &NodeHandle,
     edges: &[Edge],
-    port_databases: &HashMap<PortHandle, StateOptions>,
-    master_tx: &SharedTransaction,
-    record_stores: &Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    output_ports: &Vec<OutputPortDef>,
-) {
-    for out_port in output_ports {
-        if out_port.options.stateful {
-            for r in get_inputs_for_output(edges, handle, &out_port.handle) {
-                let mut writer = record_stores.write();
-                writer.get_mut(&r.node).unwrap().insert(
-                    r.port,
-                    RecordReader::new(
-                        master_tx.clone(),
-                        port_databases.get(&out_port.handle).unwrap().db,
-                    ),
+    mut env: LmdbEnvironmentManager,
+    output_ports: &[OutputPortDef],
+    record_stores: &mut HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>,
+) -> Result<(SharedTransaction, HashMap<PortHandle, StateOptions>), ExecutionError> {
+    let port_databases = output_ports
+        .iter()
+        .map(|output_port| {
+            if output_port.options.stateful {
+                env.open_database(&format!("{}_{}", PORT_STATE_KEY, output_port.handle), false)
+                    .map(|db| {
+                        Some(StateOptions {
+                            db,
+                            options: output_port.options.clone(),
+                        })
+                    })
+            } else {
+                Ok(None)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let master_tx = env.create_txn()?;
+
+    for (state_options, port) in port_databases.iter().zip(output_ports.iter()) {
+        if let Some(state_options) = state_options {
+            for endpoint in get_inputs_for_output(edges, handle, &port.handle) {
+                record_stores.get_mut(&endpoint.node).unwrap().insert(
+                    endpoint.port,
+                    RecordReader::new(master_tx.clone(), state_options.db),
                 );
             }
         }
     }
+
+    let port_databases = output_ports
+        .iter()
+        .zip(port_databases.into_iter())
+        .flat_map(|(output_port, state_option)| {
+            state_option.map(|state_option| (output_port.handle, state_option))
+        })
+        .collect();
+
+    Ok((master_tx, port_databases))
 }
