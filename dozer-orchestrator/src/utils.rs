@@ -20,14 +20,7 @@ pub fn get_cache_dir(config: Config) -> PathBuf {
 }
 
 pub fn get_api_dir(config: Config) -> PathBuf {
-    PathBuf::from(
-        config
-            .api
-            .unwrap_or_default()
-            .api_internal
-            .unwrap_or_default()
-            .home_dir,
-    )
+    PathBuf::from(format!("{:}/api", config.home_dir))
 }
 pub fn get_grpc_config(config: Config) -> ApiGrpc {
     config.api.unwrap_or_default().grpc.unwrap_or_default()

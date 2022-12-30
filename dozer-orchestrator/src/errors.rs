@@ -13,8 +13,8 @@ use dozer_types::{serde_yaml, thiserror};
 pub enum OrchestrationError {
     #[error("Failed to write config yaml: {0:?}")]
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
-    #[error("Failed to initialize dozer config..")]
-    InitializationFailed,
+    #[error("Failed to initialize. {0}[/api/generated,/cache] are not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
+    InitializationFailed(String),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
     #[error("Failed to initialize api server..")]

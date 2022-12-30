@@ -23,7 +23,7 @@ pub enum Commands {
     App(App),
     Connector(Connector),
     Clean,
-    Init,
+    Init(Init),
 }
 
 #[derive(Debug, Args)]
@@ -31,6 +31,13 @@ pub enum Commands {
 pub struct Api {
     #[command(subcommand)]
     pub command: ApiCommands,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Init {
+    #[arg(short = 'f')]
+    pub force: Option<Option<String>>,
 }
 
 #[derive(Debug, Args)]
