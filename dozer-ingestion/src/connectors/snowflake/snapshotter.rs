@@ -5,7 +5,6 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentifier};
 
-use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::errors::SnowflakeError::ConnectionError;
 use odbc::create_environment_v3;
 use std::sync::Arc;
@@ -37,14 +36,7 @@ impl Snapshotter {
 
         let result = client.fetch(&conn, format!("SELECT * FROM {};", table_name));
         match result {
-            Ok(Some((schema, mut iterator))) => {
-                ingestor
-                    .write()
-                    .handle_message((
-                        connector_id,
-                        IngestionMessage::Schema(table_name, SchemaHelper::map_schema(schema)?),
-                    ))
-                    .map_err(ConnectorError::IngestorError)?;
+            Ok(Some((_, mut iterator))) => {
                 iterator.try_for_each(|values| -> Result<(), ConnectorError> {
                     ingestor
                         .write()

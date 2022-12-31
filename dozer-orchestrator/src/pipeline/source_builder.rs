@@ -1,4 +1,4 @@
-use crate::pipeline::connector_source::NewConnectorSourceFactory;
+use crate::pipeline::connector_source::ConnectorSourceFactory;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -43,13 +43,13 @@ impl SourceBuilder {
                         port += 1;
                     }
 
-                    let source_factory = NewConnectorSourceFactory {
-                        ingestor: Arc::clone(&ingestor),
-                        iterator: Arc::clone(&iterator),
-                        ports: ports.clone(),
+                    let source_factory = ConnectorSourceFactory::new(
+                        Arc::clone(&ingestor),
+                        Arc::clone(&iterator),
+                        ports.clone(),
                         tables,
-                        connection: connection.clone(),
-                    };
+                        connection.clone(),
+                    );
 
                     asm.add(AppSource::new(
                         conn.clone(),
@@ -80,43 +80,27 @@ impl SourceBuilder {
 mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
     use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-    use dozer_types::ingestion_types::SnowflakeConfig;
     use dozer_types::models::app_config::Config;
     use std::sync::Arc;
 
     use dozer_core::dag::appsource::{AppSourceId, AppSourceMappings};
     use dozer_types::models::connection::{
-        Authentication, Connection, DBType, PostgresAuthentication,
+        Authentication, Connection, DBType, EventsAuthentication,
     };
     use dozer_types::models::source::Source;
 
     #[test]
     fn load_multi_sources() {
-        let pg_conn = Connection {
-            authentication: Some(Authentication::Postgres(PostgresAuthentication {
-                user: "".to_string(),
-                password: "".to_string(),
-                host: "".to_string(),
-                port: 0,
-                database: "".to_string(),
-            })),
+        let events1_conn = Connection {
+            authentication: Some(Authentication::Events(EventsAuthentication {})),
             id: None,
             app_id: None,
             db_type: DBType::Postgres.into(),
             name: "pg_conn".to_string(),
         };
 
-        let snow_conn = Connection {
-            authentication: Some(Authentication::Snowflake(SnowflakeConfig {
-                server: "".to_string(),
-                user: "".to_string(),
-                password: "".to_string(),
-                port: "1111".to_string(),
-                database: "".to_string(),
-                schema: "".to_string(),
-                warehouse: "".to_string(),
-                driver: None,
-            })),
+        let events2_conn = Connection {
+            authentication: Some(Authentication::Events(EventsAuthentication {})),
             id: None,
             app_id: None,
             db_type: DBType::Snowflake.into(),
@@ -127,14 +111,14 @@ mod tests {
             id: None,
             app_name: "multi".to_string(),
             api: Default::default(),
-            connections: vec![pg_conn.clone(), snow_conn.clone()],
+            connections: vec![events1_conn.clone(), events2_conn.clone()],
             sources: vec![
                 Source {
                     id: None,
                     name: "customers".to_string(),
                     table_name: "customers".to_string(),
                     columns: vec!["id".to_string()],
-                    connection: Some(pg_conn.clone()),
+                    connection: Some(events1_conn.clone()),
                     refresh_config: None,
                     app_id: None,
                 },
@@ -143,7 +127,7 @@ mod tests {
                     name: "addresses".to_string(),
                     table_name: "addresses".to_string(),
                     columns: vec!["id".to_string()],
-                    connection: Some(pg_conn.clone()),
+                    connection: Some(events1_conn.clone()),
                     refresh_config: None,
                     app_id: None,
                 },
@@ -152,7 +136,7 @@ mod tests {
                     name: "prices".to_string(),
                     table_name: "prices".to_string(),
                     columns: vec!["id".to_string()],
-                    connection: Some(snow_conn.clone()),
+                    connection: Some(events2_conn.clone()),
                     refresh_config: None,
                     app_id: None,
                 },
@@ -161,7 +145,7 @@ mod tests {
                     name: "prices_history".to_string(),
                     table_name: "prices_history".to_string(),
                     columns: vec!["id".to_string()],
-                    connection: Some(snow_conn.clone()),
+                    connection: Some(events2_conn),
                     refresh_config: None,
                     app_id: None,
                 },
@@ -184,33 +168,15 @@ mod tests {
             .get(vec![
                 AppSourceId::new(
                     config.sources.get(0).unwrap().table_name.clone(),
-                    Some(pg_conn.name.clone()),
+                    Some(events1_conn.name.clone()),
                 ),
                 AppSourceId::new(
                     config.sources.get(1).unwrap().table_name.clone(),
-                    Some(pg_conn.name),
+                    Some(events1_conn.name),
                 ),
             ])
             .unwrap();
 
         assert_eq!(2, pg_source_mapping.get(0).unwrap().mappings.len());
-
-        let snowflake_source_1_mapping: Vec<AppSourceMappings> = asm
-            .get(vec![AppSourceId::new(
-                config.sources.get(2).unwrap().table_name.clone(),
-                Some(snow_conn.name.clone()),
-            )])
-            .unwrap();
-
-        assert_eq!(1, snowflake_source_1_mapping.get(0).unwrap().mappings.len());
-
-        let snowflake_source_2_mapping: Vec<AppSourceMappings> = asm
-            .get(vec![AppSourceId::new(
-                config.sources.get(3).unwrap().table_name.clone(),
-                Some(snow_conn.name),
-            )])
-            .unwrap();
-
-        assert_eq!(1, snowflake_source_2_mapping.get(0).unwrap().mappings.len());
     }
 }

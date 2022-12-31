@@ -15,53 +15,70 @@ use std::sync::Arc;
 use std::thread;
 
 #[derive(Debug)]
-pub struct NewConnectorSourceFactory {
+pub struct ConnectorSourceFactory {
     pub ingestor: Arc<RwLock<Ingestor>>,
     pub iterator: Arc<RwLock<IngestionIterator>>,
     pub ports: HashMap<String, u16>,
+    pub schema_port_map: HashMap<u32, u16>,
+    pub schema_map: HashMap<u16, Schema>,
     pub tables: Vec<TableInfo>,
     pub connection: Connection,
 }
 
 // TODO: Move this to sources.rs when everything is connected proeprly
 
-impl NewConnectorSourceFactory {
-    fn get_schema_name_by_port(&self, port: &PortHandle) -> Option<&str> {
-        for (key, val) in self.ports.iter() {
-            if val == port {
-                return Some(key);
-            }
+impl ConnectorSourceFactory {
+    pub fn new(
+        ingestor: Arc<RwLock<Ingestor>>,
+        iterator: Arc<RwLock<IngestionIterator>>,
+        ports: HashMap<String, u16>,
+        tables: Vec<TableInfo>,
+        connection: Connection,
+    ) -> Self {
+        let (schema_map, schema_port_map) =
+            Self::get_schema_map(connection.clone(), tables.clone(), ports.clone());
+        Self {
+            ingestor,
+            iterator,
+            ports,
+            schema_port_map,
+            schema_map,
+            tables,
+            connection,
         }
-        None
+    }
+
+    fn get_schema_map(
+        connection: Connection,
+        tables: Vec<TableInfo>,
+        ports: HashMap<String, u16>,
+    ) -> (HashMap<u16, Schema>, HashMap<u32, u16>) {
+        let connector = get_connector(connection).unwrap();
+        let schema_tuples = connector.get_schemas(Some(tables)).unwrap();
+
+        let mut schema_map = HashMap::new();
+        let mut schema_port_map: HashMap<u32, u16> = HashMap::new();
+
+        for (table_name, schema) in schema_tuples {
+            let port: u16 = *ports
+                .get(&table_name)
+                .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
+                .unwrap();
+            let schema_id = get_schema_id(schema.identifier.as_ref()).unwrap();
+
+            schema_port_map.insert(schema_id, port);
+            schema_map.insert(port, schema);
+        }
+
+        (schema_map, schema_port_map)
     }
 }
-impl SourceFactory for NewConnectorSourceFactory {
+
+impl SourceFactory for ConnectorSourceFactory {
     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
-        self.get_schema_name_by_port(port).map_or(
+        self.schema_map.get(port).map_or(
             Err(ExecutionError::PortNotFoundInSource(*port)),
-            |schema_name| {
-                let connector = get_connector(self.connection.to_owned())
-                    .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
-
-                let tables: Vec<TableInfo> = self
-                    .tables
-                    .iter()
-                    .filter(|t| t.name == schema_name)
-                    .cloned()
-                    .collect();
-
-                connector
-                    .get_schemas(Some(tables))
-                    .map(|result| {
-                        result.get(0).map_or(
-                            Err(ExecutionError::FailedToGetOutputSchema(
-                                schema_name.to_string(),
-                            )),
-                            |(_, schema)| Ok(schema.clone()),
-                        )
-                    })
-                    .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?
-            },
+            |schema_name| Ok(schema_name.clone()),
         )
     }
 
@@ -80,10 +97,10 @@ impl SourceFactory for NewConnectorSourceFactory {
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
-        Ok(Box::new(NewConnectorSource {
+        Ok(Box::new(ConnectorSource {
             ingestor: self.ingestor.clone(),
             iterator: self.iterator.clone(),
-            ports: self.ports.clone(),
+            schema_port_map: self.schema_port_map.clone(),
             tables: self.tables.clone(),
             connection: self.connection.clone(),
         }))
@@ -91,15 +108,15 @@ impl SourceFactory for NewConnectorSourceFactory {
 }
 
 #[derive(Debug)]
-pub struct NewConnectorSource {
+pub struct ConnectorSource {
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
-    ports: HashMap<String, u16>,
+    schema_port_map: HashMap<u32, u16>,
     tables: Vec<TableInfo>,
     connection: Connection,
 }
 
-impl Source for NewConnectorSource {
+impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -116,7 +133,6 @@ impl Source for NewConnectorSource {
             Ok(())
         });
 
-        let mut schema_map: HashMap<u32, u16> = HashMap::new();
         loop {
             let msg = self.iterator.write().next();
             if let Some(msg) = msg {
@@ -128,22 +144,12 @@ impl Source for NewConnectorSource {
                             Operation::Update { old: _, new } => new.schema_id.to_owned(),
                         };
                         let schema_id = get_schema_id(identifier.as_ref())?;
-                        let port = schema_map
+                        let port = self
+                            .schema_port_map
                             .get(&schema_id)
                             .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
                             .unwrap();
                         fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
-                    }
-                    (_, IngestionOperation::SchemaUpdate(table_name, schema)) => {
-                        let schema_id = get_schema_id(schema.identifier.as_ref())?;
-
-                        let port = self
-                            .ports
-                            .get(&table_name)
-                            .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
-                            .unwrap();
-                        schema_map.insert(schema_id, port.to_owned());
-                        //  fw.update_schema(schema.clone(), port.to_owned())?
                     }
                 }
             } else {

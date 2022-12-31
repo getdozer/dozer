@@ -41,26 +41,18 @@ fn connector_e2e_connect_snowflake_and_read_from_stream() {
     });
 
     let mut i = 0;
-    while i < 1001 {
+    while i < 1000 {
         i += 1;
         let op = iterator.write().next();
         match op {
             None => {}
-            Some((_, ingestion_operation)) => {
-                match ingestion_operation {
-                    IngestionOperation::OperationEvent(_) => {
-                        // Assuming that only first message is schema update
-                        assert_ne!(i, 1);
-                    }
-                    IngestionOperation::SchemaUpdate(_, _s) => {
-                        assert_eq!(i, 1)
-                    }
-                }
-            }
+            Some((_, ingestion_operation)) => match ingestion_operation {
+                IngestionOperation::OperationEvent(_) => {}
+            },
         }
     }
 
-    assert_eq!(1001, i);
+    assert_eq!(1000, i);
 }
 
 #[ignore]
@@ -102,10 +94,6 @@ fn connector_e2e_connect_snowflake_schema_changes_test() {
     consumer
         .consume_stream(&client, &table_name, &ingestor)
         .unwrap();
-    assert!(matches!(
-        iterator.write().next().unwrap().1,
-        IngestionOperation::SchemaUpdate(_, _)
-    ));
 
     // Insert single record
     client.execute_query(&conn, &format!("INSERT INTO {} (N_NATIONKEY, N_COMMENT, N_REGIONKEY, N_NAME) VALUES (1, 'TEST Country 1', 0, 'country name 1');", table_name)).unwrap();
@@ -129,10 +117,6 @@ fn connector_e2e_connect_snowflake_schema_changes_test() {
     consumer
         .consume_stream(&client, &table_name, &ingestor)
         .unwrap();
-    assert!(matches!(
-        iterator.write().next().unwrap().1,
-        IngestionOperation::SchemaUpdate(_, _)
-    ));
     assert!(matches!(
         iterator.write().next().unwrap().1,
         IngestionOperation::OperationEvent(_)
