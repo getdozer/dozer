@@ -375,14 +375,18 @@ fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineEr
     }
     let full_ident = ident_tokens.join(".");
 
-    let field_index: Option<usize> = None;
+    let mut field_index: Option<usize> = None;
 
-    for field in schema.fields.iter() {
-        if compare_name(field.name.clone(), full_ident.clone()) && field_index.is_some() {
-            return Err(PipelineError::InvalidQuery(format!(
-                "Ambiguous Field {}",
-                full_ident
-            )));
+    for (index, field) in schema.fields.iter().enumerate() {
+        if compare_name(field.name.clone(), full_ident.clone()) {
+            if field_index.is_some() {
+                return Err(PipelineError::InvalidQuery(format!(
+                    "Ambiguous Field {}",
+                    full_ident
+                )));
+            } else {
+                field_index = Some(index);
+            }
         }
     }
     if let Some(index) = field_index {
@@ -399,20 +403,18 @@ pub(crate) fn compare_name(name: String, ident: String) -> bool {
     let left = name.split('.').collect::<Vec<&str>>();
     let right = ident.split('.').collect::<Vec<&str>>();
 
-    let mut curr_left = left.len();
-    let mut curr_right = right.len();
+    let left_len = left.len();
+    let right_len = right.len();
 
-    let shorter = cmp::min(curr_left, curr_right);
+    let shorter = cmp::min(left_len, right_len);
     let mut is_equal = false;
-    for i in 0..shorter {
-        if left[curr_left - 1] == right[curr_right - 1] {
+    for i in 1..shorter + 1 {
+        if left[left_len - i] == right[right_len - i] {
             is_equal = true;
         } else {
             is_equal = false;
             break;
         }
-        curr_left -= 1;
-        curr_right -= 1;
     }
 
     is_equal

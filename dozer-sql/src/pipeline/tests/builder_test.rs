@@ -171,7 +171,7 @@ impl Sink for TestSink {
 fn test_pipeline_builder() {
     let mut pipeline = PipelineBuilder {}
         .build_pipeline(
-            "SELECT COUNT(Spending), Country \
+            "SELECT COUNT(Spending), users.Country \
                 FROM users \
                 WHERE Spending >= 1",
         )

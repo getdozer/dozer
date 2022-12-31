@@ -45,3 +45,8 @@ fn test_compare_name() {
         "conn_b.table_a.name".to_string()
     ));
 }
+
+#[test]
+fn test_get_field_index() {
+    todo!()
+}
