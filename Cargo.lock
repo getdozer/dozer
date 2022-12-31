@@ -1473,6 +1473,8 @@ dependencies = [
  "dozer-core",
  "dozer-types",
  "dyn-clone",
+ "lmdb-rkv",
+ "lmdb-rkv-sys",
  "log",
  "num-traits",
  "sqlparser",

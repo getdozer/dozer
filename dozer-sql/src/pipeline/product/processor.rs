@@ -1,4 +1,5 @@
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::product::key_comparator::compare_join_keys;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::epoch::Epoch;
@@ -36,6 +37,9 @@ impl ProductProcessor {
 
     fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
         self.db = Some(env.open_database("product", true)?);
+
+        env.set_comparator(self.db.unwrap(), Some(compare_join_keys))?;
+
         Ok(())
     }
 
