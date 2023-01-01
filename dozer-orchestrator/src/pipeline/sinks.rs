@@ -33,6 +33,8 @@ pub struct CacheSinkFactory {
     cache: Arc<LmdbCache>,
     api_endpoint: ApiEndpoint,
     notifier: Option<Sender<PipelineResponse>>,
+    generated_path: PathBuf,
+    api_security: Option<ApiSecurity>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -60,12 +62,16 @@ impl CacheSinkFactory {
         cache: Arc<LmdbCache>,
         api_endpoint: ApiEndpoint,
         notifier: Option<Sender<PipelineResponse>>,
+        generated_path: PathBuf,
+        api_security: Option<ApiSecurity>,
     ) -> Self {
         Self {
             input_ports,
             cache,
             api_endpoint,
             notifier,
+            generated_path,
+            api_security,
         }
     }
     fn get_output_schema(
@@ -133,12 +139,7 @@ impl SinkFactory for CacheSinkFactory {
         self.input_ports.clone()
     }
 
-    fn prepare(
-        &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        generated_path: PathBuf,
-        api_security: Option<ApiSecurity>,
-    ) -> Result<(), ExecutionError> {
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         // Insert schemas into cache
         debug!(
             "SinkFactory: Initialising CacheSinkFactory: {}",
@@ -187,7 +188,7 @@ impl SinkFactory for CacheSinkFactory {
         }
 
         ProtoGenerator::generate(
-            generated_path.to_string_lossy().to_string(),
+            self.generated_path.to_string_lossy().to_string(),
             self.api_endpoint.name.to_owned(),
             PipelineDetails {
                 schema_name: self.api_endpoint.name.to_owned(),
@@ -196,7 +197,7 @@ impl SinkFactory for CacheSinkFactory {
                     endpoint: self.api_endpoint.to_owned(),
                 },
             },
-            api_security,
+            &self.api_security,
         )
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 

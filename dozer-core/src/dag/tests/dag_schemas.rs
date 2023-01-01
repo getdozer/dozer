@@ -158,12 +158,7 @@ impl SinkFactory for TestSinkFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _generated_path: PathBuf,
-        _api_security: Option<ApiSecurity>,
-    ) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 
