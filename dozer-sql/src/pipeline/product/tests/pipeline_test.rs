@@ -250,14 +250,14 @@ fn test_pipeline_builder() {
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
-        "mem".to_string(),
+        "conn1".to_string(),
         Arc::new(UserTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
         vec![("user".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
     ));
     asm.add(AppSource::new(
-        "mem".to_string(),
+        "conn2".to_string(),
         Arc::new(DepartmentTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
         vec![("department".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()

@@ -368,12 +368,16 @@ impl ExpressionBuilder {
     }
 }
 
-fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineError> {
+pub fn fullname_from_ident(ident: &[Ident]) -> String {
     let mut ident_tokens = vec![];
     for token in ident.iter() {
         ident_tokens.push(token.value.clone());
     }
-    let full_ident = ident_tokens.join(".");
+    ident_tokens.join(".")
+}
+
+pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineError> {
+    let full_ident = fullname_from_ident(ident);
 
     let mut field_index: Option<usize> = None;
 

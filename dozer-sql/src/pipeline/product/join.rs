@@ -9,7 +9,7 @@ use dozer_core::storage::lmdb_storage::{LmdbExclusiveTransaction, SharedTransact
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
 use dozer_types::errors::types::TypeError;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Field, Record};
+use dozer_types::types::{Field, Record, Schema};
 use sqlparser::ast::TableFactor;
 
 use super::factory::get_input_name;
@@ -19,14 +19,16 @@ const REVERSE_JOIN_FLAG: u32 = 0x80000000;
 #[derive(Debug, Clone)]
 pub struct JoinTable {
     pub name: String,
+    pub schema: Schema,
     pub left: Option<ReverseJoinOperator>,
     pub right: Option<JoinOperator>,
 }
 
 impl JoinTable {
-    pub fn from(relation: &TableFactor) -> Self {
+    pub fn from(relation: &TableFactor, schema: &Schema) -> Self {
         Self {
             name: get_input_name(relation).unwrap(),
+            schema: schema.clone(),
             left: None,
             right: None,
         }
