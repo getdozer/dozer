@@ -5,7 +5,6 @@ use crate::dag::record_store::RecordReader;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Schema};
 
-
 use log::info;
 use std::collections::HashMap;
 

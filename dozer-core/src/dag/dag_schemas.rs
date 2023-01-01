@@ -5,7 +5,6 @@ use crate::dag::node::{NodeHandle, PortHandle};
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 
-
 #[derive(Clone)]
 pub struct NodeSchemas {
     pub input_schemas: HashMap<PortHandle, Schema>,

@@ -17,7 +17,6 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 
-
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
