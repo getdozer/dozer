@@ -6,10 +6,10 @@ use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
     SinkFactory, Source, SourceFactory,
 };
-use dozer_types::models::api_security::ApiSecurity;
+
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use std::collections::HashMap;
-use std::path::PathBuf;
+
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;

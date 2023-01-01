@@ -247,7 +247,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let dag = executor.build_pipeline(
             None,
-            generated_path.to_owned(),
+            generated_path,
             get_api_security_config(self.config.clone()),
         )?;
         let schema_manager = DagSchemaManager::new(&dag)?;

@@ -15,10 +15,10 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 use log::debug;
 
 use dozer_core::dag::epoch::Epoch;
-use dozer_types::models::api_security::ApiSecurity;
+
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
