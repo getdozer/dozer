@@ -51,6 +51,7 @@ impl ClosingEpoch {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct EpochManager {
     commit_max_ops_count: u32,
     commit_curr_ops_count: u32,

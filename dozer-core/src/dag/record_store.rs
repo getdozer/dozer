@@ -2,6 +2,7 @@ use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::lmdb_storage::SharedTransaction;
 
+#[derive(Debug)]
 pub struct RecordReader {
     tx: SharedTransaction,
     db: Database,

@@ -17,6 +17,7 @@ use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub(crate) struct StateWriter {
     meta_db: Database,
     dbs: HashMap<PortHandle, StateOptions>,
@@ -147,6 +148,7 @@ impl StateWriter {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ChannelManager {
     owner: NodeHandle,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -222,6 +224,7 @@ impl ChannelManager {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct SourceChannelManager {
     source_handle: NodeHandle,
     manager: ChannelManager,
@@ -300,6 +303,7 @@ impl SourceChannelManager {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ProcessorChannelManager {
     manager: ChannelManager,
 }
