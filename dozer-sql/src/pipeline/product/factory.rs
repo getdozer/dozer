@@ -147,7 +147,7 @@ pub fn build_join_chain(
     let mut input_tables = HashMap::new();
 
     let port = 0 as PortHandle;
-    let input_schema = input_schemas.get(&(port as PortHandle));
+    let mut input_schema = input_schemas.get(&(port as PortHandle));
 
     if input_schema.is_none() {
         return Err(PipelineError::InvalidRelation);
@@ -199,7 +199,7 @@ pub fn build_join_chain(
             input_tables.insert((index + 1) as PortHandle, right_join_table.clone());
 
             left_join_table = input_tables
-                .get_mut(&(index as PortHandle))
+                .get_mut(&((index + 1) as PortHandle))
                 .unwrap()
                 .clone();
         } else {

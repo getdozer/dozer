@@ -98,9 +98,9 @@ fn test_join_tables_three() {
         .clone();
 
     let input_schemas = HashMap::from([
-        (0 as PortHandle, user_schema),
+        (2 as PortHandle, user_schema),
         (1 as PortHandle, department_schema),
-        (2 as PortHandle, country_schema),
+        (0 as PortHandle, country_schema),
     ]);
 
     let statement = get_select(
