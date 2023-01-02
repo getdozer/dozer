@@ -11,8 +11,8 @@ use tonic::{Request, Response, Status};
 
 use super::super::types_helper;
 use crate::grpc::common_grpc::{
-    GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, HealthRequest,
-    HealthResponse, OnEventRequest, QueryRequest, QueryResponse,
+    GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, OnEventRequest,
+    QueryRequest, QueryResponse,
 };
 use crate::grpc::types::{FieldDefinition, Operation, Record};
 
@@ -59,15 +59,6 @@ impl CommonGrpcService for CommonService {
         let records: Vec<Record> = records.into_iter().map(map_record).collect();
         let reply = QueryResponse { fields, records };
 
-        Ok(Response::new(reply))
-    }
-
-    async fn health(
-        &self,
-        _request: Request<HealthRequest>,
-    ) -> Result<Response<HealthResponse>, Status> {
-        let status = "success".to_string();
-        let reply = HealthResponse { status };
         Ok(Response::new(reply))
     }
 

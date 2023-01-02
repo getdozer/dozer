@@ -2,12 +2,14 @@ use super::{
     auth_middleware::AuthMiddlewareLayer,
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
+    health_grpc::health_grpc_service_server::HealthGrpcServiceServer,
     internal_grpc::{
         internal_pipeline_service_client::InternalPipelineServiceClient, PipelineRequest,
         PipelineResponse,
     },
     typed::TypedService,
 };
+use crate::grpc::health::HealthService;
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
@@ -146,10 +148,15 @@ impl ApiServer {
             );
         }
 
+        let health_service = HealthGrpcServiceServer::new(HealthService {
+            serving_status: HashMap::new(),
+        });
+
         let common_service = CommonGrpcServiceServer::new(CommonService {
             pipeline_map: pipeline_map.to_owned(),
             event_notifier: rx1.as_ref().map(|r| r.resubscribe()),
         });
+
         // middleware
         let layer = tower::ServiceBuilder::new()
             .layer(AuthMiddlewareLayer::new(self.security.to_owned()))
@@ -159,6 +166,11 @@ impl ApiServer {
             .accept_http1(true)
             .layer(layer)
             .concurrency_limit_per_connection(32)
+            .add_service(
+                tonic_web::config()
+                    .allow_all_origins()
+                    .enable(health_service),
+            )
             .add_service(
                 tonic_web::config()
                     .allow_all_origins()

@@ -16,8 +16,6 @@ service CommonGrpcService {
    * If no query is specified, the first 50 records will be returned.
    */
   rpc query(QueryRequest) returns (QueryResponse);
-  // Get health check
-  rpc health(HealthRequest) returns (HealthResponse);
   /**
    * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
    *
@@ -68,14 +66,6 @@ message QueryResponse {
   repeated dozer.types.FieldDefinition fields = 1;
   // The list of record data.
   repeated dozer.types.Record records = 2;
-}
-
-// Request for `health`.
-message HealthRequest {}
-
-// Response for `health`.
-message HealthResponse {
-  string status = 1;
 }
 
 // Request for `getEndpoints`.

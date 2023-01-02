@@ -8,6 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(&["protos/api.proto"], &["protos"])?;
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
+        .compile(&["protos/health.proto"], &["protos"])?;
+    tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
         .extern_path(
             ".dozer.internal.ApplicationDetail",
             "dozer_types::models::app_config::Config",
