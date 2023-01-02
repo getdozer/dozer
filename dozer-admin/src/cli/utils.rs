@@ -23,9 +23,12 @@ fn run_migrations(
     connection.run_pending_migrations(MIGRATIONS)?;
     Ok(())
 }
+pub fn get_db_path() -> String {
+    env::var("DATABASE_URL").unwrap_or("dozer.db".to_owned())
+}
 pub fn reset_db() {
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = get_db_path();
     // check if db file exist
     let db_file_exist = std::path::Path::new(&database_url).exists();
     if db_file_exist {
@@ -39,7 +42,7 @@ pub fn reset_db() {
 }
 
 pub fn init_db_with_config(mut config: Config) -> Config {
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = get_db_path();
     let db_pool = establish_connection(database_url);
     config.save(db_pool).unwrap();
     config
