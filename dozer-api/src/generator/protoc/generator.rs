@@ -43,7 +43,7 @@ pub struct ProtoGenerator<'a> {
     schema: dozer_types::types::Schema,
     schema_name: String,
     folder_path: String,
-    security: Option<ApiSecurity>,
+    security: &'a Option<ApiSecurity>,
 }
 
 fn safe_name(name: &str) -> String {
@@ -52,11 +52,11 @@ fn safe_name(name: &str) -> String {
     }
     name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
 }
-impl ProtoGenerator<'_> {
+impl<'a> ProtoGenerator<'a> {
     pub fn new(
         pipeline_details: PipelineDetails,
         folder_path: String,
-        security: Option<ApiSecurity>,
+        security: &'a Option<ApiSecurity>,
     ) -> Result<Self, GenerationError> {
         let cache = pipeline_details.cache_endpoint.cache.clone();
         let schema_name = safe_name(&pipeline_details.cache_endpoint.endpoint.name);
@@ -191,7 +191,7 @@ impl ProtoGenerator<'_> {
         folder_path: String,
         endpoint_name: String,
         details: PipelineDetails,
-        security: Option<ApiSecurity>,
+        security: &Option<ApiSecurity>,
     ) -> Result<ProtoResponse, GenerationError> {
         let mut resources = vec![];
         let generator = ProtoGenerator::new(details, folder_path.clone(), security)?;

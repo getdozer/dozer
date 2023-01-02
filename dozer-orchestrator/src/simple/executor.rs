@@ -19,6 +19,7 @@ use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam;
+use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 
@@ -55,6 +56,8 @@ impl Executor {
     pub fn build_pipeline(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        api_dir: PathBuf,
+        api_security: Option<ApiSecurity>,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
         for sources_group in grouped_connections.values() {
@@ -96,6 +99,8 @@ impl Executor {
                     cache,
                     api_endpoint,
                     notifier.clone(),
+                    api_dir.clone(),
+                    api_security.clone(),
                 )),
                 cache_endpoint.endpoint.name.as_str(),
             );
@@ -135,7 +140,7 @@ impl Executor {
     ) -> Result<(), OrchestrationError> {
         let running_wait = self.running.clone();
 
-        let parent_dag = self.build_pipeline(notifier)?;
+        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), None)?;
         let path = &self.home_dir;
         fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
         let mut exec = DagExecutor::new(
@@ -146,7 +151,6 @@ impl Executor {
         )?;
 
         exec.start()?;
-
         exec.join().map_err(OrchestrationError::ExecutionError)
     }
 }

@@ -286,12 +286,12 @@ mod tests {
         let epoch1 = Epoch::new(1, details);
         senders[0]
             .send(ExecutorOperation::Commit {
-                epoch_details: epoch0.clone(),
+                epoch_details: epoch0,
             })
             .unwrap();
         senders[1]
             .send(ExecutorOperation::Commit {
-                epoch_details: epoch1.clone(),
+                epoch_details: epoch1,
             })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();

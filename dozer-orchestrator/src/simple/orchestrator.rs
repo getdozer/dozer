@@ -240,23 +240,18 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_home_dir,
         );
 
-        let dag = executor.build_pipeline(None)?;
-
-        let sinks = dag.get_sinks();
-        let schema_manager = DagSchemaManager::new(&dag)?;
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {
             fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
         }
 
-        for (sink_handle, sink) in sinks {
-            let schemas = schema_manager.get_node_input_schemas(&sink_handle)?;
-            sink.prepare(
-                schemas.to_owned(),
-                generated_path.to_owned(),
-                get_api_security_config(self.config.to_owned()),
-            )?;
-        }
+        let dag = executor.build_pipeline(
+            None,
+            generated_path,
+            get_api_security_config(self.config.clone()),
+        )?;
+        let schema_manager = DagSchemaManager::new(&dag)?;
+        schema_manager.prepare()?;
 
         info!("Initialized schema");
 
