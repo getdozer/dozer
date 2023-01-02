@@ -67,6 +67,8 @@ impl AppService {
                     sources: sources.0,
                     endpoints: endpoints.0,
                     home_dir: "".to_owned(),
+                    // TODO: Get this from db
+                    flags: Default::default(),
                 }),
             })
         } else {
