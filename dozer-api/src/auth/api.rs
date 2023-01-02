@@ -37,10 +37,6 @@ pub async fn auth_route(
     }
 }
 
-pub async fn health_route() -> Result<HttpResponse, ApiError> {
-    Ok(HttpResponse::Ok().body("success"))
-}
-
 fn get_secret(req: HttpRequest) -> Result<String, AuthError> {
     let api_security = req.app_data::<ApiSecurity>().map(|a| a.to_owned());
 

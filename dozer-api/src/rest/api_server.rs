@@ -1,7 +1,7 @@
 use super::api_generator;
 use crate::{
     auth::{
-        api::{auth_route, health_route, validate},
+        api::{auth_route, validate},
         Access,
     },
     CacheEndpoint, PipelineDetails,
@@ -21,6 +21,7 @@ use dozer_types::{
 };
 use futures_util::FutureExt;
 use tracing_actix_web::TracingLogger;
+use crate::rest::api_generator::health_route;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]

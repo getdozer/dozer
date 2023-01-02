@@ -67,6 +67,11 @@ pub async fn list(
     }
 }
 
+// Generated get function for health check
+pub async fn health_route() -> Result<HttpResponse, ApiError> {
+    Ok(HttpResponse::Ok().body("success"))
+}
+
 // Generated query function for multiple records
 pub async fn query(
     access: Option<ReqData<Access>>,
