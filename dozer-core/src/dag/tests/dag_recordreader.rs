@@ -15,6 +15,7 @@ use dozer_types::types::{Field, Operation, Schema};
 
 use std::collections::HashMap;
 
+use serial_test::serial;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
@@ -200,12 +201,13 @@ impl Processor for RecordReaderProcessor {
 }
 
 #[test]
+#[serial]
 fn test_run_dag_reacord_reader() {
     init_log4rs();
 
     const TOT: u64 = 1_000_000;
 
-    let sync = Arc::new(Barrier::new(2));
+    let sync = Arc::new(AtomicBool::new(true));
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), false);
     let passthrough = PassthroughProcessorFactory::new();
@@ -275,7 +277,7 @@ fn test_run_dag_reacord_reader_from_src() {
 
     const TOT: u64 = 1_000;
 
-    let sync = Arc::new(Barrier::new(2));
+    let sync = Arc::new(AtomicBool::new(true));
 
     let src = GeneratorSourceFactory::new(TOT, sync.clone(), true);
     let record_reader = RecordReaderProcessorFactory::new();

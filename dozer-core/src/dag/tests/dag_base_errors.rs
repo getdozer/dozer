@@ -119,7 +119,7 @@ fn test_run_dag_proc_err_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
@@ -175,7 +175,7 @@ fn test_run_dag_proc_err_2() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
@@ -243,7 +243,7 @@ fn test_run_dag_proc_err_3() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
@@ -309,17 +309,12 @@ fn test_run_dag_proc_err_3() {
 #[derive(Debug)]
 pub(crate) struct ErrGeneratorSourceFactory {
     count: u64,
-    term_latch: Option<Arc<Barrier>>,
     err_at: u64,
 }
 
 impl ErrGeneratorSourceFactory {
-    pub fn new(count: u64, err_at: u64, term_latch: Option<Arc<Barrier>>) -> Self {
-        Self {
-            count,
-            term_latch,
-            err_at,
-        }
+    pub fn new(count: u64, err_at: u64) -> Self {
+        Self { count, err_at }
     }
 }
 
@@ -355,7 +350,6 @@ impl SourceFactory for ErrGeneratorSourceFactory {
         Ok(Box::new(ErrGeneratorSource {
             count: self.count,
             err_at: self.err_at,
-            term_latch: self.term_latch.as_ref().cloned(),
         }))
     }
 }
@@ -363,7 +357,6 @@ impl SourceFactory for ErrGeneratorSourceFactory {
 #[derive(Debug)]
 pub(crate) struct ErrGeneratorSource {
     count: u64,
-    term_latch: Option<Arc<Barrier>>,
     err_at: u64,
 }
 
@@ -406,18 +399,14 @@ fn test_run_dag_src_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
 
     dag.add_node(
-        NodeType::Source(Arc::new(ErrGeneratorSourceFactory::new(
-            count,
-            200_000,
-            Some(latch.clone()),
-        ))),
+        NodeType::Source(Arc::new(ErrGeneratorSourceFactory::new(count, 200_000))),
         source_handle.clone(),
     );
     dag.add_node(
@@ -454,17 +443,12 @@ fn test_run_dag_src_err() {
 #[derive(Debug)]
 pub(crate) struct ErrSinkFactory {
     err_at: u64,
-    latch: Arc<Barrier>,
     panic: bool,
 }
 
 impl ErrSinkFactory {
-    pub fn new(err_at: u64, latch: Arc<Barrier>, panic: bool) -> Self {
-        Self {
-            err_at,
-            latch,
-            panic,
-        }
+    pub fn new(err_at: u64, panic: bool) -> Self {
+        Self { err_at, panic }
     }
 }
 
@@ -491,7 +475,6 @@ impl SinkFactory for ErrSinkFactory {
         Ok(Box::new(ErrSink {
             err_at: self.err_at,
             current: 0,
-            latch: self.latch.clone(),
             panic: self.panic,
         }))
     }
@@ -501,7 +484,6 @@ impl SinkFactory for ErrSinkFactory {
 pub(crate) struct ErrSink {
     err_at: u64,
     current: u64,
-    latch: Arc<Barrier>,
     panic: bool,
 }
 impl Sink for ErrSink {
@@ -542,7 +524,7 @@ fn test_run_dag_sink_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
@@ -561,7 +543,7 @@ fn test_run_dag_sink_err() {
         proc_handle.clone(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(ErrSinkFactory::new(200_000, latch, false))),
+        NodeType::Sink(Arc::new(ErrSinkFactory::new(200_000, false))),
         sink_handle.clone(),
     );
 
@@ -595,7 +577,7 @@ fn test_run_dag_sink_err_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(1));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
@@ -614,7 +596,7 @@ fn test_run_dag_sink_err_panic() {
         proc_handle.clone(),
     );
     dag.add_node(
-        NodeType::Sink(Arc::new(ErrSinkFactory::new(200_000, latch, true))),
+        NodeType::Sink(Arc::new(ErrSinkFactory::new(200_000, true))),
         sink_handle.clone(),
     );
 

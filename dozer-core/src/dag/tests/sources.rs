@@ -4,22 +4,26 @@ use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, 
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Barrier};
+use std::thread;
+use std::thread::Thread;
+use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
 #[derive(Debug)]
 pub(crate) struct GeneratorSourceFactory {
     count: u64,
-    barrier: Arc<Barrier>,
+    running: Arc<AtomicBool>,
     stateful: bool,
 }
 
 impl GeneratorSourceFactory {
-    pub fn new(count: u64, barrier: Arc<Barrier>, stateful: bool) -> Self {
+    pub fn new(count: u64, barrier: Arc<AtomicBool>, stateful: bool) -> Self {
         Self {
             count,
-            barrier,
+            running: barrier,
             stateful,
         }
     }
@@ -56,7 +60,7 @@ impl SourceFactory for GeneratorSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(GeneratorSource {
             count: self.count,
-            barrier: self.barrier.clone(),
+            running: self.running.clone(),
         }))
     }
 }
@@ -64,7 +68,7 @@ impl SourceFactory for GeneratorSourceFactory {
 #[derive(Debug)]
 pub(crate) struct GeneratorSource {
     count: u64,
-    barrier: Arc<Barrier>,
+    running: Arc<AtomicBool>,
 }
 
 impl Source for GeneratorSource {
@@ -91,7 +95,14 @@ impl Source for GeneratorSource {
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }
-        self.barrier.wait();
+
+        loop {
+            if !self.running.load(Ordering::Relaxed) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+
         Ok(())
     }
 }
@@ -102,15 +113,15 @@ pub(crate) const DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2: PortHandle = 2000;
 #[derive(Debug)]
 pub(crate) struct DualPortGeneratorSourceFactory {
     count: u64,
-    barrier: Arc<Barrier>,
+    running: Arc<AtomicBool>,
     stateful: bool,
 }
 
 impl DualPortGeneratorSourceFactory {
-    pub fn new(count: u64, barrier: Arc<Barrier>, stateful: bool) -> Self {
+    pub fn new(count: u64, barrier: Arc<AtomicBool>, stateful: bool) -> Self {
         Self {
             count,
-            barrier,
+            running: barrier,
             stateful,
         }
     }
@@ -153,7 +164,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
     ) -> Result<Box<dyn Source>, ExecutionError> {
         Ok(Box::new(DualPortGeneratorSource {
             count: self.count,
-            barrier: self.barrier.clone(),
+            running: self.running.clone(),
         }))
     }
 }
@@ -161,7 +172,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
 #[derive(Debug)]
 pub(crate) struct DualPortGeneratorSource {
     count: u64,
-    barrier: Arc<Barrier>,
+    running: Arc<AtomicBool>,
 }
 
 impl Source for DualPortGeneratorSource {
@@ -200,7 +211,12 @@ impl Source for DualPortGeneratorSource {
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
             )?;
         }
-        self.barrier.wait();
+        loop {
+            if !self.running.load(Ordering::Relaxed) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
         Ok(())
     }
 }

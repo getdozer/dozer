@@ -177,7 +177,7 @@ fn test_apps_source_manager_lookup_multiple_ports() {
 
 #[test]
 fn test_app_dag() {
-    let latch = Arc::new(Barrier::new(4));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(

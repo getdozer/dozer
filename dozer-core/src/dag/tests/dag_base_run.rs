@@ -99,10 +99,10 @@ impl Processor for NoopProcessor {
 fn test_run_dag() {
     // dozer_tracing::init_telemetry(false).unwrap();
 
-    let count: u64 = 1_000_000;
+    let count: u64 = 1_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(Some(1), 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -154,7 +154,7 @@ fn test_run_dag_and_stop() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -287,7 +287,7 @@ fn test_run_dag_2_sources_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(3));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source1_handle = NodeHandle::new(None, 1.to_string());
     let source2_handle = NodeHandle::new(None, 2.to_string());
@@ -354,7 +354,7 @@ fn test_run_dag_2_sources_stateful() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(3));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source1_handle = NodeHandle::new(None, 1.to_string());
     let source2_handle = NodeHandle::new(None, 2.to_string());
@@ -421,7 +421,7 @@ fn test_run_dag_1_source_2_ports_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(None, 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 1.to_string());

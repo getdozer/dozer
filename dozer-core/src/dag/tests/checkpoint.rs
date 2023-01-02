@@ -7,7 +7,7 @@ use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-
+use serial_test::serial;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Barrier};
@@ -18,7 +18,7 @@ use tempdir::TempDir;
 fn test_checkpoint_consistency() {
     //  dozer_tracing::init_telemetry(false).unwrap();
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(3));
+    let latch = Arc::new(AtomicBool::new(true));
 
     const SRC1_MSG_COUNT: u64 = 5000;
     const SRC2_MSG_COUNT: u64 = 5000;
@@ -131,7 +131,7 @@ fn test_checkpoint_consistency() {
 fn test_checkpoint_consistency_resume() {
     //   dozer_tracing::init_telemetry(false).unwrap();
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(3));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source1_handle = NodeHandle::new(Some(1), 1.to_string());
     let source2_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -203,7 +203,7 @@ fn test_checkpoint_consistency_resume() {
     }
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(3));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source1_handle = NodeHandle::new(Some(1), 1.to_string());
     let source2_handle = NodeHandle::new(Some(1), 2.to_string());
