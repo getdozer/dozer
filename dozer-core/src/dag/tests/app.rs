@@ -18,7 +18,7 @@ use dozer_types::types::Schema;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc};
+use std::sync::Arc;
 
 use tempdir::TempDir;
 

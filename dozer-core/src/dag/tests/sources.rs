@@ -5,7 +5,7 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::thread;
 
 use std::time::Duration;

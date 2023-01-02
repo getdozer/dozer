@@ -19,7 +19,7 @@ use dozer_types::types::{Operation, Schema};
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 

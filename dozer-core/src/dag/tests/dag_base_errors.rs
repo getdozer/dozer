@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::panic;
 
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc};
+use std::sync::Arc;
 
 use crate::dag::epoch::Epoch;
 
@@ -531,11 +531,7 @@ fn test_run_dag_sink_err() {
     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            count,
-            latch,
-            false,
-        ))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch, false))),
         source_handle.clone(),
     );
     dag.add_node(
@@ -584,11 +580,7 @@ fn test_run_dag_sink_err_panic() {
     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
 
     dag.add_node(
-        NodeType::Source(Arc::new(GeneratorSourceFactory::new(
-            count,
-            latch,
-            false,
-        ))),
+        NodeType::Source(Arc::new(GeneratorSourceFactory::new(count, latch, false))),
         source_handle.clone(),
     );
     dag.add_node(

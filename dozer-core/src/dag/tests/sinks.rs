@@ -9,7 +9,7 @@ use log::info;
 use std::collections::HashMap;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc};
+use std::sync::Arc;
 
 pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = 90;
 
