@@ -22,7 +22,7 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     pub pipeline_map: HashMap<String, PipelineDetails>,
-    pub event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    pub event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 }
 
 #[tonic::async_trait]
@@ -78,7 +78,7 @@ impl CommonGrpcService for CommonService {
         shared_impl::on_event(
             pipeline_details.clone(),
             query_request.filter.as_deref(),
-            self.event_notifier.resubscribe(),
+            self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
             move |op, endpoint| {
                 if endpoint == query_request.endpoint {

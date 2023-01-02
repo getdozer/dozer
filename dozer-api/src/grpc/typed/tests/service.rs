@@ -81,7 +81,7 @@ fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
 
     let (pipeline_map, schema_map, rx1) = setup_pipeline();
 
-    TypedService::new(desc, pipeline_map, schema_map, rx1, security)
+    TypedService::new(desc, pipeline_map, schema_map, Some(rx1), security)
 }
 
 async fn test_grpc_query_common(

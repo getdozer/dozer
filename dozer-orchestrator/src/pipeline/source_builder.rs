@@ -111,6 +111,7 @@ mod tests {
             id: None,
             app_name: "multi".to_string(),
             api: Default::default(),
+            flags: Default::default(),
             connections: vec![events1_conn.clone(), events2_conn.clone()],
             sources: vec![
                 Source {

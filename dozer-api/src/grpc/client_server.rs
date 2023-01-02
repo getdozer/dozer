@@ -17,29 +17,22 @@ use dozer_types::{
     models::{
         api_config::{ApiGrpc, ApiPipelineInternal},
         api_security::ApiSecurity,
+        app_config::Flags,
     },
     types::Schema,
 };
 use futures_util::{FutureExt, StreamExt};
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{atomic::AtomicBool, Arc},
-    thread,
-    time::Duration,
-};
-use tokio::sync::broadcast;
+use std::{collections::HashMap, path::PathBuf, thread, time::Duration};
+use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 
 pub struct ApiServer {
     port: u16,
-    dynamic: bool,
-    web: bool,
     host: String,
     api_dir: PathBuf,
-    pipeline_config: ApiPipelineInternal,
     security: Option<ApiSecurity>,
+    flags: Flags,
 }
 
 impl ApiServer {
@@ -61,8 +54,7 @@ impl ApiServer {
     fn get_dynamic_service(
         &self,
         pipeline_map: HashMap<String, PipelineDetails>,
-        rx1: broadcast::Receiver<PipelineResponse>,
-        _running: Arc<AtomicBool>,
+        rx1: Option<broadcast::Receiver<PipelineResponse>>,
     ) -> Result<(TypedService, ServerReflectionServer<impl ServerReflection>), GRPCError> {
         let mut schema_map: HashMap<String, Schema> = HashMap::new();
 
@@ -106,7 +98,7 @@ impl ApiServer {
             proto_res.descriptor,
             pipeline_map,
             schema_map,
-            rx1.resubscribe(),
+            rx1.map(|r| r.resubscribe()),
             self.security.to_owned(),
         );
 
@@ -115,34 +107,26 @@ impl ApiServer {
 
     pub fn new(
         grpc_config: ApiGrpc,
-        dynamic: bool,
         api_dir: PathBuf,
-        pipeline_config: ApiPipelineInternal,
         security: Option<ApiSecurity>,
+        flags: Flags,
     ) -> Self {
         Self {
             port: grpc_config.port as u16,
-            web: grpc_config.web,
             host: grpc_config.host,
-            dynamic,
             api_dir,
-            pipeline_config,
             security,
+            flags,
         }
     }
 
     pub async fn run(
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
-        running: Arc<AtomicBool>,
         receiver_shutdown: tokio::sync::oneshot::Receiver<()>,
+        rx1: Option<Receiver<PipelineResponse>>,
     ) -> Result<(), GRPCError> {
-        // create broadcast channel
-        let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
-        let pipeline_config = self.pipeline_config.to_owned();
-        ApiServer::setup_broad_cast_channel(tx, pipeline_config)?;
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
-
         for ce in cache_endpoints {
             pipeline_map.insert(
                 ce.endpoint.name.to_owned(),
@@ -155,7 +139,7 @@ impl ApiServer {
 
         let common_service = CommonGrpcServiceServer::new(CommonService {
             pipeline_map: pipeline_map.to_owned(),
-            event_notifier: rx1.resubscribe(),
+            event_notifier: rx1.as_ref().map(|r| r.resubscribe()),
         });
         // middleware
         let layer = tower::ServiceBuilder::new()
@@ -172,12 +156,12 @@ impl ApiServer {
                     .enable(common_service),
             );
 
-        let grpc_router = if self.dynamic {
+        let grpc_router = if self.flags.dynamic {
             let (grpc_service, inflection_service) =
-                self.get_dynamic_service(pipeline_map.clone(), rx1, running)?;
+                self.get_dynamic_service(pipeline_map.clone(), rx1)?;
             // GRPC service to handle reflection requests
             grpc_router = grpc_router.add_service(inflection_service);
-            if self.web {
+            if self.flags.grpc_web {
                 grpc_router = grpc_router
                     .add_service(tonic_web::config().allow_all_origins().enable(grpc_service));
             } else {
@@ -196,7 +180,7 @@ impl ApiServer {
     }
 
     pub fn setup_broad_cast_channel(
-        sender: broadcast::Sender<PipelineResponse>,
+        tx: Sender<PipelineResponse>,
         pipeline_config: ApiPipelineInternal,
     ) -> Result<(), GRPCError> {
         tokio::spawn(async move {
@@ -205,7 +189,7 @@ impl ApiServer {
                 .unwrap();
             while let Some(event_response) = stream.next().await {
                 if let Ok(event) = event_response {
-                    let _ = sender.send(event);
+                    let _ = tx.send(event);
                 }
             }
         });
