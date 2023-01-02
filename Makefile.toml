@@ -1,9 +1,49 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 
-[tasks.build-orchestrator]
-command = "cargo"
-args = ["build", "-p", "dozer-orchestrator", "--release", "--bin", "dozer"]
+[tasks.dozer-admin-local]
+run_task = { name = ["dozer-admin-ui","dozer-admin", "build-orchestrator"], parallel = true }
+
+
+#================== START DOZER UI ==================
+
+[tasks.dozer-admin-ui]
+dependencies = [
+    "checkout-ui",
+    "copy-build-ui"
+]
+
+[tasks.checkout-ui]
+script_runner = "@shell"
+script = '''
+rm -rf ./dozer-ui
+git clone https://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@github.com/getdozer/dozer-ui.git ./dozer-ui
+cd dozer-ui
+git checkout develop
+echo "REACT_APP_GRPC_ADMIN_URL=http://localhost:8081" > .env
+yarn install
+CI=""
+yarn build
+'''
+
+[tasks.copy-build-ui]
+script_runner = "@shell"
+script = '''
+rm -rf ./target/release/ui
+cp -r dozer-ui/build target/release/ui
+rm -rf ./dozer-ui
+'''
+
+#================== END DOZER UI ==================
+
+
+
+
+#================== START DOZER ADMIN GRPC ==================
+[tasks.dozer-admin]
+dependencies = [
+    "build-dozer-admin"
+]
 
 [tasks.reset-admin-db]
 script_runner = "@shell"
@@ -12,28 +52,15 @@ rm -rf ./dozer-admin/dozer.db && cd dozer-admin && diesel setup && diesel migrat
 cd ..
 '''
 
-[tasks.checkout-ui]
-script_runner = "@shell"
-script = '''
-rm -rf ./dozer-ui
-gh repo clone getdozer/dozer-ui ./dozer-ui
-cd dozer-ui
-git checkout develop
-yarn && yarn build
-yarn global add serve
-serve -s build  &
-'''
-
-[tasks.build-dozer-admin]
-command = "cargo"
-args = ["build", "-p", "dozer-admin", "--release", "--bin", "dozer-admin"]
-
-
 [tasks.create-dozer-admin-config]
 script_runner = "@shell"
 script = '''
 cp config/samples/dozer-admin-config.sample.yaml target/release/dozer-admin-config.yaml
 '''
+
+[tasks.build-dozer-admin]
+command = "cargo"
+args = ["build", "-p", "dozer-admin", "--release", "--bin", "dozer-admin"]
 
 [tasks.start-dozer-admin]
 script_runner = "@shell"
@@ -41,11 +68,30 @@ script = '''
 target/release/dozer-admin -c target/release/dozer-admin-config.yaml  &
 '''
 
-[tasks.my-flow]
-dependencies = [
-    "build-orchestrator",
-    "reset-admin-db",
-    "create-dozer-admin-config",
-    "start-dozer-admin",
-    "checkout-ui"
-]
+
+#================== END DOZER ADMIN GRPC ==================
+
+#================== START DOZER CLI ==================
+[tasks.build-orchestrator]
+command = "cargo"
+args = ["build", "-p", "dozer-orchestrator", "--release", "--bin", "dozer"]
+
+#================== END DOZER CLI ==================
+
+
+
+
+
+
+
+
+
+
+
+
+# ================== DOZER ADMIN GRPC
+
+
+
+
+
