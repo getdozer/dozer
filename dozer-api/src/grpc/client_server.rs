@@ -10,6 +10,8 @@ use super::{
     typed::TypedService,
 };
 use crate::grpc::health::HealthService;
+use crate::grpc::health_grpc::health_check_response::ServingStatus;
+use crate::grpc::{common, typed};
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
@@ -28,8 +30,6 @@ use std::{collections::HashMap, path::PathBuf, thread, time::Duration};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
-use crate::grpc::{common, typed};
-use crate::grpc::health_grpc::health_check_response::ServingStatus;
 
 pub struct ApiServer {
     port: u16,
