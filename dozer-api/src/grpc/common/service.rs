@@ -11,8 +11,8 @@ use tonic::{Request, Response, Status};
 
 use super::super::types_helper;
 use crate::grpc::common_grpc::{
-    GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, OnEventRequest,
-    QueryRequest, QueryResponse, HealthRequest, HealthResponse,
+    GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, HealthRequest,
+    HealthResponse, OnEventRequest, QueryRequest, QueryResponse,
 };
 use crate::grpc::types::{FieldDefinition, Operation, Record};
 
