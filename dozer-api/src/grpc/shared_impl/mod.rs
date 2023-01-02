@@ -43,7 +43,7 @@ pub fn query(
 pub fn on_event<T: Send + 'static>(
     pipeline_details: PipelineDetails,
     filter: Option<&str>,
-    mut broadcast_receiver: Receiver<PipelineResponse>,
+    mut broadcast_receiver: Option<Receiver<PipelineResponse>>,
     access: Option<Access>,
     event_mapper: impl Fn(Operation, String) -> Option<T> + Send + Sync + 'static,
 ) -> Result<Response<ReceiverStream<T>>, Status> {
@@ -66,24 +66,26 @@ pub fn on_event<T: Send + 'static>(
 
     tokio::spawn(async move {
         loop {
-            let event = broadcast_receiver.recv().await;
-            match event {
-                Ok(event) => {
-                    if let Some(ApiEvent::Op(op)) = event.api_event {
-                        if filter::op_satisfies_filter(&op, filter.as_ref(), &schema) {
-                            if let Some(event) = event_mapper(op, event.endpoint) {
-                                if (tx.send(event).await).is_err() {
-                                    // receiver dropped
-                                    break;
+            if let Some(broadcast_receiver) = broadcast_receiver.as_mut() {
+                let event = broadcast_receiver.recv().await;
+                match event {
+                    Ok(event) => {
+                        if let Some(ApiEvent::Op(op)) = event.api_event {
+                            if filter::op_satisfies_filter(&op, filter.as_ref(), &schema) {
+                                if let Some(event) = event_mapper(op, event.endpoint) {
+                                    if (tx.send(event).await).is_err() {
+                                        // receiver dropped
+                                        break;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                Err(e) => {
-                    warn!("Failed to receive event from broadcast channel: {}", e);
-                    if e == RecvError::Closed {
-                        break;
+                    Err(e) => {
+                        warn!("Failed to receive event from broadcast channel: {}", e);
+                        if e == RecvError::Closed {
+                            break;
+                        }
                     }
                 }
             }

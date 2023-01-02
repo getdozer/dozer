@@ -7,6 +7,7 @@ use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::ingestion_types::IngestionOperation;
+use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
@@ -89,7 +90,16 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect()
     }
 
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+    fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        for (port, schema) in output_schemas {
+            let (name, _) = self
+                .ports
+                .iter()
+                .find(|(_, p)| **p == port)
+                .map_or(Err(ExecutionError::PortNotFound(port.to_string())), Ok)?;
+            info!("SINK: Initializing input schema: {}", name);
+            schema.print().printstd();
+        }
         Ok(())
     }
 

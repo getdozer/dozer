@@ -148,7 +148,7 @@ impl SinkFactory for CacheSinkFactory {
         for (_, schema) in input_schemas.iter() {
             let mut pipeline_schema = schema.to_owned();
             info!(
-                "SINK: Initializing output schema on endpoint: {}",
+                "SINK: Initializing output schema: {}",
                 self.api_endpoint.name
             );
 

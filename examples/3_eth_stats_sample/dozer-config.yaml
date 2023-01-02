@@ -38,7 +38,7 @@ sources:
 
 endpoints:
   - name: PunkOffered
-    path: /transfers
+    path: /punk_offered
     sql: select punkIndex, minValue, toAddress from punks_PunkOffered;
     index:
       primary_key:

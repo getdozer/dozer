@@ -6,6 +6,7 @@ use dozer_types::{
             default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiPipelineInternal, ApiRest,
         },
         api_endpoint::ApiEndpoint,
+        app_config::Flags,
         connection::{Authentication, Connection, PostgresAuthentication},
         source::{RefreshConfig, Source},
     },
@@ -34,6 +35,10 @@ fn test_yml_content_full() -> &'static str {
         port: 50053
         host: '[::1]'
         home_dir: './.dozer/pipeline'
+    flags:
+      grpc_web: true
+      dynamic: true
+      push_events: false
     connections:
       - db_type: Postgres
         authentication: !Postgres
@@ -199,10 +204,12 @@ fn test_config() -> Config {
     let test_source = test_source(test_connection.to_owned());
     let api_endpoint = test_api_endpoint();
     let api_config = test_api_config();
+    let flags = Flags::default();
     Config {
         app_name: "dozer-config-sample".to_owned(),
         home_dir: DEFAULT_HOME_DIR.to_owned(),
         api: Some(api_config),
+        flags: Some(flags),
         connections: vec![test_connection],
         sources: vec![test_source],
         endpoints: vec![api_endpoint],

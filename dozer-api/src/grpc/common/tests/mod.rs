@@ -18,7 +18,7 @@ fn setup_common_service() -> CommonService {
     let (pipeline_map, _, rx1) = setup_pipeline();
     CommonService {
         pipeline_map,
-        event_notifier: rx1,
+        event_notifier: Some(rx1),
     }
 }
 
