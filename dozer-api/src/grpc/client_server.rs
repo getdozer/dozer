@@ -174,8 +174,13 @@ impl ApiServer {
         service_map.insert(common::SERVICE_NAME.to_string(), ServingStatus::Serving);
 
         let mut grpc_router = if self.flags.dynamic {
-            let (grpc_service, inflection_service) =
-                self.get_dynamic_service(pipeline_map.clone(), rx1)?;
+            let _get_dynamic_service = self.get_dynamic_service(pipeline_map.clone(), rx1);
+            if _get_dynamic_service.is_err() {
+                service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::NotServing);
+            } else {
+                service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::Serving);
+            }
+            let (grpc_service, inflection_service) = _get_dynamic_service?;
             // GRPC service to handle reflection requests
             grpc_router = grpc_router.add_service(inflection_service);
             if self.flags.grpc_web {
@@ -189,8 +194,6 @@ impl ApiServer {
         } else {
             grpc_router
         };
-
-        service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::Serving);
 
         let health_service = HealthGrpcServiceServer::new(HealthService {
             serving_status: service_map,
