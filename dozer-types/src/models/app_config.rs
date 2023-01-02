@@ -24,6 +24,23 @@ pub struct Config {
     #[prost(string, tag = "7")]
     #[serde(default = "default_home_dir")]
     pub home_dir: String,
+
+    #[prost(message, tag = "8")]
+    pub flags: Option<Flags>,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
+pub struct Flags {
+    // dynamic grpc enabled
+    #[prost(bool, tag = "1", default = true)]
+    pub dynamic: bool,
+    // http1 + web support for grpc. This is required for browser clients.
+    #[prost(bool, tag = "2", default = true)]
+    pub grpc_web: bool,
+
+    // push events enabled. Currently unstable.
+    #[prost(bool, tag = "3", default = false)]
+    pub push_events: bool,
 }
 
 fn default_home_dir() -> String {
@@ -48,6 +65,7 @@ impl<'de> Deserialize<'de> for Config {
                 A: serde::de::MapAccess<'de>,
             {
                 let mut api: Option<ApiConfig> = Some(default_api_config());
+                let mut flags: Option<Flags> = Some(Default::default());
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints: Vec<ApiEndpoint> = vec![];
@@ -64,6 +82,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "api" => {
                             api = Some(access.next_value::<ApiConfig>()?);
+                        }
+                        "flags" => {
+                            flags = Some(access.next_value::<Flags>()?);
                         }
                         "connections" => {
                             connections = access.next_value::<Vec<Connection>>()?;
@@ -130,6 +151,7 @@ impl<'de> Deserialize<'de> for Config {
                     sources,
                     endpoints,
                     home_dir,
+                    flags,
                 })
             }
         }

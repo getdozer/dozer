@@ -25,7 +25,7 @@ pub struct TypedService {
     descriptor: DescriptorPool,
     pipeline_map: HashMap<String, PipelineDetails>,
     schema_map: HashMap<String, Schema>,
-    event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
     security: Option<ApiSecurity>,
 }
 impl Clone for TypedService {
@@ -36,7 +36,7 @@ impl Clone for TypedService {
             descriptor: self.descriptor.clone(),
             pipeline_map: self.pipeline_map.clone(),
             schema_map: self.schema_map.clone(),
-            event_notifier: self.event_notifier.resubscribe(),
+            event_notifier: self.event_notifier.as_ref().map(|r| r.resubscribe()),
             security: self.security.to_owned(),
         }
     }
@@ -47,7 +47,7 @@ impl TypedService {
         descriptor: DescriptorPool,
         pipeline_map: HashMap<String, PipelineDetails>,
         schema_map: HashMap<String, Schema>,
-        event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+        event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
         security: Option<ApiSecurity>,
     ) -> Self {
         TypedService {
@@ -121,7 +121,7 @@ where
                 let accept_compression_encodings = self.accept_compression_encodings;
                 let send_compression_encodings = self.send_compression_encodings;
                 let codec = TypedCodec::new(method_desc);
-                let event_notifier = self.event_notifier.resubscribe();
+                let event_notifier = self.event_notifier.as_ref().map(|r| r.resubscribe());
                 let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
                     accept_compression_encodings,
                     send_compression_encodings,
@@ -151,7 +151,7 @@ where
                         struct EventService(
                             PipelineDetails,
                             DescriptorPool,
-                            tokio::sync::broadcast::Receiver<PipelineResponse>,
+                            Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
                         );
                         impl tonic::server::ServerStreamingService<DynamicMessage> for EventService {
                             type Response = TypedResponse;
@@ -167,7 +167,7 @@ where
                             ) -> Self::Future {
                                 let pipeline_details = self.0.to_owned();
                                 let desc = self.1.clone();
-                                let event_notifier = self.2.resubscribe();
+                                let event_notifier = self.2.as_ref().map(|r| r.resubscribe());
                                 let fut = async move {
                                     on_event(
                                         request,
@@ -253,7 +253,7 @@ fn on_event(
     request: Request<DynamicMessage>,
     pipeline_details: PipelineDetails,
     desc: DescriptorPool,
-    event_notifier: tokio::sync::broadcast::Receiver<PipelineResponse>,
+    event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
     let parts = request.into_parts();
     let extensions = parts.1;

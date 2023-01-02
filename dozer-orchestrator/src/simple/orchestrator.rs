@@ -30,7 +30,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, thread};
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 
 #[derive(Default, Clone)]
 pub struct SimpleOrchestrator {
@@ -75,12 +75,13 @@ impl SimpleOrchestrator {
 
 impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        self.write_internal_config()?;
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
-        let running2 = running.clone();
         // gRPC notifier channel
         let cache_dir = get_cache_dir(self.config.to_owned());
+
+        // Flags
+        let flags = self.config.flags.clone().unwrap_or_default();
 
         let cache_endpoints: Vec<CacheEndpoint> = self
             .config
@@ -103,7 +104,6 @@ impl Orchestrator for SimpleOrchestrator {
             .collect();
 
         let ce2 = cache_endpoints.clone();
-        let ce3 = cache_endpoints;
 
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
@@ -114,21 +114,32 @@ impl Orchestrator for SimpleOrchestrator {
             tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
-                    .run(ce3, tx)
+                    .run(cache_endpoints, tx)
                     .await
                     .expect("Failed to initialize api server")
             });
+            // Initiate Push Events
+            // create broadcast channel
+            let pipeline_config = get_pipeline_config(self.config.to_owned());
+
+            let rx1 = if flags.push_events {
+                let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
+                grpc::ApiServer::setup_broad_cast_channel(tx, pipeline_config).unwrap();
+                Some(rx1)
+            } else {
+                None
+            };
 
             // Initialize GRPC Server
-            let grpc_config = get_grpc_config(self.config.to_owned());
+
             let api_dir = get_api_dir(self.config.to_owned());
-            let pipeline_config = get_pipeline_config(self.config.to_owned());
+            let grpc_config = get_grpc_config(self.config.to_owned());
+
             let api_security = get_api_security_config(self.config.to_owned());
-            let grpc_server =
-                grpc::ApiServer::new(grpc_config, true, api_dir, pipeline_config, api_security);
+            let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
             tokio::spawn(async move {
                 grpc_server
-                    .run(ce2, running2.to_owned(), receiver_shutdown)
+                    .run(ce2, receiver_shutdown, rx1)
                     .await
                     .expect("Failed to initialize gRPC server")
             });
@@ -149,7 +160,6 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
 
         // gRPC notifier channel
@@ -240,23 +250,18 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_home_dir,
         );
 
-        let dag = executor.build_pipeline(None)?;
-
-        let sinks = dag.get_sinks();
-        let schema_manager = DagSchemaManager::new(&dag)?;
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {
             fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
         }
 
-        for (sink_handle, sink) in sinks {
-            let schemas = schema_manager.get_node_input_schemas(&sink_handle)?;
-            sink.prepare(
-                schemas.to_owned(),
-                generated_path.to_owned(),
-                get_api_security_config(self.config.to_owned()),
-            )?;
-        }
+        let dag = executor.build_pipeline(
+            None,
+            generated_path,
+            get_api_security_config(self.config.clone()),
+        )?;
+        let schema_manager = DagSchemaManager::new(&dag)?;
+        schema_manager.prepare()?;
 
         info!("Initialized schema");
 
