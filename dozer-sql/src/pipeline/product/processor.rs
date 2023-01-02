@@ -38,8 +38,6 @@ impl ProductProcessor {
     fn init_store(&mut self, env: &mut LmdbEnvironmentManager) -> Result<(), PipelineError> {
         self.db = Some(env.open_database("product", true)?);
 
-        env.set_comparator(self.db.unwrap(), Some(compare_join_keys))?;
-
         Ok(())
     }
 

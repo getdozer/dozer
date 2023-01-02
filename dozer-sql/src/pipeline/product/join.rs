@@ -96,16 +96,56 @@ impl JoinOperator {
     }
 
     pub fn get_join_key(&self, record: &Record) -> Result<Vec<u8>, TypeError> {
-        get_composite_key(record, &self.join_key_indexes.as_slice())
+        get_composite_key(record, self.join_key_indexes.as_slice())
     }
 
     fn get_right_keys(
         &self,
-        _join_key: Vec<u8>,
-        _db: &Database,
-        _transaction: &SharedTransaction,
-    ) -> Result<Vec<u8>, ExecutionError> {
-        todo!()
+        join_key: &[u8],
+        db: &Database,
+        transaction: &SharedTransaction,
+    ) -> Result<Vec<Vec<u8>>, ExecutionError> {
+        let mut exclusive_transaction = transaction.write();
+        let mut prefix_transaction =
+            PrefixTransaction::new(&mut exclusive_transaction, self.prefix);
+
+        let cursor = prefix_transaction.open_cursor(*db)?;
+
+        let mut output_keys = vec![];
+
+        if !cursor.seek(join_key)? {
+            return Ok(output_keys);
+        }
+
+        loop {
+            let entry = cursor.read()?.ok_or(ExecutionError::InternalDatabaseError(
+                StorageError::InvalidRecord,
+            ))?;
+
+            if entry.0 != join_key {
+                break;
+            }
+
+            if let Some(value) = prefix_transaction.get(*db, entry.1)? {
+                // let record = bincode::deserialize(value).map_err(|e| {
+                //     StorageError::DeserializationError {
+                //         typ: "Schema".to_string(),
+                //         reason: Box::new(e),
+                //     }
+                // })?;
+                output_keys.push(value.to_vec());
+            } else {
+                return Err(ExecutionError::InternalDatabaseError(
+                    StorageError::InvalidKey(format!("{:x?}", entry.1)),
+                ));
+            }
+
+            if !cursor.next()? {
+                break;
+            }
+        }
+
+        Ok(output_keys)
     }
 }
 
@@ -120,11 +160,11 @@ impl JoinExecutor for JoinOperator {
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         for record in records.iter() {
-            let join_key: Vec<u8> = get_composite_key(&record, &self.join_key_indexes)?;
-            let lookup_key: Vec<u8> = get_lookup_key(&record, schema)?;
+            let join_key: Vec<u8> = self.get_join_key(record)?;
+            let lookup_key: Vec<u8> = get_lookup_key(record, schema)?;
             self.update_index(&join_key, &lookup_key, db, transaction)?;
 
-            let right_keys = self.get_right_keys(join_key, db, transaction);
+            let right_keys = self.get_right_keys(&join_key, db, transaction)?;
 
             let result_records = vec![];
             if let Some(reader) = readers.get(&self.right_table) {
@@ -165,7 +205,7 @@ impl JoinExecutor for JoinOperator {
         let mut prefix_transaction =
             PrefixTransaction::new(&mut exclusive_transaction, self.prefix);
 
-        prefix_transaction.put(*db, &key, &value)?;
+        prefix_transaction.put(*db, key, value)?;
 
         Ok(())
     }
