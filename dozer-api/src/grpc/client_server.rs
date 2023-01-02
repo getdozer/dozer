@@ -80,7 +80,16 @@ impl ApiServer {
                 }
             }
         }
-        info!("Starting gRPC server.");
+        info!(
+            "Starting gRPC server on host: {}, port: {}, security: {}",
+            self.host,
+            self.port,
+            self.security
+                .as_ref()
+                .map_or("None".to_string(), |s| match s {
+                    ApiSecurity::Jwt(_) => "JWT".to_string(),
+                })
+        );
 
         let generated_path = self.api_dir.join("generated");
 
@@ -184,6 +193,10 @@ impl ApiServer {
         pipeline_config: ApiPipelineInternal,
     ) -> Result<(), GRPCError> {
         tokio::spawn(async move {
+            info!(
+                "Connecting to Internal service  on http://{}:{}",
+                pipeline_config.host, pipeline_config.port
+            );
             let mut stream = ApiServer::connect_internal_client(pipeline_config.to_owned())
                 .await
                 .unwrap();

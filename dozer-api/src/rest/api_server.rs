@@ -14,7 +14,7 @@ use actix_web::{
     rt, web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
-use dozer_types::{crossbeam::channel::Sender, models::api_config::ApiRest};
+use dozer_types::{crossbeam::channel::Sender, log::info, models::api_config::ApiRest};
 use dozer_types::{
     models::api_security::ApiSecurity,
     serde::{self, Deserialize, Serialize},
@@ -141,6 +141,16 @@ impl ApiServer {
         cache_endpoints: Vec<CacheEndpoint>,
         tx: Sender<ServerHandle>,
     ) -> std::io::Result<()> {
+        info!(
+            "Starting Rest Api Server on host: {}, port: {}, security: {}",
+            self.host,
+            self.port,
+            self.security
+                .as_ref()
+                .map_or("None".to_string(), |s| match s {
+                    ApiSecurity::Jwt(_) => "JWT".to_string(),
+                })
+        );
         let cors = self.cors.clone();
         let security = self.security.clone();
         let server = HttpServer::new(move || {
