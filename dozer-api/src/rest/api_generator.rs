@@ -5,9 +5,10 @@ use dozer_types::log::info;
 
 use super::super::api_helper::ApiHelper;
 use crate::{auth::Access, errors::ApiError, PipelineDetails};
+use crate::grpc::health_grpc::health_check_response::ServingStatus;
 use dozer_cache::errors::CacheError;
 use dozer_types::serde_json;
-use dozer_types::serde_json::Value;
+use dozer_types::serde_json::{json, Value};
 
 /// Generated function to return openapi.yaml documentation.
 pub async fn generate_oapi(
@@ -69,7 +70,9 @@ pub async fn list(
 
 // Generated get function for health check
 pub async fn health_route() -> Result<HttpResponse, ApiError> {
-    Ok(HttpResponse::Ok().body("success"))
+    let status = ServingStatus::Serving;
+    let resp = json!({ "status": status.as_str_name() }).to_string();
+    Ok(HttpResponse::Ok().body(resp))
 }
 
 // Generated query function for multiple records
