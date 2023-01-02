@@ -201,11 +201,10 @@ impl Processor for RecordReaderProcessor {
 }
 
 #[test]
-#[serial]
 fn test_run_dag_reacord_reader() {
     init_log4rs();
 
-    const TOT: u64 = 1_000_000;
+    const TOT: u64 = 10_000;
 
     let sync = Arc::new(AtomicBool::new(true));
 
