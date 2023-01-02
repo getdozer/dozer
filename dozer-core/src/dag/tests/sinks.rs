@@ -8,19 +8,23 @@ use dozer_types::types::{Operation, Schema};
 use log::info;
 use std::collections::HashMap;
 
-use std::sync::{Arc, Barrier};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 pub(crate) const COUNTING_SINK_INPUT_PORT: PortHandle = 90;
 
 #[derive(Debug)]
 pub(crate) struct CountingSinkFactory {
     expected: u64,
-    barrier: Arc<Barrier>,
+    running: Arc<AtomicBool>,
 }
 
 impl CountingSinkFactory {
-    pub fn new(expected: u64, barrier: Arc<Barrier>) -> Self {
-        Self { expected, barrier }
+    pub fn new(expected: u64, barrier: Arc<AtomicBool>) -> Self {
+        Self {
+            expected,
+            running: barrier,
+        }
     }
 }
 
@@ -47,7 +51,7 @@ impl SinkFactory for CountingSinkFactory {
         Ok(Box::new(CountingSink {
             expected: self.expected,
             current: 0,
-            barrier: self.barrier.clone(),
+            running: self.running.clone(),
         }))
     }
 }
@@ -56,7 +60,7 @@ impl SinkFactory for CountingSinkFactory {
 pub(crate) struct CountingSink {
     expected: u64,
     current: u64,
-    barrier: Arc<Barrier>,
+    running: Arc<AtomicBool>,
 }
 impl Sink for CountingSink {
     fn init(&mut self, _state: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
@@ -68,6 +72,13 @@ impl Sink for CountingSink {
         _epoch_details: &Epoch,
         _tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
+        // if self.current == self.expected {
+        //     info!(
+        //         "Received {} messages. Notifying sender to exit!",
+        //         self.current
+        //     );
+        //     self.running.store(false, Ordering::Relaxed);
+        // }
         Ok(())
     }
 
@@ -84,7 +95,7 @@ impl Sink for CountingSink {
                 "Received {} messages. Notifying sender to exit!",
                 self.current
             );
-            self.barrier.wait();
+            self.running.store(false, Ordering::Relaxed);
         }
         Ok(())
     }

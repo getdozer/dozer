@@ -17,7 +17,7 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Barrier};
+use std::sync::Arc;
 
 use tempdir::TempDir;
 
@@ -75,7 +75,7 @@ fn test_create_src_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(Some(1), 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -124,7 +124,7 @@ fn test_create_src_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(Some(1), 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -232,7 +232,7 @@ fn test_create_proc_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(Some(1), 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
@@ -285,7 +285,7 @@ fn test_create_proc_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
-    let latch = Arc::new(Barrier::new(2));
+    let latch = Arc::new(AtomicBool::new(true));
 
     let source_handle = NodeHandle::new(Some(1), 1.to_string());
     let proc_handle = NodeHandle::new(Some(1), 2.to_string());
