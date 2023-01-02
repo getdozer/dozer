@@ -29,3 +29,4 @@ dozer-admin/dozer.db
 *.db
 config/tests/local/*.json
 config/tests/local/*.yaml
+dozer-admin/ui/*
