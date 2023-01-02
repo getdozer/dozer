@@ -9,7 +9,7 @@ use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use serial_test::serial;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc};
 use tempdir::TempDir;
 
 #[test]

@@ -7,10 +7,10 @@ use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
-use serial_test::serial;
+
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc};
 
 use tempdir::TempDir;
 

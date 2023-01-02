@@ -5,9 +5,9 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc};
 use std::thread;
-use std::thread::Thread;
+
 use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
