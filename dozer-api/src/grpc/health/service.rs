@@ -19,7 +19,7 @@ impl HealthGrpcService for HealthService {
         request: Request<HealthCheckRequest>,
     ) -> Result<Response<HealthCheckResponse>, Status> {
         let req = request.into_inner();
-        let service = req.service.as_str();
+        let service = req.service.to_lowercase();
         if service.is_empty() {
             let not_serving = self
                 .serving_status
@@ -35,8 +35,10 @@ impl HealthGrpcService for HealthService {
                 Ok(Response::new(rep))
             }
         } else {
-            // TODO: tracking individual service's health
-            let serving_status = self.serving_status.get(service);
+            // currently supporting:
+            // - common (Common gRPC)
+            // - typed (Typed gRPC)
+            let serving_status = self.serving_status.get(service.as_str());
             match serving_status {
                 Some(_s) => {
                     let serving_status = *serving_status.unwrap();

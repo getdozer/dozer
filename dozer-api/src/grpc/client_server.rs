@@ -28,6 +28,8 @@ use std::{collections::HashMap, path::PathBuf, thread, time::Duration};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
+use crate::grpc::{common, typed};
+use crate::grpc::health_grpc::health_check_response::ServingStatus;
 
 pub struct ApiServer {
     port: u16,
@@ -138,6 +140,7 @@ impl ApiServer {
         rx1: Option<Receiver<PipelineResponse>>,
     ) -> Result<(), GRPCError> {
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
+        let mut service_map: HashMap<String, ServingStatus> = HashMap::new();
         for ce in cache_endpoints {
             pipeline_map.insert(
                 ce.endpoint.name.to_owned(),
@@ -147,10 +150,6 @@ impl ApiServer {
                 },
             );
         }
-
-        let health_service = HealthGrpcServiceServer::new(HealthService {
-            serving_status: HashMap::new(),
-        });
 
         let common_service = CommonGrpcServiceServer::new(CommonService {
             pipeline_map: pipeline_map.to_owned(),
@@ -169,15 +168,12 @@ impl ApiServer {
             .add_service(
                 tonic_web::config()
                     .allow_all_origins()
-                    .enable(health_service),
-            )
-            .add_service(
-                tonic_web::config()
-                    .allow_all_origins()
                     .enable(common_service),
             );
 
-        let grpc_router = if self.flags.dynamic {
+        service_map.insert(common::SERVICE_NAME.to_string(), ServingStatus::Serving);
+
+        let mut grpc_router = if self.flags.dynamic {
             let (grpc_service, inflection_service) =
                 self.get_dynamic_service(pipeline_map.clone(), rx1)?;
             // GRPC service to handle reflection requests
@@ -193,6 +189,19 @@ impl ApiServer {
         } else {
             grpc_router
         };
+
+        service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::Serving);
+
+        let health_service = HealthGrpcServiceServer::new(HealthService {
+            serving_status: service_map,
+        });
+
+        grpc_router = grpc_router.add_service(
+            tonic_web::config()
+                .allow_all_origins()
+                .enable(health_service),
+        );
+
         let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
