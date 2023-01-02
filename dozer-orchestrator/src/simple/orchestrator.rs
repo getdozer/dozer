@@ -75,7 +75,6 @@ impl SimpleOrchestrator {
 
 impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-        self.write_internal_config()?;
         // Channel to communicate CtrlC with API Server
         let (tx, rx) = unbounded::<ServerHandle>();
         let running2 = running.clone();
@@ -149,7 +148,6 @@ impl Orchestrator for SimpleOrchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        self.write_internal_config()?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
 
         // gRPC notifier channel
