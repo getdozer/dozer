@@ -10,12 +10,10 @@ use dozer_core::dag::node::{
 };
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
-use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use log::debug;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
@@ -204,12 +202,7 @@ impl SinkFactory for TestSinkFactory {
         Ok(Box::new(TestSink {}))
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-        _generated_path: PathBuf,
-        _api_security: Option<ApiSecurity>,
-    ) -> Result<(), ExecutionError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
         Ok(())
     }
 }

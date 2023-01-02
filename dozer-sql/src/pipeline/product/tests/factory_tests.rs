@@ -52,6 +52,13 @@ fn test_product_three() {
 
 #[test]
 fn test_join_tables_three() {
+    let statement = get_select(
+        "SELECT c.name, d.name, AVG(salary) \
+    FROM Country c JOIN Department d ON c.id = d.country_id JOIN Users u ON d.id=u.department_id \
+    WHERE salary >= 1000 GROUP BY c.name",
+    )
+    .unwrap_or_else(|e| panic!("{}", e.to_string()));
+
     let user_schema = Schema::empty()
         .field(
             FieldDefinition::new(String::from("id"), FieldType::Int, false),
@@ -102,13 +109,6 @@ fn test_join_tables_three() {
         (1 as PortHandle, department_schema),
         (0 as PortHandle, country_schema),
     ]);
-
-    let statement = get_select(
-        "SELECT c.name, d.name, AVG(salary) \
-    FROM Country c JOIN Department d ON c.id = d.country_id JOIN Users u ON d.id=u.department_id \
-    WHERE salary >= 1000 GROUP BY c.name",
-    )
-    .unwrap_or_else(|e| panic!("{}", e.to_string()));
 
     let join_tables = build_join_chain(&statement.from[0], input_schemas)
         .unwrap_or_else(|e| panic!("{}", e.to_string()));

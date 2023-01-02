@@ -49,16 +49,18 @@ pub enum JoinOperatorType {
 pub trait JoinExecutor: Send + Sync {
     fn execute(
         &self,
-        record: Vec<Record>,
-        db: &Database,
-        txn: &SharedTransaction,
+        records: Vec<Record>,
+        schema: &Schema,
+        database: &Database,
+        transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
 
     fn update_index(
         &self,
-        record: &Record,
+        key: &[u8],
+        value: &[u8],
         db: &Database,
         txn: &SharedTransaction,
     ) -> Result<(), ExecutionError>;
@@ -93,6 +95,10 @@ impl JoinOperator {
         }
     }
 
+    pub fn get_join_key(&self, record: &Record) -> Result<Vec<u8>, TypeError> {
+        get_composite_key(record, &self.join_key_indexes.as_slice())
+    }
+
     fn get_right_keys(
         &self,
         _join_key: Vec<u8>,
@@ -107,22 +113,41 @@ impl JoinExecutor for JoinOperator {
     fn execute(
         &self,
         records: Vec<Record>,
+        schema: &Schema,
         db: &Database,
-        txn: &SharedTransaction,
+        transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
-        _join_tables: &HashMap<PortHandle, JoinTable>,
+        join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         for record in records.iter() {
-            self.update_index(record, db, txn)?;
+            let join_key: Vec<u8> = get_composite_key(&record, &self.join_key_indexes)?;
+            let lookup_key: Vec<u8> = get_lookup_key(&record, schema)?;
+            self.update_index(&join_key, &lookup_key, db, transaction)?;
 
-            let join_key = get_join_key(record, &self.join_key_indexes)?;
+            let right_keys = self.get_right_keys(join_key, db, transaction);
 
-            let right_keys = self.get_right_keys(join_key, db, txn);
-
+            let result_records = vec![];
             if let Some(reader) = readers.get(&self.right_table) {
                 for lookup_key in right_keys.iter() {
                     if let Some(_record_key_bytes) = reader.get(lookup_key)? {}
                 }
+            }
+
+            let join_schema = Schema::empty();
+
+            let right_table = join_tables.get(&(self.right_table as PortHandle)).ok_or(
+                ExecutionError::InternalDatabaseError(StorageError::InvalidRecord),
+            )?;
+
+            if let Some(next_join) = &right_table.right {
+                let next_join_records = next_join.execute(
+                    result_records,
+                    &join_schema,
+                    db,
+                    transaction,
+                    readers,
+                    join_tables,
+                );
             }
         }
 
@@ -131,17 +156,14 @@ impl JoinExecutor for JoinOperator {
 
     fn update_index(
         &self,
-        record: &Record,
+        key: &[u8],
+        value: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
         let mut exclusive_transaction = transaction.write();
         let mut prefix_transaction =
             PrefixTransaction::new(&mut exclusive_transaction, self.prefix);
-
-        let key: Vec<u8> = get_lookup_key(record, &self.join_key_indexes)?;
-
-        let value: Vec<u8> = vec![0x00_u8]; // record.id;
 
         prefix_transaction.put(*db, &key, &value)?;
 
@@ -182,41 +204,49 @@ impl ReverseJoinOperator {
 impl JoinExecutor for ReverseJoinOperator {
     fn update_index(
         &self,
-        _record: &Record,
-        _db: &Database,
-        _txn: &SharedTransaction,
+        key: &[u8],
+        value: &[u8],
+        db: &Database,
+        transaction: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
-        todo!()
+        let mut exclusive_transaction = transaction.write();
+        let mut prefix_transaction =
+            PrefixTransaction::new(&mut exclusive_transaction, self.prefix);
+
+        prefix_transaction.put(*db, &key, &value)?;
+
+        Ok(())
     }
 
     fn execute(
         &self,
         records: Vec<Record>,
-        db: &Database,
-        txn: &SharedTransaction,
+        schema: &Schema,
+        database: &Database,
+        transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError> {
         let output_records = vec![];
 
-        if let Some(_left_reader) = readers.get(&self.left_table) {
-            for right_record in records.into_iter() {
-                let key = right_record.get_value(self.join_key_indexes[0])?.clone();
+        // if let Some(_left_reader) = readers.get(&self.left_table) {
+        //     for right_record in records.into_iter() {
+        //         let key = right_record.get_value(self.join_key_indexes[0])?.clone();
 
-                let left_records = get_left_records(db, txn, &self.prefix, &key)?;
+        //         let left_records = get_left_records(db, txn, &self.prefix, &key)?;
 
-                let left_relation_join = join_tables.get(&(self.left_table as PortHandle)).ok_or(
-                    ExecutionError::InternalDatabaseError(StorageError::InvalidRecord),
-                )?;
+        //         let left_relation_join = join_tables.get(&(self.left_table as PortHandle)).ok_or(
+        //             ExecutionError::InternalDatabaseError(StorageError::InvalidRecord),
+        //         )?;
 
-                if let Some(left_join_op) = &left_relation_join.left {
-                    let _left_join_records =
-                        left_join_op.execute(left_records, db, txn, readers, join_tables);
-                }
+        //         if let Some(left_join_op) = &left_relation_join.left {
+        //             let _left_join_records =
+        //                 left_join_op.execute(left_records, db, txn, readers, join_tables);
+        //         }
 
-                //output_records.append(&mut left_records);
-            }
-        }
+        //         //output_records.append(&mut left_records);
+        //     }
+        // }
 
         Ok(output_records)
     }
@@ -319,49 +349,18 @@ impl IndexUpdater for ReverseJoinOperator {
 //     Err(InvalidExpression("ERR".to_string()))
 // }
 
-pub fn get_join_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {
+pub fn get_composite_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {
     let mut join_key = Vec::with_capacity(64);
 
-    // write 2 bytes temporary to store the lenght later
-    join_key.extend([0x00_u8, 0x00_u8].iter());
-
-    // create the composite key
     for key_index in key_indexes.iter() {
         let key_value = record.get_value(*key_index)?;
         let key_bytes = key_value.encode();
         join_key.extend(key_bytes.iter());
     }
 
-    let composite_key_size = ((join_key.len() - 2) as u16).to_be_bytes();
-
-    join_key.splice(0..2, composite_key_size);
-
     Ok(join_key)
 }
 
-pub fn get_lookup_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {
-    let mut composite_key = Vec::with_capacity(64);
-
-    // write 2 bytes temporary to store the lenght later
-    composite_key.extend([0x00_u8, 0x00_u8].iter());
-
-    // create the composite key
-    for key_index in key_indexes.iter() {
-        let key_value = record.get_value(*key_index)?;
-        let key_bytes = key_value.encode();
-        composite_key.extend(key_bytes.iter());
-    }
-
-    let composite_key_size = ((composite_key.len() - 2) as u16).to_be_bytes();
-
-    composite_key.splice(0..2, composite_key_size);
-
-    composite_key.extend(
-        [
-            0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8,
-        ]
-        .iter(),
-    );
-
-    Ok(composite_key)
+pub fn get_lookup_key(record: &Record, schema: &Schema) -> Result<Vec<u8>, TypeError> {
+    get_composite_key(record, schema.primary_index.as_slice())
 }

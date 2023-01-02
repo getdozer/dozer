@@ -64,31 +64,33 @@ impl ProductProcessor {
     ) -> Result<Vec<Record>, ExecutionError> {
         // Get the input Table based on the port of the incoming message
         if let Some(input_table) = self.join_tables.get(&from_port) {
-            let mut output_records = vec![record.clone()];
+            let mut records = vec![record.clone()];
 
-            if let Some(database) = &self.db {
-                if let Some(left_join) = &input_table.left {
-                    output_records = left_join.execute(
-                        output_records,
-                        database,
-                        txn,
-                        reader,
-                        &self.join_tables,
-                    )?;
-                }
+            let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-                if let Some(right_join) = &input_table.right {
-                    output_records = right_join.execute(
-                        output_records,
-                        database,
-                        txn,
-                        reader,
-                        &self.join_tables,
-                    )?;
-                }
+            if let Some(left_join) = &input_table.left {
+                records = left_join.execute(
+                    records,
+                    &input_table.schema,
+                    database,
+                    txn,
+                    reader,
+                    &self.join_tables,
+                )?;
             }
 
-            return Ok(output_records);
+            if let Some(right_join) = &input_table.right {
+                records = right_join.execute(
+                    records,
+                    &input_table.schema,
+                    database,
+                    txn,
+                    reader,
+                    &self.join_tables,
+                )?;
+            }
+
+            return Ok(records);
         }
 
         Err(ExecutionError::InvalidPortHandle(from_port))
