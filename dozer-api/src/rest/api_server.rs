@@ -1,7 +1,7 @@
 use super::api_generator;
 use crate::{
     auth::{
-        api::{auth_route, validate},
+        api::{auth_route, health_route, validate},
         Access,
     },
     CacheEndpoint, PipelineDetails,
@@ -123,6 +123,8 @@ impl ApiServer {
             })
             // Attach token generation route
             .route("/auth/token", web::post().to(auth_route))
+            // Attach token generation route
+            .route("/health", web::get().to(health_route))
             // Wrap Api Validator
             .wrap(auth_middleware)
             // Insert None as Auth when no apisecurity configured
