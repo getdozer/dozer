@@ -3,7 +3,7 @@ use crate::dag::dag_schemas::DagSchemaManager;
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
     SinkFactory, Source, SourceFactory,
 };
 
@@ -44,7 +44,7 @@ impl SourceFactory for TestUsersSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
@@ -80,7 +80,7 @@ impl SourceFactory for TestCountriesSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
@@ -122,7 +122,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 

@@ -4,8 +4,8 @@ use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
-    Source, SourceFactory,
+    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
+    SourceFactory,
 };
 
 use crate::dag::tests::common::init_log4rs;
@@ -45,7 +45,7 @@ impl SourceFactory for CreateErrSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
@@ -197,7 +197,7 @@ impl ProcessorFactory for CreateErrProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 

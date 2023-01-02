@@ -5,7 +5,8 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
-use crate::dag::node::{NodeHandle, PortHandle};
+use crate::dag::node::{NodeHandle, OutputPortType, PortHandle};
+use crate::dag::record_store::{PrimaryKeyLookupRecordWriter, RecordWriter};
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
@@ -20,7 +21,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(crate) struct StateWriter {
     meta_db: Database,
-    dbs: HashMap<PortHandle, StateOptions>,
+    record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
     output_schemas: HashMap<PortHandle, Schema>,
     input_schemas: HashMap<PortHandle, Schema>,
     input_ports: Option<Vec<PortHandle>>,
@@ -36,9 +37,34 @@ impl StateWriter {
         output_schemas: HashMap<PortHandle, Schema>,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Self {
+        let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
+        for (port, options) in dbs {
+            let schema = output_schemas
+                .get(&port)
+                .ok_or(ExecutionError::InvalidPortHandle(*port))?
+                .clone();
+
+            match options.typ {
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates,
+                    retr_old_records_for_deletes,
+                } => {
+                    let writer = PrimaryKeyLookupRecordWriter::new(
+                        options.db,
+                        options.meta_db,
+                        schema,
+                        retr_old_records_for_deletes,
+                        retr_old_records_for_updates,
+                    );
+                    record_writers.insert(port, Box::new(writer));
+                }
+                _ => {}
+            }
+        }
+
         Self {
             meta_db,
-            dbs,
+            record_writers,
             output_schemas,
             input_schemas,
             tx,
@@ -79,37 +105,37 @@ impl StateWriter {
     }
 
     fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
-        if let Some(opts) = self.dbs.get(port) {
-            let schema = self
-                .output_schemas
-                .get(port)
-                .ok_or(ExecutionError::InvalidPortHandle(*port))?;
-
-            match op {
-                Operation::Insert { new } => {
-                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-                    Ok(Operation::Insert { new })
-                }
-                Operation::Delete { mut old } => {
-                    let key = old.get_key(&schema.primary_index);
-                    if opts.options.retrieve_old_record_for_deletes {
-                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-                    }
-                    self.tx.write().del(opts.db, &key, None)?;
-                    Ok(Operation::Delete { old })
-                }
-                Operation::Update { mut old, new } => {
-                    let key = old.get_key(&schema.primary_index);
-                    if opts.options.retrieve_old_record_for_updates {
-                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-                    }
-                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-                    Ok(Operation::Update { old, new })
-                }
-            }
-        } else {
-            Ok(op)
-        }
+        // if let Some(opts) = self.dbs.get(port) {
+        //     // let schema = self
+        //     //     .output_schemas
+        //     //     .get(port)
+        //     //     .ok_or(ExecutionError::InvalidPortHandle(*port))?;
+        //     //
+        //     // match op {
+        //     //     Operation::Insert { new } => {
+        //     //         StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
+        //     //         Ok(Operation::Insert { new })
+        //     //     }
+        //     //     Operation::Delete { mut old } => {
+        //     //         let key = old.get_key(&schema.primary_index);
+        //     //         if opts.options.retrieve_old_record_for_deletes {
+        //     //             old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
+        //     //         }
+        //     //         self.tx.write().del(opts.db, &key, None)?;
+        //     //         Ok(Operation::Delete { old })
+        //     //     }
+        //     //     Operation::Update { mut old, new } => {
+        //     //         let key = old.get_key(&schema.primary_index);
+        //     //         if opts.options.retrieve_old_record_for_updates {
+        //     //             old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
+        //     //         }
+        //     //         StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
+        //     //         Ok(Operation::Update { old, new })
+        //     //     }
+        //     // }
+        // } else {
+        Ok(op)
+        //}
     }
 
     pub fn store_commit_info(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {

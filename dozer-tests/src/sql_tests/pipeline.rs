@@ -4,7 +4,7 @@ use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+    OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
@@ -55,7 +55,7 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
-            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .map(|e| OutputPortDef::new(*e, OutputPortType::default()))
             .collect()
     }
 

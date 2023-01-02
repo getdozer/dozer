@@ -68,36 +68,24 @@ impl Display for NodeHandle {
 
 pub type PortHandle = u16;
 
-#[derive(Debug, Clone, Default)]
-pub struct OutputPortDefOptions {
-    pub stateful: bool,
-    pub retrieve_old_record_for_updates: bool,
-    pub retrieve_old_record_for_deletes: bool,
-}
-
-impl OutputPortDefOptions {
-    pub fn new(
-        stateful: bool,
-        retrieve_old_record_for_updates: bool,
-        retrieve_old_record_for_deletes: bool,
-    ) -> Self {
-        Self {
-            stateful,
-            retrieve_old_record_for_updates,
-            retrieve_old_record_for_deletes,
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum OutputPortType {
+    Stateless,
+    StatefulWithPrimaryKeyLookup {
+        retr_old_records_for_deletes: bool,
+        retr_old_records_for_updates: bool,
+    },
 }
 
 #[derive(Debug, Clone)]
 pub struct OutputPortDef {
     pub handle: PortHandle,
-    pub options: OutputPortDefOptions,
+    pub typ: OutputPortType,
 }
 
 impl OutputPortDef {
-    pub fn new(handle: PortHandle, options: OutputPortDefOptions) -> Self {
-        Self { handle, options }
+    pub fn new(handle: PortHandle, typ: OutputPortType) -> Self {
+        Self { handle, typ }
     }
 }
 

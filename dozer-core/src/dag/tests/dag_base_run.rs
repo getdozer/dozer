@@ -4,7 +4,7 @@ use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::common::init_log4rs;
@@ -46,7 +46,7 @@ impl ProcessorFactory for NoopProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
@@ -231,7 +231,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
