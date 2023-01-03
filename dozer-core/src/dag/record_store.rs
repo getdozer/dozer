@@ -1,5 +1,4 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::InvalidPortType;
 use crate::dag::node::OutputPortType;
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
@@ -7,7 +6,6 @@ use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Record, Schema};
 use std::fmt::{Debug, Formatter};
-use std::panic::panic_any;
 
 pub trait RecordWriter {
     fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError>;
