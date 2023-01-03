@@ -65,38 +65,6 @@ impl StateWriter {
         } else {
             Ok(op)
         }
-
-        // if let Some(opts) = self.dbs.get(port) {
-        //     // let schema = self
-        //     //     .output_schemas
-        //     //     .get(port)
-        //     //     .ok_or(ExecutionError::InvalidPortHandle(*port))?;
-        //     //
-        //     // match op {
-        //     //     Operation::Insert { new } => {
-        //     //         StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-        //     //         Ok(Operation::Insert { new })
-        //     //     }
-        //     //     Operation::Delete { mut old } => {
-        //     //         let key = old.get_key(&schema.primary_index);
-        //     //         if opts.options.retrieve_old_record_for_deletes {
-        //     //             old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-        //     //         }
-        //     //         self.tx.write().del(opts.db, &key, None)?;
-        //     //         Ok(Operation::Delete { old })
-        //     //     }
-        //     //     Operation::Update { mut old, new } => {
-        //     //         let key = old.get_key(&schema.primary_index);
-        //     //         if opts.options.retrieve_old_record_for_updates {
-        //     //             old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-        //     //         }
-        //     //         StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-        //     //         Ok(Operation::Update { old, new })
-        //     //     }
-        //     // }
-        // } else {
-        // Ok(op)
-        //}
     }
 
     pub fn store_commit_info(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
