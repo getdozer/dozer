@@ -16,7 +16,7 @@ use crate::pipeline::{
 };
 
 use super::{
-    join::{JoinOperator, JoinOperatorType, JoinTable, ReverseJoinOperator},
+    join::{JoinOperator, JoinOperatorType, JoinTable},
     processor::ProductProcessor,
 };
 
@@ -160,23 +160,18 @@ pub fn build_join_chain(
         if let Some(input_schema) = input_schemas.get(&((index + 1) as PortHandle)) {
             let mut right_join_table = get_join_table(&join.relation, input_schema)?;
 
-            let (join_op, reverse_join_op) = match &join.join_operator {
+            let join_op = match &join.join_operator {
                 sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
                     JoinConstraint::On(expression) => {
                         let (left_keys, right_keys) =
                             parse_join_constraint(expression, &left_join_table, &right_join_table)?;
 
-                        (
-                            Some(JoinOperator::new(
-                                JoinOperatorType::Inner,
-                                (index + 1) as PortHandle,
-                                right_keys,
-                            )),
-                            Some(ReverseJoinOperator::new(
-                                JoinOperatorType::Inner,
-                                (index) as PortHandle,
-                                left_keys,
-                            )),
+                        JoinOperator::new(
+                            JoinOperatorType::Inner,
+                            (index + 1) as PortHandle,
+                            right_keys,
+                            (index) as PortHandle,
+                            left_keys,
                         )
                     }
                     _ => {
@@ -192,9 +187,9 @@ pub fn build_join_chain(
                 }
             };
 
-            input_tables.get_mut(&(index as PortHandle)).unwrap().right = join_op;
+            input_tables.get_mut(&(index as PortHandle)).unwrap().right = Some(join_op.clone());
 
-            right_join_table.left = reverse_join_op;
+            right_join_table.left = Some(join_op);
 
             input_tables.insert((index + 1) as PortHandle, right_join_table.clone());
 

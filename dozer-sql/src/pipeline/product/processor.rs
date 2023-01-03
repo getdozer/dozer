@@ -1,5 +1,4 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::product::key_comparator::compare_join_keys;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::epoch::Epoch;
@@ -67,7 +66,7 @@ impl ProductProcessor {
             let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
             if let Some(left_join) = &input_table.left {
-                records = left_join.execute(
+                records = left_join.execute_left(
                     records,
                     &input_table.schema,
                     database,
@@ -78,7 +77,7 @@ impl ProductProcessor {
             }
 
             if let Some(right_join) = &input_table.right {
-                records = right_join.execute(
+                records = right_join.execute_right(
                     records,
                     &input_table.schema,
                     database,

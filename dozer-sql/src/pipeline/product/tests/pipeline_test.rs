@@ -21,29 +21,21 @@ use tempdir::TempDir;
 use crate::pipeline::builder::PipelineBuilder;
 
 #[derive(Debug)]
-pub struct UserTestSourceFactory {
-    output_ports: Vec<PortHandle>,
-}
-
-impl UserTestSourceFactory {
-    pub fn new(output_ports: Vec<PortHandle>) -> Self {
-        Self { output_ports }
-    }
-}
+pub struct UserTestSourceFactory {}
 
 impl SourceFactory for UserTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        self.output_ports
-            .iter()
-            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
-            .collect()
+        vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortDefOptions::new(true, true, true),
+        )]
     }
 
     fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                false,
+                true,
             )
             .field(
                 FieldDefinition::new(String::from("name"), FieldType::String, false),
@@ -81,7 +73,7 @@ impl Source for UserTestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..10000 {
+        for n in 0..2 {
             fw.send(
                 n,
                 0,
@@ -105,22 +97,14 @@ impl Source for UserTestSource {
 }
 
 #[derive(Debug)]
-pub struct DepartmentTestSourceFactory {
-    output_ports: Vec<PortHandle>,
-}
-
-impl DepartmentTestSourceFactory {
-    pub fn new(output_ports: Vec<PortHandle>) -> Self {
-        Self { output_ports }
-    }
-}
+pub struct DepartmentTestSourceFactory {}
 
 impl SourceFactory for DepartmentTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        self.output_ports
-            .iter()
-            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
-            .collect()
+        vec![OutputPortDef::new(
+            DEFAULT_PORT_HANDLE,
+            OutputPortDefOptions::new(true, true, true),
+        )]
     }
 
     fn build(
@@ -134,7 +118,7 @@ impl SourceFactory for DepartmentTestSourceFactory {
         Ok(Schema::empty()
             .field(
                 FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                false,
+                true,
             )
             .field(
                 FieldDefinition::new(String::from("name"), FieldType::String, false),
@@ -157,7 +141,7 @@ impl Source for DepartmentTestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..10000 {
+        for n in 0..2 {
             fw.send(
                 n,
                 0,
@@ -244,14 +228,14 @@ fn test_pipeline_builder() {
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
         "conn1".to_string(),
-        Arc::new(UserTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        Arc::new(UserTestSourceFactory {}),
         vec![("user".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
     ));
     asm.add(AppSource::new(
         "conn2".to_string(),
-        Arc::new(DepartmentTestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        Arc::new(DepartmentTestSourceFactory {}),
         vec![("department".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
