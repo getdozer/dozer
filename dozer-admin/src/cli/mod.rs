@@ -28,7 +28,7 @@ pub struct AdminCliConfig {
     #[serde(default = "default_ui_path")]
     pub ui_path: String,
     #[serde(default = "default_dozer_path")]
-    pub dozer_path: String
+    pub dozer_path: String,
 }
 fn default_ui_path() -> String {
     AdminCliConfig::default().ui_path

@@ -65,7 +65,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [ubuntu-20.04]
+        os: [macos-latest, ubuntu-20.04]
         include:
           - os: ubuntu-20.04
             file_name: dozer
@@ -75,19 +75,19 @@ jobs:
           #   asset_name: dozer-macos-amd64
     steps:
       - uses: actions/checkout@v3
-
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           components: rustfmt, clippy
-
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-
+      - name: rust-cargo-make
+        uses: davidB/rust-cargo-make@v1
+      
       - name: ⚡ Cache
         uses: actions/cache@v3
         with:
@@ -103,10 +103,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
             ${{ runner.os }}-cargo-release-
-
-      - name: Release
-        run: |
-          cargo build --release
+      
+      - name: Prepare build package
+        run: cargo make --no-workspace admin-release
 
       - name: Prepare release assets
         shell: bash
@@ -115,6 +114,10 @@ jobs:
           cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
 
           cp target/release/${{matrix.file_name}} release/
+          cp target/release/dozer-admin-config.yaml release/
+          cp target/release/dozer-admin release/
+          cp -r target/release/ui release/
+
 
           mv release/ ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
 

@@ -20,11 +20,14 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 pub struct AppService {
     db_pool: DbPool,
-    dozer_path: String
+    dozer_path: String,
 }
 impl AppService {
     pub fn new(db_pool: DbPool, dozer_path: String) -> Self {
-        Self { db_pool, dozer_path }
+        Self {
+            db_pool,
+            dozer_path,
+        }
     }
 }
 impl AppService {
