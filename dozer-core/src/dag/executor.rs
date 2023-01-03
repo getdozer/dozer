@@ -313,7 +313,7 @@ impl<'a> DagExecutor<'a> {
         let schemas = schemas.clone();
         let processor_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let processor = ProcessorNode::new(
-                handle.clone(),
+                handle,
                 &*proc_factory,
                 &base_path,
                 record_readers,

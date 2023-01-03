@@ -93,7 +93,7 @@ impl Orchestrator for SimpleOrchestrator {
                         common: cache_common_options,
                         kind: CacheOptionsKind::ReadOnly(self.cache_read_options.clone()),
                     })
-                    .map_err(|e| OrchestrationError::CacheInitFailed(e))?,
+                    .map_err(OrchestrationError::CacheInitFailed)?,
                 ),
                 endpoint: ce.to_owned(),
             });
@@ -112,7 +112,7 @@ impl Orchestrator for SimpleOrchestrator {
                 api_server
                     .run(cache_endpoints, tx)
                     .await
-                    .map_err(|e| OrchestrationError::ApiServerFailed(e))
+                    .map_err(OrchestrationError::ApiServerFailed)
             });
             // Initiate Push Events
             // create broadcast channel
@@ -137,7 +137,7 @@ impl Orchestrator for SimpleOrchestrator {
                 grpc_server
                     .run(ce2, receiver_shutdown, rx1)
                     .await
-                    .map_err(|e| OrchestrationError::GrpcServerFailed(e))
+                    .map_err(OrchestrationError::GrpcServerFailed)
             });
         });
 
