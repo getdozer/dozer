@@ -6,7 +6,7 @@ run_task = { name = ["ui-release", "grpc-release", "build-orchestrator-release"]
 
 
 [tasks.admin-local]
-run_task = { name = ["ui-local","grpc-local", "build-orchestrator-debug"], parallel = true }
+run_task = { name = ["ui-local","grpc-local", "build-orchestrator-release"], parallel = true }
 
 #================== START DOZER UI ==================
 
@@ -94,6 +94,7 @@ cd ..
 script_runner = "@shell"
 script = '''
 cp config/samples/dozer-admin-config.sample.yaml ./dozer-admin-config.yaml
+echo 'dozer_path: target/release/dozer' >> ./dozer-admin-config.yaml
 '''
 
 [tasks.create-admin-config-release]
