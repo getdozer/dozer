@@ -1,4 +1,7 @@
-use crate::pipeline::expression::builder::compare_name;
+use dozer_types::types::{FieldDefinition, FieldType, Schema};
+use sqlparser::ast::Ident;
+
+use crate::pipeline::expression::builder::{compare_name, get_field_index};
 
 #[test]
 fn test_compare_name() {
@@ -48,5 +51,46 @@ fn test_compare_name() {
 
 #[test]
 fn test_get_field_index() {
-    todo!()
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(String::from("id"), FieldType::Int, false),
+            true,
+        )
+        .field(
+            FieldDefinition::new(String::from("name"), FieldType::String, false),
+            false,
+        )
+        .field(
+            FieldDefinition::new(String::from("table.value"), FieldType::String, false),
+            false,
+        )
+        .clone();
+
+    let expected = 0;
+    assert_eq!(
+        get_field_index(&[Ident::new("id")], &schema).unwrap(),
+        expected
+    );
+
+    let expected = 2;
+    assert_eq!(
+        get_field_index(&[Ident::new("value")], &schema).unwrap(),
+        expected
+    );
+
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new(String::from("id"), FieldType::Int, false),
+            true,
+        )
+        .field(
+            FieldDefinition::new(String::from("table_a.name"), FieldType::String, false),
+            false,
+        )
+        .field(
+            FieldDefinition::new(String::from("table_b.name"), FieldType::String, false),
+            false,
+        )
+        .clone();
+    assert!(get_field_index(&[Ident::new("name")], &schema).is_err());
 }
