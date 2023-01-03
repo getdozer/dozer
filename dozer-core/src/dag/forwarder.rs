@@ -6,13 +6,14 @@ use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
+use crate::dag::record_store::{RecordWriter, RecordWriterUtils};
 use crate::storage::common::Database;
-use crate::storage::errors::StorageError::SerializationError;
+
 use crate::storage::lmdb_storage::SharedTransaction;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Operation, Schema};
 use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,7 +21,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(crate) struct StateWriter {
     meta_db: Database,
-    dbs: HashMap<PortHandle, StateOptions>,
+    record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
     output_schemas: HashMap<PortHandle, Schema>,
     input_schemas: HashMap<PortHandle, Schema>,
     input_ports: Option<Vec<PortHandle>>,
@@ -35,78 +36,32 @@ impl StateWriter {
         input_ports: Option<Vec<PortHandle>>,
         output_schemas: HashMap<PortHandle, Schema>,
         input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ExecutionError> {
+        let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
+        for (port, options) in dbs {
+            let schema = output_schemas
+                .get(&port)
+                .ok_or(ExecutionError::InvalidPortHandle(port))?
+                .clone();
+
+            let writer =
+                RecordWriterUtils::create_writer(options.typ, options.db, options.meta_db, schema)?;
+            record_writers.insert(port, writer);
+        }
+
+        Ok(Self {
             meta_db,
-            dbs,
+            record_writers,
             output_schemas,
             input_schemas,
             tx,
             input_ports,
-        }
-    }
-
-    fn write_record(
-        db: Database,
-        rec: &Record,
-        schema: &Schema,
-        tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
-        let key = rec.get_key(&schema.primary_index);
-        let value = bincode::serialize(&rec).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        tx.write().put(db, key.as_slice(), value.as_slice())?;
-        Ok(())
-    }
-
-    fn retr_record(
-        db: Database,
-        key: &[u8],
-        tx: &SharedTransaction,
-    ) -> Result<Record, ExecutionError> {
-        let tx = tx.read();
-        let curr = tx
-            .get(db, key)?
-            .ok_or_else(ExecutionError::RecordNotFound)?;
-
-        let r: Record = bincode::deserialize(curr).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        Ok(r)
+        })
     }
 
     fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
-        if let Some(opts) = self.dbs.get(port) {
-            let schema = self
-                .output_schemas
-                .get(port)
-                .ok_or(ExecutionError::InvalidPortHandle(*port))?;
-
-            match op {
-                Operation::Insert { new } => {
-                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-                    Ok(Operation::Insert { new })
-                }
-                Operation::Delete { mut old } => {
-                    let key = old.get_key(&schema.primary_index);
-                    if opts.options.retrieve_old_record_for_deletes {
-                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-                    }
-                    self.tx.write().del(opts.db, &key, None)?;
-                    Ok(Operation::Delete { old })
-                }
-                Operation::Update { mut old, new } => {
-                    let key = old.get_key(&schema.primary_index);
-                    if opts.options.retrieve_old_record_for_updates {
-                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-                    }
-                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-                    Ok(Operation::Update { old, new })
-                }
-            }
+        if let Some(writer) = self.record_writers.get(port) {
+            writer.write(op, &self.tx)
         } else {
             Ok(op)
         }

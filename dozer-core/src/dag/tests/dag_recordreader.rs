@@ -4,7 +4,7 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
 use crate::dag::tests::common::init_log4rs;
@@ -58,7 +58,10 @@ impl ProcessorFactory for PassthroughProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             PASSTHROUGH_PROCESSOR_OUTPUT_PORT,
-            OutputPortDefOptions::new(true, true, true),
+            OutputPortType::StatefulWithPrimaryKeyLookup {
+                retr_old_records_for_deletes: true,
+                retr_old_records_for_updates: true,
+            },
         )]
     }
 
@@ -137,7 +140,7 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             RECORD_READER_PROCESSOR_OUTPUT_PORT,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 

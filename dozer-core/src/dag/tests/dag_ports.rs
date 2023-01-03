@@ -1,8 +1,8 @@
 use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
-    Source, SourceFactory,
+    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source,
+    SourceFactory,
 };
 use dozer_types::types::Schema;
 use std::collections::HashMap;
@@ -27,7 +27,7 @@ impl SourceFactory for DynPortsSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
-            .map(|p| OutputPortDef::new(*p, OutputPortDefOptions::default()))
+            .map(|p| OutputPortDef::new(*p, OutputPortType::Stateless))
             .collect()
     }
 
@@ -74,7 +74,7 @@ impl ProcessorFactory for DynPortsProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
-            .map(|p| OutputPortDef::new(*p, OutputPortDefOptions::default()))
+            .map(|p| OutputPortDef::new(*p, OutputPortType::Stateless))
             .collect()
     }
 

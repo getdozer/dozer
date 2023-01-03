@@ -1,6 +1,6 @@
 use crate::dag::channels::SourceChannelForwarder;
 use crate::dag::errors::ExecutionError;
-use crate::dag::node::{OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory};
+use crate::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 
 use std::collections::HashMap;
@@ -46,7 +46,14 @@ impl SourceFactory for GeneratorSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
-            OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
+            if self.stateful {
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                }
+            } else {
+                OutputPortType::Stateless
+            },
         )]
     }
 
@@ -145,11 +152,25 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
         vec![
             OutputPortDef::new(
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
-                OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
+                if self.stateful {
+                    OutputPortType::StatefulWithPrimaryKeyLookup {
+                        retr_old_records_for_updates: true,
+                        retr_old_records_for_deletes: true,
+                    }
+                } else {
+                    OutputPortType::Stateless
+                },
             ),
             OutputPortDef::new(
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
-                OutputPortDefOptions::new(self.stateful, self.stateful, self.stateful),
+                if self.stateful {
+                    OutputPortType::StatefulWithPrimaryKeyLookup {
+                        retr_old_records_for_updates: true,
+                        retr_old_records_for_deletes: true,
+                    }
+                } else {
+                    OutputPortType::Stateless
+                },
             ),
         ]
     }

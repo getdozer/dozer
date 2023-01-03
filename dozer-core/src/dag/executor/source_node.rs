@@ -169,7 +169,7 @@ impl SourceListenerNode {
                 None,
                 output_schemas,
                 HashMap::new(),
-            ),
+            )?,
             true,
             epoch_manager,
         );
@@ -283,7 +283,7 @@ pub(crate) fn new(
             None,
             output_schemas,
             HashMap::new(),
-        ),
+        )?,
         true,
         epoch_manager,
     );

@@ -4,7 +4,7 @@ use crate::dag::dag_metadata::METADATA_DB_NAME;
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor::ExecutorOperation;
-use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle};
+use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::Database;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
@@ -167,7 +167,8 @@ const PORT_STATE_KEY: &str = "__PORT_STATE_";
 #[derive(Debug)]
 pub(crate) struct StateOptions {
     pub(crate) db: Database,
-    pub(crate) options: OutputPortDefOptions,
+    pub(crate) meta_db: Database,
+    pub(crate) typ: OutputPortType,
 }
 
 pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
@@ -177,22 +178,24 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
     output_ports: &[OutputPortDef],
     record_stores: &mut HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>,
 ) -> Result<(SharedTransaction, HashMap<PortHandle, StateOptions>), ExecutionError> {
-    let port_databases = output_ports
-        .iter()
-        .map(|output_port| {
-            if output_port.options.stateful {
-                env.open_database(&format!("{}_{}", PORT_STATE_KEY, output_port.handle), false)
-                    .map(|db| {
-                        Some(StateOptions {
-                            db,
-                            options: output_port.options.clone(),
-                        })
-                    })
-            } else {
-                Ok(None)
+    let mut port_databases: Vec<Option<StateOptions>> = Vec::new();
+    for port in output_ports {
+        let opt = match &port.typ {
+            OutputPortType::Stateless => None,
+            typ => {
+                let db =
+                    env.open_database(&format!("{}_{}", PORT_STATE_KEY, port.handle), false)?;
+                let meta_db =
+                    env.open_database(&format!("{}_{}_META", PORT_STATE_KEY, port.handle), false)?;
+                Some(StateOptions {
+                    db,
+                    meta_db,
+                    typ: typ.clone(),
+                })
             }
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        };
+        port_databases.push(opt);
+    }
 
     let master_tx = env.create_txn()?;
 
