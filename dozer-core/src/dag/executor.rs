@@ -245,7 +245,7 @@ impl<'a> DagExecutor<'a> {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         schemas: &NodeSchemas,
         epoch_manager: Arc<EpochManager>,
-        start_barrier: Arc<Barrier>
+        start_barrier: Arc<Barrier>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         let (sender, receiver) = bounded(self.options.channel_buffer_sz);
         let start_seq = *self
@@ -423,7 +423,7 @@ impl<'a> DagExecutor<'a> {
                     .get(&handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                 epoch_manager.clone(),
-                start_barrier.clone()
+                start_barrier.clone(),
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
