@@ -67,7 +67,7 @@ Check out our latest release details [here](https://github.com/getdozer/dozer/re
 
 [//]: # (### Screenshots)
 
-Check out this module for above [end-to-end examples](./examples/README.md).
+Check out this module for above [end-to-end examples](./examples/).
 
 
 [//]: # (## Architecture)
