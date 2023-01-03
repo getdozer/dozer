@@ -59,6 +59,8 @@ pub enum GRPCError {
     GenerationError(#[from] GenerationError),
     #[error(transparent)]
     SchemaNotFound(#[from] CacheError),
+    #[error("Schema for endpoint: {0} not found. Have you called `dozer init` ? - {1:?}")]
+    SchemaNotInitialized(String, #[source] CacheError),
     #[error(transparent)]
     ServerReflectionError(#[from] tonic_reflection::server::Error),
     #[error("Unable to decode query expression: {0}")]
