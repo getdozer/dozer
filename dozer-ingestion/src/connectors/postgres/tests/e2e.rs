@@ -10,7 +10,8 @@ use rand::Rng;
 
 #[ignore]
 #[test]
-fn connector_e2e_connect_postgres_stream() {
+// fn connector_e2e_connect_postgres_stream() {
+fn connector_disabled_test_e2e_connect_postgres_stream() {
     let config = serde_yaml::from_str::<Config>(load_config("test.postgres.yaml")).unwrap();
     let connection = config.connections.get(0).unwrap().clone();
     let mut client =

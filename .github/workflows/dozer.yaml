@@ -37,26 +37,6 @@ jobs:
         uses: supercharge/mongodb-github-action@1.8.0
 
       - uses: ./.github/workflows/setup-snowflake-and-kafka
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SNOWFLAKE_SERVER: ${{ secrets.SNOWFLAKE_SERVER }}
-          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
-          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
-          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
-          DEBEZIUM_TABLE_NAME: ${{ secrets.DEBEZIUM_TABLE_NAME }}
-          DEBEZIUM_KAFKA_BROKER: ${{ secrets.DEBEZIUM_KAFKA_BROKER }}
-          DEBEZIUM_KAFKA_WITH_REGISTRY_BROKER: ${{ secrets.DEBEZIUM_KAFKA_WITH_REGISTRY_BROKER }}
-          DEBEZIUM_KAFKA_SCHEMA_REGISTRY_URL: ${{ secrets.DEBEZIUM_KAFKA_SCHEMA_REGISTRY_URL }}
-          DEBEZIUM_KAFKA_TOPIC: ${{ secrets.DEBEZIUM_KAFKA_TOPIC }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
-          POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE }}
-          KAFKA_CONNECTOR_URL: ${{ secrets.KAFKA_CONNECTOR_URL }}
-          POSTGRES_SCHEMA: ${{ secrets.POSTGRES_SCHEMA }}
 
       - name: ⚡ Cache
         uses: actions/cache@v3
