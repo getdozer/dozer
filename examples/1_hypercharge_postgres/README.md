@@ -2,7 +2,7 @@
 
 Features used:
 - Initialize project from [yaml](./docker-compose.yml) with docker
-- Setup postgresql source with pre-processed stock price dataset [init_stocks.sql](./scripts/init_stocks.sql)
+- Setup postgresql source with pre-processed stock price dataset
 - Ingestion from postgresql source
 - SQL execution and gRPC & REST API endpoints creation from [yaml](./dozer-config.yaml)
 
