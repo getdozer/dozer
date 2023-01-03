@@ -178,9 +178,9 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
     output_ports: &[OutputPortDef],
     record_stores: &mut HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>,
 ) -> Result<(SharedTransaction, HashMap<PortHandle, StateOptions>), ExecutionError> {
-    let port_databases: Vec<Option<StateOptions>> = Vec::new();
+    let mut port_databases: Vec<Option<StateOptions>> = Vec::new();
     for port in output_ports {
-        let _opt = match &port.typ {
+        let opt = match &port.typ {
             OutputPortType::Stateless => None,
             typ => {
                 let db =
@@ -194,6 +194,7 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
                 })
             }
         };
+        port_databases.push(opt);
     }
 
     let master_tx = env.create_txn()?;
