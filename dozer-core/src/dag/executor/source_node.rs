@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
+use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
 use dozer_types::{
     internal_err,
     parking_lot::RwLock,
@@ -27,7 +27,7 @@ use crate::dag::{
     record_store::RecordReader,
 };
 
-use super::{node::Node, ExecutorOperation, ExecutorOptions};
+use super::{node::Node, ExecutorOperation};
 
 #[derive(Debug)]
 struct InternalChannelSourceForwarder {
@@ -147,7 +147,9 @@ impl SourceListenerNode {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         edges: &[Edge],
         running: Arc<AtomicBool>,
-        epoch_manager: Arc<RwLock<EpochManager>>,
+        commit_sz: u32,
+        max_duration_between_commits: Duration,
+        epoch_manager: Arc<EpochManager>,
         output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Self, ExecutionError> {
         let state_meta = init_component(&node_handle, base_path, |_| Ok(()))?;
@@ -171,6 +173,8 @@ impl SourceListenerNode {
                 HashMap::new(),
             )?,
             true,
+            commit_sz,
+            max_duration_between_commits,
             epoch_manager,
         );
         Ok(Self {
@@ -219,81 +223,12 @@ impl Node for SourceListenerNode {
                     if self.send_and_trigger_commit_if_needed(None)? {
                         return Ok(());
                     }
-                    if e == RecvTimeoutError::Disconnected {
+                    // Channel disconnected but running flag not set to false, the source sender must have panicked.
+                    if self.running.load(Ordering::SeqCst) && e == RecvTimeoutError::Disconnected {
                         return Err(ExecutionError::ChannelDisconnected);
                     }
                 }
             }
         }
     }
-}
-
-/// # Arguments
-///
-/// - `node_handle`: Node handle in description DAG.
-/// - `source_factory`: Source factory in description DAG.
-/// - `base_path`: Base path of persisted data for the last execution of the description DAG.
-/// - `record_readers`: Record readers of all stateful ports.
-/// - `last_checkpoint`: Last checkpointed output of this source.
-/// - `senders`: Output channels from this processor.
-/// - `edges`: All edges in the description DAG, used for creating record readers for input ports which is connected to this processor's stateful output ports.
-/// - `running`: If the execution DAG should still be running.
-/// - `epoch_manager`: Used for coordinating commit and terminate between sources. Shared by all sources.
-/// - `output_schemas`: Output data schemas.
-/// - `options`: Executor options.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn new(
-    node_handle: NodeHandle,
-    source_factory: &dyn SourceFactory,
-    base_path: &Path,
-    record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
-    last_checkpoint: (u64, u64),
-    senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-    edges: &[Edge],
-    running: Arc<AtomicBool>,
-    epoch_manager: Arc<RwLock<EpochManager>>,
-    output_schemas: HashMap<PortHandle, Schema>,
-    options: &ExecutorOptions,
-) -> Result<(SourceSenderNode, SourceListenerNode), ExecutionError> {
-    let (sender, receiver) = bounded(options.channel_buffer_sz);
-    let source = source_factory.build(output_schemas.clone())?;
-    let state_meta = init_component(&node_handle, base_path, |_| Ok(()))?;
-    let sender = SourceSenderNode {
-        node_handle: node_handle.clone(),
-        source,
-        forwarder: InternalChannelSourceForwarder::new(sender),
-        last_checkpoint,
-        running: running.clone(),
-    };
-
-    let (master_tx, port_databases) = create_ports_databases_and_fill_downstream_record_readers(
-        &node_handle,
-        edges,
-        state_meta.env,
-        &source_factory.get_output_ports(),
-        &mut record_readers.write(),
-    )?;
-    let channel_manager = SourceChannelManager::new(
-        node_handle.clone(),
-        senders,
-        StateWriter::new(
-            state_meta.meta_db,
-            port_databases,
-            master_tx,
-            None,
-            output_schemas,
-            HashMap::new(),
-        )?,
-        true,
-        epoch_manager,
-    );
-    let listener = SourceListenerNode {
-        node_handle,
-        receiver,
-        timeout: options.commit_time_threshold,
-        running,
-        channel_manager,
-    };
-
-    Ok((sender, listener))
 }

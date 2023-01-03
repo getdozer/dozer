@@ -8,7 +8,6 @@ use crate::dag::node::{
     SourceFactory,
 };
 
-use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
@@ -70,8 +69,6 @@ impl SourceFactory for CreateErrSourceFactory {
 #[test]
 #[should_panic]
 fn test_create_src_err() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -119,8 +116,6 @@ fn test_create_src_err() {
 #[test]
 #[should_panic]
 fn test_create_src_panic() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -227,8 +222,6 @@ impl ProcessorFactory for CreateErrProcessorFactory {
 #[test]
 #[should_panic]
 fn test_create_proc_err() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -280,8 +273,6 @@ fn test_create_proc_err() {
 #[test]
 #[should_panic]
 fn test_create_proc_panic() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
