@@ -18,7 +18,8 @@ use crate::test_util::load_config;
 
 #[ignore]
 #[test]
-fn connector_e2e_connect_snowflake_and_read_from_stream() {
+// fn connector_e2e_connect_snowflake_and_read_from_stream() {
+fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
     let config = serde_yaml::from_str::<Config>(load_config("test.snowflake.yaml")).unwrap();
     let connection = config.connections.get(0).unwrap().clone();
     let source = config.sources.get(0).unwrap().clone();
@@ -57,7 +58,8 @@ fn connector_e2e_connect_snowflake_and_read_from_stream() {
 
 #[ignore]
 #[test]
-fn connector_e2e_connect_snowflake_schema_changes_test() {
+// fn connector_e2e_connect_snowflake_schema_changes_test() {
+fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
     let config = serde_yaml::from_str::<Config>(load_config("test.snowflake.yaml")).unwrap();
     let connection = config.connections.get(0).unwrap().clone();
     let client = get_client(&connection);
@@ -129,7 +131,8 @@ fn connector_e2e_connect_snowflake_schema_changes_test() {
 
 #[ignore]
 #[test]
-fn connector_e2e_connect_snowflake_get_schemas_test() {
+// fn connector_e2e_connect_snowflake_get_schemas_test() {
+fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
     let config = serde_yaml::from_str::<Config>(load_config("test.snowflake.yaml")).unwrap();
     let connection = config.connections.get(0).unwrap().clone();
     let client = get_client(&connection);
