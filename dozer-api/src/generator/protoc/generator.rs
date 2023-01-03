@@ -218,9 +218,7 @@ impl<'a> ProtoGenerator<'a> {
         for (endpoint_name, _) in pipeline_map {
             resources.push(endpoint_name);
         }
-        let descriptor_path = create_descriptor_set(folder_path, &resources)
-            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
-
+        let descriptor_path = format!("{}/file_descriptor_set.bin", folder_path);
         let (descriptor_bytes, descriptor) = get_proto_descriptor(descriptor_path)?;
 
         Ok(ProtoResponse {
