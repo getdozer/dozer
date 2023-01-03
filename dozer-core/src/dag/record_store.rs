@@ -6,7 +6,7 @@ use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Record, Schema};
-use std::fmt::{Debug, Formatter, Write};
+use std::fmt::{Debug, Formatter};
 
 pub trait RecordWriter {
     fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError>;
@@ -106,13 +106,13 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
     fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { new } => {
-                RecordWriterUtils::write_record(self.db, &new, &self.schema, &tx)?;
+                RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
                 Ok(Operation::Insert { new })
             }
             Operation::Delete { mut old } => {
                 let key = old.get_key(&self.schema.primary_index);
                 if self.retr_old_records_for_deletes {
-                    old = RecordWriterUtils::retr_record(self.db, &key, &tx)?;
+                    old = RecordWriterUtils::retr_record(self.db, &key, tx)?;
                 }
                 tx.write().del(self.db, &key, None)?;
                 Ok(Operation::Delete { old })
@@ -120,9 +120,9 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
             Operation::Update { mut old, new } => {
                 let key = old.get_key(&self.schema.primary_index);
                 if self.retr_old_records_for_updates {
-                    old = RecordWriterUtils::retr_record(self.db, &key, &tx)?;
+                    old = RecordWriterUtils::retr_record(self.db, &key, tx)?;
                 }
-                RecordWriterUtils::write_record(self.db, &new, &self.schema, &tx)?;
+                RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
                 Ok(Operation::Update { old, new })
             }
         }
