@@ -2,11 +2,11 @@ use crate::dag::channels::ProcessorChannelForwarder;
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
 use crate::dag::epoch::{Epoch, EpochManager};
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
+use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle, InvalidPortType};
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, OutputPortType, PortHandle};
-use crate::dag::record_store::{PrimaryKeyLookupRecordWriter, RecordWriter};
+use crate::dag::record_store::{PrimaryKeyLookupRecordWriter, RecordWriter, RecordWriterUtils};
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
@@ -36,75 +36,36 @@ impl StateWriter {
         input_ports: Option<Vec<PortHandle>>,
         output_schemas: HashMap<PortHandle, Schema>,
         input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Self {
+    ) -> Result<Self, ExecutionError> {
         let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
         for (port, options) in dbs {
             let schema = output_schemas
                 .get(&port)
-                .ok_or(ExecutionError::InvalidPortHandle(*port))?
+                .ok_or(ExecutionError::InvalidPortHandle(port))?
                 .clone();
 
-            match options.typ {
-                OutputPortType::StatefulWithPrimaryKeyLookup {
-                    retr_old_records_for_updates,
-                    retr_old_records_for_deletes,
-                } => {
-                    let writer = PrimaryKeyLookupRecordWriter::new(
-                        options.db,
-                        options.meta_db,
-                        schema,
-                        retr_old_records_for_deletes,
-                        retr_old_records_for_updates,
-                    );
-                    record_writers.insert(port, Box::new(writer));
-                }
-                _ => {}
-            }
+            let writer =
+                RecordWriterUtils::create_writer(options.typ, options.db, options.meta_db, schema)?;
+            record_writers.insert(port, writer);
         }
 
-        Self {
+        Ok(Self {
             meta_db,
             record_writers,
             output_schemas,
             input_schemas,
             tx,
             input_ports,
-        }
-    }
-
-    fn write_record(
-        db: Database,
-        rec: &Record,
-        schema: &Schema,
-        tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
-        let key = rec.get_key(&schema.primary_index);
-        let value = bincode::serialize(&rec).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        tx.write().put(db, key.as_slice(), value.as_slice())?;
-        Ok(())
-    }
-
-    fn retr_record(
-        db: Database,
-        key: &[u8],
-        tx: &SharedTransaction,
-    ) -> Result<Record, ExecutionError> {
-        let tx = tx.read();
-        let curr = tx
-            .get(db, key)?
-            .ok_or_else(ExecutionError::RecordNotFound)?;
-
-        let r: Record = bincode::deserialize(curr).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        Ok(r)
+        })
     }
 
     fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
+        if let Some(writer) = self.record_writers.get(port) {
+            writer.write(op, &self.tx)
+        } else {
+            Ok(op)
+        }
+
         // if let Some(opts) = self.dbs.get(port) {
         //     // let schema = self
         //     //     .output_schemas
@@ -134,7 +95,7 @@ impl StateWriter {
         //     //     }
         //     // }
         // } else {
-        Ok(op)
+        // Ok(op)
         //}
     }
 

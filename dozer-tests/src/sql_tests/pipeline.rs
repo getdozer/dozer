@@ -55,7 +55,7 @@ impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
-            .map(|e| OutputPortDef::new(*e, OutputPortType::default()))
+            .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
             .collect()
     }
 

@@ -64,7 +64,7 @@ impl SinkNode {
             Some(sink_factory.get_input_ports()),
             HashMap::new(),
             input_schemas,
-        );
+        )?;
         let (port_handles, receivers) = build_receivers_lists(receivers);
         Ok(Self {
             node_handle,

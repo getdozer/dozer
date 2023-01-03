@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use crate::dag::appsource::AppSourceId;
-use crate::dag::node::{NodeHandle, PortHandle};
+use crate::dag::node::{NodeHandle, OutputPortType, PortHandle};
 use crate::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
@@ -52,6 +52,8 @@ pub enum ExecutionError {
     PortNotFoundInSource(PortHandle),
     #[error("Failed to get output schema: {0}")]
     FailedToGetOutputSchema(String),
+    #[error("Invalid port type: {0}")]
+    InvalidPortType(OutputPortType),
 
     // Error forwarders
     #[error(transparent)]

@@ -32,7 +32,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortType::default(),
+            OutputPortType::Stateless,
         )]
     }
 

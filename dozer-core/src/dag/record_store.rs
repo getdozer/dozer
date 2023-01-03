@@ -1,25 +1,47 @@
 use crate::dag::errors::ExecutionError;
+use crate::dag::errors::ExecutionError::InvalidPortType;
 use crate::dag::node::OutputPortType;
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Record, Schema};
+use std::fmt::{Debug, Formatter, Write};
 
 pub trait RecordWriter {
-    fn write(
-        &self,
-        schema: &Schema,
-        op: Operation,
-        tx: SharedTransaction,
-        db: Database,
-        meta_db: Database,
-    ) -> Result<Operation, ExecutionError>;
+    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError>;
 }
 
-struct RecordWriterUtils {}
+impl Debug for dyn RecordWriter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("RecordWriter")
+    }
+}
+
+pub(crate) struct RecordWriterUtils {}
 
 impl RecordWriterUtils {
+    pub fn create_writer(
+        typ: OutputPortType,
+        db: Database,
+        meta_db: Database,
+        schema: Schema,
+    ) -> Result<Box<dyn RecordWriter>, ExecutionError> {
+        match typ {
+            OutputPortType::StatefulWithPrimaryKeyLookup {
+                retr_old_records_for_updates,
+                retr_old_records_for_deletes,
+            } => Ok(Box::new(PrimaryKeyLookupRecordWriter::new(
+                db,
+                meta_db,
+                schema,
+                retr_old_records_for_deletes,
+                retr_old_records_for_updates,
+            ))),
+            _ => Err(InvalidPortType(typ)),
+        }
+    }
+
     fn write_record(
         db: Database,
         rec: &Record,
@@ -53,6 +75,7 @@ impl RecordWriterUtils {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     db: Database,
     meta_db: Database,
@@ -80,33 +103,26 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(
-        &self,
-        schema: &Schema,
-        op: Operation,
-        tx: SharedTransaction,
-        db: Database,
-        meta_db: Database,
-    ) -> Result<Operation, ExecutionError> {
+    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { new } => {
-                RecordWriterUtils::write_record(db, &new, schema, &tx)?;
+                RecordWriterUtils::write_record(self.db, &new, &self.schema, &tx)?;
                 Ok(Operation::Insert { new })
             }
             Operation::Delete { mut old } => {
-                let key = old.get_key(&schema.primary_index);
+                let key = old.get_key(&self.schema.primary_index);
                 if self.retr_old_records_for_deletes {
-                    old = RecordWriterUtils::retr_record(db, &key, &tx)?;
+                    old = RecordWriterUtils::retr_record(self.db, &key, &tx)?;
                 }
-                tx.write().del(db, &key, None)?;
+                tx.write().del(self.db, &key, None)?;
                 Ok(Operation::Delete { old })
             }
             Operation::Update { mut old, new } => {
-                let key = old.get_key(&schema.primary_index);
+                let key = old.get_key(&self.schema.primary_index);
                 if self.retr_old_records_for_updates {
-                    old = RecordWriterUtils::retr_record(db, &key, &tx)?;
+                    old = RecordWriterUtils::retr_record(self.db, &key, &tx)?;
                 }
-                RecordWriterUtils::write_record(db, &new, schema, &tx)?;
+                RecordWriterUtils::write_record(self.db, &new, &self.schema, &tx)?;
                 Ok(Operation::Update { old, new })
             }
         }

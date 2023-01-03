@@ -77,6 +77,17 @@ pub enum OutputPortType {
     },
 }
 
+impl Display for OutputPortType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputPortType::Stateless => f.write_str("Stateless"),
+            OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
+                f.write_str("StatefulWithPrimaryKeyLookup")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct OutputPortDef {
     pub handle: PortHandle,

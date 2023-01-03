@@ -87,7 +87,7 @@ impl ProcessorNode {
                 Some(processor_factory.get_input_ports()),
                 node_schemas.output_schemas,
                 node_schemas.input_schemas,
-            ),
+            )?,
             true,
         );
 
