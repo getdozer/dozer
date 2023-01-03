@@ -30,3 +30,4 @@ dozer-admin/dozer.db
 config/tests/local/*.json
 config/tests/local/*.yaml
 dozer-admin/ui/*
+dozer-ui

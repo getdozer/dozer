@@ -19,7 +19,7 @@ dependencies = [
 
 [tasks.ui-local]
 dependencies = [
-    "checkout-ui",
+    "checkout-ui-local",
     "run-ui-local"
 ]
 
@@ -28,6 +28,17 @@ script_runner = "@shell"
 script = '''
 rm -rf ./dozer-ui
 git clone https://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@github.com/getdozer/dozer-ui.git ./dozer-ui
+cd dozer-ui
+git checkout develop
+echo "REACT_APP_GRPC_ADMIN_URL=http://localhost:8081" > .env
+yarn install
+'''
+
+[tasks.checkout-ui-local]
+script_runner = "@shell"
+script = '''
+rm -rf ./dozer-ui
+gh repo clone getdozer/dozer-ui ./dozer-ui
 cd dozer-ui
 git checkout develop
 echo "REACT_APP_GRPC_ADMIN_URL=http://localhost:8081" > .env
