@@ -82,9 +82,24 @@ impl CacheSinkFactory {
 
         // Get hash of schema
         let hash = self.get_schema_hash();
-
         let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-        schema.primary_index = create_primary_indexes(schema.clone(), api_index)?;
+
+        if schema.primary_index.is_empty() {
+            if !api_index.primary_key.is_empty() {
+                schema.primary_index = create_primary_indexes(schema.clone(), api_index)?;
+            } else {
+                panic!("{} is missing primary key for aggregation", self.api_endpoint.name)
+            }
+        } else {
+            let index = create_primary_indexes(schema.clone(), api_index)?;
+            info!("{:?}", index);
+            info!("{:?}", schema.primary_index);
+            if !schema.primary_index.eq(&index) {
+                panic!("Primary key for /{} endpoint is mismatching with output schema", self.api_endpoint.name)
+            } else {
+                schema.primary_index = index;
+            }
+        }
 
         schema.identifier = Some(SchemaIdentifier {
             id: hash as u32,
@@ -229,6 +244,8 @@ fn create_primary_indexes(
 ) -> Result<Vec<usize>, ExecutionError> {
     let mut primary_index = Vec::new();
     for name in api_index.primary_key.iter() {
+        info!("{:?}", name);
+        info!("{:?}", schema.fields);
         let idx = schema
             .fields
             .iter()

@@ -52,6 +52,8 @@ pub enum ExecutionError {
     PortNotFoundInSource(PortHandle),
     #[error("Failed to get output schema: {0}")]
     FailedToGetOutputSchema(String),
+    #[error("Failed to get primary key for endpoint: {0}")]
+    FailedToGetPrimaryKey(String),
 
     // Error forwarders
     #[error(transparent)]
