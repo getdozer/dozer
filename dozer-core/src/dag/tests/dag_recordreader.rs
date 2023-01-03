@@ -15,7 +15,6 @@ use dozer_types::types::{Field, Operation, Schema};
 
 use std::collections::HashMap;
 
-use serial_test::serial;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
