@@ -274,24 +274,28 @@ impl<'a> DagExecutor<'a> {
         let edges = self.dag.edges.clone();
         let running = self.running.clone();
         let output_schemas = schemas.output_schemas.clone();
+        let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
+            let listener = SourceListenerNode::new(
+                handle,
+                receiver,
+                timeout,
+                &base_path,
+                &output_ports,
+                record_readers,
+                senders,
+                &edges,
+                running,
+                epoch_manager,
+                output_schemas,
+            )?;
+            listener.run()
+        };
         Ok(Builder::new()
             .name(format!("{}-listener", handle))
-            .spawn(move || {
-                let listener = SourceListenerNode::new(
-                    handle,
-                    receiver,
-                    timeout,
-                    &base_path,
-                    &output_ports,
-                    record_readers,
-                    senders,
-                    &edges,
-                    running,
-                    epoch_manager,
-                    output_schemas,
-                )
-                .unwrap();
-                listener.run().unwrap();
+            .spawn(|| {
+                if let Err(e) = source_fn(handle) {
+                    std::panic::panic_any(e);
+                }
             })?)
     }
 
@@ -307,7 +311,7 @@ impl<'a> DagExecutor<'a> {
         let record_readers = self.record_stores.clone();
         let edges = self.dag.edges.clone();
         let schemas = schemas.clone();
-        Ok(Builder::new().name(handle.to_string()).spawn(move || {
+        let processor_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let processor = ProcessorNode::new(
                 handle.clone(),
                 &*proc_factory,
@@ -317,9 +321,13 @@ impl<'a> DagExecutor<'a> {
                 senders,
                 &edges,
                 schemas.clone(),
-            )
-            .unwrap();
-            processor.run().unwrap();
+            )?;
+            processor.run()
+        };
+        Ok(Builder::new().name(handle.to_string()).spawn(|| {
+            if let Err(e) = processor_fn(handle) {
+                std::panic::panic_any(e);
+            }
         })?)
     }
 
@@ -333,7 +341,7 @@ impl<'a> DagExecutor<'a> {
         let base_path = self.path.clone();
         let record_readers = self.record_stores.clone();
         let input_schemas = schemas.input_schemas.clone();
-        Ok(Builder::new().name(handle.to_string()).spawn(move || {
+        let snk_fn = move |handle| -> Result<(), ExecutionError> {
             let sink = SinkNode::new(
                 handle,
                 &*snk_factory,
@@ -341,9 +349,13 @@ impl<'a> DagExecutor<'a> {
                 record_readers,
                 receivers,
                 input_schemas,
-            )
-            .unwrap();
-            sink.run().unwrap();
+            )?;
+            sink.run()
+        };
+        Ok(Builder::new().name(handle.to_string()).spawn(|| {
+            if let Err(e) = snk_fn(handle) {
+                std::panic::panic_any(e);
+            }
         })?)
     }
 
