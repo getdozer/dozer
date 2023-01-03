@@ -83,25 +83,21 @@ impl Orchestrator for SimpleOrchestrator {
         // Flags
         let flags = self.config.flags.clone().unwrap_or_default();
 
-        let cache_endpoints: Vec<CacheEndpoint> = self
-            .config
-            .endpoints
-            .iter()
-            .map(|e| {
-                let mut cache_common_options = self.cache_common_options.clone();
-                cache_common_options.set_path(cache_dir.join(e.name.clone()));
-                CacheEndpoint {
-                    cache: Arc::new(
-                        LmdbCache::new(CacheOptions {
-                            common: cache_common_options,
-                            kind: CacheOptionsKind::ReadOnly(self.cache_read_options.clone()),
-                        })
-                        .unwrap(),
-                    ),
-                    endpoint: e.to_owned(),
-                }
-            })
-            .collect();
+        let mut cache_endpoints = vec![];
+        for ce in &self.config.endpoints {
+            let mut cache_common_options = self.cache_common_options.clone();
+            cache_common_options.set_path(cache_dir.join(ce.name.clone()));
+            cache_endpoints.push(CacheEndpoint {
+                cache: Arc::new(
+                    LmdbCache::new(CacheOptions {
+                        common: cache_common_options,
+                        kind: CacheOptionsKind::ReadOnly(self.cache_read_options.clone()),
+                    })
+                    .map_err(OrchestrationError::CacheInitFailed)?,
+                ),
+                endpoint: ce.to_owned(),
+            });
+        }
 
         let ce2 = cache_endpoints.clone();
 
@@ -116,7 +112,7 @@ impl Orchestrator for SimpleOrchestrator {
                 api_server
                     .run(cache_endpoints, tx)
                     .await
-                    .expect("Failed to initialize api server")
+                    .map_err(OrchestrationError::ApiServerFailed)
             });
             // Initiate Push Events
             // create broadcast channel
@@ -141,11 +137,13 @@ impl Orchestrator for SimpleOrchestrator {
                 grpc_server
                     .run(ce2, receiver_shutdown, rx1)
                     .await
-                    .expect("Failed to initialize gRPC server")
+                    .map_err(OrchestrationError::GrpcServerFailed)
             });
         });
 
-        let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
+        let server_handle = rx
+            .recv()
+            .map_err(OrchestrationError::GrpcServerHandleError)?;
 
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}

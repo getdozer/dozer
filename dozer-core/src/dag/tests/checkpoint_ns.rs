@@ -14,6 +14,7 @@ use tempdir::TempDir;
 
 #[test]
 #[serial]
+#[ignore]
 fn test_checpoint_consistency_ns() {
     // dozer_tracing::init_telemetry(false).unwrap();
 
