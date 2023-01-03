@@ -92,8 +92,6 @@ impl CacheSinkFactory {
             }
         } else {
             let index = create_primary_indexes(schema.clone(), api_index)?;
-            info!("{:?}", index);
-            info!("{:?}", schema.primary_index);
             if !schema.primary_index.eq(&index) {
                 panic!("Primary key for /{} endpoint is mismatching with output schema", self.api_endpoint.name)
             } else {
@@ -244,8 +242,6 @@ fn create_primary_indexes(
 ) -> Result<Vec<usize>, ExecutionError> {
     let mut primary_index = Vec::new();
     for name in api_index.primary_key.iter() {
-        info!("{:?}", name);
-        info!("{:?}", schema.fields);
         let idx = schema
             .fields
             .iter()
