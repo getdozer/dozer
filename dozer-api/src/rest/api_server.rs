@@ -144,7 +144,7 @@ impl ApiServer {
         tx: Sender<ServerHandle>,
     ) -> std::io::Result<()> {
         info!(
-            "Starting Rest Api Server on host: {}, port: {}, security: {}",
+            "Starting Rest Api Server on http://{}:{} with security: {}",
             self.host,
             self.port,
             self.security

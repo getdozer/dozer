@@ -81,7 +81,7 @@ impl ApiServer {
             }
         }
         info!(
-            "Starting gRPC server on host: {}, port: {}, security: {}",
+            "Starting gRPC server on http://{}:{} with security: {}",
             self.host,
             self.port,
             self.security
