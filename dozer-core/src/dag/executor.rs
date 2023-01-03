@@ -19,7 +19,9 @@ use dozer_types::types::{Operation, Record};
 
 use crate::dag::epoch::{Epoch, EpochManager};
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::fmt::{Display, Formatter};
+use std::panic::panic_any;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -373,8 +375,7 @@ impl<'a> DagExecutor<'a> {
                     self.schemas
                         .get(&handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                )
-                .unwrap();
+                )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
@@ -392,8 +393,7 @@ impl<'a> DagExecutor<'a> {
                     self.schemas
                         .get(&handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
-                )
-                .unwrap();
+                )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
@@ -415,8 +415,7 @@ impl<'a> DagExecutor<'a> {
                         .get(&handle)
                         .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                     epoch_manager.clone(),
-                )
-                .unwrap();
+                )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
         Ok(())
@@ -430,17 +429,17 @@ impl<'a> DagExecutor<'a> {
         let handles: Vec<NodeHandle> = self.join_handles.iter().map(|e| e.0.clone()).collect();
 
         loop {
-            let mut finished: usize = 0;
             for handle in &handles {
-                if let Some(j) = self.join_handles.get(handle) {
-                    if j.is_finished() {
-                        let _r = self.join_handles.remove(handle).unwrap().join();
-                        finished += 1;
+                if let Entry::Occupied(entry) = self.join_handles.entry(handle.clone()) {
+                    if entry.get().is_finished() {
+                        if let Err(e) = entry.remove().join() {
+                            panic_any(e);
+                        }
                     }
                 }
             }
 
-            if finished == self.join_handles.len() {
+            if self.join_handles.is_empty() {
                 return Ok(());
             }
 
