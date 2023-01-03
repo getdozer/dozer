@@ -44,10 +44,11 @@ snowflake = ["dep:odbc", "dep:include_dir"]
 debezium_bench = []
 postgres_bench = ["dep:include_dir"]
 
-[[bench]]
-name = "snowflake"
-harness = false
-required-features = ["snowflake"]
+# Temporary disalbe
+#[[bench]]
+#name = "snowflake"
+#harness = false
+#required-features = ["snowflake"]
 
 [[bench]]
 name = "debezium"
