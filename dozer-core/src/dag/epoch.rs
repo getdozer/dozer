@@ -1,9 +1,10 @@
-use crate::dag::errors::ExecutionError;
 use crate::dag::node::NodeHandle;
-use std::collections::{HashMap, HashSet};
+use dozer_types::parking_lot::Mutex;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Barrier};
-use std::time::{Duration, Instant};
+use std::thread::sleep;
+use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Epoch {
@@ -35,137 +36,120 @@ impl Display for Epoch {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ClosingEpoch {
     pub id: u64,
-    pub barrier: Arc<Barrier>,
-    pub forced: bool,
+    pub details: HashMap<NodeHandle, (u64, u64)>,
+    pub terminating: bool,
 }
 
 impl ClosingEpoch {
-    pub fn new(id: u64, barrier: Arc<Barrier>, forced: bool) -> Self {
+    pub fn new(id: u64, details: HashMap<NodeHandle, (u64, u64)>, terminating: bool) -> Self {
         Self {
             id,
-            barrier,
-            forced,
+            details,
+            terminating,
         }
     }
 }
 
 #[derive(Debug)]
+enum EpochManagerState {
+    Closing {
+        epoch: Epoch,
+        should_terminate: bool,
+        barrier: Arc<Barrier>,
+    },
+    Closed {
+        epoch: ClosingEpoch,
+        num_participant_confirmations: usize,
+    },
+}
+
+#[derive(Debug)]
 pub(crate) struct EpochManager {
-    commit_max_ops_count: u32,
-    commit_curr_ops_count: u32,
-    commit_max_duration: Duration,
-    commit_last: Instant,
-    curr_epoch: u64,
-    epoch_participants: HashMap<NodeHandle, bool>,
-    epoch_barrier: Arc<Barrier>,
-    epoch_closing: bool,
-    epoch_forced: bool,
+    num_participants: usize,
+    state: Mutex<EpochManagerState>,
 }
 
 impl EpochManager {
-    pub fn new(
-        commit_max_ops_count: u32,
-        commit_max_duration: Duration,
-        epoch_participants: HashSet<NodeHandle>,
-    ) -> Self {
-        let participants_count = epoch_participants.len();
-
+    pub fn new(num_participants: usize) -> Self {
         Self {
-            commit_max_ops_count,
-            commit_curr_ops_count: 0,
-            commit_max_duration,
-            commit_last: Instant::now(),
-            curr_epoch: 0,
-            epoch_participants: epoch_participants.into_iter().map(|e| (e, false)).collect(),
-            epoch_closing: false,
-            epoch_barrier: Arc::new(Barrier::new(participants_count)),
-            epoch_forced: false,
+            num_participants,
+            state: Mutex::new(EpochManagerState::Closing {
+                epoch: Epoch::new(0, HashMap::new()),
+                should_terminate: true,
+                barrier: Arc::new(Barrier::new(num_participants)),
+            }),
         }
     }
 
-    #[inline]
-    fn should_close_epoch(&mut self) -> bool {
-        (self.commit_curr_ops_count > 0 && self.commit_last.elapsed().gt(&self.commit_max_duration))
-            || (self.commit_curr_ops_count >= self.commit_max_ops_count)
-    }
-
-    fn close_epoch_if_possible(&mut self) -> bool {
-        if self.epoch_participants.iter().all(|b| *b.1) {
-            self.epoch_closing = false;
-            self.commit_curr_ops_count = 0;
-            self.curr_epoch += 1;
-            self.commit_last = Instant::now();
-            self.epoch_barrier = Arc::new(Barrier::new(self.epoch_participants.len()));
-            self.epoch_participants
-                .values_mut()
-                .for_each(|value| *value = false);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn advance(
-        &mut self,
-        participant: &NodeHandle,
-        advance_count: u16,
-        force: bool,
-    ) -> Result<Option<ClosingEpoch>, ExecutionError> {
-        //
-        self.commit_curr_ops_count += advance_count as u32;
-
-        // Check if epoch is already in a closing state.
-        match self.epoch_closing {
-            false => {
-                // If it is not, we check if we should close the current epoch
-                if force || self.should_close_epoch() {
-                    self.epoch_forced = force;
-                    let curr_participant_state = self
-                        .epoch_participants
-                        .get_mut(participant)
-                        .ok_or_else(|| ExecutionError::InvalidNodeHandle(participant.clone()))?;
-                    assert!(!*curr_participant_state);
-
-                    // If we can close it, we add the current participant in the participants list
-                    self.epoch_closing = true;
-                    *curr_participant_state = true;
-                    let closing_epoch = ClosingEpoch::new(
-                        self.curr_epoch,
-                        self.epoch_barrier.clone(),
-                        self.epoch_forced,
-                    );
-                    // Epoch might have a single participant. We check for it and, if true, we close
-                    // the current epoch, otherwise we leave it open and wait for other participants
-                    // to join teh closing
-                    self.close_epoch_if_possible();
-                    Ok(Some(closing_epoch))
-                } else {
-                    Ok(None)
+    pub fn wait_for_epoch_close(
+        &self,
+        participant: NodeHandle,
+        txn_id_and_seq_number: (u64, u64),
+        request_termination: bool,
+    ) -> ClosingEpoch {
+        let barrier = loop {
+            let mut state = self.state.lock();
+            match &mut *state {
+                EpochManagerState::Closing {
+                    epoch,
+                    should_terminate,
+                    barrier,
+                } => {
+                    epoch.details.insert(participant, txn_id_and_seq_number);
+                    // If anyone doesn't want to terminate, we don't terminate.
+                    *should_terminate = *should_terminate && request_termination;
+                    break barrier.clone();
+                }
+                EpochManagerState::Closed { .. } => {
+                    // This thread wants to close a new epoch while some other thread hasn't got confirmation of last epoch closing.
+                    // Just release the lock and put this thread to sleep.
+                    drop(state);
+                    sleep(Duration::from_millis(1));
                 }
             }
-            // if it is, we have to ensure all participants are notified before proceeding
-            // to the next epoch.
-            true => {
-                if !force {
-                    assert!(!self.epoch_forced, "Epoch is already closing with a forced flag but someone believes otherwise");
+        };
+
+        barrier.wait();
+
+        let mut state = self.state.lock();
+        if let EpochManagerState::Closing {
+            epoch,
+            should_terminate,
+            ..
+        } = &mut *state
+        {
+            // This thread is the first one in this critical area.
+            debug_assert!(epoch.details.len() == self.num_participants);
+            let closing_epoch =
+                ClosingEpoch::new(epoch.id, epoch.details.clone(), *should_terminate);
+            *state = EpochManagerState::Closed {
+                epoch: closing_epoch,
+                num_participant_confirmations: 0,
+            };
+        }
+
+        match &mut *state {
+            EpochManagerState::Closed {
+                epoch,
+                num_participant_confirmations,
+            } => {
+                *num_participant_confirmations += 1;
+                let closing_epoch = epoch.clone();
+                if *num_participant_confirmations == self.num_participants {
+                    // This thread is the last one in this critical area.
+                    *state = EpochManagerState::Closing {
+                        epoch: Epoch::new(closing_epoch.id + 1, HashMap::new()),
+                        should_terminate: true,
+                        barrier: Arc::new(Barrier::new(self.num_participants)),
+                    };
                 }
-
-                let curr_participant_state = self
-                    .epoch_participants
-                    .get_mut(participant)
-                    .ok_or_else(|| ExecutionError::InvalidNodeHandle(participant.clone()))?;
-                assert!(!*curr_participant_state);
-
-                *curr_participant_state = true;
-                let closing_epoch = ClosingEpoch::new(
-                    self.curr_epoch,
-                    self.epoch_barrier.clone(),
-                    self.epoch_forced,
-                );
-                self.close_epoch_if_possible();
-                Ok(Some(closing_epoch))
+                closing_epoch
+            }
+            EpochManagerState::Closing { .. } => {
+                unreachable!("We just modified `EpochManagerstate` to `Closed`")
             }
         }
     }

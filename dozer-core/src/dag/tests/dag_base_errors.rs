@@ -8,7 +8,6 @@ use crate::dag::node::{
     SinkFactory, Source, SourceFactory,
 };
 use crate::dag::record_store::RecordReader;
-use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
@@ -114,8 +113,6 @@ impl Processor for ErrorProcessor {
 #[test]
 #[should_panic]
 fn test_run_dag_proc_err_panic() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -170,8 +167,6 @@ fn test_run_dag_proc_err_panic() {
 #[test]
 #[should_panic]
 fn test_run_dag_proc_err_2() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -238,8 +233,6 @@ fn test_run_dag_proc_err_2() {
 #[test]
 #[should_panic]
 fn test_run_dag_proc_err_3() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -394,8 +387,6 @@ impl Source for ErrGeneratorSource {
 
 #[test]
 fn test_run_dag_src_err() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -519,8 +510,6 @@ impl Sink for ErrSink {
 #[test]
 #[should_panic]
 fn test_run_dag_sink_err() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -568,8 +557,6 @@ fn test_run_dag_sink_err() {
 #[test]
 #[should_panic]
 fn test_run_dag_sink_err_panic() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();

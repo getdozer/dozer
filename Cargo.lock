@@ -1404,7 +1404,6 @@ dependencies = [
  "lmdb-rkv",
  "lmdb-rkv-sys",
  "log",
- "serial_test 0.10.0",
  "tempdir",
  "thiserror",
  "unixstring",
@@ -1433,7 +1432,7 @@ dependencies = [
  "regex",
  "reqwest",
  "schema_registry_converter",
- "serial_test 0.9.0",
+ "serial_test",
  "tokio",
  "tokio-postgres",
  "web3",
@@ -4343,21 +4342,7 @@ dependencies = [
  "lazy_static",
  "log",
  "parking_lot 0.12.1",
- "serial_test_derive 0.9.0",
-]
-
-[[package]]
-name = "serial_test"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c789ec87f4687d022a2405cf46e0cd6284889f1839de292cadeb6c6019506f2"
-dependencies = [
- "dashmap",
- "futures",
- "lazy_static",
- "log",
- "parking_lot 0.12.1",
- "serial_test_derive 0.10.0",
+ "serial_test_derive",
 ]
 
 [[package]]
@@ -4367,17 +4352,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b6f5d1c3087fb119617cff2966fe3808a80e5eb59a8c1601d5994d66f4346a5"
 dependencies = [
  "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "serial_test_derive"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b64f9e531ce97c88b4778aad0ceee079216071cffec6ac9b904277f8f92e7fe3"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn",

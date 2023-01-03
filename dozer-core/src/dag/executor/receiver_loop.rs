@@ -30,9 +30,7 @@ fn map_executor_operation(op: ExecutorOperation) -> MappedExecutorOperation {
         ExecutorOperation::Update { old, new } => MappedExecutorOperation::Data {
             op: Operation::Update { old, new },
         },
-        ExecutorOperation::Commit { epoch_details } => MappedExecutorOperation::Commit {
-            epoch: epoch_details,
-        },
+        ExecutorOperation::Commit { epoch } => MappedExecutorOperation::Commit { epoch },
         ExecutorOperation::Terminate => MappedExecutorOperation::Terminate,
     }
 }
@@ -141,7 +139,7 @@ mod tests {
         );
         assert_eq!(
             map_executor_operation(ExecutorOperation::Commit {
-                epoch_details: epoch.clone()
+                epoch: epoch.clone()
             }),
             MappedExecutorOperation::Commit { epoch }
         );
@@ -241,24 +239,24 @@ mod tests {
         let mut epoch1 = Epoch::new(0, details);
         senders[0]
             .send(ExecutorOperation::Commit {
-                epoch_details: epoch0.clone(),
+                epoch: epoch0.clone(),
             })
             .unwrap();
         senders[1]
             .send(ExecutorOperation::Commit {
-                epoch_details: epoch1.clone(),
+                epoch: epoch1.clone(),
             })
             .unwrap();
         epoch0.id = 1;
         epoch1.id = 1;
         senders[0]
             .send(ExecutorOperation::Commit {
-                epoch_details: epoch0.clone(),
+                epoch: epoch0.clone(),
             })
             .unwrap();
         senders[1]
             .send(ExecutorOperation::Commit {
-                epoch_details: epoch1.clone(),
+                epoch: epoch1.clone(),
             })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
@@ -285,14 +283,10 @@ mod tests {
         details.insert(NodeHandle::new(None, "1".to_string()), (0, 0));
         let epoch1 = Epoch::new(1, details);
         senders[0]
-            .send(ExecutorOperation::Commit {
-                epoch_details: epoch0,
-            })
+            .send(ExecutorOperation::Commit { epoch: epoch0 })
             .unwrap();
         senders[1]
-            .send(ExecutorOperation::Commit {
-                epoch_details: epoch1,
-            })
+            .send(ExecutorOperation::Commit { epoch: epoch1 })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();

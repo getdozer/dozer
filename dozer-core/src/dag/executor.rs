@@ -57,7 +57,7 @@ pub enum ExecutorOperation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
-    Commit { epoch_details: Epoch },
+    Commit { epoch: Epoch },
     Terminate,
 }
 
@@ -244,7 +244,7 @@ impl<'a> DagExecutor<'a> {
         src_factory: Arc<dyn SourceFactory>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         schemas: &NodeSchemas,
-        epoch_manager: Arc<RwLock<EpochManager>>,
+        epoch_manager: Arc<EpochManager>,
     ) -> Result<JoinHandle<()>, ExecutionError> {
         let (sender, receiver) = bounded(self.options.channel_buffer_sz);
         let start_seq = *self
@@ -280,6 +280,8 @@ impl<'a> DagExecutor<'a> {
         let record_readers = self.record_stores.clone();
         let edges = self.dag.edges.clone();
         let running = self.running.clone();
+        let commit_sz = self.options.commit_sz;
+        let max_duration_between_commits = self.options.commit_time_threshold;
         let output_schemas = schemas.output_schemas.clone();
         let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let listener = SourceListenerNode::new(
@@ -292,6 +294,8 @@ impl<'a> DagExecutor<'a> {
                 senders,
                 &edges,
                 running,
+                commit_sz,
+                max_duration_between_commits,
                 epoch_manager,
                 output_schemas,
             )?;
@@ -400,11 +404,8 @@ impl<'a> DagExecutor<'a> {
             self.join_handles.insert(handle.clone(), join_handle);
         }
 
-        let epoch_manager: Arc<RwLock<EpochManager>> = Arc::new(RwLock::new(EpochManager::new(
-            self.options.commit_sz,
-            self.options.commit_time_threshold,
-            self.dag.get_sources().iter().map(|e| e.0.clone()).collect(),
-        )));
+        let epoch_manager: Arc<EpochManager> =
+            Arc::new(EpochManager::new(self.dag.get_sources().len()));
 
         for (handle, factory) in self.dag.get_sources() {
             let join_handle = self.start_source(

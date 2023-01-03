@@ -145,6 +145,6 @@ impl ReceiverLoop for ProcessorNode {
     }
 
     fn on_terminate(&mut self) -> Result<(), ExecutionError> {
-        self.channel_manager.send_term_and_wait()
+        self.channel_manager.send_terminate()
     }
 }

@@ -7,7 +7,6 @@ use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
-use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{
     DualPortGeneratorSourceFactory, GeneratorSourceFactory,
@@ -149,8 +148,6 @@ fn test_run_dag() {
 
 #[test]
 fn test_run_dag_and_stop() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -282,8 +279,6 @@ impl Processor for NoopJoinProcessor {
 
 #[test]
 fn test_run_dag_2_sources_stateless() {
-    init_log4rs();
-
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -349,8 +344,6 @@ fn test_run_dag_2_sources_stateless() {
 
 #[test]
 fn test_run_dag_2_sources_stateful() {
-    init_log4rs();
-
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -416,8 +409,6 @@ fn test_run_dag_2_sources_stateful() {
 
 #[test]
 fn test_run_dag_1_source_2_ports_stateless() {
-    init_log4rs();
-
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();

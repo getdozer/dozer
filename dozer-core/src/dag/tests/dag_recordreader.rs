@@ -7,7 +7,6 @@ use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
-use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
@@ -204,8 +203,6 @@ impl Processor for RecordReaderProcessor {
 
 #[test]
 fn test_run_dag_reacord_reader() {
-    init_log4rs();
-
     const TOT: u64 = 10_000;
 
     let sync = Arc::new(AtomicBool::new(true));
@@ -274,8 +271,6 @@ fn test_run_dag_reacord_reader() {
 
 #[test]
 fn test_run_dag_reacord_reader_from_src() {
-    init_log4rs();
-
     const TOT: u64 = 1_000;
 
     let sync = Arc::new(AtomicBool::new(true));
