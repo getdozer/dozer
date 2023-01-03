@@ -63,7 +63,7 @@ Check out our latest release details [here](https://github.com/getdozer/dozer/re
 
 2. Real time ML predictions deployed as APIs from Snowflake
 
-3. [Real time Ethereum Stats published as a grafana dashboard](examples/3_eth_stats_sample/README.md)
+3. [Real time Ethereum stats example](examples/3_eth_stats_sample/README.md)
 
 [//]: # (### Screenshots)
 
