@@ -63,14 +63,11 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-20.04]
+        os: [macos-latest]
         include:
-          - os: ubuntu-20.04
+          - os: macos-latest
             file_name: dozer
-            asset_name: dozer-linux-amd64
-          # - os: macos-12
-          #   file_name: dozer
-          #   asset_name: dozer-macos-amd64
+            asset_name: dozer-macos-amd64
     steps:
       - uses: actions/checkout@v3
       - name: Install minimal stable with clippy and rustfmt
@@ -79,9 +76,6 @@ jobs:
           profile: minimal
           toolchain: stable
           components: rustfmt, clippy
-      - name: rust-cargo-make
-        uses: davidB/rust-cargo-make@v1
-      
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
