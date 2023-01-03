@@ -174,14 +174,14 @@ pub fn map_row_to_operation_event(
     identifier: SchemaIdentifier,
     row: &Row,
     columns: &[Column],
-    idx: u32,
+    seq_no: u64,
 ) -> Result<OperationEvent, PostgresSchemaError> {
     match get_values(row, columns) {
         Ok(values) => Ok(OperationEvent {
             operation: Operation::Insert {
                 new: Record::new(Some(identifier), values),
             },
-            seq_no: idx as u64,
+            seq_no,
         }),
         Err(e) => Err(e),
     }

@@ -89,23 +89,17 @@ impl Connector for SnowflakeConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
-        let connector_id = self.id;
+    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
+        let _connector_id = self.id;
         let ingestor = self
             .ingestor
             .as_ref()
             .map_or(Err(ConnectorError::InitializationError), Ok)?
             .clone();
 
-        Runtime::new().unwrap().block_on(async {
-            run(
-                self.config.clone(),
-                self.tables.clone(),
-                ingestor,
-                connector_id,
-            )
-            .await
-        })
+        Runtime::new()
+            .unwrap()
+            .block_on(async { run(self.config.clone(), self.tables.clone(), ingestor).await })
     }
 
     fn stop(&self) {}
@@ -120,7 +114,6 @@ async fn run(
     config: SnowflakeConfig,
     tables: Option<Vec<TableInfo>>,
     ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
 ) -> Result<(), ConnectorError> {
     let client = Client::new(&config);
 
@@ -133,12 +126,7 @@ async fn run(
                     StreamConsumer::is_stream_created(&client, table.name.clone())?;
                 if !is_stream_created {
                     let ingestor_snapshot = Arc::clone(&ingestor);
-                    Snapshotter::run(
-                        &client,
-                        &ingestor_snapshot,
-                        connector_id,
-                        table.name.clone(),
-                    )?;
+                    Snapshotter::run(&client, &ingestor_snapshot, table.name.clone())?;
                     StreamConsumer::create_stream(&client, &table.name)?;
                 }
             }
@@ -147,7 +135,7 @@ async fn run(
             let ingestor_stream = Arc::clone(&ingestor);
             let mut interval = time::interval(Duration::from_secs(5));
 
-            let mut consumer = StreamConsumer::new(connector_id);
+            let mut consumer = StreamConsumer::new();
             loop {
                 for table in tables.iter() {
                     consumer.consume_stream(&stream_client, &table.name, &ingestor_stream)?;

@@ -163,7 +163,7 @@ impl SinkFactory for CacheSinkFactory {
             pipeline_schema.primary_index =
                 create_primary_indexes(pipeline_schema.clone(), api_index.clone())?;
 
-            pipeline_schema.print().printstd();
+            // pipeline_schema.print().printstd();
             // Automatically create secondary indexes
             let secondary_indexes = create_secondary_indexes(pipeline_schema.clone());
             if self

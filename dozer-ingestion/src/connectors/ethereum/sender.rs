@@ -25,7 +25,6 @@ pub struct EthDetails {
     wss_url: String,
     filter: EthFilter,
     ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
     contracts: HashMap<String, ContractTuple>,
     pub tables: Option<Vec<TableInfo>>,
     pub schema_map: HashMap<H256, usize>,
@@ -36,7 +35,6 @@ impl EthDetails {
         wss_url: String,
         filter: EthFilter,
         ingestor: Arc<RwLock<Ingestor>>,
-        connector_id: u64,
         contracts: HashMap<String, ContractTuple>,
         tables: Option<Vec<TableInfo>>,
         schema_map: HashMap<H256, usize>,
@@ -45,7 +43,6 @@ impl EthDetails {
             wss_url,
             filter,
             ingestor,
-            connector_id,
             contracts,
             tables,
             schema_map,
@@ -185,7 +182,7 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             details
                 .ingestor
                 .write()
-                .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
+                .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Ignoring log : {:?}", msg);
@@ -204,7 +201,7 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             details
                 .ingestor
                 .write()
-                .handle_message((details.connector_id, IngestionMessage::OperationEvent(op)))
+                .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Writing event : {:?}", op);

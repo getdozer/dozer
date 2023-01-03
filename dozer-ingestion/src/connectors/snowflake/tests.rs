@@ -38,7 +38,7 @@ fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
 
         let mut connector = get_connector(connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
-        let _ = connector.start();
+        let _ = connector.start(None);
     });
 
     let mut i = 0;
@@ -92,7 +92,7 @@ fn connector_disabled_test_e2e_connect_snowflake_schema_changes_test() {
         .unwrap();
 
     // Create new stream
-    let mut consumer = StreamConsumer::new(0);
+    let mut consumer = StreamConsumer::new();
     consumer
         .consume_stream(&client, &table_name, &ingestor)
         .unwrap();

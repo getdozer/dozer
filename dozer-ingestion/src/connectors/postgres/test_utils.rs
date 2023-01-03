@@ -28,7 +28,7 @@ pub fn get_iterator(config: Connection, table_name: String) -> Arc<RwLock<Ingest
 
         let mut connector = get_connector(config).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
-        connector.start().unwrap();
+        connector.start(None).unwrap();
     });
 
     iterator

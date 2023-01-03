@@ -38,7 +38,7 @@ pub trait Connector: Send + Sync {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError>;
-    fn start(&self) -> Result<(), ConnectorError>;
+    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
     fn stop(&self);
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
 }

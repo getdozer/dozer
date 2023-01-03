@@ -54,7 +54,7 @@ impl PostgresSnapshotter {
 
         let tables = self.get_tables(tables)?;
 
-        let mut idx: u32 = 0;
+        let mut idx: u64 = 0;
         for table_info in tables.iter() {
             let column_str: Vec<String> = table_info
                 .columns
@@ -101,10 +101,7 @@ impl PostgresSnapshotter {
 
                         self.ingestor
                             .write()
-                            .handle_message((
-                                self.connector_id,
-                                IngestionMessage::OperationEvent(evt),
-                            ))
+                            .handle_message(((0, idx), IngestionMessage::OperationEvent(evt)))
                             .map_err(ConnectorError::IngestorError)?;
                     }
                     Err(e) => {
@@ -119,8 +116,11 @@ impl PostgresSnapshotter {
             self.ingestor
                 .write()
                 .handle_message((
-                    self.connector_id,
-                    IngestionMessage::Commit(Commit { seq_no: 0, lsn: 0 }),
+                    (0, idx),
+                    IngestionMessage::Commit(Commit {
+                        seq_no: idx,
+                        lsn: 0,
+                    }),
                 ))
                 .map_err(ConnectorError::IngestorError)?;
         }

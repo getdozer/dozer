@@ -103,7 +103,7 @@ impl XlogMapper {
                 })));
             }
             Begin(_begin) => {
-                return Ok(Some(IngestionMessage::Begin()));
+                // return Ok(Some(IngestionMessage::Begin()));
             }
             Insert(insert) => {
                 let table = self.relations_map.get(&insert.rel_id()).unwrap();

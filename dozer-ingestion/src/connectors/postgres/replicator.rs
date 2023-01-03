@@ -8,7 +8,7 @@ use crate::errors::PostgresConnectorError::{
 use crate::ingestion::Ingestor;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::log::{debug, error};
+use dozer_types::log::{error, info};
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::Commit;
 use futures::StreamExt;
@@ -16,7 +16,6 @@ use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use crate::connectors::TableInfo;
 use std::sync::Arc;
@@ -28,10 +27,13 @@ pub struct CDCHandler {
     pub replication_conn_config: tokio_postgres::Config,
     pub publication_name: String,
     pub slot_name: String,
-    pub lsn: String,
+    pub lsn: PgLsn,
+    pub offset: u64,
     pub last_commit_lsn: u64,
     pub ingestor: Arc<RwLock<Ingestor>>,
     pub connector_id: u64,
+    pub seq_no: u64,
+    pub name: String,
 }
 
 impl CDCHandler {
@@ -39,13 +41,14 @@ impl CDCHandler {
         let replication_conn_config = self.replication_conn_config.clone();
         let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;
 
-        let lsn = self.lsn.clone();
+        let lsn = self.lsn;
         let options = format!(
             r#"("proto_version" '1', "publication_names" '{publication_name}')"#,
             publication_name = self.publication_name
         );
-        debug!(
-            "Starting Replication: {:?}, {:?}",
+        info!(
+            "[{}] Starting Replication: {:?}, {:?}",
+            self.name.clone(),
             lsn,
             self.publication_name.clone()
         );
@@ -54,15 +57,14 @@ impl CDCHandler {
             self.slot_name, lsn, options
         );
 
-        let pg_lsn = PgLsn::from_str(lsn.as_str()).unwrap();
-        self.last_commit_lsn = u64::from(pg_lsn);
+        self.last_commit_lsn = u64::from(lsn);
 
-        debug!("last_commit_lsn: {:?}", self.last_commit_lsn);
+        info!("last_commit_lsn: {:?}", self.last_commit_lsn);
         // Marking point of replication start
         self.ingestor
             .write()
             .handle_message((
-                self.connector_id,
+                (self.last_commit_lsn, 0),
                 IngestionMessage::Commit(Commit {
                     seq_no: 0,
                     lsn: self.last_commit_lsn,
@@ -122,15 +124,23 @@ impl CDCHandler {
             Some(Ok(XLogData(body))) => {
                 let message = mapper.handle_message(body)?;
                 if let Some(ingestion_message) = message {
+                    self.seq_no += 1;
                     if let IngestionMessage::Commit(commit) = ingestion_message {
                         self.last_commit_lsn = commit.lsn;
+                        self.seq_no = 0;
+                    } else if self.offset == 0 {
+                        self.ingestor
+                            .write()
+                            .handle_message((
+                                (self.last_commit_lsn, self.seq_no),
+                                ingestion_message,
+                            ))
+                            .map_err(ConnectorError::IngestorError)?;
+                    } else {
+                        self.offset -= 1;
                     }
-
-                    self.ingestor
-                        .write()
-                        .handle_message((self.connector_id, ingestion_message))
-                        .map_err(ConnectorError::IngestorError)?;
                 }
+
                 Ok(())
             }
             Some(Ok(msg)) => {
