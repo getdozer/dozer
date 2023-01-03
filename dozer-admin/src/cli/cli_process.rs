@@ -10,7 +10,6 @@ use dozer_types::{models::app_config::Config, serde_yaml};
 
 pub struct CliProcess {
     pub config: AdminCliConfig,
-    pub ui_path: String,
 }
 impl CliProcess {
     fn get_internal_config(&mut self) {
@@ -34,15 +33,14 @@ impl CliProcess {
     }
 
     fn start_ui_server(&self) {
-        let ui_path = Path::new(&self.ui_path);
+        let ui_path = Path::new(&self.config.ui_path);
         if ui_path.exists() {
             // execute command serve
             Command::new("serve")
                 .arg("-s")
-                .arg(&self.ui_path)
+                .arg(&self.config.ui_path)
                 .spawn()
                 .expect("Start ui server failed");
-            println!("=== start ui server done !");
         }
     }
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -62,11 +60,7 @@ impl CliProcess {
 
         // start ui
         self.start_ui_server();
-        server::start_admin_server(
-            self.config.to_owned().host,
-            self.config.to_owned().port as u16,
-        )
-        .await?;
+        server::start_admin_server(self.config.to_owned()).await?;
         Ok(())
     }
 }

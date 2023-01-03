@@ -12,7 +12,7 @@ mod grpc_service {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
         let setup_ids = get_setup_ids();
-        let application_service = AppService::new(db_pool);
+        let application_service = AppService::new(db_pool, "dozer".to_owned());
         let result: ListAppResponse = application_service
             .list(ListAppRequest {
                 limit: Some(100),
@@ -27,7 +27,7 @@ mod grpc_service {
     pub fn create() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
-        let application_service = AppService::new(db_pool);
+        let application_service = AppService::new(db_pool, "dozer".to_owned());
         let request = CreateAppRequest {
             app_name: "new_app_name".to_owned(),
         };
@@ -39,7 +39,7 @@ mod grpc_service {
     pub fn update() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
-        let application_service = AppService::new(db_pool);
+        let application_service = AppService::new(db_pool, "dozer".to_owned());
         let setup_ids = get_setup_ids();
 
         let request = UpdateAppRequest {
@@ -55,7 +55,7 @@ mod grpc_service {
     pub fn trigger_cli() {
         let test_db_connection = database_url_for_test_env();
         let db_pool = establish_test_connection(test_db_connection);
-        let application_service = AppService::new(db_pool);
+        let application_service = AppService::new(db_pool, "dozer".to_owned());
         let setup_ids = get_setup_ids();
 
         let request = StartPipelineRequest {

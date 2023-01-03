@@ -20,10 +20,11 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 pub struct AppService {
     db_pool: DbPool,
+    dozer_path: String
 }
 impl AppService {
-    pub fn new(db_pool: DbPool) -> Self {
-        Self { db_pool }
+    pub fn new(db_pool: DbPool, dozer_path: String) -> Self {
+        Self { db_pool, dozer_path }
     }
 }
 impl AppService {
@@ -162,7 +163,8 @@ impl AppService {
             kill_process_at(api_config.grpc.unwrap_or_default().port as u16);
         }
 
-        let path_to_bin = concat!(env!("OUT_DIR"), "/dozer");
+        // assumption 2 bin: dozer-admin + dozer always in same dir
+        let path_to_bin = &self.dozer_path;
         let _execute_cli_output = Command::new(path_to_bin)
             .arg("-c")
             .arg(yaml_path.as_path().to_str().unwrap())

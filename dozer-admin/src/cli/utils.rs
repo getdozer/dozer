@@ -24,7 +24,7 @@ fn run_migrations(
     Ok(())
 }
 pub fn get_db_path() -> String {
-    env::var("DATABASE_URL").unwrap_or("dozer.db".to_owned())
+    env::var("DATABASE_URL").unwrap_or_else(|_| "dozer.db".to_owned())
 }
 pub fn reset_db() {
     dotenv().ok();

@@ -63,7 +63,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [ubuntu-20.04]
+        os: [macos-latest, ubuntu-20.04]
         include:
           - os: ubuntu-20.04
             file_name: dozer
@@ -86,10 +86,10 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: rust-cargo-make
         uses: davidB/rust-cargo-make@v1
       
-
       - name: ⚡ Cache
         uses: actions/cache@v3
         with:
@@ -105,8 +105,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
             ${{ runner.os }}-cargo-release-
-      - name: Run bundle scripts
-        run: cargo make --no-workspace dozer-admin-local
+      
+      - name: Prepare build package
+        run: cargo make --no-workspace admin-release
 
       - name: Prepare release assets
         shell: bash
@@ -115,9 +116,24 @@ jobs:
           cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
 
           cp target/release/${{matrix.file_name}} release/
+          cp target/release/dozer-admin-config.yaml release/
+          cp target/release/dozer-admin release/
+          cp -r target/release/ui release/
+
 
           mv release/ ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
 
           tar -czvf ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz \
               ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
 
+      - name: Upload the release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.MY_SECRET }}
+          file: ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}*
+          file_glob: true
+          overwrite: true
+          tag: ${{ needs.prepare.outputs.version }}
+          release_name: "Development Release - ${{ needs.prepare.outputs.version }}"
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          body: "${{ needs.prepare.outputs.release_body }}"

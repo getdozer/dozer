@@ -18,8 +18,7 @@ async fn main() -> Result<(), AdminError> {
     let cli = Cli::parse();
     let configuration = load_config(cli.config_path)?;
     let mut cli_process = CliProcess {
-        config: configuration,
-        ui_path: cli.ui_path,
+        config: configuration
     };
 
     if let Some(cmd) = cli.cmd {
