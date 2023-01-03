@@ -6,7 +6,7 @@ use dozer_core::dag::epoch::Epoch;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+    OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
@@ -27,7 +27,10 @@ impl SourceFactory for UserTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::new(true, true, true),
+            OutputPortType::StatefulWithPrimaryKeyLookup {
+                retr_old_records_for_updates: true,
+                retr_old_records_for_deletes: true,
+            },
         )]
     }
 
@@ -103,7 +106,10 @@ impl SourceFactory for DepartmentTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::new(true, true, true),
+            OutputPortType::StatefulWithPrimaryKeyLookup {
+                retr_old_records_for_updates: true,
+                retr_old_records_for_deletes: true,
+            },
         )]
     }
 
