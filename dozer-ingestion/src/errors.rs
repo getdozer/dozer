@@ -24,7 +24,7 @@ pub enum ConnectorError {
     #[error("Columns are expected in table_info")]
     ColumnsNotFound,
 
-    #[error("Relation not found in replication")]
+    #[error("Relation not found in replication: {0}")]
     RelationNotFound(#[source] std::io::Error),
 
     #[error("Failed to initialize connector")]
@@ -36,7 +36,7 @@ pub enum ConnectorError {
     #[error("This connector doesn't support this method: {0}")]
     UnsupportedConnectorMethod(String),
 
-    #[error("Query failed")]
+    #[error("Query failed in connector: {0}")]
     InvalidQueryError(#[source] tokio_postgres::Error),
 
     #[error("Unexpected query message")]
@@ -64,7 +64,7 @@ pub enum ConnectorError {
     #[error("Failed to send message on channel")]
     IngestorError(#[source] IngestorError),
 
-    #[error("Error in Eth Connection")]
+    #[error("Error in Eth Connection: {0}")]
     EthError(#[source] web3::Error),
 
     #[error("Failed fetching after {0} recursions")]
@@ -201,7 +201,7 @@ pub enum SnowflakeSchemaError {
     #[error("Value conversion Error")]
     ValueConversionError(#[source] Box<DiagnosticRecord>),
 
-    #[error("Schema conversion Error")]
+    #[error("Schema conversion Error: {0}")]
     SchemaConversionError(#[source] TryFromIntError),
 }
 

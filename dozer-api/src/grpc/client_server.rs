@@ -26,7 +26,7 @@ use dozer_types::{
     types::Schema,
 };
 use futures_util::{FutureExt, StreamExt};
-use std::{collections::HashMap, path::PathBuf, thread, time::Duration};
+use std::{collections::HashMap, path::PathBuf};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
@@ -64,25 +64,11 @@ impl ApiServer {
 
         for (endpoint_name, details) in &pipeline_map {
             let cache = details.cache_endpoint.cache.clone();
-            let mut idx = 0;
-            loop {
-                let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
 
-                match schema_res {
-                    Ok((schema, _)) => {
-                        schema_map.insert(endpoint_name.clone(), schema);
-                        break;
-                    }
-                    Err(_) => {
-                        info!(
-                            "Schema for endpoint: {} not found. Waiting...({})",
-                            endpoint_name, idx
-                        );
-                        thread::sleep(Duration::from_millis(300));
-                        idx += 1;
-                    }
-                }
-            }
+            let (schema, _) = cache
+                .get_schema_and_indexes_by_name(endpoint_name)
+                .map_err(|e| GRPCError::SchemaNotInitialized(endpoint_name.clone(), e))?;
+            schema_map.insert(endpoint_name.clone(), schema);
         }
         info!(
             "Starting gRPC server on http://{}:{} with security: {}",

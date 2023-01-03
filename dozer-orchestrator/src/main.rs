@@ -1,4 +1,5 @@
 use clap::Parser;
+use dozer_core::dag::errors::ExecutionError;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{load_config, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
@@ -36,10 +37,16 @@ fn run() -> Result<(), OrchestrationError> {
     thread::sleep(Duration::from_millis(50));
 
     panic::set_hook(Box::new(move |panic_info| {
+        // All the orchestrator errors are captured here
         if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
             error!("{}", e);
+        // All the connector errors are captured here
         } else if let Some(e) = panic_info.payload().downcast_ref::<ConnectorError>() {
-            error!("{:?}", e);
+            error!("{}", e);
+        // All the pipeline errors are captured here
+        } else if let Some(e) = panic_info.payload().downcast_ref::<ExecutionError>() {
+            error!("{}", e);
+        // If any errors are sent as strings.
         } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
             error!("{s:?}");
         } else {
