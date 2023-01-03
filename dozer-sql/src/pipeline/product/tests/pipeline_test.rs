@@ -12,16 +12,30 @@ use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use log::debug;
+#[cfg(not(test))]
+use log::debug; // Use log crate when building application
+
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+#[cfg(test)]
+use std::println as debug;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use tempdir::TempDir;
 
 use crate::pipeline::builder::PipelineBuilder;
 
 #[derive(Debug)]
-pub struct UserTestSourceFactory {}
+pub struct UserTestSourceFactory {
+    running: Arc<AtomicBool>,
+}
+
+impl UserTestSourceFactory {
+    pub fn new(running: Arc<AtomicBool>) -> Self {
+        Self { running }
+    }
+}
 
 impl SourceFactory for UserTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
@@ -59,7 +73,9 @@ impl SourceFactory for UserTestSourceFactory {
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
-        Ok(Box::new(UserTestSource {}))
+        Ok(Box::new(UserTestSource {
+            running: self.running.clone(),
+        }))
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
@@ -68,7 +84,9 @@ impl SourceFactory for UserTestSourceFactory {
 }
 
 #[derive(Debug)]
-pub struct UserTestSource {}
+pub struct UserTestSource {
+    running: Arc<AtomicBool>,
+}
 
 impl Source for UserTestSource {
     fn start(
@@ -76,7 +94,7 @@ impl Source for UserTestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..2 {
+        for n in 0..1000 {
             fw.send(
                 n,
                 0,
@@ -84,8 +102,8 @@ impl Source for UserTestSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(0),
-                            Field::String("Alice".to_string()),
+                            Field::Int(n.try_into().unwrap()),
+                            Field::String(format!("User {}", n)),
                             Field::Int(0),
                             Field::Float(OrderedFloat(5.5)),
                         ],
@@ -95,12 +113,27 @@ impl Source for UserTestSource {
             )
             .unwrap();
         }
+
+        loop {
+            if !self.running.load(Ordering::Relaxed) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
         Ok(())
     }
 }
 
 #[derive(Debug)]
-pub struct DepartmentTestSourceFactory {}
+pub struct DepartmentTestSourceFactory {
+    running: Arc<AtomicBool>,
+}
+
+impl DepartmentTestSourceFactory {
+    pub fn new(running: Arc<AtomicBool>) -> Self {
+        Self { running }
+    }
+}
 
 impl SourceFactory for DepartmentTestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
@@ -117,7 +150,9 @@ impl SourceFactory for DepartmentTestSourceFactory {
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
-        Ok(Box::new(DepartmentTestSource {}))
+        Ok(Box::new(DepartmentTestSource {
+            running: self.running.clone(),
+        }))
     }
 
     fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
@@ -139,7 +174,9 @@ impl SourceFactory for DepartmentTestSourceFactory {
 }
 
 #[derive(Debug)]
-pub struct DepartmentTestSource {}
+pub struct DepartmentTestSource {
+    running: Arc<AtomicBool>,
+}
 
 impl Source for DepartmentTestSource {
     fn start(
@@ -147,7 +184,7 @@ impl Source for DepartmentTestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..2 {
+        for n in 0..10 {
             fw.send(
                 n,
                 0,
@@ -158,24 +195,36 @@ impl Source for DepartmentTestSource {
             )
             .unwrap();
         }
+
+        loop {
+            if !self.running.load(Ordering::Relaxed) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+
         Ok(())
     }
 }
 
 #[derive(Debug)]
-pub struct TestSinkFactory {
-    input_ports: Vec<PortHandle>,
+pub(crate) struct TestSinkFactory {
+    expected: u64,
+    running: Arc<AtomicBool>,
 }
 
 impl TestSinkFactory {
-    pub fn new(input_ports: Vec<PortHandle>) -> Self {
-        Self { input_ports }
+    pub fn new(expected: u64, barrier: Arc<AtomicBool>) -> Self {
+        Self {
+            expected,
+            running: barrier,
+        }
     }
 }
 
 impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        self.input_ports.clone()
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn set_input_schema(
@@ -189,7 +238,11 @@ impl SinkFactory for TestSinkFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, ExecutionError> {
-        Ok(Box::new(TestSink {}))
+        Ok(Box::new(TestSink {
+            expected: self.expected,
+            current: 0,
+            running: self.running.clone(),
+        }))
     }
 
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
@@ -198,7 +251,11 @@ impl SinkFactory for TestSinkFactory {
 }
 
 #[derive(Debug)]
-pub struct TestSink {}
+pub struct TestSink {
+    expected: u64,
+    current: u64,
+    running: Arc<AtomicBool>,
+}
 
 impl Sink for TestSink {
     fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
@@ -213,6 +270,20 @@ impl Sink for TestSink {
         _state: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
+        match _op {
+            Operation::Delete { old } => debug!("<- {:?}", old.values),
+            Operation::Insert { new } => debug!("-> {:?}", new.values),
+            Operation::Update { old, new } => debug!("<- {:?}\n-> {:?}", old.values, new.values),
+        }
+
+        self.current += 1;
+        if self.current == self.expected {
+            debug!(
+                "Received {} messages. Notifying sender to exit!",
+                self.current
+            );
+            self.running.store(false, Ordering::Relaxed);
+        }
         Ok(())
     }
 
@@ -231,25 +302,24 @@ fn test_pipeline_builder() {
         )
         .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
 
+    let latch = Arc::new(AtomicBool::new(true));
+
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
         "conn1".to_string(),
-        Arc::new(UserTestSourceFactory {}),
+        Arc::new(UserTestSourceFactory::new(latch.clone())),
         vec![("user".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
     ));
     asm.add(AppSource::new(
         "conn2".to_string(),
-        Arc::new(DepartmentTestSourceFactory {}),
+        Arc::new(DepartmentTestSourceFactory::new(latch.clone())),
         vec![("department".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
     ));
-    pipeline.add_sink(
-        Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
-        "sink",
-    );
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(10, latch)), "sink");
     pipeline
         .connect_nodes(
             "aggregation",
