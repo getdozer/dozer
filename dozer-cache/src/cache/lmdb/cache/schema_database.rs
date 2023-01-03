@@ -86,7 +86,7 @@ impl SchemaDatabase {
         let key = get_schema_key(identifier);
         let schema = txn
             .get(self.0, &key)
-            .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))?;
+            .map_err(|e| CacheError::QueryError(QueryError::GetSchema(e)))?;
         let schema = bincode::deserialize(schema).map_err(CacheError::map_deserialization_error)?;
         Ok(schema)
     }

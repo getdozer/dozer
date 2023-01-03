@@ -44,16 +44,14 @@ impl CacheError {
 
 #[derive(Error, Debug)]
 pub enum QueryError {
-    #[error("Failed to get value")]
+    #[error("Failed to get a record by id - {0:?}")]
     GetValue(#[source] lmdb::Error),
-    #[error("Failed to insert value")]
+    #[error("Failed to get a schema by id - {0:?}")]
+    GetSchema(#[source] lmdb::Error),
+    #[error("Failed to insert a record - {0:?}")]
     InsertValue(#[source] lmdb::Error),
-    #[error("Failed to delete value")]
+    #[error("Failed to delete a record - {0:?}")]
     DeleteValue(#[source] lmdb::Error),
-    #[error("Field not found")]
-    FieldNotFound,
-    #[error("Cannot access record")]
-    AccessDenied,
 }
 
 #[derive(Error, Debug)]
