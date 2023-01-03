@@ -47,7 +47,7 @@ pub struct CacheCommonOptions {
 impl Default for CacheCommonOptions {
     fn default() -> Self {
         Self {
-            max_readers: 10,
+            max_readers: 1000,
             max_db_size: 1000,
             intersection_chunk_size: 100,
             path: None,
