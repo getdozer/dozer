@@ -24,7 +24,7 @@ use std::fmt::{Display, Formatter};
 use std::panic::panic_any;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::thread::{self, Builder};
 use std::time::Duration;
@@ -245,6 +245,7 @@ impl<'a> DagExecutor<'a> {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         schemas: &NodeSchemas,
         epoch_manager: Arc<EpochManager>,
+        start_barrier: Arc<Barrier>
     ) -> Result<JoinHandle<()>, ExecutionError> {
         let (sender, receiver) = bounded(self.options.channel_buffer_sz);
         let start_seq = *self
@@ -299,6 +300,7 @@ impl<'a> DagExecutor<'a> {
                 epoch_manager,
                 output_schemas,
             )?;
+            start_barrier.wait();
             listener.run()
         };
         Ok(Builder::new()
@@ -407,7 +409,10 @@ impl<'a> DagExecutor<'a> {
         let epoch_manager: Arc<EpochManager> =
             Arc::new(EpochManager::new(self.dag.get_sources().len()));
 
-        for (handle, factory) in self.dag.get_sources() {
+        let sources = self.dag.get_sources();
+        let start_barrier = Arc::new(Barrier::new(sources.len()));
+
+        for (handle, factory) in sources {
             let join_handle = self.start_source(
                 handle.clone(),
                 factory.clone(),
@@ -418,6 +423,7 @@ impl<'a> DagExecutor<'a> {
                     .get(&handle)
                     .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?,
                 epoch_manager.clone(),
+                start_barrier.clone()
             )?;
             self.join_handles.insert(handle.clone(), join_handle);
         }
