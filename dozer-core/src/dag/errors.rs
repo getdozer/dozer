@@ -60,19 +60,21 @@ pub enum ExecutionError {
     InternalDatabaseError(#[from] StorageError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
-    #[error(transparent)]
-    SinkError(#[from] SinkError),
+    #[error("Failed in sink. Has dozer been initialized (`dozer init`)? - {0:?}")]
+    SinkError(#[source] SinkError),
 
-    #[error("Failed to initialize source")]
+    #[error("Failed to initialize source: {0:?}")]
     ConnectorError(#[source] BoxedError),
     // to remove
     #[error("{0}")]
     InternalStringError(String),
 
-    #[error("Channel returned empty message in sink. Might be an issue with the sender: {0}")]
+    #[error(
+        "Channel returned empty message in sink. Might be an issue with the sender: {0}, {1:?}"
+    )]
     SinkReceiverError(usize, #[source] BoxedError),
 
-    #[error("Channel returned empty message in processor. Might be an issue with the sender: {0}")]
+    #[error("Channel returned empty message in processor. Might be an issue with the sender: {0}, , {1:?}")]
     ProcessorReceiverError(usize, #[source] BoxedError),
 }
 

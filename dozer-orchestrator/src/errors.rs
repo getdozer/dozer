@@ -1,6 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 
 use dozer_api::errors::GRPCError;
+use dozer_cache::errors::CacheError;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
@@ -17,12 +18,12 @@ pub enum OrchestrationError {
     InitializationFailed(String),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
-    #[error("Failed to initialize api server..")]
+    #[error("Failed to initialize api server: {0:?}")]
     ApiServerFailed(#[source] std::io::Error),
-    #[error("Failed to initialize grpc server..")]
+    #[error("Failed to initialize grpc server: {0:?}")]
     GrpcServerFailed(#[source] GRPCError),
-    #[error("Failed to receive schema update..")]
-    SchemaUpdateFailed(#[source] RecvError),
+    #[error("Failed to initialize cache in read only mode - {0:?}")]
+    CacheInitFailed(#[source] CacheError),
     #[error("Ingestion message forwarding failed")]
     IngestionForwarderError,
     #[error(transparent)]
