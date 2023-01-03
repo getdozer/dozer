@@ -7,7 +7,7 @@ use dozer_core::storage::errors::StorageError;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
 use dozer_types::errors::types::TypeError;
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::types::{Record, Schema};
 use sqlparser::ast::TableFactor;
 
 use crate::pipeline::product::join::StorageError::SerializationError;
@@ -157,12 +157,6 @@ impl JoinOperator {
             }
 
             if let Some(value) = prefix_transaction.get(*db, entry.1)? {
-                // let record = bincode::deserialize(value).map_err(|e| {
-                //     StorageError::DeserializationError {
-                //         typ: "Schema".to_string(),
-                //         reason: Box::new(e),
-                //     }
-                // })?;
                 output_keys.push(value.to_vec());
             } else {
                 return Err(ExecutionError::InternalDatabaseError(
@@ -206,12 +200,6 @@ impl JoinOperator {
             }
 
             if let Some(value) = prefix_transaction.get(*db, entry.1)? {
-                // let record = bincode::deserialize(value).map_err(|e| {
-                //     StorageError::DeserializationError {
-                //         typ: "Schema".to_string(),
-                //         reason: Box::new(e),
-                //     }
-                // })?;
                 output_keys.push(value.to_vec());
             } else {
                 return Err(ExecutionError::InternalDatabaseError(
@@ -383,105 +371,6 @@ impl JoinExecutor for JoinOperator {
 fn join_records(left_record: &mut Record, right_record: &mut Record) -> Record {
     left_record.values.append(&mut right_record.values);
     Record::new(None, left_record.values.clone())
-}
-
-// impl JoinExecutor for ReverseJoinOperator {
-//     fn update_index(
-//         &self,
-//         key: &[u8],
-//         value: &[u8],
-//         db: &Database,
-//         transaction: &SharedTransaction,
-//     ) -> Result<(), ExecutionError> {
-//         let mut exclusive_transaction = transaction.write();
-//         let mut prefix_transaction =
-//             PrefixTransaction::new(&mut exclusive_transaction, self.prefix);
-
-//         prefix_transaction.put(*db, &key, &value)?;
-
-//         Ok(())
-//     }
-
-//     fn execute(
-//         &self,
-//         records: Vec<Record>,
-//         schema: &Schema,
-//         database: &Database,
-//         transaction: &SharedTransaction,
-//         readers: &HashMap<PortHandle, RecordReader>,
-//         join_tables: &HashMap<PortHandle, JoinTable>,
-//     ) -> Result<Vec<Record>, ExecutionError> {
-//         let output_records = vec![];
-
-//         // if let Some(_left_reader) = readers.get(&self.left_table) {
-//         //     for right_record in records.into_iter() {
-//         //         let key = right_record.get_value(self.join_key_indexes[0])?.clone();
-
-//         //         let left_records = get_left_records(db, txn, &self.prefix, &key)?;
-
-//         //         let left_relation_join = join_tables.get(&(self.left_table as PortHandle)).ok_or(
-//         //             ExecutionError::InternalDatabaseError(StorageError::InvalidRecord),
-//         //         )?;
-
-//         //         if let Some(left_join_op) = &left_relation_join.left {
-//         //             let _left_join_records =
-//         //                 left_join_op.execute(left_records, db, txn, readers, join_tables);
-//         //         }
-
-//         //         //output_records.append(&mut left_records);
-//         //     }
-//         // }
-
-//         Ok(output_records)
-//     }
-// }
-
-fn get_left_records(
-    db: &Database,
-    transaction: &SharedTransaction,
-    prefix: &u32,
-    key: &Field,
-) -> Result<Vec<Record>, ExecutionError> {
-    let mut exclusive_transaction = transaction.write();
-    let prefix_transaction = PrefixTransaction::new(&mut exclusive_transaction, *prefix);
-
-    let cursor = prefix_transaction.open_cursor(*db)?;
-
-    let mut output_records = vec![];
-
-    let binary_key = key.encode();
-    if !cursor.seek(binary_key.as_slice())? {
-        return Ok(output_records);
-    }
-
-    loop {
-        let entry = cursor.read()?.ok_or(ExecutionError::InternalDatabaseError(
-            StorageError::InvalidRecord,
-        ))?;
-
-        if entry.0 != binary_key {
-            break;
-        }
-
-        if let Some(value) = prefix_transaction.get(*db, entry.1)? {
-            let record =
-                bincode::deserialize(value).map_err(|e| StorageError::DeserializationError {
-                    typ: "Schema".to_string(),
-                    reason: Box::new(e),
-                })?;
-            output_records.push(record);
-        } else {
-            return Err(ExecutionError::InternalDatabaseError(
-                StorageError::InvalidKey(format!("{:x?}", entry.1)),
-            ));
-        }
-
-        if !cursor.next()? {
-            break;
-        }
-    }
-
-    Ok(output_records)
 }
 
 // pub fn get_from_clause_table_names(
