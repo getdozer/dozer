@@ -7,6 +7,7 @@ use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
 use dozer_types::types::{Operation, Record, Schema};
 use std::fmt::{Debug, Formatter};
+use std::panic::panic_any;
 
 pub trait RecordWriter {
     fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError>;
@@ -38,7 +39,7 @@ impl RecordWriterUtils {
                 retr_old_records_for_deletes,
                 retr_old_records_for_updates,
             ))),
-            _ => Err(InvalidPortType(typ)),
+            _ => panic_any(Err(InvalidPortType(typ))),
         }
     }
 
