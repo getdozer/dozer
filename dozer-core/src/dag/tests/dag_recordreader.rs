@@ -4,10 +4,9 @@ use crate::dag::dag::{Dag, Endpoint, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
-use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
@@ -58,7 +57,10 @@ impl ProcessorFactory for PassthroughProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             PASSTHROUGH_PROCESSOR_OUTPUT_PORT,
-            OutputPortDefOptions::new(true, true, true),
+            OutputPortType::StatefulWithPrimaryKeyLookup {
+                retr_old_records_for_deletes: true,
+                retr_old_records_for_updates: true,
+            },
         )]
     }
 
@@ -137,7 +139,7 @@ impl ProcessorFactory for RecordReaderProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             RECORD_READER_PROCESSOR_OUTPUT_PORT,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
@@ -201,8 +203,6 @@ impl Processor for RecordReaderProcessor {
 
 #[test]
 fn test_run_dag_reacord_reader() {
-    init_log4rs();
-
     const TOT: u64 = 10_000;
 
     let sync = Arc::new(AtomicBool::new(true));
@@ -271,8 +271,6 @@ fn test_run_dag_reacord_reader() {
 
 #[test]
 fn test_run_dag_reacord_reader_from_src() {
-    init_log4rs();
-
     const TOT: u64 = 1_000;
 
     let sync = Arc::new(AtomicBool::new(true));

@@ -26,7 +26,7 @@ pub enum ExecutionError {
     InvalidDatabase,
     #[error("Field not found at position {0}")]
     FieldNotFound(String),
-    #[error("Port not found in source {0}")]
+    #[error("Port not found in source for schema_id: {0}.")]
     PortNotFound(String),
     #[error("Record not found")]
     RecordNotFound(),
@@ -60,42 +60,41 @@ pub enum ExecutionError {
     InternalDatabaseError(#[from] StorageError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
-    #[error(transparent)]
-    SinkError(#[from] SinkError),
+    #[error("{0}. Has dozer been initialized (`dozer init`)?")]
+    SinkError(#[source] SinkError),
 
-    #[error("Failed to initialize source")]
+    #[error("Failed to initialize source: {0}")]
     ConnectorError(#[source] BoxedError),
     // to remove
     #[error("{0}")]
     InternalStringError(String),
 
-    #[error("Channel returned empty message in sink. Might be an issue with the sender: {0}")]
+    #[error("Channel returned empty message in sink. Might be an issue with the sender: {0}, {1}")]
     SinkReceiverError(usize, #[source] BoxedError),
 
-    #[error("Channel returned empty message in processor. Might be an issue with the sender: {0}")]
+    #[error(
+        "Channel returned empty message in processor. Might be an issue with the sender: {0}, {1}"
+    )]
     ProcessorReceiverError(usize, #[source] BoxedError),
 }
 
 #[derive(Error, Debug)]
 pub enum SinkError {
-    #[error("Failed to initialize schema in Sink")]
+    #[error("Failed to initialize schema in Sink: {0}")]
     SchemaUpdateFailed(#[source] BoxedError),
 
-    #[error("Failed to notify schema in Sink")]
-    SchemaNotificationFailed(#[source] BoxedError),
-
-    #[error("Failed to begin cache transaction")]
+    #[error("Failed to begin cache transaction: {0}")]
     CacheBeginTransactionFailed(#[source] BoxedError),
 
-    #[error("Failed to insert record in Sink")]
+    #[error("Failed to insert record in Sink: {0}")]
     CacheInsertFailed(#[source] BoxedError),
 
-    #[error("Failed to delete record in Sink")]
+    #[error("Failed to delete record in Sink: {0}")]
     CacheDeleteFailed(#[source] BoxedError),
 
-    #[error("Failed to update record in Sink")]
+    #[error("Failed to update record in Sink: {0}")]
     CacheUpdateFailed(#[source] BoxedError),
 
-    #[error("Failed to commit cache transaction")]
+    #[error("Failed to commit cache transaction: {0}")]
     CacheCommitTransactionFailed(#[source] BoxedError),
 }

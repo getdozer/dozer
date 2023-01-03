@@ -1,0 +1,37 @@
+/**
+ * The _health_ gRPC API checks health of all services, `HealthGrpcService`.
+ */
+syntax = "proto3";
+
+package dozer.health;
+
+/**
+ * The health service that checks health on services.
+ */
+service HealthGrpcService {
+  /**
+   * Get functions for health check
+   *
+   * [Reference] https://github.com/grpc/grpc/blob/master/doc/health-checking.md
+   */
+  // Get function for health check
+  rpc healthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  // Get function for health check watch
+  rpc healthWatch(HealthCheckRequest) returns (stream HealthCheckResponse);
+}
+
+// Request for `healthCheck` and `healthWatch`.
+message HealthCheckRequest {
+  string service = 1;
+}
+
+// Response for `healthCheck` and `healthWatch`.
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+    SERVICE_UNKNOWN = 3;  // Used only by the Watch method.
+  }
+  ServingStatus status = 1;
+}

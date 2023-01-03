@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use dozer_core::dag::{
     dag::DEFAULT_PORT_HANDLE,
     errors::ExecutionError,
-    node::{OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory},
+    node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::Schema;
 use sqlparser::ast::{
@@ -45,7 +45,7 @@ impl ProcessorFactory for ProductProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 

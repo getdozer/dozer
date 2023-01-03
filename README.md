@@ -59,13 +59,15 @@ Check out our latest release details [here](https://github.com/getdozer/dozer/re
 
 ### What can you build with Dozer?
 
-1. Hypercharge your **Postgres** by offloading read APIs to `Dozer`
-2. **Real time ML predictions** deployed as APIs from **Snowflake**
-3. **Real time Ethereum Stats** published as a grafana dashboard
+1. [End-to-end hypercharge postgres example](examples/1_hypercharge_postgres/README.md)
+
+2. Real time ML predictions deployed as APIs from Snowflake
+
+3. [Real time Ethereum stats example](examples/3_eth_stats_sample/README.md)
 
 [//]: # (### Screenshots)
 
-Check out this module for above [end-to-end examples](./examples/README.md).
+Check out this module for above [end-to-end examples](./examples/).
 
 
 [//]: # (## Architecture)

@@ -2,12 +2,16 @@ use super::{
     auth_middleware::AuthMiddlewareLayer,
     common::CommonService,
     common_grpc::common_grpc_service_server::CommonGrpcServiceServer,
+    health_grpc::health_grpc_service_server::HealthGrpcServiceServer,
     internal_grpc::{
         internal_pipeline_service_client::InternalPipelineServiceClient, PipelineRequest,
         PipelineResponse,
     },
     typed::TypedService,
 };
+use crate::grpc::health::HealthService;
+use crate::grpc::health_grpc::health_check_response::ServingStatus;
+use crate::grpc::{common, typed};
 use crate::{
     errors::GRPCError, generator::protoc::generator::ProtoGenerator, CacheEndpoint, PipelineDetails,
 };
@@ -22,7 +26,7 @@ use dozer_types::{
     types::Schema,
 };
 use futures_util::{FutureExt, StreamExt};
-use std::{collections::HashMap, path::PathBuf, thread, time::Duration};
+use std::{collections::HashMap, path::PathBuf};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tonic::{transport::Server, Streaming};
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
@@ -60,28 +64,14 @@ impl ApiServer {
 
         for (endpoint_name, details) in &pipeline_map {
             let cache = details.cache_endpoint.cache.clone();
-            let mut idx = 0;
-            loop {
-                let schema_res = cache.get_schema_and_indexes_by_name(endpoint_name);
 
-                match schema_res {
-                    Ok((schema, _)) => {
-                        schema_map.insert(endpoint_name.clone(), schema);
-                        break;
-                    }
-                    Err(_) => {
-                        info!(
-                            "Schema for endpoint: {} not found. Waiting...({})",
-                            endpoint_name, idx
-                        );
-                        thread::sleep(Duration::from_millis(300));
-                        idx += 1;
-                    }
-                }
-            }
+            let (schema, _) = cache
+                .get_schema_and_indexes_by_name(endpoint_name)
+                .map_err(|e| GRPCError::SchemaNotInitialized(endpoint_name.clone(), e))?;
+            schema_map.insert(endpoint_name.clone(), schema);
         }
         info!(
-            "Starting gRPC server on host: {}, port: {}, security: {}",
+            "Starting gRPC server on http://{}:{} with security: {}",
             self.host,
             self.port,
             self.security
@@ -136,6 +126,7 @@ impl ApiServer {
         rx1: Option<Receiver<PipelineResponse>>,
     ) -> Result<(), GRPCError> {
         let mut pipeline_map: HashMap<String, PipelineDetails> = HashMap::new();
+        let mut service_map: HashMap<String, ServingStatus> = HashMap::new();
         for ce in cache_endpoints {
             pipeline_map.insert(
                 ce.endpoint.name.to_owned(),
@@ -150,6 +141,7 @@ impl ApiServer {
             pipeline_map: pipeline_map.to_owned(),
             event_notifier: rx1.as_ref().map(|r| r.resubscribe()),
         });
+
         // middleware
         let layer = tower::ServiceBuilder::new()
             .layer(AuthMiddlewareLayer::new(self.security.to_owned()))
@@ -165,9 +157,16 @@ impl ApiServer {
                     .enable(common_service),
             );
 
-        let grpc_router = if self.flags.dynamic {
-            let (grpc_service, inflection_service) =
-                self.get_dynamic_service(pipeline_map.clone(), rx1)?;
+        service_map.insert(common::SERVICE_NAME.to_string(), ServingStatus::Serving);
+
+        let mut grpc_router = if self.flags.dynamic {
+            let _get_dynamic_service = self.get_dynamic_service(pipeline_map.clone(), rx1);
+            if _get_dynamic_service.is_err() {
+                service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::NotServing);
+            } else {
+                service_map.insert(typed::SERVICE_NAME.to_string(), ServingStatus::Serving);
+            }
+            let (grpc_service, inflection_service) = _get_dynamic_service?;
             // GRPC service to handle reflection requests
             grpc_router = grpc_router.add_service(inflection_service);
             if self.flags.grpc_web {
@@ -181,6 +180,17 @@ impl ApiServer {
         } else {
             grpc_router
         };
+
+        let health_service = HealthGrpcServiceServer::new(HealthService {
+            serving_status: service_map,
+        });
+
+        grpc_router = grpc_router.add_service(
+            tonic_web::config()
+                .allow_all_origins()
+                .enable(health_service),
+        );
+
         let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))

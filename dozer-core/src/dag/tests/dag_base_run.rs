@@ -4,10 +4,9 @@ use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 use crate::dag::errors::ExecutionError;
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
-    NodeHandle, OutputPortDef, OutputPortDefOptions, PortHandle, Processor, ProcessorFactory,
+    NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
 use crate::dag::record_store::RecordReader;
-use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{
     DualPortGeneratorSourceFactory, GeneratorSourceFactory,
@@ -46,7 +45,7 @@ impl ProcessorFactory for NoopProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
@@ -149,8 +148,6 @@ fn test_run_dag() {
 
 #[test]
 fn test_run_dag_and_stop() {
-    init_log4rs();
-
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -231,7 +228,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
-            OutputPortDefOptions::default(),
+            OutputPortType::Stateless,
         )]
     }
 
@@ -282,8 +279,6 @@ impl Processor for NoopJoinProcessor {
 
 #[test]
 fn test_run_dag_2_sources_stateless() {
-    init_log4rs();
-
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -349,8 +344,6 @@ fn test_run_dag_2_sources_stateless() {
 
 #[test]
 fn test_run_dag_2_sources_stateful() {
-    init_log4rs();
-
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -416,8 +409,6 @@ fn test_run_dag_2_sources_stateful() {
 
 #[test]
 fn test_run_dag_1_source_2_ports_stateless() {
-    init_log4rs();
-
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();

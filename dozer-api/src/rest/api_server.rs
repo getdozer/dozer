@@ -1,7 +1,8 @@
 use super::api_generator;
+use crate::rest::api_generator::health_route;
 use crate::{
     auth::{
-        api::{auth_route, health_route, validate},
+        api::{auth_route, validate},
         Access,
     },
     CacheEndpoint, PipelineDetails,
@@ -127,14 +128,14 @@ impl ApiServer {
             .route("/health", web::get().to(health_route))
             // Wrap Api Validator
             .wrap(auth_middleware)
-            // Insert None as Auth when no apisecurity configured
+            // Insert None as Auth when no api security configured
             .wrap_fn(move |req, srv| {
                 if !is_auth_configured {
                     req.extensions_mut().insert(Access::All);
                 }
                 srv.call(req).map(|res| res)
             })
-            // Wrap CORS around api validator. Neededto return the right headers.
+            // Wrap CORS around api validator. Required to return the right headers.
             .wrap(cors_middleware)
     }
 
@@ -144,7 +145,7 @@ impl ApiServer {
         tx: Sender<ServerHandle>,
     ) -> std::io::Result<()> {
         info!(
-            "Starting Rest Api Server on host: {}, port: {}, security: {}",
+            "Starting Rest Api Server on http://{}:{} with security: {}",
             self.host,
             self.port,
             self.security

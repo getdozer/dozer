@@ -6,21 +6,22 @@ use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
+use crate::dag::record_store::{RecordWriter, RecordWriterUtils};
 use crate::storage::common::Database;
-use crate::storage::errors::StorageError::SerializationError;
+
 use crate::storage::lmdb_storage::SharedTransaction;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
-use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Operation, Schema};
 use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub(crate) struct StateWriter {
     meta_db: Database,
-    dbs: HashMap<PortHandle, StateOptions>,
+    record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
     output_schemas: HashMap<PortHandle, Schema>,
     input_schemas: HashMap<PortHandle, Schema>,
     input_ports: Option<Vec<PortHandle>>,
@@ -35,78 +36,32 @@ impl StateWriter {
         input_ports: Option<Vec<PortHandle>>,
         output_schemas: HashMap<PortHandle, Schema>,
         input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ExecutionError> {
+        let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
+        for (port, options) in dbs {
+            let schema = output_schemas
+                .get(&port)
+                .ok_or(ExecutionError::InvalidPortHandle(port))?
+                .clone();
+
+            let writer =
+                RecordWriterUtils::create_writer(options.typ, options.db, options.meta_db, schema)?;
+            record_writers.insert(port, writer);
+        }
+
+        Ok(Self {
             meta_db,
-            dbs,
+            record_writers,
             output_schemas,
             input_schemas,
             tx,
             input_ports,
-        }
-    }
-
-    fn write_record(
-        db: Database,
-        rec: &Record,
-        schema: &Schema,
-        tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
-        let key = rec.get_key(&schema.primary_index);
-        let value = bincode::serialize(&rec).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        tx.write().put(db, key.as_slice(), value.as_slice())?;
-        Ok(())
-    }
-
-    fn retr_record(
-        db: Database,
-        key: &[u8],
-        tx: &SharedTransaction,
-    ) -> Result<Record, ExecutionError> {
-        let tx = tx.read();
-        let curr = tx
-            .get(db, key)?
-            .ok_or_else(ExecutionError::RecordNotFound)?;
-
-        let r: Record = bincode::deserialize(curr).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        Ok(r)
+        })
     }
 
     fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
-        if let Some(opts) = self.dbs.get(port) {
-            let schema = self
-                .output_schemas
-                .get(port)
-                .ok_or(ExecutionError::InvalidPortHandle(*port))?;
-
-            match op {
-                Operation::Insert { new } => {
-                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-                    Ok(Operation::Insert { new })
-                }
-                Operation::Delete { mut old } => {
-                    let key = old.get_key(&schema.primary_index);
-                    if opts.options.retrieve_old_record_for_deletes {
-                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-                    }
-                    self.tx.write().del(opts.db, &key, None)?;
-                    Ok(Operation::Delete { old })
-                }
-                Operation::Update { mut old, new } => {
-                    let key = old.get_key(&schema.primary_index);
-                    if opts.options.retrieve_old_record_for_updates {
-                        old = StateWriter::retr_record(opts.db, &key, &self.tx)?;
-                    }
-                    StateWriter::write_record(opts.db, &new, schema, &self.tx)?;
-                    Ok(Operation::Update { old, new })
-                }
-            }
+        if let Some(writer) = self.record_writers.get(port) {
+            writer.write(op, &self.tx)
         } else {
             Ok(op)
         }
@@ -149,7 +104,7 @@ impl StateWriter {
 }
 
 #[derive(Debug)]
-pub(crate) struct ChannelManager {
+struct ChannelManager {
     owner: NodeHandle,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     state_writer: StateWriter,
@@ -174,20 +129,19 @@ impl ChannelManager {
             Operation::Delete { old } => ExecutorOperation::Delete { old },
         };
 
-        if senders.len() == 1 {
-            internal_err!(senders[0].send(exec_op))?;
-        } else {
+        if let Some((last_sender, senders)) = senders.split_last() {
             for sender in senders {
                 internal_err!(sender.send(exec_op.clone()))?;
             }
+            internal_err!(last_sender.send(exec_op))?;
         }
 
         Ok(())
     }
 
-    pub fn send_term_and_wait(&self) -> Result<(), ExecutionError> {
-        for senders in &self.senders {
-            for sender in senders.1 {
+    fn send_terminate(&self) -> Result<(), ExecutionError> {
+        for senders in self.senders.values() {
+            for sender in senders {
                 internal_err!(sender.send(ExecutorOperation::Terminate))?;
             }
         }
@@ -195,21 +149,21 @@ impl ChannelManager {
         Ok(())
     }
 
-    pub fn store_and_send_commit(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
-        info!("[{}] Checkpointing - {}", self.owner, &epoch_details);
-        self.state_writer.store_commit_info(epoch_details)?;
+    fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
+        info!("[{}] Checkpointing - {}", self.owner, &epoch);
+        self.state_writer.store_commit_info(epoch)?;
 
         for senders in &self.senders {
             for sender in senders.1 {
                 internal_err!(sender.send(ExecutorOperation::Commit {
-                    epoch_details: epoch_details.clone()
+                    epoch: epoch.clone()
                 }))?;
             }
         }
 
         Ok(())
     }
-    pub fn new(
+    fn new(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_writer: StateWriter,
@@ -230,7 +184,11 @@ pub(crate) struct SourceChannelManager {
     manager: ChannelManager,
     curr_txid: u64,
     curr_seq_in_tx: u64,
-    epoch_manager: Arc<RwLock<EpochManager>>,
+    commit_sz: u32,
+    num_uncommited_ops: u32,
+    max_duration_between_commits: Duration,
+    last_commit_instant: Instant,
+    epoch_manager: Arc<EpochManager>,
 }
 
 impl SourceChannelManager {
@@ -239,48 +197,46 @@ impl SourceChannelManager {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
-        epoch_manager: Arc<RwLock<EpochManager>>,
+        commit_sz: u32,
+        max_duration_between_commits: Duration,
+        epoch_manager: Arc<EpochManager>,
     ) -> Self {
         Self {
             manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
             curr_txid: 0,
             curr_seq_in_tx: 0,
             source_handle: owner,
+            commit_sz,
+            num_uncommited_ops: 0,
+            max_duration_between_commits,
+            last_commit_instant: Instant::now(),
             epoch_manager,
         }
     }
 
-    fn advance_and_trigger_commit_if_needed(
-        &mut self,
-        advance: u16,
-        force: bool,
-    ) -> Result<bool, ExecutionError> {
-        let epoch = if let Some(epoch) =
-            self.epoch_manager
-                .write()
-                .advance(&self.source_handle, advance, force)?
-        {
-            self.manager.store_and_send_commit(&Epoch::from(
-                epoch.id,
-                self.source_handle.clone(),
-                self.curr_txid,
-                self.curr_seq_in_tx,
-            ))?;
-            Some((epoch.barrier, epoch.forced))
-        } else {
-            None
-        };
+    fn should_commit(&self) -> bool {
+        self.num_uncommited_ops >= self.commit_sz
+            || self.last_commit_instant.elapsed() >= self.max_duration_between_commits
+    }
 
-        if let Some((barrier, forced)) = epoch {
-            barrier.wait();
-            Ok(forced)
+    pub fn trigger_commit_if_needed(
+        &mut self,
+        request_termination: bool,
+    ) -> Result<bool, ExecutionError> {
+        if request_termination || self.should_commit() {
+            let epoch = self.epoch_manager.wait_for_epoch_close(
+                self.source_handle.clone(),
+                (self.curr_txid, self.curr_seq_in_tx),
+                request_termination,
+            );
+            self.manager
+                .store_and_send_commit(&Epoch::new(epoch.id, epoch.details))?;
+            self.num_uncommited_ops = 0;
+            self.last_commit_instant = Instant::now();
+            Ok(epoch.terminating)
         } else {
             Ok(false)
         }
-    }
-
-    pub fn trigger_commit_if_needed(&mut self, force: bool) -> Result<bool, ExecutionError> {
-        self.advance_and_trigger_commit_if_needed(0, force)
     }
 
     pub fn send_and_trigger_commit_if_needed(
@@ -289,17 +245,18 @@ impl SourceChannelManager {
         seq_in_tx: u64,
         op: Operation,
         port: PortHandle,
-        force: bool,
+        request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         //
         self.curr_txid = txid;
         self.curr_seq_in_tx = seq_in_tx;
         self.manager.send_op(op, port)?;
-        self.advance_and_trigger_commit_if_needed(1, force)
+        self.num_uncommited_ops += 1;
+        self.trigger_commit_if_needed(request_termination)
     }
 
     pub fn terminate(&mut self) -> Result<(), ExecutionError> {
-        self.manager.send_term_and_wait()
+        self.manager.send_terminate()
     }
 }
 
@@ -320,12 +277,12 @@ impl ProcessorChannelManager {
         }
     }
 
-    pub fn store_and_send_commit(&mut self, epoch_details: &Epoch) -> Result<(), ExecutionError> {
-        self.manager.store_and_send_commit(epoch_details)
+    pub fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
+        self.manager.store_and_send_commit(epoch)
     }
 
-    pub fn send_term_and_wait(&self) -> Result<(), ExecutionError> {
-        self.manager.send_term_and_wait()
+    pub fn send_terminate(&self) -> Result<(), ExecutionError> {
+        self.manager.send_terminate()
     }
 }
 

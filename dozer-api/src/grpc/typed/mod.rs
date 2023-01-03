@@ -28,3 +28,5 @@ impl TypedResponse {
         Self { message }
     }
 }
+
+pub const SERVICE_NAME: &str = "typed";

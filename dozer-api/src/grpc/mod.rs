@@ -1,5 +1,6 @@
 mod client_server;
 pub mod common;
+pub mod health;
 pub mod internal;
 // pub mod dynamic;
 mod auth_middleware;
@@ -14,6 +15,11 @@ pub mod types {
 pub mod common_grpc {
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("dozer.common"); // The string specified here must match the proto package name
+}
+pub mod health_grpc {
+    #![allow(non_camel_case_types)]
+    #![allow(clippy::derive_partial_eq_without_eq)]
+    tonic::include_proto!("dozer.health"); // The string specified here must match the proto package name
 }
 pub mod internal_grpc {
     #![allow(clippy::derive_partial_eq_without_eq)]

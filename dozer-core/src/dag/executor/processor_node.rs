@@ -87,7 +87,7 @@ impl ProcessorNode {
                 Some(processor_factory.get_input_ports()),
                 node_schemas.output_schemas,
                 node_schemas.input_schemas,
-            ),
+            )?,
             true,
         );
 
@@ -145,6 +145,6 @@ impl ReceiverLoop for ProcessorNode {
     }
 
     fn on_terminate(&mut self) -> Result<(), ExecutionError> {
-        self.channel_manager.send_term_and_wait()
+        self.channel_manager.send_terminate()
     }
 }

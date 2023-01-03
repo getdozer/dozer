@@ -28,6 +28,7 @@ pub struct TypedService {
     event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
     security: Option<ApiSecurity>,
 }
+
 impl Clone for TypedService {
     fn clone(&self) -> Self {
         Self {

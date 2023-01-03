@@ -3,23 +3,19 @@ use crate::dag::dag::{Dag, Endpoint, NodeType, DEFAULT_PORT_HANDLE};
 
 use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::NodeHandle;
-use crate::dag::tests::common::init_log4rs;
 use crate::dag::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
-use serial_test::serial;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
 
 #[test]
-#[serial]
 fn test_checpoint_consistency_ns() {
     // dozer_tracing::init_telemetry(false).unwrap();
 
     const MESSAGES_COUNT: u64 = 25_000;
 
-    init_log4rs();
     let mut dag = Dag::new();
 
     let sources: Vec<NodeHandle> = vec![

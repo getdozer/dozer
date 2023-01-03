@@ -1,8 +1,6 @@
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
-use dozer_core::dag::node::{
-    OutputPortDef, OutputPortDefOptions, PortHandle, Source, SourceFactory,
-};
+use dozer_core::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -86,7 +84,7 @@ impl SourceFactory for ConnectorSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.ports
             .values()
-            .map(|e| OutputPortDef::new(*e, OutputPortDefOptions::default()))
+            .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
             .collect()
     }
 
@@ -157,8 +155,7 @@ impl Source for ConnectorSource {
                         let port = self
                             .schema_port_map
                             .get(&schema_id)
-                            .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)
-                            .unwrap();
+                            .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)?;
                         fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
                     }
                 }
