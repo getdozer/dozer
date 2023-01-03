@@ -39,7 +39,10 @@ impl RecordWriterUtils {
                 retr_old_records_for_deletes,
                 retr_old_records_for_updates,
             ))),
-            _ => panic_any(Err(InvalidPortType(typ))),
+            _ => panic!(
+                "Unexpected port type in RecordWriterUtils::create_writer(): {}",
+                typ
+            ),
         }
     }
 
