@@ -16,37 +16,28 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize. {0}[/api/generated,/cache] are not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
     InitializationFailed(String),
+    #[error("Failed to create home_dir. Is the path {0:?} accessible?: {1}")]
+    HomeDirectoryInitFailed(String, #[source] std::io::Error),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
-    #[error("Failed to initialize api server: {0:?}")]
+    #[error("Failed to initialize api server: {0}")]
     ApiServerFailed(#[source] std::io::Error),
-    #[error("Failed to initialize grpc server: {0:?}")]
+    #[error("Failed to initialize grpc server: {0}")]
     GrpcServerFailed(#[source] GRPCError),
-    #[error("Failed to initialize cache in read only mode - {0:?}")]
+    #[error("Failed to initialize cache in read only mode - {0}")]
     CacheInitFailed(#[source] CacheError),
-    #[error("Ingestion message forwarding failed")]
-    IngestionForwarderError,
     #[error(transparent)]
     InternalError(#[from] BoxedError),
     #[error(transparent)]
     ExecutionError(#[from] ExecutionError),
     #[error(transparent)]
     ConnectorError(#[from] ConnectorError),
-
+    #[error(transparent)]
+    PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
-
-    #[error("Can't find the table name ({0:?}) in the sources provided.")]
-    PortNotFound(String),
-
-    #[error("Failed to initialize internal server")]
-    InternalServerError,
-
-    #[error("Failed to initialize SQL Statement as pipeline..")]
-    SqlStatementFailed(#[source] PipelineError),
-
-    #[error(transparent)]
-    RecvError(#[from] RecvError),
+    #[error("Failed to receive server handle from grpc server: {0}")]
+    GrpcServerHandleError(#[source] RecvError),
 }
 
 #[derive(Error, Debug)]

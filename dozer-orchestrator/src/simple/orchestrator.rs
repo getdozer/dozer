@@ -141,7 +141,9 @@ impl Orchestrator for SimpleOrchestrator {
             });
         });
 
-        let server_handle = rx.recv().map_err(OrchestrationError::RecvError)?;
+        let server_handle = rx
+            .recv()
+            .map_err(OrchestrationError::GrpcServerHandleError)?;
 
         // Waiting for Ctrl+C
         while running.load(Ordering::SeqCst) {}

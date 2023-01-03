@@ -91,7 +91,7 @@ impl Executor {
 
             let mut pipeline = PipelineBuilder {}
                 .build_pipeline(&api_endpoint.sql)
-                .map_err(OrchestrationError::SqlStatementFailed)?;
+                .map_err(OrchestrationError::PipelineError)?;
 
             pipeline.add_sink(
                 Arc::new(CacheSinkFactory::new(
@@ -142,7 +142,9 @@ impl Executor {
 
         let parent_dag = self.build_pipeline(notifier, PathBuf::default(), None)?;
         let path = &self.home_dir;
-        fs::create_dir_all(path).map_err(|_e| OrchestrationError::InternalServerError)?;
+        fs::create_dir_all(path).map_err(|e| {
+            OrchestrationError::HomeDirectoryInitFailed(path.to_string_lossy().to_string(), e)
+        })?;
         let mut exec = DagExecutor::new(
             &parent_dag,
             path.as_path(),
