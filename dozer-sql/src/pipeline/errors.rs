@@ -3,7 +3,7 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
-use dozer_types::types::Field;
+use dozer_types::types::{Field, FieldType};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -32,6 +32,8 @@ pub enum PipelineError {
     InvalidFunctionArgument(String, Field, usize),
     #[error("Not enough arguments for function {0}()")]
     NotEnoughArguments(String),
+    #[error("Invalid argument type for function {0}(): type: {1}, expected: {2}, index: {3}")]
+    InvalidFunctionArgumentType(String, FieldType, FieldType, usize),
 
     // Error forwarding
     #[error(transparent)]

@@ -24,6 +24,26 @@ fn test_concat() {
 }
 
 #[test]
+#[should_panic]
+fn test_concat_wrong_schema() {
+    let f = run_scalar_fct(
+        "SELECT CONCAT(fn, ln) FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::String, false),
+                false,
+            )
+            .field(
+                FieldDefinition::new(String::from("ln"), FieldType::Int, false),
+                false,
+            )
+            .clone(),
+        vec![Field::String("John".to_string()), Field::Int(0)],
+    );
+    assert_eq!(f, Field::String("JohnDoe".to_string()));
+}
+
+#[test]
 fn test_ucase() {
     let f = run_scalar_fct(
         "SELECT UCASE(fn) FROM USERS",

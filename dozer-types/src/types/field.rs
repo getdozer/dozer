@@ -326,6 +326,24 @@ pub enum FieldType {
     Bson,
 }
 
+impl Display for FieldType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FieldType::UInt => f.write_str("unsigned int"),
+            FieldType::Int => f.write_str("int"),
+            FieldType::Float => f.write_str("float"),
+            FieldType::Boolean => f.write_str("boolean"),
+            FieldType::String => f.write_str("string"),
+            FieldType::Text => f.write_str("text"),
+            FieldType::Binary => f.write_str("binary"),
+            FieldType::Decimal => f.write_str("decimal"),
+            FieldType::Timestamp => f.write_str("timestamp"),
+            FieldType::Date => f.write_str("date"),
+            FieldType::Bson => f.write_str("bson"),
+        }
+    }
+}
+
 /// Can't put it in `tests` module because of <https://github.com/rust-lang/cargo/issues/8379>
 /// and we need this function in `dozer-cache`.
 pub fn field_test_cases() -> impl Iterator<Item = Field> {

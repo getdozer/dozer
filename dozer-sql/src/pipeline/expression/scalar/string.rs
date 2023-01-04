@@ -6,7 +6,9 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
 
-use dozer_types::types::{Field, Record};
+use crate::pipeline::errors::PipelineError::InvalidFunctionArgumentType;
+use crate::pipeline::expression::arg_utils::validate_arg_type;
+use dozer_types::types::{Field, FieldType, Record, Schema};
 
 pub(crate) fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
@@ -19,6 +21,28 @@ pub(crate) fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field,
             0,
         )),
     }
+}
+
+pub(crate) fn validate_concat(
+    arg0: &Expression,
+    arg1: &Expression,
+    schema: &Schema,
+) -> Result<FieldType, PipelineError> {
+    validate_arg_type(
+        arg0,
+        FieldType::String,
+        schema,
+        ScalarFunctionType::Concat,
+        0,
+    )?;
+    validate_arg_type(
+        arg1,
+        FieldType::String,
+        schema,
+        ScalarFunctionType::Concat,
+        1,
+    )?;
+    Ok(FieldType::String)
 }
 
 pub(crate) fn evaluate_concat(

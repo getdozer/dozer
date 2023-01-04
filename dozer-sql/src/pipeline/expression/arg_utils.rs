@@ -1,3 +1,29 @@
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::InvalidFunctionArgumentType;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::scalar::ScalarFunctionType;
+use dozer_types::types::{FieldType, Schema};
+
+pub(crate) fn validate_arg_type(
+    arg: &Expression,
+    expected: FieldType,
+    schema: &Schema,
+    fct: ScalarFunctionType,
+    idx: usize,
+) -> Result<(), PipelineError> {
+    let arg_t = arg.get_type(schema)?;
+    if arg_t != expected {
+        Err(InvalidFunctionArgumentType(
+            fct.to_string(),
+            arg_t,
+            expected,
+            idx,
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 #[macro_export]
 macro_rules! argv {
     ($arr: expr, $idx: expr, $fct: expr) => {
