@@ -13,7 +13,7 @@ use crate::storage::lmdb_storage::SharedTransaction;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;
 use dozer_types::types::{Operation, Schema};
-use log::info;
+use log::debug;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -150,7 +150,7 @@ impl ChannelManager {
     }
 
     fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        info!("[{}] Checkpointing - {}", self.owner, &epoch);
+        debug!("[{}] Checkpointing - {}", self.owner, &epoch);
         self.state_writer.store_commit_info(epoch)?;
 
         for senders in &self.senders {

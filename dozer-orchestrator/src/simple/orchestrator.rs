@@ -245,13 +245,22 @@ impl Orchestrator for SimpleOrchestrator {
             ingestor,
             iterator,
             Arc::new(AtomicBool::new(true)),
-            pipeline_home_dir,
+            pipeline_home_dir.clone(),
         );
 
+        // Api Path
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {
             fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
         }
+
+        // Pipeline path
+        fs::create_dir_all(pipeline_home_dir.clone()).map_err(|e| {
+            OrchestrationError::PipelineDirectoryInitFailed(
+                pipeline_home_dir.to_string_lossy().to_string(),
+                e,
+            )
+        })?;
 
         let dag = executor.build_pipeline(
             None,
