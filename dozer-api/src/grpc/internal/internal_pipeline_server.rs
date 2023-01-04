@@ -1,5 +1,4 @@
 use crate::{
-    errors::GRPCError,
     grpc::internal_grpc::{
         internal_pipeline_service_server::{self, InternalPipelineService},
         GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, PipelineResponse,
