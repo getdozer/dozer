@@ -193,7 +193,7 @@ fn test_api_config() -> ApiConfig {
         }),
         pipeline_internal: Some(ApiPipelineInternal {
             port: 50053,
-            host: "[::1]".to_owned(),
+            host: "0.0.0.0".to_owned(),
             home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),
         }),
         ..Default::default()
