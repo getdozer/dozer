@@ -65,4 +65,6 @@ jobs:
           cargo fmt -- --check
 
       - name: Run tests
-        run: cargo test --verbose --features mongodb
+        run: cargo test --verbose --features mongodb,e2e
+        env:
+          ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}

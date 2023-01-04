@@ -7,6 +7,7 @@ pub use sql_tests::TestFramework;
 #[cfg(test)]
 mod cache_tests;
 
+#[cfg(feature = "e2e")]
 #[cfg(test)]
 mod e2e_tests;
 

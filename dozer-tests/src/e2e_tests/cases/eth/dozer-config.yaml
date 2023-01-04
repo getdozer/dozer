@@ -5,7 +5,7 @@ connections:
       from_block: 0
       addresses: []
       topics: []
-    wss_url: wss://skilled-patient-shadow.discover.quiknode.pro/c25accd8a73bb9f42cab0e9815349cc191954b95/
+    wss_url: "{{ETH_WSS_URL}}"
     name: eth_logs
   db_type: Ethereum
   name: eth_logs
