@@ -4,18 +4,9 @@ use crate::pipeline::errors::PipelineError;
 #[cfg(test)]
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use crate::pipeline::expression::scalar::{ScalarFunctionType};
-
-
-
-
-
-
+use crate::pipeline::expression::scalar::ScalarFunctionType;
 
 use dozer_types::types::{Field, Record};
-
-
-
 
 pub(crate) fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
