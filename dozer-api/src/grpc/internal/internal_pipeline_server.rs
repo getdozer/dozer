@@ -1,9 +1,7 @@
-use crate::{
-    grpc::internal_grpc::{
-        internal_pipeline_service_server::{self, InternalPipelineService},
-        GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, PipelineResponse,
-        RestartPipelineRequest, RestartPipelineResponse,
-    },
+use crate::grpc::internal_grpc::{
+    internal_pipeline_service_server::{self, InternalPipelineService},
+    GetAppConfigRequest, GetAppConfigResponse, PipelineRequest, PipelineResponse,
+    RestartPipelineRequest, RestartPipelineResponse,
 };
 use crossbeam::channel::Receiver;
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
