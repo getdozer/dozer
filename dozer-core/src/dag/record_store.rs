@@ -78,7 +78,7 @@ impl RecordWriterUtils {
 }
 
 #[derive(Debug)]
-pub(crate) struct PrimaryKeyLookupRecordWriter {
+struct PrimaryKeyLookupRecordWriter {
     db: Database,
     meta_db: Database,
     schema: Schema,
@@ -87,7 +87,7 @@ pub(crate) struct PrimaryKeyLookupRecordWriter {
 }
 
 impl PrimaryKeyLookupRecordWriter {
-    pub fn new(
+    fn new(
         db: Database,
         meta_db: Database,
         schema: Schema,

@@ -84,9 +84,7 @@ impl ProcessorNode {
                 state_meta.meta_db,
                 port_databases,
                 master_tx.clone(),
-                Some(processor_factory.get_input_ports()),
                 node_schemas.output_schemas,
-                node_schemas.input_schemas,
             )?,
             true,
         );

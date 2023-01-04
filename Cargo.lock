@@ -1495,6 +1495,7 @@ dependencies = [
  "dozer-types",
  "futures",
  "mongodb",
+ "reqwest",
  "rusqlite",
  "sqlparser",
  "tempdir",
