@@ -1,10 +1,21 @@
 use crate::arg_str;
+use crate::pipeline::builder::get_select;
 use crate::pipeline::errors::PipelineError;
 #[cfg(test)]
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::{evaluate_round, ScalarFunctionType};
-use dozer_types::types::{Field, Record};
+use crate::pipeline::projection::factory::ProjectionProcessorFactory;
+use dozer_core::dag::channels::ProcessorChannelForwarder;
+use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
+use dozer_core::dag::node::ProcessorFactory;
+use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::parking_lot::RwLock;
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Arc;
 
 pub(crate) fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
@@ -38,21 +49,21 @@ pub(crate) fn evaluate_length(arg0: &Expression, record: &Record) -> Result<Fiel
     Ok(Field::UInt(v0.len() as u64))
 }
 
-#[test]
-fn test_ucase() {
-    let row = Record::new(None, vec![]);
+pub(crate) fn evaluate_trim(
+    arg0: &Expression,
+    arg1: Option<&Expression>,
+    record: &Record,
+) -> Result<Field, PipelineError> {
+    let f0 = arg0.evaluate(record)?;
+    let v0 = arg_str!(f0, ScalarFunctionType::Trim, 0)?;
 
-    let s = Box::new(Literal(Field::String(String::from("data"))));
-    let t = Box::new(Literal(Field::Text(String::from("Data"))));
-    let s_output = Field::String(String::from("DATA"));
-    let t_output = Field::Text(String::from("DATA"));
+    let v1: Vec<_> = match arg1 {
+        Some(e) => {
+            let f = e.evaluate(record)?;
+            arg_str!(f, ScalarFunctionType::Trim, 1)?.chars().collect()
+        }
+        _ => vec![' '],
+    };
 
-    assert_eq!(
-        evaluate_ucase(&s, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        s_output
-    );
-    assert_eq!(
-        evaluate_ucase(&t, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        t_output
-    );
+    Ok(Field::String(v0.trim_matches::<&[char]>(&v1).to_string()))
 }
