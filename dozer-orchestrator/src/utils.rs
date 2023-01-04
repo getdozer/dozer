@@ -6,7 +6,7 @@ use dozer_types::models::{
 use std::path::PathBuf;
 
 pub fn get_pipeline_dir(config: Config) -> PathBuf {
-    PathBuf::from(get_pipeline_config(config).home_dir)
+    PathBuf::from(format!("{:}/pipeline", config.home_dir))
 }
 pub fn get_pipeline_config(config: Config) -> ApiPipelineInternal {
     config

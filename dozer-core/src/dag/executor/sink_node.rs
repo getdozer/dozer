@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, path::Path, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use dozer_types::{parking_lot::RwLock, types::Schema};
-use log::info;
+use log::debug;
 
 use crate::{
     dag::{
@@ -109,7 +109,7 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        info!("[{}] Checkpointing - {}", self.node_handle, epoch);
+        debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
         self.sink.commit(epoch, &self.master_tx)?;
         self.state_writer.store_commit_info(epoch)
     }

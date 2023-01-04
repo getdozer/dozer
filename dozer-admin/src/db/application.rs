@@ -9,7 +9,7 @@ use crate::server::dozer_admin_grpc::{ApplicationInfo, Pagination};
 use diesel::{
     insert_into, AsChangeset, Identifiable, Insertable, QueryDsl, Queryable, RunQueryDsl,
 };
-use dozer_types::models::app_config;
+use dozer_types::models::app_config::{self, default_home_dir};
 use schema::apps::dsl::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -18,6 +18,8 @@ use std::error::Error;
 pub struct Application {
     pub(crate) id: String,
     pub(crate) name: String,
+    pub(crate) home_dir: Option<String>,
+    pub(crate) flags: Option<String>,
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
 }
@@ -26,13 +28,17 @@ pub struct Application {
 struct NewApplication {
     id: String,
     name: String,
+    home_dir: Option<String>,
+    flags: Option<String>,
 }
 impl TryFrom<Application> for ApplicationInfo {
     type Error = Box<dyn Error>;
     fn try_from(item: Application) -> Result<Self, Self::Error> {
+        let default_home_dir = default_home_dir();
         Ok(ApplicationInfo {
             id: item.id,
             name: item.name,
+            home_dir: item.home_dir.unwrap_or(default_home_dir),
             created_at: item.created_at,
             updated_at: item.updated_at,
         })
@@ -58,6 +64,8 @@ impl AppDbService {
         let new_app = NewApplication {
             id: app.to_owned().id,
             name: app.to_owned().name,
+            home_dir: Some(app.home_dir),
+            flags: None,
         };
         let mut db = pool.get()?;
         let _inserted = insert_into(apps).values(&new_app).execute(&mut db);
@@ -140,6 +148,7 @@ impl Persistable<'_, app_config::Config> for app_config::Config {
         let app_info = ApplicationInfo {
             id: app_id.to_owned(),
             name: self.app_name.to_owned(),
+            home_dir: default_home_dir(),
             ..Default::default()
         };
         AppDbService::save(app_info, pool.clone())?;

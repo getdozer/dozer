@@ -3,6 +3,8 @@ PRAGMA foreign_keys = ON;
 create table apps (
     id TEXT NOT NULL PRIMARY KEY,
     name TEXT not null,
+    home_dir TEXT,
+    flags TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -53,11 +55,12 @@ create table source_endpoints (
 create table configs (
     id TEXT NOT NULL PRIMARY KEY,
     app_id TEXT not null,
-    rest TEXT NOT NULL,
-    grpc TEXT NOT NULL,
-    api_internal TEXT NOT NULL,
-    pipeline_internal TEXT NOT NULL,
-    auth BOOLEAN NOT NULL,
+    api_security TEXT,
+    rest TEXT,
+    grpc TEXT,
+    auth BOOLEAN,
+    api_internal TEXT,
+    pipeline_internal TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     FOREIGN KEY(app_id) REFERENCES apps(id)

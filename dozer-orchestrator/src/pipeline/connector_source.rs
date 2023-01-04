@@ -135,10 +135,15 @@ impl Source for ConnectorSource {
 
         let ingestor = self.ingestor.clone();
         let tables = self.tables.clone();
-        let t = thread::spawn(move || -> Result<(), ConnectorError> {
+        let con_fn = move || -> Result<(), ConnectorError> {
             connector.initialize(ingestor, Some(tables))?;
             connector.start()?;
             Ok(())
+        };
+        let t = thread::spawn(|| {
+            if let Err(e) = con_fn() {
+                std::panic::panic_any(e);
+            }
         });
 
         loop {
@@ -164,9 +169,7 @@ impl Source for ConnectorSource {
             }
         }
 
-        t.join()
-            .unwrap()
-            .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
+        t.join().unwrap();
 
         Ok(())
     }
