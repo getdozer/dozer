@@ -1,6 +1,8 @@
 use clap::Parser;
 use cli::{cli_process::CliProcess, load_config, types::Cli};
 use errors::AdminError;
+
+use crate::cli::types::Commands;
 extern crate diesel;
 pub mod cli;
 pub mod db;
@@ -18,9 +20,10 @@ async fn main() -> Result<(), AdminError> {
     let mut cli_process = CliProcess {
         config: configuration,
     };
+
     if let Some(cmd) = cli.cmd {
         match cmd {
-            cli::types::Commands::Start => {
+            Commands::Start => {
                 cli_process
                     .start()
                     .await

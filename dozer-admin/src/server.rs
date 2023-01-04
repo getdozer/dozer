@@ -1,4 +1,5 @@
 use crate::{
+    cli::{utils::get_db_path, AdminCliConfig},
     db::pool::establish_connection,
     services::{
         api_config_service::ApiConfigService, application_service::AppService,
@@ -7,7 +8,6 @@ use crate::{
     },
 };
 use dotenvy::dotenv;
-use std::env;
 use tonic::{transport::Server, Request, Response, Status};
 pub mod dozer_admin_grpc {
     #![allow(clippy::derive_partial_eq_without_eq, clippy::large_enum_variant)]
@@ -301,16 +301,19 @@ impl DozerAdmin for GrpcService {
     }
 }
 
-pub async fn start_admin_server(host: String, port: u16) -> Result<(), tonic::transport::Error> {
+pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::transport::Error> {
+    let host = config.host;
+    let port = config.port;
+    let dozer_path = config.dozer_path;
     let addr = format!("{:}:{:}", host, port).parse().unwrap();
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url: String = get_db_path();
     let db_pool = establish_connection(database_url);
     let grpc_service = GrpcService {
         connection_service: ConnectionService::new(db_pool.to_owned()),
         source_service: SourceService::new(db_pool.to_owned()),
         endpoint_service: EndpointService::new(db_pool.to_owned()),
-        app_service: AppService::new(db_pool.to_owned()),
+        app_service: AppService::new(db_pool.to_owned(), dozer_path),
         api_config_service: ApiConfigService::new(db_pool.to_owned()),
     };
     let server = DozerAdminServer::new(grpc_service);
