@@ -5,7 +5,6 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
 
-
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
