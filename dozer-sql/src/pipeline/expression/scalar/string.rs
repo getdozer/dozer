@@ -1,12 +1,11 @@
 use crate::arg_str;
 
 use crate::pipeline::errors::PipelineError;
-#[cfg(test)]
-use crate::pipeline::expression::execution::Expression::Literal;
+
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
 
-use crate::pipeline::errors::PipelineError::InvalidFunctionArgumentType;
+
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 

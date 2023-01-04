@@ -1,5 +1,5 @@
 use crate::pipeline::builder::get_select;
-use crate::pipeline::errors::PipelineError;
+
 use crate::pipeline::projection::factory::ProjectionProcessorFactory;
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
@@ -55,12 +55,12 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
         new: Record::new(None, input),
     };
 
-    let r = processor
+    processor
         .process(DEFAULT_PORT_HANDLE, op, &mut fw, &mut tx, &HashMap::new())
         .unwrap();
 
     match &fw.operations[0] {
-        Operation::Insert { new } => return new.values[0].clone(),
+        Operation::Insert { new } => new.values[0].clone(),
         _ => panic!("Unable to find result value"),
     }
 }
