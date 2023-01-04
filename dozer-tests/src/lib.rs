@@ -8,6 +8,9 @@ pub use sql_tests::TestFramework;
 mod cache_tests;
 
 #[cfg(test)]
+mod e2e_tests;
+
+#[cfg(test)]
 mod init;
 
 #[cfg(test)]

@@ -15,7 +15,7 @@ dozer-sql/data
 *.mdb
 
 # Local configuration for development
-dozer-config.yaml
+/dozer-config.yaml
 dozer-admin-config.yaml
 dozer-config.test.*
 log4rs.yaml

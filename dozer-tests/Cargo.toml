@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.23.0", features = ["full"], optional = true }
 bson = { version = "2.4.0", optional = true }
 mongodb = { version = "2.3.1", optional = true }
 futures = { version = "0.3.25", optional = true }
@@ -21,6 +20,8 @@ dozer-cache = { path = "../dozer-cache" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.1"
 tempdir = "0.3.7"
+reqwest = "0.11.13"
+tokio = { version = "1.23.0", features = ["full"] }
 
 [features]
-mongodb = ["dep:tokio", "dep:bson", "dep:mongodb", "dep:futures"]
+mongodb = ["dep:bson", "dep:mongodb", "dep:futures"]
