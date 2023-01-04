@@ -164,7 +164,9 @@ impl Orchestrator for SimpleOrchestrator {
         let (sender, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
         let _intern_pipeline_thread = thread::spawn(move || {
-            _ = start_internal_pipeline_server(internal_app_config, receiver);
+            if let Err(e) = start_internal_pipeline_server(internal_app_config, receiver) {
+                std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
+            }
         });
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
