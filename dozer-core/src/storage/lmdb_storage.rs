@@ -84,7 +84,7 @@ impl LmdbEnvironmentManager {
 pub struct SharedTransaction(Arc<RwLock<LmdbExclusiveTransaction>>);
 
 impl SharedTransaction {
-    fn new(inner: LmdbExclusiveTransaction) -> Self {
+    pub fn new(inner: LmdbExclusiveTransaction) -> Self {
         Self(Arc::new(RwLock::new(inner)))
     }
 

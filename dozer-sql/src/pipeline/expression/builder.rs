@@ -57,6 +57,9 @@ impl ExpressionBuilder {
             SqlExpr::Identifier(ident) => self.parse_sql_column(&[ident.clone()], schema),
             SqlExpr::CompoundIdentifier(ident) => self.parse_sql_column(ident, schema),
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
+            SqlExpr::Value(SqlValue::Null) => {
+                Ok((Box::new(Expression::Literal(Field::Null)), false))
+            }
             SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
                 parse_sql_string(s)
             }

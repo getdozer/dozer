@@ -19,21 +19,21 @@ fn test_yml_content_full() -> &'static str {
     api:
       rest:
         port: 8080
-        host: "[::0]"
+        host: "0.0.0.0"
         cors: true
       grpc:
         port: 50051
-        host: "[::0]"
+        host: "0.0.0.0"
         cors: true
         web: true
       auth: false
       api_internal:
         port: 50052
-        host: '[::1]'
+        host: '0.0.0.0'
         home_dir: './.dozer/api'
       pipeline_internal:
         port: 50053
-        host: '[::1]'
+        host: '0.0.0.0'
         home_dir: './.dozer/pipeline'
     flags:
       grpc_web: true
@@ -102,11 +102,11 @@ fn test_yml_content_missing_internal_config() -> &'static str {
     api:
       rest:
         port: 8080
-        host: "[::0]"
+        host: "0.0.0.0"
         cors: true
       grpc:
         port: 50051
-        host: "[::0]"
+        host: "0.0.0.0"
         cors: true
         web: true
       auth: false
@@ -178,12 +178,12 @@ fn test_api_config() -> ApiConfig {
     ApiConfig {
         rest: Some(ApiRest {
             port: 8080,
-            host: "[::0]".to_owned(),
+            host: "0.0.0.0".to_owned(),
             cors: true,
         }),
         grpc: Some(ApiGrpc {
             port: 50051,
-            host: "[::0]".to_owned(),
+            host: "0.0.0.0".to_owned(),
             cors: true,
             web: true,
         }),
@@ -193,7 +193,7 @@ fn test_api_config() -> ApiConfig {
         }),
         pipeline_internal: Some(ApiPipelineInternal {
             port: 50053,
-            host: "[::1]".to_owned(),
+            host: "0.0.0.0".to_owned(),
             home_dir: format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned()),
         }),
         ..Default::default()

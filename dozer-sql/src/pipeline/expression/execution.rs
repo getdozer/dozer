@@ -1,6 +1,7 @@
+use crate::argv;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::expression::scalar::ScalarFunctionType;
+use crate::pipeline::expression::scalar::{get_scalar_function_type, ScalarFunctionType};
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
@@ -191,24 +192,14 @@ fn get_aggregate_function_type(
     match function {
         AggregateFunctionType::Avg => Ok(FieldType::Float),
         AggregateFunctionType::Count => Ok(FieldType::Int),
-        AggregateFunctionType::Max => args.get(0).unwrap().get_type(schema),
-        AggregateFunctionType::Median => args.get(0).unwrap().get_type(schema),
-        AggregateFunctionType::Min => args.get(0).unwrap().get_type(schema),
-        AggregateFunctionType::Sum => args.get(0).unwrap().get_type(schema),
+        AggregateFunctionType::Max => argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema),
+        AggregateFunctionType::Median => {
+            argv!(args, 0, AggregateFunctionType::Median)?.get_type(schema)
+        }
+        AggregateFunctionType::Min => argv!(args, 0, AggregateFunctionType::Min)?.get_type(schema),
+        AggregateFunctionType::Sum => argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema),
         AggregateFunctionType::Stddev => Ok(FieldType::Float),
         AggregateFunctionType::Variance => Ok(FieldType::Float),
-    }
-}
-
-fn get_scalar_function_type(
-    function: &ScalarFunctionType,
-    args: &[Expression],
-    schema: &Schema,
-) -> Result<FieldType, PipelineError> {
-    match function {
-        ScalarFunctionType::Abs => args.get(0).unwrap().get_type(schema),
-        ScalarFunctionType::Round => Ok(FieldType::Int),
-        ScalarFunctionType::Ucase => args.get(0).unwrap().get_type(schema),
     }
 }
 
