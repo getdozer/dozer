@@ -335,34 +335,6 @@ fn parse_compound_identifier(
     }
 }
 
-// fn get_constraint_keys(expression: SqlExpr) -> Result<Ident, PipelineError> {
-//     match expression {
-//         SqlExpr::BinaryOp { left, op, right } => match op {
-//             BinaryOperator::Eq => {
-//                 let left_ident = match *left {
-//                     SqlExpr::Identifier(ident) => ident,
-//                     _ => {
-//                         return Err(PipelineError::InvalidQuery(
-//                             "Invalid Join Constraint".to_string(),
-//                         ));
-//                     }
-//                 };
-//                 Ok(left_ident)
-//             }
-//             _ => {
-//                 return Err(PipelineError::InvalidQuery(
-//                     "Invalid Join Constraint".to_string(),
-//                 ));
-//             }
-//         },
-//         _ => {
-//             return Err(PipelineError::InvalidQuery(
-//                 "Invalid Join Constraint".to_string(),
-//             ));
-//         }
-//     }
-// }
-
 fn get_join_table(relation: &TableFactor, schema: &Schema) -> Result<JoinTable, PipelineError> {
     Ok(JoinTable::from(relation, schema))
 }
