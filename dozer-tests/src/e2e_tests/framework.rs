@@ -27,9 +27,16 @@ impl Framework {
 
     pub async fn run_test_case(&self, case_dir: PathBuf) {
         info!("Testing case: {:?}", case_dir);
-
         // Find config.
         let config_path = find_config_path(&case_dir);
+        //prepare docker
+        let docker_path = Path::new(&case_dir).join("docker/docker-compose.yaml");
+        if docker_path.exists() {
+            run_command(
+                "docker",
+                &["compose", "-f", &docker_path.to_str().unwrap(), "up", "-d"],
+            );
+        }
 
         // Parse expectations.
         let expectations = Expectation::load_from_case_dir(&case_dir);
