@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use dozer_core::dag::errors::ExecutionError::InternalError;
 
-use super::join::{JoinExecutor, JoinTable};
+use super::join::{get_lookup_key, JoinExecutor, JoinTable};
 
 /// Cartesian Product Processor
 #[derive(Debug)]
@@ -56,7 +56,7 @@ impl ProductProcessor {
         &self,
         from_port: PortHandle,
         record: &Record,
-        txn: &SharedTransaction,
+        transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<Vec<Record>, ExecutionError> {
         // Get the input Table based on the port of the incoming message
@@ -66,22 +66,36 @@ impl ProductProcessor {
             let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
             if let Some(left_join) = &input_table.left {
+                // generate the key with the fields of the left table used in the join contstraint
+                let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
+                // generate the key with theprimary key fields of the left table
+                let lookup_key: Vec<u8> = get_lookup_key(record, &input_table.schema)?;
+                // Update the Join index
+                left_join.update_right_index(&join_key, &lookup_key, database, transaction)?;
+
                 records = left_join.execute_left(
                     records,
-                    &input_table.schema,
+                    &join_key,
                     database,
-                    txn,
+                    transaction,
                     reader,
                     &self.join_tables,
                 )?;
             }
 
             if let Some(right_join) = &input_table.right {
+                // generate the key with the fields of the left table used in the join contstraint
+                let join_key: Vec<u8> = right_join.get_left_record_join_key(record)?;
+                // generate the key with theprimary key fields of the left table
+                let lookup_key: Vec<u8> = get_lookup_key(record, &input_table.schema)?;
+                // Update the Join index
+                right_join.update_left_index(&join_key, &lookup_key, database, transaction)?;
+
                 records = right_join.execute_right(
                     records,
-                    &input_table.schema,
+                    &join_key,
                     database,
-                    txn,
+                    transaction,
                     reader,
                     &self.join_tables,
                 )?;

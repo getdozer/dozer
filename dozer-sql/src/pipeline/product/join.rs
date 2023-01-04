@@ -50,7 +50,7 @@ pub trait JoinExecutor: Send + Sync {
     fn execute_right(
         &self,
         records: Vec<Record>,
-        schema: &Schema,
+        join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
@@ -60,7 +60,7 @@ pub trait JoinExecutor: Send + Sync {
     fn execute_left(
         &self,
         records: Vec<Record>,
-        schema: &Schema,
+        join_key: &[u8],
         database: &Database,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
@@ -224,7 +224,7 @@ impl JoinExecutor for JoinOperator {
     fn execute_right(
         &self,
         mut records: Vec<Record>,
-        schema: &Schema,
+        join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
@@ -236,14 +236,8 @@ impl JoinExecutor for JoinOperator {
             .ok_or(ExecutionError::InvalidPortHandle(self.right_table))?;
 
         for record in records.iter_mut() {
-            // generate the key with the fields of the left table used in the join contstraint
-            let join_key: Vec<u8> = self.get_left_record_join_key(record)?;
-            // generate the key with theprimary key fields of the left table
-            let lookup_key: Vec<u8> = get_lookup_key(record, schema)?;
-            self.update_left_index(&join_key, &lookup_key, db, transaction)?;
-
             // retrieve the lookup keys for the table on the right side of the join
-            let right_keys = self.get_right_join_keys(&join_key, db, transaction)?;
+            let right_keys = self.get_right_join_keys(join_key, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
             for right_lookup_key in right_keys.iter() {
@@ -282,7 +276,7 @@ impl JoinExecutor for JoinOperator {
     fn execute_left(
         &self,
         mut records: Vec<Record>,
-        schema: &Schema,
+        join_key: &[u8],
         db: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
@@ -294,14 +288,8 @@ impl JoinExecutor for JoinOperator {
             .ok_or(ExecutionError::InvalidPortHandle(self.left_table))?;
 
         for record in records.iter_mut() {
-            // generate the key with the fields of the left table used in the join contstraint
-            let join_key: Vec<u8> = self.get_right_record_join_key(record)?;
-            // generate the key with theprimary key fields of the left table
-            let lookup_key: Vec<u8> = get_lookup_key(record, schema)?;
-            self.update_right_index(&join_key, &lookup_key, db, transaction)?;
-
             // retrieve the lookup keys for the table on the right side of the join
-            let left_keys = self.get_left_join_keys(&join_key, db, transaction)?;
+            let left_keys = self.get_left_join_keys(join_key, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
             for left_lookup_key in left_keys.iter() {
