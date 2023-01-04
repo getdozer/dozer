@@ -1,26 +1,26 @@
-use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidFunctionArgumentType;
+use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::ScalarFunctionType;
 use dozer_types::types::{FieldType, Schema};
 
 pub(crate) fn validate_arg_type(
     arg: &Expression,
-    expected: FieldType,
+    expected: Vec<FieldType>,
     schema: &Schema,
     fct: ScalarFunctionType,
     idx: usize,
-) -> Result<(), PipelineError> {
+) -> Result<FieldType, PipelineError> {
     let arg_t = arg.get_type(schema)?;
-    if arg_t != expected {
+    if !expected.contains(&arg_t) {
         Err(InvalidFunctionArgumentType(
             fct.to_string(),
             arg_t,
-            expected,
+            FieldTypes::new(expected),
             idx,
         ))
     } else {
-        Ok(())
+        Ok(arg_t)
     }
 }
 

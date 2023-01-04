@@ -1,10 +1,30 @@
 #![allow(clippy::enum_variant_names)]
+
 use dozer_core::dag::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Field, FieldType};
+use std::fmt::{Display, Formatter};
 use thiserror::Error;
+
+#[derive(Debug, Clone)]
+pub struct FieldTypes {
+    types: Vec<FieldType>,
+}
+
+impl FieldTypes {
+    pub fn new(types: Vec<FieldType>) -> Self {
+        Self { types }
+    }
+}
+
+impl Display for FieldTypes {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str_list: Vec<String> = self.types.iter().map(|e| e.to_string()).collect();
+        f.write_str(str_list.join(", ").as_str())
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum PipelineError {
@@ -32,8 +52,10 @@ pub enum PipelineError {
     InvalidFunctionArgument(String, Field, usize),
     #[error("Not enough arguments for function {0}()")]
     NotEnoughArguments(String),
-    #[error("Invalid argument type for function {0}(): type: {1}, expected: {2}, index: {3}")]
-    InvalidFunctionArgumentType(String, FieldType, FieldType, usize),
+    #[error(
+        "Invalid argument type for function {0}(): type: {1}, expected types: {2}, index: {3}"
+    )]
+    InvalidFunctionArgumentType(String, FieldType, FieldTypes, usize),
 
     // Error forwarding
     #[error(transparent)]

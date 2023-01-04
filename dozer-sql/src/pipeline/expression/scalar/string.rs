@@ -26,16 +26,16 @@ pub(crate) fn validate_concat(
     arg1: &Expression,
     schema: &Schema,
 ) -> Result<FieldType, PipelineError> {
-    validate_arg_type(
+    let _arg0 = validate_arg_type(
         arg0,
-        FieldType::String,
+        vec![FieldType::String],
         schema,
         ScalarFunctionType::Concat,
         0,
     )?;
-    validate_arg_type(
+    let _arg1 = validate_arg_type(
         arg1,
-        FieldType::String,
+        vec![FieldType::String],
         schema,
         ScalarFunctionType::Concat,
         1,
