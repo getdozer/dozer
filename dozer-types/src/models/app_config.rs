@@ -37,7 +37,6 @@ pub struct Flags {
     // http1 + web support for grpc. This is required for browser clients.
     #[prost(bool, tag = "2", default = true)]
     pub grpc_web: bool,
-
     // push events enabled. Currently unstable.
     #[prost(bool, tag = "3", default = false)]
     pub push_events: bool,
@@ -65,7 +64,7 @@ impl<'de> Deserialize<'de> for Config {
                 A: serde::de::MapAccess<'de>,
             {
                 let mut api: Option<ApiConfig> = Some(default_api_config());
-                let mut flags: Option<Flags> = Some(Default::default());
+                let mut flags: Option<Flags> = None;
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints: Vec<ApiEndpoint> = vec![];
