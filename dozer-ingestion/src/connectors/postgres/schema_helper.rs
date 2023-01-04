@@ -249,7 +249,8 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn connector_e2e_get_tables() {
+    // fn connector_e2e_get_tables() {
+    fn connector_disabled_test_e2e_get_tables() {
         let mut client = get_client();
 
         let mut rng = rand::thread_rng();
@@ -280,7 +281,8 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn connector_e2e_get_schema_with_selected_columns() {
+    // fn connector_e2e_get_schema_with_selected_columns() {
+    fn connector_disabled_test_e2e_get_schema_with_selected_columns() {
         let mut client = get_client();
 
         let mut rng = rand::thread_rng();
