@@ -3,6 +3,7 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_core::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
+use dozer_types::types::Field;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -27,6 +28,8 @@ pub enum PipelineError {
     InvalidRelation,
     #[error("Invalid relation")]
     DataTypeMismatch,
+    #[error("Invalid argument for function {0}(): argument: {1}, index: {2}")]
+    InvalidFunctionArgument(String, Field, usize),
 
     // Error forwarding
     #[error(transparent)]
