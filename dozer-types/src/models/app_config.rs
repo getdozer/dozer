@@ -78,7 +78,7 @@ impl<'de> Deserialize<'de> for Config {
                 A: serde::de::MapAccess<'de>,
             {
                 let mut api: Option<ApiConfig> = Some(default_api_config());
-                let mut flags: Option<Flags> = Some(Default::default());
+                let mut flags: Option<Flags> = None;
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints: Vec<ApiEndpoint> = vec![];
