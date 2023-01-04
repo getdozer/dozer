@@ -158,7 +158,6 @@ impl Orchestrator for SimpleOrchestrator {
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
-
         // gRPC notifier channel
         let (sender, receiver) = channel::unbounded::<PipelineResponse>();
         let internal_app_config = self.config.to_owned();
@@ -189,7 +188,7 @@ impl Orchestrator for SimpleOrchestrator {
             running,
             pipeline_home_dir,
         );
-        executor.run(Some(sender))
+        executor.run(Some(sender), self.config.flags.to_owned())
     }
 
     fn list_connectors(
@@ -300,6 +299,7 @@ impl Orchestrator for SimpleOrchestrator {
             None,
             generated_path,
             get_api_security_config(self.config.clone()),
+            self.config.flags.to_owned(),
         )?;
         let schema_manager = DagSchemaManager::new(&dag)?;
         schema_manager.prepare()?;

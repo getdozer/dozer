@@ -1,6 +1,6 @@
 use super::generator::ProtoGenerator;
 use crate::{test_utils, CacheEndpoint, PipelineDetails};
-use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::{api_security::ApiSecurity, app_config::Flags};
 use std::collections::HashMap;
 use tempdir::TempDir;
 
@@ -24,9 +24,16 @@ fn test_generate_proto_and_descriptor() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let api_security: Option<ApiSecurity> = None;
+    let flags = Flags::default();
 
-    let res =
-        ProtoGenerator::generate(tmp_dir_path, endpoint.name, details, &api_security).unwrap();
+    let res = ProtoGenerator::generate(
+        tmp_dir_path,
+        endpoint.name,
+        details,
+        &api_security,
+        &Some(flags),
+    )
+    .unwrap();
 
     let msg = res
         .descriptor
@@ -69,8 +76,15 @@ fn test_generate_proto_and_descriptor_with_security() {
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
 
     let api_security = ApiSecurity::Jwt("vDKrSDOrVY".to_owned());
-    let res = ProtoGenerator::generate(tmp_dir_path, endpoint.name, details, &Some(api_security))
-        .unwrap();
+    let flags = Flags::default();
+    let res = ProtoGenerator::generate(
+        tmp_dir_path,
+        endpoint.name,
+        details,
+        &Some(api_security),
+        &Some(flags),
+    )
+    .unwrap();
     let msg = res
         .descriptor
         .get_message_by_name("dozer.generated.films.Film");

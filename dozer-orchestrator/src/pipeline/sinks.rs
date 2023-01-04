@@ -17,6 +17,7 @@ use dozer_types::crossbeam::channel::Sender;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::app_config::Flags;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -34,6 +35,7 @@ pub struct CacheSinkFactory {
     notifier: Option<Sender<PipelineResponse>>,
     generated_path: PathBuf,
     api_security: Option<ApiSecurity>,
+    flags: Option<Flags>,
 }
 
 pub fn get_progress() -> ProgressBar {
@@ -63,6 +65,7 @@ impl CacheSinkFactory {
         notifier: Option<Sender<PipelineResponse>>,
         generated_path: PathBuf,
         api_security: Option<ApiSecurity>,
+        flags: Option<Flags>,
     ) -> Self {
         Self {
             input_ports,
@@ -71,6 +74,7 @@ impl CacheSinkFactory {
             notifier,
             generated_path,
             api_security,
+            flags,
         }
     }
     fn get_output_schema(
@@ -198,6 +202,7 @@ impl SinkFactory for CacheSinkFactory {
                 },
             },
             &self.api_security,
+            &self.flags,
         )
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 
