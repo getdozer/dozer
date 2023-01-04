@@ -61,6 +61,27 @@ impl PostgresConnector {
             schema_helper: helper,
         }
     }
+
+    fn get_lsn_with_offset_from_seq(conn_name: String, from_seq: Option<(u64, u64)>) -> Option<(PgLsn, u64)> {
+        from_seq.map_or_else(
+            || {
+                info!("[{}] Starting replication from empty database", conn_name);
+                None
+            },
+            |(lsn, checkpoint)| {
+                if lsn > 0 || checkpoint > 0 {
+                    info!(
+                        "[{}] Starting replication from checkpoint ({}/{})",
+                        conn_name, lsn, checkpoint
+                    );
+                    Some((PgLsn::from(lsn), checkpoint))
+                } else {
+                    info!("[{}] Starting replication from empty database", conn_name);
+                    None
+                }
+            },
+        )
+    }
 }
 
 impl Connector for PostgresConnector {
@@ -88,24 +109,7 @@ impl Connector for PostgresConnector {
     }
 
     fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
-        let lsn: Option<(PgLsn, u64)> = from_seq.map_or_else(
-            || {
-                info!("[{}] Starting replication from empty database", self.name);
-                None
-            },
-            |(lsn, checkpoint)| {
-                if lsn > 0 || checkpoint > 0 {
-                    info!(
-                        "[{}] Starting replication from checkpoint ({}/{})",
-                        self.name, lsn, checkpoint
-                    );
-                    Some((PgLsn::from(lsn), checkpoint))
-                } else {
-                    info!("[{}] Starting replication from empty database", self.name);
-                    None
-                }
-            },
-        );
+        let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
 
         let iterator = PostgresIterator::new(
             self.id,
