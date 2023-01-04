@@ -1,4 +1,4 @@
-use crate::pipeline::expression::tests::scalar_common::run_scalar_fct;
+use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
 
 #[test]

@@ -235,8 +235,8 @@ impl Field {
 
     pub fn as_decimal(&self) -> Option<Decimal> {
         match self {
-            Field::Decimal(d) => Some(d.clone()),
-            Field::Float(f) => Decimal::from_f64_retain(*&f.0),
+            Field::Decimal(d) => Some(*d),
+            Field::Float(f) => Decimal::from_f64_retain(f.0),
             Field::Int(i) => Decimal::from_i64(*i),
             Field::UInt(u) => Decimal::from_u64(*u),
             Field::Null => Some(Decimal::from(0)),
@@ -280,8 +280,8 @@ impl Display for Field {
             Field::Int(v) => f.write_str(&format!("{} (signed int)", v)),
             Field::Float(v) => f.write_str(&format!("{} (Float)", v)),
             Field::Boolean(v) => f.write_str(&format!("{}", v)),
-            Field::String(v) => f.write_str(&format!("{}", v)),
-            Field::Text(v) => f.write_str(&format!("{}", v)),
+            Field::String(v) => f.write_str(&v.to_string()),
+            Field::Text(v) => f.write_str(&v.to_string()),
             Field::Binary(v) => f.write_str(&format!("{:x?}", v)),
             Field::Decimal(v) => f.write_str(&format!("{} (Decimal)", v)),
             Field::Timestamp(v) => f.write_str(&format!("{}", v)),

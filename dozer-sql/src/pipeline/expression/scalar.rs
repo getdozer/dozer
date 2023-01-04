@@ -1,5 +1,6 @@
 mod number;
 mod string;
+mod tests;
 
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
@@ -8,9 +9,9 @@ use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
 use crate::pipeline::expression::scalar::string::{
     evaluate_concat, evaluate_length, evaluate_trim, evaluate_ucase,
 };
-use dozer_types::ordered_float::OrderedFloat;
+
 use dozer_types::types::{Field, FieldType, Record, Schema};
-use num_traits::Float;
+
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
@@ -71,15 +72,15 @@ impl ScalarFunctionType {
     ) -> Result<Field, PipelineError> {
         match self {
             ScalarFunctionType::Abs => {
-                evaluate_abs(argv!(&args, 0, ScalarFunctionType::Abs)?, record)
+                evaluate_abs(argv!(args, 0, ScalarFunctionType::Abs)?, record)
             }
             ScalarFunctionType::Round => evaluate_round(
-                argv!(&args, 0, ScalarFunctionType::Round)?,
+                argv!(args, 0, ScalarFunctionType::Round)?,
                 args.get(1),
                 record,
             ),
             ScalarFunctionType::Ucase => {
-                evaluate_ucase(argv!(&args, 0, ScalarFunctionType::Ucase)?, record)
+                evaluate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, record)
             }
             ScalarFunctionType::Concat => evaluate_concat(
                 argv!(args, 0, ScalarFunctionType::Concat)?,
@@ -90,7 +91,7 @@ impl ScalarFunctionType {
                 evaluate_length(argv!(args, 0, ScalarFunctionType::Length)?, record)
             }
             ScalarFunctionType::Trim => evaluate_trim(
-                argv!(&args, 0, ScalarFunctionType::Trim)?,
+                argv!(args, 0, ScalarFunctionType::Trim)?,
                 args.get(1),
                 record,
             ),
