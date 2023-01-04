@@ -94,8 +94,6 @@ impl CacheSinkFactory {
             }
         } else {
             let index = create_primary_indexes(schema.clone(), api_index)?;
-            info!("{:?}", schema.primary_index);
-            info!("{:?}", index);
             if index.is_empty() {
                 return Err(ExecutionError::FailedToGetPrimaryKey(
                     self.api_endpoint.name.clone(),
