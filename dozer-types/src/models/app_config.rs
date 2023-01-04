@@ -24,7 +24,7 @@ pub struct Config {
     #[prost(string, tag = "7")]
     #[serde(default = "default_home_dir")]
     pub home_dir: String,
-
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[prost(message, tag = "8")]
     pub flags: Option<Flags>,
 }
@@ -43,7 +43,7 @@ pub struct Flags {
     pub push_events: bool,
 }
 
-fn default_home_dir() -> String {
+pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
 }
 impl<'de> Deserialize<'de> for Config {

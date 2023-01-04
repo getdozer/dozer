@@ -12,8 +12,11 @@ use crate::diesel::ExpressionMethods;
 use crate::server::dozer_admin_grpc::Pagination;
 use diesel::{insert_into, AsChangeset, Insertable, QueryDsl, Queryable, RunQueryDsl};
 use diesel::{query_dsl::methods::FilterDsl, *};
-use dozer_types::models::api_config::{
-    ApiConfig, ApiGrpc, ApiInternal, ApiPipelineInternal, ApiRest,
+use dozer_types::models::{
+    api_config::{
+        default_api_config, ApiConfig, ApiGrpc, ApiInternal, ApiPipelineInternal, ApiRest,
+    },
+    api_security::ApiSecurity,
 };
 use schema::configs::dsl::*;
 use serde::{Deserialize, Serialize};
@@ -24,12 +27,12 @@ use std::error::Error;
 pub struct DBApiConfig {
     pub(crate) id: String,
     pub(crate) app_id: String,
-    pub(crate) rest: String,
-    pub(crate) grpc: String,
-    pub(crate) api_internal: String,
-    pub(crate) pipeline_internal: String,
-    pub(crate) auth: bool,
-
+    pub(crate) api_security: Option<String>,
+    pub(crate) rest: Option<String>,
+    pub(crate) grpc: Option<String>,
+    pub(crate) auth: Option<bool>,
+    pub(crate) api_internal: Option<String>,
+    pub(crate) pipeline_internal: Option<String>,
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
 }
@@ -38,26 +41,44 @@ pub struct DBApiConfig {
 struct NewApiConfig {
     pub(crate) id: String,
     pub(crate) app_id: String,
-    pub(crate) rest: String,
-    pub(crate) grpc: String,
-    pub(crate) api_internal: String,
-    pub(crate) pipeline_internal: String,
-    pub(crate) auth: bool,
+    pub(crate) api_security: Option<String>,
+    pub(crate) rest: Option<String>,
+    pub(crate) grpc: Option<String>,
+    pub(crate) api_internal: Option<String>,
+    pub(crate) pipeline_internal: Option<String>,
+    pub(crate) auth: Option<bool>,
 }
 impl TryFrom<DBApiConfig> for ApiConfig {
     type Error = Box<dyn Error>;
     fn try_from(item: DBApiConfig) -> Result<Self, Self::Error> {
-        let rest_value: ApiRest = serde_json::from_str(&item.rest)?;
-        let grpc_value: ApiGrpc = serde_json::from_str(&item.grpc)?;
-        let internal_api: ApiInternal = serde_json::from_str(&item.api_internal)?;
-        let internal_pipeline: ApiPipelineInternal = serde_json::from_str(&item.pipeline_internal)?;
+        let default_api_config = default_api_config();
+        let rest_value = item.rest.map_or_else(
+            || default_api_config.rest,
+            |str| serde_json::from_str::<ApiRest>(&str).ok(),
+        );
+        let grpc_value = item.grpc.map_or_else(
+            || default_api_config.grpc,
+            |str| serde_json::from_str::<ApiGrpc>(&str).ok(),
+        );
+        let internal_api = item.api_internal.map_or_else(
+            || default_api_config.api_internal,
+            |str| serde_json::from_str::<ApiInternal>(&str).ok(),
+        );
+        let internal_pipeline = item.pipeline_internal.map_or_else(
+            || default_api_config.pipeline_internal,
+            |str| serde_json::from_str::<ApiPipelineInternal>(&str).ok(),
+        );
+        let security_jwt = item.api_security.map_or_else(
+            || default_api_config.api_security,
+            |str| serde_json::from_str::<ApiSecurity>(&str).ok(),
+        );
         Ok(ApiConfig {
-            rest: Some(rest_value),
-            grpc: Some(grpc_value),
-            api_security: None,
-            api_internal: Some(internal_api),
-            pipeline_internal: Some(internal_pipeline),
-            auth: item.auth,
+            rest: rest_value,
+            grpc: grpc_value,
+            api_security: security_jwt,
+            api_internal: internal_api,
+            pipeline_internal: internal_pipeline,
+            auth: item.auth.unwrap_or_default(),
             app_id: Some(item.app_id),
             id: Some(item.id),
         })
@@ -67,10 +88,26 @@ impl TryFrom<DBApiConfig> for ApiConfig {
 impl TryFrom<ApiConfig> for NewApiConfig {
     type Error = Box<dyn Error>;
     fn try_from(item: ApiConfig) -> Result<Self, Self::Error> {
-        let rest_value = serde_json::to_string(&item.rest)?;
-        let grpc_value = serde_json::to_string(&item.grpc)?;
-        let internal_api = serde_json::to_string(&item.api_internal)?;
-        let internal_pipeline = serde_json::to_string(&item.pipeline_internal)?;
+        let rest_value = item.rest.map_or_else(
+            || None,
+            |rest_config| serde_json::to_string(&rest_config).ok(),
+        );
+        let grpc_value = item.grpc.map_or_else(
+            || None,
+            |grpc_config| serde_json::to_string(&grpc_config).ok(),
+        );
+        let internal_api = item.api_internal.map_or_else(
+            || None,
+            |api_internal_config| serde_json::to_string(&api_internal_config).ok(),
+        );
+        let internal_pipeline = item.pipeline_internal.map_or_else(
+            || None,
+            |internal_pipeline_config| serde_json::to_string(&internal_pipeline_config).ok(),
+        );
+        let api_security_config = item.api_security.map_or_else(
+            || None,
+            |iapi_security_config| serde_json::to_string(&iapi_security_config).ok(),
+        );
 
         let generated_id = uuid::Uuid::new_v4().to_string();
         let id_str = item.id.unwrap_or(generated_id);
@@ -81,7 +118,8 @@ impl TryFrom<ApiConfig> for NewApiConfig {
             grpc: grpc_value,
             api_internal: internal_api,
             pipeline_internal: internal_pipeline,
-            auth: item.auth,
+            auth: Some(item.auth),
+            api_security: api_security_config,
         })
     }
 }
