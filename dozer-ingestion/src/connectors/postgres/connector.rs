@@ -62,7 +62,10 @@ impl PostgresConnector {
         }
     }
 
-    fn get_lsn_with_offset_from_seq(conn_name: String, from_seq: Option<(u64, u64)>) -> Option<(PgLsn, u64)> {
+    fn get_lsn_with_offset_from_seq(
+        conn_name: String,
+        from_seq: Option<(u64, u64)>,
+    ) -> Option<(PgLsn, u64)> {
         from_seq.map_or_else(
             || {
                 info!("[{}] Starting replication from empty database", conn_name);
