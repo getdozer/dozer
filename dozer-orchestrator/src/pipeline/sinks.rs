@@ -94,7 +94,13 @@ impl CacheSinkFactory {
             }
         } else {
             let index = create_primary_indexes(schema.clone(), api_index)?;
-            if !schema.primary_index.eq(&index) {
+            info!("{:?}", schema.primary_index);
+            info!("{:?}", index);
+            if index.is_empty() {
+                return Err(ExecutionError::FailedToGetPrimaryKey(
+                    self.api_endpoint.name.clone(),
+                ));
+            } else if !schema.primary_index.eq(&index) {
                 return Err(ExecutionError::MismatchPrimaryKey(
                     self.api_endpoint.name.clone(),
                 ));
