@@ -90,13 +90,13 @@ pub struct JoinOperator {
     _operator: JoinOperatorType,
 
     /// relation on the right side of the JOIN
-    right_table: PortHandle,
+    pub right_table: PortHandle,
 
     /// key on the right side of the JOIN
     left_join_key_indexes: Vec<usize>,
 
     /// relation on the left side of the JOIN
-    left_table: PortHandle,
+    pub left_table: PortHandle,
 
     /// key on the left side of the JOIN
     right_join_key_indexes: Vec<usize>,

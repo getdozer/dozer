@@ -65,7 +65,9 @@ impl ProductProcessor {
 
             let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
 
-            if let Some(left_join) = &input_table.left {
+            let mut input_left_join = &input_table.left;
+
+            while let Some(left_join) = input_left_join {
                 // generate the key with the fields of the left table used in the join contstraint
                 let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
                 // generate the key with theprimary key fields of the left table
@@ -81,9 +83,17 @@ impl ProductProcessor {
                     reader,
                     &self.join_tables,
                 )?;
+
+                let next_table = self
+                    .join_tables
+                    .get(&left_join.left_table)
+                    .ok_or(ExecutionError::InvalidPortHandle(left_join.left_table))?;
+                input_left_join = &next_table.left;
             }
 
-            if let Some(right_join) = &input_table.right {
+            let mut input_right_join = &input_table.right;
+
+            while let Some(right_join) = input_right_join {
                 // generate the key with the fields of the left table used in the join contstraint
                 let join_key: Vec<u8> = right_join.get_left_record_join_key(record)?;
                 // generate the key with theprimary key fields of the left table
@@ -99,6 +109,12 @@ impl ProductProcessor {
                     reader,
                     &self.join_tables,
                 )?;
+
+                let next_table = self
+                    .join_tables
+                    .get(&right_join.right_table)
+                    .ok_or(ExecutionError::InvalidPortHandle(right_join.left_table))?;
+                input_right_join = &next_table.right;
             }
 
             return Ok(records);
