@@ -1,9 +1,11 @@
 use crate::errors::types::DeserializationError;
 use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use serde::{self, Deserialize, Serialize};
 use std::borrow::Cow;
+use std::fmt::{Display, Formatter};
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -172,6 +174,8 @@ impl Field {
     pub fn as_uint(&self) -> Option<u64> {
         match self {
             Field::UInt(i) => Some(*i),
+            Field::Int(i) => u64::from_i64(*i),
+            Field::Null => Some(0_u64),
             _ => None,
         }
     }
@@ -179,6 +183,8 @@ impl Field {
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Field::Int(i) => Some(*i),
+            Field::UInt(u) => i64::from_u64(*u),
+            Field::Null => Some(0_i64),
             _ => None,
         }
     }
@@ -186,6 +192,10 @@ impl Field {
     pub fn as_float(&self) -> Option<f64> {
         match self {
             Field::Float(f) => Some(f.0),
+            Field::Decimal(d) => d.to_f64(),
+            Field::UInt(u) => f64::from_u64(*u),
+            Field::Int(i) => f64::from_i64(*i),
+            Field::Null => Some(0_f64),
             _ => None,
         }
     }
@@ -193,6 +203,7 @@ impl Field {
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
             Field::Boolean(b) => Some(*b),
+            Field::Null => Some(false),
             _ => None,
         }
     }
@@ -200,6 +211,8 @@ impl Field {
     pub fn as_string(&self) -> Option<&str> {
         match self {
             Field::String(s) => Some(s),
+            Field::Text(t) => Some(t),
+            Field::Null => Some(""),
             _ => None,
         }
     }
@@ -207,6 +220,8 @@ impl Field {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Field::Text(s) => Some(s),
+            Field::String(s) => Some(s),
+            Field::Null => Some(""),
             _ => None,
         }
     }
@@ -218,9 +233,13 @@ impl Field {
         }
     }
 
-    pub fn as_decimal(&self) -> Option<&Decimal> {
+    pub fn as_decimal(&self) -> Option<Decimal> {
         match self {
-            Field::Decimal(d) => Some(d),
+            Field::Decimal(d) => Some(*d),
+            Field::Float(f) => Decimal::from_f64_retain(f.0),
+            Field::Int(i) => Decimal::from_i64(*i),
+            Field::UInt(u) => Decimal::from_u64(*u),
+            Field::Null => Some(Decimal::from(0)),
             _ => None,
         }
     }
@@ -250,6 +269,25 @@ impl Field {
         match self {
             Field::Null => Some(()),
             _ => None,
+        }
+    }
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Field::UInt(v) => f.write_str(&format!("{} (unsigned int)", v)),
+            Field::Int(v) => f.write_str(&format!("{} (signed int)", v)),
+            Field::Float(v) => f.write_str(&format!("{} (Float)", v)),
+            Field::Boolean(v) => f.write_str(&format!("{}", v)),
+            Field::String(v) => f.write_str(&v.to_string()),
+            Field::Text(v) => f.write_str(&v.to_string()),
+            Field::Binary(v) => f.write_str(&format!("{:x?}", v)),
+            Field::Decimal(v) => f.write_str(&format!("{} (Decimal)", v)),
+            Field::Timestamp(v) => f.write_str(&format!("{}", v)),
+            Field::Date(v) => f.write_str(&format!("{}", v)),
+            Field::Bson(v) => f.write_str(&format!("{:x?}", v)),
+            Field::Null => f.write_str("NULL"),
         }
     }
 }
@@ -286,6 +324,24 @@ pub enum FieldType {
     Timestamp,
     Date,
     Bson,
+}
+
+impl Display for FieldType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FieldType::UInt => f.write_str("unsigned int"),
+            FieldType::Int => f.write_str("int"),
+            FieldType::Float => f.write_str("float"),
+            FieldType::Boolean => f.write_str("boolean"),
+            FieldType::String => f.write_str("string"),
+            FieldType::Text => f.write_str("text"),
+            FieldType::Binary => f.write_str("binary"),
+            FieldType::Decimal => f.write_str("decimal"),
+            FieldType::Timestamp => f.write_str("timestamp"),
+            FieldType::Date => f.write_str("date"),
+            FieldType::Bson => f.write_str("bson"),
+        }
+    }
 }
 
 /// Can't put it in `tests` module because of <https://github.com/rust-lang/cargo/issues/8379>
