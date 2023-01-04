@@ -11,10 +11,11 @@ pub(crate) fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field,
     match value {
         Field::String(s) => Ok(Field::String(s.to_uppercase())),
         Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
-        _ => Err(PipelineError::InvalidFunction(format!(
-            "UCASE() for {:?}",
-            value
-        ))),
+        _ => Err(PipelineError::InvalidFunctionArgument(
+            ScalarFunctionType::Ucase.to_string(),
+            value,
+            0,
+        )),
     }
 }
 
@@ -29,6 +30,12 @@ pub(crate) fn evaluate_concat(
         arg_str!(f1, ScalarFunctionType::Concat, 1)?,
     );
     Ok(Field::String(v0.to_owned() + v1))
+}
+
+pub(crate) fn evaluate_length(arg0: &Expression, record: &Record) -> Result<Field, PipelineError> {
+    let f0 = arg0.evaluate(record)?;
+    let v0 = arg_str!(f0, ScalarFunctionType::Concat, 0)?;
+    Ok(Field::UInt(v0.len() as u64))
 }
 
 #[test]

@@ -1,17 +1,22 @@
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::InvalidFunctionArgument;
+use crate::pipeline::expression::execution::Expression::Literal;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::scalar::ScalarFunctionType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, Record};
-use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use crate::pipeline::expression::execution::Expression::Literal;
 use num_traits::Float;
-
 
 pub(crate) fn evaluate_abs(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
     match value {
         Field::Int(i) => Ok(Field::Int(i.abs())),
         Field::Float(f) => Ok(Field::Float(f.abs())),
-        _ => Err(PipelineError::InvalidOperandType("ABS()".to_string())),
+        _ => Err(PipelineError::InvalidFunctionArgument(
+            ScalarFunctionType::Abs.to_string(),
+            value,
+            0,
+        )),
     }
 }
 
@@ -35,11 +40,13 @@ pub(crate) fn evaluate_round(
         Field::Int(i) => Ok(Field::Int(i)),
         Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
         Field::Decimal(_) => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
-        _ => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
+        _ => Err(InvalidFunctionArgument(
+            ScalarFunctionType::Round.to_string(),
+            value,
+            0,
+        )),
     }
 }
-
-
 
 #[test]
 fn test_round() {
@@ -93,5 +100,4 @@ fn test_round() {
         evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(3.0))
     );
-
 }

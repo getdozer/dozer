@@ -5,9 +5,11 @@ use crate::argv;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
-use crate::pipeline::expression::scalar::string::{evaluate_concat, evaluate_ucase};
+use crate::pipeline::expression::scalar::string::{
+    evaluate_concat, evaluate_length, evaluate_ucase,
+};
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, Record};
+use dozer_types::types::{Field, FieldType, Record, Schema};
 use num_traits::Float;
 use std::fmt::{Display, Formatter};
 
@@ -17,6 +19,7 @@ pub enum ScalarFunctionType {
     Round,
     Ucase,
     Concat,
+    Length,
 }
 
 impl Display for ScalarFunctionType {
@@ -26,7 +29,22 @@ impl Display for ScalarFunctionType {
             ScalarFunctionType::Round => f.write_str("ROUND"),
             ScalarFunctionType::Ucase => f.write_str("UCASE"),
             ScalarFunctionType::Concat => f.write_str("CONCAT"),
+            ScalarFunctionType::Length => f.write_str("LENGTH"),
         }
+    }
+}
+
+pub(crate) fn get_scalar_function_type(
+    function: &ScalarFunctionType,
+    args: &[Expression],
+    schema: &Schema,
+) -> Result<FieldType, PipelineError> {
+    match function {
+        ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
+        ScalarFunctionType::Round => Ok(FieldType::Int),
+        ScalarFunctionType::Ucase => argv!(args, 0, ScalarFunctionType::Ucase)?.get_type(schema),
+        ScalarFunctionType::Concat => Ok(FieldType::String),
+        ScalarFunctionType::Length => Ok(FieldType::UInt),
     }
 }
 
@@ -37,6 +55,7 @@ impl ScalarFunctionType {
             "round" => Ok(ScalarFunctionType::Round),
             "ucase" => Ok(ScalarFunctionType::Ucase),
             "concat" => Ok(ScalarFunctionType::Concat),
+            "length" => Ok(ScalarFunctionType::Length),
             _ => Err(PipelineError::InvalidFunction(name.to_string())),
         }
     }
@@ -63,6 +82,9 @@ impl ScalarFunctionType {
                 argv!(args, 1, ScalarFunctionType::Concat)?,
                 record,
             ),
+            ScalarFunctionType::Length => {
+                evaluate_length(argv!(args, 0, ScalarFunctionType::Length)?, record)
+            }
         }
     }
 }

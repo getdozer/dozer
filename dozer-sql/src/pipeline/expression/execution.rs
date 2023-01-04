@@ -1,7 +1,7 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::expression::scalar::ScalarFunctionType;
+use crate::pipeline::expression::scalar::{get_scalar_function_type, ScalarFunctionType};
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
@@ -200,19 +200,6 @@ fn get_aggregate_function_type(
         AggregateFunctionType::Sum => argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema),
         AggregateFunctionType::Stddev => Ok(FieldType::Float),
         AggregateFunctionType::Variance => Ok(FieldType::Float),
-    }
-}
-
-fn get_scalar_function_type(
-    function: &ScalarFunctionType,
-    args: &[Expression],
-    schema: &Schema,
-) -> Result<FieldType, PipelineError> {
-    match function {
-        ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
-        ScalarFunctionType::Round => Ok(FieldType::Int),
-        ScalarFunctionType::Ucase => argv!(args, 0, ScalarFunctionType::Ucase)?.get_type(schema),
-        ScalarFunctionType::Concat => Ok(FieldType::String),
     }
 }
 
