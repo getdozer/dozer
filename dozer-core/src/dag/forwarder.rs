@@ -22,9 +22,6 @@ use std::time::{Duration, Instant};
 pub(crate) struct StateWriter {
     meta_db: Database,
     record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
-    output_schemas: HashMap<PortHandle, Schema>,
-    input_schemas: HashMap<PortHandle, Schema>,
-    input_ports: Option<Vec<PortHandle>>,
     tx: SharedTransaction,
 }
 
@@ -33,9 +30,7 @@ impl StateWriter {
         meta_db: Database,
         dbs: HashMap<PortHandle, StateOptions>,
         tx: SharedTransaction,
-        input_ports: Option<Vec<PortHandle>>,
         output_schemas: HashMap<PortHandle, Schema>,
-        input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Self, ExecutionError> {
         let mut record_writers = HashMap::<PortHandle, Box<dyn RecordWriter>>::new();
         for (port, options) in dbs {
@@ -52,10 +47,7 @@ impl StateWriter {
         Ok(Self {
             meta_db,
             record_writers,
-            output_schemas,
-            input_schemas,
             tx,
-            input_ports,
         })
     }
 
@@ -83,23 +75,6 @@ impl StateWriter {
         }
         self.tx.write().commit_and_renew()?;
         Ok(())
-    }
-
-    pub(crate) fn get_all_input_schemas(&self) -> Option<HashMap<PortHandle, Schema>> {
-        match &self.input_ports {
-            Some(input_ports) => {
-                let count = input_ports
-                    .iter()
-                    .filter(|e| !self.input_schemas.contains_key(*e))
-                    .count();
-                if count == 0 {
-                    Some(self.input_schemas.clone())
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
     }
 }
 
