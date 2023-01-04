@@ -94,25 +94,77 @@ impl Source for UserTestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..1000 {
-            fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(n.try_into().unwrap()),
-                            Field::String(format!("User {}", n)),
-                            Field::Int(0),
-                            Field::Float(OrderedFloat(5.5)),
-                        ],
-                    ),
-                },
-                DEFAULT_PORT_HANDLE,
-            )
-            .unwrap();
-        }
+        fw.send(
+            0,
+            0,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(0),
+                        Field::String("Alice".to_string()),
+                        Field::Int(0),
+                        Field::Float(OrderedFloat(1000.0)),
+                    ],
+                ),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
+
+        fw.send(
+            1,
+            0,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(1),
+                        Field::String("Bob".to_string()),
+                        Field::Int(0),
+                        Field::Float(OrderedFloat(1000.0)),
+                    ],
+                ),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
+
+        fw.send(
+            2,
+            0,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(2),
+                        Field::String("Craig".to_string()),
+                        Field::Int(1),
+                        Field::Float(OrderedFloat(1000.0)),
+                    ],
+                ),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
+
+        fw.send(
+            3,
+            0,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(3),
+                        Field::String("Dan".to_string()),
+                        Field::Int(0),
+                        Field::Float(OrderedFloat(1000.0)),
+                    ],
+                ),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
 
         loop {
             if !self.running.load(Ordering::Relaxed) {
@@ -184,17 +236,25 @@ impl Source for DepartmentTestSource {
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..10 {
-            fw.send(
-                n,
-                0,
-                Operation::Insert {
-                    new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
-                },
-                DEFAULT_PORT_HANDLE,
-            )
-            .unwrap();
-        }
+        fw.send(
+            0,
+            0,
+            Operation::Insert {
+                new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
+
+        fw.send(
+            1,
+            0,
+            Operation::Insert {
+                new: Record::new(None, vec![Field::Int(1), Field::String("SG".to_string())]),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
 
         loop {
             if !self.running.load(Ordering::Relaxed) {
@@ -319,7 +379,7 @@ fn test_pipeline_builder() {
             .into_iter()
             .collect(),
     ));
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(10, latch)), "sink");
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(4, latch)), "sink");
     pipeline
         .connect_nodes(
             "aggregation",

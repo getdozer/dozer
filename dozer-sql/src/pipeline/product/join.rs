@@ -123,8 +123,12 @@ impl JoinOperator {
         }
     }
 
-    pub fn get_record_join_key(&self, record: &Record) -> Result<Vec<u8>, TypeError> {
+    pub fn get_left_record_join_key(&self, record: &Record) -> Result<Vec<u8>, TypeError> {
         get_composite_key(record, self.left_join_key_indexes.as_slice())
+    }
+
+    pub fn get_right_record_join_key(&self, record: &Record) -> Result<Vec<u8>, TypeError> {
+        get_composite_key(record, self.right_join_key_indexes.as_slice())
     }
 
     fn get_right_join_keys(
@@ -233,7 +237,7 @@ impl JoinExecutor for JoinOperator {
 
         for record in records.iter_mut() {
             // generate the key with the fields of the left table used in the join contstraint
-            let join_key: Vec<u8> = self.get_record_join_key(record)?;
+            let join_key: Vec<u8> = self.get_left_record_join_key(record)?;
             // generate the key with theprimary key fields of the left table
             let lookup_key: Vec<u8> = get_lookup_key(record, schema)?;
             self.update_left_index(&join_key, &lookup_key, db, transaction)?;
@@ -242,8 +246,8 @@ impl JoinExecutor for JoinOperator {
             let right_keys = self.get_right_join_keys(&join_key, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
-            for lookup_key in right_keys.iter() {
-                if let Some(record_bytes) = reader.get(lookup_key)? {
+            for right_lookup_key in right_keys.iter() {
+                if let Some(record_bytes) = reader.get(right_lookup_key)? {
                     let right_record: Record =
                         bincode::deserialize(&record_bytes).map_err(|e| SerializationError {
                             typ: "Record".to_string(),
@@ -291,7 +295,7 @@ impl JoinExecutor for JoinOperator {
 
         for record in records.iter_mut() {
             // generate the key with the fields of the left table used in the join contstraint
-            let join_key: Vec<u8> = self.get_record_join_key(record)?;
+            let join_key: Vec<u8> = self.get_right_record_join_key(record)?;
             // generate the key with theprimary key fields of the left table
             let lookup_key: Vec<u8> = get_lookup_key(record, schema)?;
             self.update_right_index(&join_key, &lookup_key, db, transaction)?;
@@ -300,8 +304,8 @@ impl JoinExecutor for JoinOperator {
             let left_keys = self.get_left_join_keys(&join_key, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
-            for lookup_key in left_keys.iter() {
-                if let Some(record_bytes) = reader.get(lookup_key)? {
+            for left_lookup_key in left_keys.iter() {
+                if let Some(record_bytes) = reader.get(left_lookup_key)? {
                     let left_record: Record =
                         bincode::deserialize(&record_bytes).map_err(|e| SerializationError {
                             typ: "Record".to_string(),

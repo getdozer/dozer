@@ -169,9 +169,9 @@ pub fn build_join_chain(
                         JoinOperator::new(
                             JoinOperatorType::Inner,
                             (index + 1) as PortHandle,
-                            right_keys,
-                            (index) as PortHandle,
                             left_keys,
+                            (index) as PortHandle,
+                            right_keys,
                         )
                     }
                     _ => {
