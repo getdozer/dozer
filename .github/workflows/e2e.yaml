@@ -1,0 +1,38 @@
+name: TestE2E
+on:
+  push:
+    branches: [chore/docker-postgres-e2e]
+jobs:
+  test-e2e:
+    name: Run e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install stable with llvm-tools-preview
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: llvm-tools-preview
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install docker-compose
+        uses: KengoTODA/actions-setup-docker-compose@main
+        with:
+          version: '2.14.2'
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: e2e -F e2e
+        env:
+          CARGO_INCREMENTAL: "0"
+          RUSTFLAGS: "-Cinstrument-coverage"
+          LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
+          ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
+

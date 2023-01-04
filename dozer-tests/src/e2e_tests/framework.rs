@@ -30,12 +30,9 @@ impl Framework {
         // Find config.
         let config_path = find_config_path(&case_dir);
         //prepare docker
-        let docker_path = Path::new(&case_dir).join("docker/docker-compose.yaml");
+        let docker_path = Path::new(&case_dir.to_str().unwrap()).join("docker/docker-compose.yaml");
         if docker_path.exists() {
-            run_command(
-                "docker",
-                &["compose", "-f", &docker_path.to_str().unwrap(), "up", "-d"],
-            );
+            start_docker(&docker_path);
         }
 
         // Parse expectations.
@@ -51,6 +48,9 @@ impl Framework {
         } else {
             panic!("No expectations file found in case dir: {:?}", case_dir);
         }
+        if docker_path.exists() {
+            stop_docker(&docker_path);
+        }
     }
 
     async fn run_test_case_with_expectations(
@@ -59,7 +59,6 @@ impl Framework {
         expectations: &[Expectation],
     ) {
         let config = parse_config(config_path);
-
         for spawn_dozer in [spawn_dozer_same_process, spawn_dozer_two_processes] {
             // Setup cleanups.
             let mut cleanups = vec![Cleanup::RemoveDirectory(config.home_dir.clone())];
@@ -206,4 +205,23 @@ fn parse_config(config_path: &str) -> Config {
         "Failed to deserialize config file {}",
         config_path
     ))
+}
+
+fn start_docker(docker_path: &Path) {
+    let mut cmd = Command::new("docker");
+    cmd.args(&[
+        "compose",
+        "-f",
+        &docker_path.to_str().unwrap(),
+        "up",
+        "--wait",
+    ]);
+    cmd.output().expect("Failed to start docker");
+}
+
+fn stop_docker(docker_path: &Path) -> Child {
+    spawn_command(
+        "docker",
+        &["compose", "-f", &docker_path.to_str().unwrap(), "down"],
+    )
 }
