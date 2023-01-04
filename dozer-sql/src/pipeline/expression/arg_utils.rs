@@ -1,4 +1,14 @@
 #[macro_export]
+macro_rules! argv {
+    ($arr: expr, $idx: expr, $fct: expr) => {
+        match $arr.get($idx) {
+            Some(v) => Ok(v),
+            _ => Err(PipelineError::NotEnoughArguments($fct.to_string())),
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! arg_str {
     ($field: expr, $fct: expr, $idx: expr) => {
         match $field.as_string() {

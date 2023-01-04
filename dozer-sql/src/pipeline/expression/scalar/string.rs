@@ -1,22 +1,10 @@
+use crate::arg_str;
 use crate::pipeline::errors::PipelineError;
 #[cfg(test)]
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use crate::pipeline::expression::scalar::evaluate_round;
+use crate::pipeline::expression::scalar::{evaluate_round, ScalarFunctionType};
 use dozer_types::types::{Field, Record};
-
-macro_rules! arg_str {
-    ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_string() {
-            Some(e) => Ok(e),
-            _ => Err(PipelineError::InvalidFunctionArgument(
-                $fct.to_string(),
-                $field,
-                $idx,
-            )),
-        }
-    };
-}
 
 pub(crate) fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record)?;
@@ -35,20 +23,12 @@ pub(crate) fn evaluate_concat(
     arg1: &Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let v0: &str = arg_str!(arg0.evaluate(record)?, "CONCAT", 1)?;
-    let v1 = arg0.evaluate(record)?;
-
-    Ok(v1)
-    // let s0 = v0.as_string().context(Pipe)
-    //
-    // match value {
-    //     Field::String(s) => Ok(Field::String(s.to_uppercase())),
-    //     Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
-    //     _ => Err(PipelineError::InvalidFunction(format!(
-    //         "UCASE() for {:?}",
-    //         value
-    //     ))),
-    // }
+    let (f0, f1) = (arg0.evaluate(record)?, arg1.evaluate(record)?);
+    let (v0, v1) = (
+        arg_str!(f0, ScalarFunctionType::Concat, 0)?,
+        arg_str!(f1, ScalarFunctionType::Concat, 1)?,
+    );
+    Ok(Field::String(v0.to_owned() + v1))
 }
 
 #[test]

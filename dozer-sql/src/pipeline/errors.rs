@@ -30,6 +30,8 @@ pub enum PipelineError {
     DataTypeMismatch,
     #[error("Invalid argument for function {0}(): argument: {1}, index: {2}")]
     InvalidFunctionArgument(String, Field, usize),
+    #[error("Not enough arguments for function {0}()")]
+    NotEnoughArguments(String),
 
     // Error forwarding
     #[error(transparent)]
