@@ -42,18 +42,6 @@ impl ProductProcessor {
 
     fn delete(
         &self,
-        _from_port: PortHandle,
-        record: &Record,
-        _txn: &SharedTransaction,
-        _reader: &HashMap<PortHandle, RecordReader>,
-    ) -> Operation {
-        Operation::Delete {
-            old: record.clone(),
-        }
-    }
-
-    fn insert(
-        &self,
         from_port: PortHandle,
         record: &Record,
         transaction: &SharedTransaction,
@@ -67,14 +55,17 @@ impl ProductProcessor {
 
             let mut input_left_join = &input_table.left;
 
-            while let Some(left_join) = input_left_join {
+            if let Some(left_join) = input_left_join {
                 // generate the key with the fields of the left table used in the join contstraint
                 let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
                 // generate the key with theprimary key fields of the left table
                 let lookup_key: Vec<u8> = get_lookup_key(record, &input_table.schema)?;
                 // Update the Join index
-                left_join.update_right_index(&join_key, &lookup_key, database, transaction)?;
+                left_join.delete_right_index(&join_key, &lookup_key, database, transaction)?;
+            }
 
+            while let Some(left_join) = input_left_join {
+                let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
                 records = left_join.execute_left(
                     records,
                     &join_key,
@@ -99,7 +90,81 @@ impl ProductProcessor {
                 // generate the key with theprimary key fields of the left table
                 let lookup_key: Vec<u8> = get_lookup_key(record, &input_table.schema)?;
                 // Update the Join index
-                right_join.update_left_index(&join_key, &lookup_key, database, transaction)?;
+                right_join.delete_left_index(&join_key, &lookup_key, database, transaction)?;
+
+                records = right_join.execute_right(
+                    records,
+                    &join_key,
+                    database,
+                    transaction,
+                    reader,
+                    &self.join_tables,
+                )?;
+
+                let next_table = self
+                    .join_tables
+                    .get(&right_join.right_table)
+                    .ok_or(ExecutionError::InvalidPortHandle(right_join.left_table))?;
+                input_right_join = &next_table.right;
+            }
+
+            return Ok(records);
+        }
+
+        Err(ExecutionError::InvalidPortHandle(from_port))
+    }
+
+    fn insert(
+        &self,
+        from_port: PortHandle,
+        record: &Record,
+        transaction: &SharedTransaction,
+        reader: &HashMap<PortHandle, RecordReader>,
+    ) -> Result<Vec<Record>, ExecutionError> {
+        // Get the input Table based on the port of the incoming message
+        if let Some(input_table) = self.join_tables.get(&from_port) {
+            let mut records = vec![record.clone()];
+
+            let database = &self.db.ok_or(ExecutionError::InvalidDatabase)?;
+
+            let mut input_left_join = &input_table.left;
+
+            if let Some(left_join) = input_left_join {
+                // generate the key with the fields of the left table used in the join contstraint
+                let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
+                // generate the key with theprimary key fields of the left table
+                let lookup_key: Vec<u8> = get_lookup_key(record, &input_table.schema)?;
+                // Update the Join index
+                left_join.insert_right_index(&join_key, &lookup_key, database, transaction)?;
+            }
+
+            while let Some(left_join) = input_left_join {
+                let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
+                records = left_join.execute_left(
+                    records,
+                    &join_key,
+                    database,
+                    transaction,
+                    reader,
+                    &self.join_tables,
+                )?;
+
+                let next_table = self
+                    .join_tables
+                    .get(&left_join.left_table)
+                    .ok_or(ExecutionError::InvalidPortHandle(left_join.left_table))?;
+                input_left_join = &next_table.left;
+            }
+
+            let mut input_right_join = &input_table.right;
+
+            while let Some(right_join) = input_right_join {
+                // generate the key with the fields of the left table used in the join contstraint
+                let join_key: Vec<u8> = right_join.get_left_record_join_key(record)?;
+                // generate the key with theprimary key fields of the left table
+                let lookup_key: Vec<u8> = get_lookup_key(record, &input_table.schema)?;
+                // Update the Join index
+                right_join.insert_left_index(&join_key, &lookup_key, database, transaction)?;
 
                 records = right_join.execute_right(
                     records,
@@ -161,10 +226,11 @@ impl Processor for ProductProcessor {
     ) -> Result<(), ExecutionError> {
         match op {
             Operation::Delete { ref old } => {
-                let _ = fw.send(
-                    self.delete(from_port, old, txn, reader),
-                    DEFAULT_PORT_HANDLE,
-                );
+                let records = self.delete(from_port, old, txn, reader)?;
+
+                for record in records.into_iter() {
+                    let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                }
             }
             Operation::Insert { ref new } => {
                 let records = self.insert(from_port, new, txn, reader)?;

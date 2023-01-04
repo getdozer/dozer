@@ -186,6 +186,60 @@ impl Source for UserTestSource {
         )
         .unwrap();
 
+        fw.send(
+            10004,
+            0,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(10004),
+                        Field::String("Eve".to_string()),
+                        Field::Int(1),
+                        Field::Float(OrderedFloat(1.1)),
+                    ],
+                ),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
+
+        fw.send(
+            10005,
+            0,
+            Operation::Delete {
+                old: Record::new(
+                    None,
+                    vec![
+                        Field::Int(10002),
+                        Field::String("Craig".to_string()),
+                        Field::Int(1),
+                        Field::Float(OrderedFloat(1.1)),
+                    ],
+                ),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
+
+        fw.send(
+            10006,
+            0,
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![
+                        Field::Int(10006),
+                        Field::String("Frank".to_string()),
+                        Field::Int(1),
+                        Field::Float(OrderedFloat(1.5)),
+                    ],
+                ),
+            },
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
+
         loop {
             if !self.running.load(Ordering::Relaxed) {
                 break;
@@ -402,7 +456,7 @@ fn test_pipeline_builder() {
             .into_iter()
             .collect(),
     ));
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(104, latch)), "sink");
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(106, latch)), "sink");
     pipeline
         .connect_nodes(
             "aggregation",

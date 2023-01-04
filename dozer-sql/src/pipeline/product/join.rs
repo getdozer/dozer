@@ -67,7 +67,7 @@ pub trait JoinExecutor: Send + Sync {
         join_tables: &HashMap<PortHandle, JoinTable>,
     ) -> Result<Vec<Record>, ExecutionError>;
 
-    fn update_right_index(
+    fn insert_right_index(
         &self,
         key: &[u8],
         value: &[u8],
@@ -75,7 +75,23 @@ pub trait JoinExecutor: Send + Sync {
         txn: &SharedTransaction,
     ) -> Result<(), ExecutionError>;
 
-    fn update_left_index(
+    fn insert_left_index(
+        &self,
+        key: &[u8],
+        value: &[u8],
+        db: &Database,
+        txn: &SharedTransaction,
+    ) -> Result<(), ExecutionError>;
+
+    fn delete_right_index(
+        &self,
+        key: &[u8],
+        value: &[u8],
+        db: &Database,
+        txn: &SharedTransaction,
+    ) -> Result<(), ExecutionError>;
+
+    fn delete_left_index(
         &self,
         key: &[u8],
         value: &[u8],
@@ -325,7 +341,7 @@ impl JoinExecutor for JoinOperator {
         Ok(result_records)
     }
 
-    fn update_right_index(
+    fn insert_right_index(
         &self,
         key: &[u8],
         value: &[u8],
@@ -343,7 +359,7 @@ impl JoinExecutor for JoinOperator {
         Ok(())
     }
 
-    fn update_left_index(
+    fn insert_left_index(
         &self,
         key: &[u8],
         value: &[u8],
@@ -355,6 +371,40 @@ impl JoinExecutor for JoinOperator {
             PrefixTransaction::new(&mut exclusive_transaction, self.left_table as u32);
 
         prefix_transaction.put(*db, key, value)?;
+
+        Ok(())
+    }
+
+    fn delete_right_index(
+        &self,
+        key: &[u8],
+        value: &[u8],
+        db: &Database,
+        transaction: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let mut exclusive_transaction = transaction.write();
+        let mut prefix_transaction = PrefixTransaction::new(
+            &mut exclusive_transaction,
+            self.right_table as u32 | REVERSE_JOIN_FLAG,
+        );
+
+        prefix_transaction.del(*db, key, Some(value))?;
+
+        Ok(())
+    }
+
+    fn delete_left_index(
+        &self,
+        key: &[u8],
+        value: &[u8],
+        db: &Database,
+        transaction: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let mut exclusive_transaction = transaction.write();
+        let mut prefix_transaction =
+            PrefixTransaction::new(&mut exclusive_transaction, self.left_table as u32);
+
+        prefix_transaction.del(*db, key, Some(value))?;
 
         Ok(())
     }
