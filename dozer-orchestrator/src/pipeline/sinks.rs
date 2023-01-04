@@ -88,18 +88,16 @@ impl CacheSinkFactory {
             if !api_index.primary_key.is_empty() {
                 schema.primary_index = create_primary_indexes(schema.clone(), api_index)?;
             } else {
-                panic!(
-                    "{} is missing primary key for aggregation",
-                    self.api_endpoint.name
-                )
+                return Err(ExecutionError::FailedToGetPrimaryKey(
+                    self.api_endpoint.name.clone(),
+                ));
             }
         } else {
             let index = create_primary_indexes(schema.clone(), api_index)?;
             if !schema.primary_index.eq(&index) {
-                panic!(
-                    "Primary key for /{} endpoint is mismatching with output schema",
-                    self.api_endpoint.name
-                )
+                return Err(ExecutionError::MismatchPrimaryKey(
+                    self.api_endpoint.name.clone(),
+                ));
             } else {
                 schema.primary_index = index;
             }
