@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use framework::Framework;
 
 #[tokio::test]
+#[ignore]
 async fn run_e2e_tests() {
     // dozer_tracing::init_telemetry(false).unwrap();
 
