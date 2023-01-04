@@ -19,6 +19,7 @@ use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::app_config::Flags;
 use dozer_types::types::FieldType;
 use dozer_types::types::{IndexDefinition, Operation, Schema, SchemaIdentifier};
 use std::collections::hash_map::DefaultHasher;
@@ -57,6 +58,7 @@ pub struct CacheSinkFactory {
     generated_path: PathBuf,
     api_security: Option<ApiSecurity>,
     multi_pb: MultiProgress,
+    flags: Option<Flags>,
 }
 
 impl CacheSinkFactory {
@@ -68,6 +70,7 @@ impl CacheSinkFactory {
         generated_path: PathBuf,
         api_security: Option<ApiSecurity>,
         multi_pb: MultiProgress,
+        flags: Option<Flags>,
     ) -> Self {
         Self {
             input_ports,
@@ -77,6 +80,7 @@ impl CacheSinkFactory {
             generated_path,
             api_security,
             multi_pb,
+            flags,
         }
     }
 
@@ -219,6 +223,7 @@ impl SinkFactory for CacheSinkFactory {
                 },
             },
             &self.api_security,
+            &self.flags,
         )
         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
 

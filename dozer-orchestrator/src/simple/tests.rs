@@ -17,6 +17,7 @@ use dozer_types::{
     models::{
         self,
         api_endpoint::{ApiEndpoint, ApiIndex},
+        app_config::Flags,
         connection::EventsAuthentication,
     },
     types::{Field, OperationEvent, Record, Schema},
@@ -94,7 +95,8 @@ fn single_source_sink_impl(schema: Schema) {
             executor_running,
             tmp_path,
         );
-        match executor.run(None) {
+        let flags = Flags::default();
+        match executor.run(None, Some(flags)) {
             Ok(_) => {}
             Err(e) => warn!("Exiting: {:?}", e),
         }
