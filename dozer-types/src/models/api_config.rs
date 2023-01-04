@@ -91,7 +91,7 @@ fn default_pipeline_internal_port() -> u32 {
     50053
 }
 fn default_pipeline_internal_host() -> String {
-    "[::1]".to_owned()
+    "0.0.0.0".to_owned()
 }
 fn default_pipeline_internal_home_dir() -> String {
     format!("{:}/pipeline", DEFAULT_HOME_DIR.to_owned())
@@ -132,7 +132,7 @@ fn default_cors() -> bool {
 }
 
 fn default_host() -> String {
-    "[::0]".to_owned()
+    "0.0.0.0".to_owned()
 }
 pub fn default_api_config() -> ApiConfig {
     ApiConfig {

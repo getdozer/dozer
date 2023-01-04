@@ -26,6 +26,8 @@ pub enum OrchestrationError {
     ApiServerFailed(#[source] std::io::Error),
     #[error("Failed to initialize grpc server: {0}")]
     GrpcServerFailed(#[source] GRPCError),
+    #[error("Failed to initialize internal server: {0}")]
+    InternalServerFailed(#[source] tonic::transport::Error),
     #[error(
         "{0}: Failed to initialize read only cache. Has dozer been initialized (`dozer init`)?"
     )]
