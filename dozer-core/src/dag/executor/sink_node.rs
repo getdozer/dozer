@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, path::Path, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use dozer_types::{parking_lot::RwLock, types::Schema};
-use log::info;
+use log::debug;
 
 use crate::{
     dag::{
@@ -54,16 +54,14 @@ impl SinkNode {
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Self, ExecutionError> {
-        let mut sink = sink_factory.build(input_schemas.clone())?;
+        let mut sink = sink_factory.build(input_schemas)?;
         let state_meta = init_component(&node_handle, base_path, |e| sink.init(e))?;
         let master_tx = state_meta.env.create_txn()?;
         let state_writer = StateWriter::new(
             state_meta.meta_db,
             HashMap::new(),
             master_tx.clone(),
-            Some(sink_factory.get_input_ports()),
             HashMap::new(),
-            input_schemas,
         )?;
         let (port_handles, receivers) = build_receivers_lists(receivers);
         Ok(Self {
@@ -109,7 +107,7 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        info!("[{}] Checkpointing - {}", self.node_handle, epoch);
+        debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
         self.sink.commit(epoch, &self.master_tx)?;
         self.state_writer.store_commit_info(epoch)
     }

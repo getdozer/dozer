@@ -16,8 +16,10 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("Failed to initialize. {0}[/api/generated,/cache] are not empty. Use -f to clean the directory and overwrite. Warning! there will be data loss.")]
     InitializationFailed(String),
-    #[error("Failed to create home_dir. Is the path {0:?} accessible?: {1}")]
-    HomeDirectoryInitFailed(String, #[source] std::io::Error),
+    #[error("Failed to initialize pipeline_dir. Is the path {0:?} accessible?: {1}")]
+    PipelineDirectoryInitFailed(String, #[source] std::io::Error),
+    #[error("Can't locate pipeline_dir. Has dozer been initialized(dozer init) ?")]
+    PipelineDirectoryNotFound(String),
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
     #[error("Failed to initialize api server: {0}")]

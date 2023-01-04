@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path};
+use std::{fs::File, path::Path, process::Command};
 
 use super::{
     utils::{init_db_with_config, init_internal_pipeline_client, kill_process_at, reset_db},
@@ -31,6 +31,18 @@ impl CliProcess {
             }
         }
     }
+
+    fn start_ui_server(&self) {
+        let ui_path = Path::new(&self.config.ui_path);
+        if ui_path.exists() {
+            // execute command serve
+            Command::new("serve")
+                .arg("-s")
+                .arg(&self.config.ui_path)
+                .spawn()
+                .expect("Start ui server failed");
+        }
+    }
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.get_internal_config();
         let internal_pipeline_config = self.config.to_owned().pipeline_internal;
@@ -43,12 +55,12 @@ impl CliProcess {
         }
         reset_db();
         init_db_with_config(dozer_config);
+        kill_process_at(3000);
         kill_process_at(self.config.to_owned().port as u16);
-        server::start_admin_server(
-            self.config.to_owned().host,
-            self.config.to_owned().port as u16,
-        )
-        .await?;
+
+        // start ui
+        self.start_ui_server();
+        server::start_admin_server(self.config.to_owned()).await?;
         Ok(())
     }
 }

@@ -6,8 +6,6 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use std::fs;
-
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
@@ -30,7 +28,7 @@ use crate::validate;
 pub struct Executor {
     sources: Vec<Source>,
     cache_endpoints: Vec<CacheEndpoint>,
-    home_dir: PathBuf,
+    pipeline_dir: PathBuf,
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
     running: Arc<AtomicBool>,
@@ -42,12 +40,12 @@ impl Executor {
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
         running: Arc<AtomicBool>,
-        home_dir: PathBuf,
+        pipeline_dir: PathBuf,
     ) -> Self {
         Self {
             sources,
             cache_endpoints,
-            home_dir,
+            pipeline_dir,
             ingestor,
             iterator,
             running,
@@ -141,10 +139,14 @@ impl Executor {
         let running_wait = self.running.clone();
 
         let parent_dag = self.build_pipeline(notifier, PathBuf::default(), None)?;
-        let path = &self.home_dir;
-        fs::create_dir_all(path).map_err(|e| {
-            OrchestrationError::HomeDirectoryInitFailed(path.to_string_lossy().to_string(), e)
-        })?;
+        let path = &self.pipeline_dir;
+
+        if !path.exists() {
+            return Err(OrchestrationError::PipelineDirectoryNotFound(
+                path.to_string_lossy().to_string(),
+            ));
+        }
+
         let mut exec = DagExecutor::new(
             &parent_dag,
             path.as_path(),
