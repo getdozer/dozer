@@ -12,6 +12,9 @@ mod cache_tests;
 mod e2e_tests;
 
 #[cfg(test)]
+mod e2e_tests;
+
+#[cfg(test)]
 mod init;
 
 #[cfg(test)]
