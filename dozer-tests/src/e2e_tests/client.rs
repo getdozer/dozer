@@ -15,7 +15,7 @@ impl Client {
         }
     }
 
-    pub async fn check_expectation(&self, expectation: Expectation) {
+    pub async fn check_expectation(&self, expectation: &Expectation) {
         match expectation {
             Expectation::HealthyService => self.check_healthy_service().await,
         }
