@@ -82,8 +82,8 @@ download_binary() {
           binary_name="$PNAME.tar.gz"
           ;;
       'linux')
-          base_url="https://drive.google.com/uc?export=download&id=1fsZei4Bn4eOHFzgEAZJZdReA_7fl5dEt"
           release_file="$PNAME-$os-$archi-$latest.tar.gz"
+          base_url="https://dozer-releases.s3.ap-southeast-1.amazonaws.com/latest/$release_file"
           binary_name="$PNAME.tar.gz"
           ;;
       *)
