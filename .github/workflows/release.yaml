@@ -173,9 +173,12 @@ jobs:
             ```
             Binary Link: https://dozer-releases.s3.ap-southeast-1.amazonaws.com/$VERSION/$RELEASE_NAME
 
-            Docker: 708185497968.dkr.ecr.ap-southeast-1.amazonaws.com/dozer:latest
+            Docker: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
           RELEASE_NAME: ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: dozer
+          IMAGE_TAG: ${{ needs.prepare.outputs.version }}
