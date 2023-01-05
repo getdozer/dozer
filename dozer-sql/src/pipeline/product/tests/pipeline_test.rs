@@ -26,54 +26,81 @@ use tempdir::TempDir;
 
 use crate::pipeline::builder::PipelineBuilder;
 
+const USER_PORT: u16 = 0 as PortHandle;
+const DEPARTMENT_PORT: u16 = 1 as PortHandle;
+
 #[derive(Debug)]
-pub struct UserTestSourceFactory {
+pub struct TestSourceFactory {
     running: Arc<AtomicBool>,
 }
 
-impl UserTestSourceFactory {
+impl TestSourceFactory {
     pub fn new(running: Arc<AtomicBool>) -> Self {
         Self { running }
     }
 }
 
-impl SourceFactory for UserTestSourceFactory {
+impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::StatefulWithPrimaryKeyLookup {
-                retr_old_records_for_updates: true,
-                retr_old_records_for_deletes: true,
-            },
-        )]
+        vec![
+            OutputPortDef::new(
+                USER_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
+            OutputPortDef::new(
+                DEPARTMENT_PORT,
+                OutputPortType::StatefulWithPrimaryKeyLookup {
+                    retr_old_records_for_updates: true,
+                    retr_old_records_for_deletes: true,
+                },
+            ),
+        ]
     }
 
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new(String::from("name"), FieldType::String, false),
-                false,
-            )
-            .field(
-                FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
-                false,
-            )
-            .field(
-                FieldDefinition::new(String::from("salary"), FieldType::Float, false),
-                false,
-            )
-            .clone())
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
+        if port == &USER_PORT {
+            Ok(Schema::empty()
+                .field(
+                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new(String::from("name"), FieldType::String, false),
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(String::from("department_id"), FieldType::Int, false),
+                    false,
+                )
+                .field(
+                    FieldDefinition::new(String::from("salary"), FieldType::Float, false),
+                    false,
+                )
+                .clone())
+        } else if port == &DEPARTMENT_PORT {
+            Ok(Schema::empty()
+                .field(
+                    FieldDefinition::new(String::from("id"), FieldType::Int, false),
+                    true,
+                )
+                .field(
+                    FieldDefinition::new(String::from("name"), FieldType::String, false),
+                    false,
+                )
+                .clone())
+        } else {
+            panic!("Invalid Port Handle {}", port);
+        }
     }
 
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Source>, ExecutionError> {
-        Ok(Box::new(UserTestSource {
+        Ok(Box::new(TestSource {
             running: self.running.clone(),
         }))
     }
@@ -84,259 +111,145 @@ impl SourceFactory for UserTestSourceFactory {
 }
 
 #[derive(Debug)]
-pub struct UserTestSource {
+pub struct TestSource {
     running: Arc<AtomicBool>,
 }
 
-impl Source for UserTestSource {
+impl Source for TestSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
         _from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        for n in 0..100 {
-            fw.send(
-                n,
-                0,
+        let operations = vec![
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
+                },
+                DEPARTMENT_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(1), Field::String("HR".to_string())]),
+                },
+                DEPARTMENT_PORT,
+            ),
+            (
                 Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
+                            Field::Int(10000),
+                            Field::String("Alice".to_string()),
                             Field::Int(0),
-                            Field::String(format!("User {}", n)),
-                            Field::Int(0),
-                            Field::Float(OrderedFloat(1.0)),
+                            Field::Float(OrderedFloat(1.1)),
                         ],
                     ),
                 },
-                DEFAULT_PORT_HANDLE,
+                USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(10001),
+                            Field::String("Bob".to_string()),
+                            Field::Int(0),
+                            Field::Float(OrderedFloat(1.1)),
+                        ],
+                    ),
+                },
+                USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(10002),
+                            Field::String("Craig".to_string()),
+                            Field::Int(1),
+                            Field::Float(OrderedFloat(1.1)),
+                        ],
+                    ),
+                },
+                USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(10003),
+                            Field::String("Dan".to_string()),
+                            Field::Int(0),
+                            Field::Float(OrderedFloat(1.1)),
+                        ],
+                    ),
+                },
+                USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(10004),
+                            Field::String("Eve".to_string()),
+                            Field::Int(1),
+                            Field::Float(OrderedFloat(1.1)),
+                        ],
+                    ),
+                },
+                USER_PORT,
+            ),
+            (
+                Operation::Delete {
+                    old: Record::new(
+                        None,
+                        vec![
+                            Field::Int(10002),
+                            Field::String("Craig".to_string()),
+                            Field::Int(1),
+                            Field::Float(OrderedFloat(1.1)),
+                        ],
+                    ),
+                },
+                USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::Int(10006),
+                            Field::String("Frank".to_string()),
+                            Field::Int(1),
+                            Field::Float(OrderedFloat(1.5)),
+                        ],
+                    ),
+                },
+                USER_PORT,
+            ),
+        ];
+
+        for operation in operations.iter().enumerate() {
+            fw.send(
+                operation.0.try_into().unwrap(),
+                0,
+                operation.1.clone().0,
+                operation.1.clone().1,
             )
             .unwrap();
         }
 
-        fw.send(
-            10000,
-            0,
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::Int(10000),
-                        Field::String("Alice".to_string()),
-                        Field::Int(0),
-                        Field::Float(OrderedFloat(1.1)),
-                    ],
-                ),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        fw.send(
-            10001,
-            0,
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::Int(10001),
-                        Field::String("Bob".to_string()),
-                        Field::Int(0),
-                        Field::Float(OrderedFloat(1.1)),
-                    ],
-                ),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        fw.send(
-            10002,
-            0,
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::Int(10002),
-                        Field::String("Craig".to_string()),
-                        Field::Int(1),
-                        Field::Float(OrderedFloat(1.1)),
-                    ],
-                ),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        fw.send(
-            10003,
-            0,
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::Int(10003),
-                        Field::String("Dan".to_string()),
-                        Field::Int(0),
-                        Field::Float(OrderedFloat(1.1)),
-                    ],
-                ),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        fw.send(
-            10004,
-            0,
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::Int(10004),
-                        Field::String("Eve".to_string()),
-                        Field::Int(1),
-                        Field::Float(OrderedFloat(1.1)),
-                    ],
-                ),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        fw.send(
-            10005,
-            0,
-            Operation::Delete {
-                old: Record::new(
-                    None,
-                    vec![
-                        Field::Int(10002),
-                        Field::String("Craig".to_string()),
-                        Field::Int(1),
-                        Field::Float(OrderedFloat(1.1)),
-                    ],
-                ),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        fw.send(
-            10006,
-            0,
-            Operation::Insert {
-                new: Record::new(
-                    None,
-                    vec![
-                        Field::Int(10006),
-                        Field::String("Frank".to_string()),
-                        Field::Int(1),
-                        Field::Float(OrderedFloat(1.5)),
-                    ],
-                ),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
         loop {
             if !self.running.load(Ordering::Relaxed) {
                 break;
             }
             thread::sleep(Duration::from_millis(500));
         }
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct DepartmentTestSourceFactory {
-    running: Arc<AtomicBool>,
-}
-
-impl DepartmentTestSourceFactory {
-    pub fn new(running: Arc<AtomicBool>) -> Self {
-        Self { running }
-    }
-}
-
-impl SourceFactory for DepartmentTestSourceFactory {
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::StatefulWithPrimaryKeyLookup {
-                retr_old_records_for_updates: true,
-                retr_old_records_for_deletes: true,
-            },
-        )]
-    }
-
-    fn build(
-        &self,
-        _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
-        Ok(Box::new(DepartmentTestSource {
-            running: self.running.clone(),
-        }))
-    }
-
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
-        Ok(Schema::empty()
-            .field(
-                FieldDefinition::new(String::from("id"), FieldType::Int, false),
-                true,
-            )
-            .field(
-                FieldDefinition::new(String::from("name"), FieldType::String, false),
-                false,
-            )
-            .clone())
-    }
-
-    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct DepartmentTestSource {
-    running: Arc<AtomicBool>,
-}
-
-impl Source for DepartmentTestSource {
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError> {
-        fw.send(
-            0,
-            0,
-            Operation::Insert {
-                new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        fw.send(
-            1,
-            0,
-            Operation::Insert {
-                new: Record::new(None, vec![Field::Int(1), Field::String("SG".to_string())]),
-            },
-            DEFAULT_PORT_HANDLE,
-        )
-        .unwrap();
-
-        loop {
-            if !self.running.load(Ordering::Relaxed) {
-                break;
-            }
-            thread::sleep(Duration::from_millis(500));
-        }
-
         Ok(())
     }
 }
@@ -430,12 +343,12 @@ impl Sink for TestSink {
 fn test_pipeline_builder() {
     let mut pipeline = PipelineBuilder {}
         .build_pipeline(
-            // "SELECT user.name, department.name \
-            //     FROM user JOIN department ON user.department_id = department.id \
-            //     WHERE salary >= 1",
-            "SELECT  department.name, SUM(user.salary) \
+            "SELECT user.name, department.name \
                 FROM user JOIN department ON user.department_id = department.id \
-                GROUP BY department.name",
+                WHERE salary >= 1",
+            // "SELECT  department.name, SUM(user.salary) \
+            //     FROM user JOIN department ON user.department_id = department.id \
+            //     GROUP BY department.name",
         )
         .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
 
@@ -444,19 +357,16 @@ fn test_pipeline_builder() {
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(
         "conn1".to_string(),
-        Arc::new(UserTestSourceFactory::new(latch.clone())),
-        vec![("user".to_string(), DEFAULT_PORT_HANDLE)]
-            .into_iter()
-            .collect(),
+        Arc::new(TestSourceFactory::new(latch.clone())),
+        vec![
+            ("user".to_string(), USER_PORT),
+            ("department".to_string(), DEPARTMENT_PORT),
+        ]
+        .into_iter()
+        .collect(),
     ));
-    asm.add(AppSource::new(
-        "conn2".to_string(),
-        Arc::new(DepartmentTestSourceFactory::new(latch.clone())),
-        vec![("department".to_string(), DEFAULT_PORT_HANDLE)]
-            .into_iter()
-            .collect(),
-    ));
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(106, latch)), "sink");
+
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(7, latch)), "sink");
     pipeline
         .connect_nodes(
             "aggregation",
