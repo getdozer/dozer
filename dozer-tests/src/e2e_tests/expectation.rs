@@ -1,11 +1,24 @@
 use std::path::Path;
 
-use dozer_types::serde::{Deserialize, Serialize};
+use dozer_types::{
+    serde::{Deserialize, Serialize},
+    types::FieldDefinition,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
 pub enum Expectation {
     HealthyService,
+    Endpoint {
+        endpoint: String,
+        expectations: Vec<EndpointExpectation>,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+pub enum EndpointExpectation {
+    Schema { fields: Vec<FieldDefinition> },
 }
 
 impl Expectation {
