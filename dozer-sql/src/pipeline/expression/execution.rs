@@ -1,14 +1,14 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::arg_utils::validate_arg_type;
+
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrimType {
     Trailing,
     Leading,
@@ -97,7 +97,11 @@ impl ExpressionExecutor for Expression {
             Expression::AggregateFunction { fun, args } => {
                 get_aggregate_function_type(fun, args, schema)
             }
-            Expression::Trim { what, typ, arg } => validate_trim(arg, schema),
+            Expression::Trim {
+                what: _,
+                typ: _,
+                arg,
+            } => validate_trim(arg, schema),
         }
     }
 }
@@ -217,97 +221,4 @@ fn get_aggregate_function_type(
         AggregateFunctionType::Stddev => Ok(FieldType::Float),
         AggregateFunctionType::Variance => Ok(FieldType::Float),
     }
-}
-
-#[test]
-fn test_column_execution() {
-    use dozer_types::ordered_float::OrderedFloat;
-
-    let schema = Schema::empty()
-        .field(
-            FieldDefinition::new("int_field".to_string(), FieldType::Int, false),
-            false,
-        )
-        .field(
-            FieldDefinition::new("str_field".to_string(), FieldType::String, false),
-            false,
-        )
-        .field(
-            FieldDefinition::new("float_field".to_string(), FieldType::Float, false),
-            false,
-        )
-        .clone();
-
-    let record = Record::new(
-        None,
-        vec![
-            Field::Int(1337),
-            Field::String("test".to_string()),
-            Field::Float(OrderedFloat(10.10)),
-        ],
-    );
-
-    // Column
-    let e = Expression::Column { index: 0 };
-    assert_eq!(
-        e.evaluate(&record, &schema)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(1337)
-    );
-
-    let e = Expression::Column { index: 1 };
-    assert_eq!(
-        e.evaluate(&record, &schema)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::String("test".to_string())
-    );
-
-    let e = Expression::Column { index: 2 };
-    assert_eq!(
-        e.evaluate(&record, &schema)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(10.10))
-    );
-
-    // Literal
-    let e = Expression::Literal(Field::Int(1337));
-    assert_eq!(
-        e.evaluate(&record, &schema)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(1337)
-    );
-
-    // UnaryOperator
-    let e = Expression::UnaryOperator {
-        operator: UnaryOperatorType::Not,
-        arg: Box::new(Expression::Literal(Field::Boolean(true))),
-    };
-    assert_eq!(
-        e.evaluate(&record, &schema)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Boolean(false)
-    );
-
-    // BinaryOperator
-    let e = Expression::BinaryOperator {
-        left: Box::new(Expression::Literal(Field::Boolean(true))),
-        operator: BinaryOperatorType::And,
-        right: Box::new(Expression::Literal(Field::Boolean(false))),
-    };
-    assert_eq!(
-        e.evaluate(&record, &schema)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Boolean(false),
-    );
-
-    // ScalarFunction
-    let e = Expression::ScalarFunction {
-        fun: ScalarFunctionType::Abs,
-        args: vec![Expression::Literal(Field::Int(-1))],
-    };
-    assert_eq!(
-        e.evaluate(&record, &schema)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(1)
-    );
 }

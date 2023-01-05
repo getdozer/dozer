@@ -1,6 +1,6 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
+use dozer_types::types::{Field, Record, Schema};
 
 pub fn evaluate_and(
     schema: &Schema,

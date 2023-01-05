@@ -111,7 +111,7 @@ impl ExpressionBuilder {
     fn parse_sql_trim_function(
         &self,
         expression_type: &ExpressionType,
-        expr: &Box<Expr>,
+        expr: &Expr,
         trim_where: &Option<TrimWhereField>,
         trim_what: &Option<Box<Expr>>,
         schema: &Schema,
@@ -422,10 +422,10 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, Pipeli
     if let Some(index) = field_index {
         Ok(index)
     } else {
-        return Err(PipelineError::InvalidQuery(format!(
+        Err(PipelineError::InvalidQuery(format!(
             "Field {} not found",
             full_ident
-        )));
+        )))
     }
 }
 

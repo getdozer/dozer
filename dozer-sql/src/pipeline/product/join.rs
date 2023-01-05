@@ -100,7 +100,7 @@ pub trait JoinExecutor: Send + Sync {
     ) -> Result<(), ExecutionError>;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JoinOperator {
     /// Type of the Join operation
     _operator: JoinOperatorType,

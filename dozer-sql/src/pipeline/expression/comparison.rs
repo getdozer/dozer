@@ -1,5 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use dozer_types::types::{FieldDefinition, FieldType, Schema};
+use dozer_types::types::{Schema};
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Record},

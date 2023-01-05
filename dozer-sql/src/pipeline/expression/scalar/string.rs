@@ -1,5 +1,4 @@
 use crate::arg_str;
-use sqlparser::ast::CopyTarget::File;
 
 use crate::pipeline::errors::PipelineError;
 
@@ -13,13 +12,13 @@ pub(crate) fn validate_ucase(
     arg: &Expression,
     schema: &Schema,
 ) -> Result<FieldType, PipelineError> {
-    Ok(validate_arg_type(
+    validate_arg_type(
         arg,
         vec![FieldType::String, FieldType::Text],
         schema,
         ScalarFunctionType::Ucase,
         0,
-    )?)
+    )
 }
 
 pub(crate) fn evaluate_ucase(
@@ -108,7 +107,7 @@ pub(crate) fn validate_trim(arg: &Expression, schema: &Schema) -> Result<FieldTy
 
 pub(crate) fn evaluate_trim(
     schema: &Schema,
-    arg: &Box<Expression>,
+    arg: &Expression,
     what: &Option<Box<Expression>>,
     typ: &Option<TrimType>,
     record: &Record,
@@ -126,8 +125,8 @@ pub(crate) fn evaluate_trim(
 
     let retval = match typ {
         Some(TrimType::Both) => arg_value.trim_matches::<&[char]>(&v1).to_string(),
-        Some(TrimType::Leading) => arg_value.trim_left_matches::<&[char]>(&v1).to_string(),
-        Some(TrimType::Trailing) => arg_value.trim_right_matches::<&[char]>(&v1).to_string(),
+        Some(TrimType::Leading) => arg_value.trim_start_matches::<&[char]>(&v1).to_string(),
+        Some(TrimType::Trailing) => arg_value.trim_end_matches::<&[char]>(&v1).to_string(),
         None => arg_value.trim_matches::<&[char]>(&v1).to_string(),
     };
 
