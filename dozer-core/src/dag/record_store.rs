@@ -166,7 +166,7 @@ impl AutogenRowKeyLookupRecordWriter {
         }
     }
 
-    fn get_autogen_counter(&self, tx: &SharedTransaction) -> Result<u64, StorageError> {
+    fn get_autogen_counter(&mut self, tx: &SharedTransaction) -> Result<u64, StorageError> {
         let curr_counter = match tx
             .read()
             .get(self.meta_db, &Self::COUNTER_KEY.to_le_bytes())?
