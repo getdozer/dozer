@@ -10,7 +10,8 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, S
 use std::fmt::{Debug, Formatter};
 
 pub trait RecordWriter {
-    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError>;
+    fn write(&mut self, op: Operation, tx: &SharedTransaction)
+        -> Result<Operation, ExecutionError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -110,7 +111,11 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError> {
+    fn write(
+        &mut self,
+        op: Operation,
+        tx: &SharedTransaction,
+    ) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { new } => {
                 RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
@@ -189,7 +194,11 @@ impl AutogenRowKeyLookupRecordWriter {
 }
 
 impl RecordWriter for AutogenRowKeyLookupRecordWriter {
-    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError> {
+    fn write(
+        &mut self,
+        op: Operation,
+        tx: &SharedTransaction,
+    ) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { mut new } => {
                 let ctr = self.get_autogen_counter(tx)?;
