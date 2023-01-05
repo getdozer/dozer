@@ -1,7 +1,7 @@
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::{UnsupportedDeleteOperation, UnsupportedUpdateOperation};
 use crate::dag::node::OutputPortType;
-use crate::dag::node::OutputPortType::AutogenRowKeyLookup;
+
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::SerializationError;
@@ -112,7 +112,7 @@ impl PrimaryKeyLookupRecordWriter {
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
     fn write(
         &self,
-        mut op: Operation,
+        op: Operation,
         tx: &SharedTransaction,
     ) -> Result<Operation, ExecutionError> {
         match op {

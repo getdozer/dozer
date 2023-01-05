@@ -1,7 +1,7 @@
 use crate::dag::dag::{Dag, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
-use crate::dag::node::OutputPortType::AutogenRowKeyLookup;
+
 use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
 use crate::dag::record_store::AutogenRowKeyLookupRecordWriter;
 use dozer_types::types::Schema;
@@ -61,11 +61,11 @@ impl<'a> DagSchemaManager<'a> {
             },
             NodeType::Processor(proc) => match output_port.typ {
                 OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
-                    Some(proc.get_output_schema(&output_port.handle, &input_schemas)?)
+                    Some(proc.get_output_schema(&output_port.handle, input_schemas)?)
                 }
                 OutputPortType::AutogenRowKeyLookup => {
                     Some(AutogenRowKeyLookupRecordWriter::prepare_schema(
-                        proc.get_output_schema(&output_port.handle, &input_schemas)?,
+                        proc.get_output_schema(&output_port.handle, input_schemas)?,
                     ))
                 }
             },
@@ -141,7 +141,7 @@ impl<'a> DagSchemaManager<'a> {
                             if let Some(schema) = &schema {
                                 node_schemas
                                     .output_schemas
-                                    .insert(port.handle.clone(), schema.clone());
+                                    .insert(port.handle, schema.clone());
                             }
                             schema
                         };
@@ -150,7 +150,7 @@ impl<'a> DagSchemaManager<'a> {
                         let next_in_chain = dag
                             .edges
                             .iter()
-                            .filter(|e| &e.from.node == handle && &e.from.port == &port.handle)
+                            .filter(|e| &e.from.node == handle && e.from.port == port.handle)
                             .map(|e| e.to.clone());
 
                         for next_node_port_input in next_in_chain {
