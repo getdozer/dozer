@@ -181,7 +181,7 @@ impl AutogenRowKeyLookupRecordWriter {
                     reason: Box::new(e),
                 }
             })?),
-            _ => 0_u64,
+            _ => 1_u64,
         };
         tx.write().put(
             self.meta_db,

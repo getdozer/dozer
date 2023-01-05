@@ -31,7 +31,7 @@ impl CountingSinkFactory {
 impl SinkFactory for CountingSinkFactory {
     fn set_input_schema(
         &self,
-        _input_schemas: &HashMap<PortHandle, Schema>,
+        input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<(), ExecutionError> {
         Ok(())
     }

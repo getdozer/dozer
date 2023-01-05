@@ -241,3 +241,104 @@ impl Source for DualPortGeneratorSource {
         Ok(())
     }
 }
+
+pub(crate) const NOPK_GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
+
+#[derive(Debug)]
+pub(crate) struct NoPkGeneratorSourceFactory {
+    count: u64,
+    running: Arc<AtomicBool>,
+    stateful: bool,
+}
+
+impl NoPkGeneratorSourceFactory {
+    pub fn new(count: u64, barrier: Arc<AtomicBool>, stateful: bool) -> Self {
+        Self {
+            count,
+            running: barrier,
+            stateful,
+        }
+    }
+}
+
+impl SourceFactory for NoPkGeneratorSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
+        Ok(Schema::empty()
+            .field(
+                FieldDefinition::new("id".to_string(), FieldType::String, false),
+                true,
+            )
+            .field(
+                FieldDefinition::new("value".to_string(), FieldType::String, false),
+                false,
+            )
+            .clone())
+    }
+
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+        vec![OutputPortDef::new(
+            GENERATOR_SOURCE_OUTPUT_PORT,
+            if self.stateful {
+                OutputPortType::AutogenRowKeyLookup
+            } else {
+                OutputPortType::Stateless
+            },
+        )]
+    }
+
+    fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn build(
+        &self,
+        _input_schemas: HashMap<PortHandle, Schema>,
+    ) -> Result<Box<dyn Source>, ExecutionError> {
+        Ok(Box::new(NoPkGeneratorSource {
+            count: self.count,
+            running: self.running.clone(),
+        }))
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct NoPkGeneratorSource {
+    count: u64,
+    running: Arc<AtomicBool>,
+}
+
+impl Source for NoPkGeneratorSource {
+    fn start(
+        &self,
+        fw: &mut dyn SourceChannelForwarder,
+        from_seq: Option<(u64, u64)>,
+    ) -> Result<(), ExecutionError> {
+        let start = from_seq.unwrap().0;
+
+        for n in start + 1..(start + self.count + 1) {
+            fw.send(
+                n,
+                0,
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![
+                            Field::String(format!("key_{}", n)),
+                            Field::String(format!("value_{}", n)),
+                        ],
+                    ),
+                },
+                GENERATOR_SOURCE_OUTPUT_PORT,
+            )?;
+        }
+
+        loop {
+            if !self.running.load(Ordering::Relaxed) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+
+        Ok(())
+    }
+}
