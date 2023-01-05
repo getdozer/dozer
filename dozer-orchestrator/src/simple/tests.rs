@@ -120,7 +120,7 @@ fn single_source_sink_impl(schema: Schema) {
 
     // Allow for the thread to process the records
     thread::sleep(Duration::from_millis(3000));
-    //Shutdown the thread
+    // Shutdown the thread
     r.store(false, Ordering::SeqCst);
 
     test_query("events".to_string(), json!({}), 7, &cache);

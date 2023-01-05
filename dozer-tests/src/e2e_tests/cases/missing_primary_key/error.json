@@ -1,0 +1,5 @@
+{
+    "InitFailure": {
+        "message": "Failed to get primary key for `stocks_test`"
+    }
+}
