@@ -21,7 +21,7 @@ RUN rm snowflake-odbc-2.25.7.x86_64.deb
 # INSTALL DOZER 
 RUN echo "Installing dozer binary"
 
-COPY ./target/release/dozer /usr/local/bin/dozer
+COPY target/release/dozer /usr/local/bin/
 
 ENV PATH="$PATH:/usr/local/protoc/bin"
 
