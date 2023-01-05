@@ -1,3 +1,49 @@
 [
-    "HealthyService"
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "eth_stats",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "block_number",
+                                "typ": "Int",
+                                "nullable": true
+                            },
+                            {
+                                "name": "sum(id)",
+                                "typ": "Int",
+                                "nullable": false
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "Endpoint": {
+            "endpoint": "eth_logs",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "block_number",
+                                "typ": "Int",
+                                "nullable": true
+                            },
+                            {
+                                "name": "id",
+                                "typ": "Int",
+                                "nullable": true
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
 ]

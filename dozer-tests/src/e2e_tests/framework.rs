@@ -54,20 +54,18 @@ impl Framework {
 
         for spawn_dozer in [spawn_dozer_same_process, spawn_dozer_two_processes] {
             // Setup cleanups.
-            let cleanups = vec![Cleanup::RemoveDirectory(config.home_dir.clone())];
+            let mut cleanups = vec![Cleanup::RemoveDirectory(config.home_dir.clone())];
 
             // Start sources, dozer app and dozer API.
-            let mut child_processes = spawn_dozer(&self.dozer_bin, &config_path);
+            let child_processes = spawn_dozer(&self.dozer_bin, &config_path);
+            for child in child_processes {
+                cleanups.push(Cleanup::KillProcess(child));
+            }
 
             // Run test client.
             let mut client = Client::new(config.clone()).await;
             for expectation in expectations {
                 client.check_expectation(expectation).await;
-            }
-
-            // Stop child processes.
-            for child in &mut child_processes {
-                child.kill().expect("Failed to kill child process");
             }
 
             // To ensure `cleanups` is not dropped on async boundary.
