@@ -4,6 +4,8 @@ diesel::table! {
     apps (id) {
         id -> Text,
         name -> Text,
+        home_dir -> Nullable<Text>,
+        flags -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -13,11 +15,12 @@ diesel::table! {
     configs (id) {
         id -> Text,
         app_id -> Text,
-        rest -> Text,
-        grpc -> Text,
-        api_internal -> Text,
-        pipeline_internal -> Text,
-        auth -> Bool,
+        api_security -> Nullable<Text>,
+        rest -> Nullable<Text>,
+        grpc -> Nullable<Text>,
+        auth -> Nullable<Bool>,
+        api_internal -> Nullable<Text>,
+        pipeline_internal -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

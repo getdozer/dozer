@@ -50,12 +50,12 @@ postgres_bench = ["dep:include_dir"]
 #harness = false
 #required-features = ["snowflake"]
 
-[[bench]]
-name = "debezium"
-harness = false
-required-features = ["debezium_bench"]
-
-[[bench]]
-name = "postgres"
-harness = false
-required-features = ["postgres_bench"]
+#[[bench]]
+#name = "debezium"
+#harness = false
+#required-features = ["debezium_bench"]
+#
+#[[bench]]
+#name = "postgres"
+#harness = false
+#required-features = ["postgres_bench"]

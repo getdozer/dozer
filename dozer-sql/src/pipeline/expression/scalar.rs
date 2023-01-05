@@ -1,14 +1,59 @@
+mod number;
+mod string;
+mod tests;
+
+use crate::argv;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, Record};
-use num_traits::Float;
+use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
+use crate::pipeline::expression::scalar::string::{
+    evaluate_concat, evaluate_length, evaluate_trim, evaluate_ucase, validate_concat,
+};
+
+use dozer_types::types::{Field, FieldType, Record, Schema};
+
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
     Abs,
     Round,
     Ucase,
+    Concat,
+    Length,
+    Trim,
+}
+
+impl Display for ScalarFunctionType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScalarFunctionType::Abs => f.write_str("ABS"),
+            ScalarFunctionType::Round => f.write_str("ROUND"),
+            ScalarFunctionType::Ucase => f.write_str("UCASE"),
+            ScalarFunctionType::Concat => f.write_str("CONCAT"),
+            ScalarFunctionType::Length => f.write_str("LENGTH"),
+            ScalarFunctionType::Trim => f.write_str("TRIM_MATCH"),
+        }
+    }
+}
+
+pub(crate) fn get_scalar_function_type(
+    function: &ScalarFunctionType,
+    args: &[Expression],
+    schema: &Schema,
+) -> Result<FieldType, PipelineError> {
+    match function {
+        ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
+        ScalarFunctionType::Round => Ok(FieldType::Int),
+        ScalarFunctionType::Ucase => argv!(args, 0, ScalarFunctionType::Ucase)?.get_type(schema),
+        ScalarFunctionType::Concat => validate_concat(
+            argv!(args, 0, ScalarFunctionType::Concat)?,
+            argv!(args, 1, ScalarFunctionType::Concat)?,
+            schema,
+        ),
+        ScalarFunctionType::Length => Ok(FieldType::UInt),
+        ScalarFunctionType::Trim => Ok(FieldType::String),
+    }
 }
 
 impl ScalarFunctionType {
@@ -17,6 +62,9 @@ impl ScalarFunctionType {
             "abs" => Ok(ScalarFunctionType::Abs),
             "round" => Ok(ScalarFunctionType::Round),
             "ucase" => Ok(ScalarFunctionType::Ucase),
+            "concat" => Ok(ScalarFunctionType::Concat),
+            "length" => Ok(ScalarFunctionType::Length),
+            "trim_match" => Ok(ScalarFunctionType::Trim),
             _ => Err(PipelineError::InvalidFunction(name.to_string())),
         }
     }
@@ -27,143 +75,30 @@ impl ScalarFunctionType {
         record: &Record,
     ) -> Result<Field, PipelineError> {
         match self {
-            ScalarFunctionType::Abs => evaluate_abs(&args[0], record),
-            ScalarFunctionType::Round => evaluate_round(&args[0], args.get(1), record),
-            ScalarFunctionType::Ucase => evaluate_ucase(&args[0], record),
+            ScalarFunctionType::Abs => {
+                evaluate_abs(argv!(args, 0, ScalarFunctionType::Abs)?, record)
+            }
+            ScalarFunctionType::Round => evaluate_round(
+                argv!(args, 0, ScalarFunctionType::Round)?,
+                args.get(1),
+                record,
+            ),
+            ScalarFunctionType::Ucase => {
+                evaluate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, record)
+            }
+            ScalarFunctionType::Concat => evaluate_concat(
+                argv!(args, 0, ScalarFunctionType::Concat)?,
+                argv!(args, 1, ScalarFunctionType::Concat)?,
+                record,
+            ),
+            ScalarFunctionType::Length => {
+                evaluate_length(argv!(args, 0, ScalarFunctionType::Length)?, record)
+            }
+            ScalarFunctionType::Trim => evaluate_trim(
+                argv!(args, 0, ScalarFunctionType::Trim)?,
+                args.get(1),
+                record,
+            ),
         }
     }
-}
-
-fn evaluate_abs(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record)?;
-    match value {
-        Field::Int(i) => Ok(Field::Int(i.abs())),
-        Field::Float(f) => Ok(Field::Float(f.abs())),
-        _ => Err(PipelineError::InvalidOperandType("ABS()".to_string())),
-    }
-}
-
-fn evaluate_round(
-    arg: &Expression,
-    decimals: Option<&Expression>,
-    record: &Record,
-) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record)?;
-    let mut places = 0;
-    if let Some(expression) = decimals {
-        match expression.evaluate(record)? {
-            Field::Int(i) => places = i as i32,
-            Field::Float(f) => places = f.round().0 as i32,
-            _ => {} // Truncate value to 0 decimals
-        }
-    }
-    let order = OrderedFloat(10.0_f64.powi(places));
-
-    match value {
-        Field::Int(i) => Ok(Field::Int(i)),
-        Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
-        Field::Decimal(_) => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
-        _ => Err(PipelineError::InvalidOperandType("ROUND()".to_string())),
-    }
-}
-
-/// `evaluate_ucase` is a scalar function which converts string, text to upper-case, implementing support for UCASE()
-fn evaluate_ucase(arg: &Expression, record: &Record) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record)?;
-    match value {
-        Field::String(s) => Ok(Field::String(s.to_uppercase())),
-        Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
-        _ => Err(PipelineError::InvalidFunction(format!(
-            "UCASE() for {:?}",
-            value
-        ))),
-    }
-}
-
-#[cfg(test)]
-use crate::pipeline::expression::execution::Expression::Literal;
-
-#[test]
-fn test_ucase() {
-    let row = Record::new(None, vec![]);
-
-    let s = Box::new(Literal(Field::String(String::from("data"))));
-    let t = Box::new(Literal(Field::Text(String::from("Data"))));
-    let s_output = Field::String(String::from("DATA"));
-    let t_output = Field::Text(String::from("DATA"));
-
-    assert_eq!(
-        evaluate_ucase(&s, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        s_output
-    );
-    assert_eq!(
-        evaluate_ucase(&t, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        t_output
-    );
-}
-
-#[test]
-fn test_round() {
-    let row = Record::new(None, vec![]);
-
-    let v = Box::new(Literal(Field::Int(1)));
-    let d = &Box::new(Literal(Field::Int(0)));
-    assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(1)
-    );
-
-    let v = Box::new(Literal(Field::Float(OrderedFloat(2.1))));
-    let d = &Box::new(Literal(Field::Int(0)));
-    assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(2.0))
-    );
-
-    let v = Box::new(Literal(Field::Float(OrderedFloat(2.6))));
-    let d = &Box::new(Literal(Field::Int(0)));
-    assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(3.0))
-    );
-
-    let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
-    let d = &Box::new(Literal(Field::Int(2)));
-    assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(2.63))
-    );
-
-    let v = Box::new(Literal(Field::Float(OrderedFloat(212.633))));
-    let d = &Box::new(Literal(Field::Int(-2)));
-    assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(200.0))
-    );
-
-    let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
-    let d = &Box::new(Literal(Field::Float(OrderedFloat(2.1))));
-    assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(2.63))
-    );
-
-    let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
-    let d = &Box::new(Literal(Field::String("2.3".to_string())));
-    assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(3.0))
-    );
-
-    // let v = Box::new(Literal(Field::Boolean(true)));
-    // let d = &Box::new(Literal(Field::Int(2)));
-    // assert!(evaluate_round(&v, Some(d), &row) == Field::Invalid(_));
-    // let v = Box::new(Literal(Field::Float(2.1)));
-    // assert!(evaluate_round(&v, &row) == Field::Float(2));
-    //
-    // let v = Box::new(Literal(Field::Float(2.6)));
-    // assert!(evaluate_round(&v, &row) == Field::Float(3));
-    //
-    // let v = Box::new(Literal(Field::Boolean(true)));
-    // assert!(evaluate_round(&v, &row) == Field::Invalid(_));
 }

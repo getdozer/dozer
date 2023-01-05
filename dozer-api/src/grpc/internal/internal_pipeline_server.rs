@@ -4,7 +4,7 @@ use crate::grpc::internal_grpc::{
     RestartPipelineRequest, RestartPipelineResponse,
 };
 use crossbeam::channel::Receiver;
-use dozer_types::{crossbeam, models::app_config::Config, tracing::warn};
+use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
 use std::{net::ToSocketAddrs, pin::Pin};
 use tokio::runtime::Runtime;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
@@ -66,7 +66,7 @@ pub fn start_internal_pipeline_server(
     receiver: Receiver<PipelineResponse>,
 ) -> Result<(), tonic::transport::Error> {
     let rt = Runtime::new().unwrap();
-    rt.block_on(_start_internal_pipeline_server(app_config, receiver))
+    rt.block_on(async { _start_internal_pipeline_server(app_config, receiver).await })
 }
 async fn _start_internal_pipeline_server(
     app_config: Config,
@@ -76,11 +76,17 @@ async fn _start_internal_pipeline_server(
         app_config: app_config.to_owned(),
         receiver,
     };
+
     let internal_config = app_config
         .api
         .unwrap_or_default()
         .pipeline_internal
         .unwrap_or_default();
+
+    info!(
+        "Starting Internal Server on http://{}:{}",
+        internal_config.host, internal_config.port,
+    );
     let mut addr = format!("{}:{}", internal_config.host, internal_config.port)
         .to_socket_addrs()
         .unwrap();
