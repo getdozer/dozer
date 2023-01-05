@@ -110,19 +110,14 @@ jobs:
             ${{ runner.os }}-cargo-release-
 
       - name: Prepare build package
-        run: cargo make --no-workspace admin-release
+        run: cargo build --release
 
       - name: Prepare release assets
         shell: bash
         run: |
           mkdir -p release
           cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
-
           cp target/release/${{matrix.file_name}} release/
-          cp target/release/dozer-admin-config.yaml release/
-          cp target/release/dozer-admin release/
-          cp -r target/release/ui release/
-
 
           mv release/ ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}/
 
