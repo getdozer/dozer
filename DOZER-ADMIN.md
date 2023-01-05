@@ -1,4 +1,4 @@
-## PREINSTALL
+#### Build Dependencies
 
 - [Yarn](https://yarnpkg.com/getting-started/install)
 - [Serve](https://yarnpkg.com/package/)
@@ -10,7 +10,7 @@
   cargo install diesel_cli --no-default-features --features "sqlite"
   ```
 
-## Run local debug with source
+## Running locally (Debug mode)
 
 ```
   cargo make --no-workspace admin-local
@@ -18,13 +18,13 @@
 
 Open [http://localhost:3000](http://localhost:3000/)
 
-## Run Release binary
+## Release
 
 ```
   cargo make --no-workspace admin-release
 ```
 
-this one will generate 4 parts in `target/release` folder
+Following will be generated in `target/release`
 
 - dozer
 - dozer-admin
