@@ -95,7 +95,10 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             .map(|item| parse_sql_select_item(item, schema))
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
-            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(expressions))),
+            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
+                schema.clone(),
+                expressions,
+            ))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
     }

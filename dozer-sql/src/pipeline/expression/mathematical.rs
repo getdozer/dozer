@@ -1,5 +1,6 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use dozer_types::types::Schema;
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Record},
@@ -9,12 +10,13 @@ use num_traits::cast::*;
 macro_rules! define_math_operator {
     ($id:ident, $op:expr, $fct:expr, $t: expr) => {
         pub fn $id(
+            schema: &Schema,
             left: &Expression,
             right: &Expression,
             record: &Record,
         ) -> Result<Field, PipelineError> {
-            let left_p = left.evaluate(&record)?;
-            let right_p = right.evaluate(&record)?;
+            let left_p = left.evaluate(&record, schema)?;
+            let right_p = right.evaluate(&record, schema)?;
 
             match left_p {
                 Field::Float(left_v) => match right_p {
@@ -53,8 +55,12 @@ define_math_operator!(evaluate_mul, "*", |a, b| { a * b }, 0);
 define_math_operator!(evaluate_div, "/", |a, b| { a / b }, 1);
 define_math_operator!(evaluate_mod, "%", |a, b| { a % b }, 0);
 
-pub fn evaluate_plus(expression: &Expression, record: &Record) -> Result<Field, PipelineError> {
-    let expression_result = expression.evaluate(record)?;
+pub fn evaluate_plus(
+    schema: &Schema,
+    expression: &Expression,
+    record: &Record,
+) -> Result<Field, PipelineError> {
+    let expression_result = expression.evaluate(record, schema)?;
     match expression_result {
         Field::Int(v) => Ok(Field::Int(v)),
         Field::Float(v) => Ok(Field::Float(v)),
@@ -62,8 +68,12 @@ pub fn evaluate_plus(expression: &Expression, record: &Record) -> Result<Field, 
     }
 }
 
-pub fn evaluate_minus(expression: &Expression, record: &Record) -> Result<Field, PipelineError> {
-    let expression_result = expression.evaluate(record)?;
+pub fn evaluate_minus(
+    schema: &Schema,
+    expression: &Expression,
+    record: &Record,
+) -> Result<Field, PipelineError> {
+    let expression_result = expression.evaluate(record, schema)?;
     match expression_result {
         Field::Int(v) => Ok(Field::Int(-v)),
         Field::Float(v) => Ok(Field::Float(-v)),

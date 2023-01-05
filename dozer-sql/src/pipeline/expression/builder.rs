@@ -6,23 +6,21 @@ use dozer_types::{
 };
 
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Function, FunctionArg, FunctionArgExpr,
-    Ident, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Expr, Function, FunctionArg,
+    FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
 use crate::pipeline::expression::builder::PipelineError::InvalidOperator;
 use crate::pipeline::expression::builder::PipelineError::InvalidValue;
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
-
-use super::{
-    aggregate::AggregateFunctionType,
-    execution::Expression,
-    operator::{BinaryOperatorType, UnaryOperatorType},
-    scalar::ScalarFunctionType,
-};
+use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
+use crate::pipeline::expression::scalar::common::ScalarFunctionType;
+use crate::pipeline::expression::scalar::string::TrimType;
 
 pub type Bypass = bool;
 
@@ -54,6 +52,11 @@ impl ExpressionBuilder {
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         match expression {
+            SqlExpr::Trim {
+                expr,
+                trim_where,
+                trim_what,
+            } => self.parse_sql_trim_function(expression_type, expr, trim_where, trim_what, schema),
             SqlExpr::Identifier(ident) => self.parse_sql_column(&[ident.clone()], schema),
             SqlExpr::CompoundIdentifier(ident) => self.parse_sql_column(ident, schema),
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
@@ -104,6 +107,27 @@ impl ExpressionBuilder {
             }),
             false,
         ))
+    }
+
+    fn parse_sql_trim_function(
+        &self,
+        expression_type: &ExpressionType,
+        expr: &Expr,
+        trim_where: &Option<TrimWhereField>,
+        trim_what: &Option<Box<Expr>>,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
+        let arg = self.parse_sql_expression(expression_type, expr, schema)?.0;
+        let what = match trim_what {
+            Some(e) => Some(self.parse_sql_expression(expression_type, e, schema)?.0),
+            _ => None,
+        };
+        let typ = trim_where.as_ref().map(|e| match e {
+            TrimWhereField::Both => TrimType::Both,
+            TrimWhereField::Leading => TrimType::Leading,
+            TrimWhereField::Trailing => TrimType::Trailing,
+        });
+        Ok((Box::new(Expression::Trim { arg, what, typ }), false))
     }
 
     fn parse_sql_function(
@@ -399,10 +423,10 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, Pipeli
     if let Some(index) = field_index {
         Ok(index)
     } else {
-        return Err(PipelineError::InvalidQuery(format!(
+        Err(PipelineError::InvalidQuery(format!(
             "Field {} not found",
             full_ident
-        )));
+        )))
     }
 }
 
