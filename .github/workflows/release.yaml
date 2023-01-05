@@ -171,9 +171,11 @@ jobs:
           channel-id: "release-notifications"
           slack-message: |
             ```
-            Binary Link: https://dozer-releases.s3.ap-southeast-1.amazonaws.com/$VERSION/$RELEASE_NAME
+            Version: ${{ env.IMAGE_TAG }} released.
 
-            Docker: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            Binary: https://dozer-releases.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}
+
+            Docker: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY}}:${{ env.IMAGE_TAG }}
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
