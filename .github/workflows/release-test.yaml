@@ -3,7 +3,7 @@
 name: RELEASE test
 on:
   push:
-    branches: [feat/release]
+    branches: [release-test]
 env:
   BUCKET_NAME: "dozer-releases"
 # permission can be added at job level or workflow level
