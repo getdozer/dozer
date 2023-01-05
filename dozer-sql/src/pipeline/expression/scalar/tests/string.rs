@@ -24,6 +24,28 @@ fn test_concat() {
 }
 
 #[test]
+fn test_concat_text() {
+    let f = run_scalar_fct(
+        "SELECT CONCAT(fn, ln) FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::Text, false),
+                false,
+            )
+            .field(
+                FieldDefinition::new(String::from("ln"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![
+            Field::Text("John".to_string()),
+            Field::String("Doe".to_string()),
+        ],
+    );
+    assert_eq!(f, Field::Text("JohnDoe".to_string()));
+}
+
+#[test]
 #[should_panic]
 fn test_concat_wrong_schema() {
     let f = run_scalar_fct(
@@ -56,6 +78,21 @@ fn test_ucase() {
         vec![Field::String("John".to_string())],
     );
     assert_eq!(f, Field::String("JOHN".to_string()));
+}
+
+#[test]
+fn test_ucase_text() {
+    let f = run_scalar_fct(
+        "SELECT UCASE(fn) FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::Text, false),
+                false,
+            )
+            .clone(),
+        vec![Field::Text("John".to_string())],
+    );
+    assert_eq!(f, Field::Text("JOHN".to_string()));
 }
 
 #[test]

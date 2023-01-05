@@ -1,4 +1,5 @@
 use crate::arg_str;
+use sqlparser::ast::CopyTarget::File;
 
 use crate::pipeline::errors::PipelineError;
 
@@ -8,21 +9,32 @@ use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
+pub(crate) fn validate_ucase(
+    arg: &Expression,
+    schema: &Schema,
+) -> Result<FieldType, PipelineError> {
+    Ok(validate_arg_type(
+        arg,
+        vec![FieldType::String, FieldType::Text],
+        schema,
+        ScalarFunctionType::Ucase,
+        0,
+    )?)
+}
+
 pub(crate) fn evaluate_ucase(
     schema: &Schema,
     arg: &Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record, schema)?;
-    match value {
-        Field::String(s) => Ok(Field::String(s.to_uppercase())),
-        Field::Text(t) => Ok(Field::Text(t.to_uppercase())),
-        _ => Err(PipelineError::InvalidFunctionArgument(
-            ScalarFunctionType::Ucase.to_string(),
-            value,
-            0,
-        )),
-    }
+    let f = arg.evaluate(record, schema)?;
+    let v = arg_str!(f, ScalarFunctionType::Ucase, 0)?;
+    let ret = v.to_uppercase();
+
+    Ok(match arg.get_type(schema)? {
+        FieldType::String => Field::String(ret),
+        _ => Field::Text(ret),
+    })
 }
 
 pub(crate) fn validate_concat(
@@ -32,19 +44,23 @@ pub(crate) fn validate_concat(
 ) -> Result<FieldType, PipelineError> {
     let _arg0 = validate_arg_type(
         arg0,
-        vec![FieldType::String],
+        vec![FieldType::String, FieldType::Text],
         schema,
         ScalarFunctionType::Concat,
         0,
     )?;
     let _arg1 = validate_arg_type(
         arg1,
-        vec![FieldType::String],
+        vec![FieldType::String, FieldType::Text],
         schema,
         ScalarFunctionType::Concat,
         1,
     )?;
-    Ok(FieldType::String)
+
+    Ok(match (arg0.get_type(schema)?, arg1.get_type(schema)?) {
+        (FieldType::String, FieldType::String) => FieldType::String,
+        _ => FieldType::Text,
+    })
 }
 
 pub(crate) fn evaluate_concat(
@@ -61,7 +77,12 @@ pub(crate) fn evaluate_concat(
         arg_str!(f0, ScalarFunctionType::Concat, 0)?,
         arg_str!(f1, ScalarFunctionType::Concat, 1)?,
     );
-    Ok(Field::String(v0.to_owned() + v1))
+    let ret_val = v0.to_owned() + v1;
+
+    Ok(match (arg0.get_type(schema)?, arg1.get_type(schema)?) {
+        (FieldType::String, FieldType::String) => Field::String(ret_val),
+        _ => Field::Text(ret_val),
+    })
 }
 
 pub(crate) fn evaluate_length(

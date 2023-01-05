@@ -3,7 +3,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
 use crate::pipeline::expression::scalar::string::{
-    evaluate_concat, evaluate_length, evaluate_ucase, validate_concat,
+    evaluate_concat, evaluate_length, evaluate_ucase, validate_concat, validate_ucase,
 };
 
 use dozer_types::types::{Field, FieldType, Record, Schema};
@@ -39,7 +39,9 @@ pub(crate) fn get_scalar_function_type(
     match function {
         ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
         ScalarFunctionType::Round => Ok(FieldType::Int),
-        ScalarFunctionType::Ucase => argv!(args, 0, ScalarFunctionType::Ucase)?.get_type(schema),
+        ScalarFunctionType::Ucase => {
+            validate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, schema)
+        }
         ScalarFunctionType::Concat => validate_concat(
             argv!(args, 0, ScalarFunctionType::Concat)?,
             argv!(args, 1, ScalarFunctionType::Concat)?,
