@@ -160,7 +160,7 @@ jobs:
           ECR_REPOSITORY: dozer
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
-          docker build -f release/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Latest Release published
