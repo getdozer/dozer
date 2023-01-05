@@ -1,7 +1,7 @@
 use crate::pipeline::errors::PipelineError::InvalidFunctionArgumentType;
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use crate::pipeline::expression::scalar::ScalarFunctionType;
+use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use dozer_types::types::{FieldType, Schema};
 
 pub(crate) fn validate_arg_type(

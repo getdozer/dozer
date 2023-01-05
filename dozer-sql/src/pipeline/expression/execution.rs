@@ -2,8 +2,8 @@ use crate::argv;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::expression::scalar::{get_scalar_function_type, ScalarFunctionType};
-use crate::pipeline::expression::trim::{evaluate_trim, validate_trim};
+use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
+use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;

@@ -11,19 +11,15 @@ use sqlparser::ast::{
 };
 
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
 use crate::pipeline::expression::builder::PipelineError::InvalidOperator;
 use crate::pipeline::expression::builder::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
-use crate::pipeline::expression::execution::TrimType;
-
-use super::{
-    aggregate::AggregateFunctionType,
-    execution::Expression,
-    operator::{BinaryOperatorType, UnaryOperatorType},
-    scalar::ScalarFunctionType,
-};
+use crate::pipeline::expression::execution::{Expression, TrimType};
+use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
+use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 
 pub type Bypass = bool;
 

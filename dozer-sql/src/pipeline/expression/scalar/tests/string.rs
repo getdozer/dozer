@@ -89,6 +89,21 @@ fn test_trim() {
 }
 
 #[test]
+fn test_trim_text() {
+    let f = run_scalar_fct(
+        "SELECT TRIM(fn) FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::Text, false),
+                false,
+            )
+            .clone(),
+        vec![Field::Text("   John   ".to_string())],
+    );
+    assert_eq!(f, Field::Text("John".to_string()));
+}
+
+#[test]
 fn test_trim_value() {
     let f = run_scalar_fct(
         "SELECT TRIM('_' FROM fn) FROM USERS",
