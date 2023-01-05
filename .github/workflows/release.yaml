@@ -175,15 +175,15 @@ jobs:
         id: slack
         continue-on-error: true
         uses: slackapi/slack-github-action@v1.23.0
-        env:
-          RELEASE_NAME: ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz
         with:
           channel-id: "release-notifications"
           slack-message: |
             ```
-            Binary Link: https://dozer-releases.s3.ap-southeast-1.amazonaws.com/${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz
+            Binary Link: https://dozer-releases.s3.ap-southeast-1.amazonaws.com/$VERSION/$RELEASE_NAME
 
             Docker: 708185497968.dkr.ecr.ap-southeast-1.amazonaws.com/dozer:latest
             ```
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_NAME: ${{matrix.asset_name}}-${{ needs.prepare.outputs.version }}.tar.gz
