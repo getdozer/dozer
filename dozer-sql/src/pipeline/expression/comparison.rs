@@ -1,4 +1,5 @@
 use crate::pipeline::errors::PipelineError;
+use dozer_types::types::{FieldDefinition, FieldType, Schema};
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Record},
@@ -10,12 +11,13 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 macro_rules! define_comparison {
     ($id:ident, $op:expr, $function:expr) => {
         pub fn $id(
+            schema: &Schema,
             left: &Expression,
             right: &Expression,
             record: &Record,
         ) -> Result<Field, PipelineError> {
-            let left_p = left.evaluate(&record)?;
-            let right_p = right.evaluate(&record)?;
+            let left_p = left.evaluate(&record, schema)?;
+            let right_p = right.evaluate(&record, schema)?;
 
             match left_p {
                 Field::Null => match right_p {
@@ -63,12 +65,13 @@ macro_rules! define_comparison {
 }
 
 pub fn evaluate_lt(
+    schema: &Schema,
     left: &Expression,
     right: &Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let left_p = left.evaluate(record)?;
-    let right_p = right.evaluate(record)?;
+    let left_p = left.evaluate(record, schema)?;
+    let right_p = right.evaluate(record, schema)?;
 
     match left_p {
         Field::Null => match right_p {
@@ -113,12 +116,13 @@ pub fn evaluate_lt(
 }
 
 pub fn evaluate_gt(
+    schema: &Schema,
     left: &Expression,
     right: &Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let left_p = left.evaluate(record)?;
-    let right_p = right.evaluate(record)?;
+    let left_p = left.evaluate(record, schema)?;
+    let right_p = right.evaluate(record, schema)?;
 
     match left_p {
         Field::Null => match right_p {
@@ -177,7 +181,7 @@ fn test_float_float_eq() {
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.3))));
     let f1 = Box::new(Literal(Field::Float(OrderedFloat(1.3))));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(true))
     ));
 }
@@ -188,7 +192,7 @@ fn test_float_null_eq() {
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.3))));
     let f1 = Box::new(Literal(Field::Null));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(false))
     ));
 }
@@ -199,7 +203,7 @@ fn test_float_int_eq() {
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
     let f1 = Box::new(Literal(Field::Int(1)));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(true))
     ));
 }
@@ -210,7 +214,7 @@ fn test_int_null_eq() {
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
     let f1 = Box::new(Literal(Field::Null));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(false))
     ));
 }
@@ -221,7 +225,7 @@ fn test_int_float_eq() {
     let f0 = Box::new(Literal(Field::Int(1)));
     let f1 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(true))
     ));
 }
@@ -232,7 +236,7 @@ fn test_bool_bool_eq() {
     let f0 = Box::new(Literal(Field::Boolean(false)));
     let f1 = Box::new(Literal(Field::Boolean(false)));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(true))
     ));
 }
@@ -243,7 +247,7 @@ fn test_str_str_eq() {
     let f0 = Box::new(Literal(Field::String("abc".to_string())));
     let f1 = Box::new(Literal(Field::String("abc".to_string())));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(true))
     ));
 }
@@ -254,7 +258,7 @@ fn test_str_null_eq() {
     let f0 = Box::new(Literal(Field::String("abc".to_string())));
     let f1 = Box::new(Literal(Field::Null));
     assert!(matches!(
-        evaluate_eq(&f0, &f1, &row),
+        evaluate_eq(&Schema::empty(), &f0, &f1, &row),
         Ok(Field::Boolean(false))
     ));
 }

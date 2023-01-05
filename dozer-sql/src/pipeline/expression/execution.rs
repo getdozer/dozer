@@ -4,7 +4,7 @@ use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::trim::{evaluate_trim, validate_trim};
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
 
@@ -48,12 +48,12 @@ pub enum Expression {
 impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &Record) -> Result<Field, PipelineError>;
+    fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError>;
     fn get_type(&self, schema: &Schema) -> Result<FieldType, PipelineError>;
 }
 
 impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &Record) -> Result<Field, PipelineError> {
+    fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
             Expression::Column { index } => Ok(record
@@ -66,16 +66,16 @@ impl ExpressionExecutor for Expression {
                 left,
                 operator,
                 right,
-            } => operator.evaluate(left, right, record),
-            Expression::ScalarFunction { fun, args } => fun.evaluate(args, record),
-            Expression::UnaryOperator { operator, arg } => operator.evaluate(arg, record),
+            } => operator.evaluate(schema, left, right, record),
+            Expression::ScalarFunction { fun, args } => fun.evaluate(schema, args, record),
+            Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
                     "Aggregate Function {:?} should not be executed at this point",
                     fun
                 )))
             }
-            Expression::Trim { typ, what, arg } => evaluate_trim(arg, what, typ, record),
+            Expression::Trim { typ, what, arg } => evaluate_trim(schema, arg, what, typ, record),
         }
     }
 
@@ -223,6 +223,21 @@ fn get_aggregate_function_type(
 fn test_column_execution() {
     use dozer_types::ordered_float::OrderedFloat;
 
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new("int_field".to_string(), FieldType::Int, false),
+            false,
+        )
+        .field(
+            FieldDefinition::new("str_field".to_string(), FieldType::String, false),
+            false,
+        )
+        .field(
+            FieldDefinition::new("float_field".to_string(), FieldType::Float, false),
+            false,
+        )
+        .clone();
+
     let record = Record::new(
         None,
         vec![
@@ -235,21 +250,21 @@ fn test_column_execution() {
     // Column
     let e = Expression::Column { index: 0 };
     assert_eq!(
-        e.evaluate(&record)
+        e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Int(1337)
     );
 
     let e = Expression::Column { index: 1 };
     assert_eq!(
-        e.evaluate(&record)
+        e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::String("test".to_string())
     );
 
     let e = Expression::Column { index: 2 };
     assert_eq!(
-        e.evaluate(&record)
+        e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(10.10))
     );
@@ -257,7 +272,7 @@ fn test_column_execution() {
     // Literal
     let e = Expression::Literal(Field::Int(1337));
     assert_eq!(
-        e.evaluate(&record)
+        e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Int(1337)
     );
@@ -268,7 +283,7 @@ fn test_column_execution() {
         arg: Box::new(Expression::Literal(Field::Boolean(true))),
     };
     assert_eq!(
-        e.evaluate(&record)
+        e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Boolean(false)
     );
@@ -280,7 +295,7 @@ fn test_column_execution() {
         right: Box::new(Expression::Literal(Field::Boolean(false))),
     };
     assert_eq!(
-        e.evaluate(&record)
+        e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Boolean(false),
     );
@@ -291,7 +306,7 @@ fn test_column_execution() {
         args: vec![Expression::Literal(Field::Int(-1))],
     };
     assert_eq!(
-        e.evaluate(&record)
+        e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Int(1)
     );

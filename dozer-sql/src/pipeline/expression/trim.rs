@@ -17,17 +17,18 @@ pub(crate) fn validate_trim(arg: &Expression, schema: &Schema) -> Result<FieldTy
 }
 
 pub(crate) fn evaluate_trim(
+    schema: &Schema,
     arg: &Box<Expression>,
     what: &Option<Box<Expression>>,
     typ: &Option<TrimType>,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let arg_field = arg.evaluate(record)?;
+    let arg_field = arg.evaluate(record, schema)?;
     let arg_value = arg_str!(arg_field, "TRIM", 0)?;
 
     let v1: Vec<_> = match what {
         Some(e) => {
-            let f = e.evaluate(record)?;
+            let f = e.evaluate(record, schema)?;
             arg_str!(f, "TRIM", 1)?.chars().collect()
         }
         _ => vec![' '],

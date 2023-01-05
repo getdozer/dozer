@@ -59,7 +59,10 @@ impl ProcessorFactory for SelectionProcessorFactory {
         let builder = ExpressionBuilder {};
 
         match builder.build(&ExpressionType::FullExpression, &self.statement, schema) {
-            Ok(expression) => Ok(Box::new(SelectionProcessor::new(expression))),
+            Ok(expression) => Ok(Box::new(SelectionProcessor::new(
+                schema.clone(),
+                expression,
+            ))),
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
     }

@@ -67,28 +67,31 @@ impl ScalarFunctionType {
 
     pub(crate) fn evaluate(
         &self,
+        schema: &Schema,
         args: &[Expression],
         record: &Record,
     ) -> Result<Field, PipelineError> {
         match self {
             ScalarFunctionType::Abs => {
-                evaluate_abs(argv!(args, 0, ScalarFunctionType::Abs)?, record)
+                evaluate_abs(schema, argv!(args, 0, ScalarFunctionType::Abs)?, record)
             }
             ScalarFunctionType::Round => evaluate_round(
+                schema,
                 argv!(args, 0, ScalarFunctionType::Round)?,
                 args.get(1),
                 record,
             ),
             ScalarFunctionType::Ucase => {
-                evaluate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, record)
+                evaluate_ucase(schema, argv!(args, 0, ScalarFunctionType::Ucase)?, record)
             }
             ScalarFunctionType::Concat => evaluate_concat(
+                schema,
                 argv!(args, 0, ScalarFunctionType::Concat)?,
                 argv!(args, 1, ScalarFunctionType::Concat)?,
                 record,
             ),
             ScalarFunctionType::Length => {
-                evaluate_length(argv!(args, 0, ScalarFunctionType::Length)?, record)
+                evaluate_length(schema, argv!(args, 0, ScalarFunctionType::Length)?, record)
             }
         }
     }
