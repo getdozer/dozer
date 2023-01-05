@@ -14,7 +14,7 @@ dozer-sql = {version = "0.1.0", path = "../dozer-sql"}
 dozer-types = {version = "0.1.0", path = "../dozer-types"}
 dozer-tracing = {version = "0.1.0", path = "../dozer-tracing"}
 dotenvy = "0.15.3"
-serde_json = "1.0.85"
+serde_json = "1.0.91"
 serde = "1.0.144"
 uuid = { version = "1.1.2", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }
