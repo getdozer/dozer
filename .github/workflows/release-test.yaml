@@ -6,6 +6,7 @@ on:
     branches: [release-test]
 env:
   BUCKET_NAME: "dozer-releases"
+  IMAGE_TAG: latest
 # permission can be added at job level or workflow level
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -25,21 +26,21 @@ jobs:
           aws-region: ap-southeast-1
 
       # Upload a file to AWS s3
-      - name: Copy index.html to s3
+      - name: Copy release to S3
         run: |
-          aws s3 cp ./release/dozer s3://${{ env.BUCKET_NAME }}/
+          aws s3 cp ./release/dozer s3://${{ env.BUCKET_NAME }}/${{env.IMAGE_TAG}}/dozer
 
       - name: Login to Amazon ECR
         id: login-ecr
-        if: matrix.os == 'ubuntu-20.04'
+        # if: matrix.os == 'ubuntu-20.04'
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build, tag, and push image to Amazon ECR
-        if: matrix.os == 'ubuntu-20.04'
+        # if: matrix.os == 'ubuntu-20.04'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: dozer
-          IMAGE_TAG: ${{ needs.prepare.outputs.version }}
+          # IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
           docker build -f release/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
