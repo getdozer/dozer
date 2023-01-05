@@ -1486,6 +1486,7 @@ version = "0.1.0"
 dependencies = [
  "bson",
  "csv",
+ "dozer-api",
  "dozer-cache",
  "dozer-core",
  "dozer-sql",

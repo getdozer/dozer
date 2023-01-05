@@ -1,8 +1,6 @@
 use std::{
-    net::SocketAddr,
     path::{Path, PathBuf},
     process::{Child, Command},
-    str::FromStr,
     thread::sleep,
     time::Duration,
 };
@@ -62,15 +60,7 @@ impl Framework {
             let mut child_processes = spawn_dozer(&self.dozer_bin, &config_path);
 
             // Run test client.
-            let rest = config
-                .api
-                .clone()
-                .unwrap_or_default()
-                .rest
-                .unwrap_or_default();
-            let rest_endpoint = SocketAddr::from_str(&format!("{}:{}", rest.host, rest.port))
-                .expect(&format!("Bad rest endpoint: {}:{}", rest.host, rest.port));
-            let client = Client::new(rest_endpoint);
+            let mut client = Client::new(config.clone()).await;
             for expectation in expectations {
                 client.check_expectation(expectation).await;
             }

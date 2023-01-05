@@ -19,6 +19,7 @@ dozer-tracing = {path = "../dozer-tracing"}
 dozer-core = {path = "../dozer-core"}
 dozer-sql = {path = "../dozer-sql"}
 dozer-cache = { path = "../dozer-cache" }
+dozer-api = { path = "../dozer-api" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.1"
 tempdir = "0.3.7"
