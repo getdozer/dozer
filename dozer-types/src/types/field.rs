@@ -174,8 +174,6 @@ impl Field {
     pub fn as_uint(&self) -> Option<u64> {
         match self {
             Field::UInt(i) => Some(*i),
-            Field::Int(i) => u64::from_i64(*i),
-            Field::Null => Some(0_u64),
             _ => None,
         }
     }
@@ -183,8 +181,6 @@ impl Field {
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Field::Int(i) => Some(*i),
-            Field::UInt(u) => i64::from_u64(*u),
-            Field::Null => Some(0_i64),
             _ => None,
         }
     }
@@ -192,10 +188,6 @@ impl Field {
     pub fn as_float(&self) -> Option<f64> {
         match self {
             Field::Float(f) => Some(f.0),
-            Field::Decimal(d) => d.to_f64(),
-            Field::UInt(u) => f64::from_u64(*u),
-            Field::Int(i) => f64::from_i64(*i),
-            Field::Null => Some(0_f64),
             _ => None,
         }
     }
@@ -203,7 +195,6 @@ impl Field {
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
             Field::Boolean(b) => Some(*b),
-            Field::Null => Some(false),
             _ => None,
         }
     }
@@ -211,8 +202,6 @@ impl Field {
     pub fn as_string(&self) -> Option<&str> {
         match self {
             Field::String(s) => Some(s),
-            Field::Text(t) => Some(t),
-            Field::Null => Some(""),
             _ => None,
         }
     }
@@ -220,8 +209,6 @@ impl Field {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Field::Text(s) => Some(s),
-            Field::String(s) => Some(s),
-            Field::Null => Some(""),
             _ => None,
         }
     }
@@ -236,10 +223,6 @@ impl Field {
     pub fn as_decimal(&self) -> Option<Decimal> {
         match self {
             Field::Decimal(d) => Some(*d),
-            Field::Float(f) => Decimal::from_f64_retain(f.0),
-            Field::Int(i) => Decimal::from_i64(*i),
-            Field::UInt(u) => Decimal::from_u64(*u),
-            Field::Null => Some(Decimal::from(0)),
             _ => None,
         }
     }
@@ -266,6 +249,107 @@ impl Field {
     }
 
     pub fn as_null(&self) -> Option<()> {
+        match self {
+            Field::Null => Some(()),
+            _ => None,
+        }
+    }
+
+    pub fn to_uint(&self) -> Option<u64> {
+        match self {
+            Field::UInt(i) => Some(*i),
+            Field::Int(i) => u64::from_i64(*i),
+            Field::Null => Some(0_u64),
+            _ => None,
+        }
+    }
+
+    pub fn to_int(&self) -> Option<i64> {
+        match self {
+            Field::Int(i) => Some(*i),
+            Field::UInt(u) => i64::from_u64(*u),
+            Field::Null => Some(0_i64),
+            _ => None,
+        }
+    }
+
+    pub fn to_float(&self) -> Option<f64> {
+        match self {
+            Field::Float(f) => Some(f.0),
+            Field::Decimal(d) => d.to_f64(),
+            Field::UInt(u) => f64::from_u64(*u),
+            Field::Int(i) => f64::from_i64(*i),
+            Field::Null => Some(0_f64),
+            _ => None,
+        }
+    }
+
+    pub fn to_boolean(&self) -> Option<bool> {
+        match self {
+            Field::Boolean(b) => Some(*b),
+            Field::Null => Some(false),
+            _ => None,
+        }
+    }
+
+    pub fn to_string(&self) -> Option<&str> {
+        match self {
+            Field::String(s) => Some(s),
+            Field::Text(t) => Some(t),
+            Field::Null => Some(""),
+            _ => None,
+        }
+    }
+
+    pub fn to_text(&self) -> Option<&str> {
+        match self {
+            Field::Text(s) => Some(s),
+            Field::String(s) => Some(s),
+            Field::Null => Some(""),
+            _ => None,
+        }
+    }
+
+    pub fn to_binary(&self) -> Option<&[u8]> {
+        match self {
+            Field::Binary(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    pub fn to_decimal(&self) -> Option<Decimal> {
+        match self {
+            Field::Decimal(d) => Some(*d),
+            Field::Float(f) => Decimal::from_f64_retain(f.0),
+            Field::Int(i) => Decimal::from_i64(*i),
+            Field::UInt(u) => Decimal::from_u64(*u),
+            Field::Null => Some(Decimal::from(0)),
+            _ => None,
+        }
+    }
+
+    pub fn to_timestamp(&self) -> Option<DateTime<FixedOffset>> {
+        match self {
+            Field::Timestamp(t) => Some(*t),
+            _ => None,
+        }
+    }
+
+    pub fn to_date(&self) -> Option<NaiveDate> {
+        match self {
+            Field::Date(d) => Some(*d),
+            _ => None,
+        }
+    }
+
+    pub fn to_bson(&self) -> Option<&[u8]> {
+        match self {
+            Field::Bson(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    pub fn to_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
             _ => None,
