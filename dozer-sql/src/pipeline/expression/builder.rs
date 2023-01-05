@@ -16,10 +16,11 @@ use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
 use crate::pipeline::expression::builder::PipelineError::InvalidOperator;
 use crate::pipeline::expression::builder::PipelineError::InvalidValue;
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
-use crate::pipeline::expression::execution::{Expression, TrimType};
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
+use crate::pipeline::expression::scalar::string::TrimType;
 
 pub type Bypass = bool;
 

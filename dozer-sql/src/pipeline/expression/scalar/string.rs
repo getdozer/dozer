@@ -2,7 +2,7 @@ use crate::arg_str;
 
 use crate::pipeline::errors::PipelineError;
 
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, TrimType};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -92,6 +92,13 @@ pub(crate) fn evaluate_length(
     let f0 = arg0.evaluate(record, schema)?;
     let v0 = arg_str!(f0, ScalarFunctionType::Concat, 0)?;
     Ok(Field::UInt(v0.len() as u64))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TrimType {
+    Trailing,
+    Leading,
+    Both,
 }
 
 pub(crate) fn validate_trim(arg: &Expression, schema: &Schema) -> Result<FieldType, PipelineError> {

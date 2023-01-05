@@ -3,17 +3,10 @@ use crate::pipeline::errors::PipelineError;
 
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
-use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim};
+use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TrimType {
-    Trailing,
-    Leading,
-    Both,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
