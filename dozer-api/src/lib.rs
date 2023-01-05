@@ -31,6 +31,7 @@ pub mod rest;
 pub use actix_web;
 use dozer_cache::errors::CacheError;
 pub use tokio;
+pub use tonic;
 
 #[cfg(test)]
 mod test_utils;

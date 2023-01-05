@@ -1,9 +1,6 @@
 use std::{
-    fs::File,
-    net::SocketAddr,
     path::{Path, PathBuf},
     process::{Child, Command},
-    str::FromStr,
     thread::sleep,
     time::Duration,
 };
@@ -34,92 +31,74 @@ impl Framework {
         let config_path = find_config_path(&case_dir);
 
         // Parse expectations.
-        let expectations_path = find_expectations_path(&case_dir);
-        let error_expectation_path = find_error_expectation_path(&case_dir);
+        let expectations = Expectation::load_from_case_dir(&case_dir);
+        let error_expectation = ErrorExpectation::load_from_case_dir(&case_dir);
 
-        if let Some(expectations_path) = expectations_path {
-            self.run_test_case_with_expectations(&config_path, &expectations_path)
+        if let Some(expectations) = expectations {
+            self.run_test_case_with_expectations(&config_path, &expectations)
                 .await;
-        } else if let Some(error_expectation_path) = error_expectation_path {
-            self.run_test_case_with_error_expectation(&config_path, &error_expectation_path)
+        } else if let Some(error_expectation) = error_expectation {
+            self.run_test_case_with_error_expectation(&config_path, &error_expectation)
                 .await;
         } else {
             panic!("No expectations file found in case dir: {:?}", case_dir);
         }
     }
 
-    async fn run_test_case_with_expectations(&self, config_path: &str, expectations_path: &str) {
+    async fn run_test_case_with_expectations(
+        &self,
+        config_path: &str,
+        expectations: &[Expectation],
+    ) {
         let config = parse_config(config_path);
 
-        let expectations: Vec<Expectation> =
-            dozer_types::serde_json::from_reader(File::open(&expectations_path).expect(&format!(
-                "Failed to open expectations file {}",
-                expectations_path
-            )))
-            .expect(&format!(
-                "Failed to deserialize expectations file {}",
-                expectations_path
-            ));
+        for spawn_dozer in [spawn_dozer_same_process, spawn_dozer_two_processes] {
+            // Setup cleanups.
+            let mut cleanups = vec![Cleanup::RemoveDirectory(config.home_dir.clone())];
 
-        // Setup cleanups.
-        let cleanups = vec![Cleanup::RemoveDirectory(config.home_dir)];
+            // Start sources, dozer app and dozer API.
+            let child_processes = spawn_dozer(&self.dozer_bin, &config_path);
+            for child in child_processes {
+                cleanups.push(Cleanup::KillProcess(child));
+            }
 
-        // Start sources, dozer app and dozer API.
-        let mut child_processes = vec![];
-        child_processes.push(spawn_command(
-            &self.dozer_bin,
-            &["--config-path", &config_path],
-        ));
+            // Run test client.
+            let mut client = Client::new(config.clone()).await;
+            for expectation in expectations {
+                client.check_expectation(expectation).await;
+            }
 
-        // Run test client.
-        let rest = config.api.unwrap_or_default().rest.unwrap_or_default();
-        let rest_endpoint = SocketAddr::from_str(&format!("{}:{}", rest.host, rest.port))
-            .expect(&format!("Bad rest endpoint: {}:{}", rest.host, rest.port));
-        let client = Client::new(rest_endpoint);
-        for expectation in expectations {
-            client.check_expectation(expectation).await;
+            // To ensure `cleanups` is not dropped on async boundary.
+            drop(cleanups);
         }
-
-        // Stop child processes.
-        for child in &mut child_processes {
-            child.kill().expect("Failed to kill child process");
-        }
-
-        // To ensure `cleanups` is not dropped on async boundary.
-        drop(cleanups);
     }
 
     async fn run_test_case_with_error_expectation(
         &self,
         config_path: &str,
-        error_expectation_path: &str,
+        error_expectation: &ErrorExpectation,
     ) {
-        let error_expectation: ErrorExpectation = dozer_types::serde_json::from_reader(
-            File::open(&error_expectation_path).expect(&format!(
-                "Failed to open error expectations file {}",
-                error_expectation_path
-            )),
-        )
-        .expect(&format!(
-            "Failed to deserialize error expectation file {}",
-            error_expectation_path
-        ));
-
         match error_expectation {
             ErrorExpectation::InitFailure { message } => {
-                self.check_init_failure(&config_path, message);
+                self.check_init_failure(&config_path, message.as_deref());
             }
         }
     }
 
-    fn check_init_failure(&self, config_path: &str, message: Option<String>) {
+    fn check_init_failure(&self, config_path: &str, message: Option<&str>) {
         let config = parse_config(config_path);
-        let _cleanup = Cleanup::RemoveDirectory(config.home_dir);
-        assert_command_fails(
-            &self.dozer_bin,
-            &["--config-path", &config_path, "init"],
-            message,
-        );
+        {
+            let _cleanup = Cleanup::RemoveDirectory(config.home_dir.clone());
+            assert_command_fails(&self.dozer_bin, &["--config-path", &config_path], message);
+        }
+        {
+            let _cleanup = Cleanup::RemoveDirectory(config.home_dir);
+            assert_command_fails(
+                &self.dozer_bin,
+                &["--config-path", &config_path, "init"],
+                message,
+            );
+        }
     }
 }
 
@@ -138,6 +117,18 @@ fn build_dozer() -> String {
     "../target/release/dozer".to_string()
 }
 
+fn spawn_dozer_same_process(dozer_bin: &str, config_path: &str) -> Vec<Child> {
+    vec![spawn_command(dozer_bin, &["--config-path", config_path])]
+}
+
+fn spawn_dozer_two_processes(dozer_bin: &str, config_path: &str) -> Vec<Child> {
+    run_command(dozer_bin, &["--config-path", config_path, "init"]);
+    vec![
+        spawn_command(dozer_bin, &["--config-path", config_path, "app", "run"]),
+        spawn_command(dozer_bin, &["--config-path", config_path, "api", "run"]),
+    ]
+}
+
 fn run_command(bin: &str, args: &[&str]) {
     let mut cmd = Command::new(bin);
     cmd.args(args);
@@ -153,7 +144,7 @@ fn run_command(bin: &str, args: &[&str]) {
             std::env::current_dir().expect("Failed to get cwd")
         );
     }
-    info!("Commond done: {:?}", cmd);
+    info!("Command done: {:?}", cmd);
 }
 
 fn spawn_command(bin: &str, args: &[&str]) -> Child {
@@ -181,7 +172,7 @@ fn spawn_command(bin: &str, args: &[&str]) -> Child {
     child
 }
 
-fn assert_command_fails(bin: &str, args: &[&str], expected_string_in_stdout: Option<String>) {
+fn assert_command_fails(bin: &str, args: &[&str], expected_string_in_stdout: Option<&str>) {
     let mut cmd = Command::new(bin);
     cmd.args(args);
     info!("Running command: {:?}", cmd);
@@ -213,36 +204,6 @@ fn find_config_path(case_dir: &Path) -> String {
         }
     }
     panic!("Cannot find config file in case directory: {:?}", case_dir);
-}
-
-fn find_expectations_path(case_dir: &Path) -> Option<String> {
-    for file_name in ["expectations.json"] {
-        let expectations_path = case_dir.join(file_name);
-        if expectations_path.exists() {
-            return Some(
-                expectations_path
-                    .to_str()
-                    .expect(&format!("Non-UTF8 path: {:?}", expectations_path))
-                    .to_string(),
-            );
-        }
-    }
-    None
-}
-
-fn find_error_expectation_path(case_dir: &Path) -> Option<String> {
-    for file_name in ["error.json"] {
-        let error_expectation_path = case_dir.join(file_name);
-        if error_expectation_path.exists() {
-            return Some(
-                error_expectation_path
-                    .to_str()
-                    .expect(&format!("Non-UTF8 path: {:?}", error_expectation_path))
-                    .to_string(),
-            );
-        }
-    }
-    None
 }
 
 fn parse_config(config_path: &str) -> Config {
