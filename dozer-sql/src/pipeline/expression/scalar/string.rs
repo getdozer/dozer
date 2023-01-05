@@ -61,22 +61,3 @@ pub(crate) fn evaluate_length(arg0: &Expression, record: &Record) -> Result<Fiel
     let v0 = arg_str!(f0, ScalarFunctionType::Concat, 0)?;
     Ok(Field::UInt(v0.len() as u64))
 }
-
-pub(crate) fn evaluate_trim(
-    arg0: &Expression,
-    arg1: Option<&Expression>,
-    record: &Record,
-) -> Result<Field, PipelineError> {
-    let f0 = arg0.evaluate(record)?;
-    let v0 = arg_str!(f0, ScalarFunctionType::Trim, 0)?;
-
-    let v1: Vec<_> = match arg1 {
-        Some(e) => {
-            let f = e.evaluate(record)?;
-            arg_str!(f, ScalarFunctionType::Trim, 1)?.chars().collect()
-        }
-        _ => vec![' '],
-    };
-
-    Ok(Field::String(v0.trim_matches::<&[char]>(&v1).to_string()))
-}

@@ -76,7 +76,7 @@ fn test_length() {
 #[test]
 fn test_trim() {
     let f = run_scalar_fct(
-        "SELECT TRIM_MATCH(fn) FROM USERS",
+        "SELECT TRIM(fn) FROM USERS",
         Schema::empty()
             .field(
                 FieldDefinition::new(String::from("fn"), FieldType::String, false),
@@ -91,14 +91,59 @@ fn test_trim() {
 #[test]
 fn test_trim_value() {
     let f = run_scalar_fct(
-        "SELECT TRIM_MATCH(fn, ' ') FROM USERS",
+        "SELECT TRIM('_' FROM fn) FROM USERS",
         Schema::empty()
             .field(
                 FieldDefinition::new(String::from("fn"), FieldType::String, false),
                 false,
             )
             .clone(),
-        vec![Field::String("   John   ".to_string())],
+        vec![Field::String("___John___".to_string())],
     );
     assert_eq!(f, Field::String("John".to_string()));
+}
+
+#[test]
+fn test_btrim_value() {
+    let f = run_scalar_fct(
+        "SELECT TRIM(BOTH '_' FROM fn) FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![Field::String("___John___".to_string())],
+    );
+    assert_eq!(f, Field::String("John".to_string()));
+}
+
+#[test]
+fn test_ltrim_value() {
+    let f = run_scalar_fct(
+        "SELECT TRIM(LEADING '_' FROM fn) FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![Field::String("___John___".to_string())],
+    );
+    assert_eq!(f, Field::String("John___".to_string()));
+}
+
+#[test]
+fn test_ttrim_value() {
+    let f = run_scalar_fct(
+        "SELECT TRIM(TRAILING '_' FROM fn) FROM USERS",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("fn"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![Field::String("___John___".to_string())],
+    );
+    assert_eq!(f, Field::String("___John".to_string()));
 }

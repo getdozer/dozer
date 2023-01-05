@@ -8,3 +8,4 @@ pub mod mathematical;
 pub mod operator;
 pub mod scalar;
 mod tests;
+pub mod trim;

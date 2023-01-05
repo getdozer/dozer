@@ -1,10 +1,19 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::{get_scalar_function_type, ScalarFunctionType};
+use crate::pipeline::expression::trim::{evaluate_trim, validate_trim};
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TrimType {
+    Trailing,
+    Leading,
+    Both,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -28,6 +37,11 @@ pub enum Expression {
     AggregateFunction {
         fun: AggregateFunctionType,
         args: Vec<Expression>,
+    },
+    Trim {
+        arg: Box<Expression>,
+        what: Option<Box<Expression>>,
+        typ: Option<TrimType>,
     },
 }
 
@@ -61,6 +75,7 @@ impl ExpressionExecutor for Expression {
                     fun
                 )))
             }
+            Expression::Trim { typ, what, arg } => evaluate_trim(arg, what, typ, record),
         }
     }
 
@@ -82,6 +97,7 @@ impl ExpressionExecutor for Expression {
             Expression::AggregateFunction { fun, args } => {
                 get_aggregate_function_type(fun, args, schema)
             }
+            Expression::Trim { what, typ, arg } => validate_trim(arg, schema),
         }
     }
 }
