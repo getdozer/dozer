@@ -1,0 +1,45 @@
+# Sample workflow to access AWS resources when workflow is tied to branch
+# The workflow Creates static website using aws s3
+name: RELEASE test
+on:
+  push:
+    branches: [feat/release]
+env:
+  BUCKET_NAME: "dozer-releases"
+# permission can be added at job level or workflow level
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git clone the repository
+        uses: actions/checkout@v3
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: deployer
+          aws-region: ap-southeast-1
+
+      # Upload a file to AWS s3
+      - name: Copy index.html to s3
+        run: |
+          aws s3 cp ./release/dozer s3://${{ env.BUCKET_NAME }}/
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        if: matrix.os == 'ubuntu-20.04'
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        if: matrix.os == 'ubuntu-20.04'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: dozer
+          IMAGE_TAG: ${{ needs.prepare.outputs.version }}
+        run: |
+          docker build -f release/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
