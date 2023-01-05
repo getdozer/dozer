@@ -6,7 +6,7 @@ use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
-use dozer_types::types::{Field, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::fmt::{Debug, Formatter};
 
 pub trait RecordWriter {
@@ -40,7 +40,7 @@ impl RecordWriterUtils {
                 retr_old_records_for_updates,
             ))),
             OutputPortType::AutogenRowKeyLookup => Ok(Box::new(
-                AutogenRowsIdLookupRecordWriter::new(db, meta_db, schema),
+                AutogenRowKeyLookupRecordWriter::new(db, meta_db, schema),
             )),
             _ => panic!(
                 "Unexpected port type in RecordWriterUtils::create_writer(): {}",
@@ -140,15 +140,27 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
     }
 }
 
+const DOZER_ROWID: &str = "_DOZER_ROWID";
+
 #[derive(Debug)]
-struct AutogenRowsIdLookupRecordWriter {
+pub struct AutogenRowKeyLookupRecordWriter {
     db: Database,
     meta_db: Database,
     schema: Schema,
 }
 
-impl AutogenRowsIdLookupRecordWriter {
+impl AutogenRowKeyLookupRecordWriter {
     const COUNTER_KEY: u16 = 0_u16;
+
+    pub fn prepare_schema(mut schema: Schema) -> Schema {
+        schema.fields.push(FieldDefinition::new(
+            DOZER_ROWID.to_string(),
+            FieldType::UInt,
+            false,
+        ));
+        schema.primary_index = vec![schema.fields.len() - 1];
+        schema
+    }
 
     pub fn new(db: Database, meta_db: Database, schema: Schema) -> Self {
         Self {
@@ -180,7 +192,7 @@ impl AutogenRowsIdLookupRecordWriter {
     }
 }
 
-impl RecordWriter for AutogenRowsIdLookupRecordWriter {
+impl RecordWriter for AutogenRowKeyLookupRecordWriter {
     fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { mut new } => {

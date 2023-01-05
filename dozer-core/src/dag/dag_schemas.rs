@@ -1,7 +1,9 @@
 use crate::dag::dag::{Dag, NodeType};
 use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
-use crate::dag::node::{NodeHandle, PortHandle};
+use crate::dag::node::OutputPortType::AutogenRowKeyLookup;
+use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
+use crate::dag::record_store::AutogenRowKeyLookupRecordWriter;
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 
@@ -43,12 +45,30 @@ pub struct DagSchemaManager<'a> {
 impl<'a> DagSchemaManager<'a> {
     fn get_port_output_schema(
         node: &NodeType,
-        output_port: &PortHandle,
+        output_port: &OutputPortDef,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Option<Schema>, ExecutionError> {
         Ok(match node {
-            NodeType::Source(src) => Some(src.get_output_schema(output_port)?),
-            NodeType::Processor(proc) => Some(proc.get_output_schema(output_port, input_schemas)?),
+            NodeType::Source(src) => match output_port.typ {
+                OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
+                    Some(src.get_output_schema(&output_port.handle)?)
+                }
+                OutputPortType::AutogenRowKeyLookup => {
+                    Some(AutogenRowKeyLookupRecordWriter::prepare_schema(
+                        src.get_output_schema(&output_port.handle)?,
+                    ))
+                }
+            },
+            NodeType::Processor(proc) => match output_port.typ {
+                OutputPortType::Stateless | OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
+                    Some(proc.get_output_schema(&output_port.handle, &input_schemas)?)
+                }
+                OutputPortType::AutogenRowKeyLookup => {
+                    Some(AutogenRowKeyLookupRecordWriter::prepare_schema(
+                        proc.get_output_schema(&output_port.handle, &input_schemas)?,
+                    ))
+                }
+            },
             NodeType::Sink(proc) => {
                 proc.set_input_schema(input_schemas)?;
                 None
@@ -64,10 +84,10 @@ impl<'a> DagSchemaManager<'a> {
         }
     }
 
-    fn get_node_output_ports(node: &NodeType) -> Vec<PortHandle> {
+    fn get_node_output_ports(node: &NodeType) -> Vec<OutputPortDef> {
         match node {
-            NodeType::Source(src) => src.get_output_ports().iter().map(|p| p.handle).collect(),
-            NodeType::Processor(proc) => proc.get_output_ports().iter().map(|p| p.handle).collect(),
+            NodeType::Source(src) => src.get_output_ports(),
+            NodeType::Processor(proc) => proc.get_output_ports(),
             NodeType::Sink(_proc) => vec![],
         }
     }
@@ -119,7 +139,9 @@ impl<'a> DagSchemaManager<'a> {
                                 &node_schemas.input_schemas,
                             )?;
                             if let Some(schema) = &schema {
-                                node_schemas.output_schemas.insert(*port, schema.clone());
+                                node_schemas
+                                    .output_schemas
+                                    .insert(port.handle.clone(), schema.clone());
                             }
                             schema
                         };
@@ -128,7 +150,7 @@ impl<'a> DagSchemaManager<'a> {
                         let next_in_chain = dag
                             .edges
                             .iter()
-                            .filter(|e| &e.from.node == handle && &e.from.port == port)
+                            .filter(|e| &e.from.node == handle && &e.from.port == &port.handle)
                             .map(|e| e.to.clone());
 
                         for next_node_port_input in next_in_chain {
