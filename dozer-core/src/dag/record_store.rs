@@ -110,11 +110,7 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(
-        &self,
-        op: Operation,
-        tx: &SharedTransaction,
-    ) -> Result<Operation, ExecutionError> {
+    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { new } => {
                 RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
