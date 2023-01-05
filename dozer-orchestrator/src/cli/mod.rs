@@ -31,7 +31,7 @@ pub fn load_config(config_path: String) -> Result<Config, CliError> {
 }
 
 pub const LOGO: &str = "
-____   ___ __________ ____
+ ____   ___ __________ ____
 |  _ \\ / _ \\__  / ____|  _ \\
 | | | | | | |/ /|  _| | |_) |
 | |_| | |_| / /_| |___|  _ <
