@@ -90,9 +90,6 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: rust-cargo-make
-        uses: davidB/rust-cargo-make@v1
-
       - name: ⚡ Cache
         uses: actions/cache@v3
         with:
