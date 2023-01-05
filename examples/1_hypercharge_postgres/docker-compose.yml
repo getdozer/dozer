@@ -15,8 +15,6 @@ services:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
     command: "dozer -c /usr/dozer/dozer-config.yaml init -f"
-    networks: [ "dozer_net" ]
-
   dozer:
     container_name: dozer
     depends_on:
@@ -37,7 +35,6 @@ services:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
     command: "dozer -c /usr/dozer/dozer-config.yaml"
-    networks: ["dozer_net"]
 
   # Initialize sample data
   samples:
@@ -46,9 +43,6 @@ services:
       dockerfile: samples.Dockerfile
     volumes:
       - sample-data:/var/lib/stock-sample/data
-    networks: ["dozer_net"]
-
-  
 
   postgres:
     depends_on:
@@ -72,19 +66,5 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks: ["dozer_net"]
-networks:
-  dozer_net:
-    name: "dozer_net"
-    enable_ipv6: true
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: "true"
-    ipam:
-      driver: default
-      config:
-        - subnet: fd00:0:0:1::/64
-          gateway: fd00:0:0:1::1
-
 volumes:
   sample-data:
