@@ -89,12 +89,18 @@ impl Framework {
 
     fn check_init_failure(&self, config_path: &str, message: Option<&str>) {
         let config = parse_config(config_path);
-        let _cleanup = Cleanup::RemoveDirectory(config.home_dir);
-        assert_command_fails(
-            &self.dozer_bin,
-            &["--config-path", &config_path, "init"],
-            message,
-        );
+        {
+            let _cleanup = Cleanup::RemoveDirectory(config.home_dir.clone());
+            assert_command_fails(&self.dozer_bin, &["--config-path", &config_path], message);
+        }
+        {
+            let _cleanup = Cleanup::RemoveDirectory(config.home_dir);
+            assert_command_fails(
+                &self.dozer_bin,
+                &["--config-path", &config_path, "init"],
+                message,
+            );
+        }
     }
 }
 
