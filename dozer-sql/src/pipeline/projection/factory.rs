@@ -11,7 +11,7 @@ use sqlparser::ast::SelectItem;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
-        builder::{ExpressionBuilder, ExpressionType},
+        builder::{BuilderExpressionType, ExpressionBuilder},
         execution::Expression,
         execution::ExpressionExecutor,
     },
@@ -63,11 +63,10 @@ impl ProcessorFactory for ProjectionProcessorFactory {
                     let field_type =
                         e.1.get_type(input_schema)
                             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                    let field_nullable = true;
                     output_schema.fields.push(FieldDefinition::new(
                         field_name,
-                        field_type,
-                        field_nullable,
+                        field_type.return_type,
+                        field_type.nullable,
                     ));
                 }
 
@@ -119,7 +118,11 @@ pub(crate) fn parse_sql_select_item(
     let builder = ExpressionBuilder {};
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match builder.parse_sql_expression(&ExpressionType::FullExpression, sql_expr, schema) {
+            match builder.parse_sql_expression(
+                &BuilderExpressionType::FullExpression,
+                sql_expr,
+                schema,
+            ) {
                 Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
                 Err(error) => Err(error),
             }

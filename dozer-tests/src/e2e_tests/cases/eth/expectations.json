@@ -38,7 +38,7 @@
                             {
                                 "name": "id",
                                 "typ": "Int",
-                                "nullable": true
+                                "nullable": false
                             }
                         ]
                     }
