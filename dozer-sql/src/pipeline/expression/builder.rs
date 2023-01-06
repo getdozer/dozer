@@ -24,7 +24,7 @@ use crate::pipeline::expression::scalar::string::TrimType;
 
 pub type Bypass = bool;
 
-pub enum ExpressionType {
+pub enum BuilderExpressionType {
     PreAggregation,
     Aggregation,
     // PostAggregation,
@@ -36,7 +36,7 @@ pub struct ExpressionBuilder;
 impl ExpressionBuilder {
     pub fn build(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
@@ -47,7 +47,7 @@ impl ExpressionBuilder {
 
     pub fn parse_sql_expression(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
@@ -74,20 +74,20 @@ impl ExpressionBuilder {
             }
             SqlExpr::Nested(expr) => self.parse_sql_expression(expression_type, expr, schema),
             SqlExpr::Function(sql_function) => match expression_type {
-                ExpressionType::PreAggregation => self.parse_sql_function_pre_aggregation(
+                BuilderExpressionType::PreAggregation => self.parse_sql_function_pre_aggregation(
                     expression_type,
                     sql_function,
                     schema,
                     expression,
                 ),
-                ExpressionType::Aggregation => self.parse_sql_function_aggregation(
+                BuilderExpressionType::Aggregation => self.parse_sql_function_aggregation(
                     expression_type,
                     sql_function,
                     schema,
                     expression,
                 ),
                 // ExpressionType::PostAggregation => todo!(),
-                ExpressionType::FullExpression => {
+                BuilderExpressionType::FullExpression => {
                     self.parse_sql_function(expression_type, sql_function, schema, expression)
                 }
             },
@@ -111,7 +111,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_trim_function(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         expr: &Expr,
         trim_where: &Option<TrimWhereField>,
         trim_what: &Option<Box<Expr>>,
@@ -132,7 +132,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -174,7 +174,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_pre_aggregation(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -217,7 +217,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_aggregation(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -286,7 +286,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_arg(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         argument: &FunctionArg,
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
@@ -311,7 +311,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_unary_op(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
@@ -333,7 +333,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_binary_op(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         left: &SqlExpr,
         op: &SqlBinaryOperator,
         right: &SqlExpr,

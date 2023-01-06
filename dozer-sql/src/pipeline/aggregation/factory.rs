@@ -12,7 +12,7 @@ use crate::pipeline::{
     errors::PipelineError,
     expression::{
         aggregate::AggregateFunctionType,
-        builder::{ExpressionBuilder, ExpressionType},
+        builder::{BuilderExpressionType, ExpressionBuilder},
         execution::{Expression, ExpressionExecutor},
     },
     projection::{factory::parse_sql_select_item, processor::ProjectionProcessor},
@@ -146,13 +146,20 @@ fn parse_sql_aggregate_item(
 
     match item {
         SelectItem::UnnamedExpr(sql_expr) => {
-            let expression =
-                builder.parse_sql_expression(&ExpressionType::Aggregation, sql_expr, schema)?;
+            let expression = builder.parse_sql_expression(
+                &BuilderExpressionType::Aggregation,
+                sql_expr,
+                schema,
+            )?;
 
             match get_aggregator(expression.0.clone(), schema) {
                 Ok(aggregator) => Ok(FieldRule::Measure(
                     ExpressionBuilder {}
-                        .parse_sql_expression(&ExpressionType::PreAggregation, sql_expr, schema)?
+                        .parse_sql_expression(
+                            &BuilderExpressionType::PreAggregation,
+                            sql_expr,
+                            schema,
+                        )?
                         .0,
                     aggregator,
                     sql_expr.to_string(),
@@ -181,7 +188,11 @@ fn parse_sql_groupby_item(
     schema: &Schema,
 ) -> Result<FieldRule, PipelineError> {
     Ok(FieldRule::Dimension(
-        ExpressionBuilder {}.build(&ExpressionType::FullExpression, sql_expression, schema)?,
+        ExpressionBuilder {}.build(
+            &BuilderExpressionType::FullExpression,
+            sql_expression,
+            schema,
+        )?,
         false,
         sql_expression.to_string(),
     ))

@@ -11,7 +11,7 @@ use sqlparser::ast::SelectItem;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
-        builder::{ExpressionBuilder, ExpressionType},
+        builder::{BuilderExpressionType, ExpressionBuilder},
         execution::Expression,
         execution::ExpressionExecutor,
     },
@@ -118,7 +118,11 @@ pub(crate) fn parse_sql_select_item(
     let builder = ExpressionBuilder {};
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match builder.parse_sql_expression(&ExpressionType::FullExpression, sql_expr, schema) {
+            match builder.parse_sql_expression(
+                &BuilderExpressionType::FullExpression,
+                sql_expr,
+                schema,
+            ) {
                 Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
                 Err(error) => Err(error),
             }
