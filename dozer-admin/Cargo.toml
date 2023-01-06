@@ -1,6 +1,6 @@
 [package]
 name = "dozer-admin"
-version = "0.0.1"
+version = "0.1.3"
 authors = ["Karolis Gudiškis <karolis@getdozer.io>"]
 edition = "2021"
 build = "build.rs"
@@ -20,8 +20,8 @@ tonic = "0.8.2"
 tokio = "1.21.0"
 prost-types = "0.11.1"
 tonic-web = "0.4.0"
-dozer-orchestrator = {version = "0.1.0", path = "../dozer-orchestrator"}
-dozer-types = {version = "0.1.0", path = "../dozer-types"}
+dozer-orchestrator = {version = "0.1.3", path = "../dozer-orchestrator"}
+dozer-types = {version = "0.1.3", path = "../dozer-types"}
 tonic-build = "0.8.0"
 mockall = "0.11.2"
 cargo-expand = "1.0.31"
