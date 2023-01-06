@@ -1,8 +1,12 @@
-use dozer_types::indexmap::{self, IndexMap};
+use dozer_types::{
+    indexmap::{self, IndexMap},
+    types::{FieldType, DATE_FORMAT},
+};
 use openapiv3::{
-    Contact, MediaType, NumberFormat, NumberType, ObjectType, Parameter, ParameterData,
-    ParameterSchemaOrContent, PathStyle, ReferenceOr, Response, Schema, SchemaData, SchemaKind,
-    StringType, Type, VariantOrUnknownOrEmpty,
+    ArrayType, Contact, IntegerFormat, IntegerType, MediaType, NumberFormat, NumberType,
+    ObjectType, Parameter, ParameterData, ParameterSchemaOrContent, PathStyle, ReferenceOr,
+    Response, Schema, SchemaData, SchemaKind, StringFormat, StringType, Type,
+    VariantOrUnknownOrEmpty,
 };
 
 const CONTACT_NAME: &str = "Dozer Team";
@@ -85,38 +89,57 @@ pub fn convert_cache_to_oapi_schema(
     }
 }
 
-fn get_type_by_name(name: &str) -> Type {
-    match name {
-        "string" => Type::String(StringType {
+/// Should be consistent with `field_to_json_value`.
+fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) -> Type {
+    match field_type {
+        FieldType::UInt | FieldType::Int => Type::Integer(IntegerType {
+            format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int64),
             ..Default::default()
         }),
-        "bool" => Type::Boolean {},
-        "float" => Type::Number(NumberType {
-            format: VariantOrUnknownOrEmpty::Item(NumberFormat::Float),
-            ..Default::default()
-        }),
-        "decimal" => Type::Number(NumberType {
+        FieldType::Float => Type::Number(NumberType {
             format: VariantOrUnknownOrEmpty::Item(NumberFormat::Double),
             ..Default::default()
         }),
-        "integer" => Type::Integer(Default::default()),
-        _ => Type::String(StringType {
-            ..Default::default()
+        FieldType::Boolean => Type::Boolean {},
+        FieldType::String
+        | FieldType::Text
+        | FieldType::Decimal
+        | FieldType::Timestamp
+        | FieldType::Date => {
+            let (format, pattern) = if field_type == FieldType::Timestamp {
+                (
+                    VariantOrUnknownOrEmpty::Item(StringFormat::DateTime),
+                    Some("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'".to_string()),
+                )
+            } else if field_type == FieldType::Date {
+                (
+                    VariantOrUnknownOrEmpty::Item(StringFormat::Date),
+                    Some(DATE_FORMAT.to_string()),
+                )
+            } else {
+                (VariantOrUnknownOrEmpty::Empty, None)
+            };
+            Type::String(StringType {
+                format,
+                pattern,
+                ..Default::default()
+            })
+        }
+        FieldType::Binary | FieldType::Bson => Type::Array(ArrayType {
+            items: Some(ReferenceOr::Item(Box::new(u8_schema()))),
+            min_items: None,
+            max_items: None,
+            unique_items: false,
         }),
     }
 }
-pub fn convert_cache_type_to_schema_type(field_type: dozer_types::types::FieldType) -> Type {
-    match field_type {
-        dozer_types::types::FieldType::Int => get_type_by_name("string"),
-        dozer_types::types::FieldType::Float => get_type_by_name("float"),
-        dozer_types::types::FieldType::Boolean => get_type_by_name("bool"),
-        dozer_types::types::FieldType::String => get_type_by_name("string"),
-        dozer_types::types::FieldType::Binary => get_type_by_name("string"),
-        dozer_types::types::FieldType::Decimal => get_type_by_name("string"),
-        dozer_types::types::FieldType::Timestamp => get_type_by_name("decimal"),
-        dozer_types::types::FieldType::Bson => get_type_by_name("string"),
-        dozer_types::types::FieldType::UInt => get_type_by_name("string"),
-        dozer_types::types::FieldType::Text => get_type_by_name("string"),
-        dozer_types::types::FieldType::Date => get_type_by_name("string"),
+
+fn u8_schema() -> Schema {
+    Schema {
+        schema_data: Default::default(),
+        schema_kind: SchemaKind::Type(Type::Integer(IntegerType {
+            format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int32),
+            ..Default::default()
+        })),
     }
 }
