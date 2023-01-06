@@ -38,21 +38,21 @@ impl Client {
             .expect(&format!("Bad rest endpoint: {}:{}", rest.host, rest.port));
 
         let grpc = api.grpc.unwrap_or_default();
-        let grpc_endpoint = format!("http://{}:{}", grpc.host, grpc.port);
-        let grpc_endpoint = Endpoint::from_shared(grpc_endpoint.clone())
-            .expect(&format!("Invalid grpc endpoint {}", grpc_endpoint));
+        let grpc_endpoint_string = format!("http://{}:{}", grpc.host, grpc.port);
+        let grpc_endpoint = Endpoint::from_shared(grpc_endpoint_string.clone())
+            .expect(&format!("Invalid grpc endpoint {}", grpc_endpoint_string));
 
         let health_grpc_client = HealthGrpcServiceClient::connect(grpc_endpoint.clone())
             .await
             .expect(&format!(
-                "Health grpc client cannot connect to endpoint {:?}",
-                grpc_endpoint
+                "Health grpc client cannot connect to endpoint {}",
+                grpc_endpoint_string
             ));
         let common_grpc_client = CommonGrpcServiceClient::connect(grpc_endpoint.clone())
             .await
             .expect(&format!(
-                "Common grpc client cannot connect to endpoint {:?}",
-                grpc_endpoint
+                "Common grpc client cannot connect to endpoint {}",
+                grpc_endpoint_string
             ));
 
         Self {
