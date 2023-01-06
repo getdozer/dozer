@@ -325,11 +325,11 @@ impl SourceFactory for ErrGeneratorSourceFactory {
             .clone())
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
             OutputPortType::Stateless,
-        )]
+        )])
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {

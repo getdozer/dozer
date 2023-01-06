@@ -33,7 +33,7 @@ pub trait Orchestrator {
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError>;
     fn list_connectors(&self)
-        -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError>;
+        -> Result<HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>, OrchestrationError>;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
     fn query(
         &self,
@@ -48,6 +48,7 @@ use dozer_ingestion::connectors::TableInfo;
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
+use dozer_types::types::ReplicationChangesTrackingType;
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input.clone())?;

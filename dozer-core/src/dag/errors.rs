@@ -28,6 +28,8 @@ pub enum ExecutionError {
     FieldNotFound(String),
     #[error("Port not found in source for schema_id: {0}.")]
     PortNotFound(String),
+    #[error("Replication type not found")]
+    ReplicationTypeNotFound,
     #[error("Record not found")]
     RecordNotFound(),
     #[error("Invalid checkpoint state for node: {0}")]

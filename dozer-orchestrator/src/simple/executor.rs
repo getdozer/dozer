@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::App;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{ReplicationChangesTrackingType, Operation, Schema};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -174,7 +174,7 @@ impl Executor {
     }
     pub fn get_tables(
         connections: &Vec<Connection>,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+    ) -> Result<HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>, OrchestrationError> {
         let mut schema_map = HashMap::new();
         for connection in connections {
             validate(connection.to_owned(), None)?;

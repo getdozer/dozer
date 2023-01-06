@@ -11,6 +11,7 @@ use crate::{
 use dozer_orchestrator::get_connector;
 use dozer_types::models::connection::{Authentication, Connection};
 use std::thread;
+use dozer_types::types::{ReplicationChangesTrackingType, Schema};
 
 pub struct ConnectionService {
     db_pool: DbPool,
@@ -25,7 +26,7 @@ impl ConnectionService {
     async fn _get_schema(
         &self,
         connection: Connection,
-    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ErrorResponse> {
+    ) -> Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, ErrorResponse> {
         let get_schema_res = thread::spawn(|| {
             let connector = get_connector(connection).map_err(|err| err.to_string())?;
             connector.get_schemas(None).map_err(|err| err.to_string())

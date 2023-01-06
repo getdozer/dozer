@@ -252,7 +252,7 @@ impl<'a> DagExecutor<'a> {
             .consistency_metadata
             .get(&handle)
             .ok_or_else(|| ExecutionError::InvalidNodeHandle(handle.clone()))?;
-        let output_ports = src_factory.get_output_ports();
+        let output_ports = src_factory.get_output_ports()?;
 
         let st_node_handle = handle.clone();
         let output_schemas = schemas.output_schemas.clone();

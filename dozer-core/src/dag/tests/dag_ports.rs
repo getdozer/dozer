@@ -24,11 +24,11 @@ impl SourceFactory for DynPortsSourceFactory {
         todo!()
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        self.output_ports
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(self.output_ports
             .iter()
             .map(|p| OutputPortDef::new(*p, OutputPortType::Stateless))
-            .collect()
+            .collect())
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {

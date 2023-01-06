@@ -173,6 +173,9 @@ pub enum PostgresSchemaError {
 
     #[error("Value conversion error: {0}")]
     ValueConversionError(String),
+
+    #[error("Unsupported replication type - '{0}'")]
+    UnsupportedReplicationType(String)
 }
 
 #[cfg(feature = "snowflake")]

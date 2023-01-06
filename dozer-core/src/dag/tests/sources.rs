@@ -43,8 +43,8 @@ impl SourceFactory for GeneratorSourceFactory {
             .clone())
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
             if self.stateful {
                 OutputPortType::StatefulWithPrimaryKeyLookup {
@@ -54,7 +54,7 @@ impl SourceFactory for GeneratorSourceFactory {
             } else {
                 OutputPortType::Stateless
             },
-        )]
+        )])
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
