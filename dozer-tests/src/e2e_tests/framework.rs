@@ -1,4 +1,5 @@
 use std::{
+    env,
     path::{Path, PathBuf},
     process::{Child, Command},
     thread::sleep,
@@ -20,7 +21,7 @@ pub struct Framework {
 
 impl Framework {
     pub fn new() -> Self {
-        let dozer_bin = build_dozer();
+        let dozer_bin = env::var("DOZER_BIN").expect("DOZER_BIN env var not set");
         Self { dozer_bin }
     }
 
@@ -100,21 +101,6 @@ impl Framework {
             );
         }
     }
-}
-
-fn build_dozer() -> String {
-    run_command(
-        "cargo",
-        &[
-            "build",
-            "--manifest-path",
-            "../Cargo.toml", // Working directory is `dozer-tests`.
-            "--release",
-            "--bin",
-            "dozer",
-        ],
-    );
-    "../target/release/dozer".to_string()
 }
 
 fn spawn_dozer_same_process(dozer_bin: &str, config_path: &str) -> Vec<Child> {
