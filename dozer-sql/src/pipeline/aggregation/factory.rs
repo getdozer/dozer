@@ -222,25 +222,27 @@ fn build_output_schema(
     for e in output_field_rules.iter().enumerate() {
         match e.1 {
             FieldRule::Measure(pre_aggr, aggr, name) => {
+                let res = pre_aggr
+                    .get_type(input_schema)
+                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
                 output_schema.fields.push(FieldDefinition::new(
                     name.clone(),
-                    aggr.get_return_type(
-                        pre_aggr
-                            .get_type(input_schema)
-                            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
-                    ),
-                    false,
+                    aggr.get_return_type(res.return_type),
+                    res.nullable,
                 ));
             }
 
             FieldRule::Dimension(expression, is_value, name) => {
                 if *is_value {
+                    let res = expression
+                        .get_type(input_schema)
+                        .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+
                     output_schema.fields.push(FieldDefinition::new(
                         name.clone(),
-                        expression
-                            .get_type(input_schema)
-                            .map_err(|e| ExecutionError::InternalError(Box::new(e)))?,
-                        true,
+                        res.return_type,
+                        res.nullable,
                     ));
                     output_schema.primary_index.push(e.0);
                 }
@@ -267,11 +269,11 @@ fn build_projection_schema(
                 let field_type =
                     e.1.get_type(input_schema)
                         .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                let field_nullable = true;
+
                 output_schema.fields.push(FieldDefinition::new(
                     field_name,
-                    field_type,
-                    field_nullable,
+                    field_type.return_type,
+                    field_type.nullable,
                 ));
             }
 

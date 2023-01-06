@@ -63,11 +63,10 @@ impl ProcessorFactory for ProjectionProcessorFactory {
                     let field_type =
                         e.1.get_type(input_schema)
                             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                    let field_nullable = true;
                     output_schema.fields.push(FieldDefinition::new(
                         field_name,
-                        field_type,
-                        field_nullable,
+                        field_type.return_type,
+                        field_type.nullable,
                     ));
                 }
 
