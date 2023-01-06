@@ -54,4 +54,6 @@ pub enum CliError {
     FailedToParseYaml(#[source] BoxedError),
     #[error("Failed to validate dozer config: {0:?}")]
     FailedToParseValidateYaml(#[source] BoxedError),
+    #[error(transparent)]
+    ReadlineError(#[from] rustyline::error::ReadlineError),
 }

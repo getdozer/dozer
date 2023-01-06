@@ -4,7 +4,10 @@ pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
-use dozer_types::{crossbeam::channel::Sender, types::Schema};
+use dozer_types::{
+    crossbeam::channel::Sender,
+    types::{Operation, Schema},
+};
 use errors::OrchestrationError;
 use std::{
     collections::HashMap,
@@ -26,6 +29,12 @@ pub trait Orchestrator {
     fn list_connectors(&self)
         -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError>;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
+    fn query(
+        &self,
+        sql: String,
+        sender: Sender<Operation>,
+        running: Arc<AtomicBool>,
+    ) -> Result<Schema, OrchestrationError>;
 }
 
 // Re-exports

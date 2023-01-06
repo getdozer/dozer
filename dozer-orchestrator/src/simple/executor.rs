@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::App;
-use dozer_types::types::Schema;
+use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
-use crate::pipeline::CacheSinkFactory;
+use crate::pipeline::{CacheSinkFactory, StreamingSinkFactory};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
@@ -51,12 +51,10 @@ impl Executor {
             running,
         }
     }
-    pub fn build_pipeline(
+
+    pub fn get_connection_groups(
         &self,
-        notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
-        api_dir: PathBuf,
-        api_security: Option<ApiSecurity>,
-    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
+    ) -> Result<HashMap<String, Vec<Source>>, OrchestrationError> {
         let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
         for sources_group in grouped_connections.values() {
             let first_source = sources_group.get(0).unwrap();
@@ -74,7 +72,63 @@ impl Executor {
                 validate(connection.clone(), Some(tables))?;
             }
         }
+        Ok(grouped_connections)
+    }
 
+    // This function is used to run a query using a temporary pipeline
+
+    pub fn query(
+        &self,
+        sql: String,
+        sender: crossbeam::channel::Sender<Operation>,
+    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
+        let grouped_connections = self.get_connection_groups()?;
+        let asm = SourceBuilder::build_source_manager(
+            grouped_connections,
+            self.ingestor.clone(),
+            self.iterator.clone(),
+        );
+        let mut app = App::new(asm);
+
+        let mut pipeline = PipelineBuilder {}
+            .build_pipeline(&sql)
+            .map_err(OrchestrationError::PipelineError)?;
+        pipeline.add_sink(
+            Arc::new(StreamingSinkFactory::new(sender)),
+            "streaming_sink",
+        );
+        pipeline
+            .connect_nodes(
+                "aggregation",
+                Some(DEFAULT_PORT_HANDLE),
+                "streaming_sink",
+                Some(DEFAULT_PORT_HANDLE),
+            )
+            .map_err(OrchestrationError::ExecutionError)?;
+
+        app.add_pipeline(pipeline);
+
+        let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
+        let path = &self.pipeline_dir;
+        let mut exec = DagExecutor::new(
+            &dag,
+            path.as_path(),
+            ExecutorOptions::default(),
+            self.running.clone(),
+        )?;
+
+        exec.start()?;
+        Ok(dag)
+    }
+
+    // This function is used by both init and actual execution
+    pub fn build_pipeline(
+        &self,
+        notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        api_dir: PathBuf,
+        api_security: Option<ApiSecurity>,
+    ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
+        let grouped_connections = self.get_connection_groups()?;
         let asm = SourceBuilder::build_source_manager(
             grouped_connections,
             self.ingestor.clone(),

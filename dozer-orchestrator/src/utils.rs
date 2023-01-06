@@ -34,3 +34,7 @@ pub fn get_rest_config(config: Config) -> ApiRest {
 pub fn get_api_security_config(config: Config) -> Option<ApiSecurity> {
     get_api_config(config).api_security
 }
+
+pub fn get_repl_history_path(config: &Config) -> PathBuf {
+    PathBuf::from(format!("{:}/history.txt", config.home_dir))
+}

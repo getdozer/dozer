@@ -1,13 +1,11 @@
 use clap::Parser;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
-use dozer_orchestrator::cli::{load_config, LOGO};
+use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
-use dozer_orchestrator::simple::SimpleOrchestrator as Dozer;
 use dozer_orchestrator::{ConnectorError, Orchestrator};
 use dozer_types::crossbeam::channel;
 use dozer_types::log::{error, info};
-use dozer_types::prettytable::{row, Table};
 use dozer_types::tracing::warn;
 use std::borrow::BorrowMut;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,16 +24,7 @@ fn main() {
 fn render_logo() {
     info!("{}", LOGO);
 }
-
-fn run() -> Result<(), OrchestrationError> {
-    let _tracing_thread = thread::spawn(|| {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            dozer_tracing::init_telemetry(false).unwrap();
-        });
-    });
-    thread::sleep(Duration::from_millis(50));
-
+fn set_panic_hook() {
     panic::set_hook(Box::new(move |panic_info| {
         // All the orchestrator errors are captured here
         if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
@@ -54,7 +43,17 @@ fn run() -> Result<(), OrchestrationError> {
         }
         process::exit(1);
     }));
+}
+fn run() -> Result<(), OrchestrationError> {
+    let _tracing_thread = thread::spawn(|| {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            dozer_tracing::init_telemetry(false).unwrap();
+        });
+    });
+    thread::sleep(Duration::from_millis(50));
 
+    set_panic_hook();
     let cli = Cli::parse();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -66,18 +65,17 @@ fn run() -> Result<(), OrchestrationError> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    let configuration = load_config(cli.config_path)?;
-    let mut dozer = Dozer::new(configuration);
-
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
                     render_logo();
+                    let mut dozer = init_dozer(cli.config_path)?;
                     dozer.run_api(running)
                 }
                 ApiCommands::GenerateToken => {
+                    let dozer = init_dozer(cli.config_path)?;
                     let token = dozer.generate_token()?;
                     info!("token: {:?} ", token);
                     Ok(())
@@ -86,36 +84,27 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => {
                     render_logo();
+                    let mut dozer = init_dozer(cli.config_path)?;
                     dozer.run_apps(running, None)
                 }
             },
             Commands::Connector(sources) => match sources.command {
-                ConnectorCommands::Ls => {
-                    let connection_map = dozer.list_connectors()?;
-                    let mut table_parent = Table::new();
-                    for (c, tables) in connection_map {
-                        table_parent.add_row(row!["Connection", "Table", "Columns"]);
-
-                        for (schema_name, schema) in tables {
-                            let schema_table = schema.print();
-
-                            table_parent.add_row(row![c, schema_name, schema_table]);
-                        }
-                        table_parent.add_empty_row();
-                    }
-                    table_parent.printstd();
-                    Ok(())
-                }
+                ConnectorCommands::Ls => list_sources(cli.config_path),
             },
             Commands::Init(init) => {
                 let force = init.force.is_some();
+                let mut dozer = init_dozer(cli.config_path)?;
                 dozer.init(force)
             }
-            Commands::Clean => dozer.clean(),
+            Commands::Clean => {
+                let mut dozer = init_dozer(cli.config_path)?;
+                dozer.clean()
+            }
+            Commands::Configure => configure(cli.config_path, running),
         }
     } else {
         render_logo();
-
+        let mut dozer = init_dozer(cli.config_path)?;
         let mut dozer_api = dozer.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();

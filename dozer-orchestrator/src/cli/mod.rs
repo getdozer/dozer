@@ -1,10 +1,39 @@
+mod repl;
 #[cfg(test)]
 pub mod tests;
 pub mod types;
-use crate::errors::CliError;
+use crate::errors::OrchestrationError;
+use crate::simple::SimpleOrchestrator as Dozer;
+use crate::{errors::CliError, Orchestrator};
+
+use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::app_config::Config, serde_yaml};
 use handlebars::Handlebars;
+pub use repl::configure;
 use std::{collections::BTreeMap, fs};
+
+pub fn init_dozer(config_path: String) -> Result<Dozer, CliError> {
+    let config = load_config(config_path)?;
+    Ok(Dozer::new(&config))
+}
+
+pub fn list_sources(config_path: String) -> Result<(), OrchestrationError> {
+    let dozer = init_dozer(config_path)?;
+    let connection_map = dozer.list_connectors()?;
+    let mut table_parent = Table::new();
+    for (c, tables) in connection_map {
+        table_parent.add_row(row!["Connection", "Table", "Columns"]);
+
+        for (schema_name, schema) in tables {
+            let schema_table = schema.print();
+
+            table_parent.add_row(row![c, schema_name, schema_table]);
+        }
+        table_parent.add_empty_row();
+    }
+    table_parent.printstd();
+    Ok(())
+}
 
 pub fn load_config(config_path: String) -> Result<Config, CliError> {
     let contents = fs::read_to_string(config_path.clone())

@@ -24,6 +24,7 @@ pub enum Commands {
     Connector(Connector),
     Clean,
     Init(Init),
+    Configure,
 }
 
 #[derive(Debug, Args)]
