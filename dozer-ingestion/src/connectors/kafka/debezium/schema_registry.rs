@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use crate::connectors::kafka::debezium::schema::map_type;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::connectors::TableInfo;
