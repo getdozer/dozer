@@ -1,0 +1,26 @@
+version: '3.9'
+services:
+  postgres:
+    container_name: hypercharge-postgres
+    build:
+      context: .
+      dockerfile: postgres.Dockerfile
+    volumes:
+      - sample-data:/var/lib/stock-sample/data
+      - ./pg_hba.conf:/var/lib/stock-sample/pg_hba.conf
+      - ./init_stocks.sql:/docker-entrypoint-initdb.d/init_stocks.sql
+    command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
+    environment:
+      POSTGRES_DB: stocks
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      ALLOW_IP_RANGE: 0.0.0.0/0
+    ports:
+      - '5434:5432'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -h 0.0.0.0 -d stocks" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+volumes:
+  sample-data:
