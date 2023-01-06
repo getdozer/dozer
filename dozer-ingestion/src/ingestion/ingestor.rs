@@ -5,7 +5,7 @@ use dozer_types::ingestion_types::{
 use dozer_types::log::warn;
 use dozer_types::parking_lot::RwLock;
 use std::sync::Arc;
-use std::time::{Duration};
+use std::time::Duration;
 
 use super::IngestionConfig;
 
@@ -56,7 +56,7 @@ impl IngestionIterator {
 
 #[derive(Debug)]
 pub struct Ingestor {
-    pub sender: Arc<Box<dyn IngestorForwarder>>
+    pub sender: Arc<Box<dyn IngestorForwarder>>,
 }
 
 impl Ingestor {
@@ -75,9 +75,7 @@ impl Ingestor {
         _config: IngestionConfig,
         sender: Arc<Box<dyn IngestorForwarder + 'static>>,
     ) -> Self {
-        Self {
-            sender
-        }
+        Self { sender }
     }
 
     pub fn handle_message(
