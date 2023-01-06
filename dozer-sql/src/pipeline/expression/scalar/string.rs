@@ -79,7 +79,7 @@ pub(crate) fn evaluate_concat(
         arg_str!(f0, ScalarFunctionType::Concat, 0)?,
         arg_str!(f1, ScalarFunctionType::Concat, 1)?,
     );
-    let ret_val = v0.to_owned() + v1;
+    let ret_val = v0 + v1.as_str();
 
     Ok(
         match (
