@@ -17,7 +17,7 @@ log = "0.4.17"
 log4rs = "1.1.1"
 uuid = { version = "1.1.2", features = ["v4", "serde"] }
 tonic = "0.8.2"
-tokio = "1.21.0"
+tokio = "1.23.1"
 prost-types = "0.11.1"
 tonic-web = "0.4.0"
 dozer-orchestrator = {path = "../dozer-orchestrator"}
