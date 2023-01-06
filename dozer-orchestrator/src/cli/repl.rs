@@ -171,7 +171,7 @@ fn query(
             let mut idx = 0;
             // Exit after 10 records
             let expected: usize = 10;
-            // Wait for 100 * 100 timeout
+            // Wait for 500 * 100 timeout
             let mut times = 0;
             let instant = Instant::now();
             let mut last_shown = Duration::from_millis(0);
@@ -207,7 +207,7 @@ fn query(
             };
             loop {
                 let msg = receiver.recv_timeout(Duration::from_millis(100));
-                if idx > 100 || record_map.len() >= expected || times > 100 {
+                if idx > 100 || record_map.len() >= expected || times > 500 {
                     break;
                 }
                 match msg {
