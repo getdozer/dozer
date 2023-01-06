@@ -174,7 +174,10 @@ impl Executor {
     }
     pub fn get_tables(
         connections: &Vec<Connection>,
-    ) -> Result<HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>, OrchestrationError> {
+    ) -> Result<
+        HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>,
+        OrchestrationError,
+    > {
         let mut schema_map = HashMap::new();
         for connection in connections {
             validate(connection.to_owned(), None)?;

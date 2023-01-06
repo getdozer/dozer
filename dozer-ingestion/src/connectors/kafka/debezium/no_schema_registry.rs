@@ -6,9 +6,9 @@ use crate::errors::{ConnectorError, DebeziumError, DebeziumStreamError};
 use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::serde_json;
 
+use dozer_types::types::ReplicationChangesTrackingType;
 use kafka::client::{FetchOffset, GroupOffsetStorage};
 use kafka::consumer::Consumer;
-use dozer_types::types::ReplicationChangesTrackingType;
 
 pub struct NoSchemaRegistry {}
 
@@ -16,7 +16,14 @@ impl NoSchemaRegistry {
     pub fn get_schema(
         table_names: Option<Vec<TableInfo>>,
         config: KafkaConfig,
-    ) -> Result<Vec<(String, dozer_types::types::Schema, ReplicationChangesTrackingType)>, ConnectorError> {
+    ) -> Result<
+        Vec<(
+            String,
+            dozer_types::types::Schema,
+            ReplicationChangesTrackingType,
+        )>,
+        ConnectorError,
+    > {
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
                 let mut con = Consumer::from_hosts(vec![config.broker.clone()])
@@ -51,7 +58,11 @@ impl NoSchemaRegistry {
                                 ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
                             })?;
 
-                            schemas.push((table.name.clone(), mapped_schema, ReplicationChangesTrackingType::FullChanges));
+                            schemas.push((
+                                table.name.clone(),
+                                mapped_schema,
+                                ReplicationChangesTrackingType::FullChanges,
+                            ));
                         }
                     }
                 }

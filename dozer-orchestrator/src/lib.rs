@@ -32,8 +32,12 @@ pub trait Orchestrator {
         running: Arc<AtomicBool>,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError>;
-    fn list_connectors(&self)
-        -> Result<HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>, OrchestrationError>;
+    fn list_connectors(
+        &self,
+    ) -> Result<
+        HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>,
+        OrchestrationError,
+    >;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
     fn query(
         &self,

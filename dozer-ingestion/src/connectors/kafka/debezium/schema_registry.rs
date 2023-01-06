@@ -7,7 +7,9 @@ use crate::errors::{ConnectorError, DebeziumError, DebeziumSchemaError};
 use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{FieldDefinition, FieldType, ReplicationChangesTrackingType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, FieldType, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
+};
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use std::collections::HashMap;
@@ -91,7 +93,9 @@ impl SchemaRegistry {
                         .collect()
                 });
 
-                let mut schema_data: Option<Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, ConnectorError>> = None;
+                let mut schema_data: Option<
+                    Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, ConnectorError>,
+                > = None;
                 let fields = schema_result.fields.map_or(vec![], |f| f);
                 for f in fields {
                     if f.name.clone().unwrap() == "before" {
@@ -133,7 +137,11 @@ impl SchemaRegistry {
                                     primary_index: pk_keys_indexes,
                                 };
 
-                                schema_data = Some(Ok(vec![(table.name.clone(), schema, ReplicationChangesTrackingType::FullChanges)]));
+                                schema_data = Some(Ok(vec![(
+                                    table.name.clone(),
+                                    schema,
+                                    ReplicationChangesTrackingType::FullChanges,
+                                )]));
                             }
                         }
                     }

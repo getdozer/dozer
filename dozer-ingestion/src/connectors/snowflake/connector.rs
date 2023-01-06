@@ -19,10 +19,10 @@ use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[cfg(feature = "snowflake")]
 use crate::errors::SnowflakeError::ConnectionError;
 use dozer_types::models::source::Source;
+use dozer_types::types::{ReplicationChangesTrackingType, Schema};
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
-use dozer_types::types::{ReplicationChangesTrackingType, Schema};
 
 pub struct SnowflakeConnector {
     pub id: u64,

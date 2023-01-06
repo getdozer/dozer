@@ -1,4 +1,7 @@
-use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, ReplicationChangesTrackingType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    Field, FieldDefinition, FieldType, Operation, OperationEvent, Record,
+    ReplicationChangesTrackingType, Schema, SchemaIdentifier,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -61,7 +64,7 @@ pub fn get_contract_event_schemas(
                     fields,
                     primary_index: vec![0],
                 },
-                ReplicationChangesTrackingType::FullChanges
+                ReplicationChangesTrackingType::FullChanges,
             ));
         }
     }

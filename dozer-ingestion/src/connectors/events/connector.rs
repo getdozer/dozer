@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use dozer_types::models::source::Source;
-use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 use dozer_types::types::ReplicationChangesTrackingType;
+use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
 use crate::{
     connectors::{Connector, TableInfo},
@@ -42,7 +42,14 @@ impl Connector for EventsConnector {
     fn get_schemas(
         &self,
         _table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, dozer_types::types::Schema, ReplicationChangesTrackingType)>, ConnectorError> {
+    ) -> Result<
+        Vec<(
+            String,
+            dozer_types::types::Schema,
+            ReplicationChangesTrackingType,
+        )>,
+        ConnectorError,
+    > {
         Ok(vec![])
     }
 

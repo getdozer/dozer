@@ -388,9 +388,12 @@ impl Client {
                         })
                 }
 
-                Ok(schemas.into_iter().map(|(name, schema) | {
-                    (name, schema, ReplicationChangesTrackingType::FullChanges)
-                }).collect())
+                Ok(schemas
+                    .into_iter()
+                    .map(|(name, schema)| {
+                        (name, schema, ReplicationChangesTrackingType::FullChanges)
+                    })
+                    .collect())
             }
             NoData(_) => Ok(vec![]),
         }

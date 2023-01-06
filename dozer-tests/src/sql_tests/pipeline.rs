@@ -53,7 +53,8 @@ impl SourceFactory for TestSourceFactory {
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(self.output_ports
+        Ok(self
+            .output_ports
             .iter()
             .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
             .collect())

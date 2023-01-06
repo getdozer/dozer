@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
-use dozer_types::types::{FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
+};
 
 use crate::connectors::TableInfo;
 
@@ -70,7 +72,8 @@ impl SchemaHelper {
 
         let results = query.map_err(ConnectorError::InvalidQueryError)?;
 
-        let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> = HashMap::new();
+        let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
+            HashMap::new();
         results
             .iter()
             .filter(|row| {
@@ -86,16 +89,23 @@ impl SchemaHelper {
                 match row {
                     Ok((table_name, field_def, is_primary_key, table_id, replication_type)) => {
                         let vals = map.get(&table_name);
-                        let (mut fields, mut primary_keys, table_id, replication_type) = match vals {
-                            Some((fields, primary_keys, table_id, replication_type)) => {
-                                (fields.clone(), primary_keys.clone(), *table_id, replication_type)
-                            }
+                        let (mut fields, mut primary_keys, table_id, replication_type) = match vals
+                        {
+                            Some((fields, primary_keys, table_id, replication_type)) => (
+                                fields.clone(),
+                                primary_keys.clone(),
+                                *table_id,
+                                replication_type,
+                            ),
                             None => (vec![], vec![], table_id, &replication_type),
                         };
 
                         fields.push(field_def);
                         primary_keys.push(is_primary_key);
-                        map.insert(table_name, (fields, primary_keys, table_id, replication_type.clone()));
+                        map.insert(
+                            table_name,
+                            (fields, primary_keys, table_id, replication_type.clone()),
+                        );
                         Ok(())
                     }
                     Err(e) => Err(e),
@@ -119,19 +129,16 @@ impl SchemaHelper {
                 primary_index,
             };
 
-
             let replication_type = match replication_type.as_str() {
                 "d" => Ok(ReplicationChangesTrackingType::OnlyPK),
                 "i" => Ok(ReplicationChangesTrackingType::OnlyPK),
                 "n" => Ok(ReplicationChangesTrackingType::Nothing),
                 "f" => Ok(ReplicationChangesTrackingType::FullChanges),
-                _ => Err(
-                    ConnectorError::PostgresConnectorError(
-                        PostgresConnectorError::PostgresSchemaError(
-                            PostgresSchemaError::UnsupportedReplicationType(replication_type)
-                        )
-                    )
-                )
+                _ => Err(ConnectorError::PostgresConnectorError(
+                    PostgresConnectorError::PostgresSchemaError(
+                        PostgresSchemaError::UnsupportedReplicationType(replication_type),
+                    ),
+                )),
             };
 
             schemas.push((table_name, schema, replication_type?));
@@ -185,19 +192,18 @@ impl SchemaHelper {
             postgres_type_to_dozer_type,
         )?;
 
-        let replication_type = String::from_utf8(vec![replication_type_int as u8]).map_err(|_e| {
-            ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(
-                    PostgresSchemaError::ValueConversionError("Replication type".to_string())
-                )
-            )
-        })?;
+        let replication_type =
+            String::from_utf8(vec![replication_type_int as u8]).map_err(|_e| {
+                ConnectorError::PostgresConnectorError(PostgresConnectorError::PostgresSchemaError(
+                    PostgresSchemaError::ValueConversionError("Replication type".to_string()),
+                ))
+            })?;
         Ok((
             table_name,
             FieldDefinition::new(column_name, typ, is_nullable),
             is_primary_index,
             table_id,
-            replication_type
+            replication_type,
         ))
     }
 }

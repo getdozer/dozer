@@ -13,10 +13,10 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
 use super::sender::{run, EthDetails};
+use dozer_types::types::ReplicationChangesTrackingType;
 use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
-use dozer_types::types::ReplicationChangesTrackingType;
 
 pub struct EthConnector {
     pub id: u64,
@@ -129,8 +129,19 @@ impl Connector for EthConnector {
     fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, dozer_types::types::Schema, ReplicationChangesTrackingType)>, ConnectorError> {
-        let mut schemas = vec![(ETH_LOGS_TABLE.to_string(), helper::get_eth_schema(), ReplicationChangesTrackingType::FullChanges)];
+    ) -> Result<
+        Vec<(
+            String,
+            dozer_types::types::Schema,
+            ReplicationChangesTrackingType,
+        )>,
+        ConnectorError,
+    > {
+        let mut schemas = vec![(
+            ETH_LOGS_TABLE.to_string(),
+            helper::get_eth_schema(),
+            ReplicationChangesTrackingType::FullChanges,
+        )];
 
         let event_schemas = helper::get_contract_event_schemas(
             self.contracts.to_owned(),

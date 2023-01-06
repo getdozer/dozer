@@ -25,7 +25,8 @@ impl SourceFactory for DynPortsSourceFactory {
     }
 
     fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
-        Ok(self.output_ports
+        Ok(self
+            .output_ports
             .iter()
             .map(|p| OutputPortDef::new(*p, OutputPortType::Stateless))
             .collect())

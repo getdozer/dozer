@@ -194,7 +194,10 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn list_connectors(
         &self,
-    ) -> Result<HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>, OrchestrationError> {
+    ) -> Result<
+        HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>,
+        OrchestrationError,
+    > {
         Executor::get_tables(&self.config.connections)
     }
 

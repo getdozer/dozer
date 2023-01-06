@@ -1,5 +1,6 @@
 use dozer_core::dag::channels::SourceChannelForwarder;
 use dozer_core::dag::errors::ExecutionError;
+use dozer_core::dag::errors::ExecutionError::ReplicationTypeNotFound;
 use dozer_core::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
@@ -13,7 +14,6 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use dozer_core::dag::errors::ExecutionError::ReplicationTypeNotFound;
 
 #[derive(Debug)]
 pub struct ConnectorSourceFactory {
@@ -28,23 +28,21 @@ pub struct ConnectorSourceFactory {
     pub running: Arc<AtomicBool>,
 }
 
-fn map_replication_type_to_output_port_type(typ: &ReplicationChangesTrackingType) -> OutputPortType {
+fn map_replication_type_to_output_port_type(
+    typ: &ReplicationChangesTrackingType,
+) -> OutputPortType {
     match typ {
         ReplicationChangesTrackingType::FullChanges => {
             OutputPortType::StatefulWithPrimaryKeyLookup {
                 retr_old_records_for_deletes: false,
-                retr_old_records_for_updates: false
+                retr_old_records_for_updates: false,
             }
         }
-        ReplicationChangesTrackingType::OnlyPK => {
-            OutputPortType::StatefulWithPrimaryKeyLookup {
-                retr_old_records_for_deletes: true,
-                retr_old_records_for_updates: true
-            }
-        }
-        ReplicationChangesTrackingType::Nothing => {
-            OutputPortType::AutogenRowKeyLookup
-        }
+        ReplicationChangesTrackingType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup {
+            retr_old_records_for_deletes: true,
+            retr_old_records_for_updates: true,
+        },
+        ReplicationChangesTrackingType::Nothing => OutputPortType::AutogenRowKeyLookup,
     }
 }
 
@@ -76,13 +74,18 @@ impl ConnectorSourceFactory {
         connection: Connection,
         tables: Vec<TableInfo>,
         ports: HashMap<String, u16>,
-    ) -> (HashMap<u16, Schema>, HashMap<u32, u16>, HashMap<u16, ReplicationChangesTrackingType>) {
+    ) -> (
+        HashMap<u16, Schema>,
+        HashMap<u32, u16>,
+        HashMap<u16, ReplicationChangesTrackingType>,
+    ) {
         let connector = get_connector(connection).unwrap();
         let schema_tuples = connector.get_schemas(Some(tables)).unwrap();
 
         let mut schema_map = HashMap::new();
         let mut schema_port_map: HashMap<u32, u16> = HashMap::new();
-        let mut replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType> = HashMap::new();
+        let mut replication_changes_type_map: HashMap<u16, ReplicationChangesTrackingType> =
+            HashMap::new();
 
         for (table_name, schema, replication_changes_type) in schema_tuples {
             let port: u16 = *ports
@@ -112,16 +115,15 @@ impl SourceFactory for ConnectorSourceFactory {
         self.ports
             .values()
             .map(|e| {
-                self.replication_changes_type_map.get(e)
-                    .map_or(
-                        Err(ReplicationTypeNotFound),
-                        |typ| Ok(
-                            OutputPortDef::new(
-                                *e,
-                                map_replication_type_to_output_port_type(typ)
-                            )
-                        )
-                    )
+                self.replication_changes_type_map.get(e).map_or(
+                    Err(ReplicationTypeNotFound),
+                    |typ| {
+                        Ok(OutputPortDef::new(
+                            *e,
+                            map_replication_type_to_output_port_type(typ),
+                        ))
+                    },
+                )
             })
             .collect()
     }

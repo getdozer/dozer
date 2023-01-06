@@ -53,7 +53,7 @@ pub struct Schema {
 pub enum ReplicationChangesTrackingType {
     FullChanges,
     OnlyPK,
-    Nothing
+    Nothing,
 }
 
 impl Schema {

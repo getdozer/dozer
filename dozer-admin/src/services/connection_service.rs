@@ -10,8 +10,8 @@ use crate::{
 };
 use dozer_orchestrator::get_connector;
 use dozer_types::models::connection::{Authentication, Connection};
-use std::thread;
 use dozer_types::types::{ReplicationChangesTrackingType, Schema};
+use std::thread;
 
 pub struct ConnectionService {
     db_pool: DbPool,
