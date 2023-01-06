@@ -10,7 +10,7 @@
                             {
                                 "name": "block_number",
                                 "typ": "Int",
-                                "nullable": true
+                                "nullable": false
                             },
                             {
                                 "name": "sum(id)",
