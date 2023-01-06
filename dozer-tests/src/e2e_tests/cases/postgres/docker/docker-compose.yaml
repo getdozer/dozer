@@ -1,17 +1,10 @@
 version: '3.9'
 services:
-  # Initialize sample data
-  samples:
+  postgres:
+    container_name: hypercharge-postgres
     build:
       context: .
-      dockerfile: samples.Dockerfile
-    volumes:
-      - sample-data:/var/lib/stock-sample/data
-  postgres:
-    depends_on:
-      - samples
-    container_name: hypercharge-postgres
-    image: debezium/postgres:13
+      dockerfile: posgres.Dockerfile
     volumes:
       - sample-data:/var/lib/stock-sample/data
       - ./pg_hba.conf:/var/lib/stock-sample/pg_hba.conf

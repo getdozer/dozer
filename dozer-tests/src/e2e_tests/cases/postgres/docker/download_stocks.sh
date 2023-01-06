@@ -15,4 +15,6 @@ download_glink "1yojQwMtNPIKWMURhkA2Hd9JTQIk2LrLV" "./data/stock_price_data.tar.
 
 cd data && tar -xzf stock_price_data.tar.gz
 rm stock_price_data.tar.gz
+exits=$(bash -c "[ -f /VAR/LIB/STOCK-SAMPLE/DATA ]")
+echo $exits
 

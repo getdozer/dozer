@@ -26,6 +26,8 @@ jobs:
         uses: KengoTODA/actions-setup-docker-compose@main
         with:
           version: '2.14.2'
+      - name: Debug Build for E2E Tests
+        run: cargo build --bin dozer
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -35,4 +37,5 @@ jobs:
           RUSTFLAGS: "-Cinstrument-coverage"
           LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
           ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
+          DOZER_BIN: ../target/debug/dozer
 
