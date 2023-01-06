@@ -5,9 +5,17 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use dozer_types::serde::Serialize;
+use dozer_types::models::{app_config::Config, connection::Authentication};
 
-use crate::e2e_tests::{Case, CaseKind};
+use crate::e2e_tests::{
+    docker_compose::{Build, Condition, DependsOn, DockerCompose, Service},
+    Case, CaseKind, Source,
+};
+
+pub struct LocalDockerCompose {
+    pub path: PathBuf,
+    pub sources_healthy_service_name: String,
+}
 
 pub enum RunningEnv {
     WithExpectations {
@@ -21,19 +29,22 @@ pub enum RunningEnv {
     },
 }
 
-pub fn create_docker_compose_for_local_runner(case: &Case) -> Option<PathBuf> {
+pub fn create_docker_compose_for_local_runner(case: &Case) -> Option<LocalDockerCompose> {
     let mut services = HashMap::new();
 
-    add_source_services(&mut services);
+    let sources_healthy_service_name = add_source_services(&case.sources, &mut services);
 
-    if services.is_empty() {
-        None
-    } else {
+    if let Some(sources_healthy_service_name) = sources_healthy_service_name {
         let local_runner_path = case.case_dir.join("local_runner");
         create_dir_if_not_existing(&local_runner_path);
         let docker_compose_path = local_runner_path.join("docker-compose.yaml");
         write_docker_compose(&docker_compose_path, services);
-        Some(docker_compose_path)
+        Some(LocalDockerCompose {
+            path: docker_compose_path,
+            sources_healthy_service_name,
+        })
+    } else {
+        None
     }
 }
 
@@ -42,7 +53,16 @@ pub fn create_buildkite_runner_envs(case: &Case) -> Vec<RunningEnv> {
 }
 
 fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> RunningEnv {
-    let docker_compose_dir = case.case_dir.join(if single_dozer_container {
+    let buildkite_dir = case.case_dir.join("buildkite_runner");
+    create_dir_if_not_existing(&buildkite_dir);
+
+    let dozer_config_path = write_dozer_config_for_running_in_docker_compose(
+        case.dozer_config.clone(),
+        &case.sources,
+        &buildkite_dir,
+    );
+
+    let docker_compose_dir = buildkite_dir.join(if single_dozer_container {
         "dozer_single_container"
     } else {
         "dozer_multi_container"
@@ -51,14 +71,18 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
 
     let mut services = HashMap::new();
 
-    add_source_services(&mut services);
+    let sources_healthy_service_name = add_source_services(&case.sources, &mut services);
 
     let (
         dozer_api_service_name,
         dozer_service_name_for_error_expectation,
         dozer_config_path_in_container,
     ) = if single_dozer_container {
-        add_dozer_service(&case.dozer_config_path, &mut services)
+        add_dozer_service(
+            &dozer_config_path,
+            sources_healthy_service_name,
+            &mut services,
+        )
     } else {
         todo!()
     };
@@ -67,6 +91,7 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
         Some(add_dozer_test_client_service(
             dozer_api_service_name,
             &case.case_dir,
+            &case.sources_dir,
             &mut services,
         ))
     } else {
@@ -92,18 +117,31 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
 
 fn add_dozer_service(
     dozer_config_path: &str,
+    depends_on_service_name: Option<String>,
     services: &mut HashMap<String, Service>,
 ) -> (String, String, String) {
-    let depends_on = services.keys().cloned().collect();
+    let mut depends_on = HashMap::new();
+    if let Some(depends_on_service_name) = depends_on_service_name {
+        depends_on.insert(
+            depends_on_service_name,
+            DependsOn {
+                condition: Condition::ServiceCompletedSuccessfully,
+            },
+        );
+    }
+
     let dozer_service_name = "dozer";
     let dozer_config_path_in_container = "/dozer/dozer-config.yaml";
     services.insert(
         dozer_service_name.to_string(),
         Service {
+            container_name: Some("dozer".to_string()),
             image: Some("public.ecr.aws/k7k6x1d4/dozer".to_string()),
             build: None,
             ports: vec![],
-            environment: vec![format!("ETH_WSS_URL={}", eth_wss_url())],
+            environment: vec![("ETH_WSS_URL".to_string(), eth_wss_url())]
+                .into_iter()
+                .collect(),
             volumes: vec![format!(
                 "{}:{}",
                 dozer_config_path, dozer_config_path_in_container
@@ -113,6 +151,7 @@ fn add_dozer_service(
                 dozer_config_path_in_container
             )),
             depends_on,
+            healthcheck: None,
         },
     );
 
@@ -126,13 +165,18 @@ fn add_dozer_service(
 fn add_dozer_test_client_service(
     dozer_api_service_name: String,
     case_dir: &Path,
+    sources_dir: &Path,
     services: &mut HashMap<String, Service>,
 ) -> String {
     let dozer_test_client_service_name = "dozer-test-client";
     let case_dir = case_dir
         .to_str()
         .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", case_dir));
+    let sources_dir = sources_dir
+        .to_str()
+        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", sources_dir));
     let case_dir_in_container = "/case";
+    let sources_dir_in_container = "/sources";
     let dozer_test_client_path = current_dir()
         .expect("Cannot get current dir")
         .join("target/debug/dozer-test-client");
@@ -149,29 +193,93 @@ fn add_dozer_test_client_service(
     services.insert(
         dozer_test_client_service_name.to_string(),
         Service {
+            container_name: Some("dozer_test_client".to_string()),
             image: Some("public.ecr.aws/k7k6x1d4/dozer".to_string()),
             build: None,
             ports: vec![],
-            environment: vec!["RUST_LOG=info".to_string()],
+            environment: vec![("RUST_LOG".to_string(), "info".to_string())]
+                .into_iter()
+                .collect(),
             volumes: vec![
                 format!(
                     "{}:{}",
                     dozer_test_client_path, dozer_test_client_path_in_container
                 ),
                 format!("{}:{}", case_dir, case_dir_in_container),
+                format!("{}:{}", sources_dir, sources_dir_in_container),
             ],
             command: Some(format!(
-                "{} --wait-in-millis 1000 --dozer-api-host {} --case-dir {}",
-                dozer_test_client_path_in_container, dozer_api_service_name, case_dir_in_container
+                "{} --wait-in-millis 10000 --dozer-api-host {} --case-dir {} --sources-dir {}",
+                dozer_test_client_path_in_container,
+                dozer_api_service_name,
+                case_dir_in_container,
+                sources_dir_in_container
             )),
-            depends_on: vec![dozer_api_service_name],
+            depends_on: vec![(
+                dozer_api_service_name,
+                DependsOn {
+                    condition: Condition::ServiceStarted,
+                },
+            )]
+            .into_iter()
+            .collect(),
+            healthcheck: None,
         },
     );
     dozer_test_client_service_name.to_string()
 }
 
-fn add_source_services(_services: &mut HashMap<String, Service>) {
-    // TODO: Add source services
+fn add_source_services(
+    sources: &HashMap<String, Source>,
+    services: &mut HashMap<String, Service>,
+) -> Option<String> {
+    let mut depends_on = HashMap::new();
+
+    for (name, source) in sources {
+        let mut service = source.service.clone().unwrap_or_default();
+
+        let context = source
+            .directory
+            .to_str()
+            .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", source.directory));
+        service.build = Some(Build {
+            context: context.to_string(),
+            dockerfile: None,
+        });
+
+        depends_on.insert(
+            name.clone(),
+            DependsOn {
+                condition: if service.healthcheck.is_some() {
+                    Condition::ServiceHealthy
+                } else {
+                    Condition::ServiceStarted
+                },
+            },
+        );
+        services.insert(name.clone(), service);
+    }
+
+    if depends_on.is_empty() {
+        return None;
+    }
+
+    let sources_healthy_service_name = "dozer-wait-for-sources-healthy";
+    services.insert(
+        sources_healthy_service_name.to_string(),
+        Service {
+            container_name: None,
+            image: Some("public.ecr.aws/k7k6x1d4/dozer".to_string()),
+            build: None,
+            ports: vec![],
+            environment: HashMap::new(),
+            volumes: vec![],
+            command: Some("echo 'All sources are healthy'".to_string()),
+            depends_on,
+            healthcheck: None,
+        },
+    );
+    Some(sources_healthy_service_name.to_string())
 }
 
 fn eth_wss_url() -> String {
@@ -191,27 +299,60 @@ fn write_docker_compose(path: &Path, services: HashMap<String, Service>) {
         .unwrap_or_else(|e| panic!("Failed to write docker compose file {:?}: {}", path, e));
 }
 
-#[derive(Serialize)]
-#[serde(crate = "dozer_types::serde")]
-struct DockerCompose {
-    services: HashMap<String, Service>,
-}
+fn write_dozer_config_for_running_in_docker_compose(
+    mut config: Config,
+    sources: &HashMap<String, Source>,
+    dir: &Path,
+) -> String {
+    let mut host_port_to_container_port = HashMap::new();
+    for source in sources.values() {
+        if let Some(service) = &source.service {
+            for port in &service.ports {
+                let published = port.published.unwrap_or(port.target);
+                if host_port_to_container_port.contains_key(&published) {
+                    panic!("Multiple sources are publishing to the same host port: {}. Confilicing sources are being used? Check the config file at {:?}.", port.target, dir.parent());
+                }
+                host_port_to_container_port.insert(published, port.target);
+            }
+        }
+    }
 
-#[derive(Serialize)]
-#[serde(crate = "dozer_types::serde")]
-struct Service {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    image: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    build: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    ports: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    environment: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    volumes: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    command: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    depends_on: Vec<String>,
+    let map_port = |port| {
+        host_port_to_container_port
+            .get(&port)
+            .copied()
+            .unwrap_or_else(|| panic!("A connection attempts to use port {} that's not published. Is this a source that doesn't needs to run in the docker compose? If so, try to remove the source from the repository", port))
+    };
+
+    for connection in &mut config.connections {
+        let mut authentication = connection.authentication.clone().unwrap_or_default();
+
+        match authentication {
+            Authentication::Postgres(mut postgres) => {
+                postgres.host = connection.name.clone();
+                postgres.port = map_port(postgres.port as u16) as u32;
+                authentication = Authentication::Postgres(postgres);
+            }
+            Authentication::Ethereum(_) => (),
+            Authentication::Events(_) => (),
+            Authentication::Snowflake(_) => {
+                todo!("Map snowflake host and port")
+            }
+            Authentication::Kafka(_) => {
+                todo!("Map kafka host and port")
+            }
+        }
+
+        connection.authentication = Some(authentication);
+    }
+
+    let config_path = dir.join("dozer-config.yaml");
+    let file = File::create(&config_path)
+        .unwrap_or_else(|e| panic!("Failed to create file {:?}: {}", config_path, e));
+    dozer_types::serde_yaml::to_writer(file, &config)
+        .unwrap_or_else(|e| panic!("Failed to write dozer config file {:?}: {}", config_path, e));
+    config_path
+        .to_str()
+        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", config_path))
+        .to_string()
 }

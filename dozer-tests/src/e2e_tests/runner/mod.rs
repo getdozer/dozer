@@ -47,8 +47,8 @@ struct LocalRunner(local::Runner);
 #[dozer_api::async_trait::async_trait]
 impl Runner for LocalRunner {
     async fn run_test_case(&self, case: &Case) {
-        let docker_compose_path = running_env::create_docker_compose_for_local_runner(case);
-        self.0.run_test_case(case, docker_compose_path).await;
+        let docker_compose = running_env::create_docker_compose_for_local_runner(case);
+        self.0.run_test_case(case, docker_compose).await;
     }
 }
 
@@ -81,11 +81,14 @@ fn run_command(bin: &str, args: &[&str]) {
     info!("Command done: {:?}", cmd);
 }
 
-fn spawn_docker_compose(docker_compose_path: &Path) -> Cleanup {
+fn run_docker_compose(docker_compose_path: &Path, service_name: &str) -> Cleanup {
     let docker_compose_path = docker_compose_path
         .to_str()
         .unwrap_or_else(|| panic!("Non-UFT8 path {:?}", docker_compose_path));
-    spawn_command("docker", &["compose", "-f", docker_compose_path, "up"]);
+    run_command(
+        "docker",
+        &["compose", "-f", docker_compose_path, "run", service_name],
+    );
     Cleanup::DockerCompose(docker_compose_path.to_string())
 }
 
@@ -94,7 +97,7 @@ fn spawn_command(bin: &str, args: &[&str]) -> Child {
     cmd.args(args);
     info!("Spawning command: {:?}", cmd);
     let mut child = cmd.spawn().expect("Failed to run command");
-    sleep(Duration::from_millis(2000));
+    sleep(Duration::from_millis(10000));
     if let Some(exit_status) = child
         .try_wait()
         .unwrap_or_else(|e| panic!("Failed to check status of command {:?}: {}", cmd, e))

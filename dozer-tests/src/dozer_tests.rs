@@ -6,7 +6,9 @@ use dozer_tests::e2e_tests::{create_runner, Case, RunnerType};
 #[derive(Parser)]
 struct Args {
     #[arg(short, long, default_value = "dozer-tests/src/e2e_tests/cases")]
-    cases_path: String,
+    cases_dir: String,
+    #[arg(short, long, default_value = "dozer-tests/src/e2e_tests/sources")]
+    sources_dir: String,
     #[arg(short, long, default_value_t = RunnerType::Local)]
     runner: RunnerType,
     #[arg(default_value = "")]
@@ -18,20 +20,28 @@ async fn main() {
     env_logger::init();
 
     let args = Args::parse();
+    let sources_dir = AsRef::<Path>::as_ref(&args.sources_dir)
+        .canonicalize()
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to canonicalize sources path {}: {}",
+                args.sources_dir, e
+            )
+        });
 
     let runner = create_runner(args.runner);
     // Traverse cases path.
-    let cases_path = AsRef::<Path>::as_ref(&args.cases_path)
+    let cases_dir = AsRef::<Path>::as_ref(&args.cases_dir)
         .canonicalize()
         .unwrap_or_else(|e| {
             panic!(
                 "Failed to canonicalize cases path {}: {}",
-                args.cases_path, e
+                args.cases_dir, e
             )
         });
-    for entry in cases_path
+    for entry in cases_dir
         .read_dir()
-        .unwrap_or_else(|e| panic!("Failed to read cases path {}: {}", args.cases_path, e))
+        .unwrap_or_else(|e| panic!("Failed to read cases path {}: {}", args.cases_dir, e))
     {
         let entry = entry.expect("Failed to read case entry");
         let case_dir = entry.path();
@@ -43,7 +53,7 @@ async fn main() {
                 .unwrap_or_else(|| panic!("Non-UTF8 path {:?}", case_dir))
                 .starts_with(&args.case_prefix)
         {
-            let case = Case::load_from_case_dir(case_dir);
+            let case = Case::load_from_case_dir(case_dir, sources_dir.clone());
             runner.run_test_case(&case).await;
         }
     }

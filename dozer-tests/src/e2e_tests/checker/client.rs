@@ -77,7 +77,7 @@ impl Client {
                     .endpoints
                     .iter()
                     .find(|e| &e.name == endpoint)
-                    .expect(&format!("Cannot find endpoint {} in config", endpoint))
+                    .unwrap_or_else(|| panic!("Cannot find endpoint {} in config", endpoint))
                     .path
                     .clone();
                 self.check_endpoint_existence(endpoint, &rest_path).await;
@@ -117,7 +117,7 @@ impl Client {
         // REST endpoint oapi.
         let response = self
             .rest_client
-            .post(&format!("http://{}{}/oapi", self.rest_endpoint, rest_path))
+            .post(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
             .send()
             .await
             .unwrap_or_else(|e| {
@@ -174,13 +174,15 @@ impl Client {
         // REST OpenAPI schema.
         let response = self
             .rest_client
-            .post(&format!("http://{}{}/oapi", self.rest_endpoint, rest_path))
+            .post(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
             .send()
             .await
-            .expect(&format!(
-                "Cannot get oapi response from rest endpoint {}, path is {}",
-                endpoint, rest_path
-            ));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Cannot get oapi response from rest endpoint {}, path is {}: {}",
+                    endpoint, rest_path, e
+                )
+            });
         let status = response.status();
         if !status.is_success() {
             panic!(
@@ -188,27 +190,35 @@ impl Client {
                 endpoint, status, rest_path
             );
         }
-        let open_api: OpenAPI = response.json().await.expect(&format!(
-            "Cannot parse oapi response from rest endpoint {}, path is {}",
-            endpoint, rest_path,
-        ));
+        let open_api: OpenAPI = response.json().await.unwrap_or_else(|e| {
+            panic!(
+                "Cannot parse oapi response from rest endpoint {}, path is {}: {}",
+                endpoint, rest_path, e
+            )
+        });
         let schema = open_api
             .components
             .as_ref()
-            .expect(&format!(
-                "Cannot find components in oapi response from rest endpoint {}, path is {}",
-                endpoint, rest_path,
-            ))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot find components in oapi response from rest endpoint {}, path is {}",
+                    endpoint, rest_path
+                )
+            })
             .schemas
             .get(endpoint)
-            .expect(&format!(
-                "Cannot find schema for endpoint {} in oapi response, path is {}",
-                endpoint, rest_path,
-            ));
-        let schema = schema.as_item().expect(&format!(
-            "Expecting schema item for endpoint {} in oapi response, path is {}",
-            endpoint, rest_path
-        ));
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot find schema for endpoint {} in oapi response, path is {}",
+                    endpoint, rest_path
+                )
+            });
+        let schema = schema.as_item().unwrap_or_else(|| {
+            panic!(
+                "Expecting schema item for endpoint {} in oapi response, path is {}",
+                endpoint, rest_path
+            )
+        });
         let (properties, required) = match &schema.schema_kind {
             SchemaKind::Type(dozer_api::openapiv3::Type::Object(object_type)) => {
                 (&object_type.properties, &object_type.required)
@@ -232,10 +242,12 @@ impl Client {
                 "Check REST schema failed for endpoint {}, expected field name {}, got {}",
                 endpoint, field.name, property.0
             );
-            let schema = property.1.as_item().expect(&format!(
-                "Expecting schema item for endpoint {}, field {} in oapi response, path is {}",
-                endpoint, field.name, rest_path
-            ));
+            let schema = property.1.as_item().unwrap_or_else(|| {
+                panic!(
+                    "Expecting schema item for endpoint {}, field {} in oapi response, path is {}",
+                    endpoint, field.name, rest_path
+                )
+            });
             let oapi_type = match &schema.schema_kind {
                 SchemaKind::Type(oapi_type) => oapi_type,
                 _ => panic!(

@@ -1,13 +1,12 @@
-use std::{
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{path::Path, process::Command};
 
 use crate::e2e_tests::{Case, CaseKind};
 
 use super::{
     super::{checker::check_error_expectation, cleanup::Cleanup, run_test_client},
-    run_command, spawn_command, spawn_docker_compose,
+    run_command, run_docker_compose,
+    running_env::LocalDockerCompose,
+    spawn_command,
 };
 
 pub struct Runner {
@@ -36,15 +35,18 @@ impl Runner {
         }
     }
 
-    pub async fn run_test_case(&self, case: &Case, docker_compose_path: Option<PathBuf>) {
+    pub async fn run_test_case(&self, case: &Case, docker_compose: Option<LocalDockerCompose>) {
         match &case.kind {
             CaseKind::Expectations(expectations) => {
                 for spawn_dozer in [spawn_dozer_same_process, spawn_dozer_two_processes] {
                     let mut cleanups = vec![];
 
                     // Start docker compose if necessary.
-                    if let Some(docker_compose_path) = &docker_compose_path {
-                        cleanups.push(spawn_docker_compose(docker_compose_path));
+                    if let Some(docker_compose) = &docker_compose {
+                        cleanups.push(run_docker_compose(
+                            &docker_compose.path,
+                            &docker_compose.sources_healthy_service_name,
+                        ));
                     }
 
                     // Start dozer.
@@ -62,8 +64,11 @@ impl Runner {
                 check_error_expectation(
                     || {
                         let mut cleanups = vec![];
-                        if let Some(docker_compose_path) = &docker_compose_path {
-                            cleanups.push(spawn_docker_compose(docker_compose_path));
+                        if let Some(docker_compose) = &docker_compose {
+                            cleanups.push(run_docker_compose(
+                                &docker_compose.path,
+                                &docker_compose.sources_healthy_service_name,
+                            ));
                         }
                         cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
 
