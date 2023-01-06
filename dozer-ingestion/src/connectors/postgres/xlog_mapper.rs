@@ -1,14 +1,13 @@
 use crate::connectors::postgres::helper;
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::log::debug;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
 use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
 use postgres_protocol::message::backend::{
-    LogicalReplicationMessage, RelationBody, TupleData, XLogDataBody,
+    LogicalReplicationMessage, RelationBody, ReplicaIdentity, TupleData, UpdateBody, XLogDataBody,
 };
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
@@ -30,6 +29,7 @@ pub struct Table {
     columns: Vec<TableColumn>,
     hash: u64,
     rel_id: u32,
+    replica_identity: ReplicaIdentity,
 }
 
 #[derive(Debug)]
@@ -79,10 +79,6 @@ impl XlogMapper {
     ) -> Result<Option<IngestionMessage>, ConnectorError> {
         match &message.data() {
             Relation(relation) => {
-                debug!("relation:");
-                debug!("[Relation] Rel ID: {}", relation.rel_id());
-                debug!("[Relation] Rel columns: {:?}", relation.columns());
-
                 let body = MessageBody::new(relation);
                 let mut s = DefaultHasher::new();
                 body.hash(&mut s);
@@ -101,24 +97,19 @@ impl XlogMapper {
                 }
             }
             Commit(commit) => {
-                debug!("commit:");
-                debug!("[Commit] End lsn: {}", commit.end_lsn());
-
                 return Ok(Some(IngestionMessage::Commit(dozer_types::types::Commit {
                     seq_no: 0,
                     lsn: commit.end_lsn(),
                 })));
             }
-            Begin(begin) => {
-                debug!("begin:");
-                debug!("[Begin] Transaction id: {}", begin.xid());
+            Begin(_begin) => {
                 return Ok(Some(IngestionMessage::Begin()));
             }
             Insert(insert) => {
                 let table = self.relations_map.get(&insert.rel_id()).unwrap();
                 let new_values = insert.tuple().tuple_data();
 
-                let values = Self::convert_values_to_fields(table, new_values)?;
+                let values = Self::convert_values_to_fields(table, new_values, false)?;
 
                 let event = OperationEvent {
                     operation: Operation::Insert {
@@ -139,14 +130,8 @@ impl XlogMapper {
                 let table = self.relations_map.get(&update.rel_id()).unwrap();
                 let new_values = update.new_tuple().tuple_data();
 
-                debug!("old tuple: {:?}", update.old_tuple());
-                debug!("key tuple: {:?}", update.key_tuple());
-                let values = Self::convert_values_to_fields(table, new_values)?;
-                let old_values = if let Some(key_values) = update.key_tuple() {
-                    Self::convert_values_to_fields(table, key_values.tuple_data())?
-                } else {
-                    vec![]
-                };
+                let values = Self::convert_values_to_fields(table, new_values, false)?;
+                let old_values = Self::convert_old_value_to_fields(table, update)?;
 
                 let event = OperationEvent {
                     operation: Operation::Update {
@@ -175,7 +160,7 @@ impl XlogMapper {
                 let table = self.relations_map.get(&delete.rel_id()).unwrap();
                 let key_values = delete.key_tuple().unwrap().tuple_data();
 
-                let values = Self::convert_values_to_fields(table, key_values)?;
+                let values = Self::convert_values_to_fields(table, key_values, true)?;
 
                 let event = OperationEvent {
                     operation: Operation::Delete {
@@ -227,10 +212,18 @@ impl XlogMapper {
             .map_err(ConnectorError::RelationNotFound)?
             .to_string();
 
+        let replica_identity = match relation.replica_identity() {
+            ReplicaIdentity::Default => ReplicaIdentity::Default,
+            ReplicaIdentity::Nothing => ReplicaIdentity::Nothing,
+            ReplicaIdentity::Full => ReplicaIdentity::Full,
+            ReplicaIdentity::Index => ReplicaIdentity::Index,
+        };
+
         let table = Table {
             columns,
             hash,
             rel_id,
+            replica_identity,
         };
 
         let mut fields = vec![];
@@ -269,20 +262,40 @@ impl XlogMapper {
     fn convert_values_to_fields(
         table: &Table,
         new_values: &[TupleData],
+        only_key: bool,
     ) -> Result<Vec<Field>, ConnectorError> {
         let mut values: Vec<Field> = vec![];
 
         for column in &table.columns {
-            let value = new_values.get(column.idx).unwrap();
-            match value {
-                TupleData::Null => values.push(helper::postgres_type_to_field(None, column)?),
-                TupleData::UnchangedToast => {}
-                TupleData::Text(text) => {
-                    values.push(helper::postgres_type_to_field(Some(text), column)?)
+            if column.flags == 1 || !only_key {
+                let value = new_values.get(column.idx).unwrap();
+                match value {
+                    TupleData::Null => values.push(helper::postgres_type_to_field(None, column)?),
+                    TupleData::UnchangedToast => {}
+                    TupleData::Text(text) => {
+                        values.push(helper::postgres_type_to_field(Some(text), column)?)
+                    }
                 }
+            } else {
+                values.push(Field::Null);
             }
         }
 
         Ok(values)
+    }
+
+    fn convert_old_value_to_fields(
+        table: &Table,
+        update: &UpdateBody,
+    ) -> Result<Vec<Field>, ConnectorError> {
+        match table.replica_identity {
+            ReplicaIdentity::Default | ReplicaIdentity::Full | ReplicaIdentity::Index => {
+                update.key_tuple().map_or_else(
+                    || Self::convert_values_to_fields(table, update.new_tuple().tuple_data(), true),
+                    |key_tuple| Self::convert_values_to_fields(table, key_tuple.tuple_data(), true),
+                )
+            }
+            ReplicaIdentity::Nothing => Ok(vec![]),
+        }
     }
 }
