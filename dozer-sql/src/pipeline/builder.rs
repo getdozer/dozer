@@ -9,7 +9,7 @@ use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
 use sqlparser::ast::{Query, Select, SetExpr, Statement};
-use sqlparser::dialect::AnsiDialect;
+use sqlparser::dialect::{AnsiDialect, GenericDialect};
 use sqlparser::parser::Parser;
 use std::sync::Arc;
 
