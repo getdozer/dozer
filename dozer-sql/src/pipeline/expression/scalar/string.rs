@@ -2,7 +2,7 @@ use crate::arg_str;
 
 use crate::pipeline::errors::PipelineError;
 
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ReturnDetails};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -11,7 +11,7 @@ use dozer_types::types::{Field, FieldType, Record, Schema};
 pub(crate) fn validate_ucase(
     arg: &Expression,
     schema: &Schema,
-) -> Result<ReturnDetails, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     validate_arg_type(
         arg,
         vec![FieldType::String, FieldType::Text],
@@ -40,7 +40,7 @@ pub(crate) fn validate_concat(
     arg0: &Expression,
     arg1: &Expression,
     schema: &Schema,
-) -> Result<ReturnDetails, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     let arg0 = validate_arg_type(
         arg0,
         vec![FieldType::String, FieldType::Text],
@@ -56,7 +56,7 @@ pub(crate) fn validate_concat(
         1,
     )?;
 
-    Ok(ReturnDetails::new(
+    Ok(ExpressionType::new(
         match (arg0.return_type, arg1.return_type) {
             (FieldType::String, FieldType::String) => FieldType::String,
             _ => FieldType::Text,
@@ -112,7 +112,7 @@ pub enum TrimType {
 pub(crate) fn validate_trim(
     arg: &Expression,
     schema: &Schema,
-) -> Result<ReturnDetails, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     validate_arg_type(
         arg,
         vec![FieldType::String, FieldType::Text],

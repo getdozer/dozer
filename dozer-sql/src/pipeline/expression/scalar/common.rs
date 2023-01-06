@@ -1,6 +1,6 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ReturnDetails};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
 use crate::pipeline::expression::scalar::string::{
     evaluate_concat, evaluate_length, evaluate_ucase, validate_concat, validate_ucase,
@@ -35,10 +35,10 @@ pub(crate) fn get_scalar_function_type(
     function: &ScalarFunctionType,
     args: &[Expression],
     schema: &Schema,
-) -> Result<ReturnDetails, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     match function {
         ScalarFunctionType::Abs => argv!(args, 0, ScalarFunctionType::Abs)?.get_type(schema),
-        ScalarFunctionType::Round => Ok(ReturnDetails::new(FieldType::Int, true)),
+        ScalarFunctionType::Round => Ok(ExpressionType::new(FieldType::Int, true)),
         ScalarFunctionType::Ucase => {
             validate_ucase(argv!(args, 0, ScalarFunctionType::Ucase)?, schema)
         }
@@ -47,7 +47,7 @@ pub(crate) fn get_scalar_function_type(
             argv!(args, 1, ScalarFunctionType::Concat)?,
             schema,
         ),
-        ScalarFunctionType::Length => Ok(ReturnDetails::new(FieldType::UInt, false)),
+        ScalarFunctionType::Length => Ok(ExpressionType::new(FieldType::UInt, false)),
     }
 }
 
