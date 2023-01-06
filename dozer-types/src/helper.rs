@@ -23,7 +23,9 @@ pub fn record_to_map(rec: &Record, schema: &Schema) -> Result<IndexMap<String, V
     Ok(map)
 }
 
-/// Used in REST APIs for converting raw value back and forth
+/// Used in REST APIs for converting raw value back and forth.
+///
+/// Should be consistent with `convert_cache_type_to_schema_type`.
 fn field_to_json_value(field: Field) -> Result<Value, FromUtf8Error> {
     match field {
         Field::UInt(n) => Ok(Value::from(n)),
