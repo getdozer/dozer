@@ -6,7 +6,7 @@ use dozer_core::dag::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
 };
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{Expr as SqlExpr, SelectItem};
+use sqlparser::ast::{Expr as SqlExpr, Expr, SelectItem};
 
 use crate::pipeline::{
     errors::PipelineError,
@@ -58,6 +58,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
+
         if is_aggregation(&self.groupby, &output_field_rules) {
             return build_output_schema(input_schema, output_field_rules);
         }
@@ -138,42 +139,38 @@ pub(crate) fn get_aggregation_rules(
     Ok(select_rules)
 }
 
+fn build_field_rule(
+    sql_expr: &Expr,
+    schema: &Schema,
+    name: String,
+) -> Result<FieldRule, PipelineError> {
+    let builder = ExpressionBuilder {};
+    let expression =
+        builder.parse_sql_expression(&BuilderExpressionType::Aggregation, sql_expr, schema)?;
+
+    match get_aggregator(expression.0.clone(), schema) {
+        Ok(aggregator) => Ok(FieldRule::Measure(
+            ExpressionBuilder {}
+                .parse_sql_expression(&BuilderExpressionType::PreAggregation, sql_expr, schema)?
+                .0,
+            aggregator,
+            name,
+        )),
+        Err(_) => Ok(FieldRule::Dimension(expression.0, true, name)),
+    }
+}
+
 fn parse_sql_aggregate_item(
     item: &SelectItem,
     schema: &Schema,
 ) -> Result<FieldRule, PipelineError> {
-    let builder = ExpressionBuilder {};
-
     match item {
         SelectItem::UnnamedExpr(sql_expr) => {
-            let expression = builder.parse_sql_expression(
-                &BuilderExpressionType::Aggregation,
-                sql_expr,
-                schema,
-            )?;
-
-            match get_aggregator(expression.0.clone(), schema) {
-                Ok(aggregator) => Ok(FieldRule::Measure(
-                    ExpressionBuilder {}
-                        .parse_sql_expression(
-                            &BuilderExpressionType::PreAggregation,
-                            sql_expr,
-                            schema,
-                        )?
-                        .0,
-                    aggregator,
-                    sql_expr.to_string(),
-                )),
-                Err(_) => Ok(FieldRule::Dimension(
-                    expression.0,
-                    true,
-                    sql_expr.to_string(),
-                )),
-            }
+            build_field_rule(sql_expr, schema, sql_expr.to_string())
         }
-        SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
-            format!("Unsupported Expression {}:{}", expr, alias),
-        )),
+        SelectItem::ExprWithAlias { expr, alias } => {
+            build_field_rule(expr, schema, alias.value.clone())
+        }
         SelectItem::Wildcard => Err(PipelineError::InvalidExpression(
             "Wildcard Operator is not supported".to_string(),
         )),
