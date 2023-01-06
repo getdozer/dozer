@@ -113,13 +113,13 @@ pub(crate) fn validate_trim(
     arg: &Expression,
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
-    Ok(validate_arg_type(
+    validate_arg_type(
         arg,
         vec![FieldType::String, FieldType::Text],
         schema,
         ScalarFunctionType::Concat,
         0,
-    )?)
+    )
 }
 
 pub(crate) fn evaluate_trim(
