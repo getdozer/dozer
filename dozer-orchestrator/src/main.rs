@@ -22,6 +22,8 @@ fn main() {
 }
 
 fn render_logo() {
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    info!("Dozer Version: {}", VERSION);
     info!("{}", LOGO);
 }
 fn set_panic_hook() {

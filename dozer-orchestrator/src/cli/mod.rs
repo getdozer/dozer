@@ -67,4 +67,7 @@ ____   ___ __________ ____
 |____/ \\___/____|_____|_| \\_\\
 ";
 
-pub const DESCRIPTION: &str = "Open-source platform to build, publish and manage blazing-fast real-time data APIs in minutes.";
+pub const DESCRIPTION: &str = r#"Open-source platform to build, publish and manage blazing-fast real-time data APIs in minutes. 
+
+If no sub commands are passed, dozer will bring up both app and api services.
+"#;

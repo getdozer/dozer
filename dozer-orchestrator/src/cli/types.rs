@@ -6,7 +6,7 @@ use super::{DESCRIPTION, LOGO};
 #[command(author, version, name = "dozer")]
 #[command(
     about = format!("{} \n {}", LOGO, DESCRIPTION),
-    long_about = format!("{} \n {}", LOGO, DESCRIPTION),
+    long_about = None,
 )]
 pub struct Cli {
     #[arg(short = 'c', long, default_value = "./dozer-config.yaml")]
@@ -18,13 +18,24 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(arg_required_else_help = true)]
-    Api(Api),
-    App(App),
-    Connector(Connector),
-    Clean,
-    Init(Init),
+    #[command(
+        arg_required_else_help = true,
+        about = "Interactive REPL for configuring sources and schemas"
+    )]
     Configure,
+    #[command(
+        arg_required_else_help = true,
+        about = "Initialize and lock schema definitions. Once intiialized, schemas cannot be changed."
+    )]
+    Init(Init),
+    #[command(arg_required_else_help = true, about = "Clean home directory")]
+    Clean,
+    #[command(arg_required_else_help = true, about = "Run Api Server")]
+    Api(Api),
+    #[command(arg_required_else_help = true, about = "Run App Server")]
+    App(App),
+    #[command(arg_required_else_help = true, about = "Show Sources")]
+    Connector(Connector),
 }
 
 #[derive(Debug, Args)]
