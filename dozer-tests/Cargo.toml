@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,10 +14,10 @@ reqwest = { version = "0.11.13", optional = true }
 
 [dev-dependencies]
 sqlparser = "0.24.0"
-dozer-types = {path = "../dozer-types"}
-dozer-tracing = {path = "../dozer-tracing"}
-dozer-core = {path = "../dozer-core"}
-dozer-sql = {path = "../dozer-sql"}
+dozer-types = { path = "../dozer-types" }
+dozer-tracing = { path = "../dozer-tracing" }
+dozer-core = { path = "../dozer-core" }
+dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
 dozer-api = { path = "../dozer-api" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
