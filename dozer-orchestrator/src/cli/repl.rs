@@ -324,7 +324,9 @@ pub fn configure(config_path: String, running: Arc<AtomicBool>) -> Result<(), Or
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                execute(&line, &config_path, running.clone())?;
+                if !line.is_empty() {
+                    execute(&line, &config_path, running.clone())?;
+                }
             }
             Err(ReadlineError::Interrupted) => {
                 running.store(false, Ordering::SeqCst);
