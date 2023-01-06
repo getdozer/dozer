@@ -37,12 +37,12 @@ sources:
     columns:
 
 endpoints:
-  - name: PunkOffered
+  - name: punkoffered
     path: /punk_offered
     sql: select punkIndex, minValue, toAddress from punks_PunkOffered;
     index:
       primary_key:
-  - name: Transfer
+  - name: transfers
     path: /transfers
     sql: select from, to from apes_Transfer;
     index:

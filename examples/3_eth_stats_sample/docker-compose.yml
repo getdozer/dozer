@@ -1,7 +1,9 @@
 version: '3.9'
 services:
   dozer:
-    build: ../
+    image: public.ecr.aws/k7k6x1d4/dozer:latest
+    environment:
+      - ETH_WSS_URL
     ports:
       # REST APIs are published on port 8080
       - "8080:8080"
@@ -10,17 +12,3 @@ services:
     volumes:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
-    networks: ["dozer_net"]
-
-networks:
-  dozer_net:
-    name: "dozer_net"
-    enable_ipv6: true
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: "true"
-    ipam:
-      driver: default
-      config:
-        - subnet: fd00:0:0:1::/64
-          gateway: fd00:0:0:1::1

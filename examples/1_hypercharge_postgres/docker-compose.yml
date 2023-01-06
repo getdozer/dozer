@@ -10,7 +10,7 @@ services:
     links:
       - postgres
 
-    build: ../
+    image: public.ecr.aws/k7k6x1d4/dozer:latest
     volumes:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
@@ -25,7 +25,7 @@ services:
     links:
       - postgres
     
-    build: ../
+    image: public.ecr.aws/k7k6x1d4/dozer:latest
     ports:
       # REST APIs are published on port 8080
       - "8080:8080"
