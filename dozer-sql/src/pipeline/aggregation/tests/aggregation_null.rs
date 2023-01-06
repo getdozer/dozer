@@ -58,7 +58,7 @@ fn test_aggregation_alias() {
         )
         .clone();
 
-    let select = get_select("SELECT ID, SUM(Salary) as Salaries FROM Users").unwrap();
+    let select = get_select("SELECT ID, SUM(Salary) as Salaries FROM Users GROUP BY ID").unwrap();
 
     let factory = AggregationProcessorFactory::new(select.projection, select.group_by);
     let out_schema = factory
@@ -75,7 +75,7 @@ fn test_aggregation_alias() {
         Schema::empty()
             .field(
                 FieldDefinition::new(String::from("ID"), FieldType::Int, false),
-                false,
+                true,
             )
             .field(
                 FieldDefinition::new(String::from("Salaries"), FieldType::Int, false),

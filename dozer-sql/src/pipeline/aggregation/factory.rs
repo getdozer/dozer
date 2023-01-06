@@ -58,6 +58,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             .ok_or(ExecutionError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
         let output_field_rules =
             get_aggregation_rules(&self.select, &self.groupby, input_schema).unwrap();
+
         if is_aggregation(&self.groupby, &output_field_rules) {
             return build_output_schema(input_schema, output_field_rules);
         }
