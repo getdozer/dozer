@@ -38,12 +38,12 @@ pub enum Expression {
     },
 }
 
-pub struct ExpressionType {
+pub struct ReturnDetails {
     pub return_type: FieldType,
     pub nullable: bool,
 }
 
-impl ExpressionType {
+impl ReturnDetails {
     pub fn new(return_type: FieldType, nullable: bool) -> Self {
         Self {
             return_type,
@@ -56,7 +56,7 @@ impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
     fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError>;
-    fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError>;
+    fn get_type(&self, schema: &Schema) -> Result<ReturnDetails, PipelineError>;
 }
 
 impl ExpressionExecutor for Expression {
@@ -86,7 +86,7 @@ impl ExpressionExecutor for Expression {
         }
     }
 
-    fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError> {
+    fn get_type(&self, schema: &Schema) -> Result<ReturnDetails, PipelineError> {
         match self {
             Expression::Literal(field) => {
                 let r = get_field_type(field).ok_or_else(|| {
@@ -94,7 +94,7 @@ impl ExpressionExecutor for Expression {
                         "literal expression cannot be null".to_string(),
                     )
                 })?;
-                Ok(ExpressionType::new(r, false))
+                Ok(ReturnDetails::new(r, false))
             }
             Expression::Column { index } => Ok(get_column_type(index, schema)),
             Expression::UnaryOperator { operator, arg } => {
@@ -135,16 +135,16 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
     }
 }
 
-fn get_column_type(index: &usize, schema: &Schema) -> ExpressionType {
+fn get_column_type(index: &usize, schema: &Schema) -> ReturnDetails {
     let t = schema.fields.get(*index).unwrap();
-    ExpressionType::new(t.typ, t.nullable)
+    ReturnDetails::new(t.typ, t.nullable)
 }
 
 fn get_unary_operator_type(
     operator: &UnaryOperatorType,
     expression: &Expression,
     schema: &Schema,
-) -> Result<ExpressionType, PipelineError> {
+) -> Result<ReturnDetails, PipelineError> {
     let field_type = expression.get_type(schema)?;
     match operator {
         UnaryOperatorType::Not => match field_type.return_type {
@@ -164,7 +164,7 @@ fn get_binary_operator_type(
     operator: &BinaryOperatorType,
     right: &Expression,
     schema: &Schema,
-) -> Result<ExpressionType, PipelineError> {
+) -> Result<ReturnDetails, PipelineError> {
     let left_field_type = left.get_type(schema)?;
     let right_field_type = right.get_type(schema)?;
     match operator {
@@ -173,12 +173,12 @@ fn get_binary_operator_type(
         | BinaryOperatorType::Gt
         | BinaryOperatorType::Gte
         | BinaryOperatorType::Lt
-        | BinaryOperatorType::Lte => Ok(ExpressionType::new(FieldType::Boolean, false)),
+        | BinaryOperatorType::Lte => Ok(ReturnDetails::new(FieldType::Boolean, false)),
 
         BinaryOperatorType::And | BinaryOperatorType::Or => {
             match (left_field_type.return_type, right_field_type.return_type) {
                 (FieldType::Boolean, FieldType::Boolean) => {
-                    Ok(ExpressionType::new(FieldType::Boolean, false))
+                    Ok(ReturnDetails::new(FieldType::Boolean, false))
                 }
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
@@ -191,11 +191,11 @@ fn get_binary_operator_type(
 
         BinaryOperatorType::Add | BinaryOperatorType::Sub | BinaryOperatorType::Mul => {
             match (left_field_type.return_type, right_field_type.return_type) {
-                (FieldType::Int, FieldType::Int) => Ok(ExpressionType::new(FieldType::Int, false)),
+                (FieldType::Int, FieldType::Int) => Ok(ReturnDetails::new(FieldType::Int, false)),
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => {
-                    Ok(ExpressionType::new(FieldType::Float, false))
+                    Ok(ReturnDetails::new(FieldType::Float, false))
                 }
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
@@ -210,7 +210,7 @@ fn get_binary_operator_type(
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
                 | (FieldType::Float, FieldType::Float) => {
-                    Ok(ExpressionType::new(FieldType::Float, false))
+                    Ok(ReturnDetails::new(FieldType::Float, false))
                 }
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
@@ -227,17 +227,17 @@ fn get_aggregate_function_type(
     function: &AggregateFunctionType,
     args: &[Expression],
     schema: &Schema,
-) -> Result<ExpressionType, PipelineError> {
+) -> Result<ReturnDetails, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => Ok(ExpressionType::new(FieldType::Float, false)),
-        AggregateFunctionType::Count => Ok(ExpressionType::new(FieldType::Int, false)),
+        AggregateFunctionType::Avg => Ok(ReturnDetails::new(FieldType::Float, false)),
+        AggregateFunctionType::Count => Ok(ReturnDetails::new(FieldType::Int, false)),
         AggregateFunctionType::Max => argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema),
         AggregateFunctionType::Median => {
             argv!(args, 0, AggregateFunctionType::Median)?.get_type(schema)
         }
         AggregateFunctionType::Min => argv!(args, 0, AggregateFunctionType::Min)?.get_type(schema),
         AggregateFunctionType::Sum => argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema),
-        AggregateFunctionType::Stddev => Ok(ExpressionType::new(FieldType::Float, false)),
-        AggregateFunctionType::Variance => Ok(ExpressionType::new(FieldType::Float, false)),
+        AggregateFunctionType::Stddev => Ok(ReturnDetails::new(FieldType::Float, false)),
+        AggregateFunctionType::Variance => Ok(ReturnDetails::new(FieldType::Float, false)),
     }
 }
