@@ -237,7 +237,7 @@ impl Orchestrator for SimpleOrchestrator {
             ingestor,
             iterator,
             running,
-            pipeline_dir.into_path().to_path_buf(),
+            pipeline_dir.into_path(),
         );
 
         let dag = executor.query(sql, sender)?;

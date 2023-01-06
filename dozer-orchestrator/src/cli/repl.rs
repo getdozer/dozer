@@ -188,7 +188,7 @@ fn query(
                 }
                 table.add_row(Row::new(cells));
 
-                for (_, values) in record_map {
+                for values in record_map.values() {
                     let mut cells = vec![];
                     for v in values {
                         let val_str = v.to_string().map_or("".to_string(), |v| v);
@@ -269,9 +269,7 @@ fn execute(
     running: Arc<AtomicBool>,
 ) -> Result<(), OrchestrationError> {
     let cmd_map = get_commands();
-    let dozer_cmd = cmd_map
-        .iter()
-        .find(|(s, _)| s.to_string() == cmd.to_string());
+    let dozer_cmd = cmd_map.iter().find(|(s, _)| s.to_string() == *cmd);
 
     let dozer_cmd = dozer_cmd.map_or(DozerCmd::Sql(cmd.to_string()), |c| c.1.clone());
 
@@ -301,11 +299,7 @@ impl ConditionalEventHandler for TabEventHandler {
         if !ctx.has_hint() {
             return None; // default
         }
-        if let Some(_k) = evt.get(0) {
-            Some(Cmd::CompleteHint)
-        } else {
-            None
-        }
+        evt.get(0).map(|_k| Cmd::CompleteHint)
     }
 }
 
@@ -333,16 +327,16 @@ pub fn configure(config_path: String, running: Arc<AtomicBool>) -> Result<(), Or
                 execute(&line, &config_path, running.clone())?;
             }
             Err(ReadlineError::Interrupted) => {
-                running.clone().store(false, Ordering::SeqCst);
+                running.store(false, Ordering::SeqCst);
                 info!("Exiting..");
                 break;
             }
             Err(ReadlineError::Eof) => {
-                running.clone().store(false, Ordering::SeqCst);
+                running.store(false, Ordering::SeqCst);
                 break;
             }
             Err(err) => {
-                running.clone().store(false, Ordering::SeqCst);
+                running.store(false, Ordering::SeqCst);
                 error!("Error: {:?}", err);
                 break;
             }
