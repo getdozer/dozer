@@ -16,7 +16,7 @@ use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
-use dozer_types::types::{ReplicationChangesTrackingType, Schema};
+use dozer_types::types::SchemaWithChangesType;
 use std::sync::Arc;
 
 pub mod snowflake;
@@ -30,7 +30,7 @@ pub trait Connector: Send + Sync {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, ConnectorError>;
+    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError>;
     fn get_tables(&self) -> Result<Vec<TableInfo>, ConnectorError>;
     fn test_connection(&self) -> Result<(), ConnectorError>;
     fn initialize(

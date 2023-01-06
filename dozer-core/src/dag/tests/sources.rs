@@ -148,8 +148,8 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
             .clone())
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(vec![
             OutputPortDef::new(
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
                 if self.stateful {
@@ -172,7 +172,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
                     OutputPortType::Stateless
                 },
             ),
-        ]
+        ])
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
@@ -275,15 +275,15 @@ impl SourceFactory for NoPkGeneratorSourceFactory {
             .clone())
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
             if self.stateful {
                 OutputPortType::AutogenRowKeyLookup
             } else {
                 OutputPortType::Stateless
             },
-        )]
+        )])
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {

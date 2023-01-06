@@ -77,11 +77,11 @@ impl SourceFactory for TestCountriesSourceFactory {
             .clone())
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
             OutputPortType::Stateless,
-        )]
+        )])
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {

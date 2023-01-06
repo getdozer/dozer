@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
 use dozer_types::types::{
     FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
+    SchemaWithChangesType,
 };
 
 use crate::connectors::TableInfo;
@@ -51,9 +52,9 @@ impl SchemaHelper {
     pub fn get_schemas(
         &self,
         table_name: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, ConnectorError> {
+    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
         let mut client = helper::connect(self.conn_config.clone())?;
-        let mut schemas: Vec<(String, Schema, ReplicationChangesTrackingType)> = Vec::new();
+        let mut schemas: Vec<SchemaWithChangesType> = Vec::new();
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
         let schema = self.schema.clone();
         let query = if let Some(tables) = table_name {
@@ -149,8 +150,8 @@ impl SchemaHelper {
 
     pub fn validate_schema(
         &self,
-        schemas: Vec<(String, Schema, ReplicationChangesTrackingType)>,
-    ) -> Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, ConnectorError> {
+        schemas: Vec<SchemaWithChangesType>,
+    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
         let table_without_primary_index = schemas
             .iter()
             .find(|(_table_name, schema, _)| schema.primary_index.is_empty());

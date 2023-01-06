@@ -56,6 +56,8 @@ pub enum ReplicationChangesTrackingType {
     Nothing,
 }
 
+pub type SchemaWithChangesType = (String, Schema, ReplicationChangesTrackingType);
+
 impl Schema {
     pub fn empty() -> Schema {
         Self {

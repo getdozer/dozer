@@ -287,7 +287,7 @@ impl Client {
         tables: Option<Vec<TableInfo>>,
         _config: &SnowflakeConfig,
         conn: &Connection<AutocommitOn>,
-    ) -> Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, SnowflakeError> {
+    ) -> Result<Vec<SchemaWithChangesType>, SnowflakeError> {
         let tables_condition = tables.map_or("".to_string(), |tables| {
             let mut buf = String::new();
             buf.write_str(" AND TABLE_NAME IN(").unwrap();

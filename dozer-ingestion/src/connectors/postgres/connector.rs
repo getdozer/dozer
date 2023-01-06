@@ -7,7 +7,7 @@ use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::{ReplicationChangesTrackingType, Schema};
+use dozer_types::types::SchemaWithChangesType;
 use postgres::Client;
 use postgres_types::PgLsn;
 
@@ -71,7 +71,7 @@ impl Connector for PostgresConnector {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, Schema, ReplicationChangesTrackingType)>, ConnectorError> {
+    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
         self.schema_helper.get_schemas(table_names)
     }
 

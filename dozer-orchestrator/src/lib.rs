@@ -1,5 +1,3 @@
-#![allow(clippy::type_complexity)]
-
 pub mod cli;
 pub mod errors;
 pub mod pipeline;
@@ -10,7 +8,7 @@ use dozer_core::dag::errors::ExecutionError;
 use dozer_types::{
     crossbeam::channel::Sender,
     log::debug,
-    types::{Operation, Schema},
+    types::{Operation, SchemaWithChangesType},
 };
 use errors::OrchestrationError;
 use std::{
@@ -36,10 +34,7 @@ pub trait Orchestrator {
     ) -> Result<(), OrchestrationError>;
     fn list_connectors(
         &self,
-    ) -> Result<
-        HashMap<String, Vec<(String, Schema, ReplicationChangesTrackingType)>>,
-        OrchestrationError,
-    >;
+    ) -> Result<HashMap<String, Vec<SchemaWithChangesType>>, OrchestrationError>;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
     fn query(
         &self,
@@ -54,7 +49,7 @@ use dozer_ingestion::connectors::TableInfo;
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
-use dozer_types::types::ReplicationChangesTrackingType;
+use dozer_types::types::SchemaWithChangesType;
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input.clone())?;
