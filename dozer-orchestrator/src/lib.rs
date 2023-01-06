@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 pub mod cli;
 pub mod errors;
 pub mod pipeline;

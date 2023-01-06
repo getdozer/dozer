@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::App;
 use dozer_types::types::{ReplicationChangesTrackingType, Operation, Schema};
@@ -172,6 +174,7 @@ impl Executor {
 
         app.get_dag().map_err(OrchestrationError::ExecutionError)
     }
+
     pub fn get_tables(
         connections: &Vec<Connection>,
     ) -> Result<
