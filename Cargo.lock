@@ -745,7 +745,7 @@ dependencies = [
  "atty",
  "bat",
  "cargo-subcommand-metadata",
- "clap 4.0.29",
+ "clap 4.0.32",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -842,9 +842,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.29"
+version = "4.0.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d63b9e9c07271b9957ad22c173bae2a4d9a81127680962039296abcd2f8251d"
+checksum = "a7db700bc935f9e43e88d00b0850dae18a63773cfbec6d8e070fccf7fef89a39"
 dependencies = [
  "bitflags",
  "clap_derive",
@@ -1417,7 +1417,7 @@ name = "dozer-admin"
 version = "0.1.3"
 dependencies = [
  "cargo-expand",
- "clap 4.0.29",
+ "clap 4.0.32",
  "diesel",
  "diesel_migrations",
  "dotenvy",
@@ -1544,7 +1544,7 @@ dependencies = [
 name = "dozer-orchestrator"
 version = "0.1.3"
 dependencies = [
- "clap 4.0.29",
+ "clap 4.0.32",
  "crossterm",
  "ctrlc",
  "dotenvy",
@@ -1592,6 +1592,7 @@ name = "dozer-tests"
 version = "0.1.3"
 dependencies = [
  "bson",
+ "clap 4.0.32",
  "csv",
  "dozer-api",
  "dozer-cache",
@@ -1599,6 +1600,7 @@ dependencies = [
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
+ "env_logger",
  "futures",
  "mongodb",
  "reqwest",
@@ -1757,6 +1759,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log",
+ "regex",
+ "termcolor",
 ]
 
 [[package]]

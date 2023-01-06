@@ -7,10 +7,6 @@ pub use sql_tests::TestFramework;
 #[cfg(test)]
 mod cache_tests;
 
-#[cfg(feature = "e2e")]
-#[cfg(test)]
-mod e2e_tests;
-
 #[cfg(test)]
 mod init;
 
@@ -19,3 +15,5 @@ mod read_csv;
 
 #[cfg(test)]
 mod tests;
+
+pub mod e2e_tests;

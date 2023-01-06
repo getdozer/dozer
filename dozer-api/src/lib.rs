@@ -29,6 +29,7 @@ pub mod grpc;
 pub mod rest;
 // Re-exports
 pub use actix_web;
+pub use async_trait;
 use dozer_cache::errors::CacheError;
 pub use openapiv3;
 pub use tokio;

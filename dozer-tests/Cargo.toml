@@ -5,25 +5,34 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "dozer-tests"
+path = "src/dozer_tests.rs"
+
+[[bin]]
+name = "dozer-test-client"
+path = "src/dozer_test_client.rs"
+
 [dependencies]
-tokio = { version = "1.23.0", features = ["full"], optional = true }
+dozer-types = { path = "../dozer-types" }
+dozer-api = { path = "../dozer-api" }
+reqwest = "0.11.13"
+tokio = { version = "1.23.0", features = ["full"] }
 bson = { version = "2.4.0", optional = true }
 mongodb = { version = "2.3.1", optional = true }
 futures = { version = "0.3.25", optional = true }
-reqwest = { version = "0.11.13", optional = true }
+env_logger = "0.10.0"
+clap = "4.0.32"
 
 [dev-dependencies]
 sqlparser = "0.24.0"
-dozer-types = { path = "../dozer-types" }
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
-dozer-api = { path = "../dozer-api" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.1"
 tempdir = "0.3.7"
 
 [features]
-mongodb = ["dep:tokio", "dep:bson", "dep:mongodb", "dep:futures"]
-e2e = ["dep:tokio", "dep:reqwest"]
+mongodb = ["dep:bson", "dep:mongodb", "dep:futures"]
