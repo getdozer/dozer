@@ -1,6 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 
-use super::{DESCRIPTION, LOGO};
+use super::cli::{DESCRIPTION, LOGO};
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
