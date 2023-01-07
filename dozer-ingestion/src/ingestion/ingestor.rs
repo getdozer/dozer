@@ -2,10 +2,10 @@ use crossbeam::channel::{unbounded, Receiver};
 use dozer_types::ingestion_types::{
     IngestionMessage, IngestionOperation, IngestorError, IngestorForwarder,
 };
-use dozer_types::log::{debug, warn};
+use dozer_types::log::warn;
 use dozer_types::parking_lot::RwLock;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::IngestionConfig;
 
@@ -57,7 +57,6 @@ impl IngestionIterator {
 #[derive(Debug)]
 pub struct Ingestor {
     pub sender: Arc<Box<dyn IngestorForwarder>>,
-    timer: Instant,
 }
 
 impl Ingestor {
@@ -76,10 +75,7 @@ impl Ingestor {
         _config: IngestionConfig,
         sender: Arc<Box<dyn IngestorForwarder + 'static>>,
     ) -> Self {
-        Self {
-            sender,
-            timer: Instant::now(),
-        }
+        Self { sender }
     }
 
     pub fn handle_message(
@@ -91,12 +87,8 @@ impl Ingestor {
                 self.sender
                     .forward((connector_id, IngestionOperation::OperationEvent(event)))?;
             }
-            IngestionMessage::Commit(_event) => {
-                debug!("Batch processing took: {:.2?}", self.timer.elapsed());
-            }
-            IngestionMessage::Begin() => {
-                self.timer = Instant::now();
-            }
+            IngestionMessage::Commit(_event) => {}
+            IngestionMessage::Begin() => {}
         }
         Ok(())
     }

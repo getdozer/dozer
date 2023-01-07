@@ -259,6 +259,7 @@ impl Field {
         match self {
             Field::UInt(i) => Some(*i),
             Field::Int(i) => u64::from_i64(*i),
+            Field::String(s) => s.parse::<u64>().ok(),
             Field::Null => Some(0_u64),
             _ => None,
         }
@@ -268,6 +269,7 @@ impl Field {
         match self {
             Field::Int(i) => Some(*i),
             Field::UInt(u) => i64::from_u64(*u),
+            Field::String(s) => s.parse::<i64>().ok(),
             Field::Null => Some(0_i64),
             _ => None,
         }
@@ -280,6 +282,7 @@ impl Field {
             Field::UInt(u) => f64::from_u64(*u),
             Field::Int(i) => f64::from_i64(*i),
             Field::Null => Some(0_f64),
+            Field::String(s) => s.parse::<f64>().ok(),
             _ => None,
         }
     }
@@ -288,24 +291,52 @@ impl Field {
         match self {
             Field::Boolean(b) => Some(*b),
             Field::Null => Some(false),
+            Field::Int(i) => Some(*i > 0_i64),
+            Field::UInt(i) => Some(*i > 0_u64),
+            Field::Float(i) => Some(i.0 > 0_f64),
+            Field::Decimal(i) => Some(i.gt(&Decimal::from(0_u64))),
             _ => None,
         }
     }
 
-    pub fn to_string(&self) -> Option<&str> {
+    pub fn to_string(&self) -> Option<String> {
         match self {
-            Field::String(s) => Some(s),
-            Field::Text(t) => Some(t),
-            Field::Null => Some(""),
+            Field::String(s) => Some(s.to_owned()),
+            Field::Text(t) => Some(t.to_owned()),
+            Field::Int(i) => Some(format!("{}", i)),
+            Field::UInt(i) => Some(format!("{}", i)),
+            Field::Float(i) => Some(format!("{}", i)),
+            Field::Decimal(i) => Some(format!("{}", i)),
+            Field::Boolean(i) => Some(if *i {
+                "TRUE".to_string()
+            } else {
+                "FALSE".to_string()
+            }),
+            Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
+            Field::Timestamp(t) => Some(t.to_rfc3339()),
+            Field::Binary(b) => Some(format!("{:X?}", b)),
+            Field::Null => Some("".to_string()),
             _ => None,
         }
     }
 
-    pub fn to_text(&self) -> Option<&str> {
+    pub fn to_text(&self) -> Option<String> {
         match self {
-            Field::Text(s) => Some(s),
-            Field::String(s) => Some(s),
-            Field::Null => Some(""),
+            Field::String(s) => Some(s.to_owned()),
+            Field::Text(t) => Some(t.to_owned()),
+            Field::Int(i) => Some(format!("{}", i)),
+            Field::UInt(i) => Some(format!("{}", i)),
+            Field::Float(i) => Some(format!("{}", i)),
+            Field::Decimal(i) => Some(format!("{}", i)),
+            Field::Boolean(i) => Some(if *i {
+                "TRUE".to_string()
+            } else {
+                "FALSE".to_string()
+            }),
+            Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
+            Field::Timestamp(t) => Some(t.to_rfc3339()),
+            Field::Binary(b) => Some(format!("{:X?}", b)),
+            Field::Null => Some("".to_string()),
             _ => None,
         }
     }
@@ -324,6 +355,7 @@ impl Field {
             Field::Int(i) => Decimal::from_i64(*i),
             Field::UInt(u) => Decimal::from_u64(*u),
             Field::Null => Some(Decimal::from(0)),
+            Field::String(s) => Decimal::from_str_exact(s).ok(),
             _ => None,
         }
     }
@@ -331,6 +363,7 @@ impl Field {
     pub fn to_timestamp(&self) -> Option<DateTime<FixedOffset>> {
         match self {
             Field::Timestamp(t) => Some(*t),
+            Field::String(s) => DateTime::parse_from_rfc3339(s.as_str()).ok(),
             _ => None,
         }
     }
@@ -338,6 +371,7 @@ impl Field {
     pub fn to_date(&self) -> Option<NaiveDate> {
         match self {
             Field::Date(d) => Some(*d),
+            Field::String(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d").ok(),
             _ => None,
         }
     }
@@ -650,9 +684,9 @@ pub mod tests {
         assert!(field.to_uint().is_some());
         assert!(field.to_int().is_some());
         assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_boolean().is_some());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().is_none());
@@ -664,9 +698,9 @@ pub mod tests {
         assert!(field.to_uint().is_some());
         assert!(field.to_int().is_some());
         assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_boolean().is_some());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().is_none());
@@ -678,9 +712,9 @@ pub mod tests {
         assert!(field.to_uint().is_none());
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_boolean().is_some());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().is_none());
@@ -693,8 +727,8 @@ pub mod tests {
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_none());
         assert!(field.to_boolean().is_some());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().is_none());
@@ -735,8 +769,8 @@ pub mod tests {
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_none());
         assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_some());
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().is_none());
@@ -748,9 +782,9 @@ pub mod tests {
         assert!(field.to_uint().is_none());
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_some());
-        assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_boolean().is_some());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_some());
         assert!(field.to_timestamp().is_none());
@@ -763,8 +797,8 @@ pub mod tests {
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_none());
         assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().is_some());
@@ -777,8 +811,8 @@ pub mod tests {
         assert!(field.to_int().is_none());
         assert!(field.to_float().is_none());
         assert!(field.to_boolean().is_none());
-        assert!(field.to_string().is_none());
-        assert!(field.to_text().is_none());
+        assert!(field.to_string().is_some());
+        assert!(field.to_text().is_some());
         assert!(field.to_binary().is_none());
         assert!(field.to_decimal().is_none());
         assert!(field.to_timestamp().is_none());

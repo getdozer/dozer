@@ -1,4 +1,4 @@
-## End-to-end Ethereum Stats Example
+## Publish ethereum smart contract data as APIs
 
 Features used:
 - Initialize project from [yaml](./docker-compose.yml) with docker
@@ -7,11 +7,22 @@ Features used:
 
 [//]: # (- Creation of embeddable React widget)
 
-### Run
+### Running
 
-```bash
-docker-compose up --build
-
-# Note: For Apple silicons pre-setting
-export DOCKER_DEFAULT_PLATFORM=linux/amd64
+Register with a websocket provider such as Infura and initialize the env varialbe `ETH_WSS_URL`. 
 ```
+export ETH_WSS_URL=<WSS_URL>
+
+# or using ganache
+
+ganache fork
+export ETH_WSS_URL="ws://localhost:8545"
+```
+
+Run the sample
+```
+docker-compose up
+```
+
+### References
+- [Fork Ethereum with Ganache]((https://docs.infura.io/infura/tutorials/ethereum/fork-ethereum-with-ganache) )

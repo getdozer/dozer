@@ -2,7 +2,7 @@ use crate::arg_str;
 
 use crate::pipeline::errors::PipelineError;
 
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
@@ -11,7 +11,7 @@ use dozer_types::types::{Field, FieldType, Record, Schema};
 pub(crate) fn validate_ucase(
     arg: &Expression,
     schema: &Schema,
-) -> Result<FieldType, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     validate_arg_type(
         arg,
         vec![FieldType::String, FieldType::Text],
@@ -30,7 +30,7 @@ pub(crate) fn evaluate_ucase(
     let v = arg_str!(f, ScalarFunctionType::Ucase, 0)?;
     let ret = v.to_uppercase();
 
-    Ok(match arg.get_type(schema)? {
+    Ok(match arg.get_type(schema)?.return_type {
         FieldType::String => Field::String(ret),
         _ => Field::Text(ret),
     })
@@ -40,15 +40,15 @@ pub(crate) fn validate_concat(
     arg0: &Expression,
     arg1: &Expression,
     schema: &Schema,
-) -> Result<FieldType, PipelineError> {
-    let _arg0 = validate_arg_type(
+) -> Result<ExpressionType, PipelineError> {
+    let arg0 = validate_arg_type(
         arg0,
         vec![FieldType::String, FieldType::Text],
         schema,
         ScalarFunctionType::Concat,
         0,
     )?;
-    let _arg1 = validate_arg_type(
+    let arg1 = validate_arg_type(
         arg1,
         vec![FieldType::String, FieldType::Text],
         schema,
@@ -56,10 +56,13 @@ pub(crate) fn validate_concat(
         1,
     )?;
 
-    Ok(match (arg0.get_type(schema)?, arg1.get_type(schema)?) {
-        (FieldType::String, FieldType::String) => FieldType::String,
-        _ => FieldType::Text,
-    })
+    Ok(ExpressionType::new(
+        match (arg0.return_type, arg1.return_type) {
+            (FieldType::String, FieldType::String) => FieldType::String,
+            _ => FieldType::Text,
+        },
+        false,
+    ))
 }
 
 pub(crate) fn evaluate_concat(
@@ -76,12 +79,17 @@ pub(crate) fn evaluate_concat(
         arg_str!(f0, ScalarFunctionType::Concat, 0)?,
         arg_str!(f1, ScalarFunctionType::Concat, 1)?,
     );
-    let ret_val = v0.to_owned() + v1;
+    let ret_val = v0 + v1.as_str();
 
-    Ok(match (arg0.get_type(schema)?, arg1.get_type(schema)?) {
-        (FieldType::String, FieldType::String) => Field::String(ret_val),
-        _ => Field::Text(ret_val),
-    })
+    Ok(
+        match (
+            arg0.get_type(schema)?.return_type,
+            arg1.get_type(schema)?.return_type,
+        ) {
+            (FieldType::String, FieldType::String) => Field::String(ret_val),
+            _ => Field::Text(ret_val),
+        },
+    )
 }
 
 pub(crate) fn evaluate_length(
@@ -101,15 +109,17 @@ pub enum TrimType {
     Both,
 }
 
-pub(crate) fn validate_trim(arg: &Expression, schema: &Schema) -> Result<FieldType, PipelineError> {
-    let ret_type = validate_arg_type(
+pub(crate) fn validate_trim(
+    arg: &Expression,
+    schema: &Schema,
+) -> Result<ExpressionType, PipelineError> {
+    validate_arg_type(
         arg,
         vec![FieldType::String, FieldType::Text],
         schema,
         ScalarFunctionType::Concat,
         0,
-    )?;
-    Ok(ret_type)
+    )
 }
 
 pub(crate) fn evaluate_trim(
@@ -137,7 +147,7 @@ pub(crate) fn evaluate_trim(
         None => arg_value.trim_matches::<&[char]>(&v1).to_string(),
     };
 
-    Ok(match arg.get_type(schema)? {
+    Ok(match arg.get_type(schema)?.return_type {
         FieldType::String => Field::String(retval),
         _ => Field::Text(retval),
     })
