@@ -257,6 +257,7 @@ impl<'a> DagExecutor<'a> {
         let st_node_handle = handle.clone();
         let output_schemas = schemas.output_schemas.clone();
         let running = self.running.clone();
+        let running_source = running.clone();
         let source_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let sender = SourceSenderNode::new(
                 handle,
@@ -268,11 +269,14 @@ impl<'a> DagExecutor<'a> {
             )?;
             sender.run()
         };
+
         let _st_handle = Builder::new()
             .name(format!("{}-sender", handle))
-            .spawn(|| {
+            .spawn(move || {
                 if let Err(e) = source_fn(st_node_handle) {
-                    std::panic::panic_any(e);
+                    if running_source.load(Ordering::Relaxed) {
+                        std::panic::panic_any(e);
+                    }
                 }
             })?;
 
@@ -281,6 +285,7 @@ impl<'a> DagExecutor<'a> {
         let record_readers = self.record_stores.clone();
         let edges = self.dag.edges.clone();
         let running = self.running.clone();
+        let running_listener = running.clone();
         let commit_sz = self.options.commit_sz;
         let max_duration_between_commits = self.options.commit_time_threshold;
         let output_schemas = schemas.output_schemas.clone();
@@ -305,9 +310,11 @@ impl<'a> DagExecutor<'a> {
         };
         Ok(Builder::new()
             .name(format!("{}-listener", handle))
-            .spawn(|| {
+            .spawn(move || {
                 if let Err(e) = source_fn(handle) {
-                    std::panic::panic_any(e);
+                    if running_listener.load(Ordering::Relaxed) {
+                        std::panic::panic_any(e);
+                    }
                 }
             })?)
     }
@@ -324,6 +331,7 @@ impl<'a> DagExecutor<'a> {
         let record_readers = self.record_stores.clone();
         let edges = self.dag.edges.clone();
         let schemas = schemas.clone();
+        let running = self.running.clone();
         let processor_fn = move |handle: NodeHandle| -> Result<(), ExecutionError> {
             let processor = ProcessorNode::new(
                 handle,
@@ -337,9 +345,11 @@ impl<'a> DagExecutor<'a> {
             )?;
             processor.run()
         };
-        Ok(Builder::new().name(handle.to_string()).spawn(|| {
+        Ok(Builder::new().name(handle.to_string()).spawn(move || {
             if let Err(e) = processor_fn(handle) {
-                std::panic::panic_any(e);
+                if running.load(Ordering::Relaxed) {
+                    std::panic::panic_any(e);
+                }
             }
         })?)
     }

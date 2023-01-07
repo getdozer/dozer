@@ -87,6 +87,7 @@ impl Executor {
             grouped_connections,
             self.ingestor.clone(),
             self.iterator.clone(),
+            self.running.clone(),
         );
         let mut app = App::new(asm);
 
@@ -133,6 +134,7 @@ impl Executor {
             grouped_connections,
             self.ingestor.clone(),
             self.iterator.clone(),
+            self.running.clone(),
         );
         let mut app = App::new(asm);
 

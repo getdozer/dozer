@@ -10,6 +10,7 @@ use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::types::{Operation, Schema, SchemaIdentifier};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
@@ -22,6 +23,7 @@ pub struct ConnectorSourceFactory {
     pub schema_map: HashMap<u16, Schema>,
     pub tables: Vec<TableInfo>,
     pub connection: Connection,
+    pub running: Arc<AtomicBool>,
 }
 
 // TODO: Move this to sources.rs when everything is connected proeprly
@@ -33,6 +35,7 @@ impl ConnectorSourceFactory {
         ports: HashMap<String, u16>,
         tables: Vec<TableInfo>,
         connection: Connection,
+        running: Arc<AtomicBool>,
     ) -> Self {
         let (schema_map, schema_port_map) =
             Self::get_schema_map(connection.clone(), tables.clone(), ports.clone());
@@ -44,6 +47,7 @@ impl ConnectorSourceFactory {
             schema_map,
             tables,
             connection,
+            running,
         }
     }
 
@@ -111,6 +115,7 @@ impl SourceFactory for ConnectorSourceFactory {
             schema_port_map: self.schema_port_map.clone(),
             tables: self.tables.clone(),
             connection: self.connection.clone(),
+            running: self.running.clone(),
         }))
     }
 }
@@ -122,6 +127,7 @@ pub struct ConnectorSource {
     schema_port_map: HashMap<u32, u16>,
     tables: Vec<TableInfo>,
     connection: Connection,
+    running: Arc<AtomicBool>,
 }
 
 impl Source for ConnectorSource {
@@ -140,9 +146,12 @@ impl Source for ConnectorSource {
             connector.start()?;
             Ok(())
         };
-        let t = thread::spawn(|| {
+        let running = self.running.clone();
+        let t = thread::spawn(move || {
             if let Err(e) = con_fn() {
-                std::panic::panic_any(e);
+                if running.load(Ordering::Relaxed) {
+                    std::panic::panic_any(e);
+                }
             }
         });
 

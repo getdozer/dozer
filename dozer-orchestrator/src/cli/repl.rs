@@ -138,7 +138,7 @@ fn hints() -> HashSet<CommandHint> {
     let mut set = HashSet::new();
     set.insert(CommandHint::new("help", "help"));
     set.insert(CommandHint::new("show sources", "show sources"));
-    set.insert(CommandHint::new("SELECT col1 from table_name", "SELECT "));
+    set.insert(CommandHint::new("select col1 from table_name", "select "));
     set
 }
 
@@ -147,23 +147,21 @@ enum DozerCmd {
     Help,
     ShowSources,
     Sql(String),
+    Exit,
 }
 fn get_commands() -> HashMap<String, DozerCmd> {
     let mut map = HashMap::new();
     map.insert("help".to_string(), DozerCmd::Help);
     map.insert("show sources".to_string(), DozerCmd::ShowSources);
+    map.insert("exit".to_string(), DozerCmd::Exit);
 
     map
 }
 
-fn query(
-    sql: String,
-    config_path: &String,
-    running: Arc<AtomicBool>,
-) -> Result<(), OrchestrationError> {
+fn query(sql: String, config_path: &String) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_owned())?;
     let (sender, receiver) = channel::unbounded::<Operation>();
-
+    let running = Arc::new(AtomicBool::new(true));
     let res = dozer.query(sql, sender, running.clone());
     match res {
         Ok(schema) => {
@@ -263,11 +261,7 @@ fn query(
 
     Ok(())
 }
-fn execute(
-    cmd: &str,
-    config_path: &String,
-    running: Arc<AtomicBool>,
-) -> Result<(), OrchestrationError> {
+fn execute(cmd: &str, config_path: &String) -> Result<bool, OrchestrationError> {
     let cmd_map = get_commands();
     let dozer_cmd = cmd_map.iter().find(|(s, _)| s.to_string() == *cmd);
 
@@ -276,10 +270,17 @@ fn execute(
     match dozer_cmd {
         DozerCmd::Help => {
             print_help();
-            Ok(())
+            Ok(true)
         }
-        DozerCmd::ShowSources => list_sources(config_path.to_owned()),
-        DozerCmd::Sql(sql) => query(sql, config_path, running),
+        DozerCmd::ShowSources => {
+            list_sources(config_path.to_owned())?;
+            Ok(true)
+        }
+        DozerCmd::Sql(sql) => {
+            query(sql, config_path)?;
+            Ok(true)
+        }
+        DozerCmd::Exit => Ok(false),
     }
 }
 
@@ -303,7 +304,7 @@ impl ConditionalEventHandler for TabEventHandler {
     }
 }
 
-pub fn configure(config_path: String, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
+pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
     let config = load_config(config_path.clone())?;
 
     let h = ConfigureHelper { hints: hints() };
@@ -325,20 +326,19 @@ pub fn configure(config_path: String, running: Arc<AtomicBool>) -> Result<(), Or
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
                 if !line.is_empty() {
-                    execute(&line, &config_path, running.clone())?;
+                    if !execute(&line, &config_path)? {
+                        break;
+                    };
                 }
             }
             Err(ReadlineError::Interrupted) => {
-                running.store(false, Ordering::SeqCst);
                 info!("Exiting..");
                 break;
             }
             Err(ReadlineError::Eof) => {
-                running.store(false, Ordering::SeqCst);
                 break;
             }
             Err(err) => {
-                running.store(false, Ordering::SeqCst);
                 error!("Error: {:?}", err);
                 break;
             }
@@ -346,6 +346,5 @@ pub fn configure(config_path: String, running: Arc<AtomicBool>) -> Result<(), Or
     }
     rl.save_history(&history_path)
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
-    running.store(false, Ordering::Relaxed);
     Ok(())
 }
