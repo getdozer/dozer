@@ -9,9 +9,6 @@ on:
     types: [created, deleted]
   pull_request_review:
     types: [submitted]
-concurrency:
-  group: ${{ github.ref }}-general
-  cancel-in-progress: true
 
 jobs:
   notify:
