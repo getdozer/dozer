@@ -325,10 +325,8 @@ pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                if !line.is_empty() {
-                    if !execute(&line, &config_path)? {
-                        break;
-                    };
+                if !line.is_empty() && !execute(&line, &config_path)? {
+                    break;
                 }
             }
             Err(ReadlineError::Interrupted) => {
