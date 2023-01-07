@@ -1,3 +1,6 @@
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
 use crate::cli::repl::helper::get_commands;
 use crate::cli::{list_sources, load_config};
 use crate::errors::{CliError, OrchestrationError};
@@ -9,7 +12,7 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use rustyline::{EventHandler, KeyEvent};
 
-pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
+pub fn configure(config_path: String, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
     let config = load_config(config_path.clone())?;
 
     let h = ConfigureHelper {
@@ -32,7 +35,7 @@ pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                if !line.is_empty() && !execute(&line, &config_path)? {
+                if !line.is_empty() && !execute(&line, &config_path, running.clone())? {
                     break;
                 }
             }
@@ -54,7 +57,11 @@ pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
     Ok(())
 }
 
-fn execute(cmd: &str, config_path: &String) -> Result<bool, OrchestrationError> {
+fn execute(
+    cmd: &str,
+    config_path: &String,
+    running: Arc<AtomicBool>,
+) -> Result<bool, OrchestrationError> {
     let cmd_map = get_commands();
     let (_, dozer_cmd) = cmd_map
         .iter()
@@ -71,7 +78,7 @@ fn execute(cmd: &str, config_path: &String) -> Result<bool, OrchestrationError> 
             Ok(true)
         }
         DozerCmd::Sql => {
-            super::sql::editor(config_path)?;
+            super::sql::editor(config_path, running)?;
             Ok(true)
         }
         DozerCmd::Exit => Ok(false),

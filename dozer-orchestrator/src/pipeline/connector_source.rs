@@ -88,7 +88,15 @@ impl SourceFactory for ConnectorSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.ports
             .values()
-            .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
+            .map(|e| {
+                OutputPortDef::new(
+                    *e,
+                    OutputPortType::StatefulWithPrimaryKeyLookup {
+                        retr_old_records_for_deletes: true,
+                        retr_old_records_for_updates: true,
+                    },
+                )
+            })
             .collect()
     }
 

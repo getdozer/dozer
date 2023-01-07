@@ -1,17 +1,16 @@
 use clap::Parser;
-use dozer_core::dag::errors::ExecutionError;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
-use dozer_orchestrator::{ConnectorError, Orchestrator};
+use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, Orchestrator};
 use dozer_types::crossbeam::channel;
-use dozer_types::log::{debug, error, info};
+use dozer_types::log::{error, info};
 use dozer_types::tracing::warn;
 use std::borrow::BorrowMut;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{panic, process, thread};
+use std::{process, thread};
 use tokio::runtime::Runtime;
 
 fn main() {
@@ -26,30 +25,7 @@ fn render_logo() {
     info!("Dozer Version: {}", VERSION);
     info!("{}", LOGO);
 }
-fn set_panic_hook() {
-    panic::set_hook(Box::new(move |panic_info| {
-        // All the orchestrator errors are captured here
-        if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
-            error!("{}", e);
-            debug!("{:?}", e);
-        // All the connector errors are captured here
-        } else if let Some(e) = panic_info.payload().downcast_ref::<ConnectorError>() {
-            error!("{}", e);
-            debug!("{:?}", e);
-        // All the pipeline errors are captured here
-        } else if let Some(e) = panic_info.payload().downcast_ref::<ExecutionError>() {
-            error!("{}", e);
-            debug!("{:?}", e);
-        // If any errors are sent as strings.
-        } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
-            error!("{s:?}");
-        } else {
-            error!("{}", panic_info);
-        }
 
-        process::exit(1);
-    }));
-}
 fn run() -> Result<(), OrchestrationError> {
     let _tracing_thread = thread::spawn(|| {
         let rt = Runtime::new().unwrap();
@@ -60,17 +36,12 @@ fn run() -> Result<(), OrchestrationError> {
     thread::sleep(Duration::from_millis(50));
 
     set_panic_hook();
+
     let cli = Cli::parse();
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     let running_api = running.clone();
-
-    // run all
-    ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
-    })
-    .expect("Error setting Ctrl-C handler");
-
+    set_ctrl_handler(r);
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
@@ -106,7 +77,7 @@ fn run() -> Result<(), OrchestrationError> {
                 let mut dozer = init_dozer(cli.config_path)?;
                 dozer.clean()
             }
-            Commands::Configure => configure(cli.config_path),
+            Commands::Configure => configure(cli.config_path, running.clone()),
         }
     } else {
         render_logo();
