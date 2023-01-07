@@ -3,12 +3,11 @@ use crate::cli::{list_sources, load_config};
 use crate::errors::{CliError, OrchestrationError};
 use crate::utils::get_repl_history_path;
 
+use super::helper::{ConfigureHelper, DozerCmd, TabEventHandler};
 use dozer_types::log::{debug, error, info};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use rustyline::{EventHandler, KeyEvent};
-
-use super::helper::{ConfigureHelper, DozerCmd, TabEventHandler};
 
 pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
     let config = load_config(config_path.clone())?;
@@ -60,7 +59,7 @@ fn execute(cmd: &str, config_path: &String) -> Result<bool, OrchestrationError> 
     let (_, dozer_cmd) = cmd_map
         .iter()
         .find(|(s, _)| s.to_string() == *cmd)
-        .expect(&format!("Uknown command : {:?}", cmd));
+        .expect(&format!("Unknown command : {:?}", cmd));
 
     match dozer_cmd {
         DozerCmd::Help => {

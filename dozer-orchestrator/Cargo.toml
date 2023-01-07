@@ -28,6 +28,8 @@ include_dir = "0.7.3"
 handlebars = "4.3.6"
 rustyline = "10.0.0"
 rustyline-derive = "0.7.0"
+# All crossterm features are enabled by default.
+crossterm = "0.11"
 
 [[bin]]
 edition = "2021"

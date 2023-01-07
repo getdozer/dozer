@@ -5,7 +5,7 @@ use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
 use dozer_orchestrator::{ConnectorError, Orchestrator};
 use dozer_types::crossbeam::channel;
-use dozer_types::log::{error, info};
+use dozer_types::log::{debug, error, info};
 use dozer_types::tracing::warn;
 use std::borrow::BorrowMut;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,18 +31,22 @@ fn set_panic_hook() {
         // All the orchestrator errors are captured here
         if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
             error!("{}", e);
+            debug!("{:?}", e);
         // All the connector errors are captured here
         } else if let Some(e) = panic_info.payload().downcast_ref::<ConnectorError>() {
             error!("{}", e);
+            debug!("{:?}", e);
         // All the pipeline errors are captured here
         } else if let Some(e) = panic_info.payload().downcast_ref::<ExecutionError>() {
             error!("{}", e);
+            debug!("{:?}", e);
         // If any errors are sent as strings.
         } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
             error!("{s:?}");
         } else {
             error!("{}", panic_info);
         }
+
         process::exit(1);
     }));
 }

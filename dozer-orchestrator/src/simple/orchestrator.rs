@@ -229,7 +229,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let sources = self.config.sources.clone();
 
-        let pipeline_dir = tempdir::TempDir::new("query")
+        let pipeline_dir = tempdir::TempDir::new("query4")
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         let executor = Executor::new(
             sources,
