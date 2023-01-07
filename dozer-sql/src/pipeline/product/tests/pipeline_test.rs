@@ -230,8 +230,9 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                Operation::Delete {
+                Operation::Update {
                     old: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: Record::new(None, vec![Field::Int(0), Field::String("XX".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
