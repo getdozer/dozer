@@ -90,8 +90,8 @@ fn print_help() {
     println!("Commands:");
     println!("");
     for (c, _) in get_commands() {
-        info!("{}", c);
+        println!("{}", c);
     }
-    info!("");
-    info!("(Or) SQL can be inputted, eg: SELECT * from users;");
+    println!("");
+    println!("(Or) SQL can be inputted, eg: SELECT * from users;");
 }

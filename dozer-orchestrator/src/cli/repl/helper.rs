@@ -1,3 +1,4 @@
+use clap::Parser;
 use rustyline::highlight::Highlighter;
 use rustyline::hint::{Hint, Hinter};
 use rustyline::history::SearchDirection;
@@ -8,12 +9,23 @@ use rustyline_derive::{Completer, Helper, Validator};
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone)]
+use crate::cli::LOGO;
+
+#[derive(Debug, Clone, Parser)]
+#[command(
+    about = format!("{} \n {}", LOGO, "Interactive REPL for configuring sources and schemas"),
+    long_about = None,
+)]
 pub enum DozerCmd {
+    #[command(about = "Print help information")]
     Help,
+    #[command(about = "Test connections")]
     TestConnections,
+    #[command(about = "Display tables from all connections")]
     ShowSources,
+    #[command(about = "Open Live SQL editor")]
     Sql,
+    #[command(about = "Exit")]
     Exit,
 }
 #[derive(Completer, Helper, Validator)]

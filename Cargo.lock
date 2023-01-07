@@ -1686,6 +1686,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempdir",
+ "term",
  "tokio",
  "tokio-stream",
  "tonic",

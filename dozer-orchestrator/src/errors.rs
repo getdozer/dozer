@@ -56,4 +56,6 @@ pub enum CliError {
     FailedToParseValidateYaml(#[source] BoxedError),
     #[error(transparent)]
     ReadlineError(#[from] rustyline::error::ReadlineError),
+    #[error(transparent)]
+    InternalError(#[from] BoxedError),
 }

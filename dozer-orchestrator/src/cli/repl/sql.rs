@@ -2,51 +2,88 @@ use crate::errors::CliError;
 use crate::utils::get_sql_history_path;
 use std::collections::HashMap;
 
+use std::io::Write;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::cli::{init_dozer, load_config};
 use crate::errors::OrchestrationError;
-use crate::{set_ctrl_handler, Orchestrator};
-use crossterm::cursor;
+use crate::Orchestrator;
+use crossterm::{cursor, TerminalCursor};
 use dozer_cache::cache::index::get_primary_key;
 use dozer_types::crossbeam::channel;
 use dozer_types::log::{debug, error, info};
 use dozer_types::prettytable::color;
 use dozer_types::prettytable::{Cell, Row, Table};
-use dozer_types::types::{Field, Operation};
+use dozer_types::types::{Field, Operation, Schema};
 use rustyline::error::ReadlineError;
 
+use rustyline::validate::{ValidationContext, ValidationResult, Validator};
+use rustyline_derive::{Completer, Helper, Highlighter, Hinter};
+
+const HELP: &str = r#"
+Enter your SQL below. 
+Use semicolon at the end to run the query or Ctrl-C to cancel. 
+
+"#;
+#[derive(Completer, Helper, Highlighter, Hinter)]
+struct SqlValidator {}
+
+impl Validator for SqlValidator {
+    fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
+        use ValidationResult::{Incomplete, Valid};
+        let input = ctx.input();
+        let result = if !input.ends_with(';') {
+            Incomplete
+        } else {
+            Valid(None)
+        };
+        Ok(result)
+    }
+}
+
 pub fn editor(config_path: &String, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
-    let mut rl = rustyline::Editor::<()>::new()
+    let h = SqlValidator {};
+    let mut rl = rustyline::Editor::<SqlValidator>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
 
+    rl.set_helper(Some(h));
     let config = load_config(config_path.clone())?;
 
     let history_path = get_sql_history_path(&config);
-
     if rl.load_history(history_path.as_path()).is_err() {
         debug!("No previous history file found.");
     }
+    let mut cursor = cursor();
+    let mut out = term::stdout().unwrap();
+
+    out.write_all(HELP.as_bytes())
+        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+
+    out.flush().unwrap();
     loop {
-        let readline = rl.readline("sql> ");
+        let readline = rl.readline("sql>");
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
                 if !line.is_empty() {
-                    query(line, &config_path, running.clone())?;
+                    cursor.hide().unwrap();
+                    query(line, &config_path, running.clone(), &mut cursor)?;
                 }
             }
             Err(ReadlineError::Interrupted) => {
+                cursor.show().unwrap();
                 info!("Exiting..");
                 break;
             }
             Err(ReadlineError::Eof) => {
+                cursor.show().unwrap();
                 break;
             }
             Err(err) => {
                 error!("Error: {:?}", err);
+                cursor.show().unwrap();
                 break;
             }
         }
@@ -61,17 +98,15 @@ pub fn query(
     sql: String,
     config_path: &String,
     running: Arc<AtomicBool>,
+    cursor: &mut TerminalCursor,
 ) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_owned())?;
     let (sender, receiver) = channel::unbounded::<Operation>();
 
     // set running
     running.store(true, std::sync::atomic::Ordering::Relaxed);
-
-    let res = dozer.query(sql, sender, running.clone());
-    let cursor = cursor();
     cursor.save_position().unwrap();
-
+    let res = dozer.query(sql, sender, running.clone());
     match res {
         Ok(schema) => {
             let mut record_map: HashMap<Vec<u8>, Vec<Field>> = HashMap::new();
@@ -79,60 +114,11 @@ pub fn query(
 
             let instant = Instant::now();
             let mut last_shown = Duration::from_millis(0);
-
-            let display =
-                |record_map: &HashMap<Vec<u8>, Vec<Field>>,
-                 updates_map: &HashMap<Vec<u8>, (i32, Duration)>| {
-                    let mut table = Table::new();
-
-                    // Fields Row
-
-                    let mut cells = vec![];
-                    for f in &schema.fields {
-                        cells.push(Cell::new(&f.name));
-                    }
-                    table.add_row(Row::new(cells));
-
-                    for (key, values) in record_map {
-                        let mut cells = vec![];
-                        for v in values {
-                            let val_str = v.to_string().map_or("".to_string(), |v| v);
-                            let mut c = Cell::new(&val_str);
-
-                            let upd = updates_map.get(key);
-
-                            let co = match upd {
-                                Some((idx, dur)) => {
-                                    if (instant.elapsed() - dur.clone())
-                                        < Duration::from_millis(1000)
-                                    {
-                                        if *idx == 0 {
-                                            color::BRIGHT_RED
-                                        } else if *idx == 1 {
-                                            color::GREEN
-                                        } else {
-                                            color::YELLOW
-                                        }
-                                    } else {
-                                        color::WHITE
-                                    }
-                                }
-                                None => color::WHITE,
-                            };
-
-                            c.style(dozer_types::prettytable::Attr::ForegroundColor(co));
-                            cells.push(c);
-                        }
-                        table.add_row(Row::new(cells));
-                    }
-                    cursor.restore_position().unwrap();
-                    table.printstd();
-                };
-
+            let mut prev_len = 0;
             let pkey_index = if schema.primary_index.is_empty() {
                 vec![]
             } else {
-                schema.primary_index
+                schema.primary_index.clone()
             };
 
             let mut updates_map = HashMap::new();
@@ -195,7 +181,15 @@ pub fn query(
 
                 if instant.elapsed() - last_shown > Duration::from_millis(200) {
                     last_shown = instant.elapsed();
-                    display(&record_map, &updates_map);
+                    display(
+                        cursor,
+                        instant,
+                        &schema,
+                        &record_map,
+                        &updates_map,
+                        prev_len,
+                    );
+                    prev_len = record_map.len();
                 }
             }
             // Exit the pipeline
@@ -205,6 +199,66 @@ pub fn query(
             error!("{}", e);
         }
     }
-
     Ok(())
+}
+
+fn display(
+    cursor: &mut TerminalCursor,
+    instant: Instant,
+    schema: &Schema,
+    record_map: &HashMap<Vec<u8>, Vec<Field>>,
+    updates_map: &HashMap<Vec<u8>, (i32, Duration)>,
+    prev_len: usize,
+) {
+    let mut table = Table::new();
+
+    // Fields Row
+
+    let mut cells = vec![];
+    for f in &schema.fields {
+        cells.push(Cell::new(&f.name));
+    }
+    table.add_row(Row::new(cells));
+
+    for (key, values) in record_map {
+        let mut cells = vec![];
+        for v in values {
+            let val_str = v.to_string().map_or("".to_string(), |v| v);
+            let mut c = Cell::new(&val_str);
+
+            let upd = updates_map.get(key);
+
+            let co = match upd {
+                Some((idx, dur)) => {
+                    if (instant.elapsed() - dur.clone()) < Duration::from_millis(1000) {
+                        if *idx == 0 {
+                            color::BRIGHT_RED
+                        } else if *idx == 1 {
+                            color::GREEN
+                        } else {
+                            color::YELLOW
+                        }
+                    } else {
+                        color::WHITE
+                    }
+                }
+                None => color::WHITE,
+            };
+
+            c.style(dozer_types::prettytable::Attr::ForegroundColor(co));
+            cells.push(c);
+        }
+        table.add_row(Row::new(cells));
+    }
+    cursor.restore_position().unwrap();
+    table.printstd();
+    cursor.move_up(1).unwrap();
+    let diff = prev_len as i64 - record_map.len() as i64;
+    if diff > 0 {
+        for _i in 0..diff * 3 {
+            cursor.move_down(1).unwrap();
+            term::stdout().unwrap().delete_line().unwrap();
+        }
+    }
+    cursor.move_down(1).unwrap();
 }

@@ -49,8 +49,12 @@ pub fn load_config(config_path: String) -> Result<Config, CliError> {
         .render("config", &data)
         .map_err(|e| CliError::FailedToParseYaml(Box::new(e)))?;
 
-    let config =
+    let config: Config =
         serde_yaml::from_str(&config_str).map_err(|e| CliError::FailedToParseYaml(Box::new(e)))?;
+
+    // Create home_dir if not exists.
+    let _res = fs::create_dir_all(&config.home_dir);
+
     Ok(config)
 }
 
