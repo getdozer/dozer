@@ -69,7 +69,7 @@ pub fn editor(config_path: &String, running: Arc<AtomicBool>) -> Result<(), Orch
                 rl.add_history_entry(line.as_str());
                 if !line.is_empty() {
                     cursor.hide().unwrap();
-                    query(line, &config_path, running.clone(), &mut cursor)?;
+                    query(line, config_path, running.clone(), &mut cursor)?;
                 }
             }
             Err(ReadlineError::Interrupted) => {
@@ -106,7 +106,7 @@ pub fn query(
     // set running
     running.store(true, std::sync::atomic::Ordering::Relaxed);
     cursor.save_position().unwrap();
-    let res = dozer.query(sql, sender, running.clone());
+    let res = dozer.query(sql, sender, running);
     match res {
         Ok(schema) => {
             let mut record_map: HashMap<Vec<u8>, Vec<Field>> = HashMap::new();
@@ -230,7 +230,7 @@ fn display(
 
             let co = match upd {
                 Some((idx, dur)) => {
-                    if (instant.elapsed() - dur.clone()) < Duration::from_millis(1000) {
+                    if (instant.elapsed() - *dur) < Duration::from_millis(1000) {
                         if *idx == 0 {
                             color::BRIGHT_RED
                         } else if *idx == 1 {

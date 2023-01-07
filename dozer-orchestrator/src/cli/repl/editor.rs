@@ -66,7 +66,7 @@ fn execute(
     let (_, dozer_cmd) = cmd_map
         .iter()
         .find(|(s, _)| s.to_string() == *cmd)
-        .expect(&format!("Unknown command : {:?}", cmd));
+        .unwrap_or_else(|| panic!("Unknown command : {:?}", cmd));
 
     match dozer_cmd {
         DozerCmd::Help => {
@@ -74,7 +74,7 @@ fn execute(
             Ok(true)
         }
         DozerCmd::ShowSources => {
-            list_sources(&config_path)?;
+            list_sources(config_path)?;
             Ok(true)
         }
         DozerCmd::Sql => {
@@ -88,10 +88,10 @@ fn execute(
 
 fn print_help() {
     println!("Commands:");
-    println!("");
+    println!();
     for (c, _) in get_commands() {
         println!("{}", c);
     }
-    println!("");
+    println!();
     println!("(Or) SQL can be inputted, eg: SELECT * from users;");
 }

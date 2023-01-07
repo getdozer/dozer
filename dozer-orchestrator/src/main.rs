@@ -77,7 +77,7 @@ fn run() -> Result<(), OrchestrationError> {
                 let mut dozer = init_dozer(cli.config_path)?;
                 dozer.clean()
             }
-            Commands::Configure => configure(cli.config_path, running.clone()),
+            Commands::Configure => configure(cli.config_path, running),
         }
     } else {
         render_logo();
