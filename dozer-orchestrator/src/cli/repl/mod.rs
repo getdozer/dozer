@@ -1,5 +1,4 @@
 mod editor;
 mod helper;
-mod query;
+mod sql;
 pub use editor::configure;
-pub use query::query;

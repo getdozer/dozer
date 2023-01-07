@@ -38,3 +38,6 @@ pub fn get_api_security_config(config: Config) -> Option<ApiSecurity> {
 pub fn get_repl_history_path(config: &Config) -> PathBuf {
     PathBuf::from(format!("{:}/history.txt", config.home_dir))
 }
+pub fn get_sql_history_path(config: &Config) -> PathBuf {
+    PathBuf::from(format!("{:}/sql_history.txt", config.home_dir))
+}

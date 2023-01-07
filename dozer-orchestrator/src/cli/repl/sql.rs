@@ -1,16 +1,60 @@
+use crate::errors::CliError;
+use crate::utils::get_sql_history_path;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::cli::init_dozer;
+use crate::cli::{init_dozer, load_config};
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_types::crossbeam::channel;
-use dozer_types::log::error;
+use dozer_types::log::{debug, error, info};
 use dozer_types::prettytable::{Cell, Row, Table};
 use dozer_types::types::{Field, Operation};
+use rustyline::error::ReadlineError;
+
+pub fn editor(config_path: &String) -> Result<(), OrchestrationError> {
+    let mut rl = rustyline::Editor::<()>::new()
+        .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
+
+    let config = load_config(config_path.clone())?;
+
+    let history_path = get_sql_history_path(&config);
+
+    if rl.load_history(history_path.as_path()).is_err() {
+        debug!("No previous history file found.");
+    }
+    loop {
+        let readline = rl.readline("sql> ");
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(line.as_str());
+                if !line.is_empty() {
+                    query(line, &config_path)?;
+                    break;
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                info!("Exiting..");
+                break;
+            }
+            Err(ReadlineError::Eof) => {
+                break;
+            }
+            Err(err) => {
+                error!("Error: {:?}", err);
+                break;
+            }
+        }
+    }
+    rl.save_history(&history_path)
+        .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
+
+    Ok(())
+}
 
 pub fn query(sql: String, config_path: &String) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_owned())?;

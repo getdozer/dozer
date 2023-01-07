@@ -9,7 +9,6 @@ use rustyline::Editor;
 use rustyline::{EventHandler, KeyEvent};
 
 use super::helper::{ConfigureHelper, DozerCmd, TabEventHandler};
-use super::query;
 
 pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
     let config = load_config(config_path.clone())?;
@@ -58,9 +57,10 @@ pub fn configure(config_path: String) -> Result<(), OrchestrationError> {
 
 fn execute(cmd: &str, config_path: &String) -> Result<bool, OrchestrationError> {
     let cmd_map = get_commands();
-    let dozer_cmd = cmd_map.iter().find(|(s, _)| s.to_string() == *cmd);
-
-    let dozer_cmd = dozer_cmd.map_or(DozerCmd::Sql(cmd.to_string()), |c| c.1.clone());
+    let (_, dozer_cmd) = cmd_map
+        .iter()
+        .find(|(s, _)| s.to_string() == *cmd)
+        .expect(&format!("Uknown command : {:?}", cmd));
 
     match dozer_cmd {
         DozerCmd::Help => {
@@ -68,14 +68,15 @@ fn execute(cmd: &str, config_path: &String) -> Result<bool, OrchestrationError> 
             Ok(true)
         }
         DozerCmd::ShowSources => {
-            list_sources(config_path.to_owned())?;
+            list_sources(&config_path)?;
             Ok(true)
         }
-        DozerCmd::Sql(sql) => {
-            query(sql, config_path)?;
+        DozerCmd::Sql => {
+            super::sql::editor(config_path)?;
             Ok(true)
         }
         DozerCmd::Exit => Ok(false),
+        DozerCmd::TestConnections => todo!(),
     }
 }
 

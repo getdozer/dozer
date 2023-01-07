@@ -91,7 +91,7 @@ fn run() -> Result<(), OrchestrationError> {
                 }
             },
             Commands::Connector(sources) => match sources.command {
-                ConnectorCommands::Ls => list_sources(cli.config_path),
+                ConnectorCommands::Ls => list_sources(&cli.config_path),
             },
             Commands::Init(init) => {
                 let force = init.force.is_some();

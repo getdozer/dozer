@@ -12,8 +12,8 @@ pub fn init_dozer(config_path: String) -> Result<Dozer, CliError> {
     Ok(Dozer::new(&config))
 }
 
-pub fn list_sources(config_path: String) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_path)?;
+pub fn list_sources(config_path: &String) -> Result<(), OrchestrationError> {
+    let dozer = init_dozer(config_path.clone())?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (c, tables) in connection_map {

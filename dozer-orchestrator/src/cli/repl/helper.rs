@@ -8,6 +8,14 @@ use rustyline_derive::{Completer, Helper, Validator};
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::collections::{HashMap, HashSet};
 
+#[derive(Debug, Clone)]
+pub enum DozerCmd {
+    Help,
+    TestConnections,
+    ShowSources,
+    Sql,
+    Exit,
+}
 #[derive(Completer, Helper, Validator)]
 pub struct ConfigureHelper {
     // TODO: replace with radix tree
@@ -121,23 +129,18 @@ pub fn hints() -> HashSet<CommandHint> {
     let mut set = HashSet::new();
     set.insert(CommandHint::new("help", "help"));
     set.insert(CommandHint::new("show sources", "show sources"));
+    set.insert(CommandHint::new("sql", "sql"));
     set.insert(CommandHint::new("test connections", "test connections"));
     set.insert(CommandHint::new("select col1 from table_name", "select "));
     set
 }
 
-#[derive(Debug, Clone)]
-pub enum DozerCmd {
-    Help,
-    ShowSources,
-    Sql(String),
-    Exit,
-}
 pub fn get_commands() -> HashMap<String, DozerCmd> {
     let mut map = HashMap::new();
     map.insert("help".to_string(), DozerCmd::Help);
     map.insert("show sources".to_string(), DozerCmd::ShowSources);
-    map.insert("test connections".to_string(), DozerCmd::ShowSources);
+    map.insert("test connections".to_string(), DozerCmd::TestConnections);
+    map.insert("sql".to_string(), DozerCmd::Sql);
     map.insert("exit".to_string(), DozerCmd::Exit);
 
     map
