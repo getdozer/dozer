@@ -11,13 +11,10 @@ use dozer_core::dag::node::{
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::tracing::{debug, info};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-#[cfg(not(test))]
-use log::debug; // Use log crate when building application
 
 use std::collections::HashMap;
-#[cfg(test)]
-use std::println as debug;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -130,12 +127,6 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(None, vec![Field::Int(1), Field::String("HR".to_string())]),
-                },
-                DEPARTMENT_PORT,
-            ),
-            (
-                Operation::Insert {
                     new: Record::new(
                         None,
                         vec![
@@ -147,6 +138,12 @@ impl Source for TestSource {
                     ),
                 },
                 USER_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(None, vec![Field::Int(1), Field::String("HR".to_string())]),
+                },
+                DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
@@ -223,7 +220,7 @@ impl Source for TestSource {
                     new: Record::new(
                         None,
                         vec![
-                            Field::Int(10006),
+                            Field::Int(10004),
                             Field::String("Frank".to_string()),
                             Field::Int(1),
                             Field::Float(OrderedFloat(1.5)),
@@ -232,9 +229,28 @@ impl Source for TestSource {
                 },
                 USER_PORT,
             ),
+            (
+                Operation::Delete {
+                    old: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
+                },
+                DEPARTMENT_PORT,
+            ),
         ];
 
         for operation in operations.iter().enumerate() {
+            match operation.1.clone().0 {
+                Operation::Delete { old } => info!("{} <- {:?}", operation.1.clone().1, old.values),
+                Operation::Insert { new } => info!("{} -> {:?}", operation.1.clone().1, new.values),
+                Operation::Update { old, new } => {
+                    info!(
+                        "{} <- {:?}\n{} -> {:?}",
+                        operation.1.clone().1,
+                        old.values,
+                        operation.1.clone().1,
+                        new.values
+                    )
+                }
+            }
             fw.send(
                 operation.0.try_into().unwrap(),
                 0,
@@ -318,9 +334,11 @@ impl Sink for TestSink {
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         match _op {
-            Operation::Delete { old } => debug!("<- {:?}", old.values),
-            Operation::Insert { new } => debug!("-> {:?}", new.values),
-            Operation::Update { old, new } => debug!("<- {:?}\n-> {:?}", old.values, new.values),
+            Operation::Delete { old } => info!("s <- {}: {:?}", self.current, old.values),
+            Operation::Insert { new } => info!("s -> {}: {:?}", self.current, new.values),
+            Operation::Update { old, new } => {
+                info!("s <- {:?}\ns -> {:?}", old.values, new.values)
+            }
         }
 
         self.current += 1;
@@ -341,6 +359,8 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
+    dozer_tracing::init_telemetry(false).unwrap();
+
     let mut pipeline = PipelineBuilder {}
         .build_pipeline(
             "SELECT user.name, department.name \
@@ -366,7 +386,7 @@ fn test_pipeline_builder() {
         .collect(),
     ));
 
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(7, latch)), "sink");
+    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
     pipeline
         .connect_nodes(
             "aggregation",
@@ -392,6 +412,7 @@ fn test_pipeline_builder() {
     let now = Instant::now();
 
     let tmp_dir = TempDir::new("test").unwrap();
+
     let mut executor = DagExecutor::new(
         &dag,
         tmp_dir.path(),

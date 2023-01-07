@@ -1537,6 +1537,7 @@ dependencies = [
  "bincode",
  "chrono",
  "dozer-core",
+ "dozer-tracing",
  "dozer-types",
  "dyn-clone",
  "lmdb-rkv",

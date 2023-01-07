@@ -153,18 +153,18 @@ impl JoinOperator {
         db: &Database,
         transaction: &SharedTransaction,
     ) -> Result<Vec<Vec<u8>>, ExecutionError> {
+        let mut join_keys = vec![];
+
         let mut exclusive_transaction = transaction.write();
-        let prefix_transaction = PrefixTransaction::new(
+        let right_prefix_transaction = PrefixTransaction::new(
             &mut exclusive_transaction,
             self.right_table as u32 | REVERSE_JOIN_FLAG,
         );
 
-        let cursor = prefix_transaction.open_cursor(*db)?;
-
-        let mut output_keys = vec![];
+        let cursor = right_prefix_transaction.open_cursor(*db)?;
 
         if !cursor.seek(join_key)? {
-            return Ok(output_keys);
+            return Ok(join_keys);
         }
 
         loop {
@@ -176,20 +176,14 @@ impl JoinOperator {
                 break;
             }
 
-            if let Some(value) = prefix_transaction.get(*db, entry.1)? {
-                output_keys.push(value.to_vec());
-            } else {
-                return Err(ExecutionError::InternalDatabaseError(
-                    StorageError::InvalidKey(format!("{:x?}", entry.1)),
-                ));
-            }
+            join_keys.push(entry.1.to_vec());
 
             if !cursor.next()? {
                 break;
             }
         }
 
-        Ok(output_keys)
+        Ok(join_keys)
     }
 
     fn get_left_join_keys(
@@ -198,16 +192,16 @@ impl JoinOperator {
         db: &Database,
         transaction: &SharedTransaction,
     ) -> Result<Vec<Vec<u8>>, ExecutionError> {
+        let mut join_keys = vec![];
+
         let mut exclusive_transaction = transaction.write();
-        let prefix_transaction =
+        let left_prefix_transaction =
             PrefixTransaction::new(&mut exclusive_transaction, self.left_table as u32);
 
-        let cursor = prefix_transaction.open_cursor(*db)?;
-
-        let mut output_keys = vec![];
+        let cursor = left_prefix_transaction.open_cursor(*db)?;
 
         if !cursor.seek(join_key)? {
-            return Ok(output_keys);
+            return Ok(join_keys);
         }
 
         loop {
@@ -219,20 +213,14 @@ impl JoinOperator {
                 break;
             }
 
-            if let Some(value) = prefix_transaction.get(*db, entry.1)? {
-                output_keys.push(value.to_vec());
-            } else {
-                return Err(ExecutionError::InternalDatabaseError(
-                    StorageError::InvalidKey(format!("{:x?}", entry.1)),
-                ));
-            }
+            join_keys.push(entry.1.to_vec());
 
             if !cursor.next()? {
                 break;
             }
         }
 
-        Ok(output_keys)
+        Ok(join_keys)
     }
 }
 
@@ -253,10 +241,12 @@ impl JoinExecutor for JoinOperator {
 
         for record in records.iter_mut() {
             // retrieve the lookup keys for the table on the right side of the join
-            let right_keys = self.get_right_join_keys(join_key, db, transaction)?;
+            let right_lookup_keys = self.get_right_join_keys(join_key, db, transaction)?;
+            // let right_lookup_keys =
+            //     self.get_right_lookup_keys(&right_join_keys, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
-            for right_lookup_key in right_keys.iter() {
+            for right_lookup_key in right_lookup_keys.iter() {
                 if let Some(record_bytes) = reader.get(right_lookup_key)? {
                     let right_record: Record =
                         bincode::deserialize(&record_bytes).map_err(|e| SerializationError {
@@ -305,10 +295,11 @@ impl JoinExecutor for JoinOperator {
 
         for record in records.iter_mut() {
             // retrieve the lookup keys for the table on the right side of the join
-            let left_keys = self.get_left_join_keys(join_key, db, transaction)?;
+            let left_lookup_keys = self.get_left_join_keys(join_key, db, transaction)?;
+            //let left_lookup_keys = self.get_left_lookup_keys(&left_join_keys, db, transaction)?;
 
             // retrieve records for the table on the right side of the join
-            for left_lookup_key in left_keys.iter() {
+            for left_lookup_key in left_lookup_keys.iter() {
                 if let Some(record_bytes) = reader.get(left_lookup_key)? {
                     let left_record: Record =
                         bincode::deserialize(&record_bytes).map_err(|e| SerializationError {

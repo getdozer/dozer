@@ -48,7 +48,7 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
 
     processor.init(&mut storage).unwrap();
 
-    let mut tx = storage.create_txn().unwrap();
+    let tx = storage.create_txn().unwrap();
     let mut fw = TestChannelForwarder { operations: vec![] };
 
     let op = Operation::Insert {
@@ -56,7 +56,7 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
     };
 
     processor
-        .process(DEFAULT_PORT_HANDLE, op, &mut fw, &mut tx, &HashMap::new())
+        .process(DEFAULT_PORT_HANDLE, op, &mut fw, &tx, &HashMap::new())
         .unwrap();
 
     match &fw.operations[0] {

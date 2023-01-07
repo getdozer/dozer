@@ -7,8 +7,8 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::tracing::info;
 use dozer_types::types::{Field, Operation, Schema};
-use log::info;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -56,6 +56,13 @@ impl Processor for SelectionProcessor {
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
+        // match op.clone() {
+        //     Operation::Delete { old } => info!("σ <- {:?}", old.values),
+        //     Operation::Insert { new } => info!("σ -> {:?}", new.values),
+        //     Operation::Update { old, new } => {
+        //         info!("σ <- {:?}\nσ -> {:?}", old.values, new.values)
+        //     }
+        // }
         match op {
             Operation::Delete { ref old } => {
                 if self

@@ -8,8 +8,8 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::tracing::info;
 use dozer_types::types::{Operation, Record, Schema};
-use log::info;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -94,6 +94,14 @@ impl Processor for ProjectionProcessor {
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
+        // match op.clone() {
+        //     Operation::Delete { old } => info!("π <- {:?}", old.values),
+        //     Operation::Insert { new } => info!("π -> {:?}", new.values),
+        //     Operation::Update { old, new } => {
+        //         info!("π <- {:?}\nπ -> {:?}", old.values, new.values)
+        //     }
+        // }
+
         let _ = match op {
             Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
             Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),
