@@ -101,13 +101,14 @@ impl SourceFactory for ConnectorSourceFactory {
     }
 
     fn prepare(&self, output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        use std::println as info;
         for (port, schema) in output_schemas {
             let (name, _) = self
                 .ports
                 .iter()
                 .find(|(_, p)| **p == port)
                 .map_or(Err(ExecutionError::PortNotFound(port.to_string())), Ok)?;
-            info!("SINK: Initializing input schema: {}", name);
+            info!("Source: Initializing input schema: {}", name);
             schema.print().printstd();
         }
         Ok(())

@@ -9,7 +9,7 @@ use super::cli::{DESCRIPTION, LOGO};
     long_about = None,
 )]
 pub struct Cli {
-    #[arg(short = 'c', long, default_value = "./dozer-config.yaml")]
+    #[arg(global = true, short = 'c', long, default_value = "./dozer-config.yaml")]
     pub config_path: String,
 
     #[clap(subcommand)]

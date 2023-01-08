@@ -87,11 +87,12 @@ fn execute(
 }
 
 fn print_help() {
-    println!("Commands:");
-    println!();
+    use std::println as info;
+    info!("Commands:");
+    info!();
     for (c, _) in get_commands() {
         println!("{}", c);
     }
-    println!();
-    println!("(Or) SQL can be inputted, eg: SELECT * from users;");
+    info!();
+    info!("(Or) SQL can be inputted, eg: SELECT * from users;");
 }

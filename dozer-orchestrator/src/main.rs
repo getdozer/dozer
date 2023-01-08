@@ -21,9 +21,11 @@ fn main() {
 }
 
 fn render_logo() {
+    use std::println as info;
     const VERSION: &str = env!("CARGO_PKG_VERSION");
-    info!("Dozer Version: {}", VERSION);
+    
     info!("{}", LOGO);
+    info!("\nDozer Version: {}\n", VERSION);
 }
 
 fn run() -> Result<(), OrchestrationError> {

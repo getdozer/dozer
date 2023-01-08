@@ -21,7 +21,6 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::serde_yaml;
 use dozer_types::types::{Operation, Schema};
@@ -304,8 +303,6 @@ impl Orchestrator for SimpleOrchestrator {
         )?;
         let schema_manager = DagSchemaManager::new(&dag)?;
         schema_manager.prepare()?;
-
-        info!("Initialized schema");
 
         Ok(())
     }
