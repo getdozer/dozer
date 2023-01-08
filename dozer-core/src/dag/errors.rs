@@ -56,6 +56,8 @@ pub enum ExecutionError {
     UnsupportedUpdateOperation(String),
     #[error("Delete operation not supported: {0}")]
     UnsupportedDeleteOperation(String),
+    #[error("Invalid AppSource connection {0}. Already exists.")]
+    AppSourceConnectionAlreadyExists(String),
 
     // Error forwarders
     #[error(transparent)]

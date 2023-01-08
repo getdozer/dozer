@@ -87,7 +87,7 @@ impl Executor {
             self.ingestor.clone(),
             self.iterator.clone(),
             self.running.clone(),
-        );
+        )?;
         let mut app = App::new(asm);
 
         let mut pipeline = PipelineBuilder {}
@@ -134,7 +134,7 @@ impl Executor {
             self.ingestor.clone(),
             self.iterator.clone(),
             self.running.clone(),
-        );
+        )?;
         let mut app = App::new(asm);
 
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
