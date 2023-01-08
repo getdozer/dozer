@@ -64,9 +64,7 @@ fn test_aggregation_alias() {
     let out_schema = factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, schema)]
-                .into_iter()
-                .collect(),
+            &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
         )
         .unwrap();
 

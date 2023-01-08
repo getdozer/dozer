@@ -14,7 +14,7 @@ use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::log::{debug};
+use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::types::FieldType;
