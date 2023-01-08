@@ -50,6 +50,8 @@ pub enum OrchestrationError {
 pub enum CliError {
     #[error("Can't find the configuration file at: {0:?}")]
     FailedToLoadFile(String),
+    #[error("Unknown Command: {0:?}")]
+    UnknownCommand(String),
     #[error("Failed to parse dozer config: {0:?}")]
     FailedToParseYaml(#[source] BoxedError),
     #[error("Failed to validate dozer config: {0:?}")]

@@ -66,7 +66,7 @@ fn execute(
     let (_, dozer_cmd) = cmd_map
         .iter()
         .find(|(s, _)| s.to_string() == *cmd)
-        .unwrap_or_else(|| panic!("Unknown command : {:?}", cmd));
+        .map_or(Err(CliError::UnknownCommand(cmd.to_string())), Ok)?;
 
     match dozer_cmd {
         DozerCmd::Help => {
@@ -91,8 +91,7 @@ fn print_help() {
     info!("Commands:");
     info!();
     for (c, _) in get_commands() {
-        println!("{}", c);
+        info!("{}", c);
     }
     info!();
-    info!("(Or) SQL can be inputted, eg: SELECT * from users;");
 }

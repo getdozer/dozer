@@ -76,7 +76,6 @@ impl Executor {
     }
 
     // This function is used to run a query using a temporary pipeline
-
     pub fn query(
         &self,
         sql: String,

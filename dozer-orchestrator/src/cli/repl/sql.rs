@@ -2,7 +2,7 @@ use crate::errors::CliError;
 use crate::utils::get_sql_history_path;
 use std::collections::HashMap;
 
-use std::io::{stdout, Stdout, Write};
+use std::io::{stdout, Stdout};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -71,7 +71,11 @@ pub fn editor(config_path: &String, running: Arc<AtomicBool>) -> Result<(), Orch
                     stdout
                         .execute(cursor::Hide)
                         .map_err(CliError::TerminalError)?;
+
                     query(line, config_path, running.clone(), &mut stdout)?;
+                    stdout
+                        .execute(cursor::Show)
+                        .map_err(CliError::TerminalError)?;
                 }
             }
             Err(ReadlineError::Interrupted) => {
@@ -88,9 +92,6 @@ pub fn editor(config_path: &String, running: Arc<AtomicBool>) -> Result<(), Orch
             }
         }
     }
-    stdout
-        .execute(cursor::Show)
-        .map_err(CliError::TerminalError)?;
     rl.save_history(&history_path)
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
 
@@ -185,7 +186,7 @@ pub fn query(
                     },
                 }
 
-                if instant.elapsed() - last_shown > Duration::from_millis(300) {
+                if instant.elapsed() - last_shown > Duration::from_millis(100) {
                     last_shown = instant.elapsed();
                     display(
                         stdout,
@@ -258,8 +259,6 @@ fn display(
         table.add_row(Row::new(cells));
     }
     stdout.execute(cursor::RestorePosition)?;
-
-    table.print(stdout.by_ref())?;
     table.printstd();
     stdout.execute(cursor::MoveUp(1))?;
 
