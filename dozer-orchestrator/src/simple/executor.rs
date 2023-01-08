@@ -79,7 +79,7 @@ impl Executor {
             grouped_connections,
             self.ingestor.clone(),
             self.iterator.clone(),
-        );
+        )?;
         let mut app = App::new(asm);
 
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
