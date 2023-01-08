@@ -58,4 +58,6 @@ pub enum CliError {
     ReadlineError(#[from] rustyline::error::ReadlineError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
+    #[error(transparent)]
+    TerminalError(#[from] crossterm::ErrorKind),
 }

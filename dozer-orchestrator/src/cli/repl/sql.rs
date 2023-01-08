@@ -2,7 +2,7 @@ use crate::errors::CliError;
 use crate::utils::get_sql_history_path;
 use std::collections::HashMap;
 
-use std::io::Write;
+use std::io::{stdout, Stdout, Write};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use crate::cli::{init_dozer, load_config};
 use crate::errors::OrchestrationError;
 use crate::Orchestrator;
-use crossterm::{cursor, TerminalCursor};
+use crossterm::{cursor, terminal, ExecutableCommand};
 use dozer_cache::cache::index::get_primary_key;
 use dozer_types::crossbeam::channel;
 use dozer_types::log::{debug, error, info};
@@ -44,6 +44,7 @@ impl Validator for SqlValidator {
 }
 
 pub fn editor(config_path: &String, running: Arc<AtomicBool>) -> Result<(), OrchestrationError> {
+    use std::println as info;
     let h = SqlValidator {};
     let mut rl = rustyline::Editor::<SqlValidator>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
@@ -55,39 +56,41 @@ pub fn editor(config_path: &String, running: Arc<AtomicBool>) -> Result<(), Orch
     if rl.load_history(history_path.as_path()).is_err() {
         debug!("No previous history file found.");
     }
-    let mut cursor = cursor();
-    let mut out = term::stdout().unwrap();
 
-    out.write_all(HELP.as_bytes())
-        .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+    let mut stdout = stdout();
+    // let mut out = terminal::
 
-    out.flush().unwrap();
+    info!("{}", HELP);
+
     loop {
         let readline = rl.readline("sql>");
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
                 if !line.is_empty() {
-                    cursor.hide().unwrap();
-                    query(line, config_path, running.clone(), &mut cursor)?;
+                    stdout
+                        .execute(cursor::Hide)
+                        .map_err(CliError::TerminalError)?;
+                    query(line, config_path, running.clone(), &mut stdout)?;
                 }
             }
             Err(ReadlineError::Interrupted) => {
-                cursor.show().unwrap();
                 info!("Exiting..");
                 break;
             }
             Err(ReadlineError::Eof) => {
-                cursor.show().unwrap();
                 break;
             }
             Err(err) => {
                 error!("Error: {:?}", err);
-                cursor.show().unwrap();
+
                 break;
             }
         }
     }
+    stdout
+        .execute(cursor::Show)
+        .map_err(CliError::TerminalError)?;
     rl.save_history(&history_path)
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
 
@@ -98,14 +101,17 @@ pub fn query(
     sql: String,
     config_path: &String,
     running: Arc<AtomicBool>,
-    cursor: &mut TerminalCursor,
+    stdout: &mut Stdout,
 ) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_owned())?;
     let (sender, receiver) = channel::unbounded::<Operation>();
 
     // set running
     running.store(true, std::sync::atomic::Ordering::Relaxed);
-    cursor.save_position().unwrap();
+
+    stdout
+        .execute(cursor::SavePosition)
+        .map_err(CliError::TerminalError)?;
     let res = dozer.query(sql, sender, running);
     match res {
         Ok(schema) => {
@@ -179,16 +185,17 @@ pub fn query(
                     },
                 }
 
-                if instant.elapsed() - last_shown > Duration::from_millis(200) {
+                if instant.elapsed() - last_shown > Duration::from_millis(300) {
                     last_shown = instant.elapsed();
                     display(
-                        cursor,
+                        stdout,
                         instant,
                         &schema,
                         &record_map,
                         &updates_map,
                         prev_len,
-                    );
+                    )
+                    .map_err(CliError::TerminalError)?;
                     prev_len = record_map.len();
                 }
             }
@@ -203,13 +210,13 @@ pub fn query(
 }
 
 fn display(
-    cursor: &mut TerminalCursor,
+    stdout: &mut Stdout,
     instant: Instant,
     schema: &Schema,
     record_map: &HashMap<Vec<u8>, Vec<Field>>,
     updates_map: &HashMap<Vec<u8>, (i32, Duration)>,
     prev_len: usize,
-) {
+) -> Result<(), crossterm::ErrorKind> {
     let mut table = Table::new();
 
     // Fields Row
@@ -250,15 +257,19 @@ fn display(
         }
         table.add_row(Row::new(cells));
     }
-    cursor.restore_position().unwrap();
+    stdout.execute(cursor::RestorePosition)?;
+
+    table.print(stdout.by_ref())?;
     table.printstd();
-    cursor.move_up(1).unwrap();
+    stdout.execute(cursor::MoveUp(1))?;
+
     let diff = prev_len as i64 - record_map.len() as i64;
     if diff > 0 {
         for _i in 0..diff * 3 {
-            cursor.move_down(1).unwrap();
-            term::stdout().unwrap().delete_line().unwrap();
+            stdout.execute(cursor::MoveDown(1))?;
+            stdout.execute(terminal::Clear(terminal::ClearType::CurrentLine))?;
         }
     }
-    cursor.move_down(1).unwrap();
+    stdout.execute(cursor::MoveDown(1))?;
+    Ok(())
 }
