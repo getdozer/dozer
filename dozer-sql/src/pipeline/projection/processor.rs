@@ -9,7 +9,6 @@ use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::types::{Operation, Record, Schema};
-use log::info;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -82,7 +81,6 @@ impl ProjectionProcessor {
 
 impl Processor for ProjectionProcessor {
     fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
 

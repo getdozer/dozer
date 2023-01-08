@@ -19,7 +19,7 @@ pub struct PipelineBuilder {}
 
 impl PipelineBuilder {
     pub fn build_pipeline(&self, sql: &str) -> Result<AppPipeline, PipelineError> {
-        let statement = get_statement(sql);
+        let statement = get_statement(sql)?;
         let query = get_query(statement)?;
         self.select_to_pipeline(*query)
     }
@@ -116,13 +116,14 @@ impl PipelineBuilder {
 }
 
 pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
-    let statement = get_statement(sql);
+    let statement = get_statement(sql)?;
     get_query(statement)
 }
 
-fn get_statement(sql: &str) -> Statement {
-    let ast = Parser::parse_sql(&AnsiDialect {}, sql).unwrap();
-    ast[0].clone()
+fn get_statement(sql: &str) -> Result<Statement, PipelineError> {
+    let ast = Parser::parse_sql(&AnsiDialect {}, sql)
+        .map_err(|e| PipelineError::InvalidQuery(e.to_string()))?;
+    Ok(ast[0].clone())
 }
 
 pub fn statement_to_pipeline(statement: Statement) -> Result<Box<Select>, PipelineError> {

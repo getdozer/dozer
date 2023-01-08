@@ -6,6 +6,7 @@ use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 pub struct SourceBuilder {}
@@ -17,6 +18,7 @@ impl SourceBuilder {
         grouped_connections: HashMap<String, Vec<Source>>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
+        running: Arc<AtomicBool>,
     ) -> Result<AppSourceManager, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
@@ -50,6 +52,7 @@ impl SourceBuilder {
                         ports.clone(),
                         tables,
                         connection.clone(),
+                        running.clone(),
                     );
 
                     asm.add(AppSource::new(
@@ -82,6 +85,7 @@ mod tests {
     use crate::pipeline::source_builder::SourceBuilder;
     use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
     use dozer_types::models::app_config::Config;
+    use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
 
     use dozer_core::dag::appsource::{AppSourceId, AppSourceMappings};
@@ -164,6 +168,7 @@ mod tests {
             SourceBuilder::group_connections(config.sources.clone()),
             ingestor,
             iterator_ref,
+            Arc::new(AtomicBool::new(true)),
         )
         .unwrap();
 

@@ -179,7 +179,8 @@ fn test_pipeline_builder() {
         vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
-    ));
+    ))
+    .unwrap();
 
     pipeline.add_sink(
         Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),

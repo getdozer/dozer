@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap};
 
 use crossbeam::channel::Receiver;
 use dozer_types::{internal_err, types::Operation};
-use log::info;
+use log::debug;
 
 use crate::dag::{
     epoch::Epoch,
@@ -81,14 +81,14 @@ pub trait ReceiverLoop: Name {
                 MappedExecutorOperation::Terminate => {
                     port_states[index] = InputPortState::Terminated;
                     sel.remove(index);
-                    info!(
+                    debug!(
                         "[{}] Received Terminate request on port {}",
                         self.name(),
                         self.receiver_name(index)
                     );
                     if port_states.iter().all(|v| v == &InputPortState::Terminated) {
                         self.on_terminate()?;
-                        info!("[{}] Quit", self.name());
+                        debug!("[{}] Quit", self.name());
                         return Ok(());
                     }
                 }

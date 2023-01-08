@@ -365,7 +365,8 @@ fn test_pipeline_builder() {
         ]
         .into_iter()
         .collect(),
-    ));
+    ))
+    .unwrap();
 
     pipeline.add_sink(Arc::new(TestSinkFactory::new(7, latch)), "sink");
     pipeline
