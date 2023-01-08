@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 
 use crate::errors::AdminError;
 use dozer_types::constants::DEFAULT_HOME_DIR;
@@ -76,6 +77,10 @@ impl Default for AdminCliConfig {
     }
 }
 pub fn load_config(config_path: String) -> Result<AdminCliConfig, AdminError> {
+    let path = Path::new(&config_path);
+    if !path.exists()  {
+       return Ok(AdminCliConfig::default());
+    }
     let contents = fs::read_to_string(config_path).map_err(AdminError::FailedToLoadFile)?;
     let config: AdminCliConfig =
         serde_yaml::from_str(&contents).map_err(|e| AdminError::FailedToParseYaml(Box::new(e)))?;
