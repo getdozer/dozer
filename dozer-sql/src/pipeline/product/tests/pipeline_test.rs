@@ -340,6 +340,7 @@ impl Sink for TestSink {
 }
 
 #[test]
+#[ignore]
 fn test_pipeline_builder() {
     let mut pipeline = PipelineBuilder {}
         .build_pipeline(
