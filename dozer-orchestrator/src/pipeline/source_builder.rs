@@ -1,4 +1,5 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
+use crate::OrchestrationError;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::{get_connector_outputs, TableInfo};
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
@@ -16,7 +17,7 @@ impl SourceBuilder {
         grouped_connections: HashMap<String, Vec<Source>>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
-    ) -> AppSourceManager {
+    ) -> Result<AppSourceManager, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;
@@ -55,12 +56,12 @@ impl SourceBuilder {
                         conn.clone(),
                         Arc::new(source_factory),
                         ports,
-                    ));
+                    ))?;
                 }
             }
         }
 
-        asm
+        Ok(asm)
     }
 
     pub fn group_connections(sources: Vec<Source>) -> HashMap<String, Vec<Source>> {
@@ -163,7 +164,8 @@ mod tests {
             SourceBuilder::group_connections(config.sources.clone()),
             ingestor,
             iterator_ref,
-        );
+        )
+        .unwrap();
 
         let pg_source_mapping: Vec<AppSourceMappings> = asm
             .get(vec![
