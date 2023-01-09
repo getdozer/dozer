@@ -165,7 +165,7 @@ impl PostgresIteratorHandler {
                 ingestor: Arc::clone(&self.ingestor),
                 connector_id: self.connector_id,
             };
-            tables = snapshotter.sync_tables(details.tables.clone())?;
+            tables = snapshotter.sync_tables(details.tables.clone(), self.lsn.borrow().as_ref())?;
 
             debug!("\nInitialized with tables: {:?}", tables);
 
@@ -257,7 +257,9 @@ impl PostgresIteratorHandler {
             let mut replicator = CDCHandler {
                 replication_conn_config: self.details.replication_conn_config.clone(),
                 ingestor,
-                lsn: *lsn,
+                start_lsn: *lsn,
+                begin_lsn: 0,
+                offset_lsn: 0,
                 offset: *offset,
                 publication_name,
                 slot_name,

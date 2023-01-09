@@ -178,7 +178,7 @@ fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
         }]))
         .unwrap();
 
-    let (schema_name, Schema { fields, .. }) = schemas.get(0).unwrap();
+    let (schema_name, Schema { fields, .. }, _) = schemas.get(0).unwrap();
     assert_eq!(schema_name, &table_name);
     for field in fields {
         let expected_type = match field.name.as_str() {

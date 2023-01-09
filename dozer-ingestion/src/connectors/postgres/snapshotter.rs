@@ -9,8 +9,9 @@ use crate::errors::PostgresConnectorError::PostgresSchemaError;
 use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::Commit;
+
 use postgres::fallible_iterator::FallibleIterator;
+use postgres_types::PgLsn;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -47,11 +48,13 @@ impl PostgresSnapshotter {
     pub fn sync_tables(
         &self,
         tables: Option<Vec<TableInfo>>,
+        lsn_option: Option<&(PgLsn, u64)>,
     ) -> Result<Option<Vec<TableInfo>>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(connection_helper::connect(
             self.conn_config.clone(),
         )?));
 
+        let lsn = lsn_option.map_or(0u64, |(pg_lsn, _)| u64::from(*pg_lsn));
         let tables = self.get_tables(tables)?;
 
         let mut idx: u64 = 0;
@@ -101,7 +104,7 @@ impl PostgresSnapshotter {
 
                         self.ingestor
                             .write()
-                            .handle_message(((0, idx), IngestionMessage::OperationEvent(evt)))
+                            .handle_message(((lsn, idx), IngestionMessage::OperationEvent(evt)))
                             .map_err(ConnectorError::IngestorError)?;
                     }
                     Err(e) => {
@@ -112,17 +115,6 @@ impl PostgresSnapshotter {
                 }
                 idx += 1;
             }
-
-            self.ingestor
-                .write()
-                .handle_message((
-                    (0, idx),
-                    IngestionMessage::Commit(Commit {
-                        seq_no: idx,
-                        lsn: 0,
-                    }),
-                ))
-                .map_err(ConnectorError::IngestorError)?;
         }
 
         Ok(Some(tables))
