@@ -262,7 +262,8 @@ impl TestPipeline {
             vec![("actor".to_string(), DEFAULT_PORT_HANDLE)]
                 .into_iter()
                 .collect(),
-        ));
+        ))
+        .unwrap();
 
         pipeline.add_sink(
             Arc::new(TestSinkFactory::new(

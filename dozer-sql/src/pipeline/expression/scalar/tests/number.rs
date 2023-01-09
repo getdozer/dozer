@@ -26,49 +26,56 @@ fn test_round() {
     let v = Box::new(Literal(Field::Int(1)));
     let d = &Box::new(Literal(Field::Int(0)));
     assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Int(1)
     );
 
     let v = Box::new(Literal(Field::Float(OrderedFloat(2.1))));
     let d = &Box::new(Literal(Field::Int(0)));
     assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(2.0))
     );
 
     let v = Box::new(Literal(Field::Float(OrderedFloat(2.6))));
     let d = &Box::new(Literal(Field::Int(0)));
     assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(3.0))
     );
 
     let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
     let d = &Box::new(Literal(Field::Int(2)));
     assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(2.63))
     );
 
     let v = Box::new(Literal(Field::Float(OrderedFloat(212.633))));
     let d = &Box::new(Literal(Field::Int(-2)));
     assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(200.0))
     );
 
     let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
     let d = &Box::new(Literal(Field::Float(OrderedFloat(2.1))));
     assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(2.63))
     );
 
     let v = Box::new(Literal(Field::Float(OrderedFloat(2.633))));
     let d = &Box::new(Literal(Field::String("2.3".to_string())));
     assert_eq!(
-        evaluate_round(&v, Some(d), &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
+        evaluate_round(&Schema::empty(), &v, Some(d), &row)
+            .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Float(OrderedFloat(3.0))
     );
 }

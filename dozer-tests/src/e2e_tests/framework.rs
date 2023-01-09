@@ -1,8 +1,7 @@
 use std::{
-    net::SocketAddr,
+    env,
     path::{Path, PathBuf},
     process::{Child, Command},
-    str::FromStr,
     thread::sleep,
     time::Duration,
 };
@@ -22,7 +21,7 @@ pub struct Framework {
 
 impl Framework {
     pub fn new() -> Self {
-        let dozer_bin = build_dozer();
+        let dozer_bin = env::var("DOZER_BIN").expect("DOZER_BIN env var not set");
         Self { dozer_bin }
     }
 
@@ -56,28 +55,18 @@ impl Framework {
 
         for spawn_dozer in [spawn_dozer_same_process, spawn_dozer_two_processes] {
             // Setup cleanups.
-            let cleanups = vec![Cleanup::RemoveDirectory(config.home_dir.clone())];
+            let mut cleanups = vec![Cleanup::RemoveDirectory(config.home_dir.clone())];
 
             // Start sources, dozer app and dozer API.
-            let mut child_processes = spawn_dozer(&self.dozer_bin, &config_path);
-
-            // Run test client.
-            let rest = config
-                .api
-                .clone()
-                .unwrap_or_default()
-                .rest
-                .unwrap_or_default();
-            let rest_endpoint = SocketAddr::from_str(&format!("{}:{}", rest.host, rest.port))
-                .expect(&format!("Bad rest endpoint: {}:{}", rest.host, rest.port));
-            let client = Client::new(rest_endpoint);
-            for expectation in expectations {
-                client.check_expectation(expectation).await;
+            let child_processes = spawn_dozer(&self.dozer_bin, &config_path);
+            for child in child_processes {
+                cleanups.push(Cleanup::KillProcess(child));
             }
 
-            // Stop child processes.
-            for child in &mut child_processes {
-                child.kill().expect("Failed to kill child process");
+            // Run test client.
+            let mut client = Client::new(config.clone()).await;
+            for expectation in expectations {
+                client.check_expectation(expectation).await;
             }
 
             // To ensure `cleanups` is not dropped on async boundary.
@@ -99,28 +88,19 @@ impl Framework {
 
     fn check_init_failure(&self, config_path: &str, message: Option<&str>) {
         let config = parse_config(config_path);
-        let _cleanup = Cleanup::RemoveDirectory(config.home_dir);
-        assert_command_fails(
-            &self.dozer_bin,
-            &["--config-path", &config_path, "init"],
-            message,
-        );
+        {
+            let _cleanup = Cleanup::RemoveDirectory(config.home_dir.clone());
+            assert_command_fails(&self.dozer_bin, &["--config-path", &config_path], message);
+        }
+        {
+            let _cleanup = Cleanup::RemoveDirectory(config.home_dir);
+            assert_command_fails(
+                &self.dozer_bin,
+                &["--config-path", &config_path, "init"],
+                message,
+            );
+        }
     }
-}
-
-fn build_dozer() -> String {
-    run_command(
-        "cargo",
-        &[
-            "build",
-            "--manifest-path",
-            "../Cargo.toml", // Working directory is `dozer-tests`.
-            "--release",
-            "--bin",
-            "dozer",
-        ],
-    );
-    "../target/release/dozer".to_string()
 }
 
 fn spawn_dozer_same_process(dozer_bin: &str, config_path: &str) -> Vec<Child> {

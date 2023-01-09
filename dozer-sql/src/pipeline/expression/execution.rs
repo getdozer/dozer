@@ -1,7 +1,9 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
+
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
-use crate::pipeline::expression::scalar::{get_scalar_function_type, ScalarFunctionType};
+use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
+use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
@@ -29,17 +31,36 @@ pub enum Expression {
         fun: AggregateFunctionType,
         args: Vec<Expression>,
     },
+    Trim {
+        arg: Box<Expression>,
+        what: Option<Box<Expression>>,
+        typ: Option<TrimType>,
+    },
+}
+
+pub struct ExpressionType {
+    pub return_type: FieldType,
+    pub nullable: bool,
+}
+
+impl ExpressionType {
+    pub fn new(return_type: FieldType, nullable: bool) -> Self {
+        Self {
+            return_type,
+            nullable,
+        }
+    }
 }
 
 impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &Record) -> Result<Field, PipelineError>;
-    fn get_type(&self, schema: &Schema) -> Result<FieldType, PipelineError>;
+    fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError>;
+    fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError>;
 }
 
 impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &Record) -> Result<Field, PipelineError> {
+    fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
             Expression::Column { index } => Ok(record
@@ -52,23 +73,29 @@ impl ExpressionExecutor for Expression {
                 left,
                 operator,
                 right,
-            } => operator.evaluate(left, right, record),
-            Expression::ScalarFunction { fun, args } => fun.evaluate(args, record),
-            Expression::UnaryOperator { operator, arg } => operator.evaluate(arg, record),
+            } => operator.evaluate(schema, left, right, record),
+            Expression::ScalarFunction { fun, args } => fun.evaluate(schema, args, record),
+            Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
                     "Aggregate Function {:?} should not be executed at this point",
                     fun
                 )))
             }
+            Expression::Trim { typ, what, arg } => evaluate_trim(schema, arg, what, typ, record),
         }
     }
 
-    fn get_type(&self, schema: &Schema) -> Result<FieldType, PipelineError> {
+    fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError> {
         match self {
-            Expression::Literal(field) => get_field_type(field).ok_or_else(|| {
-                PipelineError::InvalidExpression("literal expression cannot be null".to_string())
-            }),
+            Expression::Literal(field) => {
+                let r = get_field_type(field).ok_or_else(|| {
+                    PipelineError::InvalidExpression(
+                        "literal expression cannot be null".to_string(),
+                    )
+                })?;
+                Ok(ExpressionType::new(r, false))
+            }
             Expression::Column { index } => Ok(get_column_type(index, schema)),
             Expression::UnaryOperator { operator, arg } => {
                 get_unary_operator_type(operator, arg, schema)
@@ -82,6 +109,11 @@ impl ExpressionExecutor for Expression {
             Expression::AggregateFunction { fun, args } => {
                 get_aggregate_function_type(fun, args, schema)
             }
+            Expression::Trim {
+                what: _,
+                typ: _,
+                arg,
+            } => validate_trim(arg, schema),
         }
     }
 }
@@ -103,18 +135,19 @@ fn get_field_type(field: &Field) -> Option<FieldType> {
     }
 }
 
-fn get_column_type(index: &usize, schema: &Schema) -> FieldType {
-    schema.fields.get(*index).unwrap().typ
+fn get_column_type(index: &usize, schema: &Schema) -> ExpressionType {
+    let t = schema.fields.get(*index).unwrap();
+    ExpressionType::new(t.typ, t.nullable)
 }
 
 fn get_unary_operator_type(
     operator: &UnaryOperatorType,
     expression: &Expression,
     schema: &Schema,
-) -> Result<FieldType, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     let field_type = expression.get_type(schema)?;
     match operator {
-        UnaryOperatorType::Not => match field_type {
+        UnaryOperatorType::Not => match field_type.return_type {
             FieldType::Boolean => Ok(field_type),
             field_type => Err(PipelineError::InvalidExpression(format!(
                 "cannot apply NOT to {:?}",
@@ -131,7 +164,7 @@ fn get_binary_operator_type(
     operator: &BinaryOperatorType,
     right: &Expression,
     schema: &Schema,
-) -> Result<FieldType, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     let left_field_type = left.get_type(schema)?;
     let right_field_type = right.get_type(schema)?;
     match operator {
@@ -140,11 +173,13 @@ fn get_binary_operator_type(
         | BinaryOperatorType::Gt
         | BinaryOperatorType::Gte
         | BinaryOperatorType::Lt
-        | BinaryOperatorType::Lte => Ok(FieldType::Boolean),
+        | BinaryOperatorType::Lte => Ok(ExpressionType::new(FieldType::Boolean, false)),
 
         BinaryOperatorType::And | BinaryOperatorType::Or => {
-            match (left_field_type, right_field_type) {
-                (FieldType::Boolean, FieldType::Boolean) => Ok(FieldType::Boolean),
+            match (left_field_type.return_type, right_field_type.return_type) {
+                (FieldType::Boolean, FieldType::Boolean) => {
+                    Ok(ExpressionType::new(FieldType::Boolean, false))
+                }
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
                         "cannot apply {:?} to {:?} and {:?}",
@@ -155,11 +190,13 @@ fn get_binary_operator_type(
         }
 
         BinaryOperatorType::Add | BinaryOperatorType::Sub | BinaryOperatorType::Mul => {
-            match (left_field_type, right_field_type) {
-                (FieldType::Int, FieldType::Int) => Ok(FieldType::Int),
+            match (left_field_type.return_type, right_field_type.return_type) {
+                (FieldType::Int, FieldType::Int) => Ok(ExpressionType::new(FieldType::Int, false)),
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
-                | (FieldType::Float, FieldType::Float) => Ok(FieldType::Float),
+                | (FieldType::Float, FieldType::Float) => {
+                    Ok(ExpressionType::new(FieldType::Float, false))
+                }
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
                         "cannot apply {:?} to {:?} and {:?}",
@@ -169,10 +206,12 @@ fn get_binary_operator_type(
             }
         }
         BinaryOperatorType::Div | BinaryOperatorType::Mod => {
-            match (left_field_type, right_field_type) {
+            match (left_field_type.return_type, right_field_type.return_type) {
                 (FieldType::Int, FieldType::Float)
                 | (FieldType::Float, FieldType::Int)
-                | (FieldType::Float, FieldType::Float) => Ok(FieldType::Float),
+                | (FieldType::Float, FieldType::Float) => {
+                    Ok(ExpressionType::new(FieldType::Float, false))
+                }
                 (left_field_type, right_field_type) => {
                     Err(PipelineError::InvalidExpression(format!(
                         "cannot apply {:?} to {:?} and {:?}",
@@ -188,95 +227,17 @@ fn get_aggregate_function_type(
     function: &AggregateFunctionType,
     args: &[Expression],
     schema: &Schema,
-) -> Result<FieldType, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     match function {
-        AggregateFunctionType::Avg => Ok(FieldType::Float),
-        AggregateFunctionType::Count => Ok(FieldType::Int),
+        AggregateFunctionType::Avg => Ok(ExpressionType::new(FieldType::Float, false)),
+        AggregateFunctionType::Count => Ok(ExpressionType::new(FieldType::Int, false)),
         AggregateFunctionType::Max => argv!(args, 0, AggregateFunctionType::Max)?.get_type(schema),
         AggregateFunctionType::Median => {
             argv!(args, 0, AggregateFunctionType::Median)?.get_type(schema)
         }
         AggregateFunctionType::Min => argv!(args, 0, AggregateFunctionType::Min)?.get_type(schema),
         AggregateFunctionType::Sum => argv!(args, 0, AggregateFunctionType::Sum)?.get_type(schema),
-        AggregateFunctionType::Stddev => Ok(FieldType::Float),
-        AggregateFunctionType::Variance => Ok(FieldType::Float),
+        AggregateFunctionType::Stddev => Ok(ExpressionType::new(FieldType::Float, false)),
+        AggregateFunctionType::Variance => Ok(ExpressionType::new(FieldType::Float, false)),
     }
-}
-
-#[test]
-fn test_column_execution() {
-    use dozer_types::ordered_float::OrderedFloat;
-
-    let record = Record::new(
-        None,
-        vec![
-            Field::Int(1337),
-            Field::String("test".to_string()),
-            Field::Float(OrderedFloat(10.10)),
-        ],
-    );
-
-    // Column
-    let e = Expression::Column { index: 0 };
-    assert_eq!(
-        e.evaluate(&record)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(1337)
-    );
-
-    let e = Expression::Column { index: 1 };
-    assert_eq!(
-        e.evaluate(&record)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::String("test".to_string())
-    );
-
-    let e = Expression::Column { index: 2 };
-    assert_eq!(
-        e.evaluate(&record)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Float(OrderedFloat(10.10))
-    );
-
-    // Literal
-    let e = Expression::Literal(Field::Int(1337));
-    assert_eq!(
-        e.evaluate(&record)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(1337)
-    );
-
-    // UnaryOperator
-    let e = Expression::UnaryOperator {
-        operator: UnaryOperatorType::Not,
-        arg: Box::new(Expression::Literal(Field::Boolean(true))),
-    };
-    assert_eq!(
-        e.evaluate(&record)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Boolean(false)
-    );
-
-    // BinaryOperator
-    let e = Expression::BinaryOperator {
-        left: Box::new(Expression::Literal(Field::Boolean(true))),
-        operator: BinaryOperatorType::And,
-        right: Box::new(Expression::Literal(Field::Boolean(false))),
-    };
-    assert_eq!(
-        e.evaluate(&record)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Boolean(false),
-    );
-
-    // ScalarFunction
-    let e = Expression::ScalarFunction {
-        fun: ScalarFunctionType::Abs,
-        args: vec![Expression::Literal(Field::Int(-1))],
-    };
-    assert_eq!(
-        e.evaluate(&record)
-            .unwrap_or_else(|e| panic!("{}", e.to_string())),
-        Field::Int(1)
-    );
 }

@@ -166,7 +166,7 @@ impl Sink for TestSink {
 fn test_pipeline_builder() {
     let mut pipeline = PipelineBuilder {}
         .build_pipeline(
-            "SELECT COUNT(Spending), Country \
+            "SELECT COUNT(Spending), users.Country \
                 FROM users \
                 WHERE Spending >= 1",
         )
@@ -179,7 +179,8 @@ fn test_pipeline_builder() {
         vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
-    ));
+    ))
+    .unwrap();
 
     pipeline.add_sink(
         Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),

@@ -6,6 +6,7 @@ use lmdb::{
     Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor, RwCursor, RwTransaction,
     Transaction, WriteFlags,
 };
+use lmdb_sys::{mdb_set_compare, MDB_cmp_func, MDB_SUCCESS};
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
@@ -61,6 +62,21 @@ impl LmdbEnvironmentManager {
             .create_db(Some(name), flags)
             .map_err(InternalDbError)?;
         Ok(db)
+    }
+
+    pub fn set_comparator(
+        &mut self,
+        db: Database,
+        comparator: MDB_cmp_func,
+    ) -> Result<(), StorageError> {
+        let txn = self.inner.begin_ro_txn()?;
+        unsafe {
+            assert_eq!(
+                mdb_set_compare(txn.txn(), db.dbi(), comparator),
+                MDB_SUCCESS
+            );
+        }
+        txn.commit().map_err(InternalDbError)
     }
 }
 

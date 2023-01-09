@@ -8,7 +8,7 @@ use dozer_core::dag::{
 use dozer_types::types::Schema;
 use sqlparser::ast::Expr as SqlExpr;
 
-use crate::pipeline::expression::builder::{ExpressionBuilder, ExpressionType};
+use crate::pipeline::expression::builder::{BuilderExpressionType, ExpressionBuilder};
 
 use super::processor::SelectionProcessor;
 
@@ -58,8 +58,15 @@ impl ProcessorFactory for SelectionProcessorFactory {
 
         let builder = ExpressionBuilder {};
 
-        match builder.build(&ExpressionType::FullExpression, &self.statement, schema) {
-            Ok(expression) => Ok(Box::new(SelectionProcessor::new(expression))),
+        match builder.build(
+            &BuilderExpressionType::FullExpression,
+            &self.statement,
+            schema,
+        ) {
+            Ok(expression) => Ok(Box::new(SelectionProcessor::new(
+                schema.clone(),
+                expression,
+            ))),
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
     }

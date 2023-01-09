@@ -106,7 +106,7 @@ impl AggregationProcessor {
 
     fn fill_dimensions(&self, in_rec: &Record, out_rec: &mut Record) -> Result<(), PipelineError> {
         for v in &self.out_dimensions {
-            out_rec.set_value(v.1, v.0.evaluate(in_rec)?.clone());
+            out_rec.set_value(v.1, v.0.evaluate(in_rec, &self.input_schema)?.clone());
         }
         Ok(())
     }
@@ -207,14 +207,16 @@ impl AggregationProcessor {
 
             let (prefix, next_state_slice) = match op {
                 AggregatorOperation::Insert => {
-                    let inserted_field = measure.0.evaluate(inserted_record.unwrap())?;
+                    let inserted_field = measure
+                        .0
+                        .evaluate(inserted_record.unwrap(), &self.input_schema)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.insert(
                             curr.state,
                             &inserted_field,
-                            measure.0.get_type(&self.input_schema)?,
+                            measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
                             self.aggregators_db.unwrap(),
                         )?;
@@ -225,7 +227,7 @@ impl AggregationProcessor {
                         let r = measure.1.insert(
                             None,
                             &inserted_field,
-                            measure.0.get_type(&self.input_schema)?,
+                            measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
                             self.aggregators_db.unwrap(),
                         )?;
@@ -233,14 +235,16 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Delete => {
-                    let deleted_field = measure.0.evaluate(deleted_record.unwrap())?;
+                    let deleted_field = measure
+                        .0
+                        .evaluate(deleted_record.unwrap(), &self.input_schema)?;
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
                         let mut p_tx = PrefixTransaction::new(txn, curr.prefix);
                         let r = measure.1.delete(
                             curr.state,
                             &deleted_field,
-                            measure.0.get_type(&self.input_schema)?,
+                            measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
                             self.aggregators_db.unwrap(),
                         )?;
@@ -251,7 +255,7 @@ impl AggregationProcessor {
                         let r = measure.1.delete(
                             None,
                             &deleted_field,
-                            measure.0.get_type(&self.input_schema)?,
+                            measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
                             self.aggregators_db.unwrap(),
                         )?;
@@ -259,8 +263,12 @@ impl AggregationProcessor {
                     }
                 }
                 AggregatorOperation::Update => {
-                    let deleted_field = measure.0.evaluate(deleted_record.unwrap())?;
-                    let updated_field = measure.0.evaluate(inserted_record.unwrap())?;
+                    let deleted_field = measure
+                        .0
+                        .evaluate(deleted_record.unwrap(), &self.input_schema)?;
+                    let updated_field = measure
+                        .0
+                        .evaluate(inserted_record.unwrap(), &self.input_schema)?;
 
                     if let Some(curr) = curr_agg_data {
                         out_rec_delete.set_value(measure.2, curr.value);
@@ -269,7 +277,7 @@ impl AggregationProcessor {
                             curr.state,
                             &deleted_field,
                             &updated_field,
-                            measure.0.get_type(&self.input_schema)?,
+                            measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
                             self.aggregators_db.unwrap(),
                         )?;
@@ -281,7 +289,7 @@ impl AggregationProcessor {
                             None,
                             &deleted_field,
                             &updated_field,
-                            measure.0.get_type(&self.input_schema)?,
+                            measure.0.get_type(&self.input_schema)?.return_type,
                             &mut p_tx,
                             self.aggregators_db.unwrap(),
                         )?;
@@ -339,7 +347,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, size);
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            get_key(old, &self.out_dimensions)?
+            get_key(&self.input_schema, old, &self.out_dimensions)?
             //old.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
@@ -394,7 +402,7 @@ impl AggregationProcessor {
         let mut out_rec_delete = Record::nulls(None, size);
 
         let record_hash = if !self.out_dimensions.is_empty() {
-            get_key(new, &self.out_dimensions)?
+            get_key(&self.input_schema, new, &self.out_dimensions)?
             //new.get_key(&self.out_dimensions.iter().map(|i| i.0).collect())
         } else {
             vec![AGG_DEFAULT_DIMENSION_ID]
@@ -489,8 +497,8 @@ impl AggregationProcessor {
                     )
                 } else {
                     (
-                        get_key(old, &self.out_dimensions)?,
-                        get_key(new, &self.out_dimensions)?,
+                        get_key(&self.input_schema, old, &self.out_dimensions)?,
+                        get_key(&self.input_schema, new, &self.out_dimensions)?,
                     )
                     //let record_keys: Vec<usize> = self.out_dimensions.iter().map(|i| i.0).collect();
                     //(old.get_key(&record_keys), new.get_key(&record_keys))
@@ -510,6 +518,7 @@ impl AggregationProcessor {
 }
 
 fn get_key(
+    schema: &Schema,
     record: &Record,
     out_dimensions: &[(Box<Expression>, usize)],
 ) -> Result<Vec<u8>, PipelineError> {
@@ -517,7 +526,7 @@ fn get_key(
     let mut buffers = Vec::<Vec<u8>>::with_capacity(out_dimensions.len());
 
     for dimension in out_dimensions.iter() {
-        let value = dimension.0.evaluate(record)?;
+        let value = dimension.0.evaluate(record, schema)?;
         let bytes = value.encode();
         tot_size += bytes.len();
         buffers.push(bytes);

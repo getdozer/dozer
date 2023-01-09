@@ -21,10 +21,9 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::serde_yaml;
-use dozer_types::types::Schema;
+use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -41,9 +40,9 @@ pub struct SimpleOrchestrator {
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
-            config,
+            config: config.clone(),
             ..Default::default()
         }
     }
@@ -218,6 +217,39 @@ impl Orchestrator for SimpleOrchestrator {
         ))
     }
 
+    fn query(
+        &self,
+        sql: String,
+        sender: Sender<Operation>,
+        running: Arc<AtomicBool>,
+    ) -> Result<Schema, OrchestrationError> {
+        // Ingestion channel
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
+        let sources = self.config.sources.clone();
+
+        let pipeline_dir = tempdir::TempDir::new("query4")
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        let executor = Executor::new(
+            sources,
+            vec![],
+            ingestor,
+            iterator,
+            running,
+            pipeline_dir.into_path(),
+        );
+
+        let dag = executor.query(sql, sender)?;
+        let schema_manager = DagSchemaManager::new(&dag)?;
+        let streaming_sink_handle = dag.get_sinks().get(0).expect("Sink is expected").clone().0;
+        let schema = schema_manager
+            .get_node_input_schemas(&streaming_sink_handle)?
+            .values()
+            .next()
+            .expect("schema is expected")
+            .clone();
+        Ok(schema)
+    }
     fn init(&mut self, force: bool) -> Result<(), OrchestrationError> {
         self.write_internal_config()
             .map_err(|e| InternalError(Box::new(e)))?;
@@ -271,8 +303,6 @@ impl Orchestrator for SimpleOrchestrator {
         )?;
         let schema_manager = DagSchemaManager::new(&dag)?;
         schema_manager.prepare()?;
-
-        info!("Initialized schema");
 
         Ok(())
     }

@@ -75,6 +75,7 @@ pub enum OutputPortType {
         retr_old_records_for_deletes: bool,
         retr_old_records_for_updates: bool,
     },
+    AutogenRowKeyLookup,
 }
 
 impl Display for OutputPortType {
@@ -84,6 +85,7 @@ impl Display for OutputPortType {
             OutputPortType::StatefulWithPrimaryKeyLookup { .. } => {
                 f.write_str("StatefulWithPrimaryKeyLookup")
             }
+            OutputPortType::AutogenRowKeyLookup => f.write_str("AutogenRowKeyLookup"),
         }
     }
 }

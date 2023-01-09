@@ -1,14 +1,17 @@
 use crate::dag::errors::ExecutionError;
+use crate::dag::errors::ExecutionError::{UnsupportedDeleteOperation, UnsupportedUpdateOperation};
 use crate::dag::node::OutputPortType;
+
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::fmt::{Debug, Formatter};
 
 pub trait RecordWriter {
-    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError>;
+    fn write(&mut self, op: Operation, tx: &SharedTransaction)
+        -> Result<Operation, ExecutionError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -37,6 +40,9 @@ impl RecordWriterUtils {
                 retr_old_records_for_deletes,
                 retr_old_records_for_updates,
             ))),
+            OutputPortType::AutogenRowKeyLookup => Ok(Box::new(
+                AutogenRowKeyLookupRecordWriter::new(db, meta_db, schema),
+            )),
             _ => panic!(
                 "Unexpected port type in RecordWriterUtils::create_writer(): {}",
                 typ
@@ -105,7 +111,11 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(&self, op: Operation, tx: &SharedTransaction) -> Result<Operation, ExecutionError> {
+    fn write(
+        &mut self,
+        op: Operation,
+        tx: &SharedTransaction,
+    ) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { new } => {
                 RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
@@ -127,6 +137,85 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                 RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
                 Ok(Operation::Update { old, new })
             }
+        }
+    }
+}
+
+const DOZER_ROWID: &str = "_DOZER_ROWID";
+
+#[derive(Debug)]
+pub struct AutogenRowKeyLookupRecordWriter {
+    db: Database,
+    meta_db: Database,
+    schema: Schema,
+}
+
+impl AutogenRowKeyLookupRecordWriter {
+    const COUNTER_KEY: u16 = 0_u16;
+
+    pub fn prepare_schema(mut schema: Schema) -> Schema {
+        schema.fields.push(FieldDefinition::new(
+            DOZER_ROWID.to_string(),
+            FieldType::UInt,
+            false,
+        ));
+        schema.primary_index = vec![schema.fields.len() - 1];
+        schema
+    }
+
+    pub fn new(db: Database, meta_db: Database, schema: Schema) -> Self {
+        Self {
+            db,
+            meta_db,
+            schema,
+        }
+    }
+
+    fn get_autogen_counter(&mut self, tx: &SharedTransaction) -> Result<u64, StorageError> {
+        let curr_counter = match tx
+            .read()
+            .get(self.meta_db, &Self::COUNTER_KEY.to_le_bytes())?
+        {
+            Some(c) => u64::from_le_bytes(c.try_into().map_err(|e| {
+                StorageError::DeserializationError {
+                    typ: "u64".to_string(),
+                    reason: Box::new(e),
+                }
+            })?),
+            _ => 1_u64,
+        };
+        tx.write().put(
+            self.meta_db,
+            &Self::COUNTER_KEY.to_le_bytes(),
+            &(curr_counter + 1).to_le_bytes(),
+        )?;
+        Ok(curr_counter)
+    }
+}
+
+impl RecordWriter for AutogenRowKeyLookupRecordWriter {
+    fn write(
+        &mut self,
+        op: Operation,
+        tx: &SharedTransaction,
+    ) -> Result<Operation, ExecutionError> {
+        match op {
+            Operation::Insert { mut new } => {
+                let ctr = self.get_autogen_counter(tx)?;
+                new.values.push(Field::UInt(ctr));
+                assert!(
+                    self.schema.primary_index.len() == 1
+                        && self.schema.primary_index[0] == new.values.len() - 1
+                );
+                RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
+                Ok(Operation::Insert { new })
+            }
+            Operation::Update { .. } => Err(UnsupportedUpdateOperation(
+                "AutogenRowsIdLookupRecordWriter does not support update operations".to_string(),
+            )),
+            Operation::Delete { .. } => Err(UnsupportedDeleteOperation(
+                "AutogenRowsIdLookupRecordWriter does not support delete operations".to_string(),
+            )),
         }
     }
 }

@@ -1,30 +1,30 @@
+use std::cmp;
+
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, Schema},
 };
 
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Function, FunctionArg, FunctionArgExpr,
-    Ident, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
+    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Expr, Function, FunctionArg,
+    FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::builder::PipelineError::InvalidArgument;
 use crate::pipeline::expression::builder::PipelineError::InvalidExpression;
 use crate::pipeline::expression::builder::PipelineError::InvalidOperator;
 use crate::pipeline::expression::builder::PipelineError::InvalidValue;
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::ScalarFunction;
-
-use super::{
-    aggregate::AggregateFunctionType,
-    execution::Expression,
-    operator::{BinaryOperatorType, UnaryOperatorType},
-    scalar::ScalarFunctionType,
-};
+use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
+use crate::pipeline::expression::scalar::common::ScalarFunctionType;
+use crate::pipeline::expression::scalar::string::TrimType;
 
 pub type Bypass = bool;
 
-pub enum ExpressionType {
+pub enum BuilderExpressionType {
     PreAggregation,
     Aggregation,
     // PostAggregation,
@@ -36,7 +36,7 @@ pub struct ExpressionBuilder;
 impl ExpressionBuilder {
     pub fn build(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<Box<Expression>, PipelineError> {
@@ -47,12 +47,18 @@ impl ExpressionBuilder {
 
     pub fn parse_sql_expression(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         expression: &SqlExpr,
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         match expression {
-            SqlExpr::Identifier(ident) => self.parse_sql_column(ident, schema),
+            SqlExpr::Trim {
+                expr,
+                trim_where,
+                trim_what,
+            } => self.parse_sql_trim_function(expression_type, expr, trim_where, trim_what, schema),
+            SqlExpr::Identifier(ident) => self.parse_sql_column(&[ident.clone()], schema),
+            SqlExpr::CompoundIdentifier(ident) => self.parse_sql_column(ident, schema),
             SqlExpr::Value(SqlValue::Number(n, _)) => self.parse_sql_number(n),
             SqlExpr::Value(SqlValue::Null) => {
                 Ok((Box::new(Expression::Literal(Field::Null)), false))
@@ -68,20 +74,20 @@ impl ExpressionBuilder {
             }
             SqlExpr::Nested(expr) => self.parse_sql_expression(expression_type, expr, schema),
             SqlExpr::Function(sql_function) => match expression_type {
-                ExpressionType::PreAggregation => self.parse_sql_function_pre_aggregation(
+                BuilderExpressionType::PreAggregation => self.parse_sql_function_pre_aggregation(
                     expression_type,
                     sql_function,
                     schema,
                     expression,
                 ),
-                ExpressionType::Aggregation => self.parse_sql_function_aggregation(
+                BuilderExpressionType::Aggregation => self.parse_sql_function_aggregation(
                     expression_type,
                     sql_function,
                     schema,
                     expression,
                 ),
                 // ExpressionType::PostAggregation => todo!(),
-                ExpressionType::FullExpression => {
+                BuilderExpressionType::FullExpression => {
                     self.parse_sql_function(expression_type, sql_function, schema, expression)
                 }
             },
@@ -91,20 +97,42 @@ impl ExpressionBuilder {
 
     fn parse_sql_column(
         &self,
-        ident: &Ident,
+        ident: &[Ident],
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         Ok((
             Box::new(Expression::Column {
-                index: schema.get_field_index(&ident.value)?.0,
+                index: get_field_index(ident, schema)?,
+                //index: schema.get_field_index(&ident[0].value)?.0,
             }),
             false,
         ))
     }
 
+    fn parse_sql_trim_function(
+        &self,
+        expression_type: &BuilderExpressionType,
+        expr: &Expr,
+        trim_where: &Option<TrimWhereField>,
+        trim_what: &Option<Box<Expr>>,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
+        let arg = self.parse_sql_expression(expression_type, expr, schema)?.0;
+        let what = match trim_what {
+            Some(e) => Some(self.parse_sql_expression(expression_type, e, schema)?.0),
+            _ => None,
+        };
+        let typ = trim_where.as_ref().map(|e| match e {
+            TrimWhereField::Both => TrimType::Both,
+            TrimWhereField::Leading => TrimType::Leading,
+            TrimWhereField::Trailing => TrimType::Trailing,
+        });
+        Ok((Box::new(Expression::Trim { arg, what, typ }), false))
+    }
+
     fn parse_sql_function(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -146,7 +174,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_pre_aggregation(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -189,7 +217,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_aggregation(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         sql_function: &Function,
         schema: &Schema,
         expression: &SqlExpr,
@@ -258,7 +286,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_function_arg(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         argument: &FunctionArg,
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
@@ -283,7 +311,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_unary_op(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
@@ -305,7 +333,7 @@ impl ExpressionBuilder {
 
     fn parse_sql_binary_op(
         &self,
-        expression_type: &ExpressionType,
+        expression_type: &BuilderExpressionType,
         left: &SqlExpr,
         op: &SqlBinaryOperator,
         right: &SqlExpr,
@@ -365,6 +393,62 @@ impl ExpressionBuilder {
             },
         }
     }
+}
+
+pub fn fullname_from_ident(ident: &[Ident]) -> String {
+    let mut ident_tokens = vec![];
+    for token in ident.iter() {
+        ident_tokens.push(token.value.clone());
+    }
+    ident_tokens.join(".")
+}
+
+pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<usize, PipelineError> {
+    let full_ident = fullname_from_ident(ident);
+
+    let mut field_index: Option<usize> = None;
+
+    for (index, field) in schema.fields.iter().enumerate() {
+        if compare_name(field.name.clone(), full_ident.clone()) {
+            if field_index.is_some() {
+                return Err(PipelineError::InvalidQuery(format!(
+                    "Ambiguous Field {}",
+                    full_ident
+                )));
+            } else {
+                field_index = Some(index);
+            }
+        }
+    }
+    if let Some(index) = field_index {
+        Ok(index)
+    } else {
+        Err(PipelineError::InvalidQuery(format!(
+            "Field {} not found",
+            full_ident
+        )))
+    }
+}
+
+pub(crate) fn compare_name(name: String, ident: String) -> bool {
+    let left = name.split('.').collect::<Vec<&str>>();
+    let right = ident.split('.').collect::<Vec<&str>>();
+
+    let left_len = left.len();
+    let right_len = right.len();
+
+    let shorter = cmp::min(left_len, right_len);
+    let mut is_equal = false;
+    for i in 1..shorter + 1 {
+        if left[left_len - i] == right[right_len - i] {
+            is_equal = true;
+        } else {
+            is_equal = false;
+            break;
+        }
+    }
+
+    is_equal
 }
 
 fn parse_sql_string(s: &str) -> Result<(Box<Expression>, bool), PipelineError> {

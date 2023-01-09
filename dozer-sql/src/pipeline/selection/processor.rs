@@ -7,18 +7,22 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
-use dozer_types::types::{Field, Operation};
+use dozer_types::types::{Field, Operation, Schema};
 use log::info;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SelectionProcessor {
     expression: Box<Expression>,
+    input_schema: Schema,
 }
 
 impl SelectionProcessor {
-    pub fn new(expression: Box<Expression>) -> Self {
-        Self { expression }
+    pub fn new(input_schema: Schema, expression: Box<Expression>) -> Self {
+        Self {
+            input_schema,
+            expression,
+        }
     }
 
     fn delete(&self, record: &dozer_types::types::Record) -> Operation {
@@ -56,7 +60,7 @@ impl Processor for SelectionProcessor {
             Operation::Delete { ref old } => {
                 if self
                     .expression
-                    .evaluate(old)
+                    .evaluate(old, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?
                     == Field::Boolean(true)
                 {
@@ -66,7 +70,7 @@ impl Processor for SelectionProcessor {
             Operation::Insert { ref new } => {
                 if self
                     .expression
-                    .evaluate(new)
+                    .evaluate(new, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?
                     == Field::Boolean(true)
                 {
@@ -76,12 +80,12 @@ impl Processor for SelectionProcessor {
             Operation::Update { ref old, ref new } => {
                 let old_fulfilled = self
                     .expression
-                    .evaluate(old)
+                    .evaluate(old, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?
                     == Field::Boolean(true);
                 let new_fulfilled = self
                     .expression
-                    .evaluate(new)
+                    .evaluate(new, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?
                     == Field::Boolean(true);
                 match (old_fulfilled, new_fulfilled) {

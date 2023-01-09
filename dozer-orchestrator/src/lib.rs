@@ -4,11 +4,20 @@ pub mod pipeline;
 pub mod simple;
 pub use dozer_api::grpc::internal_grpc;
 pub use dozer_api::grpc::internal_grpc::internal_pipeline_service_client;
-use dozer_types::{crossbeam::channel::Sender, types::Schema};
+use dozer_core::dag::errors::ExecutionError;
+use dozer_types::{
+    crossbeam::channel::Sender,
+    log::debug,
+    types::{Operation, Schema},
+};
 use errors::OrchestrationError;
 use std::{
     collections::HashMap,
-    sync::{atomic::AtomicBool, Arc},
+    panic, process,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 #[cfg(test)]
 mod test_utils;
@@ -26,6 +35,12 @@ pub trait Orchestrator {
     fn list_connectors(&self)
         -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError>;
     fn generate_token(&self) -> Result<String, OrchestrationError>;
+    fn query(
+        &self,
+        sql: String,
+        sender: Sender<Operation>,
+        running: Arc<AtomicBool>,
+    ) -> Result<Schema, OrchestrationError>;
 }
 
 // Re-exports
@@ -44,4 +59,36 @@ pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(),
         );
         e
     })
+}
+
+pub fn set_panic_hook() {
+    panic::set_hook(Box::new(move |panic_info| {
+        // All the orchestrator errors are captured here
+        if let Some(e) = panic_info.payload().downcast_ref::<OrchestrationError>() {
+            error!("{}", e);
+            debug!("{:?}", e);
+        // All the connector errors are captured here
+        } else if let Some(e) = panic_info.payload().downcast_ref::<ConnectorError>() {
+            error!("{}", e);
+            debug!("{:?}", e);
+        // All the pipeline errors are captured here
+        } else if let Some(e) = panic_info.payload().downcast_ref::<ExecutionError>() {
+            error!("{}", e);
+            debug!("{:?}", e);
+        // If any errors are sent as strings.
+        } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            error!("{s:?}");
+        } else {
+            error!("{}", panic_info);
+        }
+
+        process::exit(1);
+    }));
+}
+
+pub fn set_ctrl_handler(r: Arc<AtomicBool>) {
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
 }

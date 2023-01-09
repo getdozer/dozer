@@ -11,7 +11,7 @@ use sqlparser::ast::SelectItem;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
-        builder::{ExpressionBuilder, ExpressionType},
+        builder::{BuilderExpressionType, ExpressionBuilder},
         execution::Expression,
         execution::ExpressionExecutor,
     },
@@ -63,11 +63,10 @@ impl ProcessorFactory for ProjectionProcessorFactory {
                     let field_type =
                         e.1.get_type(input_schema)
                             .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
-                    let field_nullable = true;
                     output_schema.fields.push(FieldDefinition::new(
                         field_name,
-                        field_type,
-                        field_nullable,
+                        field_type.return_type,
+                        field_type.nullable,
                     ));
                 }
 
@@ -95,7 +94,10 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             .map(|item| parse_sql_select_item(item, schema))
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
-            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(expressions))),
+            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
+                schema.clone(),
+                expressions,
+            ))),
             Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
         }
     }
@@ -116,14 +118,22 @@ pub(crate) fn parse_sql_select_item(
     let builder = ExpressionBuilder {};
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match builder.parse_sql_expression(&ExpressionType::FullExpression, sql_expr, schema) {
+            match builder.parse_sql_expression(
+                &BuilderExpressionType::FullExpression,
+                sql_expr,
+                schema,
+            ) {
                 Ok(expr) => Ok((sql_expr.to_string(), *expr.0)),
                 Err(error) => Err(error),
             }
         }
-        SelectItem::ExprWithAlias { expr, alias } => Err(PipelineError::InvalidExpression(
-            format!("{}:{}", expr, alias),
-        )),
+        SelectItem::ExprWithAlias { expr, alias } => {
+            match builder.parse_sql_expression(&BuilderExpressionType::FullExpression, expr, schema)
+            {
+                Ok(expr) => Ok((alias.value.clone(), *expr.0)),
+                Err(error) => Err(error),
+            }
+        }
         SelectItem::Wildcard => Err(PipelineError::InvalidOperator("*".to_string())),
         SelectItem::QualifiedWildcard(ref object_name) => {
             Err(PipelineError::InvalidOperator(object_name.to_string()))

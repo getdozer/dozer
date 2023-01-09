@@ -1,7 +1,7 @@
 use crate::pipeline::errors::PipelineError::InvalidFunctionArgumentType;
 use crate::pipeline::errors::{FieldTypes, PipelineError};
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use crate::pipeline::expression::scalar::ScalarFunctionType;
+use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use dozer_types::types::{FieldType, Schema};
 
 pub(crate) fn validate_arg_type(
@@ -10,12 +10,12 @@ pub(crate) fn validate_arg_type(
     schema: &Schema,
     fct: ScalarFunctionType,
     idx: usize,
-) -> Result<FieldType, PipelineError> {
+) -> Result<ExpressionType, PipelineError> {
     let arg_t = arg.get_type(schema)?;
-    if !expected.contains(&arg_t) {
+    if !expected.contains(&arg_t.return_type) {
         Err(InvalidFunctionArgumentType(
             fct.to_string(),
-            arg_t,
+            arg_t.return_type,
             FieldTypes::new(expected),
             idx,
         ))
@@ -37,7 +37,7 @@ macro_rules! argv {
 #[macro_export]
 macro_rules! arg_str {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_string() {
+        match $field.to_string() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),
@@ -51,7 +51,7 @@ macro_rules! arg_str {
 #[macro_export]
 macro_rules! arg_uint {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_uint() {
+        match $field.to_uint() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),
@@ -65,7 +65,7 @@ macro_rules! arg_uint {
 #[macro_export]
 macro_rules! arg_int {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_int() {
+        match $field.to_int() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),
@@ -79,7 +79,7 @@ macro_rules! arg_int {
 #[macro_export]
 macro_rules! arg_float {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_float() {
+        match $field.to_float() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),
@@ -93,7 +93,7 @@ macro_rules! arg_float {
 #[macro_export]
 macro_rules! arg_binary {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_binary() {
+        match $field.to_binary() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),
@@ -107,7 +107,7 @@ macro_rules! arg_binary {
 #[macro_export]
 macro_rules! arg_decimal {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_decimal() {
+        match $field.to_decimal() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),
@@ -121,7 +121,7 @@ macro_rules! arg_decimal {
 #[macro_export]
 macro_rules! arg_timestamp {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_timestamp() {
+        match $field.to_timestamp() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),
@@ -135,7 +135,7 @@ macro_rules! arg_timestamp {
 #[macro_export]
 macro_rules! arg_date {
     ($field: expr, $fct: expr, $idx: expr) => {
-        match $field.as_date() {
+        match $field.to_date() {
             Some(e) => Ok(e),
             _ => Err(PipelineError::InvalidFunctionArgument(
                 $fct.to_string(),

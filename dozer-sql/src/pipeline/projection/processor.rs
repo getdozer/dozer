@@ -8,18 +8,21 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
-use dozer_types::types::{Operation, Record};
-use log::info;
+use dozer_types::types::{Operation, Record, Schema};
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
     expressions: Vec<(String, Expression)>,
+    input_schema: Schema,
 }
 
 impl ProjectionProcessor {
-    pub fn new(expressions: Vec<(String, Expression)>) -> Self {
-        Self { expressions }
+    pub fn new(input_schema: Schema, expressions: Vec<(String, Expression)>) -> Self {
+        Self {
+            input_schema,
+            expressions,
+        }
     }
 
     fn delete(&mut self, record: &Record) -> Result<Operation, ExecutionError> {
@@ -28,7 +31,7 @@ impl ProjectionProcessor {
         for expr in &self.expressions {
             results.push(
                 expr.1
-                    .evaluate(record)
+                    .evaluate(record, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -43,7 +46,7 @@ impl ProjectionProcessor {
         for expr in self.expressions.clone() {
             results.push(
                 expr.1
-                    .evaluate(record)
+                    .evaluate(record, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -59,12 +62,12 @@ impl ProjectionProcessor {
         for expr in &self.expressions {
             old_results.push(
                 expr.1
-                    .evaluate(old)
+                    .evaluate(old, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
             new_results.push(
                 expr.1
-                    .evaluate(new)
+                    .evaluate(new, &self.input_schema)
                     .map_err(|e| InternalError(Box::new(e)))?,
             );
         }
@@ -78,7 +81,6 @@ impl ProjectionProcessor {
 
 impl Processor for ProjectionProcessor {
     fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
 

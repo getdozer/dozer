@@ -44,6 +44,7 @@ pub fn create_descriptor_set(
         // .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
         .build_client(false)
         .build_server(false)
+        .emit_rerun_if_changed(false)
         .out_dir(folder_path.clone())
         .compile_with_config(prost_build_config, &resources, &[folder_path])?;
     Ok(my_path_descriptor)

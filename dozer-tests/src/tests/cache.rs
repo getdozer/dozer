@@ -11,7 +11,6 @@ use crate::cache_tests::{
 };
 
 #[tokio::test]
-#[ignore]
 async fn test_cache_query() {
     let secondary_indexes = vec![
         IndexDefinition::SortedInverted(vec![0]),
