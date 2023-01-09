@@ -52,11 +52,12 @@ impl SourceFactory for TestSourceFactory {
         Ok(self.schema.clone())
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        self.output_ports
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(self
+            .output_ports
             .iter()
             .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
-            .collect()
+            .collect())
     }
 
     fn prepare(&self, _output_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
@@ -262,7 +263,8 @@ impl TestPipeline {
             vec![("actor".to_string(), DEFAULT_PORT_HANDLE)]
                 .into_iter()
                 .collect(),
-        ));
+        ))
+        .unwrap();
 
         pipeline.add_sink(
             Arc::new(TestSinkFactory::new(

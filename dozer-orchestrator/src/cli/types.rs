@@ -1,15 +1,20 @@
 use clap::{Args, Parser, Subcommand};
 
-use super::{DESCRIPTION, LOGO};
+use super::helper::{DESCRIPTION, LOGO};
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
 #[command(
     about = format!("{} \n {}", LOGO, DESCRIPTION),
-    long_about = format!("{} \n {}", LOGO, DESCRIPTION),
+    long_about = None,
 )]
 pub struct Cli {
-    #[arg(short = 'c', long, default_value = "./dozer-config.yaml")]
+    #[arg(
+        global = true,
+        short = 'c',
+        long,
+        default_value = "./dozer-config.yaml"
+    )]
     pub config_path: String,
 
     #[clap(subcommand)]
@@ -18,12 +23,20 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(arg_required_else_help = true)]
-    Api(Api),
-    App(App),
-    Connector(Connector),
-    Clean,
+    #[command(about = "Interactive REPL for configuring sources and schemas")]
+    Configure,
+    #[command(
+        about = "Initialize and lock schema definitions. Once intiialized, schemas cannot be changed."
+    )]
     Init(Init),
+    #[command(about = "Clean home directory")]
+    Clean,
+    #[command(about = "Run Api Server")]
+    Api(Api),
+    #[command(about = "Run App Server")]
+    App(App),
+    #[command(about = "Show Sources")]
+    Connector(Connector),
 }
 
 #[derive(Debug, Args)]

@@ -1,5 +1,7 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{AmbiguousSourceIdentifier, InvalidSourceIdentifier};
+use crate::dag::errors::ExecutionError::{
+    AmbiguousSourceIdentifier, AppSourceConnectionAlreadyExists, InvalidSourceIdentifier,
+};
 use crate::dag::node::{PortHandle, SourceFactory};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -72,8 +74,13 @@ impl Default for AppSourceManager {
 }
 
 impl AppSourceManager {
-    pub fn add(&mut self, src: AppSource) {
+    pub fn add(&mut self, src: AppSource) -> Result<(), ExecutionError> {
+        if self.sources.iter().any(|s| s.connection == src.connection) {
+            return Err(AppSourceConnectionAlreadyExists(src.connection));
+        }
+
         self.sources.push(src);
+        Ok(())
     }
 
     pub fn get(&self, ls: Vec<AppSourceId>) -> Result<Vec<AppSourceMappings>, ExecutionError> {

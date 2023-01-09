@@ -1,12 +1,12 @@
 use crate::output;
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
-    init_input_schema, init_processor, insert_exp, FIELD_100_FLOAT, FIELD_100_INT, ITALY,
+    init_input_schema, init_processor, FIELD_100_INT,
 };
 use crate::pipeline::builder::get_select;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;
-use dozer_types::types::FieldType::{Float, Int};
+use dozer_types::types::FieldType::Int;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::collections::HashMap;
 
@@ -27,7 +27,7 @@ fn test_sum_aggregation_null() {
         -------------
         SUM = 100.0
     */
-    let mut inp = Operation::Insert {
+    let inp = Operation::Insert {
         new: Record::new(
             None,
             vec![
@@ -38,8 +38,8 @@ fn test_sum_aggregation_null() {
             ],
         ),
     };
-    let mut out = output!(processor, inp, tx);
-    let mut exp = vec![Operation::Insert {
+    let out = output!(processor, inp, tx);
+    let exp = vec![Operation::Insert {
         new: Record::new(None, vec![Field::Null, FIELD_100_INT.clone()]),
     }];
     assert_eq!(out, exp);
@@ -64,9 +64,7 @@ fn test_aggregation_alias() {
     let out_schema = factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, schema.clone())]
-                .into_iter()
-                .collect(),
+            &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
         )
         .unwrap();
 

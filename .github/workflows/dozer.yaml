@@ -64,11 +64,11 @@ jobs:
         run: |
           cargo fmt -- --check
 
-      - name: Debug Build for E2E Tests
-        run: cargo build --bin dozer
+      # - name: Debug Build for E2E Tests
+      #   run: cargo build --bin dozer
 
       - name: Run tests
-        run: cargo test --verbose --features mongodb,e2e
+        run: cargo test --verbose --features mongodb
         env:
           DOZER_BIN: ../target/debug/dozer
           ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}

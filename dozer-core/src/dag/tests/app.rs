@@ -29,7 +29,7 @@ impl SourceFactory for NoneSourceFactory {
         todo!()
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
         todo!()
     }
 
@@ -46,6 +46,24 @@ impl SourceFactory for NoneSourceFactory {
 }
 
 #[test]
+fn test_apps_sorce_smanager_connection_exists() {
+    let mut asm = AppSourceManager::new();
+    let app_src = AppSource::new(
+        "conn1".to_string(),
+        Arc::new(NoneSourceFactory {}),
+        vec![("table1".to_string(), 1_u16)].into_iter().collect(),
+    );
+    let _r = asm.add(app_src);
+    let app_src = AppSource::new(
+        "conn1".to_string(),
+        Arc::new(NoneSourceFactory {}),
+        vec![("table2".to_string(), 1_u16)].into_iter().collect(),
+    );
+    let r = asm.add(app_src);
+    assert!(r.is_err());
+}
+
+#[test]
 fn test_apps_sorce_smanager_lookup() {
     let mut asm = AppSourceManager::new();
     let app_src = AppSource::new(
@@ -53,7 +71,7 @@ fn test_apps_sorce_smanager_lookup() {
         Arc::new(NoneSourceFactory {}),
         vec![("table1".to_string(), 1_u16)].into_iter().collect(),
     );
-    asm.add(app_src);
+    asm.add(app_src).unwrap();
 
     let r = asm
         .get(vec![AppSourceId::new("table1".to_string(), None)])
@@ -95,7 +113,7 @@ fn test_apps_sorce_smanager_lookup() {
         Arc::new(NoneSourceFactory {}),
         vec![("table1".to_string(), 2_u16)].into_iter().collect(),
     );
-    asm.add(app_src);
+    asm.add(app_src).unwrap();
 
     let r = asm.get(vec![AppSourceId::new("table1".to_string(), None)]);
     assert!(r.is_err());
@@ -146,7 +164,7 @@ fn test_apps_source_manager_lookup_multiple_ports() {
             .into_iter()
             .collect(),
     );
-    asm.add(app_src);
+    asm.add(app_src).unwrap();
 
     let _r = asm.get(vec![
         AppSourceId::new("table1".to_string(), None),
@@ -199,7 +217,8 @@ fn test_app_dag() {
         ]
         .into_iter()
         .collect(),
-    ));
+    ))
+    .unwrap();
 
     asm.add(AppSource::new(
         "snowflake".to_string(),
@@ -207,7 +226,8 @@ fn test_app_dag() {
         vec![("users".to_string(), GENERATOR_SOURCE_OUTPUT_PORT)]
             .into_iter()
             .collect(),
-    ));
+    ))
+    .unwrap();
 
     let mut app = App::new(asm);
 

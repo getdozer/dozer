@@ -36,11 +36,12 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        self.output_ports
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(self
+            .output_ports
             .iter()
             .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
-            .collect()
+            .collect())
     }
 
     fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
@@ -179,7 +180,8 @@ fn test_pipeline_builder() {
         vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
             .into_iter()
             .collect(),
-    ));
+    ))
+    .unwrap();
 
     pipeline.add_sink(
         Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),

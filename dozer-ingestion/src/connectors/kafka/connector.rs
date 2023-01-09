@@ -10,6 +10,7 @@ use dozer_types::parking_lot::RwLock;
 use tokio::runtime::Runtime;
 
 use dozer_types::models::source::Source;
+use dozer_types::types::ReplicationChangesTrackingType;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
@@ -40,7 +41,14 @@ impl Connector for KafkaConnector {
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
+    ) -> Result<
+        Vec<(
+            String,
+            dozer_types::types::Schema,
+            ReplicationChangesTrackingType,
+        )>,
+        ConnectorError,
+    > {
         self.config.schema_registry_url.clone().map_or(
             NoSchemaRegistry::get_schema(table_names.clone(), self.config.clone()),
             |_| SchemaRegistry::get_schema(table_names, self.config.clone()),

@@ -82,7 +82,6 @@ impl ProjectionProcessor {
 
 impl Processor for ProjectionProcessor {
     fn init(&mut self, _env: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        info!("{:?}", "Initialising Projection Processor");
         Ok(())
     }
 

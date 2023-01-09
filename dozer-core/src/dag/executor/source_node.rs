@@ -14,7 +14,7 @@ use dozer_types::{
     parking_lot::RwLock,
     types::{Operation, Schema},
 };
-use log::info;
+use log::debug;
 
 use crate::dag::{
     channels::SourceChannelForwarder,
@@ -102,7 +102,7 @@ impl Node for SourceSenderNode {
             .source
             .start(&mut self.forwarder, Some(self.last_checkpoint));
         self.running.store(false, Ordering::SeqCst);
-        info!("[{}-sender] Quit", self.node_handle);
+        debug!("[{}-sender] Quit", self.node_handle);
         result
     }
 }
@@ -202,7 +202,7 @@ impl SourceListenerNode {
         };
         if terminating {
             self.channel_manager.terminate()?;
-            info!("[{}-listener] Quitting", &self.node_handle);
+            debug!("[{}-listener] Quitting", &self.node_handle);
         }
         Ok(terminating)
     }

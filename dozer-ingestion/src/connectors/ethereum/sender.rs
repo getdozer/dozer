@@ -8,7 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
-use dozer_types::log::{info, trace};
+use dozer_types::log::{debug, trace};
 use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
@@ -79,7 +79,7 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
     let mut filter = details.filter.clone();
     filter.from_block = Some(block_end);
 
-    info!("Fetching from block ..: {}", block_end);
+    debug!("Fetching from block ..: {}", block_end);
 
     let filter = client
         .eth_filter()
@@ -123,7 +123,7 @@ pub fn fetch_logs(
 
         match res {
             Ok(logs) => {
-                info!(" {} Fetched: {} , block_start: {},block_end: {}, depth: {}", depth_str, logs.len(), block_start, block_end, depth);
+                debug!(" {} Fetched: {} , block_start: {},block_end: {}, depth: {}", depth_str, logs.len(), block_start, block_end, depth);
                 for msg in logs {
                     process_log(
                         details.clone(),
@@ -138,12 +138,12 @@ pub fn fetch_logs(
                     // { code: ServerError(-32005), message: "query returned more than 10000 results", data: None }
                     // break it down into half on each error and exit after 10 errors in a specific branch
                     if rpc_error.code.code() == -32005 {
-                        info!("{} More than 10000 records, block_start: {},block_end: {}, depth: {}", depth_str, block_start, block_end, depth);                
+                        debug!("{} More than 10000 records, block_start: {},block_end: {}, depth: {}", depth_str, block_start, block_end, depth);                
                         if depth > 100 {
                             Err(ConnectorError::EthTooManyRecurisions(depth))
                         } else {
                             let middle = (block_start + block_end) / 2;
-                            info!("{} Splitting in two calls block_start: {}, middle: {}, block_end: {}", depth_str,block_start, block_end, middle);
+                            debug!("{} Splitting in two calls block_start: {}, middle: {}, block_end: {}", depth_str,block_start, block_end, middle);
                             fetch_logs(
                                 details.clone(),
                                 client.clone(),

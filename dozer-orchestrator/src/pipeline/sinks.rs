@@ -14,7 +14,7 @@ use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::log::{debug, info};
+use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::types::FieldType;
@@ -25,7 +25,6 @@ use std::collections::HashMap;
 use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
 
 #[derive(Debug)]
 pub struct CacheSinkFactory {
@@ -140,6 +139,7 @@ impl SinkFactory for CacheSinkFactory {
     }
 
     fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), ExecutionError> {
+        use std::println as stdinfo;
         // Insert schemas into cache
         debug!(
             "SinkFactory: Initialising CacheSinkFactory: {}",
@@ -147,7 +147,7 @@ impl SinkFactory for CacheSinkFactory {
         );
         for (_, schema) in input_schemas.iter() {
             let mut pipeline_schema = schema.to_owned();
-            info!(
+            stdinfo!(
                 "SINK: Initializing output schema: {}",
                 self.api_endpoint.name
             );
@@ -274,7 +274,6 @@ pub struct CacheSink {
     txn: Option<lmdb_rs::RwTransaction<'static>>,
     cache: Arc<LmdbCache>,
     counter: i32,
-    before: Instant,
     input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
@@ -285,10 +284,9 @@ impl Sink for CacheSink {
     fn commit(&mut self, _epoch: &Epoch, _tx: &SharedTransaction) -> Result<(), ExecutionError> {
         // Update Counter on commit
         self.pb.set_message(format!(
-            "{}: Count: {}, Elapsed time: {:.2?}",
+            "{}: Count: {}",
             self.api_endpoint.name.to_owned(),
             self.counter,
-            self.before.elapsed(),
         ));
         if let Some(txn) = self.txn.take() {
             txn.commit().map_err(|e| {
@@ -389,7 +387,6 @@ impl CacheSink {
             txn: None,
             cache,
             counter: 0,
-            before: Instant::now(),
             input_schemas,
             api_endpoint,
             pb: get_progress(),
