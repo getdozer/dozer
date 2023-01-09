@@ -30,6 +30,7 @@ pub mod rest;
 // Re-exports
 pub use actix_web;
 use dozer_cache::errors::CacheError;
+pub use openapiv3;
 pub use tokio;
 pub use tonic;
 

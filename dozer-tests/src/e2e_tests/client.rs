@@ -10,13 +10,13 @@ use dozer_api::{
             health_check_response::ServingStatus,
             health_grpc_service_client::HealthGrpcServiceClient, HealthCheckRequest,
         },
-        types::Type,
     },
+    openapiv3::{OpenAPI, ReferenceOr, SchemaKind, StringFormat, VariantOrUnknownOrEmpty},
     tonic::transport::{Channel, Endpoint},
 };
 use dozer_types::{
     models::app_config::Config,
-    types::{FieldDefinition, FieldType},
+    types::{FieldDefinition, FieldType, DATE_FORMAT},
 };
 
 use super::expectation::{EndpointExpectation, Expectation};
@@ -71,9 +71,18 @@ impl Client {
                 endpoint,
                 expectations,
             } => {
-                self.check_endpoint_existence(endpoint).await;
+                let rest_path = self
+                    .config
+                    .endpoints
+                    .iter()
+                    .find(|e| &e.name == endpoint)
+                    .expect(&format!("Cannot find endpoint {} in config", endpoint))
+                    .path
+                    .clone();
+                self.check_endpoint_existence(endpoint, &rest_path).await;
                 for expectation in expectations {
-                    self.check_endpoint_expectation(endpoint, expectation).await;
+                    self.check_endpoint_expectation(endpoint, &rest_path, expectation)
+                        .await;
                 }
             }
         }
@@ -103,29 +112,22 @@ impl Client {
         }
     }
 
-    async fn check_endpoint_existence(&mut self, endpoint: &String) {
+    async fn check_endpoint_existence(&mut self, endpoint: &String, rest_path: &str) {
         // REST endpoint oapi.
-        let path = &self
-            .config
-            .endpoints
-            .iter()
-            .find(|e| &e.name == endpoint)
-            .expect(&format!("Cannot find endpoint {} in config", endpoint))
-            .path;
         let response = self
             .rest_client
-            .post(&format!("http://{}{}/oapi", self.rest_endpoint, path))
+            .post(&format!("http://{}{}/oapi", self.rest_endpoint, rest_path))
             .send()
             .await
             .expect(&format!(
                 "Cannot get oapi response from rest endpoint {}, path is {}",
-                endpoint, path
+                endpoint, rest_path
             ));
         let status = response.status();
         if !status.is_success() {
             panic!(
-                "REST endpoint {} responds {}, path is {}",
-                endpoint, status, path
+                "REST oapi endpoint {} responds {}, path is {}",
+                endpoint, status, rest_path
             );
         }
 
@@ -149,17 +151,108 @@ impl Client {
     async fn check_endpoint_expectation(
         &mut self,
         endpoint: &str,
+        rest_path: &str,
         expectation: &EndpointExpectation,
     ) {
         match expectation {
             EndpointExpectation::Schema { fields } => {
-                self.check_endpoint_schema(endpoint, fields).await;
+                self.check_endpoint_schema(endpoint, rest_path, fields)
+                    .await;
             }
         }
     }
 
-    async fn check_endpoint_schema(&mut self, endpoint: &str, fields: &[FieldDefinition]) {
-        // TODO: check REST schema.
+    async fn check_endpoint_schema(
+        &mut self,
+        endpoint: &str,
+        rest_path: &str,
+        fields: &[FieldDefinition],
+    ) {
+        // REST OpenAPI schema.
+        let response = self
+            .rest_client
+            .post(&format!("http://{}{}/oapi", self.rest_endpoint, rest_path))
+            .send()
+            .await
+            .expect(&format!(
+                "Cannot get oapi response from rest endpoint {}, path is {}",
+                endpoint, rest_path
+            ));
+        let status = response.status();
+        if !status.is_success() {
+            panic!(
+                "REST oapi endpoint {} responds {}, path is {}",
+                endpoint, status, rest_path
+            );
+        }
+        let open_api: OpenAPI = response.json().await.expect(&format!(
+            "Cannot parse oapi response from rest endpoint {}, path is {}",
+            endpoint, rest_path,
+        ));
+        let schema = open_api
+            .components
+            .as_ref()
+            .expect(&format!(
+                "Cannot find components in oapi response from rest endpoint {}, path is {}",
+                endpoint, rest_path,
+            ))
+            .schemas
+            .get(endpoint)
+            .expect(&format!(
+                "Cannot find schema for endpoint {} in oapi response, path is {}",
+                endpoint, rest_path,
+            ));
+        let schema = schema.as_item().expect(&format!(
+            "Expecting schema item for endpoint {} in oapi response, path is {}",
+            endpoint, rest_path
+        ));
+        let (properties, required) = match &schema.schema_kind {
+            SchemaKind::Type(dozer_api::openapiv3::Type::Object(object_type)) => {
+                (&object_type.properties, &object_type.required)
+            }
+            _ => panic!(
+                "Expecting object schema for endpoint {} in oapi response, path is {}",
+                endpoint, rest_path
+            ),
+        };
+        assert_eq!(
+            properties.len(),
+            fields.len(),
+            "Check REST schema failed for endpoint {}, expected {} fields, got {}",
+            endpoint,
+            fields.len(),
+            properties.len()
+        );
+        for (property, field) in properties.iter().zip(fields.iter()) {
+            assert_eq!(
+                property.0, &field.name,
+                "Check REST schema failed for endpoint {}, expected field name {}, got {}",
+                endpoint, field.name, property.0
+            );
+            let schema = property.1.as_item().expect(&format!(
+                "Expecting schema item for endpoint {}, field {} in oapi response, path is {}",
+                endpoint, field.name, rest_path
+            ));
+            let oapi_type = match &schema.schema_kind {
+                SchemaKind::Type(oapi_type) => oapi_type,
+                _ => panic!(
+                    "Expecting type schema for endpoint {}, field {} in oapi response, path is {}",
+                    endpoint, field.name, rest_path
+                ),
+            };
+            assert!(
+                oapi_type_matches(oapi_type, field.typ),
+                "Check REST schema failed for endpoint {}, expected field type {}, got {:?}",
+                endpoint,
+                field.typ,
+                oapi_type
+            );
+            if field.nullable {
+                assert!(!required.contains(&field.name), "Check REST schema failed for endpoint {}, field {} is nullable, but it is required", endpoint, field.name);
+            } else {
+                assert!(required.contains(&field.name), "Check REST schema failed for endpoint {}, field {} is not nullable, but it is not required", endpoint, field.name);
+            }
+        }
 
         // Common service getFields.
         let actual_fields = self
@@ -174,7 +267,7 @@ impl Client {
         assert_eq!(
             actual_fields.len(),
             fields.len(),
-            "Check schema failed for endpoin {}, expected {} fields, got {}",
+            "Check common gRPC schema failed for endpoin {}, expected {} fields, got {}",
             endpoint,
             fields.len(),
             actual_fields.len()
@@ -182,12 +275,12 @@ impl Client {
         for (actual_field, field) in actual_fields.iter().zip(fields.iter()) {
             assert_eq!(
                 actual_field.name, field.name,
-                "Check schema failed for endpoint {}, expected field name {}, got {}",
+                "Check common gRPC schema failed for endpoint {}, expected field name {}, got {}",
                 endpoint, field.name, actual_field.name
             );
             assert!(
-                type_matches(actual_field.typ, field.typ),
-                "Check schema failed for endpoint {}, field {}, expected field type {}, got {}",
+                grpc_type_matches(actual_field.typ, field.typ),
+                "Check common gRPC schema failed for endpoint {}, field {}, expected field type {}, got {}",
                 endpoint,
                 field.name,
                 field.typ,
@@ -195,7 +288,7 @@ impl Client {
             );
             assert_eq!(
                 actual_field.nullable, field.nullable,
-                "Check schema failed for endpoint {}, field {}, expected field nullable {}, got {}",
+                "Check common gRPC schema failed for endpoint {}, field {}, expected field nullable {}, got {}",
                 field.name, endpoint, field.nullable, actual_field.nullable
             );
         }
@@ -223,18 +316,55 @@ async fn check_grpc_health(client: &mut HealthGrpcServiceClient<Channel>, servic
     }
 }
 
-fn type_matches(type1: i32, type2: FieldType) -> bool {
-    match type2 {
-        FieldType::UInt => type1 == Type::UInt as i32,
-        FieldType::Int => type1 == Type::Int as i32,
-        FieldType::Float => type1 == Type::Float as i32,
-        FieldType::Boolean => type1 == Type::Boolean as i32,
-        FieldType::String => type1 == Type::String as i32,
-        FieldType::Text => type1 == Type::Text as i32,
-        FieldType::Binary => type1 == Type::Binary as i32,
-        FieldType::Decimal => type1 == Type::Decimal as i32,
-        FieldType::Timestamp => type1 == Type::Timestamp as i32,
-        FieldType::Date => type1 == Type::Date as i32,
-        FieldType::Bson => type1 == Type::Bson as i32,
+fn grpc_type_matches(grpc_type: i32, field_type: FieldType) -> bool {
+    use dozer_api::grpc::types::Type;
+
+    match field_type {
+        FieldType::UInt => grpc_type == Type::UInt as i32,
+        FieldType::Int => grpc_type == Type::Int as i32,
+        FieldType::Float => grpc_type == Type::Float as i32,
+        FieldType::Boolean => grpc_type == Type::Boolean as i32,
+        FieldType::String => grpc_type == Type::String as i32,
+        FieldType::Text => grpc_type == Type::Text as i32,
+        FieldType::Binary => grpc_type == Type::Binary as i32,
+        FieldType::Decimal => grpc_type == Type::Decimal as i32,
+        FieldType::Timestamp => grpc_type == Type::Timestamp as i32,
+        FieldType::Date => grpc_type == Type::Date as i32,
+        FieldType::Bson => grpc_type == Type::Bson as i32,
+    }
+}
+
+fn oapi_type_matches(oapi_type: &dozer_api::openapiv3::Type, field_type: FieldType) -> bool {
+    use dozer_api::openapiv3::Type::{Array, Boolean, Integer, Number, String};
+
+    match (oapi_type, field_type) {
+        (Integer(_), FieldType::UInt | FieldType::Int) => true,
+        (Number(_), FieldType::Float) => true,
+        (Boolean {}, FieldType::Boolean) => true,
+        (
+            String(string_type),
+            FieldType::String
+            | FieldType::Text
+            | FieldType::Decimal
+            | FieldType::Timestamp
+            | FieldType::Date,
+        ) => {
+            if field_type == FieldType::Timestamp {
+                string_type.format == VariantOrUnknownOrEmpty::Item(StringFormat::DateTime)
+                    && string_type.pattern == Some("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'".to_string())
+            } else if field_type == FieldType::Date {
+                string_type.format == VariantOrUnknownOrEmpty::Item(StringFormat::Date)
+                    && string_type.pattern == Some(DATE_FORMAT.to_string())
+            } else {
+                true
+            }
+        }
+        (Array(array_type), FieldType::Binary | FieldType::Bson) => {
+            let Some(ReferenceOr::Item(schema)) = array_type.items.as_ref() else {
+                return false;
+            };
+            matches!(schema.schema_kind, SchemaKind::Type(Integer(_)))
+        }
+        _ => false,
     }
 }
