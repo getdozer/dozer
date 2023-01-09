@@ -17,23 +17,3 @@
 ```
 
 Open [http://localhost:3000](http://localhost:3000/)
-
-## Run Release binary
-
-```
-  cargo make --no-workspace admin-release
-```
-
-this one will generate 4 parts in `target/release` folder
-
-- dozer
-- dozer-admin
-- dozer-admin-config.yaml
-- ui
-
-To open `dozer-admin` simply run
-
-```
-cd target/release && ./dozer-admin
-```
-Open [http://localhost:3000](http://localhost:3000/)
