@@ -23,7 +23,7 @@ use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::models::app_config::Config;
 use dozer_types::serde_yaml;
-use dozer_types::types::{ReplicationChangesTrackingType, Operation, Schema};
+use dozer_types::types::{Operation, Schema, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};

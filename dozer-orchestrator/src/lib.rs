@@ -49,7 +49,7 @@ use dozer_ingestion::connectors::TableInfo;
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
-use dozer_types::types::SchemaWithChangesType;
+use dozer_types::types::Schema;
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input.clone())?;

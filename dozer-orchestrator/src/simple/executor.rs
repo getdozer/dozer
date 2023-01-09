@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::App;
-use dozer_types::types::{ReplicationChangesTrackingType, Operation, SchemaWithChangesType};
+use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
