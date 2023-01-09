@@ -56,13 +56,6 @@ impl Processor for SelectionProcessor {
         _tx: &SharedTransaction,
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
-        // match op.clone() {
-        //     Operation::Delete { old } => info!("σ <- {:?}", old.values),
-        //     Operation::Insert { new } => info!("σ -> {:?}", new.values),
-        //     Operation::Update { old, new } => {
-        //         info!("σ <- {:?}\nσ -> {:?}", old.values, new.values)
-        //     }
-        // }
         match op {
             Operation::Delete { ref old } => {
                 if self

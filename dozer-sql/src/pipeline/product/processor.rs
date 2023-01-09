@@ -311,13 +311,6 @@ impl Processor for ProductProcessor {
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
-        // match op.clone() {
-        //     Operation::Delete { old } => info!("⋈ <- {:?}", old.values),
-        //     Operation::Insert { new } => info!("⋈ -> {:?}", new.values),
-        //     Operation::Update { old, new } => {
-        //         info!("⋈ <- {:?}\n⋈ -> {:?}", old.values, new.values)
-        //     }
-        // }
         match op {
             Operation::Delete { ref old } => {
                 let records = self.delete(from_port, old, transaction, reader)?;

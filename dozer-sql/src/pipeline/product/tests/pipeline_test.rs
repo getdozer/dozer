@@ -240,14 +240,13 @@ impl Source for TestSource {
 
         for operation in operations.iter().enumerate() {
             match operation.1.clone().0 {
-                Operation::Delete { old } => info!("{} <- {:?}", operation.1.clone().1, old.values),
-                Operation::Insert { new } => info!("{} -> {:?}", operation.1.clone().1, new.values),
+                Operation::Delete { old } => info!("{}: - {:?}", operation.1.clone().1, old.values),
+                Operation::Insert { new } => info!("{}: + {:?}", operation.1.clone().1, new.values),
                 Operation::Update { old, new } => {
                     info!(
-                        "{} <- {:?}\n{} -> {:?}",
+                        "{}: - {:?}, + {:?}",
                         operation.1.clone().1,
                         old.values,
-                        operation.1.clone().1,
                         new.values
                     )
                 }
@@ -335,10 +334,10 @@ impl Sink for TestSink {
         _reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<(), ExecutionError> {
         match _op {
-            Operation::Delete { old } => info!("s <- {}: {:?}", self.current, old.values),
-            Operation::Insert { new } => info!("s -> {}: {:?}", self.current, new.values),
+            Operation::Delete { old } => info!("s: - {:?}", old.values),
+            Operation::Insert { new } => info!("s: + {:?}", new.values),
             Operation::Update { old, new } => {
-                info!("s <- {:?}\ns -> {:?}", old.values, new.values)
+                info!("s: - {:?}, + {:?}", old.values, new.values)
             }
         }
 
@@ -365,12 +364,12 @@ fn test_pipeline_builder() {
 
     let mut pipeline = PipelineBuilder {}
         .build_pipeline(
-            "SELECT user.name, department.name \
-                FROM user JOIN department ON user.department_id = department.id \
-                WHERE salary >= 1",
-            // "SELECT  department.name, SUM(user.salary) \
+            // "SELECT user.name, department.name \
             //     FROM user JOIN department ON user.department_id = department.id \
-            //     GROUP BY department.name",
+            //     WHERE salary >= 1",
+            "SELECT  department.name, SUM(user.salary) \
+                FROM user JOIN department ON user.department_id = department.id \
+                GROUP BY department.name",
         )
         .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
 
