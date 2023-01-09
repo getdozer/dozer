@@ -179,7 +179,7 @@ pub fn map_row_to_operation_event(
     match get_values(row, columns) {
         Ok(values) => Ok(OperationEvent {
             operation: Operation::Insert {
-                new: Record::new(Some(identifier), values),
+                new: Record::new(Some(identifier), values, None),
             },
             seq_no: idx as u64,
         }),

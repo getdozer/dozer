@@ -121,6 +121,7 @@ pub fn get_sample_records(schema: Schema) -> Vec<Record> {
                     Field::UInt(release_year),
                     Field::Null,
                 ],
+                None,
             );
             records.push(record);
         }

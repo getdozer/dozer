@@ -71,7 +71,7 @@ mod tests {
         let reader = RecordDatabase::new(&env, false).unwrap();
 
         let id = 0u64;
-        let record = Record::new(None, vec![]);
+        let record = Record::new(None, vec![], None);
 
         let mut txn = env.begin_rw_txn().unwrap();
         writer.insert(&mut txn, &record).unwrap();

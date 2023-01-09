@@ -52,7 +52,7 @@ pub(crate) fn run_scalar_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Fi
     let mut fw = TestChannelForwarder { operations: vec![] };
 
     let op = Operation::Insert {
-        new: Record::new(None, input),
+        new: Record::new(None, input, None),
     };
 
     processor
