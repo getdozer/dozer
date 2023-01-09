@@ -1,5 +1,4 @@
 use crate::{
-    cli::utils::kill_process_at,
     db::{application::AppDbService, persistable::Persistable, pool::DbPool},
     server::dozer_admin_grpc::{
         ApplicationInfo, CreateAppRequest, CreateAppResponse, ErrorResponse, GetAppRequest,
@@ -19,10 +18,14 @@ use std::process::Command;
 use std::{fs, process::Stdio};
 pub struct AppService {
     db_pool: DbPool,
+    dozer_version: Option<String>,
 }
 impl AppService {
-    pub fn new(db_pool: DbPool, dozer_path: String) -> Self {
-        Self { db_pool }
+    pub fn new(db_pool: DbPool, dozer_version: Option<String>) -> Self {
+        Self {
+            db_pool,
+            dozer_version,
+        }
     }
 }
 impl AppService {
@@ -128,13 +131,13 @@ impl AppService {
             fs::remove_dir_all(&path).unwrap();
         }
         fs::create_dir_all(&path).unwrap();
-        let config = app_detail.to_owned();
+        let config = app_detail;
         let yaml_file_name = format!(
             "dozer-config-{:}-{:}.yaml",
             config.app_name,
             config.to_owned().id.unwrap()
         );
-        let yaml_path = path.join(yaml_file_name.clone());
+        let yaml_path = path.join(yaml_file_name);
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -157,31 +160,35 @@ impl AppService {
 
         let docker_name = format!("dozer-{:}-{:}", config.app_name, config.id.unwrap());
         // termiate docker if exists:
-        let docker_terminate_command = Command::new("docker")
+        let _docker_terminate_command = Command::new("docker")
             .arg("rm")
             .arg("-f")
-            .arg(docker_name.to_owned())
+            .arg(&docker_name)
             .output()
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
         // start docker:
-        let docker_image_address = "public.ecr.aws/k7k6x1d4/dozer:latest";
-        let pull_docker_command = Command::new("docker")
+        let docker_image_address = format!(
+            "public.ecr.aws/k7k6x1d4/dozer:{:}",
+            self.dozer_version
+                .to_owned()
+                .unwrap_or_else(|| "latest".to_owned())
+        );
+        let _pull_docker_command = Command::new("docker")
             .arg("pull")
-            .arg(docker_image_address)
+            .arg(&docker_image_address)
             .output()
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
         // run docker image:
-        let binding = fs::canonicalize(&yaml_path).unwrap().to_owned();
+        let binding = fs::canonicalize(&yaml_path).unwrap();
         let absolute_path = binding.to_str().unwrap();
         let rest_port = config.api.to_owned().unwrap().rest.unwrap_or_default().port;
         let grpc_port = config.api.to_owned().unwrap().grpc.unwrap_or_default().port;
         let internal_grpc_port = config
             .api
-            .to_owned()
             .unwrap_or_default()
             .pipeline_internal
             .unwrap_or_default()
@@ -190,7 +197,7 @@ impl AppService {
         let run_docker_command = Command::new("docker")
             .arg("run")
             .arg("--name")
-            .arg(docker_name.to_owned())
+            .arg(&docker_name)
             .arg("-d")
             .arg("-p")
             .arg(format!("{:}:{:}", rest_port, rest_port)) // rest port
@@ -213,7 +220,7 @@ impl AppService {
         }
         if let Ok(output) = String::from_utf8(run_docker_command.stdout) {
             // write to logs
-            let stream_logs_to_file = Command::new("docker")
+            let _stream_logs_to_file = Command::new("docker")
                 .arg("logs")
                 .arg("-f")
                 .arg(output.trim())

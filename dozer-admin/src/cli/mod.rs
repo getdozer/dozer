@@ -28,14 +28,14 @@ pub struct AdminCliConfig {
     pub home_dir: String,
     #[serde(default = "default_ui_path")]
     pub ui_path: String,
-    #[serde(default = "default_dozer_path")]
-    pub dozer_path: String,
+    #[serde(default = "default_dozer_version")]
+    pub dozer_version: String,
 }
 fn default_ui_path() -> String {
     AdminCliConfig::default().ui_path
 }
-fn default_dozer_path() -> String {
-    AdminCliConfig::default().dozer_path
+fn default_dozer_version() -> String {
+    AdminCliConfig::default().dozer_version
 }
 fn default_ui_port() -> u32 {
     AdminCliConfig::default().ui_port
@@ -72,14 +72,14 @@ impl Default for AdminCliConfig {
             api_internal: default_config.api_internal.unwrap(),
             pipeline_internal: default_config.pipeline_internal.unwrap(),
             ui_path: "./ui".to_owned(),
-            dozer_path: "./dozer".to_owned(),
+            dozer_version: "latest".to_owned(),
         }
     }
 }
 pub fn load_config(config_path: String) -> Result<AdminCliConfig, AdminError> {
     let path = Path::new(&config_path);
-    if !path.exists()  {
-       return Ok(AdminCliConfig::default());
+    if !path.exists() {
+        return Ok(AdminCliConfig::default());
     }
     let contents = fs::read_to_string(config_path).map_err(AdminError::FailedToLoadFile)?;
     let config: AdminCliConfig =

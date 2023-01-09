@@ -304,7 +304,7 @@ impl DozerAdmin for GrpcService {
 pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::transport::Error> {
     let host = config.host;
     let port = config.port;
-    let dozer_path = config.dozer_path;
+    let dozer_version = config.dozer_version;
     let addr = format!("{:}:{:}", host, port).parse().unwrap();
     dotenv().ok();
     let database_url: String = get_db_path();
@@ -313,7 +313,7 @@ pub async fn start_admin_server(config: AdminCliConfig) -> Result<(), tonic::tra
         connection_service: ConnectionService::new(db_pool.to_owned()),
         source_service: SourceService::new(db_pool.to_owned()),
         endpoint_service: EndpointService::new(db_pool.to_owned()),
-        app_service: AppService::new(db_pool.to_owned(), dozer_path),
+        app_service: AppService::new(db_pool.to_owned(), Some(dozer_version)),
         api_config_service: ApiConfigService::new(db_pool.to_owned()),
     };
     let server = DozerAdminServer::new(grpc_service);
