@@ -67,6 +67,22 @@ fn insert_get_and_delete_record() {
     cache.get(&key).expect_err("Must not find a record");
 }
 
+#[test]
+fn insert_and_update_record() {
+    let (cache, schema, secondary_indexes) = _setup();
+    let foo = Record::new(schema.identifier, vec![Field::String("foo".to_string())]);
+    let bar = Record::new(schema.identifier, vec![Field::String("bar".to_string())]);
+    cache
+        .insert_schema("test", &schema, &secondary_indexes)
+        .unwrap();
+    cache.insert(&foo).unwrap();
+    cache.insert(&bar).unwrap();
+
+    let key = index::get_primary_key(&schema.primary_index, &foo.values);
+
+    cache.update(&key, &foo).unwrap();
+}
+
 fn insert_and_query_record_impl(
     cache: LmdbCache,
     schema: Schema,

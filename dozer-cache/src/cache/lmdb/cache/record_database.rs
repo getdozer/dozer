@@ -26,18 +26,17 @@ impl RecordDatabase {
         Ok(Self(db))
     }
 
-    pub fn insert(&self, txn: &mut RwTransaction, record: &Record) -> Result<[u8; 8], CacheError> {
-        let id = helper::lmdb_stat(txn, self.0)
-            .map_err(|e| CacheError::InternalError(Box::new(e)))?
-            .ms_entries as u64;
-        let id = id.to_be_bytes();
+    pub fn insert(
+        &self,
+        txn: &mut RwTransaction,
+        id: [u8; 8],
+        record: &Record,
+    ) -> Result<(), CacheError> {
         let encoded: Vec<u8> =
             bincode::serialize(&record).map_err(CacheError::map_serialization_error)?;
 
         txn.put(self.0, &id, &encoded.as_slice(), WriteFlags::NO_OVERWRITE)
-            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))?;
-
-        Ok(id)
+            .map_err(|e| CacheError::QueryError(QueryError::InsertValue(e)))
     }
 
     pub fn get<T: Transaction>(&self, txn: &T, id: [u8; 8]) -> Result<Record, CacheError> {
@@ -70,11 +69,11 @@ mod tests {
         let writer = RecordDatabase::new(&env, true).unwrap();
         let reader = RecordDatabase::new(&env, false).unwrap();
 
-        let id = 0u64;
+        let id = 1u64;
         let record = Record::new(None, vec![]);
 
         let mut txn = env.begin_rw_txn().unwrap();
-        writer.insert(&mut txn, &record).unwrap();
+        writer.insert(&mut txn, id.to_be_bytes(), &record).unwrap();
         txn.commit().unwrap();
 
         let txn = env.begin_ro_txn().unwrap();
