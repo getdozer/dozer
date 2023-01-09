@@ -32,9 +32,6 @@ jobs:
 
       - uses: ./.github/workflows/setup-snowflake-and-kafka
 
-      - name: Release Build for E2E Tests
-        run: cargo build --release --bin dozer
-
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -43,8 +40,6 @@ jobs:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Cinstrument-coverage"
           LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
-          DOZER_BIN: ../target/release/dozer
-          ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
 
       - uses: actions-rs/cargo@v1
         with:

@@ -1,5 +1,3 @@
-use std::{net::SocketAddr, str::FromStr};
-
 use dozer_api::{
     grpc::{
         common_grpc::{
@@ -19,11 +17,11 @@ use dozer_types::{
     types::{FieldDefinition, FieldType, DATE_FORMAT},
 };
 
-use super::expectation::{EndpointExpectation, Expectation};
+use super::super::expectation::{EndpointExpectation, Expectation};
 
 pub struct Client {
     config: Config,
-    rest_endpoint: SocketAddr,
+    rest_endpoint: String,
     rest_client: reqwest::Client,
     health_grpc_client: HealthGrpcServiceClient<Channel>,
     common_grpc_client: CommonGrpcServiceClient<Channel>,
@@ -34,26 +32,29 @@ impl Client {
         let api = config.api.clone().unwrap_or_default();
 
         let rest = api.rest.unwrap_or_default();
-        let rest_endpoint = SocketAddr::from_str(&format!("{}:{}", rest.host, rest.port))
-            .expect(&format!("Bad rest endpoint: {}:{}", rest.host, rest.port));
+        let rest_endpoint = format!("http://{}:{}", rest.host, rest.port);
 
         let grpc = api.grpc.unwrap_or_default();
         let grpc_endpoint_string = format!("http://{}:{}", grpc.host, grpc.port);
         let grpc_endpoint = Endpoint::from_shared(grpc_endpoint_string.clone())
-            .expect(&format!("Invalid grpc endpoint {}", grpc_endpoint_string));
+            .unwrap_or_else(|e| panic!("Invalid grpc endpoint {}: {}", grpc_endpoint_string, e));
 
         let health_grpc_client = HealthGrpcServiceClient::connect(grpc_endpoint.clone())
             .await
-            .expect(&format!(
-                "Health grpc client cannot connect to endpoint {}",
-                grpc_endpoint_string
-            ));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Health grpc client cannot connect to endpoint {}: {}",
+                    grpc_endpoint_string, e
+                )
+            });
         let common_grpc_client = CommonGrpcServiceClient::connect(grpc_endpoint.clone())
             .await
-            .expect(&format!(
-                "Common grpc client cannot connect to endpoint {}",
-                grpc_endpoint_string
-            ));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Common grpc client cannot connect to endpoint {}: {}",
+                    grpc_endpoint_string, e
+                )
+            });
 
         Self {
             config,
@@ -76,7 +77,7 @@ impl Client {
                     .endpoints
                     .iter()
                     .find(|e| &e.name == endpoint)
-                    .expect(&format!("Cannot find endpoint {} in config", endpoint))
+                    .unwrap_or_else(|| panic!("Cannot find endpoint {} in config", endpoint))
                     .path
                     .clone();
                 self.check_endpoint_existence(endpoint, &rest_path).await;
@@ -92,7 +93,7 @@ impl Client {
         // REST health.
         let response = self
             .rest_client
-            .get(&format!("http://{}/health", self.rest_endpoint))
+            .get(&format!("{}/health", self.rest_endpoint))
             .send()
             .await
             .expect("Cannot get response from rest health endpoint");
@@ -116,13 +117,15 @@ impl Client {
         // REST endpoint oapi.
         let response = self
             .rest_client
-            .post(&format!("http://{}{}/oapi", self.rest_endpoint, rest_path))
+            .post(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
             .send()
             .await
-            .expect(&format!(
-                "Cannot get oapi response from rest endpoint {}, path is {}",
-                endpoint, rest_path
-            ));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Cannot get oapi response from rest endpoint {}, path is {}: {}",
+                    endpoint, rest_path, e
+                )
+            });
         let status = response.status();
         if !status.is_success() {
             panic!(
@@ -171,13 +174,15 @@ impl Client {
         // REST OpenAPI schema.
         let response = self
             .rest_client
-            .post(&format!("http://{}{}/oapi", self.rest_endpoint, rest_path))
+            .post(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
             .send()
             .await
-            .expect(&format!(
-                "Cannot get oapi response from rest endpoint {}, path is {}",
-                endpoint, rest_path
-            ));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Cannot get oapi response from rest endpoint {}, path is {}: {}",
+                    endpoint, rest_path, e
+                )
+            });
         let status = response.status();
         if !status.is_success() {
             panic!(
@@ -185,27 +190,35 @@ impl Client {
                 endpoint, status, rest_path
             );
         }
-        let open_api: OpenAPI = response.json().await.expect(&format!(
-            "Cannot parse oapi response from rest endpoint {}, path is {}",
-            endpoint, rest_path,
-        ));
+        let open_api: OpenAPI = response.json().await.unwrap_or_else(|e| {
+            panic!(
+                "Cannot parse oapi response from rest endpoint {}, path is {}: {}",
+                endpoint, rest_path, e
+            )
+        });
         let schema = open_api
             .components
             .as_ref()
-            .expect(&format!(
-                "Cannot find components in oapi response from rest endpoint {}, path is {}",
-                endpoint, rest_path,
-            ))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot find components in oapi response from rest endpoint {}, path is {}",
+                    endpoint, rest_path
+                )
+            })
             .schemas
             .get(endpoint)
-            .expect(&format!(
-                "Cannot find schema for endpoint {} in oapi response, path is {}",
-                endpoint, rest_path,
-            ));
-        let schema = schema.as_item().expect(&format!(
-            "Expecting schema item for endpoint {} in oapi response, path is {}",
-            endpoint, rest_path
-        ));
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot find schema for endpoint {} in oapi response, path is {}",
+                    endpoint, rest_path
+                )
+            });
+        let schema = schema.as_item().unwrap_or_else(|| {
+            panic!(
+                "Expecting schema item for endpoint {} in oapi response, path is {}",
+                endpoint, rest_path
+            )
+        });
         let (properties, required) = match &schema.schema_kind {
             SchemaKind::Type(dozer_api::openapiv3::Type::Object(object_type)) => {
                 (&object_type.properties, &object_type.required)
@@ -229,10 +242,12 @@ impl Client {
                 "Check REST schema failed for endpoint {}, expected field name {}, got {}",
                 endpoint, field.name, property.0
             );
-            let schema = property.1.as_item().expect(&format!(
-                "Expecting schema item for endpoint {}, field {} in oapi response, path is {}",
-                endpoint, field.name, rest_path
-            ));
+            let schema = property.1.as_item().unwrap_or_else(|| {
+                panic!(
+                    "Expecting schema item for endpoint {}, field {} in oapi response, path is {}",
+                    endpoint, field.name, rest_path
+                )
+            });
             let oapi_type = match &schema.schema_kind {
                 SchemaKind::Type(oapi_type) => oapi_type,
                 _ => panic!(
@@ -261,7 +276,7 @@ impl Client {
                 endpoint: endpoint.to_string(),
             })
             .await
-            .expect(&format!("Cannot get fields of endpoint {}", endpoint))
+            .unwrap_or_else(|e| panic!("Cannot get fields of endpoint {}: {}", endpoint, e))
             .into_inner()
             .fields;
         assert_eq!(
@@ -287,9 +302,13 @@ impl Client {
                 actual_field.typ
             );
             assert_eq!(
-                actual_field.nullable, field.nullable,
+                actual_field.nullable,
+                field.nullable,
                 "Check common gRPC schema failed for endpoint {}, field {}, expected field nullable {}, got {}",
-                field.name, endpoint, field.nullable, actual_field.nullable
+                endpoint,
+                field.name,
+                field.nullable,
+                actual_field.nullable
             );
         }
 
@@ -303,10 +322,12 @@ async fn check_grpc_health(client: &mut HealthGrpcServiceClient<Channel>, servic
             service: service.clone(),
         })
         .await
-        .expect(&format!(
-            "Cannot get response from grpc health endpoint for service {}",
-            service,
-        ));
+        .unwrap_or_else(|e| {
+            panic!(
+                "Cannot get response from grpc health endpoint for service {}: {}",
+                service, e
+            )
+        });
     let status = response.into_inner().status;
     if status != ServingStatus::Serving as i32 {
         panic!(
