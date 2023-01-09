@@ -13,14 +13,15 @@ use super::indexer::Indexer;
 use super::query::handler::LmdbQueryHandler;
 use super::{utils, CacheOptions, CacheOptionsKind};
 use crate::cache::expression::QueryExpression;
+use crate::cache::index::get_primary_key;
 use crate::errors::CacheError;
 
-mod primary_index_database;
+mod id_database;
 mod record_database;
 mod schema_database;
 mod secondary_index_database;
 
-pub use primary_index_database::PrimaryIndexDatabase;
+pub use id_database::IdDatabase;
 pub use record_database::RecordDatabase;
 use schema_database::SchemaDatabase;
 use secondary_index_database::SecondaryIndexDatabase;
@@ -31,7 +32,7 @@ pub type SecondaryIndexDatabases = HashMap<(SchemaIdentifier, usize), SecondaryI
 pub struct LmdbCache {
     env: Environment,
     db: RecordDatabase,
-    primary_index: PrimaryIndexDatabase,
+    id: IdDatabase,
     secondary_indexes: Arc<RwLock<SecondaryIndexDatabases>>,
     schema_db: SchemaDatabase,
     cache_options: CacheOptions,
@@ -50,7 +51,7 @@ impl LmdbCache {
         // Create or open must have databases.
         let create_if_not_exist = matches!(cache_options.kind, CacheOptionsKind::Write(_));
         let db = RecordDatabase::new(&env, create_if_not_exist)?;
-        let primary_index = PrimaryIndexDatabase::new(&env, create_if_not_exist)?;
+        let id = IdDatabase::new(&env, create_if_not_exist)?;
         let schema_db = SchemaDatabase::new(&env, create_if_not_exist)?;
 
         // Open existing secondary index databases.
@@ -70,7 +71,7 @@ impl LmdbCache {
         Ok(Self {
             env,
             db,
-            primary_index,
+            id,
             secondary_indexes: Arc::new(RwLock::new(secondary_indexe_databases)),
             schema_db,
             cache_options,
@@ -84,10 +85,15 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        let id = self.db.insert(txn, record)?;
+        let id = if schema.primary_index.is_empty() {
+            self.id.get_or_generate(txn, None)?
+        } else {
+            let primary_key = get_primary_key(&schema.primary_index, &record.values);
+            self.id.get_or_generate(txn, Some(&primary_key))?
+        };
+        self.db.insert(txn, id, record)?;
 
         let indexer = Indexer {
-            primary_index: self.primary_index,
             secondary_indexes: self.secondary_indexes.clone(),
         };
 
@@ -108,7 +114,7 @@ impl LmdbCache {
     }
 
     fn get_with_txn<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<Record, CacheError> {
-        self.db.get(txn, self.primary_index.get(txn, key)?)
+        self.db.get(txn, self.id.get(txn, key)?)
     }
 
     pub fn delete_with_txn(
@@ -119,14 +125,13 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
-        let id = self.primary_index.get(txn, key)?;
+        let id = self.id.get(txn, key)?;
         self.db.delete(txn, id)?;
 
         let indexer = Indexer {
-            primary_index: self.primary_index,
             secondary_indexes: self.secondary_indexes.clone(),
         };
-        indexer.delete_indexes(txn, record, schema, secondary_indexes, key, id)
+        indexer.delete_indexes(txn, record, schema, secondary_indexes, id)
     }
 
     pub fn update_with_txn(
