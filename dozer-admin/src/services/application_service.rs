@@ -1,11 +1,3 @@
-use dozer_types::{
-    constants::DEFAULT_HOME_DIR,
-    models::{
-        api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::Config, source::Source,
-    },
-    serde_yaml,
-};
-
 use crate::{
     cli::utils::kill_process_at,
     db::{application::AppDbService, persistable::Persistable, pool::DbPool},
@@ -15,19 +7,22 @@ use crate::{
         StartPipelineResponse, UpdateAppRequest, UpdateAppResponse,
     },
 };
-use std::fs;
+use dozer_types::{
+    constants::DEFAULT_HOME_DIR,
+    models::{
+        api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::Config, source::Source,
+    },
+    serde_yaml,
+};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
+use std::{fs, process::Stdio};
 pub struct AppService {
     db_pool: DbPool,
-    dozer_path: String,
 }
 impl AppService {
     pub fn new(db_pool: DbPool, dozer_path: String) -> Self {
-        Self {
-            db_pool,
-            dozer_path,
-        }
+        Self { db_pool }
     }
 }
 impl AppService {
@@ -128,17 +123,18 @@ impl AppService {
             app_id: Some(input.app_id),
         })?;
         let app_detail: dozer_types::models::app_config::Config = app_detail_result.data.unwrap();
-        let path = Path::new(DEFAULT_HOME_DIR).join("api_config");
+        let path = Path::new(DEFAULT_HOME_DIR).join("yaml_config");
         if path.exists() {
             fs::remove_dir_all(&path).unwrap();
         }
         fs::create_dir_all(&path).unwrap();
         let config = app_detail.to_owned();
-        let yaml_path = path.join(format!(
+        let yaml_file_name = format!(
             "dozer-config-{:}-{:}.yaml",
             config.app_name,
             config.to_owned().id.unwrap()
-        ));
+        );
+        let yaml_path = path.join(yaml_file_name.clone());
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -148,35 +144,88 @@ impl AppService {
             message: op.to_string(),
         })?;
         let dozer_log_path = path;
+        let log_file_path = dozer_log_path.join(format!(
+            "logs-{:}-{:}.txt",
+            config.app_name,
+            config.id.to_owned().unwrap()
+        ));
         let dozer_log_file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(dozer_log_path.join(format!(
-                "logs-{:}-{:}.txt",
-                config.app_name,
-                config.id.unwrap()
-            )))
+            .open(log_file_path)
             .expect("Couldn't open file");
-        let errors_log_file = dozer_log_file.try_clone().map_err(|op| ErrorResponse {
-            message: op.to_string(),
-        })?;
 
-        // kill process at port 8080 50051 lsof -t -i:8080 | xargs -r kill
-        if let Some(api_config) = app_detail.api {
-            kill_process_at(api_config.grpc.unwrap_or_default().port as u16);
-        }
-
-        // assumption 2 bin: dozer-admin + dozer always in same dir
-        let path_to_bin = &self.dozer_path;
-        let _execute_cli_output = Command::new(path_to_bin)
-            .arg("-c")
-            .arg(yaml_path.as_path().to_str().unwrap())
-            .stdout(Stdio::from(dozer_log_file))
-            .stderr(Stdio::from(errors_log_file))
-            .spawn()
+        let docker_name = format!("dozer-{:}-{:}", config.app_name, config.id.unwrap());
+        // termiate docker if exists:
+        let docker_terminate_command = Command::new("docker")
+            .arg("rm")
+            .arg("-f")
+            .arg(docker_name.to_owned())
+            .output()
             .map_err(|op| ErrorResponse {
                 message: op.to_string(),
             })?;
-        Ok(StartPipelineResponse { success: true })
+        // start docker:
+        let docker_image_address = "public.ecr.aws/k7k6x1d4/dozer:latest";
+        let pull_docker_command = Command::new("docker")
+            .arg("pull")
+            .arg(docker_image_address)
+            .output()
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+            })?;
+        // run docker image:
+        let binding = fs::canonicalize(&yaml_path).unwrap().to_owned();
+        let absolute_path = binding.to_str().unwrap();
+        let rest_port = config.api.to_owned().unwrap().rest.unwrap_or_default().port;
+        let grpc_port = config.api.to_owned().unwrap().grpc.unwrap_or_default().port;
+        let internal_grpc_port = config
+            .api
+            .to_owned()
+            .unwrap_or_default()
+            .pipeline_internal
+            .unwrap_or_default()
+            .port;
+
+        let run_docker_command = Command::new("docker")
+            .arg("run")
+            .arg("--name")
+            .arg(docker_name.to_owned())
+            .arg("-d")
+            .arg("-p")
+            .arg(format!("{:}:{:}", rest_port, rest_port)) // rest port
+            .arg("-p")
+            .arg(format!("{:}:{:}", grpc_port, grpc_port)) // grpc port
+            .arg("-p")
+            .arg(format!("{:}:{:}", internal_grpc_port, internal_grpc_port)) // internal grpc port
+            .arg("-v")
+            .arg(format!("{:}:/usr/dozer/dozer-config.yaml", absolute_path))
+            .arg(docker_image_address)
+            .arg("dozer")
+            .output()
+            .map_err(|op| ErrorResponse {
+                message: op.to_string(),
+            })?;
+        if !run_docker_command.status.success() {
+            if let Ok(err) = String::from_utf8(run_docker_command.stderr) {
+                return Err(ErrorResponse { message: err });
+            }
+        }
+        if let Ok(output) = String::from_utf8(run_docker_command.stdout) {
+            // write to logs
+            let stream_logs_to_file = Command::new("docker")
+                .arg("logs")
+                .arg("-f")
+                .arg(output.trim())
+                .stdout(Stdio::from(dozer_log_file))
+                .spawn()
+                .map_err(|op| ErrorResponse {
+                    message: op.to_string(),
+                })?;
+        }
+
+        Ok(StartPipelineResponse {
+            success: run_docker_command.status.success(),
+        })
     }
 }
