@@ -5,8 +5,8 @@ use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::{Connector, TableInfo};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::log::debug;
 use dozer_types::parking_lot::RwLock;
+use dozer_types::tracing::{error, info};
 use dozer_types::types::SchemaWithChangesType;
 use postgres::Client;
 use postgres_types::PgLsn;
@@ -61,6 +61,30 @@ impl PostgresConnector {
             schema_helper: helper,
         }
     }
+
+    fn get_lsn_with_offset_from_seq(
+        conn_name: String,
+        from_seq: Option<(u64, u64)>,
+    ) -> Option<(PgLsn, u64)> {
+        from_seq.map_or_else(
+            || {
+                info!("[{}] Starting replication from empty database", conn_name);
+                None
+            },
+            |(lsn, checkpoint)| {
+                if lsn > 0 || checkpoint > 0 {
+                    info!(
+                        "[{}] Starting replication from checkpoint ({}/{})",
+                        conn_name, lsn, checkpoint
+                    );
+                    Some((PgLsn::from(lsn), checkpoint))
+                } else {
+                    info!("[{}] Starting replication from empty database", conn_name);
+                    None
+                }
+            },
+        )
+    }
 }
 
 impl Connector for PostgresConnector {
@@ -87,9 +111,12 @@ impl Connector for PostgresConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
+        let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), from_seq);
+
         let iterator = PostgresIterator::new(
             self.id,
+            self.name.clone(),
             self.get_publication_name(),
             self.get_slot_name(),
             self.tables.to_owned(),
@@ -100,7 +127,7 @@ impl Connector for PostgresConnector {
                 .clone(),
             self.conn_config.clone(),
         );
-        iterator.start()
+        iterator.start(lsn)
     }
 
     fn stop(&self) {}
@@ -146,7 +173,7 @@ impl PostgresConnector {
         client
             .simple_query(format!("DROP PUBLICATION IF EXISTS {}", publication_name).as_str())
             .map_err(|e| {
-                debug!("failed to drop publication {}", e.to_string());
+                error!("failed to drop publication {}", e.to_string());
                 PostgresConnectorError::DropPublicationError
             })?;
 
@@ -155,7 +182,7 @@ impl PostgresConnector {
                 format!("CREATE PUBLICATION {} FOR {}", publication_name, table_str).as_str(),
             )
             .map_err(|e| {
-                debug!("failed to create publication {}", e.to_string());
+                error!("failed to create publication {}", e.to_string());
                 PostgresConnectorError::CreatePublicationError
             })?;
         Ok(())

@@ -171,7 +171,7 @@ impl Source for ConnectorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _from_seq: Option<(u64, u64)>,
+        from_seq: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
         let mut connector = get_connector(self.connection.to_owned())
             .map_err(|e| ExecutionError::ConnectorError(Box::new(e)))?;
@@ -180,7 +180,7 @@ impl Source for ConnectorSource {
         let tables = self.tables.clone();
         let con_fn = move || -> Result<(), ConnectorError> {
             connector.initialize(ingestor, Some(tables))?;
-            connector.start()?;
+            connector.start(from_seq)?;
             Ok(())
         };
         let running = self.running.clone();
@@ -196,7 +196,7 @@ impl Source for ConnectorSource {
             let msg = self.iterator.write().next();
             if let Some(msg) = msg {
                 match msg {
-                    (_, IngestionOperation::OperationEvent(op)) => {
+                    ((lsn, seq_no), IngestionOperation::OperationEvent(op)) => {
                         let identifier = match &op.operation {
                             Operation::Delete { old } => old.schema_id.to_owned(),
                             Operation::Insert { new } => new.schema_id.to_owned(),
@@ -207,7 +207,7 @@ impl Source for ConnectorSource {
                             .schema_port_map
                             .get(&schema_id)
                             .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)?;
-                        fw.send(op.seq_no, 0, op.operation.to_owned(), port.to_owned())?
+                        fw.send(lsn, seq_no, op.operation.to_owned(), port.to_owned())?
                     }
                 }
             } else {

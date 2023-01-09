@@ -33,7 +33,7 @@ impl EventsConnector {
 
         ingestor
             .write()
-            .handle_message((self.id, msg))
+            .handle_message(((0, 0), msg))
             .map_err(ConnectorError::IngestorError)
     }
 }
@@ -72,7 +72,7 @@ impl Connector for EventsConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         Ok(())
     }
 

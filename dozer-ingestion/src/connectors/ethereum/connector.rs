@@ -187,12 +187,10 @@ impl Connector for EthConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
-
-        let connector_id = self.id;
 
         let ingestor = self
             .ingestor
@@ -205,7 +203,6 @@ impl Connector for EthConnector {
                 wss_url,
                 filter,
                 ingestor,
-                connector_id,
                 self.contracts.to_owned(),
                 self.tables.to_owned(),
                 self.schema_map.to_owned(),

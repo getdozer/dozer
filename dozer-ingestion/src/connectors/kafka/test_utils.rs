@@ -115,7 +115,7 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
 
         let mut connector = get_connector(connection).unwrap();
         connector.initialize(ingestor, Some(tables)).unwrap();
-        let _ = connector.start();
+        let _ = connector.start(None);
     });
 
     (iterator, client)

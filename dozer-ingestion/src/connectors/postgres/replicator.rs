@@ -8,15 +8,13 @@ use crate::errors::PostgresConnectorError::{
 use crate::ingestion::Ingestor;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::log::{debug, error};
+use dozer_types::log::{error, info};
 use dozer_types::parking_lot::RwLock;
-use dozer_types::types::Commit;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use crate::connectors::TableInfo;
 use std::sync::Arc;
@@ -25,13 +23,21 @@ use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
 
 pub struct CDCHandler {
+    pub name: String,
+    pub connector_id: u64,
+    pub ingestor: Arc<RwLock<Ingestor>>,
+
     pub replication_conn_config: tokio_postgres::Config,
     pub publication_name: String,
     pub slot_name: String,
-    pub lsn: String,
+
+    pub start_lsn: PgLsn,
+    pub begin_lsn: u64,
+    pub offset_lsn: u64,
     pub last_commit_lsn: u64,
-    pub ingestor: Arc<RwLock<Ingestor>>,
-    pub connector_id: u64,
+
+    pub offset: u64,
+    pub seq_no: u64,
 }
 
 impl CDCHandler {
@@ -39,36 +45,25 @@ impl CDCHandler {
         let replication_conn_config = self.replication_conn_config.clone();
         let client: tokio_postgres::Client = helper::async_connect(replication_conn_config).await?;
 
-        let lsn = self.lsn.clone();
+        info!(
+            "[{}] Starting Replication: {:?}, {:?}",
+            self.name.clone(),
+            self.start_lsn,
+            self.publication_name.clone()
+        );
+
+        let lsn = self.start_lsn;
         let options = format!(
             r#"("proto_version" '1', "publication_names" '{publication_name}')"#,
             publication_name = self.publication_name
-        );
-        debug!(
-            "Starting Replication: {:?}, {:?}",
-            lsn,
-            self.publication_name.clone()
         );
         let query = format!(
             r#"START_REPLICATION SLOT {:?} LOGICAL {} {}"#,
             self.slot_name, lsn, options
         );
 
-        let pg_lsn = PgLsn::from_str(lsn.as_str()).unwrap();
-        self.last_commit_lsn = u64::from(pg_lsn);
-
-        debug!("last_commit_lsn: {:?}", self.last_commit_lsn);
-        // Marking point of replication start
-        self.ingestor
-            .write()
-            .handle_message((
-                self.connector_id,
-                IngestionMessage::Commit(Commit {
-                    seq_no: 0,
-                    lsn: self.last_commit_lsn,
-                }),
-            ))
-            .map_err(ConnectorError::IngestorError)?;
+        self.offset_lsn = u64::from(lsn);
+        self.last_commit_lsn = u64::from(lsn);
 
         let copy_stream = client
             .copy_both_simple::<bytes::Bytes>(&query)
@@ -120,17 +115,34 @@ impl CDCHandler {
     ) -> Result<(), ConnectorError> {
         match message {
             Some(Ok(XLogData(body))) => {
+                let lsn = body.wal_start();
                 let message = mapper.handle_message(body)?;
-                if let Some(ingestion_message) = message {
-                    if let IngestionMessage::Commit(commit) = ingestion_message {
+
+                match message {
+                    Some(IngestionMessage::Commit(commit)) => {
                         self.last_commit_lsn = commit.lsn;
                     }
-
-                    self.ingestor
-                        .write()
-                        .handle_message((self.connector_id, ingestion_message))
-                        .map_err(ConnectorError::IngestorError)?;
+                    Some(IngestionMessage::Begin()) => {
+                        self.begin_lsn = lsn;
+                        self.seq_no = 0;
+                        if self.begin_lsn != self.offset_lsn {
+                            self.offset = 0;
+                        }
+                    }
+                    Some(ingestion_message) => {
+                        self.seq_no += 1;
+                        if self.offset == 0 {
+                            self.ingestor
+                                .write()
+                                .handle_message(((self.begin_lsn, self.seq_no), ingestion_message))
+                                .map_err(ConnectorError::IngestorError)?;
+                        } else {
+                            self.offset -= 1;
+                        }
+                    }
+                    None => {}
                 }
+
                 Ok(())
             }
             Some(Ok(msg)) => {
