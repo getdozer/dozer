@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use crate::connectors::kafka::debezium::schema::map_type;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::connectors::TableInfo;
@@ -7,7 +9,10 @@ use crate::errors::{ConnectorError, DebeziumError, DebeziumSchemaError};
 use dozer_types::ingestion_types::KafkaConfig;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, FieldType, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
+    SchemaWithChangesType,
+};
 use schema_registry_converter::blocking::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use std::collections::HashMap;
@@ -77,7 +82,7 @@ impl SchemaRegistry {
     pub fn get_schema(
         table_names: Option<Vec<TableInfo>>,
         config: KafkaConfig,
-    ) -> Result<Vec<(String, Schema)>, ConnectorError> {
+    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
         let sr_settings = SrSettings::new(config.schema_registry_url.unwrap());
         table_names.map_or(Ok(vec![]), |tables| {
             tables.get(0).map_or(Ok(vec![]), |table| {
@@ -91,7 +96,8 @@ impl SchemaRegistry {
                         .collect()
                 });
 
-                let mut schema_data: Option<Result<Vec<(String, Schema)>, ConnectorError>> = None;
+                let mut schema_data: Option<Result<Vec<SchemaWithChangesType>, ConnectorError>> =
+                    None;
                 let fields = schema_result.fields.map_or(vec![], |f| f);
                 for f in fields {
                     if f.name.clone().unwrap() == "before" {
@@ -133,7 +139,11 @@ impl SchemaRegistry {
                                     primary_index: pk_keys_indexes,
                                 };
 
-                                schema_data = Some(Ok(vec![(table.name.clone(), schema)]));
+                                schema_data = Some(Ok(vec![(
+                                    table.name.clone(),
+                                    schema,
+                                    ReplicationChangesTrackingType::FullChanges,
+                                )]));
                             }
                         }
                     }

@@ -10,6 +10,7 @@ use crate::{
 };
 use dozer_orchestrator::get_connector;
 use dozer_types::models::connection::{Authentication, Connection};
+use dozer_types::types::SchemaWithChangesType;
 use std::thread;
 
 pub struct ConnectionService {
@@ -25,7 +26,7 @@ impl ConnectionService {
     async fn _get_schema(
         &self,
         connection: Connection,
-    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ErrorResponse> {
+    ) -> Result<Vec<SchemaWithChangesType>, ErrorResponse> {
         let get_schema_res = thread::spawn(|| {
             let connector = get_connector(connection).map_err(|err| err.to_string())?;
             connector.get_schemas(None).map_err(|err| err.to_string())
@@ -82,7 +83,9 @@ impl ConnectionService {
             details: Some(ConnectionDetails {
                 table_info: schema
                     .iter()
-                    .map(|x| TableInfo::try_from(x.clone()).unwrap())
+                    .map(|(name, schema, _)| {
+                        TableInfo::try_from((name.clone(), schema.clone())).unwrap()
+                    })
                     .collect(),
             }),
         })
@@ -107,7 +110,9 @@ impl ConnectionService {
             details: Some(ConnectionDetails {
                 table_info: schema
                     .iter()
-                    .map(|x| TableInfo::try_from(x.clone()).unwrap())
+                    .map(|(name, schema, _)| {
+                        TableInfo::try_from((name.clone(), schema.clone())).unwrap()
+                    })
                     .collect(),
             }),
         })

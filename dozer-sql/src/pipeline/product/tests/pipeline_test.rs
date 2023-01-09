@@ -41,8 +41,8 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(vec![
             OutputPortDef::new(
                 USER_PORT,
                 OutputPortType::StatefulWithPrimaryKeyLookup {
@@ -57,7 +57,7 @@ impl SourceFactory for TestSourceFactory {
                     retr_old_records_for_deletes: true,
                 },
             ),
-        ]
+        ])
     }
 
     fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, ExecutionError> {
