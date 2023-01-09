@@ -20,7 +20,7 @@ pub async fn run_test_client(dozer_config: Config, expectations: &[Expectation])
     }
 }
 
-/// Sources should be ready by now. And this function must be given a command that runs dozer.
+/// Connections should be ready by now. And this function must be given a command that runs dozer.
 pub async fn check_error_expectation(
     dozer_command: impl FnMut() -> (Command, Vec<Cleanup>),
     dozer_config_path: &str,

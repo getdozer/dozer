@@ -45,7 +45,7 @@ impl Runner {
                     if let Some(docker_compose) = &docker_compose {
                         cleanups.push(run_docker_compose(
                             &docker_compose.path,
-                            &docker_compose.sources_healthy_service_name,
+                            &docker_compose.connections_healthy_service_name,
                         ));
                     }
 
@@ -67,7 +67,7 @@ impl Runner {
                         if let Some(docker_compose) = &docker_compose {
                             cleanups.push(run_docker_compose(
                                 &docker_compose.path,
-                                &docker_compose.sources_healthy_service_name,
+                                &docker_compose.connections_healthy_service_name,
                             ));
                         }
                         cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));

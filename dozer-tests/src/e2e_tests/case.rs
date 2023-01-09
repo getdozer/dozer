@@ -11,7 +11,7 @@ use super::{
     expectation::{ErrorExpectation, Expectation},
 };
 
-pub struct Source {
+pub struct Connection {
     pub directory: PathBuf,
     pub service: Option<Service>,
 }
@@ -25,36 +25,36 @@ pub struct Case {
     pub case_dir: PathBuf,
     pub dozer_config_path: String,
     pub dozer_config: Config,
-    pub sources_dir: PathBuf,
-    pub sources: HashMap<String, Source>,
+    pub connections_dir: PathBuf,
+    pub connections: HashMap<String, Connection>,
     pub kind: CaseKind,
 }
 
 impl Case {
-    pub fn load_from_case_dir(case_dir: PathBuf, sources_dir: PathBuf) -> Self {
+    pub fn load_from_case_dir(case_dir: PathBuf, connections_dir: PathBuf) -> Self {
         let dozer_config_path = find_dozer_config_path(&case_dir);
         let dozer_config: Config = read_yaml(dozer_config_path.as_ref());
 
-        let mut sources = HashMap::new();
+        let mut connections = HashMap::new();
         for connection in &dozer_config.connections {
-            let source_dir = sources_dir.join(&connection.name);
-            if !source_dir.exists() {
+            let connection_dir = connections_dir.join(&connection.name);
+            if !connection_dir.exists() {
                 continue;
             }
 
-            if !source_dir.join("Dockerfile").exists() {
-                panic!("Source {:?} must have Dockerfile", source_dir);
+            if !connection_dir.join("Dockerfile").exists() {
+                panic!("Connection {:?} must have Dockerfile", connection_dir);
             }
 
-            let service_path = find_service_path(&source_dir);
+            let service_path = find_service_path(&connection_dir);
             let service = service_path
                 .as_ref()
                 .map(|service_path| read_yaml(service_path));
 
-            sources.insert(
+            connections.insert(
                 connection.name.clone(),
-                Source {
-                    directory: source_dir,
+                Connection {
+                    directory: connection_dir,
                     service,
                 },
             );
@@ -67,8 +67,8 @@ impl Case {
                 case_dir,
                 dozer_config_path,
                 dozer_config,
-                sources_dir,
-                sources,
+                connections_dir,
+                connections,
                 kind: CaseKind::Expectations(expectations),
             }
         } else if let Some(error_expectation) = error_expectation {
@@ -76,8 +76,8 @@ impl Case {
                 case_dir,
                 dozer_config_path,
                 dozer_config,
-                sources_dir,
-                sources,
+                connections_dir,
+                connections,
                 kind: CaseKind::ErrorExpectation(error_expectation),
             }
         } else {
@@ -110,9 +110,9 @@ fn read_yaml<T: dozer_types::serde::de::DeserializeOwned>(path: &Path) -> T {
         .unwrap_or_else(|e| panic!("Cannot parse file: {}: {}", path.to_string_lossy(), e))
 }
 
-fn find_service_path(source_dir: &Path) -> Option<PathBuf> {
+fn find_service_path(connection_dir: &Path) -> Option<PathBuf> {
     let file_name = "service.yaml";
-    let service_path = source_dir.join(file_name);
+    let service_path = connection_dir.join(file_name);
     if service_path.exists() {
         Some(service_path)
     } else {

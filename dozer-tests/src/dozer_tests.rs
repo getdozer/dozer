@@ -7,8 +7,8 @@ use dozer_tests::e2e_tests::{create_runner, Case, RunnerType};
 struct Args {
     #[arg(short, long, default_value = "dozer-tests/src/e2e_tests/cases")]
     cases_dir: String,
-    #[arg(short, long, default_value = "dozer-tests/src/e2e_tests/sources")]
-    sources_dir: String,
+    #[arg(short, long, default_value = "dozer-tests/src/e2e_tests/connections")]
+    connections_dir: String,
     #[arg(short, long, default_value_t = RunnerType::Local)]
     runner: RunnerType,
     #[arg(default_value = "")]
@@ -20,12 +20,12 @@ async fn main() {
     env_logger::init();
 
     let args = Args::parse();
-    let sources_dir = AsRef::<Path>::as_ref(&args.sources_dir)
+    let connections_dir = AsRef::<Path>::as_ref(&args.connections_dir)
         .canonicalize()
         .unwrap_or_else(|e| {
             panic!(
-                "Failed to canonicalize sources path {}: {}",
-                args.sources_dir, e
+                "Failed to canonicalize connections path {}: {}",
+                args.connections_dir, e
             )
         });
 
@@ -53,7 +53,7 @@ async fn main() {
                 .unwrap_or_else(|| panic!("Non-UTF8 path {:?}", case_dir))
                 .starts_with(&args.case_prefix)
         {
-            let case = Case::load_from_case_dir(case_dir, sources_dir.clone());
+            let case = Case::load_from_case_dir(case_dir, connections_dir.clone());
             runner.run_test_case(&case).await;
         }
     }

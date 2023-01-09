@@ -9,12 +9,12 @@ use dozer_types::models::{app_config::Config, connection::Authentication};
 
 use crate::e2e_tests::{
     docker_compose::{Build, Condition, DependsOn, DockerCompose, Service},
-    Case, CaseKind, Source,
+    Case, CaseKind, Connection,
 };
 
 pub struct LocalDockerCompose {
     pub path: PathBuf,
-    pub sources_healthy_service_name: String,
+    pub connections_healthy_service_name: String,
 }
 
 pub enum RunningEnv {
@@ -32,16 +32,17 @@ pub enum RunningEnv {
 pub fn create_docker_compose_for_local_runner(case: &Case) -> Option<LocalDockerCompose> {
     let mut services = HashMap::new();
 
-    let sources_healthy_service_name = add_source_services(&case.sources, &mut services);
+    let connections_healthy_service_name =
+        add_connection_services(&case.connections, &mut services);
 
-    if let Some(sources_healthy_service_name) = sources_healthy_service_name {
+    if let Some(connections_healthy_service_name) = connections_healthy_service_name {
         let local_runner_path = case.case_dir.join("local_runner");
         create_dir_if_not_existing(&local_runner_path);
         let docker_compose_path = local_runner_path.join("docker-compose.yaml");
         write_docker_compose(&docker_compose_path, services);
         Some(LocalDockerCompose {
             path: docker_compose_path,
-            sources_healthy_service_name,
+            connections_healthy_service_name,
         })
     } else {
         None
@@ -58,7 +59,7 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
 
     let dozer_config_path = write_dozer_config_for_running_in_docker_compose(
         case.dozer_config.clone(),
-        &case.sources,
+        &case.connections,
         &buildkite_dir,
     );
 
@@ -71,7 +72,8 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
 
     let mut services = HashMap::new();
 
-    let sources_healthy_service_name = add_source_services(&case.sources, &mut services);
+    let connections_healthy_service_name =
+        add_connection_services(&case.connections, &mut services);
 
     let (
         dozer_api_service_name,
@@ -80,7 +82,7 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
     ) = if single_dozer_container {
         add_dozer_service(
             &dozer_config_path,
-            sources_healthy_service_name,
+            connections_healthy_service_name,
             &mut services,
         )
     } else {
@@ -91,7 +93,7 @@ fn create_buildkite_runner_env(case: &Case, single_dozer_container: bool) -> Run
         Some(add_dozer_test_client_service(
             dozer_api_service_name,
             &case.case_dir,
-            &case.sources_dir,
+            &case.connections_dir,
             &mut services,
         ))
     } else {
@@ -165,18 +167,18 @@ fn add_dozer_service(
 fn add_dozer_test_client_service(
     dozer_api_service_name: String,
     case_dir: &Path,
-    sources_dir: &Path,
+    connections_dir: &Path,
     services: &mut HashMap<String, Service>,
 ) -> String {
     let dozer_test_client_service_name = "dozer-test-client";
     let case_dir = case_dir
         .to_str()
         .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", case_dir));
-    let sources_dir = sources_dir
+    let connections_dir = connections_dir
         .to_str()
-        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", sources_dir));
+        .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", connections_dir));
     let case_dir_in_container = "/case";
-    let sources_dir_in_container = "/sources";
+    let connections_dir_in_container = "/connections";
     let dozer_test_client_path = current_dir()
         .expect("Cannot get current dir")
         .join("target/debug/dozer-test-client");
@@ -206,14 +208,14 @@ fn add_dozer_test_client_service(
                     dozer_test_client_path, dozer_test_client_path_in_container
                 ),
                 format!("{}:{}", case_dir, case_dir_in_container),
-                format!("{}:{}", sources_dir, sources_dir_in_container),
+                format!("{}:{}", connections_dir, connections_dir_in_container),
             ],
             command: Some(format!(
-                "{} --wait-in-millis 10000 --dozer-api-host {} --case-dir {} --sources-dir {}",
+                "{} --wait-in-millis 10000 --dozer-api-host {} --case-dir {} --connections-dir {}",
                 dozer_test_client_path_in_container,
                 dozer_api_service_name,
                 case_dir_in_container,
-                sources_dir_in_container
+                connections_dir_in_container
             )),
             depends_on: vec![(
                 dozer_api_service_name,
@@ -229,19 +231,19 @@ fn add_dozer_test_client_service(
     dozer_test_client_service_name.to_string()
 }
 
-fn add_source_services(
-    sources: &HashMap<String, Source>,
+fn add_connection_services(
+    connections: &HashMap<String, Connection>,
     services: &mut HashMap<String, Service>,
 ) -> Option<String> {
     let mut depends_on = HashMap::new();
 
-    for (name, source) in sources {
-        let mut service = source.service.clone().unwrap_or_default();
+    for (name, connection) in connections {
+        let mut service = connection.service.clone().unwrap_or_default();
 
-        let context = source
+        let context = connection
             .directory
             .to_str()
-            .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", source.directory));
+            .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", connection.directory));
         service.build = Some(Build {
             context: context.to_string(),
             dockerfile: None,
@@ -264,9 +266,9 @@ fn add_source_services(
         return None;
     }
 
-    let sources_healthy_service_name = "dozer-wait-for-sources-healthy";
+    let connections_healthy_service_name = "dozer-wait-for-connections-healthy";
     services.insert(
-        sources_healthy_service_name.to_string(),
+        connections_healthy_service_name.to_string(),
         Service {
             container_name: None,
             image: Some("public.ecr.aws/k7k6x1d4/dozer".to_string()),
@@ -274,12 +276,12 @@ fn add_source_services(
             ports: vec![],
             environment: HashMap::new(),
             volumes: vec![],
-            command: Some("echo 'All sources are healthy'".to_string()),
+            command: Some("echo 'All connections are healthy'".to_string()),
             depends_on,
             healthcheck: None,
         },
     );
-    Some(sources_healthy_service_name.to_string())
+    Some(connections_healthy_service_name.to_string())
 }
 
 fn eth_wss_url() -> String {
@@ -301,16 +303,16 @@ fn write_docker_compose(path: &Path, services: HashMap<String, Service>) {
 
 fn write_dozer_config_for_running_in_docker_compose(
     mut config: Config,
-    sources: &HashMap<String, Source>,
+    connections: &HashMap<String, Connection>,
     dir: &Path,
 ) -> String {
     let mut host_port_to_container_port = HashMap::new();
-    for source in sources.values() {
-        if let Some(service) = &source.service {
+    for connection in connections.values() {
+        if let Some(service) = &connection.service {
             for port in &service.ports {
                 let published = port.published.unwrap_or(port.target);
                 if host_port_to_container_port.contains_key(&published) {
-                    panic!("Multiple sources are publishing to the same host port: {}. Confilicing sources are being used? Check the config file at {:?}.", port.target, dir.parent());
+                    panic!("Multiple connections are publishing to the same host port: {}. Confilicing connections are being used? Check the config file at {:?}.", port.target, dir.parent());
                 }
                 host_port_to_container_port.insert(published, port.target);
             }
@@ -321,7 +323,7 @@ fn write_dozer_config_for_running_in_docker_compose(
         host_port_to_container_port
             .get(&port)
             .copied()
-            .unwrap_or_else(|| panic!("A connection attempts to use port {} that's not published. Is this a source that doesn't needs to run in the docker compose? If so, try to remove the source from the repository", port))
+            .unwrap_or_else(|| panic!("A connection attempts to use port {} that's not published. Is this a connection that doesn't needs to run in the docker compose? If so, try to remove the connection from the repository", port))
     };
 
     for connection in &mut config.connections {

@@ -8,7 +8,7 @@ struct Args {
     #[arg(short, long)]
     case_dir: String,
     #[arg(short, long)]
-    sources_dir: String,
+    connections_dir: String,
     #[arg(short, long)]
     dozer_api_host: String,
     #[arg(short, long)]
@@ -19,7 +19,7 @@ struct Args {
 async fn main() {
     env_logger::init();
     let args = Args::parse();
-    let case = Case::load_from_case_dir(args.case_dir.clone().into(), args.sources_dir.into());
+    let case = Case::load_from_case_dir(args.case_dir.clone().into(), args.connections_dir.into());
     let CaseKind::Expectations(expectations) = case.kind else {
         panic!("Expectations not found in case {}", args.case_dir)
     };

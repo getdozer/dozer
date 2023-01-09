@@ -46,17 +46,17 @@ Otherwise, if `error.json` is found, the framework expects `dozer` fails to star
 
 For all supported error expectation checks, see `expectations.rs`.
 
-## Add a Source
+## Add a Connection
 
-Test cases may need to connect to various kinds of sources. Sources can run as a docker compose service.
+Test cases may need to establish various kinds of connections. Connection services can run as a docker compose service.
 
-The framework traverses `dozer-config.yaml`, and for every `connection`, it tries to find a directory with the connection name under `dozer-tests/src/e2e_tests/sources`. If found, it adds the source service defined in that directory to a docker compose file, and starts the containers before running the test client.
+The framework traverses `dozer-config.yaml`, and for every `connection`, it tries to find a directory with the connection name under `dozer-tests/src/e2e_tests/connections`. If found, it adds the connection service defined in that directory to a docker compose file, and starts the containers before running the test client.
 
-The source directory must have a `Dockerfile` used for building the image. The build context will be the source directory.
+The connection directory must have a `Dockerfile` used for building the image. The build context will be the connection directory.
 
-It can optionally contain a `service.yaml` file, whose content will be added to the source service section of the docker commpose file. The `build` section of `service.yaml` will be overwritten. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
+It can optionally contain a `service.yaml` file, whose content will be added to the connection service section of the docker commpose file. The `build` section of `service.yaml` will be overwritten. The working directory of the `docker compose` run will be the repository root, so be careful with relative paths in `service.yaml` (better don't use them).
 
-### Troubleshoot Sources
+### Troubleshoot Connections
 
 - If `service.yaml` parsing fails or generated `docker-compose.yaml` misses some content from it, it's probably because our data model doesn't agree with the file content. You can check the data model at `docker_compose.rs`.
 
@@ -67,7 +67,7 @@ cargo build --bin dozer-test-client
 cargo run --bin dozer-tests -- -r buildkite
 ```
 
-If `buildkite` runner type is used, the framework will not use local `dozer` binary or run test client in-process. Instead, it creates `docker-compose.yaml` files for the test cases, which contains all the sources, the `dozer` service and the test client. A separate `docker compose` process is started to validate all the expectations using the client.
+If `buildkite` runner type is used, the framework will not use local `dozer` binary or run test client in-process. Instead, it creates `docker-compose.yaml` files for the test cases, which contains all the connection services, the `dozer` service and the test client. A separate `docker compose` process is started to validate all the expectations using the client.
 
 This mode requires you to build `dozer-test-client` binary first, and the artifact must be located at `target/debug/dozer-test-client`.
 
