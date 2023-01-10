@@ -202,10 +202,13 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
     for (state_options, port) in port_databases.iter().zip(output_ports.iter()) {
         if let Some(state_options) = state_options {
             for endpoint in get_inputs_for_output(edges, handle, &port.handle) {
-                record_stores.get_mut(&endpoint.node).unwrap().insert(
-                    endpoint.port,
-                    RecordReader::new(master_tx.clone(), state_options.db),
-                );
+                record_stores
+                    .get_mut(&endpoint.node)
+                    .expect("Record store HashMap must be created for every node upfront")
+                    .insert(
+                        endpoint.port,
+                        RecordReader::new(master_tx.clone(), state_options.db),
+                    );
             }
         }
     }
