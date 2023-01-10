@@ -203,7 +203,9 @@ impl IndexScanKind {
                     if fields.len() != eq_filters.len() + 1 {
                         return false;
                     }
-                    let last_field = fields.last().unwrap();
+                    let last_field = fields
+                        .last()
+                        .expect("We've checked `fields.len()` is at least 1");
                     range_query.field_index == *last_field
                 } else {
                     fields.len() == eq_filters.len()

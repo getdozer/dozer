@@ -145,9 +145,10 @@ impl Field {
                         .map_err(|_| DeserializationError::BadDataLength)?,
                 )),
             ))),
-            9 => Ok(FieldBorrow::Date(
-                NaiveDate::parse_from_str(std::str::from_utf8(val)?, DATE_FORMAT).unwrap(),
-            )),
+            9 => Ok(FieldBorrow::Date(NaiveDate::parse_from_str(
+                std::str::from_utf8(val)?,
+                DATE_FORMAT,
+            )?)),
             10 => Ok(FieldBorrow::Bson(val)),
             11 => Ok(FieldBorrow::Null),
             other => Err(DeserializationError::UnrecognisedFieldType(other)),

@@ -32,7 +32,9 @@ impl IdDatabase {
     ) -> Result<[u8; 8], CacheError> {
         if let Some(key) = key {
             match txn.get(self.0, &key) {
-                Ok(id) => Ok(id.try_into().unwrap()),
+                Ok(id) => Ok(id
+                    .try_into()
+                    .expect("All values must be u64 ids in this database")),
                 Err(lmdb::Error::NotFound) => self.generate_id(txn, Some(key)),
                 Err(e) => Err(CacheError::QueryError(QueryError::InsertValue(e))),
             }
@@ -62,7 +64,10 @@ impl IdDatabase {
     pub fn get<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<[u8; 8], CacheError> {
         txn.get(self.0, &key)
             .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))
-            .map(|id| id.try_into().unwrap())
+            .map(|id| {
+                id.try_into()
+                    .expect("All values must be u64 ids in this database")
+            })
     }
 }
 

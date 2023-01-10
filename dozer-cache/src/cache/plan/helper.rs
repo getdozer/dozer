@@ -69,11 +69,12 @@ fn get_sorted_inverted_scans(
 ) -> impl Iterator<Item = IndexScanKind> {
     if eq_filters.is_empty() {
         Either::Left(
-            get_sorted_inverted_range_queries(range_query.unwrap()).map(|range_query| {
-                IndexScanKind::SortedInverted {
-                    eq_filters: vec![],
-                    range_query: Some(range_query),
-                }
+            get_sorted_inverted_range_queries(
+                range_query.expect("Range query must not be None if eq_filters is empty"),
+            )
+            .map(|range_query| IndexScanKind::SortedInverted {
+                eq_filters: vec![],
+                range_query: Some(range_query),
             }),
         )
     } else {
