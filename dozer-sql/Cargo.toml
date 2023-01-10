@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 num-traits = "0.2.15"
 sqlparser = "0.24.0"
-dyn-clone = "1.0.9"
+dyn-clone = "1.0.10"
 lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 
