@@ -66,6 +66,8 @@ pub enum GRPCError {
     ServerReflectionError(#[from] tonic_reflection::server::Error),
     #[error("Unable to decode query expression: {0}")]
     UnableToDecodeQueryExpression(String),
+    #[error("{0}")]
+    TransportErrorDetail(String),
 }
 impl From<GRPCError> for tonic::Status {
     fn from(input: GRPCError) -> Self {

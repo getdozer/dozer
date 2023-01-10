@@ -166,9 +166,7 @@ impl ApiServer {
             )
         })
         .bind(address.to_owned())
-        .map_err(|e| {
-            ApiError::PortAlreadyInUse(e)
-        })?
+        .map_err(ApiError::PortAlreadyInUse)?
         .shutdown_timeout(self.shutdown_timeout.to_owned())
         .run();
 

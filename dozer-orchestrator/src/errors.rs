@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_api::errors::{GRPCError, ApiError};
+use dozer_api::errors::{ApiError, GRPCError};
 use dozer_cache::errors::CacheError;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
