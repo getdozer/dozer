@@ -34,6 +34,7 @@ pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
+    pub use_checkpointing: bool,
 }
 
 impl Default for ExecutorOptions {
@@ -42,6 +43,7 @@ impl Default for ExecutorOptions {
             commit_sz: 10_000,
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
+            use_checkpointing: false,
         }
     }
 }
@@ -146,17 +148,14 @@ impl<'a> DagExecutor<'a> {
     ) -> Result<Self, ExecutionError> {
         //
 
-        let consistency_metadata: HashMap<NodeHandle, (u64, u64)> =
+        let consistency_metadata = if options.use_checkpointing {
             match Self::check_consistency(dag, path) {
                 Ok(c) => c,
-                Err(_) => {
-                    DagMetadataManager::new(dag, path)?.delete_metadata();
-                    dag.get_sources()
-                        .iter()
-                        .map(|e| (e.0.clone(), (0_u64, 0_u64)))
-                        .collect()
-                }
-            };
+                Err(_) => delete_metadata(dag, path)?,
+            }
+        } else {
+            delete_metadata(dag, path)?
+        };
 
         let schemas = Self::load_or_init_schema(dag, path)?;
 
@@ -465,4 +464,16 @@ impl<'a> DagExecutor<'a> {
             thread::sleep(Duration::from_millis(250));
         }
     }
+}
+
+fn delete_metadata(
+    dag: &Dag,
+    path: &Path,
+) -> Result<HashMap<NodeHandle, (u64, u64)>, ExecutionError> {
+    DagMetadataManager::new(dag, path)?.delete_metadata();
+    Ok(dag
+        .get_sources()
+        .iter()
+        .map(|e| (e.0.clone(), (0_u64, 0_u64)))
+        .collect())
 }

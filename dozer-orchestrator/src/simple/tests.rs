@@ -10,6 +10,7 @@ use std::{
 
 use dozer_api::CacheEndpoint;
 use dozer_cache::cache::{expression::QueryExpression, test_utils, Cache, CacheOptions, LmdbCache};
+use dozer_core::dag::executor::ExecutorOptions;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::{
     ingestion_types::IngestionMessage,
@@ -94,7 +95,7 @@ fn single_source_sink_impl(schema: Schema) {
             executor_running,
             tmp_path,
         );
-        match executor.run(None) {
+        match executor.run(ExecutorOptions::default(), None) {
             Ok(_) => {}
             Err(e) => warn!("Exiting: {:?}", e),
         }

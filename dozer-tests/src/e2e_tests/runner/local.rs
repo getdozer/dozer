@@ -50,10 +50,17 @@ impl Runner {
                     }
 
                     // Start dozer.
-                    cleanups.extend(spawn_dozer(&self.dozer_bin, &case.dozer_config_path));
                     cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                    let first_time_dozer_dozer_cleanups =
+                        spawn_dozer(&self.dozer_bin, &case.dozer_config_path, true);
 
                     // Run test case.
+                    run_test_client(case.dozer_config.clone(), expectations).await;
+
+                    // Test restart.
+                    drop(first_time_dozer_dozer_cleanups);
+                    cleanups.extend(spawn_dozer(&self.dozer_bin, &case.dozer_config_path, false));
+
                     run_test_client(case.dozer_config.clone(), expectations).await;
 
                     // To ensure `cleanups` is not dropped at await point.
@@ -83,13 +90,23 @@ impl Runner {
     }
 }
 
-fn spawn_dozer_same_process(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
+fn spawn_dozer_same_process(
+    dozer_bin: &str,
+    dozer_config_path: &str,
+    _run_init: bool,
+) -> Vec<Cleanup> {
     let child = spawn_command(dozer_bin, &["--config-path", dozer_config_path]);
     vec![Cleanup::KillProcess(child)]
 }
 
-fn spawn_dozer_two_processes(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
-    run_command(dozer_bin, &["--config-path", dozer_config_path, "init"]);
+fn spawn_dozer_two_processes(
+    dozer_bin: &str,
+    dozer_config_path: &str,
+    run_init: bool,
+) -> Vec<Cleanup> {
+    if run_init {
+        run_command(dozer_bin, &["--config-path", dozer_config_path, "init"]);
+    }
     let mut cleanups = vec![];
     let child = spawn_command(
         dozer_bin,

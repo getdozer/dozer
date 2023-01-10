@@ -190,6 +190,7 @@ impl Executor {
 
     pub fn run(
         &self,
+        options: ExecutorOptions,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
     ) -> Result<(), OrchestrationError> {
         let running_wait = self.running.clone();
@@ -203,12 +204,7 @@ impl Executor {
             ));
         }
 
-        let mut exec = DagExecutor::new(
-            &parent_dag,
-            path.as_path(),
-            ExecutorOptions::default(),
-            running_wait,
-        )?;
+        let mut exec = DagExecutor::new(&parent_dag, path.as_path(), options, running_wait)?;
 
         exec.start()?;
         exec.join().map_err(OrchestrationError::ExecutionError)

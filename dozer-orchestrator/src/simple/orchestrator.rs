@@ -18,6 +18,7 @@ use dozer_cache::cache::{CacheCommonOptions, CacheOptions, CacheReadOptions, Cac
 use dozer_cache::cache::{CacheOptionsKind, LmdbCache};
 use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError::InternalError;
+use dozer_core::dag::executor::ExecutorOptions;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
@@ -189,7 +190,12 @@ impl Orchestrator for SimpleOrchestrator {
             running,
             pipeline_home_dir,
         );
-        executor.run(Some(sender))
+
+        let options = ExecutorOptions {
+            use_checkpointing: self.config.flags.clone().unwrap_or_default().checkpointing,
+            ..Default::default()
+        };
+        executor.run(options, Some(sender))
     }
 
     fn list_connectors(

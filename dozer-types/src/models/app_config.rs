@@ -41,6 +41,10 @@ pub struct Flags {
     // push events enabled. Currently unstable.
     #[prost(bool, tag = "3", default = false)]
     pub push_events: bool,
+
+    // checkpointing enabled. Currently unstable.
+    #[prost(bool, tag = "4", default = false)]
+    pub checkpointing: bool,
 }
 
 pub fn default_home_dir() -> String {
