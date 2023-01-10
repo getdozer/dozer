@@ -421,7 +421,7 @@ impl ExpressionBuilder {
         let like_expression = Box::new(Expression::Like {
             arg: arg.0,
             pattern: pattern.0,
-            escape: escape_char.clone(),
+            escape: *escape_char,
         });
         if *negated {
             Ok((
