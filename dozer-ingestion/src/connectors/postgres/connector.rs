@@ -104,7 +104,8 @@ impl Connector for PostgresConnector {
         ingestor: Arc<RwLock<Ingestor>>,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<(), ConnectorError> {
-        let client = helper::connect(self.replication_conn_config.clone())?;
+        let client = helper::connect(self.replication_conn_config.clone())
+            .map_err(ConnectorError::PostgresConnectorError)?;
         self.tables = tables;
         self.create_publication(client)?;
         self.ingestor = Some(ingestor);
@@ -133,7 +134,8 @@ impl Connector for PostgresConnector {
     fn stop(&self) {}
 
     fn test_connection(&self) -> Result<(), ConnectorError> {
-        helper::connect(self.replication_conn_config.clone())?;
+        helper::connect(self.replication_conn_config.clone())
+            .map_err(ConnectorError::PostgresConnectorError)?;
         Ok(())
     }
 

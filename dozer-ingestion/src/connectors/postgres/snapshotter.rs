@@ -50,9 +50,10 @@ impl PostgresSnapshotter {
         tables: Option<Vec<TableInfo>>,
         lsn_option: Option<&(PgLsn, u64)>,
     ) -> Result<Option<Vec<TableInfo>>, ConnectorError> {
-        let client_plain = Arc::new(RefCell::new(connection_helper::connect(
-            self.conn_config.clone(),
-        )?));
+        let client_plain = Arc::new(RefCell::new(
+            connection_helper::connect(self.conn_config.clone())
+                .map_err(ConnectorError::PostgresConnectorError)?,
+        ));
 
         let lsn = lsn_option.map_or(0u64, |(pg_lsn, _)| u64::from(*pg_lsn));
         let tables = self.get_tables(tables)?;

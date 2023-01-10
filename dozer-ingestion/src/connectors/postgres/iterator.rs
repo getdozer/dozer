@@ -119,7 +119,10 @@ impl PostgresIteratorHandler {
     pub fn _start(&mut self) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
-        let client = Arc::new(RefCell::new(helper::connect(replication_conn_config)?));
+        let client = Arc::new(RefCell::new(
+            helper::connect(replication_conn_config)
+                .map_err(ConnectorError::PostgresConnectorError)?,
+        ));
 
         // TODO: Handle cases:
         // - When snapshot replication is not completed

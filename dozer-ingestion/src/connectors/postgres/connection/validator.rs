@@ -15,7 +15,8 @@ pub fn validate_connection(
     tables: Option<Vec<TableInfo>>,
     replication_info: Option<ReplicationSlotInfo>,
 ) -> Result<(), ConnectorError> {
-    let mut client = super::helper::connect(config)?;
+    let mut client =
+        super::helper::connect(config).map_err(ConnectorError::PostgresConnectorError)?;
     validate_details(client.borrow_mut())?;
     validate_user(client.borrow_mut()).map_err(ConnectorError::PostgresConnectorError)?;
 
