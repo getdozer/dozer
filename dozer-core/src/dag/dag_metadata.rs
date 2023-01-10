@@ -9,6 +9,7 @@ use crate::storage::common::Seek;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::bincode;
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 
