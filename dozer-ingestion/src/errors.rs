@@ -85,10 +85,13 @@ impl ConnectorError {
     }
 }
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum PostgresConnectorError {
     #[error("Failed to connect to database: {0}")]
     ConnectToDatabaseError(String),
+
+    #[error("Failed to connect to postgres with the specified configuration. {0}")]
+    ConnetionFailure(#[source] tokio_postgres::Error),
 
     #[error("Replication is not available for user")]
     ReplicationIsNotAvailableForUserError,
