@@ -59,7 +59,10 @@ impl SecondaryIndexDatabase {
     pub fn get<T: Transaction>(&self, txn: &T, key: &[u8]) -> Result<[u8; 8], CacheError> {
         txn.get(self.0, &key)
             .map_err(|e| CacheError::QueryError(QueryError::GetValue(e)))
-            .map(|id| id.try_into().unwrap())
+            .map(|id| {
+                id.try_into()
+                    .expect("All values must be u64 ids in this database")
+            })
     }
 
     pub fn delete(

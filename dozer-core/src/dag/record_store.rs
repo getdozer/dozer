@@ -6,6 +6,7 @@ use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::SerializationError;
 use crate::storage::lmdb_storage::SharedTransaction;
+use dozer_types::bincode;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::fmt::{Debug, Formatter};
 

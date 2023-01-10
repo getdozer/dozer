@@ -7,8 +7,8 @@ use crate::dag::node::{
 };
 use crate::dag::record_store::RecordReader;
 use crate::storage::common::{Database, Environment, RwTransaction};
+use dozer_types::log::debug;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use log::debug;
 use std::collections::HashMap;
 
 /// Test Source

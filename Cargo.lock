@@ -717,9 +717,9 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
-version = "1.2.1"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
+checksum = "dfb24e866b15a1af2a1b663f10c6b6b8f397a84aadb828f12e5b289ec23a3a3c"
 
 [[package]]
 name = "bytesize"
@@ -745,7 +745,7 @@ dependencies = [
  "atty",
  "bat",
  "cargo-subcommand-metadata",
- "clap 4.0.29",
+ "clap 4.0.32",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -842,9 +842,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.0.29"
+version = "4.0.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d63b9e9c07271b9957ad22c173bae2a4d9a81127680962039296abcd2f8251d"
+checksum = "a7db700bc935f9e43e88d00b0850dae18a63773cfbec6d8e070fccf7fef89a39"
 dependencies = [
  "bitflags",
  "clap_derive",
@@ -1417,7 +1417,7 @@ name = "dozer-admin"
 version = "0.1.3"
 dependencies = [
  "cargo-expand",
- "clap 4.0.29",
+ "clap 4.0.32",
  "diesel",
  "diesel_migrations",
  "dotenvy",
@@ -1494,9 +1494,6 @@ dependencies = [
 name = "dozer-core"
 version = "0.1.3"
 dependencies = [
- "ahash 0.8.1",
- "bincode",
- "chrono",
  "crossbeam",
  "dozer-tracing",
  "dozer-types",
@@ -1505,9 +1502,7 @@ dependencies = [
  "libc",
  "lmdb-rkv",
  "lmdb-rkv-sys",
- "log",
  "tempdir",
- "thiserror",
  "unixstring",
  "uuid 1.2.1",
 ]
@@ -1517,7 +1512,6 @@ name = "dozer-ingestion"
 version = "0.1.3"
 dependencies = [
  "base64",
- "bytes",
  "criterion",
  "crossbeam",
  "dozer-tracing",
@@ -1544,7 +1538,7 @@ dependencies = [
 name = "dozer-orchestrator"
 version = "0.1.3"
 dependencies = [
- "clap 4.0.29",
+ "clap 4.0.32",
  "crossterm",
  "ctrlc",
  "dotenvy",
@@ -1573,19 +1567,15 @@ dependencies = [
 name = "dozer-sql"
 version = "0.1.3"
 dependencies = [
- "bincode",
- "chrono",
  "dozer-core",
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",
  "lmdb-rkv",
  "lmdb-rkv-sys",
- "log",
  "num-traits",
  "sqlparser",
  "tempdir",
- "thiserror",
 ]
 
 [[package]]
@@ -1593,6 +1583,7 @@ name = "dozer-tests"
 version = "0.1.3"
 dependencies = [
  "bson",
+ "clap 4.0.32",
  "csv",
  "dozer-api",
  "dozer-cache",
@@ -1600,6 +1591,7 @@ dependencies = [
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
+ "env_logger",
  "futures",
  "mongodb",
  "reqwest",
@@ -1625,7 +1617,6 @@ name = "dozer-types"
 version = "0.1.3"
 dependencies = [
  "ahash 0.8.1",
- "anyhow",
  "bincode",
  "bytes",
  "chrono",
@@ -1758,6 +1749,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log",
+ "regex",
+ "termcolor",
 ]
 
 [[package]]
@@ -5016,18 +5020,18 @@ checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "thiserror"
-version = "1.0.37"
+version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10deb33631e3c9018b9baf9dcbbc4f737320d2b576bac10f6aefa048fa407e3e"
+checksum = "6a9cd18aa97d5c45c6603caea1da6628790b37f7a34b6ca89522331c5180fed0"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.37"
+version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "982d17546b47146b28f7c22e3d08465f6b8903d0ea13c1660d9d84a6e7adcdbb"
+checksum = "1fb327af4685e4d03fa8cbcf1716380da910eeb2bb8be417e7f9fd3fb164f36f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5152,9 +5156,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.23.0"
+version = "1.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eab6d665857cc6ca78d6e80303a02cea7a7851e85dfbd77cbdc09bd129f1ef46"
+checksum = "1d9f76183f91ecfb55e1d7d5602bd1d979e38a3a522fe900241cf195624d67ae"
 dependencies = [
  "autocfg",
  "bytes",
@@ -5332,9 +5336,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-reflection"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0455f730d540a1484bffc3c55c94100b18a662597b982c2e9073f2c55c602616"
+checksum = "67494bad4dda4c9bffae901dfe14e2b2c0f760adb4706dc10beeb81799f7f7b2"
 dependencies = [
  "bytes",
  "prost",
@@ -5342,7 +5346,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "tonic-build",
 ]
 
 [[package]]

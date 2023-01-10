@@ -75,11 +75,11 @@ pub fn get_eth_producer(
     let schemas = eth_connector.get_schemas(None)?;
     for (name, schema, _) in schemas {
         info!("Schema: {}, Id: {}", name, schema.identifier.unwrap().id);
-        schema.print().printstd();
+        // schema.print().printstd();
     }
 
     eth_connector.initialize(ingestor, None)?;
-    eth_connector.start()
+    eth_connector.start(None)
 }
 
 pub fn run_eth_sample(wss_url: String, my_account: H160) -> (Contract<WebSocket>, Vec<Operation>) {

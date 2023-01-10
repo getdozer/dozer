@@ -66,9 +66,8 @@ impl<'a> LmdbQueryHandler<'a> {
                     let iterators = index_scans
                         .iter()
                         .map(|index_scan| {
-                            self.query_with_secondary_index(index_scan).map(|iter| {
-                                iter.map(|id| u64::from_be_bytes(id.try_into().unwrap()))
-                            })
+                            self.query_with_secondary_index(index_scan)
+                                .map(|iter| iter.map(u64::from_be_bytes))
                         })
                         .collect::<Result<Vec<_>, CacheError>>()?;
                     let intersection = intersection(iterators, self.intersection_chunk_size);
@@ -92,7 +91,7 @@ impl<'a> LmdbQueryHandler<'a> {
     fn query_with_secondary_index(
         &'a self,
         index_scan: &IndexScan,
-    ) -> Result<impl Iterator<Item = &'a [u8]> + 'a, CacheError> {
+    ) -> Result<impl Iterator<Item = [u8; 8]> + 'a, CacheError> {
         let schema_id = self
             .schema
             .identifier
@@ -123,16 +122,19 @@ impl<'a> LmdbQueryHandler<'a> {
                     true
                 }
             })
-            .map(|(_, id)| id))
+            .map(|(_, id)| {
+                id.try_into()
+                    .expect("All values must be u64 ids in seconary index database")
+            }))
     }
 
     fn collect_records(
         &self,
-        ids: impl Iterator<Item = impl AsRef<[u8]>>,
+        ids: impl Iterator<Item = [u8; 8]>,
     ) -> Result<Vec<Record>, CacheError> {
         ids.skip(self.query.skip)
             .take(self.query.limit)
-            .map(|id| self.db.get(self.txn, id.as_ref().try_into().unwrap()))
+            .map(|id| self.db.get(self.txn, id))
             .collect()
     }
 }

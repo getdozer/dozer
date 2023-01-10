@@ -4,7 +4,8 @@ use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
-use thiserror::Error;
+use dozer_types::thiserror;
+use dozer_types::thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {

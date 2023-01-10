@@ -15,7 +15,8 @@ pub fn validate_connection(
     tables: Option<Vec<TableInfo>>,
     replication_info: Option<ReplicationSlotInfo>,
 ) -> Result<(), ConnectorError> {
-    let mut client = super::helper::connect(config)?;
+    let mut client =
+        super::helper::connect(config).map_err(ConnectorError::PostgresConnectorError)?;
     validate_details(client.borrow_mut())?;
     validate_user(client.borrow_mut()).map_err(ConnectorError::PostgresConnectorError)?;
 
@@ -272,10 +273,10 @@ mod tests {
             match result {
                 Ok(_) => panic!("Validation should fail"),
                 Err(ConnectorError::PostgresConnectorError(e)) => {
-                    assert_eq!(
+                    assert!(matches!(
                         e,
                         PostgresConnectorError::ReplicationIsNotAvailableForUserError
-                    );
+                    ));
                 }
                 Err(_) => panic!("Unexpected error occurred"),
             }
@@ -308,10 +309,13 @@ mod tests {
             match result {
                 Ok(_) => panic!("Validation should fail"),
                 Err(ConnectorError::PostgresConnectorError(e)) => {
-                    assert_eq!(
-                        e,
-                        PostgresConnectorError::TableError(vec!["not_existing".to_string()])
-                    );
+                    assert!(matches!(e, PostgresConnectorError::TableError(_)));
+
+                    if let PostgresConnectorError::TableError(msg) = e {
+                        assert_eq!(msg, vec!["not_existing".to_string()]);
+                    } else {
+                        panic!("Unexpected error occurred");
+                    }
                 }
                 Err(_) => panic!("Unexpected error occurred"),
             }
@@ -338,10 +342,13 @@ mod tests {
         match result {
             Ok(_) => panic!("Validation should fail"),
             Err(ConnectorError::PostgresConnectorError(e)) => {
-                assert_eq!(
-                    e,
-                    PostgresConnectorError::SlotNotExistError("not_existing_slot".to_string())
-                );
+                assert!(matches!(e, PostgresConnectorError::SlotNotExistError(_)));
+
+                if let PostgresConnectorError::SlotNotExistError(msg) = e {
+                    assert_eq!(msg, "not_existing_slot");
+                } else {
+                    panic!("Unexpected error occurred");
+                }
             }
             Err(_) => panic!("Unexpected error occurred"),
         }

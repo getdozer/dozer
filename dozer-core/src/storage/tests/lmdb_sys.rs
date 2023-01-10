@@ -1,5 +1,5 @@
+use dozer_types::log::info;
 use lmdb::{Database, DatabaseFlags, Environment, EnvironmentFlags, Transaction, WriteFlags};
-use log::info;
 use std::{fs, thread};
 use tempdir::TempDir;
 

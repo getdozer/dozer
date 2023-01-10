@@ -69,11 +69,10 @@ impl Connector for KafkaConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let topic = self.config.topic.to_owned();
         let broker = self.config.broker.to_owned();
-        let connector_id = self.id;
         let ingestor = self
             .ingestor
             .as_ref()
@@ -81,7 +80,7 @@ impl Connector for KafkaConnector {
             .clone();
         Runtime::new()
             .unwrap()
-            .block_on(async { run(broker, topic, ingestor, connector_id).await })
+            .block_on(async { run(broker, topic, ingestor).await })
     }
 
     fn stop(&self) {}
@@ -103,7 +102,6 @@ async fn run(
     broker: String,
     topic: String,
     ingestor: Arc<RwLock<Ingestor>>,
-    connector_id: u64,
 ) -> Result<(), ConnectorError> {
     let con = Consumer::from_hosts(vec![broker])
         .with_topic(topic)
@@ -113,5 +111,5 @@ async fn run(
         .map_err(DebeziumConnectionError)?;
 
     let consumer = DebeziumStreamConsumer::default();
-    consumer.run(con, ingestor, connector_id)
+    consumer.run(con, ingestor)
 }

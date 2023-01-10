@@ -6,6 +6,7 @@ use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
+use dozer_types::bincode;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
 use sqlparser::ast::TableFactor;

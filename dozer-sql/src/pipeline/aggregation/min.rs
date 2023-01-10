@@ -13,7 +13,7 @@ use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp};
 use dozer_types::types::{Field, FieldType, DATE_FORMAT};
 
 use crate::deserialize;
-use chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
+use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, TimeZone, Utc};
 use std::string::ToString;
 
 pub struct MinAggregator {}

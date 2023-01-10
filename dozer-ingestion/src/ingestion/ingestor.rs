@@ -11,11 +11,11 @@ use super::IngestionConfig;
 
 #[derive(Debug)]
 pub struct ChannelForwarder {
-    pub sender: crossbeam::channel::Sender<(u64, IngestionOperation)>,
+    pub sender: crossbeam::channel::Sender<((u64, u64), IngestionOperation)>,
 }
 
 impl IngestorForwarder for ChannelForwarder {
-    fn forward(&self, event: (u64, IngestionOperation)) -> Result<(), IngestorError> {
+    fn forward(&self, event: ((u64, u64), IngestionOperation)) -> Result<(), IngestorError> {
         let send_res = self.sender.send(event);
         match send_res {
             Ok(_) => Ok(()),
@@ -25,11 +25,11 @@ impl IngestorForwarder for ChannelForwarder {
 }
 #[derive(Debug)]
 pub struct IngestionIterator {
-    pub rx: Receiver<(u64, IngestionOperation)>,
+    pub rx: Receiver<((u64, u64), IngestionOperation)>,
 }
 
 impl Iterator for IngestionIterator {
-    type Item = (u64, IngestionOperation);
+    type Item = ((u64, u64), IngestionOperation);
     fn next(&mut self) -> Option<Self::Item> {
         let msg = self.rx.recv();
         match msg {
@@ -42,7 +42,7 @@ impl Iterator for IngestionIterator {
     }
 }
 impl IngestionIterator {
-    pub fn next_timeout(&mut self, timeout: Duration) -> Option<(u64, IngestionOperation)> {
+    pub fn next_timeout(&mut self, timeout: Duration) -> Option<((u64, u64), IngestionOperation)> {
         let msg = self.rx.recv_timeout(timeout);
         match msg {
             Ok(msg) => Some(msg),
@@ -63,7 +63,7 @@ impl Ingestor {
     pub fn initialize_channel(
         config: IngestionConfig,
     ) -> (Arc<RwLock<Ingestor>>, Arc<RwLock<IngestionIterator>>) {
-        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
+        let (tx, rx) = unbounded::<((u64, u64), IngestionOperation)>();
         let sender: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         let ingestor = Arc::new(RwLock::new(Self::new(config, sender)));
@@ -80,12 +80,12 @@ impl Ingestor {
 
     pub fn handle_message(
         &mut self,
-        (connector_id, message): (u64, IngestionMessage),
+        ((lsn, seq_no), message): ((u64, u64), IngestionMessage),
     ) -> Result<(), IngestorError> {
         match message {
             IngestionMessage::OperationEvent(event) => {
                 self.sender
-                    .forward((connector_id, IngestionOperation::OperationEvent(event)))?;
+                    .forward(((lsn, seq_no), IngestionOperation::OperationEvent(event)))?;
             }
             IngestionMessage::Commit(_event) => {}
             IngestionMessage::Begin() => {}
@@ -107,7 +107,7 @@ mod tests {
     #[tokio::test]
     async fn test_message_handle() {
         let config = IngestionConfig::default();
-        let (tx, rx) = unbounded::<(u64, IngestionOperation)>();
+        let (tx, rx) = unbounded::<((u64, u64), IngestionOperation)>();
         let forwarder: Arc<Box<dyn IngestorForwarder>> =
             Arc::new(Box::new(ChannelForwarder { sender: tx }));
         let mut ingestor = Ingestor::new(config, forwarder);
@@ -134,15 +134,15 @@ mod tests {
             lsn: 412142432,
         };
 
-        ingestor.handle_message((1, Begin())).unwrap();
+        ingestor.handle_message(((1, 1), Begin())).unwrap();
         ingestor
-            .handle_message((1, OperationEvent(operation_event_message.clone())))
+            .handle_message(((1, 2), OperationEvent(operation_event_message.clone())))
             .unwrap();
         ingestor
-            .handle_message((1, OperationEvent(operation_event_message2.clone())))
+            .handle_message(((1, 3), OperationEvent(operation_event_message2.clone())))
             .unwrap();
         ingestor
-            .handle_message((1, Commit(commit_message)))
+            .handle_message(((1, 4), Commit(commit_message)))
             .unwrap();
 
         let expected_op_event_message = vec![

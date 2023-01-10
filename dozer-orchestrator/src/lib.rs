@@ -47,19 +47,16 @@ pub trait Orchestrator {
 // Re-exports
 use dozer_ingestion::connectors::TableInfo;
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
+use dozer_types::log::info;
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 use dozer_types::types::Schema;
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input.clone())?;
-    connection_service.validate(tables).map_err(|e| {
-        error!(
-            "Connection \"{}\" validation error: {:?}",
-            input.name.clone(),
-            e
-        );
-        e
+    connection_service.validate(tables).map(|t| {
+        info!("[{}] Validation completed", input.name);
+        t
     })
 }
 

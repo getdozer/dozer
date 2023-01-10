@@ -109,7 +109,7 @@ fn single_source_sink_impl(schema: Schema) {
         ingestor2
             .write()
             .handle_message((
-                1,
+                (1, 0),
                 IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: a as u64,
                     operation: dozer_types::types::Operation::Insert { new: record },

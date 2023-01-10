@@ -27,7 +27,7 @@ pub enum IngestorError {
 }
 
 pub trait IngestorForwarder: Send + Sync + Debug {
-    fn forward(&self, msg: (u64, IngestionOperation)) -> Result<(), IngestorError>;
+    fn forward(&self, msg: ((u64, u64), IngestionOperation)) -> Result<(), IngestorError>;
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]

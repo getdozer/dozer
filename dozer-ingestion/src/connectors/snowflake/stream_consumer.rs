@@ -12,13 +12,12 @@ use dozer_types::types::{Field, Operation, OperationEvent, Record, SchemaIdentif
 use odbc::create_environment_v3;
 use std::sync::Arc;
 
-pub struct StreamConsumer {
-    connector_id: u64,
-}
+#[derive(Default)]
+pub struct StreamConsumer {}
 
 impl StreamConsumer {
-    pub fn new(connector_id: u64) -> Self {
-        Self { connector_id }
+    pub fn new() -> Self {
+        Self {}
     }
 
     pub fn get_stream_table_name(table_name: &str) -> String {
@@ -151,12 +150,12 @@ impl StreamConsumer {
             let used_columns_for_schema = columns_length - 3;
             let action_idx = used_columns_for_schema;
 
-            for row in iterator {
+            for (idx, row) in iterator.enumerate() {
                 let ingestion_message =
                     Self::get_ingestion_message(row, action_idx, used_columns_for_schema)?;
                 ingestor
                     .write()
-                    .handle_message((self.connector_id, ingestion_message))
+                    .handle_message(((1, idx as u64), ingestion_message))
                     .map_err(ConnectorError::IngestorError)?;
             }
         }

@@ -9,12 +9,12 @@ use std::{
 };
 
 use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
+use dozer_types::log::debug;
 use dozer_types::{
     internal_err,
     parking_lot::RwLock,
     types::{Operation, Schema},
 };
-use log::debug;
 
 use crate::dag::{
     channels::SourceChannelForwarder,

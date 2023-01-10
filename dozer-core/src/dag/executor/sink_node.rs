@@ -1,8 +1,8 @@
 use std::{borrow::Cow, collections::HashMap, mem::swap, path::Path, sync::Arc};
 
 use crossbeam::channel::Receiver;
+use dozer_types::log::debug;
 use dozer_types::{parking_lot::RwLock, types::Schema};
-use log::debug;
 
 use crate::{
     dag::{

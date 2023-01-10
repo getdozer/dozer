@@ -5,10 +5,5 @@ use kafka::consumer::Consumer;
 use std::sync::Arc;
 
 pub trait StreamConsumer {
-    fn run(
-        &self,
-        con: Consumer,
-        ingestor: Arc<RwLock<Ingestor>>,
-        connector_id: u64,
-    ) -> Result<(), ConnectorError>;
+    fn run(&self, con: Consumer, ingestor: Arc<RwLock<Ingestor>>) -> Result<(), ConnectorError>;
 }

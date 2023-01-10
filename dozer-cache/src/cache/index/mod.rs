@@ -101,8 +101,11 @@ impl<'a> CompositeSecondaryIndexKey<'a> {
             return Err(CompareError::CannotReadFieldLength);
         }
 
-        let field_len =
-            u64::from_be_bytes(self.buf[self.offset..self.offset + 8].try_into().unwrap()) as usize;
+        let field_len = u64::from_be_bytes(
+            self.buf[self.offset..self.offset + 8]
+                .try_into()
+                .expect("We have checked `buf` is long enough"),
+        ) as usize;
         if self.offset + field_len > self.buf.len() {
             return Err(CompareError::CannotReadField);
         }
