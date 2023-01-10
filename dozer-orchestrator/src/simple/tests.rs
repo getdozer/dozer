@@ -105,6 +105,7 @@ fn single_source_sink_impl(schema: Schema) {
         let record = Record::new(
             schema.identifier,
             vec![Field::Int(a), Field::String(b), Field::Int(c)],
+            None,
         );
         ingestor2
             .write()

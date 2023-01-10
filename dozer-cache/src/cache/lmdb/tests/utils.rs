@@ -15,6 +15,7 @@ pub fn insert_rec_1(
             b.map_or(Field::Null, Field::String),
             c.map_or(Field::Null, Field::Int),
         ],
+        None,
     );
     cache.insert(&record).unwrap();
 }

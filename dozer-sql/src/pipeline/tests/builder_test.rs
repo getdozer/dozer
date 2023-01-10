@@ -94,6 +94,7 @@ impl Source for TestSource {
                             Field::String("Italy".to_string()),
                             Field::Float(OrderedFloat(5.5)),
                         ],
+                        None,
                     ),
                 },
                 DEFAULT_PORT_HANDLE,

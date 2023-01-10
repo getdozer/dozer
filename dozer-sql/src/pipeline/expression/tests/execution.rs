@@ -33,6 +33,7 @@ fn test_column_execution() {
             Field::String("test".to_string()),
             Field::Float(OrderedFloat(10.10)),
         ],
+        None,
     );
 
     // Column

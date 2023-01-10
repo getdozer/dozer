@@ -154,6 +154,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: old,
+                                                    version: None,
                                                 },
                                                 new: Record {
                                                     schema_id: Some(SchemaIdentifier {
@@ -161,6 +162,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: new,
+                                                    version: None,
                                                 },
                                             },
                                         }),
@@ -188,6 +190,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: old,
+                                                    version: None,
                                                 },
                                             },
                                         }),
@@ -219,6 +222,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: new,
+                                                    version: None,
                                                 },
                                             },
                                         }),

@@ -16,13 +16,13 @@ path = "src/dozer_test_client.rs"
 [dependencies]
 dozer-types = { path = "../dozer-types" }
 dozer-api = { path = "../dozer-api" }
-reqwest = "0.11.13"
+reqwest = {version = "0.11.13", features = ["json"] }
 tokio = { version = "1.24.1", features = ["full"] }
 bson = { version = "2.4.0", optional = true }
 mongodb = { version = "2.3.1", optional = true }
 futures = { version = "0.3.25", optional = true }
 env_logger = "0.10.0"
-clap = "4.0.32"
+clap = {version = "4.0.32", features = ["derive"]}
 
 [dev-dependencies]
 sqlparser = "0.24.0"
