@@ -10,9 +10,9 @@ use dozer_core::dag::node::{
 };
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use log::debug;
 
 use dozer_core::dag::epoch::Epoch;
 

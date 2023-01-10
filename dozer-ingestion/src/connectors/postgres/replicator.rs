@@ -6,6 +6,7 @@ use crate::errors::PostgresConnectorError::{
     ReplicationStreamEndError, ReplicationStreamError, UnexpectedReplicationMessageError,
 };
 use crate::ingestion::Ingestor;
+use dozer_types::bytes;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{error, info};

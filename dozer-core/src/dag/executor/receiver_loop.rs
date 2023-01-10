@@ -1,8 +1,8 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use crossbeam::channel::Receiver;
+use dozer_types::log::debug;
 use dozer_types::{internal_err, types::Operation};
-use log::debug;
 
 use crate::dag::{
     epoch::Epoch,

@@ -3,7 +3,7 @@ use crate::errors::PostgresSchemaError::{
     ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
-use bytes::Bytes;
+use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, types::*};

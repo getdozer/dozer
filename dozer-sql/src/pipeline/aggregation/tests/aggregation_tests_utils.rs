@@ -16,7 +16,7 @@ use crate::pipeline::{
     errors::PipelineError,
 };
 
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
@@ -36,8 +36,7 @@ pub(crate) fn init_processor(
         &select.projection.clone(),
         &select.group_by.clone(),
         input_schema,
-    )
-    .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    )?;
 
     let mut processor = AggregationProcessor::new(output_field_rules, input_schema.clone());
 
