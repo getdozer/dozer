@@ -13,6 +13,7 @@ use crate::pipeline::{CacheSinkFactory, StreamingSinkFactory};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
+use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
@@ -212,5 +213,13 @@ impl Executor {
 
         exec.start()?;
         exec.join().map_err(OrchestrationError::ExecutionError)
+    }
+
+    pub fn validate(&self, connections: &Vec<Connection>) -> Result<(), ConnectorError> {
+        for connection in connections {
+            validate(connection.to_owned(), None)?;
+        }
+
+        Ok(())
     }
 }

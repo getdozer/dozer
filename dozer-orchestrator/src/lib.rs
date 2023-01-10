@@ -64,6 +64,7 @@ async fn flatten_joinhandle(
 }
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+    info!("[{}] Validation started", input.name);
     let connection_service = get_connector(input.clone())?;
     connection_service.validate(tables).map(|t| {
         info!("[{}] Validation completed", input.name);
