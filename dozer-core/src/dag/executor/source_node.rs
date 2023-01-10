@@ -16,7 +16,6 @@ use dozer_types::{
 };
 use log::debug;
 
-use crate::dag::record_store::common::RecordReader;
 use crate::dag::{
     channels::SourceChannelForwarder,
     dag::Edge,
@@ -25,6 +24,7 @@ use crate::dag::{
     executor_utils::{create_ports_databases_and_fill_downstream_record_readers, init_component},
     forwarder::{SourceChannelManager, StateWriter},
     node::{NodeHandle, OutputPortDef, PortHandle, Source, SourceFactory},
+    record_store::RecordReader,
 };
 
 use super::{node::Node, ExecutorOperation};

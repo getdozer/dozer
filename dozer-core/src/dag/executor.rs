@@ -9,6 +9,7 @@ use crate::dag::errors::ExecutionError::{
 };
 use crate::dag::executor_utils::index_edges;
 use crate::dag::node::{NodeHandle, PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
+use crate::dag::record_store::RecordReader;
 use crate::storage::common::Database;
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 
@@ -101,7 +102,6 @@ mod receiver_loop;
 mod sink_node;
 mod source_node;
 
-use crate::dag::record_store::common::RecordReader;
 use node::Node;
 use processor_node::ProcessorNode;
 use sink_node::SinkNode;

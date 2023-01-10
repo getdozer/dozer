@@ -52,7 +52,6 @@ impl ExpressionBuilder {
         schema: &Schema,
     ) -> Result<(Box<Expression>, bool), PipelineError> {
         match expression {
-            SqlExpr::Cast {}
             SqlExpr::Trim {
                 expr,
                 trim_where,

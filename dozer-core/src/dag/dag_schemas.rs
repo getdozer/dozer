@@ -3,7 +3,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidNodeHandle;
 
 use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
-use crate::dag::record_store::autogen::AutogenRowKeyLookupRecordWriter;
+use crate::dag::record_store::AutogenRowKeyLookupRecordWriter;
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 

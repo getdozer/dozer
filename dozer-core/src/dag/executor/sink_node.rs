@@ -4,7 +4,6 @@ use crossbeam::channel::Receiver;
 use dozer_types::{parking_lot::RwLock, types::Schema};
 use log::debug;
 
-use crate::dag::record_store::common::RecordReader;
 use crate::{
     dag::{
         epoch::Epoch,
@@ -12,6 +11,7 @@ use crate::{
         executor_utils::{build_receivers_lists, init_component},
         forwarder::StateWriter,
         node::{NodeHandle, PortHandle, Sink, SinkFactory},
+        record_store::RecordReader,
     },
     storage::lmdb_storage::SharedTransaction,
 };
