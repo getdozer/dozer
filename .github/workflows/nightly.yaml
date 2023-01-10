@@ -57,7 +57,7 @@ jobs:
       - id: coverage
         run: |
           cargo install grcov
-          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" --ignore 'target/*' -o target/coverage.lcov
+          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" --ignore 'target/*' --ignore 'dozer-tests/*' -o target/coverage.lcov
           echo "::set-output name=report::target/coverage.lcov"
 
       - uses: actions/upload-artifact@v3
