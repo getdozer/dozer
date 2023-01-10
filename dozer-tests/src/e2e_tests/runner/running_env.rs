@@ -5,7 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use dozer_types::models::{app_config::Config, connection::Authentication};
+use dozer_types::{
+    log::info,
+    models::{app_config::Config, connection::Authentication},
+};
 
 use crate::e2e_tests::{
     docker_compose::{Build, Condition, DependsOn, DockerCompose, Service},
@@ -138,12 +141,10 @@ fn add_dozer_service(
         dozer_service_name.to_string(),
         Service {
             container_name: Some("dozer".to_string()),
-            image: Some("public.ecr.aws/k7k6x1d4/dozer".to_string()),
+            image: Some(get_dozer_image()),
             build: None,
             ports: vec![],
-            environment: vec![("ETH_WSS_URL".to_string(), eth_wss_url())]
-                .into_iter()
-                .collect(),
+            environment: vec![("ETH_WSS_URL".to_string())],
             volumes: vec![format!(
                 "{}:{}",
                 dozer_config_path, dozer_config_path_in_container
@@ -196,12 +197,10 @@ fn add_dozer_test_client_service(
         dozer_test_client_service_name.to_string(),
         Service {
             container_name: Some("dozer_test_client".to_string()),
-            image: Some("public.ecr.aws/k7k6x1d4/dozer".to_string()),
+            image: Some(get_dozer_tests_image()),
             build: None,
             ports: vec![],
-            environment: vec![("RUST_LOG".to_string(), "info".to_string())]
-                .into_iter()
-                .collect(),
+            environment: vec![("RUST_LOG=info".to_string())],
             volumes: vec![
                 format!(
                     "{}:{}",
@@ -275,10 +274,10 @@ fn add_connection_services(
         connections_healthy_service_name.to_string(),
         Service {
             container_name: None,
-            image: Some("public.ecr.aws/k7k6x1d4/dozer".to_string()),
+            image: Some(get_dozer_tests_image()),
             build: None,
             ports: vec![],
-            environment: HashMap::new(),
+            environment: vec![],
             volumes: vec![],
             command: Some("echo 'All connections are healthy'".to_string()),
             depends_on,
@@ -288,20 +287,28 @@ fn add_connection_services(
     Some(connections_healthy_service_name.to_string())
 }
 
-fn eth_wss_url() -> String {
-    env::var("ETH_WSS_URL").expect("ETH_WSS_URL is not set")
-}
-
 fn create_dir_if_not_existing(path: &Path) {
     if !path.exists() {
         create_dir(path).unwrap_or_else(|e| panic!("Failed to create directory {:?}: {}", path, e));
     }
 }
 
+fn get_dozer_image() -> String {
+    let version = env::var("DOZER_VERSION").unwrap_or_else(|_| "latest".to_string());
+    let result = format!("public.ecr.aws/k7k6x1d4/dozer:{}", version);
+    info!("Using dozer image: {}", result);
+    result
+}
+
+// This image is built by `.buildkite/build_dozer_tests/docker-compose.yaml`
+fn get_dozer_tests_image() -> String {
+    "dozer-tests".to_string()
+}
+
 fn write_docker_compose(path: &Path, services: HashMap<String, Service>) {
     let file =
         File::create(path).unwrap_or_else(|e| panic!("Failed to create file {:?}: {}", path, e));
-    dozer_types::serde_yaml::to_writer(file, &DockerCompose { services })
+    dozer_types::serde_yaml::to_writer(file, &DockerCompose::new_v2_4(services))
         .unwrap_or_else(|e| panic!("Failed to write docker compose file {:?}: {}", path, e));
 }
 

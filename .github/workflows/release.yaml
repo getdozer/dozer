@@ -173,6 +173,12 @@ jobs:
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
+      - name: Trigger BuildKite integration tests
+        run: |
+          curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
+            --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
+            -d '{ "commit": "HEAD", "branch": "${{ github.ref_name }}", "message": "Triggered by GitHub Actions", "env": { "DOZER_VERSION": "${{ env.VERSION }}" } }'
+
       - name: Discord notification
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_HOOK }}

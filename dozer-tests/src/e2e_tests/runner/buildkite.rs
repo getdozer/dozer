@@ -17,6 +17,10 @@ impl Runner {
                     .to_str()
                     .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", docker_compose_path));
                 // TODO: Upload buildkite pipeline.
+                run_command(
+                    "docker",
+                    &["compose", "-f", docker_compose_path, "pull", "dozer"],
+                );
                 let _cleanup = Cleanup::DockerCompose(docker_compose_path.to_string());
                 run_command(
                     "docker",
@@ -43,6 +47,10 @@ impl Runner {
                 let docker_compose_path = docker_compose_path
                     .to_str()
                     .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", docker_compose_path));
+                run_command(
+                    "docker",
+                    &["compose", "-f", docker_compose_path, "pull", "dozer"],
+                );
                 check_error_expectation(
                     || {
                         let mut command = Command::new("docker");
