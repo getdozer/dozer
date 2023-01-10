@@ -54,6 +54,7 @@ impl Snapshotter {
                                                 Some(s) => s.clone(),
                                             })
                                             .collect(),
+                                        version: None,
                                     },
                                 },
                             }),

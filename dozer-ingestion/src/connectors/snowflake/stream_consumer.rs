@@ -68,6 +68,7 @@ impl StreamConsumer {
                     Some(s) => s,
                 })
                 .collect(),
+            version: None,
         }
     }
 
