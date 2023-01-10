@@ -19,6 +19,7 @@ fn query_secondary() {
             Field::String("test".to_string()),
             Field::Int(2),
         ],
+        None,
     );
 
     cache
@@ -51,6 +52,7 @@ fn query_secondary() {
     let record = Record::new(
         schema.identifier,
         vec![Field::String("today is a good day".into())],
+        None,
     );
 
     cache
@@ -201,6 +203,7 @@ fn query_secondary_multi_indices() {
             .insert(&Record {
                 schema_id: schema.identifier,
                 values: vec![Field::Int(id), Field::String(text.into())],
+                version: None,
             })
             .unwrap();
     }
@@ -230,10 +233,12 @@ fn query_secondary_multi_indices() {
             Record {
                 schema_id: schema.identifier,
                 values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
+                version: None
             },
             Record {
                 schema_id: schema.identifier,
                 values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
+                version: None
             },
         ]
     );
@@ -272,6 +277,7 @@ fn test_query_record(
             Record::new(
                 schema.identifier,
                 vec![Field::Int(a), Field::String(b), Field::Int(c)],
+                None,
             )
         })
         .collect::<Vec<_>>();

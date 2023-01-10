@@ -119,6 +119,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             values,
+                            None,
                         ),
                     },
                     seq_no: 0,
@@ -141,6 +142,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             old_values,
+                            None,
                         ),
                         new: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {
@@ -148,6 +150,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             values,
+                            None,
                         ),
                     },
                     seq_no: 0,
@@ -170,6 +173,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             values,
+                            None,
                         ),
                     },
                     seq_no: 0,

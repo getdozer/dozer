@@ -446,6 +446,7 @@ mod tests {
             new: Record {
                 schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
                 values: initial_values.clone(),
+                version: None,
             },
         };
 
@@ -453,10 +454,12 @@ mod tests {
             old: Record {
                 schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
                 values: initial_values.clone(),
+                version: None,
             },
             new: Record {
                 schema_id: Option::from(SchemaIdentifier { id: 1, version: 1 }),
                 values: updated_values.clone(),
+                version: None,
             },
         };
 

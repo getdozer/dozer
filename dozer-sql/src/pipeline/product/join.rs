@@ -413,7 +413,7 @@ impl JoinExecutor for JoinOperator {
 
 fn join_records(left_record: &mut Record, right_record: &mut Record) -> Record {
     left_record.values.append(&mut right_record.values);
-    Record::new(None, left_record.values.clone())
+    Record::new(None, left_record.values.clone(), None)
 }
 
 pub fn get_composite_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {

@@ -36,11 +36,12 @@ fn test_sum_aggregation_null() {
                 FIELD_100_INT.clone(),
                 FIELD_100_INT.clone(),
             ],
+            None,
         ),
     };
     let out = output!(processor, inp, tx);
     let exp = vec![Operation::Insert {
-        new: Record::new(None, vec![Field::Null, FIELD_100_INT.clone()]),
+        new: Record::new(None, vec![Field::Null, FIELD_100_INT.clone()], None),
     }];
     assert_eq!(out, exp);
 }

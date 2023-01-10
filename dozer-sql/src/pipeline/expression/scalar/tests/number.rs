@@ -21,7 +21,7 @@ fn test_abs() {
 
 #[test]
 fn test_round() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
 
     let v = Box::new(Literal(Field::Int(1)));
     let d = &Box::new(Literal(Field::Int(0)));
