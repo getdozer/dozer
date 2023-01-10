@@ -6,7 +6,6 @@ use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
-use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{
     GeneratorSourceFactory, NoPkGeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT,
@@ -21,6 +20,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::dag::epoch::Epoch;
+use crate::dag::record_store::common::RecordReader;
 use tempdir::TempDir;
 
 macro_rules! chk {

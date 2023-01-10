@@ -5,7 +5,7 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
-use crate::dag::record_store::RecordReader;
+use crate::dag::record_store::common::RecordReader;
 use crate::storage::common::Database;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};

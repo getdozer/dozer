@@ -3,6 +3,7 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, path::Path, sync::Arc};
 use crossbeam::channel::{Receiver, Sender};
 use dozer_types::parking_lot::RwLock;
 
+use crate::dag::record_store::common::RecordReader;
 use crate::{
     dag::{
         dag::Edge,
@@ -14,7 +15,6 @@ use crate::{
         },
         forwarder::{ProcessorChannelManager, StateWriter},
         node::{NodeHandle, PortHandle, Processor, ProcessorFactory},
-        record_store::RecordReader,
     },
     storage::lmdb_storage::SharedTransaction,
 };

@@ -6,9 +6,9 @@ use crate::dag::errors::ExecutionError::{InternalError, InvalidPortHandle};
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::executor_utils::StateOptions;
 use crate::dag::node::{NodeHandle, PortHandle};
-use crate::dag::record_store::{RecordWriter, RecordWriterUtils};
 use crate::storage::common::Database;
 
+use crate::dag::record_store::common::{RecordWriter, RecordWriterUtils};
 use crate::storage::lmdb_storage::SharedTransaction;
 use crossbeam::channel::Sender;
 use dozer_types::internal_err;

@@ -6,7 +6,6 @@ use crate::dag::executor::{DagExecutor, ExecutorOptions};
 use crate::dag::node::{
     NodeHandle, OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory,
 };
-use crate::dag::record_store::RecordReader;
 use crate::dag::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::dag::tests::sources::{
     DualPortGeneratorSourceFactory, GeneratorSourceFactory,
@@ -24,6 +23,7 @@ use std::time::Duration;
 
 use crate::dag::dag_metadata::{Consistency, DagMetadataManager};
 use crate::dag::epoch::Epoch;
+use crate::dag::record_store::common::RecordReader;
 use tempdir::TempDir;
 
 #[derive(Debug)]
