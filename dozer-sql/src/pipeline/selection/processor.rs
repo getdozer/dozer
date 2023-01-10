@@ -7,8 +7,8 @@ use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_core::dag::node::{PortHandle, Processor};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::log::info;
 use dozer_types::types::{Field, Operation, Schema};
-use log::info;
 use std::collections::HashMap;
 
 #[derive(Debug)]
