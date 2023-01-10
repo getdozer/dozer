@@ -128,7 +128,7 @@ impl ExpressionExecutor for Expression {
             Expression::Like {
                 arg,
                 pattern,
-                escape,
+                escape: _,
             } => get_like_operator_type(arg, pattern, schema),
         }
     }
