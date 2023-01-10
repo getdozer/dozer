@@ -13,9 +13,11 @@ use dozer_types::parking_lot::RwLock;
 use dozer_types::serde_json;
 
 use super::sender::{run, EthDetails};
+use dozer_types::types::ReplicationChangesTrackingType;
 use tokio::runtime::Runtime;
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
+
 pub struct EthConnector {
     pub id: u64,
     config: EthConfig,
@@ -127,8 +129,19 @@ impl Connector for EthConnector {
     fn get_schemas(
         &self,
         tables: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, dozer_types::types::Schema)>, ConnectorError> {
-        let mut schemas = vec![(ETH_LOGS_TABLE.to_string(), helper::get_eth_schema())];
+    ) -> Result<
+        Vec<(
+            String,
+            dozer_types::types::Schema,
+            ReplicationChangesTrackingType,
+        )>,
+        ConnectorError,
+    > {
+        let mut schemas = vec![(
+            ETH_LOGS_TABLE.to_string(),
+            helper::get_eth_schema(),
+            ReplicationChangesTrackingType::FullChanges,
+        )];
 
         let event_schemas = helper::get_contract_event_schemas(
             self.contracts.to_owned(),
@@ -139,7 +152,7 @@ impl Connector for EthConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|(n, _)| tables.iter().any(|t| t.name == *n))
+                .filter(|(n, _, _)| tables.iter().any(|t| t.name == *n))
                 .cloned()
                 .collect()
         } else {
@@ -155,7 +168,7 @@ impl Connector for EthConnector {
         let tables = schemas
             .iter()
             .enumerate()
-            .map(|(id, (name, schema))| TableInfo {
+            .map(|(id, (name, schema, _))| TableInfo {
                 name: name.to_string(),
                 id: id as u32,
                 columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
@@ -174,12 +187,10 @@ impl Connector for EthConnector {
         Ok(())
     }
 
-    fn start(&self) -> Result<(), ConnectorError> {
+    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
-
-        let connector_id = self.id;
 
         let ingestor = self
             .ingestor
@@ -192,7 +203,6 @@ impl Connector for EthConnector {
                 wss_url,
                 filter,
                 ingestor,
-                connector_id,
                 self.contracts.to_owned(),
                 self.tables.to_owned(),
                 self.schema_map.to_owned(),

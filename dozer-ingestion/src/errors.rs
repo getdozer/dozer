@@ -85,10 +85,13 @@ impl ConnectorError {
     }
 }
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum PostgresConnectorError {
     #[error("Failed to connect to database: {0}")]
     ConnectToDatabaseError(String),
+
+    #[error("Failed to connect to postgres with the specified configuration. {0}")]
+    ConnetionFailure(#[source] tokio_postgres::Error),
 
     #[error("Replication is not available for user")]
     ReplicationIsNotAvailableForUserError,
@@ -147,6 +150,12 @@ pub enum PostgresConnectorError {
     #[error("LSN not stored for replication slot")]
     LSNNotStoredError,
 
+    #[error("LSN parse error. Given lsn: {0}")]
+    LsnParseError(String),
+
+    #[error("LSN not returned from replication slot creation query")]
+    LsnNotReturnedFromReplicationSlot,
+
     #[error("Table name \"{0}\" not valid")]
     TableNameNotValid(String),
 
@@ -173,6 +182,9 @@ pub enum PostgresSchemaError {
 
     #[error("Value conversion error: {0}")]
     ValueConversionError(String),
+
+    #[error("Unsupported replication type - '{0}'")]
+    UnsupportedReplicationType(String),
 }
 
 #[cfg(feature = "snowflake")]

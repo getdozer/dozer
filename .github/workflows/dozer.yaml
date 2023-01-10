@@ -55,20 +55,12 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -D warnings
+        run: |
+          cargo clippy --all-features -- -D warnings
 
       - name: Lint
         run: |
           cargo fmt -- --check
 
-      # - name: Debug Build for E2E Tests
-      #   run: cargo build --bin dozer
-
       - name: Run tests
         run: cargo test --verbose --features mongodb
-        env:
-          DOZER_BIN: ../target/debug/dozer
-          ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}

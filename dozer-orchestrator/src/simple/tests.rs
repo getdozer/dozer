@@ -105,11 +105,12 @@ fn single_source_sink_impl(schema: Schema) {
         let record = Record::new(
             schema.identifier,
             vec![Field::Int(a), Field::String(b), Field::Int(c)],
+            None,
         );
         ingestor2
             .write()
             .handle_message((
-                1,
+                (1, 0),
                 IngestionMessage::OperationEvent(OperationEvent {
                     seq_no: a as u64,
                     operation: dozer_types::types::Operation::Insert { new: record },

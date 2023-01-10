@@ -84,7 +84,6 @@ impl StreamConsumer for DebeziumStreamConsumer {
         &self,
         mut con: Consumer,
         ingestor: Arc<RwLock<Ingestor>>,
-        connector_id: u64,
     ) -> Result<(), ConnectorError> {
         loop {
             let mss = con.poll().map_err(|e| {
@@ -145,7 +144,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 ingestor
                                     .write()
                                     .handle_message((
-                                        connector_id,
+                                        (0, 0),
                                         IngestionMessage::OperationEvent(OperationEvent {
                                             seq_no: 0,
                                             operation: Operation::Update {
@@ -155,6 +154,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: old,
+                                                    version: None,
                                                 },
                                                 new: Record {
                                                     schema_id: Some(SchemaIdentifier {
@@ -162,6 +162,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: new,
+                                                    version: None,
                                                 },
                                             },
                                         }),
@@ -179,7 +180,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 ingestor
                                     .write()
                                     .handle_message((
-                                        connector_id,
+                                        (0, 0),
                                         IngestionMessage::OperationEvent(OperationEvent {
                                             seq_no: 0,
                                             operation: Operation::Delete {
@@ -189,6 +190,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: old,
+                                                    version: None,
                                                 },
                                             },
                                         }),
@@ -210,7 +212,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 ingestor
                                     .write()
                                     .handle_message((
-                                        connector_id,
+                                        (0, 0),
                                         IngestionMessage::OperationEvent(OperationEvent {
                                             seq_no: 0,
                                             operation: Operation::Insert {
@@ -220,6 +222,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                                         version: 1,
                                                     }),
                                                     values: new,
+                                                    version: None,
                                                 },
                                             },
                                         }),

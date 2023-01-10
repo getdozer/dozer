@@ -6,6 +6,7 @@ use dozer_core::storage::common::Database;
 use dozer_core::storage::errors::StorageError;
 use dozer_core::storage::lmdb_storage::SharedTransaction;
 use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::PrefixTransaction};
+use dozer_types::bincode;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
 use sqlparser::ast::TableFactor;
@@ -412,7 +413,7 @@ impl JoinExecutor for JoinOperator {
 
 fn join_records(left_record: &mut Record, right_record: &mut Record) -> Record {
     left_record.values.append(&mut right_record.values);
-    Record::new(None, left_record.values.clone())
+    Record::new(None, left_record.values.clone(), None)
 }
 
 pub fn get_composite_key(record: &Record, key_indexes: &[usize]) -> Result<Vec<u8>, TypeError> {

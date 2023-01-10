@@ -1,5 +1,6 @@
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, OperationEvent, Record, Schema, SchemaIdentifier,
+    Field, FieldDefinition, FieldType, Operation, OperationEvent, Record,
+    ReplicationChangesTrackingType, Schema, SchemaIdentifier, SchemaWithChangesType,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,7 +23,7 @@ pub async fn get_wss_client(url: &str) -> Result<web3::Web3<WebSocket>, web3::Er
 pub fn get_contract_event_schemas(
     contracts: HashMap<String, ContractTuple>,
     schema_map: HashMap<H256, usize>,
-) -> Vec<(String, Schema)> {
+) -> Vec<SchemaWithChangesType> {
     let mut schemas = vec![];
 
     for (_, contract_tuple) in contracts {
@@ -63,9 +64,11 @@ pub fn get_contract_event_schemas(
                     fields,
                     primary_index: vec![0],
                 },
+                ReplicationChangesTrackingType::FullChanges,
             ));
         }
     }
+
     schemas
 }
 
@@ -133,6 +136,7 @@ pub fn decode_event(
                                 version: 1,
                             }),
                             values,
+                            version: None,
                         },
                     },
                 })
@@ -187,6 +191,7 @@ pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationE
                 new: Record {
                     schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                     values,
+                    version: None,
                 },
             },
         })

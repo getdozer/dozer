@@ -1,8 +1,8 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use crossbeam::channel::Receiver;
+use dozer_types::log::debug;
 use dozer_types::{internal_err, types::Operation};
-use log::debug;
 
 use crate::dag::{
     epoch::Epoch,
@@ -110,8 +110,8 @@ mod tests {
 
     #[test]
     fn test_map_executor_operation() {
-        let old = Record::new(None, vec![Field::Int(1)]);
-        let new = Record::new(None, vec![Field::Int(2)]);
+        let old = Record::new(None, vec![Field::Int(1)], None);
+        let new = Record::new(None, vec![Field::Int(2)], None);
         let epoch = Epoch::new(1, HashMap::new());
         assert_eq!(
             map_executor_operation(ExecutorOperation::Insert { new: new.clone() }),
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn receiver_loop_forwards_op() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let record = Record::new(None, vec![Field::Int(1)]);
+        let record = Record::new(None, vec![Field::Int(1)], None);
         senders[0]
             .send(ExecutorOperation::Insert {
                 new: record.clone(),

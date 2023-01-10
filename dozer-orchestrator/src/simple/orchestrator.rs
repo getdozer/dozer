@@ -23,7 +23,7 @@ use dozer_ingestion::ingestion::Ingestor;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::models::app_config::Config;
 use dozer_types::serde_yaml;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{Operation, Schema, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -194,7 +194,7 @@ impl Orchestrator for SimpleOrchestrator {
 
     fn list_connectors(
         &self,
-    ) -> Result<HashMap<String, Vec<(String, Schema)>>, OrchestrationError> {
+    ) -> Result<HashMap<String, Vec<SchemaWithChangesType>>, OrchestrationError> {
         Executor::get_tables(&self.config.connections)
     }
 

@@ -42,6 +42,8 @@ pub enum DeserializationError {
     UnrecognisedFieldType(u8),
     #[error("Bad data length")]
     BadDataLength,
+    #[error("Bad date format: {0}")]
+    BadDateFormat(#[from] chrono::ParseError),
     #[error("Utf8: {0}")]
     Utf8(#[from] std::str::Utf8Error),
 }

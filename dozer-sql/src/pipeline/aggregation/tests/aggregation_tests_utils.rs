@@ -16,7 +16,7 @@ use crate::pipeline::{
     errors::PipelineError,
 };
 
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use std::ops::Div;
@@ -36,8 +36,7 @@ pub(crate) fn init_processor(
         &select.projection.clone(),
         &select.group_by.clone(),
         input_schema,
-    )
-    .unwrap_or_else(|e| panic!("{}", e.to_string()));
+    )?;
 
     let mut processor = AggregationProcessor::new(output_field_rules, input_schema.clone());
 
@@ -84,6 +83,7 @@ pub(crate) fn insert_field(country: &str, insert_field: &Field) -> Operation {
                 insert_field.clone(),
                 insert_field.clone(),
             ],
+            None,
         ),
     }
 }
@@ -98,6 +98,7 @@ pub(crate) fn delete_field(country: &str, deleted_field: &Field) -> Operation {
                 deleted_field.clone(),
                 deleted_field.clone(),
             ],
+            None,
         ),
     }
 }
@@ -117,6 +118,7 @@ pub(crate) fn update_field(
                 old.clone(),
                 old.clone(),
             ],
+            None,
         ),
         new: Record::new(
             None,
@@ -126,6 +128,7 @@ pub(crate) fn update_field(
                 new.clone(),
                 new.clone(),
             ],
+            None,
         ),
     }
 }
@@ -135,6 +138,7 @@ pub(crate) fn insert_exp(country: &str, inserted_field: &Field) -> Operation {
         new: Record::new(
             None,
             vec![Field::String(country.to_string()), inserted_field.clone()],
+            None,
         ),
     }
 }
@@ -144,6 +148,7 @@ pub(crate) fn delete_exp(country: &str, deleted_field: &Field) -> Operation {
         old: Record::new(
             None,
             vec![Field::String(country.to_string()), deleted_field.clone()],
+            None,
         ),
     }
 }
@@ -158,10 +163,12 @@ pub(crate) fn update_exp(
         old: Record::new(
             None,
             vec![Field::String(old_country.to_string()), old.clone()],
+            None,
         ),
         new: Record::new(
             None,
             vec![Field::String(new_country.to_string()), new.clone()],
+            None,
         ),
     }
 }

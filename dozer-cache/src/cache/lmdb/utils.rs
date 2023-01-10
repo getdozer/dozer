@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::errors::CacheError;
-use lmdb::{Cursor, Database, DatabaseFlags, Environment, EnvironmentFlags, RoCursor};
+use lmdb::{Database, DatabaseFlags, Environment, EnvironmentFlags};
 use tempdir::TempDir;
 
 use super::{CacheOptions, CacheOptionsKind};
@@ -89,23 +89,24 @@ pub fn init_db(
         Ok(db)
     }
 }
-pub fn _cursor_dump(mut cursor: RoCursor) -> Vec<(&[u8], &[u8])> {
-    cursor
-        .iter_dup()
-        .flatten()
-        .collect::<lmdb::Result<Vec<_>>>()
-        .unwrap()
-}
 
 #[cfg(test)]
 mod tests {
     use dozer_types::types::Field;
-    use lmdb::{Transaction, WriteFlags};
+    use lmdb::{Cursor, RoCursor, Transaction, WriteFlags};
 
     use crate::cache::lmdb::{
-        utils::{_cursor_dump, init_db, init_env, DatabaseCreateOptions},
+        utils::{init_db, init_env, DatabaseCreateOptions},
         CacheOptions,
     };
+
+    fn cursor_dump(mut cursor: RoCursor) -> Vec<(&[u8], &[u8])> {
+        cursor
+            .iter_dup()
+            .flatten()
+            .collect::<lmdb::Result<Vec<_>>>()
+            .unwrap()
+    }
 
     #[test]
     fn duplicate_test_nested() {
@@ -155,7 +156,7 @@ mod tests {
         let rtxn = env.begin_ro_txn().unwrap();
 
         let cursor = rtxn.open_ro_cursor(db).unwrap();
-        let vals = _cursor_dump(cursor);
+        let vals = cursor_dump(cursor);
         assert_eq!(vals.len(), items.len(), "must have duplicate records");
     }
 }

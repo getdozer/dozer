@@ -3,7 +3,7 @@ use crate::errors::PostgresSchemaError::{
     ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
-use bytes::Bytes;
+use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::{rust_decimal, types::*};
@@ -174,14 +174,14 @@ pub fn map_row_to_operation_event(
     identifier: SchemaIdentifier,
     row: &Row,
     columns: &[Column],
-    idx: u32,
+    seq_no: u64,
 ) -> Result<OperationEvent, PostgresSchemaError> {
     match get_values(row, columns) {
         Ok(values) => Ok(OperationEvent {
             operation: Operation::Insert {
-                new: Record::new(Some(identifier), values),
+                new: Record::new(Some(identifier), values, None),
             },
-            seq_no: idx as u64,
+            seq_no,
         }),
         Err(e) => Err(e),
     }

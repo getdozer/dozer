@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
-use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier};
+use dozer_types::types::{
+    FieldDefinition, ReplicationChangesTrackingType, Schema, SchemaIdentifier,
+    SchemaWithChangesType,
+};
 
 use crate::connectors::TableInfo;
 
@@ -35,7 +38,7 @@ impl SchemaHelper {
         Ok(self
             .get_schemas(tables)?
             .iter()
-            .map(|(name, schema)| {
+            .map(|(name, schema, _)| {
                 let columns = Some(schema.fields.iter().map(|f| f.name.clone()).collect());
                 TableInfo {
                     name: name.clone(),
@@ -49,9 +52,10 @@ impl SchemaHelper {
     pub fn get_schemas(
         &self,
         table_name: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<(String, Schema)>, ConnectorError> {
-        let mut client = helper::connect(self.conn_config.clone())?;
-        let mut schemas: Vec<(String, Schema)> = Vec::new();
+    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
+        let mut client = helper::connect(self.conn_config.clone())
+            .map_err(ConnectorError::PostgresConnectorError)?;
+        let mut schemas: Vec<SchemaWithChangesType> = Vec::new();
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
         let schema = self.schema.clone();
         let query = if let Some(tables) = table_name {
@@ -70,7 +74,8 @@ impl SchemaHelper {
 
         let results = query.map_err(ConnectorError::InvalidQueryError)?;
 
-        let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32)> = HashMap::new();
+        let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
+            HashMap::new();
         results
             .iter()
             .filter(|row| {
@@ -84,25 +89,32 @@ impl SchemaHelper {
             .map(|r| self.convert_row(r))
             .try_for_each(|row| -> Result<(), ConnectorError> {
                 match row {
-                    Ok((table_name, field_def, is_primary_key, table_id)) => {
+                    Ok((table_name, field_def, is_primary_key, table_id, replication_type)) => {
                         let vals = map.get(&table_name);
-                        let (mut fields, mut primary_keys, table_id) = match vals {
-                            Some((fields, primary_keys, table_id)) => {
-                                (fields.clone(), primary_keys.clone(), *table_id)
-                            }
-                            None => (vec![], vec![], table_id),
+                        let (mut fields, mut primary_keys, table_id, replication_type) = match vals
+                        {
+                            Some((fields, primary_keys, table_id, replication_type)) => (
+                                fields.clone(),
+                                primary_keys.clone(),
+                                *table_id,
+                                replication_type,
+                            ),
+                            None => (vec![], vec![], table_id, &replication_type),
                         };
 
                         fields.push(field_def);
                         primary_keys.push(is_primary_key);
-                        map.insert(table_name, (fields, primary_keys, table_id));
+                        map.insert(
+                            table_name,
+                            (fields, primary_keys, table_id, replication_type.clone()),
+                        );
                         Ok(())
                     }
                     Err(e) => Err(e),
                 }
             })?;
 
-        for (table_name, (fields, primary_keys, table_id)) in map.into_iter() {
+        for (table_name, (fields, primary_keys, table_id, replication_type)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys
                 .iter()
                 .enumerate()
@@ -118,7 +130,20 @@ impl SchemaHelper {
                 fields: fields.clone(),
                 primary_index,
             };
-            schemas.push((table_name, schema));
+
+            let replication_type = match replication_type.as_str() {
+                "d" => Ok(ReplicationChangesTrackingType::OnlyPK),
+                "i" => Ok(ReplicationChangesTrackingType::OnlyPK),
+                "n" => Ok(ReplicationChangesTrackingType::Nothing),
+                "f" => Ok(ReplicationChangesTrackingType::FullChanges),
+                _ => Err(ConnectorError::PostgresConnectorError(
+                    PostgresConnectorError::PostgresSchemaError(
+                        PostgresSchemaError::UnsupportedReplicationType(replication_type),
+                    ),
+                )),
+            };
+
+            schemas.push((table_name, schema, replication_type?));
         }
 
         self.validate_schema(schemas)
@@ -126,13 +151,13 @@ impl SchemaHelper {
 
     pub fn validate_schema(
         &self,
-        schemas: Vec<(String, Schema)>,
-    ) -> Result<Vec<(String, Schema)>, ConnectorError> {
+        schemas: Vec<SchemaWithChangesType>,
+    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
         let table_without_primary_index = schemas
             .iter()
-            .find(|(_table_name, schema)| schema.primary_index.is_empty());
+            .find(|(_table_name, schema, _)| schema.primary_index.is_empty());
 
-        if let Some((table_name, _)) = table_without_primary_index {
+        if let Some((table_name, _, _)) = table_without_primary_index {
             Err(ConnectorError::PostgresConnectorError(
                 PostgresConnectorError::PostgresSchemaError(SchemaReplicationIdentityError(
                     table_name.clone(),
@@ -146,7 +171,7 @@ impl SchemaHelper {
     fn convert_row(
         &self,
         row: &Row,
-    ) -> Result<(String, FieldDefinition, bool, u32), ConnectorError> {
+    ) -> Result<(String, FieldDefinition, bool, u32, String), ConnectorError> {
         let table_name: String = row.get(0);
         let column_name: String = row.get(1);
         let is_nullable: bool = row.get(2);
@@ -158,6 +183,7 @@ impl SchemaHelper {
             table_name.hash(&mut s);
             s.finish() as u32
         };
+        let replication_type_int: i8 = row.get(5);
         let type_oid: u32 = row.get(6);
         let typ = Type::from_oid(type_oid);
 
@@ -167,11 +193,19 @@ impl SchemaHelper {
             )),
             postgres_type_to_dozer_type,
         )?;
+
+        let replication_type =
+            String::from_utf8(vec![replication_type_int as u8]).map_err(|_e| {
+                ConnectorError::PostgresConnectorError(PostgresConnectorError::PostgresSchemaError(
+                    PostgresSchemaError::ValueConversionError("Replication type".to_string()),
+                ))
+            })?;
         Ok((
             table_name,
             FieldDefinition::new(column_name, typ, is_nullable),
             is_primary_index,
             table_id,
+            replication_type,
         ))
     }
 }

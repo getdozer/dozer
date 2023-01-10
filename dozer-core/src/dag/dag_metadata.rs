@@ -9,6 +9,7 @@ use crate::storage::common::Seek;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::bincode;
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 
@@ -86,7 +87,8 @@ impl<'a> DagMetadataManager<'a> {
         let mut env = LmdbEnvironmentManager::create(path, format!("{}", name).as_str())?;
         let db = env.open_database(METADATA_DB_NAME, false)?;
         let txn = env.create_txn()?;
-        let txn = SharedTransaction::try_unwrap(txn).unwrap();
+        let txn = SharedTransaction::try_unwrap(txn)
+            .expect("We just created this `SharedTransaction`. It's not shared.");
 
         let cur = txn.open_ro_cursor(db)?;
         if !cur.first()? {
@@ -279,7 +281,8 @@ impl<'a> DagMetadataManager<'a> {
                 LmdbEnvironmentManager::create(self.path, format!("{}", node.0).as_str())?;
             let db = env.open_database(METADATA_DB_NAME, false)?;
             let txn = env.create_txn()?;
-            let mut txn = SharedTransaction::try_unwrap(txn).unwrap();
+            let mut txn = SharedTransaction::try_unwrap(txn)
+                .expect("We just created this `SharedTransaction`. It's not shared.");
 
             for (handle, schema) in curr_node_schema.output_schemas.iter() {
                 let mut key: Vec<u8> = vec![OUTPUT_SCHEMA_IDENTIFIER];

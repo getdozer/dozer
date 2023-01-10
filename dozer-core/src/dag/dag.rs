@@ -90,7 +90,7 @@ impl Dag {
             }
             NodeType::Source(s) => {
                 if matches!(d, Output) {
-                    Ok(s.get_output_ports().iter().map(|e| e.handle).collect())
+                    Ok(s.get_output_ports()?.iter().map(|e| e.handle).collect())
                 } else {
                     Err(InvalidNodeType)
                 }

@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.24"
-bytes = "1.2.1"
 dozer-types = { path = "../dozer-types" }
 crossbeam = "0.8.2"
 # Postgres connector

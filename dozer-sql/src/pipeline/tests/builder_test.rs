@@ -10,9 +10,9 @@ use dozer_core::dag::node::{
 };
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
-use log::debug;
 
 use dozer_core::dag::epoch::Epoch;
 
@@ -36,11 +36,12 @@ impl TestSourceFactory {
 }
 
 impl SourceFactory for TestSourceFactory {
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        self.output_ports
+    fn get_output_ports(&self) -> Result<Vec<OutputPortDef>, ExecutionError> {
+        Ok(self
+            .output_ports
             .iter()
             .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
-            .collect()
+            .collect())
     }
 
     fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, ExecutionError> {
@@ -93,6 +94,7 @@ impl Source for TestSource {
                             Field::String("Italy".to_string()),
                             Field::Float(OrderedFloat(5.5)),
                         ],
+                        None,
                     ),
                 },
                 DEFAULT_PORT_HANDLE,

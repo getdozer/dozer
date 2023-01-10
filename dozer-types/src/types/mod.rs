@@ -49,6 +49,15 @@ pub struct Schema {
     pub primary_index: Vec<usize>,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum ReplicationChangesTrackingType {
+    FullChanges,
+    OnlyPK,
+    Nothing,
+}
+
+pub type SchemaWithChangesType = (String, Schema, ReplicationChangesTrackingType);
+
 impl Schema {
     pub fn empty() -> Schema {
         Self {
@@ -117,16 +126,26 @@ pub struct Record {
     pub schema_id: Option<SchemaIdentifier>,
     /// List of values, following the definitions of `fields` of the asscoiated schema
     pub values: Vec<Field>,
+    pub version: Option<u32>,
 }
 
 impl Record {
-    pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
-        Record { schema_id, values }
+    pub fn new(
+        schema_id: Option<SchemaIdentifier>,
+        values: Vec<Field>,
+        version: Option<u32>,
+    ) -> Record {
+        Record {
+            schema_id,
+            values,
+            version,
+        }
     }
-    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize) -> Record {
+    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize, version: Option<u32>) -> Record {
         Record {
             schema_id,
             values: vec![Field::Null; size],
+            version,
         }
     }
 

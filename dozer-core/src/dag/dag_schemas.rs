@@ -84,11 +84,11 @@ impl<'a> DagSchemaManager<'a> {
         }
     }
 
-    fn get_node_output_ports(node: &NodeType) -> Vec<OutputPortDef> {
+    fn get_node_output_ports(node: &NodeType) -> Result<Vec<OutputPortDef>, ExecutionError> {
         match node {
             NodeType::Source(src) => src.get_output_ports(),
-            NodeType::Processor(proc) => proc.get_output_ports(),
-            NodeType::Sink(_proc) => vec![],
+            NodeType::Processor(proc) => Ok(proc.get_output_ports()),
+            NodeType::Sink(_proc) => Ok(vec![]),
         }
     }
 
@@ -128,7 +128,7 @@ impl<'a> DagSchemaManager<'a> {
                 }
                 _ => {
                     // Calculate the output schema for each port and insert it in the global schemas map
-                    for port in &Self::get_node_output_ports(node) {
+                    for port in &Self::get_node_output_ports(node)? {
                         let schema = {
                             let node_schemas = all_schemas
                                 .get_mut(handle)

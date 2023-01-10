@@ -19,7 +19,6 @@ impl Snapshotter {
     pub fn run(
         client: &Client,
         ingestor: &Arc<RwLock<Ingestor>>,
-        connector_id: u64,
         table_name: String,
     ) -> Result<(), ConnectorError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
@@ -37,11 +36,12 @@ impl Snapshotter {
         let result = client.fetch(&conn, format!("SELECT * FROM {};", table_name));
         match result {
             Ok(Some((_, mut iterator))) => {
+                let mut idx = 0;
                 iterator.try_for_each(|values| -> Result<(), ConnectorError> {
                     ingestor
                         .write()
                         .handle_message((
-                            connector_id,
+                            (0, idx as u64),
                             IngestionMessage::OperationEvent(OperationEvent {
                                 seq_no: 0,
                                 operation: Operation::Insert {
@@ -54,12 +54,14 @@ impl Snapshotter {
                                                 Some(s) => s.clone(),
                                             })
                                             .collect(),
+                                        version: None,
                                     },
                                 },
                             }),
                         ))
                         .map_err(ConnectorError::IngestorError)?;
 
+                    idx += 1;
                     Ok(())
                 })?;
 
