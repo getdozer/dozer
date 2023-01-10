@@ -91,6 +91,19 @@ impl ExpressionBuilder {
                     self.parse_sql_function(expression_type, sql_function, schema, expression)
                 }
             },
+            SqlExpr::Like {
+                negated,
+                expr,
+                pattern,
+                escape_char,
+            } => self.parse_sql_like_operator(
+                expression_type,
+                negated,
+                expr,
+                pattern,
+                escape_char,
+                schema,
+            ),
             _ => Err(InvalidExpression(format!("{:?}", expression))),
         }
     }
@@ -391,6 +404,35 @@ impl ExpressionBuilder {
                 )),
                 Err(_) => Err(InvalidValue(n.to_string())),
             },
+        }
+    }
+
+    fn parse_sql_like_operator(
+        &self,
+        expression_type: &BuilderExpressionType,
+        negated: &bool,
+        expr: &Expr,
+        pattern: &Expr,
+        escape_char: &Option<char>,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
+        let arg = self.parse_sql_expression(expression_type, expr, schema)?;
+        let pattern = self.parse_sql_expression(expression_type, pattern, schema)?;
+        let like_expression = Box::new(Expression::Like {
+            arg: arg.0,
+            pattern: pattern.0,
+            escape: escape_char.clone(),
+        });
+        if *negated {
+            Ok((
+                Box::new(Expression::UnaryOperator {
+                    operator: UnaryOperatorType::Not,
+                    arg: like_expression,
+                }),
+                arg.1,
+            ))
+        } else {
+            Ok((like_expression, arg.1))
         }
     }
 }

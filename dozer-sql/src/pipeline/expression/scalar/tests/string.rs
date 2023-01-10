@@ -1,5 +1,8 @@
-use crate::pipeline::expression::scalar::tests::scalar_common::run_scalar_fct;
-use dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
+use crate::pipeline::expression::execution::Expression::Literal;
+use crate::pipeline::expression::scalar::{
+    string::evaluate_like, tests::scalar_common::run_scalar_fct,
+};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema};
 
 #[test]
 fn test_concat() {
@@ -213,4 +216,50 @@ fn test_ttrim_value() {
         vec![Field::String("___John___".to_string())],
     );
     assert_eq!(f, Field::String("___John".to_string()));
+}
+
+#[test]
+fn test_like() {
+    let row = Record::new(None, vec![], None);
+
+    let value = Box::new(Literal(Field::String("Hello, World!".to_owned())));
+    let pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(true)
+    );
+
+    let value = Box::new(Literal(Field::String("Hello, World!".to_owned())));
+    let pattern = Box::new(Literal(Field::String("Hello, _orld!".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(true)
+    );
+
+    let value = Box::new(Literal(Field::String("Bye, World!".to_owned())));
+    let pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(false)
+    );
+
+    let value = Box::new(Literal(Field::String("Hello, World!".to_owned())));
+    let pattern = Box::new(Literal(Field::String("Hello, _!".to_owned())));
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        Field::Boolean(false)
+    );
+
+    let value = Box::new(Literal(Field::String("Hello, $%".to_owned())));
+    let pattern = Box::new(Literal(Field::String("Hello, %".to_owned())));
+    let escape = Some('$');
+
+    assert_eq!(
+        evaluate_like(&Schema::empty(), &value, &pattern, escape, &row).unwrap(),
+        Field::Boolean(true)
+    );
 }
