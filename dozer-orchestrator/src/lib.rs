@@ -54,16 +54,10 @@ use dozer_types::types::Schema;
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input.clone())?;
-    connection_service
-        .validate(tables)
-        .map_err(|e| {
-            error!("[{}] Validation error: {:?}", input.name.clone(), e);
-            e
-        })
-        .map(|t| {
-            info!("[{}] Validation completed", input.name);
-            t
-        })
+    connection_service.validate(tables).map(|t| {
+        info!("[{}] Validation completed", input.name);
+        t
+    })
 }
 
 pub fn set_panic_hook() {

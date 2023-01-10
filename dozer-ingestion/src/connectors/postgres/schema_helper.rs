@@ -53,7 +53,8 @@ impl SchemaHelper {
         &self,
         table_name: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
-        let mut client = helper::connect(self.conn_config.clone())?;
+        let mut client = helper::connect(self.conn_config.clone())
+            .map_err(ConnectorError::PostgresConnectorError)?;
         let mut schemas: Vec<SchemaWithChangesType> = Vec::new();
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
         let schema = self.schema.clone();
