@@ -14,7 +14,7 @@ pub fn string_record_to_record(record: &StringRecord, schema: &Schema) -> Record
         .iter()
         .zip(&schema.fields)
         .map(|(value, field)| {
-            if field.nullable && value == "" {
+            if field.nullable && value.is_empty() {
                 return Field::Null;
             }
             match field.typ {
@@ -34,5 +34,5 @@ pub fn string_record_to_record(record: &StringRecord, schema: &Schema) -> Record
         })
         .collect();
 
-    Record::new(schema.identifier.clone(), values)
+    Record::new(schema.identifier, values)
 }
