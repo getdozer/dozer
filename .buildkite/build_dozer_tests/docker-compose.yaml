@@ -1,0 +1,10 @@
+services:
+  dozer-tests:
+    build: .
+    volumes:
+      - ${PWD}:${PWD}
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: ${PWD}
+    environment:
+      - ETH_WSS_URL
+      - RUST_LOG=info
