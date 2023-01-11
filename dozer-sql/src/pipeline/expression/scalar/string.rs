@@ -7,6 +7,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, Exp
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use dozer_types::types::{Field, FieldType, Record, Schema};
+use like::{Escape, Like};
 
 pub(crate) fn validate_ucase(
     arg: &Expression,
@@ -151,4 +152,57 @@ pub(crate) fn evaluate_trim(
         FieldType::String => Field::String(retval),
         _ => Field::Text(retval),
     })
+}
+
+pub(crate) fn get_like_operator_type(
+    arg: &Expression,
+    pattern: &Expression,
+    schema: &Schema,
+) -> Result<ExpressionType, PipelineError> {
+    validate_arg_type(
+        pattern,
+        vec![FieldType::String, FieldType::Text],
+        schema,
+        ScalarFunctionType::Concat,
+        0,
+    )?;
+
+    validate_arg_type(
+        arg,
+        vec![FieldType::String, FieldType::Text],
+        schema,
+        ScalarFunctionType::Concat,
+        0,
+    )
+}
+
+pub(crate) fn evaluate_like(
+    schema: &Schema,
+    arg: &Expression,
+    pattern: &Expression,
+    escape: Option<char>,
+    record: &Record,
+) -> Result<Field, PipelineError> {
+    let arg_field = arg.evaluate(record, schema)?;
+    let arg_value = arg_str!(arg_field, "LIKE", 0)?;
+    let arg_string = arg_value.as_str();
+
+    let pattern_field = pattern.evaluate(record, schema)?;
+    let pattern_value = arg_str!(pattern_field, "LIKE", 1)?;
+    let pattern_string = pattern_value.as_str();
+
+    if let Some(escape_char) = escape {
+        let arg_escape = &arg_string
+            .escape(&escape_char.to_string())
+            .map_err(|e| PipelineError::InvalidArgument(e.to_string()))?;
+        let result = Like::<false>::like(arg_escape.as_str(), pattern_string)
+            .map(Field::Boolean)
+            .map_err(|e| PipelineError::InvalidArgument(e.to_string()))?;
+        return Ok(result);
+    }
+
+    let result = Like::<false>::like(arg_string, pattern_string)
+        .map(Field::Boolean)
+        .map_err(|e| PipelineError::InvalidArgument(e.to_string()))?;
+    Ok(result)
 }
