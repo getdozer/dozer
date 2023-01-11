@@ -263,3 +263,48 @@ fn test_like() {
         Field::Boolean(true)
     );
 }
+
+#[test]
+fn test_like_value() {
+    let f = run_scalar_fct(
+        "SELECT first_name FROM users WHERE first_name LIKE 'J%'",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("first_name"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![Field::String("John".to_string())],
+    );
+    assert_eq!(f, Field::String("John".to_string()));
+}
+
+#[test]
+fn test_not_like_value() {
+    let f = run_scalar_fct(
+        "SELECT first_name FROM users WHERE first_name NOT LIKE 'A%'",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("first_name"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![Field::String("John".to_string())],
+    );
+    assert_eq!(f, Field::String("John".to_string()));
+}
+
+#[test]
+fn test_like_escape() {
+    let f = run_scalar_fct(
+        "SELECT first_name FROM users WHERE first_name LIKE 'J$%'",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(String::from("first_name"), FieldType::String, false),
+                false,
+            )
+            .clone(),
+        vec![Field::String("J%".to_string())],
+    );
+    assert_eq!(f, Field::String("J%".to_string()));
+}
