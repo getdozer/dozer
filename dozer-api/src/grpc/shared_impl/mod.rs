@@ -20,28 +20,42 @@ pub fn from_error(error: impl std::error::Error) -> Status {
     Status::new(Code::Internal, error.to_string())
 }
 
-pub fn query(
-    pipeline_details: PipelineDetails,
-    query: Option<&str>,
-    access: Option<&Access>,
-) -> Result<(Schema, Vec<Record>), Status> {
-    let query = match query {
+fn parse_query(query: Option<&str>) -> Result<QueryExpression, Status> {
+    match query {
         Some(query) => {
             if query.is_empty() {
-                QueryExpression::default()
+                Ok(QueryExpression::default())
             } else {
-                serde_json::from_str(query).map_err(from_error)?
+                serde_json::from_str(query).map_err(from_error)
             }
         }
-        None => QueryExpression::default(),
-    };
-    let api_helper = ApiHelper::new(pipeline_details, access.cloned())?;
+        None => Ok(QueryExpression::default()),
+    }
+}
+
+pub fn count(
+    pipeline_details: &PipelineDetails,
+    query: Option<&str>,
+    access: Option<Access>,
+) -> Result<usize, Status> {
+    let query = parse_query(query)?;
+    let api_helper = ApiHelper::new(pipeline_details, access)?;
+    api_helper.get_records_count(query).map_err(from_error)
+}
+
+pub fn query(
+    pipeline_details: &PipelineDetails,
+    query: Option<&str>,
+    access: Option<Access>,
+) -> Result<(Schema, Vec<Record>), Status> {
+    let query = parse_query(query)?;
+    let api_helper = ApiHelper::new(pipeline_details, access)?;
     let (schema, records) = api_helper.get_records(query).map_err(from_error)?;
     Ok((schema, records))
 }
 
 pub fn on_event<T: Send + 'static>(
-    pipeline_details: PipelineDetails,
+    pipeline_details: &PipelineDetails,
     filter: Option<&str>,
     mut broadcast_receiver: Option<Receiver<PipelineResponse>>,
     access: Option<Access>,
@@ -57,7 +71,7 @@ pub fn on_event<T: Send + 'static>(
         }
         None => None,
     };
-    let api_helper = ApiHelper::new(pipeline_details.clone(), access)?;
+    let api_helper = ApiHelper::new(pipeline_details, access)?;
     let schema = api_helper
         .get_schema()
         .map_err(|_| Status::invalid_argument(&pipeline_details.cache_endpoint.endpoint.name))?;

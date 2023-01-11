@@ -47,6 +47,17 @@ pub fn _create_path_parameter(
         style: PathStyle::Simple,
     }
 }
+
+pub fn create_response(description: String, schema: Schema) -> Response {
+    Response {
+        description,
+        content: indexmap::indexmap! {
+            "application/json".to_string() => MediaType { schema: Some(ReferenceOr::Item(schema)), ..Default::default() }
+        },
+        ..Default::default()
+    }
+}
+
 pub fn create_reference_response(description: String, schema_reference_path: String) -> Response {
     Response {
         description,
