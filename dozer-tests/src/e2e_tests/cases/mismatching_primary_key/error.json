@@ -1,5 +1,0 @@
-{
-    "InitFailure": {
-        "message": "Got mismatching primary key for `stocks_test`"
-    }
-}

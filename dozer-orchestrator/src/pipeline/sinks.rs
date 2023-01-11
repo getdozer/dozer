@@ -81,8 +81,8 @@ impl CacheSinkFactory {
 
         // Get hash of schema
         let hash = self.get_schema_hash();
-        let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
 
+        let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
         if schema.primary_index.is_empty() {
             if !api_index.primary_key.is_empty() {
                 schema.primary_index = create_primary_indexes(schema.clone(), api_index)?;
