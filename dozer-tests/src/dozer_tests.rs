@@ -5,9 +5,9 @@ use dozer_tests::e2e_tests::{create_runner, Case, RunnerType};
 
 #[derive(Parser)]
 struct Args {
-    #[arg(short, long, default_value = "dozer-tests/src/e2e_tests/cases")]
+    #[arg(long, default_value = "dozer-tests/src/e2e_tests/cases")]
     cases_dir: String,
-    #[arg(short, long, default_value = "dozer-tests/src/e2e_tests/connections")]
+    #[arg(long, default_value = "dozer-tests/src/e2e_tests/connections")]
     connections_dir: String,
     #[arg(short, long, default_value_t = RunnerType::Local)]
     runner: RunnerType,
