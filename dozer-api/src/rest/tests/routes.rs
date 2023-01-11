@@ -16,7 +16,7 @@ fn test_generate_oapi() {
     );
     let generated = oapi_generator.generate_oas3().unwrap();
 
-    assert_eq!(generated.paths.paths.len(), 3, " paths must be generated");
+    assert_eq!(generated.paths.paths.len(), 4, " paths must be generated");
 }
 
 #[actix_web::test]
@@ -47,7 +47,7 @@ async fn list_route() {
 }
 
 #[actix_web::test]
-async fn query_route() {
+async fn count_and_query_route() {
     let endpoint = test_utils::get_endpoint();
     let mut schema_name = endpoint.to_owned().path;
     schema_name.remove(0);
@@ -61,16 +61,27 @@ async fn query_route() {
         }],
     );
     let app = actix_web::test::init_service(api_server).await;
+
+    let filter = json!({"$filter": {"film_id":  268}});
     let req = actix_web::test::TestRequest::post()
-        .uri(&format!("{}/query", endpoint.path))
-        .set_json(json!({"$filter": {"film_id":  268}}))
+        .uri(&format!("{}/count", endpoint.path))
+        .set_json(&filter)
         .to_request();
     let res = actix_web::test::call_service(&app, req).await;
     assert!(res.status().is_success());
 
     let body: Value = actix_web::test::read_body_json(res).await;
-    assert!(body.is_array(), "Must return an array");
-    assert!(!body.as_array().unwrap().is_empty(), "Must return records");
+    assert_eq!(body.as_u64().unwrap(), 1);
+
+    let req = actix_web::test::TestRequest::post()
+        .uri(&format!("{}/query", endpoint.path))
+        .set_json(&filter)
+        .to_request();
+    let res = actix_web::test::call_service(&app, req).await;
+    assert!(res.status().is_success());
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    assert_eq!(body.as_array().unwrap().len(), 1);
 }
 
 #[actix_web::test]
