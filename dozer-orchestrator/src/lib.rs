@@ -20,6 +20,7 @@ use std::{
     },
 };
 use tokio::task::JoinHandle;
+mod console_helper;
 #[cfg(test)]
 mod test_utils;
 mod utils;
@@ -48,6 +49,7 @@ pub trait Orchestrator {
 // Re-exports
 use dozer_ingestion::connectors::TableInfo;
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
+
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 use dozer_types::types::Schema;
@@ -64,6 +66,13 @@ async fn flatten_joinhandle(
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     get_connector(input)?.validate(tables)
+}
+
+pub fn validate_schema(
+    input: Connection,
+    tables: &Vec<TableInfo>,
+) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError> {
+    get_connector(input)?.validate_schemas(tables)
 }
 
 pub fn set_panic_hook() {

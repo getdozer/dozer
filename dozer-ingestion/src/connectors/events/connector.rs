@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use dozer_types::models::source::Source;
@@ -82,5 +83,13 @@ impl Connector for EventsConnector {
 
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
         vec![sources]
+    }
+
+    fn validate_schemas(
+        &self,
+        _tables: &Vec<TableInfo>,
+    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>
+    {
+        todo!()
     }
 }

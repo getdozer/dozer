@@ -1,4 +1,5 @@
 use crate::connectors::postgres::schema_helper::SchemaHelper;
+use std::collections::HashMap;
 
 use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
@@ -150,14 +151,20 @@ impl Connector for PostgresConnector {
             None,
         )?;
 
-        // if let Some(tables_info) = &tables_list {
-        //     SchemaHelper::validate(tables_info).map_err(ConnectorError::PostgresConnectorError)?;
-        // }
         Ok(())
     }
 
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
         vec![sources]
+    }
+
+    fn validate_schemas(
+        &self,
+        tables: &Vec<TableInfo>,
+    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>
+    {
+        SchemaHelper::validate(&self.schema_helper, tables)
+            .map_err(ConnectorError::PostgresConnectorError)
     }
 }
 

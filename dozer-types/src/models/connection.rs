@@ -5,6 +5,7 @@ use serde::{
 };
 use serde::{Deserialize, Serialize};
 
+use prettytable::Table;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
@@ -93,6 +94,19 @@ pub struct PostgresAuthentication {
     #[prost(string, tag = "5")]
     pub database: String,
 }
+
+impl PostgresAuthentication {
+    pub fn convert_to_table(&self) -> Table {
+        table!(
+            ["user", self.user.as_str()],
+            ["password", "*************"],
+            ["host", self.host],
+            ["port", self.port],
+            ["database", self.database]
+        )
+    }
+}
+
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct EventsAuthentication {}
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]

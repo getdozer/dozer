@@ -231,4 +231,12 @@ impl Connector for EthConnector {
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
         vec![sources]
     }
+
+    fn validate_schemas(
+        &self,
+        _tables: &Vec<TableInfo>,
+    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>
+    {
+        Ok(HashMap::new())
+    }
 }

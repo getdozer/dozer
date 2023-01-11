@@ -1,4 +1,5 @@
 use super::executor::Executor;
+use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_grpc_config, get_pipeline_config,
@@ -21,9 +22,15 @@ use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
+use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::log::info;
+use dozer_types::models::api_config::ApiConfig;
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
+use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_yaml;
+use dozer_types::tracing::error;
 use dozer_types::types::{Operation, Schema, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::fs;
@@ -262,6 +269,10 @@ impl Orchestrator for SimpleOrchestrator {
         let api_dir = get_api_dir(self.config.to_owned());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
+        info!(
+            "Initiating app: {}",
+            get_colored_text(&self.config.app_name, "35")
+        );
         if api_dir.exists() || pipeline_home_dir.exists() || cache_dir.exists() {
             if force {
                 self.clean()?;
@@ -271,6 +282,18 @@ impl Orchestrator for SimpleOrchestrator {
                 ));
             }
         }
+
+        info!(
+            "Home dir: {}",
+            get_colored_text(&self.config.home_dir, "35")
+        );
+        if let Some(api_config) = &self.config.api {
+            print_api_config(api_config)
+        }
+
+        print_api_endpoints(&self.config.endpoints);
+        validate_endpoints(&self.config.endpoints)?;
+
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
@@ -358,4 +381,63 @@ impl SimpleOrchestrator {
         }
         Ok(cache_endpoints)
     }
+}
+
+pub fn validate_endpoints(endpoints: &Vec<ApiEndpoint>) -> Result<(), OrchestrationError> {
+    let mut is_all_valid = true;
+    for endpoint in endpoints {
+        let builder = PipelineBuilder {};
+        builder.build_pipeline(&endpoint.sql).map_or_else(
+            |e| {
+                is_all_valid = false;
+                error!(
+                    "[Endpoints][{}] {} Endpoint validation error: {}",
+                    endpoint.name,
+                    get_colored_text("X", "31"),
+                    e
+                );
+            },
+            |_| {
+                info!(
+                    "[Endpoints][{}] {} Endpoint validation completed",
+                    endpoint.name,
+                    get_colored_text("✓", "32")
+                );
+            },
+        );
+    }
+
+    if is_all_valid {
+        Ok(())
+    } else {
+        Err(OrchestrationError::PipelineValidationError)
+    }
+}
+
+fn print_api_config(api_config: &ApiConfig) {
+    info!("[API] {}", get_colored_text("Configuration", "35"));
+    let mut table_parent = Table::new();
+
+    table_parent.add_row(row!["Type", "IP", "Port"]);
+    if let Some(rest_config) = &api_config.rest {
+        table_parent.add_row(row!["REST", rest_config.host, rest_config.port]);
+    }
+
+    if let Some(grpc_config) = &api_config.grpc {
+        table_parent.add_row(row!["GRPC", grpc_config.host, grpc_config.port]);
+    }
+
+    table_parent.printstd();
+}
+
+fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
+    info!("[API] {}", get_colored_text("Endpoints", "35"));
+    let mut table_parent = Table::new();
+
+    table_parent.add_row(row!["Path", "Name", "Sql"]);
+    for endpoint in endpoints {
+        table_parent.add_row(row![endpoint.path, endpoint.name, endpoint.sql]);
+    }
+
+    table_parent.printstd();
 }

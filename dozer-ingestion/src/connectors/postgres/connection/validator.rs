@@ -2,15 +2,17 @@ use crate::connectors::postgres::connector::ReplicationSlotInfo;
 
 use crate::connectors::TableInfo;
 use crate::errors::PostgresConnectorError;
-use crate::errors::PostgresConnectorError::{ColumnNameNotValid, ConnectionFailure, InvalidQueryError, NoAvailableSlotsError, ReplicationIsNotAvailableForUserError, SlotIsInUseError, SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError, TableNameNotValid, WALLevelIsNotCorrect};
+use crate::errors::PostgresConnectorError::{
+    ColumnNameNotValid, ConnectionFailure, InvalidQueryError, NoAvailableSlotsError,
+    ReplicationIsNotAvailableForUserError, SlotIsInUseError, SlotNotExistError,
+    StartLsnIsBeforeLastFlushedLsnError, TableError, TableNameNotValid, WALLevelIsNotCorrect,
+};
 use dozer_types::indicatif::ProgressStyle;
 use postgres::Client;
 use postgres_types::PgLsn;
 use regex::Regex;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
-use std::thread::sleep;
-use std::time::Duration;
 
 pub enum Validations {
     Details,
@@ -65,10 +67,8 @@ pub fn validate_connection(
         }
 
         pb.inc(1);
-        sleep(Duration::from_secs(1));
     }
 
-    // pb.finish_with_message("Connection validation completed");
     pb.finish_and_clear();
 
     Ok(())
@@ -173,7 +173,7 @@ fn validate_tables(
             "SELECT table_name FROM information_schema.tables WHERE table_name = ANY($1)",
             &[&table_name_keys],
         )
-        .map_err(|_e| TableError(table_name_keys))?;
+        .map_err(InvalidQueryError)?;
 
     for r in result.iter() {
         let table_name: String = r.try_get(0).map_err(InvalidQueryError)?;

@@ -51,12 +51,12 @@ impl SchemaHelper {
             .collect())
     }
 
-    pub fn get_schemas(
+    fn get_columns(
         &self,
-        table_name: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, PostgresConnectorError> {
-        let mut client = helper::connect(self.conn_config.clone())?;
+        table_name: Option<&Vec<TableInfo>>,
+    ) -> Result<(Vec<Row>, HashMap<String, Vec<String>>), PostgresConnectorError> {
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
+        let mut client = helper::connect(self.conn_config.clone())?;
         let schema = self.schema.clone();
         let query = if let Some(tables) = table_name {
             tables.iter().for_each(|t| {
@@ -72,7 +72,16 @@ impl SchemaHelper {
             client.query(&sql, &[&schema])
         };
 
-        let results = query.map_err(PostgresConnectorError::InvalidQueryError)?;
+        query
+            .map_err(PostgresConnectorError::InvalidQueryError)
+            .map(|rows| (rows, tables_columns_map))
+    }
+
+    pub fn get_schemas(
+        &self,
+        tables: Option<Vec<TableInfo>>,
+    ) -> Result<Vec<SchemaWithChangesType>, PostgresConnectorError> {
+        let (results, tables_columns_map) = self.get_columns(tables.as_ref())?;
 
         let mut columns_map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
             HashMap::new();
@@ -143,9 +152,9 @@ impl SchemaHelper {
                 _ => Err(PostgresSchemaError::UnsupportedReplicationType(
                     replication_type,
                 )),
-            };
+            }?;
 
-            schemas.push((table_name, schema, replication_type?));
+            schemas.push((table_name, schema, replication_type));
         }
 
         Self::validate_schema_replication_identity(&schemas)?;
@@ -166,8 +175,77 @@ impl SchemaHelper {
         }
     }
 
-    pub fn validate(_tables: &Vec<TableInfo>) -> Result<(), PostgresSchemaError> {
-        Ok(())
+    pub fn validate(
+        &self,
+        tables: &Vec<TableInfo>,
+    ) -> Result<
+        HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>,
+        PostgresConnectorError,
+    > {
+        let (results, tables_columns_map) = self.get_columns(Some(tables))?;
+
+        let mut validation_result: HashMap<
+            String,
+            Vec<(Option<String>, Result<(), ConnectorError>)>,
+        > = HashMap::new();
+        for row in results {
+            let table_name: String = row.get(0);
+            let column_name: String = row.get(1);
+
+            let column_should_be_validated = tables_columns_map
+                .get(&table_name)
+                .map_or(true, |table_info| table_info.contains(&column_name));
+
+            if column_should_be_validated {
+                let row_result = self.convert_row(&row).map_or_else(
+                    |e| {
+                        Err(ConnectorError::PostgresConnectorError(
+                            PostgresConnectorError::PostgresSchemaError(e),
+                        ))
+                    },
+                    |_| Ok(()),
+                );
+
+                validation_result.entry(table_name.clone()).or_default();
+                validation_result
+                    .entry(table_name)
+                    .and_modify(|r| r.push((Some(column_name), row_result)));
+            }
+        }
+
+        for table in tables {
+            if let Some(columns) = &table.columns {
+                let mut existing_columns = HashMap::new();
+                if let Some(res) = validation_result.get(&table.name) {
+                    for (col_name, _) in res {
+                        if let Some(name) = col_name {
+                            existing_columns.insert(name.clone(), ());
+                        }
+                    }
+                }
+
+                for column_name in columns {
+                    if existing_columns.get(column_name).is_none() {
+                        validation_result
+                            .entry(table.name.clone())
+                            .and_modify(|r| {
+                                r.push((
+                                    None,
+                                    Err(ConnectorError::PostgresConnectorError(
+                                        PostgresConnectorError::ColumnNotFound(
+                                            column_name.to_string(),
+                                            table.name.clone(),
+                                        ),
+                                    )),
+                                ))
+                            })
+                            .or_default();
+                    }
+                }
+            }
+        }
+
+        Ok(validation_result)
     }
 
     fn convert_row(

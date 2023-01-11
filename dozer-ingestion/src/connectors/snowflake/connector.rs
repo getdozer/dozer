@@ -1,5 +1,6 @@
 #[cfg(feature = "snowflake")]
 use odbc::create_environment_v3;
+use std::collections::HashMap;
 use std::sync::Arc;
 #[cfg(feature = "snowflake")]
 use std::time::Duration;
@@ -106,6 +107,14 @@ impl Connector for SnowflakeConnector {
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
+    }
+
+    fn validate_schemas(
+        &self,
+        _tables: &Vec<TableInfo>,
+    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>
+    {
+        todo!()
     }
 }
 

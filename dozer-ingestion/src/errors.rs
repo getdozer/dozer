@@ -96,6 +96,9 @@ pub enum PostgresConnectorError {
     #[error("Cannot find table: {:?}", .0.join(", "))]
     TableError(Vec<String>),
 
+    #[error("Cannot find column {0} in {1}")]
+    ColumnNotFound(String, String),
+
     #[error("Failed to create a replication slot : {0}")]
     CreateSlotError(String),
 
@@ -242,6 +245,9 @@ pub enum DebeziumError {
 
     #[error("Schema registry fetch failed")]
     SchemaRegistryFetchError(#[source] SRCError),
+
+    #[error("Topic not defined")]
+    TopicNotDefined,
 }
 
 #[derive(Error, Debug)]
