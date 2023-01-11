@@ -10,7 +10,12 @@ import "{{this}}";
 
 // Endpoint /{{lower_name}}
 service {{plural_pascal_name}} {
-
+  /**
+   * Count the number of recrods satisfying the given query. See query documentation for the query format. 
+   *
+   * If no query is specified, total number of records of 50 will be returned, whichever is smaller.
+   */
+  rpc count(Query{{plural_pascal_name}}Request) returns (Count{{plural_pascal_name}}Response);
   /**
    * Performs query. See query documentation for the query format. 
    *
@@ -30,10 +35,16 @@ service {{plural_pascal_name}} {
   {{/if}}
 }
 
-// Request for `query`.
+// Request for `count` and `query`.
 message Query{{plural_pascal_name}}Request {
   // JSON query string.
   optional string query = 1;
+}
+
+// Response for `count`.
+message Count{{plural_pascal_name}}Response {
+  // The number of records.
+  uint64 count = 1;
 }
 
 // Response for `query`.

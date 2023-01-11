@@ -1,6 +1,9 @@
 use super::{
     codec::TypedCodec,
-    helper::{on_event_to_typed_response, query_response_to_typed_response, token_response},
+    helper::{
+        count_response_to_typed_response, on_event_to_typed_response,
+        query_response_to_typed_response, token_response,
+    },
     DynamicMessage, TypedResponse,
 };
 use crate::{
@@ -12,12 +15,13 @@ use actix_web::http::StatusCode;
 use dozer_types::{models::api_security::ApiSecurity, types::Schema};
 use futures_util::future;
 use inflector::Inflector;
-use prost_reflect::DescriptorPool;
-use std::collections::HashMap;
+use prost_reflect::{DescriptorPool, Value};
+use std::{borrow::Cow, collections::HashMap};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
     codegen::{self, *},
-    Code, Request, Response, Status,
+    metadata::MetadataMap,
+    Code, Extensions, Request, Response, Status,
 };
 pub struct TypedService {
     accept_compression_encodings: EnabledCompressionEncodings,
@@ -129,15 +133,29 @@ where
                 );
 
                 match method_name {
+                    "count" => {
+                        struct CountService(PipelineDetails, DescriptorPool);
+                        impl tonic::server::UnaryService<DynamicMessage> for CountService {
+                            type Response = TypedResponse;
+                            type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
+                            fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
+                                let response = count(request, &self.0, &self.1);
+                                future::ready(response)
+                            }
+                        }
+                        Box::pin(async move {
+                            let method = CountService(pipeline_details, desc);
+                            let res = grpc.unary(method, req).await;
+                            Ok(res)
+                        })
+                    }
                     "query" => {
                         struct QueryService(PipelineDetails, DescriptorPool);
                         impl tonic::server::UnaryService<DynamicMessage> for QueryService {
                             type Response = TypedResponse;
                             type Future = future::Ready<Result<Response<TypedResponse>, Status>>;
                             fn call(&mut self, request: Request<DynamicMessage>) -> Self::Future {
-                                let pipeline_details = self.0.clone();
-                                let desc = self.1.clone();
-                                let response = query(request, pipeline_details, desc);
+                                let response = query(request, &self.0, &self.1);
                                 future::ready(response)
                             }
                         }
@@ -160,24 +178,16 @@ where
                             type ResponseStream =
                                 ReceiverStream<Result<TypedResponse, tonic::Status>>;
 
-                            type Future =
-                                BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+                            type Future = future::Ready<
+                                Result<tonic::Response<Self::ResponseStream>, tonic::Status>,
+                            >;
                             fn call(
                                 &mut self,
                                 request: tonic::Request<DynamicMessage>,
                             ) -> Self::Future {
-                                let pipeline_details = self.0.to_owned();
                                 let desc = self.1.clone();
                                 let event_notifier = self.2.as_ref().map(|r| r.resubscribe());
-                                let fut = async move {
-                                    on_event(
-                                        request,
-                                        pipeline_details.to_owned(),
-                                        desc,
-                                        event_notifier,
-                                    )
-                                };
-                                Box::pin(fut)
+                                future::ready(on_event(request, &self.0, desc, event_notifier))
                             }
                         }
                         Box::pin(async move {
@@ -224,35 +234,67 @@ impl tonic::server::NamedService for TypedService {
     const NAME: &'static str = ":dozer.generated";
 }
 
-fn query(
-    request: Request<DynamicMessage>,
-    pipeline_details: PipelineDetails,
-    desc: DescriptorPool,
-) -> Result<Response<TypedResponse>, Status> {
-    let parts = request.into_parts();
-    let mut extensions = parts.1;
-    let query_request = parts.2;
+fn parse_request(
+    (_, extensions, query_request): &mut (MetadataMap, Extensions, DynamicMessage),
+) -> Result<(Option<Cow<str>>, Option<Access>), Status> {
     let access = extensions.remove::<Access>();
 
-    let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
     let query = query_request.get_field_by_name("query");
     let query = query
-        .as_ref()
-        .map(|query| {
-            query
+        .map(|query| match query {
+            Cow::Owned(query) => {
+                if let Value::String(query) = query {
+                    Ok(Cow::Owned(query))
+                } else {
+                    Err(Status::new(Code::InvalidArgument, "query must be a string"))
+                }
+            }
+            Cow::Borrowed(query) => query
                 .as_str()
-                .ok_or_else(|| Status::new(Code::InvalidArgument, "query must be a string"))
+                .map(Cow::Borrowed)
+                .ok_or_else(|| Status::new(Code::InvalidArgument, "query must be a string")),
         })
         .transpose()?;
+    Ok((query, access))
+}
 
-    let (_, records) = shared_impl::query(pipeline_details, query, access)?;
-    let res = query_response_to_typed_response(records, &desc, &endpoint_name);
+fn count(
+    request: Request<DynamicMessage>,
+    pipeline_details: &PipelineDetails,
+    desc: &DescriptorPool,
+) -> Result<Response<TypedResponse>, Status> {
+    let mut parts = request.into_parts();
+    let (query, access) = parse_request(&mut parts)?;
+
+    let count = shared_impl::count(pipeline_details, query.as_deref(), access)?;
+    let res = count_response_to_typed_response(
+        count,
+        desc,
+        &pipeline_details.cache_endpoint.endpoint.name,
+    );
+    Ok(Response::new(res))
+}
+
+fn query(
+    request: Request<DynamicMessage>,
+    pipeline_details: &PipelineDetails,
+    desc: &DescriptorPool,
+) -> Result<Response<TypedResponse>, Status> {
+    let mut parts = request.into_parts();
+    let (query, access) = parse_request(&mut parts)?;
+
+    let (_, records) = shared_impl::query(pipeline_details, query.as_deref(), access)?;
+    let res = query_response_to_typed_response(
+        records,
+        desc,
+        &pipeline_details.cache_endpoint.endpoint.name,
+    );
     Ok(Response::new(res))
 }
 
 fn on_event(
     request: Request<DynamicMessage>,
-    pipeline_details: PipelineDetails,
+    pipeline_details: &PipelineDetails,
     desc: DescriptorPool,
     event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {

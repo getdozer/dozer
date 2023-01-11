@@ -34,7 +34,7 @@ service CommonGrpcService {
   rpc getFields(GetFieldsRequest) returns (GetFieldsResponse);
 }
 
-// Request for `query`.
+// Request for `count` and `query`.
 message QueryRequest {
   // The name of the endpoint to query.
   string endpoint = 1;

@@ -26,7 +26,7 @@ pub struct CommonService {
 }
 
 impl CommonService {
-    fn find_pipeline_details(
+    fn parse_request(
         &self,
         request: Request<QueryRequest>,
     ) -> Result<(&PipelineDetails, QueryRequest, Option<Access>), Status> {
@@ -49,13 +49,9 @@ impl CommonGrpcService for CommonService {
         &self,
         request: Request<QueryRequest>,
     ) -> Result<Response<CountResponse>, Status> {
-        let (pipeline_details, query_request, access) = self.find_pipeline_details(request)?;
+        let (pipeline_details, query_request, access) = self.parse_request(request)?;
 
-        let count = shared_impl::count(
-            pipeline_details.clone(),
-            query_request.query.as_deref(),
-            access,
-        )?;
+        let count = shared_impl::count(pipeline_details, query_request.query.as_deref(), access)?;
 
         let reply = CountResponse {
             count: count as u64,
@@ -67,13 +63,10 @@ impl CommonGrpcService for CommonService {
         &self,
         request: Request<QueryRequest>,
     ) -> Result<Response<QueryResponse>, Status> {
-        let (pipeline_details, query_request, access) = self.find_pipeline_details(request)?;
+        let (pipeline_details, query_request, access) = self.parse_request(request)?;
 
-        let (schema, records) = shared_impl::query(
-            pipeline_details.clone(),
-            query_request.query.as_deref(),
-            access,
-        )?;
+        let (schema, records) =
+            shared_impl::query(pipeline_details, query_request.query.as_deref(), access)?;
 
         let fields = schema
             .fields
@@ -104,7 +97,7 @@ impl CommonGrpcService for CommonService {
             .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
         shared_impl::on_event(
-            pipeline_details.clone(),
+            pipeline_details,
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
@@ -137,7 +130,7 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(pipeline_details.clone(), None)?;
+        let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
         let schema = api_helper
             .get_schema()
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;

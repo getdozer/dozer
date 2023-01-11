@@ -13,6 +13,12 @@ import "types.proto";
 // The generated service for `/films` endpoint.
 service Films {
   /**
+   * Count the number of recrods satisfying the given query. See query documentation for the query format. 
+   *
+   * If no query is specified, total number of records of 50 will be returned, whichever is smaller.
+   */
+  rpc count(QueryFilmsRequest) returns (CountFilmsResponse);
+  /**
    * Performs query. See query documentation for the query format. 
    *
    * If no query is specified, the first 50 records will be returned.
@@ -30,10 +36,16 @@ service Films {
   rpc token(TokenRequest) returns (TokenResponse);
 }
 
-// Request for `query`.
+// Request for `count` and `query`.
 message QueryFilmsRequest {
   // JSON query string.
   optional string query = 1;
+}
+
+// Response for `count`.
+message CountFilmsResponse {
+  // The number of records.
+  uint64 count = 1;
 }
 
 // Response for `query`.

@@ -12,16 +12,16 @@ use dozer_types::serde_json::Value;
 use dozer_types::types::{Record, Schema};
 use openapiv3::OpenAPI;
 
-pub struct ApiHelper {
-    details: PipelineDetails,
+pub struct ApiHelper<'a> {
+    details: &'a PipelineDetails,
     reader: CacheReader,
 }
-impl ApiHelper {
+impl<'a> ApiHelper<'a> {
     pub fn new(
-        pipeline_details: PipelineDetails,
+        pipeline_details: &'a PipelineDetails,
         access: Option<Access>,
     ) -> Result<Self, ApiError> {
-        let access = access.map_or(Access::All, |a| a);
+        let access = access.unwrap_or(Access::All);
 
         // Define Access Filter based on token
         let reader_access = match access {

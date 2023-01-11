@@ -34,7 +34,7 @@ fn parse_query(query: Option<&str>) -> Result<QueryExpression, Status> {
 }
 
 pub fn count(
-    pipeline_details: PipelineDetails,
+    pipeline_details: &PipelineDetails,
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<usize, Status> {
@@ -44,7 +44,7 @@ pub fn count(
 }
 
 pub fn query(
-    pipeline_details: PipelineDetails,
+    pipeline_details: &PipelineDetails,
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<(Schema, Vec<Record>), Status> {
@@ -55,7 +55,7 @@ pub fn query(
 }
 
 pub fn on_event<T: Send + 'static>(
-    pipeline_details: PipelineDetails,
+    pipeline_details: &PipelineDetails,
     filter: Option<&str>,
     mut broadcast_receiver: Option<Receiver<PipelineResponse>>,
     access: Option<Access>,
@@ -71,7 +71,7 @@ pub fn on_event<T: Send + 'static>(
         }
         None => None,
     };
-    let api_helper = ApiHelper::new(pipeline_details.clone(), access)?;
+    let api_helper = ApiHelper::new(pipeline_details, access)?;
     let schema = api_helper
         .get_schema()
         .map_err(|_| Status::invalid_argument(&pipeline_details.cache_endpoint.endpoint.name))?;
