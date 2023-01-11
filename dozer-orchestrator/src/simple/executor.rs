@@ -1,6 +1,7 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
 use dozer_types::indicatif::MultiProgress;
+use dozer_types::models::app_config::Flags;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -210,6 +211,7 @@ impl Executor {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         api_security: Option<ApiSecurity>,
+        flags: Option<Flags>
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
@@ -235,6 +237,7 @@ impl Executor {
                     api_dir.clone(),
                     api_security.clone(),
                     self.progress.clone(),
+                    flags.clone(),
                 )),
                 cache_endpoint.endpoint.name.as_str(),
             );
@@ -300,10 +303,12 @@ impl Executor {
     pub fn run(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
+        api_security: Option<ApiSecurity>,
+        flags: Option<Flags>
     ) -> Result<(), OrchestrationError> {
         let running_wait = self.running.clone();
 
-        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), None)?;
+        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), api_security,flags)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {
