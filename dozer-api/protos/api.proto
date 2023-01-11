@@ -11,6 +11,12 @@ import "types.proto";
  */
 service CommonGrpcService {
   /**
+   * Count the number of recrods satisfying the given query. See [Query](../query) for the query format.
+   *
+   * If no query is specified, total number of records of 50 will be returned, whichever is smaller.
+   */
+  rpc count(QueryRequest) returns (CountResponse);
+  /**
    * Performs query on an endpoint. See [Query](../query) for the query format.
    *
    * If no query is specified, the first 50 records will be returned.
@@ -34,6 +40,12 @@ message QueryRequest {
   string endpoint = 1;
   // JSON query string.
   optional string query = 2;
+}
+
+// Response for `count`.
+message CountResponse {
+  // The number of records satisfying the query.
+  uint64 count = 1;
 }
 
 // Request for `OnEvent`.

@@ -230,9 +230,9 @@ fn query(
     desc: DescriptorPool,
 ) -> Result<Response<TypedResponse>, Status> {
     let parts = request.into_parts();
-    let extensions = parts.1;
+    let mut extensions = parts.1;
     let query_request = parts.2;
-    let access = extensions.get::<Access>();
+    let access = extensions.remove::<Access>();
 
     let endpoint_name = pipeline_details.cache_endpoint.endpoint.name.clone();
     let query = query_request.get_field_by_name("query");
