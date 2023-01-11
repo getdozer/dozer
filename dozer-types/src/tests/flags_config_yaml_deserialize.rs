@@ -13,9 +13,9 @@ fn test_full_flag_config_input() {
 
     assert!(deserializer_result.flags.is_some());
     let flags_deserialize = deserializer_result.flags.unwrap();
-    assert_eq!(flags_deserialize.dynamic, true);
-    assert_eq!(flags_deserialize.grpc_web, false);
-    assert_eq!(flags_deserialize.push_events, false);
+    assert!(flags_deserialize.dynamic);
+    assert!(!flags_deserialize.grpc_web);
+    assert!(!flags_deserialize.push_events);
 }
 
 #[test]

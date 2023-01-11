@@ -96,7 +96,7 @@ fn single_source_sink_impl(schema: Schema) {
             tmp_path,
         );
         let flags = Flags::default();
-        match executor.run(None, Some(flags)) {
+        match executor.run(None, None, Some(flags)) {
             Ok(_) => {}
             Err(e) => warn!("Exiting: {:?}", e),
         }
