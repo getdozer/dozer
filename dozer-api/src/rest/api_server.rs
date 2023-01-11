@@ -99,8 +99,7 @@ impl ApiServer {
         let cors_middleware = Self::get_cors(cors);
 
         cache_endpoints
-            .iter()
-            .cloned()
+            .into_iter()
             .fold(app, |app, cache_endpoint| {
                 let endpoint = cache_endpoint.endpoint.clone();
                 let scope = endpoint.path.clone();
@@ -115,6 +114,7 @@ impl ApiServer {
                             });
                             srv.call(req)
                         })
+                        .route("/count", web::post().to(api_generator::count))
                         .route("/query", web::post().to(api_generator::query))
                         .route("/oapi", web::post().to(api_generator::generate_oapi))
                         .route("/{id}", web::get().to(api_generator::get))

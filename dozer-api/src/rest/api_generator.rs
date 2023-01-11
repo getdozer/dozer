@@ -75,6 +75,28 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
     Ok(HttpResponse::Ok().body(resp))
 }
 
+pub async fn count(
+    access: Option<ReqData<Access>>,
+    pipeline_details: ReqData<PipelineDetails>,
+    query_info: web::Json<Value>,
+) -> Result<HttpResponse, ApiError> {
+    let query_expression = serde_json::from_value::<QueryExpression>(query_info.0)
+        .map_err(ApiError::map_deserialization_error)?;
+    let helper = ApiHelper::new(
+        pipeline_details.into_inner(),
+        access.map(|a| a.into_inner()),
+    )?;
+    helper
+        .get_records_count(query_expression)
+        .map(|count| HttpResponse::Ok().json(count))
+        .map_err(|e| match e {
+            CacheError::QueryValidationError(e) => ApiError::InvalidQuery(e),
+            CacheError::TypeError(e) => ApiError::TypeError(e),
+            CacheError::InternalError(e) => ApiError::InternalError(e),
+            e => ApiError::InternalError(Box::new(e)),
+        })
+}
+
 // Generated query function for multiple records
 pub async fn query(
     access: Option<ReqData<Access>>,

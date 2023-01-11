@@ -91,6 +91,10 @@ impl ApiHelper {
         record_to_map(&rec, &schema).map_err(CacheError::TypeError)
     }
 
+    pub fn get_records_count(&self, mut exp: QueryExpression) -> Result<usize, CacheError> {
+        self.reader.count(&self.details.schema_name, &mut exp)
+    }
+
     /// Get multiple records
     pub fn get_records_map(
         &self,
