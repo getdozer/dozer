@@ -6,6 +6,7 @@ use crate::utils::{
 };
 use crate::Orchestrator;
 use dozer_api::auth::{Access, Authorizer};
+use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
@@ -285,7 +286,7 @@ impl Orchestrator for SimpleOrchestrator {
         // Api Path
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {
-            fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(&generated_path.clone()).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // Pipeline path
@@ -296,13 +297,26 @@ impl Orchestrator for SimpleOrchestrator {
             )
         })?;
 
-        let dag = executor.build_pipeline(
-            None,
-            generated_path,
-            get_api_security_config(self.config.clone()),
-        )?;
+        let api_security = get_api_security_config(self.config.clone());
+        let dag = executor.build_pipeline(None, generated_path.clone(), api_security)?;
         let schema_manager = DagSchemaManager::new(&dag)?;
+        // Every sink will initialize its schema in sink and also in a proto file.
         schema_manager.prepare()?;
+
+        let mut resources = Vec::new();
+        for e in &self.config.endpoints {
+            resources.push(e.name.clone());
+        }
+
+        let generated_path_str = generated_path.to_string_lossy().to_string();
+        // Copy common service to be included in descriptor.
+        resources.push("common".to_string());
+
+        ProtoGenerator::copy_common(generated_path_str.clone())
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        // Generate a descriptor based on all proto files generated within sink.
+        ProtoGenerator::generate_descriptor(generated_path_str, resources)
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())
     }

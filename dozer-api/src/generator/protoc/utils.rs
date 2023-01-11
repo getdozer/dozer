@@ -32,10 +32,12 @@ pub fn create_descriptor_set(
     resources: &[String],
 ) -> Result<String, io::Error> {
     let my_path_descriptor = format!("{}/file_descriptor_set.bin", folder_path);
+
     let resources: Vec<String> = resources
         .iter()
         .map(|r| format!("{}/{}.proto", folder_path, r))
         .collect();
+
     let mut prost_build_config = prost_build::Config::new();
     prost_build_config.out_dir(folder_path.to_owned());
     tonic_build::configure()

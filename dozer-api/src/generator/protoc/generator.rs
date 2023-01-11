@@ -7,7 +7,6 @@ use dozer_types::types::FieldType;
 use handlebars::Handlebars;
 use inflector::Inflector;
 use prost_reflect::DescriptorPool;
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::Path;
 
@@ -33,7 +32,6 @@ pub struct RPCMessage {
 }
 
 pub struct ProtoResponse {
-    pub resources: Vec<String>,
     pub descriptor: DescriptorPool,
     pub descriptor_bytes: Vec<u8>,
 }
@@ -187,42 +185,49 @@ impl<'a> ProtoGenerator<'a> {
         Ok((resource_proto, resource_path))
     }
 
+    pub fn copy_common(folder_path: String) -> Result<(), GenerationError> {
+        let common_proto = include_str!("../../../protos/api.proto");
+        let mut common_file = std::fs::File::create(format!("{}/common.proto", folder_path))
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+
+        std::io::Write::write_all(&mut common_file, common_proto.as_bytes())
+            .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
+
+        Ok(())
+    }
+
     pub fn generate(
         folder_path: String,
         endpoint_name: String,
         details: PipelineDetails,
         security: &Option<ApiSecurity>,
-    ) -> Result<ProtoResponse, GenerationError> {
-        let mut resources = vec![];
+    ) -> Result<(), GenerationError> {
         let generator = ProtoGenerator::new(details, folder_path.clone(), security)?;
         generator._generate_proto()?;
-        resources.push(endpoint_name);
 
+        Ok(())
+    }
+
+    pub fn generate_descriptor(
+        folder_path: String,
+        resources: Vec<String>,
+    ) -> Result<ProtoResponse, GenerationError> {
         let descriptor_path = create_descriptor_set(folder_path, &resources)
             .map_err(|e| GenerationError::InternalError(Box::new(e)))?;
 
         let (descriptor_bytes, descriptor) = get_proto_descriptor(descriptor_path)?;
 
         Ok(ProtoResponse {
-            resources,
             descriptor,
             descriptor_bytes,
         })
     }
 
-    pub fn read(
-        folder_path: String,
-        pipeline_map: HashMap<String, PipelineDetails>,
-    ) -> Result<ProtoResponse, GenerationError> {
-        let mut resources = vec![];
-        for (endpoint_name, _) in pipeline_map {
-            resources.push(endpoint_name);
-        }
+    pub fn read(folder_path: String) -> Result<ProtoResponse, GenerationError> {
         let descriptor_path = format!("{}/file_descriptor_set.bin", folder_path);
         let (descriptor_bytes, descriptor) = get_proto_descriptor(descriptor_path)?;
 
         Ok(ProtoResponse {
-            resources,
             descriptor,
             descriptor_bytes,
         })
