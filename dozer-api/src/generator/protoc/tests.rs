@@ -1,6 +1,7 @@
 use super::generator::ProtoGenerator;
 use crate::{test_utils, CacheEndpoint, PipelineDetails};
 use dozer_types::models::{api_security::ApiSecurity, app_config::Flags};
+use prost_reflect::{MethodDescriptor, ServiceDescriptor};
 use std::collections::HashMap;
 use tempdir::TempDir;
 
@@ -141,6 +142,19 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
     let token_request = res
         .descriptor
         .get_message_by_name("dozer.generated.films.TokenRequest");
+    let event_request = res
+        .descriptor
+        .get_message_by_name("dozer.generated.films.FilmEventRequest");
+    let event_response = res
+        .descriptor
+        .get_message_by_name("dozer.generated.films.FilmEventResponse");
+    let svcs: Vec<ServiceDescriptor> = res.descriptor.services().collect();
+    let methods = svcs[0]
+        .methods()
+        .collect::<Vec<MethodDescriptor>>()
+        .iter()
+        .map(|m| m.name().to_string())
+        .collect::<Vec<String>>();
     assert!(msg.is_some(), "descriptor is not decoded properly");
     assert!(
         token_request.is_some(),
@@ -149,5 +163,26 @@ fn test_generate_proto_and_descriptor_with_push_event_off() {
     assert!(
         token_response.is_some(),
         "Missing Token response generated with security config"
+    );
+    assert!(
+        event_request.is_none(),
+        "Event request should not be generated with push_event flag off"
+    );
+    assert!(
+        event_response.is_none(),
+        "Event response should not be generated with push_event flag off"
+    );
+    assert!(svcs.len() == 1, "Only one service should be generated");
+    assert!(
+        methods.contains(&"query".to_string()),
+        "query method should be generated"
+    );
+    assert!(
+        methods.contains(&"token".to_string()),
+        "token method should be generated"
+    );
+    assert!(
+        !methods.contains(&"on_event".to_string()),
+        "on_event method should not be generated"
     );
 }
