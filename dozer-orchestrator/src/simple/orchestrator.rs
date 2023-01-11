@@ -286,7 +286,7 @@ impl Orchestrator for SimpleOrchestrator {
         // Api Path
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {
-            fs::create_dir_all(&generated_path.clone()).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(generated_path.clone()).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // Pipeline path

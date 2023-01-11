@@ -201,7 +201,7 @@ impl<'a> ProtoGenerator<'a> {
         details: PipelineDetails,
         security: &Option<ApiSecurity>,
     ) -> Result<(), GenerationError> {
-        let generator = ProtoGenerator::new(details, folder_path.clone(), security)?;
+        let generator = ProtoGenerator::new(details, folder_path, security)?;
         generator._generate_proto()?;
 
         Ok(())

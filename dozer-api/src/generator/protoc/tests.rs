@@ -1,4 +1,5 @@
 use super::generator::ProtoGenerator;
+use crate::generator::protoc::utils::{create_descriptor_set, get_proto_descriptor};
 use crate::{test_utils, CacheEndpoint, PipelineDetails};
 use dozer_types::models::api_security::ApiSecurity;
 use std::collections::HashMap;
@@ -25,18 +26,15 @@ fn test_generate_proto_and_descriptor() {
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
     let api_security: Option<ApiSecurity> = None;
 
-    let res =
-        ProtoGenerator::generate(tmp_dir_path, endpoint.name, details, &api_security).unwrap();
+    ProtoGenerator::generate(tmp_dir_path.to_owned(), details, &api_security).unwrap();
 
-    let msg = res
-        .descriptor
-        .get_message_by_name("dozer.generated.films.Film");
-    let token_response = res
-        .descriptor
-        .get_message_by_name("dozer.generated.films.TokenResponse");
-    let token_request = res
-        .descriptor
-        .get_message_by_name("dozer.generated.films.TokenRequest");
+    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
+    let (_, descriptor) = get_proto_descriptor(descriptor_path).unwrap();
+
+    let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
+    let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
+    let token_request = descriptor.get_message_by_name("dozer.generated.films.TokenRequest");
+
     assert!(msg.is_some(), "descriptor is not decoded properly");
     assert!(
         token_request.is_none(),
@@ -68,18 +66,16 @@ fn test_generate_proto_and_descriptor_with_security() {
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
 
-    let api_security = ApiSecurity::Jwt("vDKrSDOrVY".to_owned());
-    let res = ProtoGenerator::generate(tmp_dir_path, endpoint.name, details, &Some(api_security))
-        .unwrap();
-    let msg = res
-        .descriptor
-        .get_message_by_name("dozer.generated.films.Film");
-    let token_response = res
-        .descriptor
-        .get_message_by_name("dozer.generated.films.TokenResponse");
-    let token_request = res
-        .descriptor
-        .get_message_by_name("dozer.generated.films.TokenRequest");
+    let api_security = Some(ApiSecurity::Jwt("vDKrSDOrVY".to_owned()));
+
+    ProtoGenerator::generate(tmp_dir_path.to_owned(), details, &api_security).unwrap();
+
+    let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
+    let (_, descriptor) = get_proto_descriptor(descriptor_path).unwrap();
+
+    let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
+    let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
+    let token_request = descriptor.get_message_by_name("dozer.generated.films.TokenRequest");
     assert!(msg.is_some(), "descriptor is not decoded properly");
     assert!(
         token_request.is_some(),
