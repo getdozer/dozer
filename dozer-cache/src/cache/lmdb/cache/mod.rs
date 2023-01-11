@@ -188,12 +188,31 @@ impl Cache for LmdbCache {
         self.get_with_txn(&txn, key)
     }
 
-    fn query(&self, name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError> {
+    fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError> {
+        let txn = self
+            .env
+            .begin_ro_txn()
+            .map_err(|e| CacheError::InternalError(Box::new(e)))?;
+        let (schema, secondary_indexes) = self.schema_db.get_schema_from_name(&txn, schema_name)?;
+
+        let handler = LmdbQueryHandler::new(
+            self.db,
+            self.secondary_indexes.clone(),
+            &txn,
+            &schema,
+            &secondary_indexes,
+            query,
+            self.cache_options.common.intersection_chunk_size,
+        );
+        handler.count()
+    }
+
+    fn query(&self, schema_name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError> {
         let txn: RoTransaction = self
             .env
             .begin_ro_txn()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
-        let (schema, secondary_indexes) = self.schema_db.get_schema_from_name(&txn, name)?;
+        let (schema, secondary_indexes) = self.schema_db.get_schema_from_name(&txn, schema_name)?;
 
         let handler = LmdbQueryHandler::new(
             self.db,

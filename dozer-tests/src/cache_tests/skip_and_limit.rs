@@ -10,6 +10,7 @@ pub fn validate(
     schema_name: &str,
     mut query: QueryExpression,
 ) -> (QueryExpression, Vec<Record>) {
+    let count = cache.count(schema_name, &query).unwrap();
     let records = cache.query(schema_name, &query).unwrap();
 
     let skip = query.skip;
@@ -17,10 +18,13 @@ pub fn validate(
 
     query.skip = 0;
     query.limit = 1000;
+    let all_count = cache.count(schema_name, &query).unwrap();
     let all_records = cache.query(schema_name, &query).unwrap();
 
+    let expected_count = (all_count - skip).min(limit);
     let expected = all_records.iter().skip(skip).take(limit);
 
+    assert_eq!(count, expected_count);
     assert_eq!(records.len(), expected.len());
     for (record, expected) in records.iter().zip(expected) {
         assert_eq!(record, expected);
