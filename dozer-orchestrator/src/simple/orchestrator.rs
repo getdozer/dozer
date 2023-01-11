@@ -188,7 +188,11 @@ impl Orchestrator for SimpleOrchestrator {
             running,
             pipeline_home_dir,
         );
-        executor.run(Some(sender), self.config.flags.to_owned())
+        executor.run(
+            Some(sender),
+            self.config.api.to_owned().unwrap_or_default().api_security,
+            self.config.flags.to_owned(),
+        )
     }
 
     fn list_connectors(
