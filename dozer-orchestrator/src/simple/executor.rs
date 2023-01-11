@@ -13,14 +13,16 @@ use crate::pipeline::{CacheSinkFactory, StreamingSinkFactory};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
-use dozer_ingestion::errors::ConnectorError;
+
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam;
+use dozer_types::log::{error, info};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
+use OrchestrationError::ExecutionError;
 
 use crate::errors::OrchestrationError;
 use crate::pipeline::source_builder::SourceBuilder;
@@ -53,10 +55,13 @@ impl Executor {
         }
     }
 
-    pub fn get_connection_groups(
-        &self,
-    ) -> Result<HashMap<String, Vec<Source>>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
+    pub fn get_connection_groups(&self) -> HashMap<String, Vec<Source>> {
+        SourceBuilder::group_connections(self.sources.clone())
+    }
+
+    pub fn validate_grouped_connections(
+        grouped_connections: &HashMap<String, Vec<Source>>,
+    ) -> Result<(), OrchestrationError> {
         for sources_group in grouped_connections.values() {
             let first_source = sources_group.get(0).unwrap();
 
@@ -70,10 +75,18 @@ impl Executor {
                     })
                     .collect();
 
-                validate(connection.clone(), Some(tables))?;
+                validate(connection.clone(), Some(tables))
+                    .map_err(|e| {
+                        error!("[{}] Validation error: {}", connection.name, e);
+                        OrchestrationError::SourceValidationError
+                    })
+                    .map(|_| {
+                        info!("[{}] Connection validation completed", connection.name);
+                    })?;
             }
         }
-        Ok(grouped_connections)
+
+        Ok(())
     }
 
     // This function is used to run a query using a temporary pipeline
@@ -82,7 +95,7 @@ impl Executor {
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
-        let grouped_connections = self.get_connection_groups()?;
+        let grouped_connections = self.get_connection_groups();
         let asm = SourceBuilder::build_source_manager(
             grouped_connections,
             self.ingestor.clone(),
@@ -129,7 +142,10 @@ impl Executor {
         api_dir: PathBuf,
         api_security: Option<ApiSecurity>,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
-        let grouped_connections = self.get_connection_groups()?;
+        let grouped_connections = self.get_connection_groups();
+
+        Self::validate_grouped_connections(&grouped_connections)?;
+
         let asm = SourceBuilder::build_source_manager(
             grouped_connections,
             self.ingestor.clone(),
@@ -166,12 +182,23 @@ impl Executor {
                     cache_endpoint.endpoint.name.as_str(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
-                .map_err(OrchestrationError::ExecutionError)?;
+                .map_err(ExecutionError)?;
 
             app.add_pipeline(pipeline);
         }
 
-        app.get_dag().map_err(OrchestrationError::ExecutionError)
+        let dag = app.get_dag().map_err(ExecutionError)?;
+
+        DagExecutor::validate(&dag, &self.pipeline_dir)
+            .map(|_| {
+                info!("[pipeline] Validation completed");
+            })
+            .map_err(|e| {
+                error!("[pipeline] Validation error: {}", e);
+                OrchestrationError::PipelineValidationError
+            })?;
+
+        Ok(dag)
     }
 
     pub fn get_tables(
@@ -212,14 +239,6 @@ impl Executor {
         )?;
 
         exec.start()?;
-        exec.join().map_err(OrchestrationError::ExecutionError)
-    }
-
-    pub fn validate(&self, connections: &Vec<Connection>) -> Result<(), ConnectorError> {
-        for connection in connections {
-            validate(connection.to_owned(), None)?;
-        }
-
-        Ok(())
+        exec.join().map_err(ExecutionError)
     }
 }

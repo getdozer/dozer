@@ -1,44 +1,83 @@
 use crate::connectors::postgres::connector::ReplicationSlotInfo;
 
 use crate::connectors::TableInfo;
-use crate::errors::ConnectorError;
-use crate::errors::ConnectorError::InvalidQueryError;
 use crate::errors::PostgresConnectorError;
+use crate::errors::PostgresConnectorError::{ColumnNameNotValid, ConnectionFailure, InvalidQueryError, NoAvailableSlotsError, ReplicationIsNotAvailableForUserError, SlotIsInUseError, SlotNotExistError, StartLsnIsBeforeLastFlushedLsnError, TableError, TableNameNotValid, WALLevelIsNotCorrect};
+use dozer_types::indicatif::ProgressStyle;
 use postgres::Client;
 use postgres_types::PgLsn;
 use regex::Regex;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
+use std::thread::sleep;
+use std::time::Duration;
+
+pub enum Validations {
+    Details,
+    User,
+    Tables,
+    WALLevel,
+    Slot,
+}
 
 pub fn validate_connection(
+    name: &str,
     config: tokio_postgres::Config,
-    tables: Option<Vec<TableInfo>>,
+    tables: Option<&Vec<TableInfo>>,
     replication_info: Option<ReplicationSlotInfo>,
-) -> Result<(), ConnectorError> {
-    let mut client =
-        super::helper::connect(config).map_err(ConnectorError::PostgresConnectorError)?;
-    validate_details(client.borrow_mut())?;
-    validate_user(client.borrow_mut()).map_err(ConnectorError::PostgresConnectorError)?;
+) -> Result<(), PostgresConnectorError> {
+    let validations_order: Vec<Validations> = vec![
+        Validations::Details,
+        Validations::User,
+        Validations::Tables,
+        Validations::WALLevel,
+        Validations::Slot,
+    ];
+    let pb = dozer_types::indicatif::ProgressBar::new(validations_order.len() as u64);
+    pb.set_style(
+        ProgressStyle::with_template(&format!(
+            "[{}] {}",
+            name, "{spinner:.green} {wide_msg} {bar}"
+        ))
+        .unwrap(),
+    );
+    pb.set_message("Validating connection to source");
 
-    if let Some(tables_info) = tables {
-        validate_tables(client.borrow_mut(), tables_info)?;
+    let mut client = super::helper::connect(config)?;
+
+    for validation_type in validations_order {
+        match validation_type {
+            Validations::Details => validate_details(client.borrow_mut())?,
+            Validations::User => validate_user(client.borrow_mut())?,
+            Validations::Tables => {
+                if let Some(tables_info) = &tables {
+                    validate_tables(client.borrow_mut(), tables_info)?;
+                }
+            }
+            Validations::WALLevel => validate_wal_level(client.borrow_mut())?,
+            Validations::Slot => {
+                if let Some(replication_details) = &replication_info {
+                    validate_slot(client.borrow_mut(), replication_details)?;
+                } else {
+                    validate_limit_of_replications(client.borrow_mut())?;
+                }
+            }
+        }
+
+        pb.inc(1);
+        sleep(Duration::from_secs(1));
     }
 
-    validate_wal_level(client.borrow_mut())?;
-
-    if let Some(replication_details) = replication_info {
-        validate_slot(client.borrow_mut(), replication_details)?;
-    } else {
-        validate_limit_of_replications(client.borrow_mut())?;
-    }
+    // pb.finish_with_message("Connection validation completed");
+    pb.finish_and_clear();
 
     Ok(())
 }
 
-fn validate_details(client: &mut Client) -> Result<(), ConnectorError> {
+fn validate_details(client: &mut Client) -> Result<(), PostgresConnectorError> {
     client
         .simple_query("SELECT version()")
-        .map_err(|e| PostgresConnectorError::ConnectToDatabaseError(e.to_string()))?;
+        .map_err(ConnectionFailure)?;
 
     Ok(())
 }
@@ -59,7 +98,7 @@ fn validate_user(client: &mut Client) -> Result<(), PostgresConnectorError> {
             ",
             &[],
         )
-        .map_or(Err(PostgresConnectorError::ReplicationIsNotAvailableForUserError), |row| {
+        .map_or(Err(ReplicationIsNotAvailableForUserError), |row| {
             let can_login: bool = row.get("can_login");
             let is_replication_role: bool = row.get("is_replication_role");
             let is_aws_replication_role: bool = row.get("is_aws_replication_role");
@@ -67,37 +106,34 @@ fn validate_user(client: &mut Client) -> Result<(), PostgresConnectorError> {
             if can_login && (is_replication_role || is_aws_replication_role) {
                 Ok(())
             } else {
-                Err(PostgresConnectorError::ReplicationIsNotAvailableForUserError)
+                Err(ReplicationIsNotAvailableForUserError)
             }
         })
 }
 
-fn validate_wal_level(client: &mut Client) -> Result<(), ConnectorError> {
+fn validate_wal_level(client: &mut Client) -> Result<(), PostgresConnectorError> {
     let result = client
         .query_one("SHOW wal_level", &[])
-        .map_err(|_e| PostgresConnectorError::WALLevelIsNotCorrect())?;
+        .map_err(|_e| WALLevelIsNotCorrect())?;
 
     let wal_level: Result<String, _> = result.try_get(0);
-
-    match wal_level {
-        Ok(level) => {
+    wal_level.map_or_else(
+        |e| Err(InvalidQueryError(e)),
+        |level| {
             if level == "logical" {
                 Ok(())
             } else {
-                Err(ConnectorError::PostgresConnectorError(
-                    PostgresConnectorError::WALLevelIsNotCorrect(),
-                ))
+                Err(WALLevelIsNotCorrect())
             }
-        }
-        Err(e) => Err(ConnectorError::InternalError(Box::new(e))),
-    }
+        },
+    )
 }
 
 fn validate_tables_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresConnectorError> {
     let table_regex = Regex::new(r"^([[:lower:]_][[:alnum:]_]*)$").unwrap();
     for t in table_info {
         if !table_regex.is_match(&t.name) {
-            return Err(PostgresConnectorError::TableNameNotValid(t.name.clone()));
+            return Err(TableNameNotValid(t.name.clone()));
         }
     }
 
@@ -110,7 +146,7 @@ fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresCon
         if let Some(columns) = &t.columns {
             for column in columns {
                 if !column_name_regex.is_match(column) {
-                    return Err(PostgresConnectorError::ColumnNameNotValid(column.clone()));
+                    return Err(ColumnNameNotValid(column.clone()));
                 }
             }
         }
@@ -119,14 +155,17 @@ fn validate_columns_names(table_info: &Vec<TableInfo>) -> Result<(), PostgresCon
     Ok(())
 }
 
-fn validate_tables(client: &mut Client, table_info: Vec<TableInfo>) -> Result<(), ConnectorError> {
+fn validate_tables(
+    client: &mut Client,
+    table_info: &Vec<TableInfo>,
+) -> Result<(), PostgresConnectorError> {
     let mut tables_names: HashMap<String, bool> = HashMap::new();
     table_info.iter().for_each(|t| {
         tables_names.insert(t.name.clone(), true);
     });
 
-    validate_tables_names(&table_info)?;
-    validate_columns_names(&table_info)?;
+    validate_tables_names(table_info)?;
+    validate_columns_names(table_info)?;
 
     let table_name_keys: Vec<String> = tables_names.keys().cloned().collect();
     let result = client
@@ -134,7 +173,7 @@ fn validate_tables(client: &mut Client, table_info: Vec<TableInfo>) -> Result<()
             "SELECT table_name FROM information_schema.tables WHERE table_name = ANY($1)",
             &[&table_name_keys],
         )
-        .map_err(|_e| PostgresConnectorError::TableError(table_name_keys))?;
+        .map_err(|_e| TableError(table_name_keys))?;
 
     for r in result.iter() {
         let table_name: String = r.try_get(0).map_err(InvalidQueryError)?;
@@ -143,9 +182,7 @@ fn validate_tables(client: &mut Client, table_info: Vec<TableInfo>) -> Result<()
 
     if !tables_names.is_empty() {
         let table_name_keys = tables_names.keys().cloned().collect();
-        Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::TableError(table_name_keys),
-        ))
+        Err(TableError(table_name_keys))
     } else {
         Ok(())
     }
@@ -153,54 +190,48 @@ fn validate_tables(client: &mut Client, table_info: Vec<TableInfo>) -> Result<()
 
 fn validate_slot(
     client: &mut Client,
-    replication_info: ReplicationSlotInfo,
-) -> Result<(), ConnectorError> {
+    replication_info: &ReplicationSlotInfo,
+) -> Result<(), PostgresConnectorError> {
     let result = client
         .query_one(
             "SELECT active, confirmed_flush_lsn FROM pg_replication_slots WHERE slot_name = $1",
             &[&replication_info.name],
         )
-        .map_err(|_e| PostgresConnectorError::SlotNotExistError(replication_info.name.clone()))?;
+        .map_err(|_e| SlotNotExistError(replication_info.name.clone()))?;
 
     let is_already_running: bool = result.try_get(0).map_err(InvalidQueryError)?;
     if is_already_running {
-        return Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::SlotIsInUseError(replication_info.name.clone()),
-        ));
+        return Err(SlotIsInUseError(replication_info.name.clone()));
     }
 
     let flush_lsn: PgLsn = result.try_get(1).map_err(InvalidQueryError)?;
 
     if flush_lsn.gt(&replication_info.start_lsn) {
-        Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::StartLsnIsBeforeLastFlushedLsnError(
-                flush_lsn.to_string(),
-                replication_info.start_lsn.to_string(),
-            ),
+        Err(StartLsnIsBeforeLastFlushedLsnError(
+            flush_lsn.to_string(),
+            replication_info.start_lsn.to_string(),
         ))
     } else {
         Ok(())
     }
 }
 
-fn validate_limit_of_replications(client: &mut Client) -> Result<(), ConnectorError> {
+fn validate_limit_of_replications(client: &mut Client) -> Result<(), PostgresConnectorError> {
     let slots_limit_result = client
         .query_one("SHOW max_replication_slots", &[])
-        .map_err(|e| PostgresConnectorError::ConnectToDatabaseError(e.to_string()))?;
+        .map_err(ConnectionFailure)?;
 
     let slots_limit_str: String = slots_limit_result.try_get(0).map_err(InvalidQueryError)?;
     let slots_limit: i64 = slots_limit_str.parse().unwrap();
 
     let used_slots_result = client
         .query_one("SELECT COUNT(*) FROM pg_replication_slots;", &[])
-        .map_err(|e| PostgresConnectorError::ConnectToDatabaseError(e.to_string()))?;
+        .map_err(ConnectionFailure)?;
 
     let used_slots: i64 = used_slots_result.try_get(0).map_err(InvalidQueryError)?;
 
     if used_slots == slots_limit {
-        Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::NoAvailableSlotsError,
-        ))
+        Err(NoAvailableSlotsError)
     } else {
         Ok(())
     }
@@ -221,7 +252,7 @@ mod tests {
     use tokio_postgres::NoTls;
 
     use crate::connectors::TableInfo;
-    use crate::errors::{ConnectorError, PostgresConnectorError};
+    use crate::errors::PostgresConnectorError;
     use serial_test::serial;
 
     fn get_config() -> tokio_postgres::Config {
@@ -242,7 +273,7 @@ mod tests {
             let mut config = get_config();
             config.dbname("not_existing");
 
-            let result = validate_connection(config, None, None);
+            let result = validate_connection("pg_test_conn", config, None, None);
             assert!(result.is_err());
         });
     }
@@ -262,7 +293,7 @@ mod tests {
                 .expect("User creation failed");
             config.user("dozer_test_without_permission");
 
-            let result = validate_connection(config, None, None);
+            let result = validate_connection("pg_test_conn", config, None, None);
 
             client
                 .simple_query("DROP USER dozer_test_without_permission")
@@ -272,13 +303,12 @@ mod tests {
 
             match result {
                 Ok(_) => panic!("Validation should fail"),
-                Err(ConnectorError::PostgresConnectorError(e)) => {
+                Err(e) => {
                     assert!(matches!(
                         e,
                         PostgresConnectorError::ReplicationIsNotAvailableForUserError
                     ));
                 }
-                Err(_) => panic!("Unexpected error occurred"),
             }
         });
     }
@@ -302,13 +332,13 @@ mod tests {
                 id: 0,
                 columns: None,
             }];
-            let result = validate_connection(config, Some(tables), None);
+            let result = validate_connection("pg_test_conn", config, Some(&tables), None);
 
             assert!(result.is_err());
 
             match result {
                 Ok(_) => panic!("Validation should fail"),
-                Err(ConnectorError::PostgresConnectorError(e)) => {
+                Err(e) => {
                     assert!(matches!(e, PostgresConnectorError::TableError(_)));
 
                     if let PostgresConnectorError::TableError(msg) = e {
@@ -317,7 +347,6 @@ mod tests {
                         panic!("Unexpected error occurred");
                     }
                 }
-                Err(_) => panic!("Unexpected error occurred"),
             }
         });
     }
@@ -335,13 +364,13 @@ mod tests {
             name: "not_existing_slot".to_string(),
             start_lsn: PgLsn::from(0),
         };
-        let result = validate_connection(config, None, Some(replication_info));
+        let result = validate_connection("pg_test_conn", config, None, Some(replication_info));
 
         assert!(result.is_err());
 
         match result {
             Ok(_) => panic!("Validation should fail"),
-            Err(ConnectorError::PostgresConnectorError(e)) => {
+            Err(e) => {
                 assert!(matches!(e, PostgresConnectorError::SlotNotExistError(_)));
 
                 if let PostgresConnectorError::SlotNotExistError(msg) = e {
@@ -350,7 +379,6 @@ mod tests {
                     panic!("Unexpected error occurred");
                 }
             }
-            Err(_) => panic!("Unexpected error occurred"),
         }
     }
 
@@ -374,7 +402,7 @@ mod tests {
             name: "existing_slot".to_string(),
             start_lsn: PgLsn::from(0),
         };
-        let result = validate_connection(config, None, Some(replication_info));
+        let result = validate_connection("pg_test_conn", config, None, Some(replication_info));
 
         client
             .query(r#"SELECT pg_drop_replication_slot('existing_slot');"#, &[])
@@ -384,9 +412,7 @@ mod tests {
 
         match result {
             Ok(_) => panic!("Validation should fail"),
-            Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::StartLsnIsBeforeLastFlushedLsnError(_, _),
-            )) => {}
+            Err(PostgresConnectorError::StartLsnIsBeforeLastFlushedLsnError(_, _)) => {}
             Err(_) => panic!("Unexpected error occurred"),
         }
     }
@@ -423,7 +449,7 @@ mod tests {
         }
 
         // One replication slot is available
-        let result = validate_connection(config.clone(), None, None);
+        let result = validate_connection("pg_test_conn", config.clone(), None, None);
         assert!(result.is_ok());
 
         let slot_name = format!("slot_{}", slots_limit - 1);
@@ -435,13 +461,11 @@ mod tests {
             .unwrap();
 
         // No replication slots are available
-        let result = validate_connection(config, None, None);
+        let result = validate_connection("pg_test_conn", config, None, None);
         assert!(result.is_err());
 
         match result.unwrap_err() {
-            ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::NoAvailableSlotsError,
-            ) => {}
+            PostgresConnectorError::NoAvailableSlotsError => {}
             _ => panic!("Unexpected error occurred"),
         }
 

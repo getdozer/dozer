@@ -10,7 +10,9 @@ use crate::connectors::TableInfo;
 
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
-use crate::errors::PostgresSchemaError::SchemaReplicationIdentityError;
+use crate::errors::PostgresSchemaError::{
+    InvalidColumnType, SchemaReplicationIdentityError, ValueConversionError,
+};
 
 use postgres_types::Type;
 use std::collections::hash_map::DefaultHasher;
@@ -52,10 +54,8 @@ impl SchemaHelper {
     pub fn get_schemas(
         &self,
         table_name: Option<Vec<TableInfo>>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
-        let mut client = helper::connect(self.conn_config.clone())
-            .map_err(ConnectorError::PostgresConnectorError)?;
-        let mut schemas: Vec<SchemaWithChangesType> = Vec::new();
+    ) -> Result<Vec<SchemaWithChangesType>, PostgresConnectorError> {
+        let mut client = helper::connect(self.conn_config.clone())?;
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
         let schema = self.schema.clone();
         let query = if let Some(tables) = table_name {
@@ -72,9 +72,9 @@ impl SchemaHelper {
             client.query(&sql, &[&schema])
         };
 
-        let results = query.map_err(ConnectorError::InvalidQueryError)?;
+        let results = query.map_err(PostgresConnectorError::InvalidQueryError)?;
 
-        let mut map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
+        let mut columns_map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
             HashMap::new();
         results
             .iter()
@@ -87,33 +87,37 @@ impl SchemaHelper {
                     .map_or(true, |table_info| table_info.contains(&column_name))
             })
             .map(|r| self.convert_row(r))
-            .try_for_each(|row| -> Result<(), ConnectorError> {
-                match row {
-                    Ok((table_name, field_def, is_primary_key, table_id, replication_type)) => {
-                        let vals = map.get(&table_name);
-                        let (mut fields, mut primary_keys, table_id, replication_type) = match vals
-                        {
-                            Some((fields, primary_keys, table_id, replication_type)) => (
-                                fields.clone(),
-                                primary_keys.clone(),
-                                *table_id,
-                                replication_type,
-                            ),
-                            None => (vec![], vec![], table_id, &replication_type),
-                        };
+            .try_for_each(|row| -> Result<(), PostgresSchemaError> {
+                let (table_name, field_def, is_primary_key, table_id, replication_type) = row?;
+                let vals = columns_map.get(&table_name);
+                let (mut fields, mut primary_keys, table_id, replication_type) = match vals {
+                    Some((fields, primary_keys, table_id, replication_type)) => (
+                        fields.clone(),
+                        primary_keys.clone(),
+                        *table_id,
+                        replication_type,
+                    ),
+                    None => (vec![], vec![], table_id, &replication_type),
+                };
 
-                        fields.push(field_def);
-                        primary_keys.push(is_primary_key);
-                        map.insert(
-                            table_name,
-                            (fields, primary_keys, table_id, replication_type.clone()),
-                        );
-                        Ok(())
-                    }
-                    Err(e) => Err(e),
-                }
+                fields.push(field_def);
+                primary_keys.push(is_primary_key);
+                columns_map.insert(
+                    table_name,
+                    (fields, primary_keys, table_id, replication_type.clone()),
+                );
+
+                Ok(())
             })?;
 
+        Self::map_columns_to_schemas(columns_map)
+            .map_err(PostgresConnectorError::PostgresSchemaError)
+    }
+
+    pub fn map_columns_to_schemas(
+        map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)>,
+    ) -> Result<Vec<SchemaWithChangesType>, PostgresSchemaError> {
+        let mut schemas: Vec<SchemaWithChangesType> = Vec::new();
         for (table_name, (fields, primary_keys, table_id, replication_type)) in map.into_iter() {
             let primary_index: Vec<usize> = primary_keys
                 .iter()
@@ -136,42 +140,40 @@ impl SchemaHelper {
                 "i" => Ok(ReplicationChangesTrackingType::OnlyPK),
                 "n" => Ok(ReplicationChangesTrackingType::Nothing),
                 "f" => Ok(ReplicationChangesTrackingType::FullChanges),
-                _ => Err(ConnectorError::PostgresConnectorError(
-                    PostgresConnectorError::PostgresSchemaError(
-                        PostgresSchemaError::UnsupportedReplicationType(replication_type),
-                    ),
+                _ => Err(PostgresSchemaError::UnsupportedReplicationType(
+                    replication_type,
                 )),
             };
 
             schemas.push((table_name, schema, replication_type?));
         }
 
-        self.validate_schema(schemas)
+        Self::validate_schema_replication_identity(&schemas)?;
+
+        Ok(schemas)
     }
 
-    pub fn validate_schema(
-        &self,
-        schemas: Vec<SchemaWithChangesType>,
-    ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
+    pub fn validate_schema_replication_identity(
+        schemas: &Vec<SchemaWithChangesType>,
+    ) -> Result<(), PostgresSchemaError> {
         let table_without_primary_index = schemas
             .iter()
             .find(|(_table_name, schema, _)| schema.primary_index.is_empty());
 
-        if let Some((table_name, _, _)) = table_without_primary_index {
-            Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(SchemaReplicationIdentityError(
-                    table_name.clone(),
-                )),
-            ))
-        } else {
-            Ok(schemas)
+        match table_without_primary_index {
+            Some((table_name, _, _)) => Err(SchemaReplicationIdentityError(table_name.clone())),
+            None => Ok(()),
         }
+    }
+
+    pub fn validate(_tables: &Vec<TableInfo>) -> Result<(), PostgresSchemaError> {
+        Ok(())
     }
 
     fn convert_row(
         &self,
         row: &Row,
-    ) -> Result<(String, FieldDefinition, bool, u32, String), ConnectorError> {
+    ) -> Result<(String, FieldDefinition, bool, u32, String), PostgresSchemaError> {
         let table_name: String = row.get(0);
         let column_name: String = row.get(1);
         let is_nullable: bool = row.get(2);
@@ -187,19 +189,10 @@ impl SchemaHelper {
         let type_oid: u32 = row.get(6);
         let typ = Type::from_oid(type_oid);
 
-        let typ = typ.map_or(
-            Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(PostgresSchemaError::InvalidColumnType),
-            )),
-            postgres_type_to_dozer_type,
-        )?;
+        let typ = typ.map_or(Err(InvalidColumnType), postgres_type_to_dozer_type)?;
 
-        let replication_type =
-            String::from_utf8(vec![replication_type_int as u8]).map_err(|_e| {
-                ConnectorError::PostgresConnectorError(PostgresConnectorError::PostgresSchemaError(
-                    PostgresSchemaError::ValueConversionError("Replication type".to_string()),
-                ))
-            })?;
+        let replication_type = String::from_utf8(vec![replication_type_int as u8])
+            .map_err(|_e| ValueConversionError("Replication type".to_string()))?;
         Ok((
             table_name,
             FieldDefinition::new(column_name, typ, is_nullable),

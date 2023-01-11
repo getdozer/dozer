@@ -287,10 +287,6 @@ impl Orchestrator for SimpleOrchestrator {
             pipeline_home_dir.clone(),
         );
 
-        executor
-            .validate(&self.config.connections)
-            .map_err(OrchestrationError::ConnectorError)?;
-
         // Api Path
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {

@@ -117,7 +117,9 @@ impl CDCHandler {
         match message {
             Some(Ok(XLogData(body))) => {
                 let lsn = body.wal_start();
-                let message = mapper.handle_message(body)?;
+                let message = mapper
+                    .handle_message(body)
+                    .map_err(PostgresConnectorError)?;
 
                 match message {
                     Some(IngestionMessage::Commit(commit)) => {

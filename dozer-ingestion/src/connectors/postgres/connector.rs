@@ -96,7 +96,9 @@ impl Connector for PostgresConnector {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
-        self.schema_helper.get_schemas(table_names)
+        self.schema_helper
+            .get_schemas(table_names)
+            .map_err(ConnectorError::PostgresConnectorError)
     }
 
     fn initialize(
@@ -140,11 +142,17 @@ impl Connector for PostgresConnector {
     }
 
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+        let tables_list = tables.or_else(|| self.tables.clone());
         validate_connection(
+            &self.name,
             self.conn_config.clone(),
-            tables.or_else(|| self.tables.clone()),
+            tables_list.as_ref(),
             None,
         )?;
+
+        // if let Some(tables_info) = &tables_list {
+        //     SchemaHelper::validate(tables_info).map_err(ConnectorError::PostgresConnectorError)?;
+        // }
         Ok(())
     }
 

@@ -24,9 +24,6 @@ pub enum ConnectorError {
     #[error("Columns are expected in table_info")]
     ColumnsNotFound,
 
-    #[error("Relation not found in replication: {0}")]
-    RelationNotFound(#[source] std::io::Error),
-
     #[error("Failed to initialize connector")]
     InitializationError,
 
@@ -35,9 +32,6 @@ pub enum ConnectorError {
 
     #[error("This connector doesn't support this method: {0}")]
     UnsupportedConnectorMethod(String),
-
-    #[error("Query failed in connector: {0}")]
-    InvalidQueryError(#[source] tokio_postgres::Error),
 
     #[error("Unexpected query message")]
     UnexpectedQueryMessageError,
@@ -87,11 +81,11 @@ impl ConnectorError {
 
 #[derive(Error, Debug)]
 pub enum PostgresConnectorError {
-    #[error("Failed to connect to database: {0}")]
-    ConnectToDatabaseError(String),
+    #[error("Query failed in connector: {0}")]
+    InvalidQueryError(#[source] tokio_postgres::Error),
 
     #[error("Failed to connect to postgres with the specified configuration. {0}")]
-    ConnetionFailure(#[source] tokio_postgres::Error),
+    ConnectionFailure(#[source] tokio_postgres::Error),
 
     #[error("Replication is not available for user")]
     ReplicationIsNotAvailableForUserError,
@@ -161,6 +155,9 @@ pub enum PostgresConnectorError {
 
     #[error("Column name \"{0}\" not valid")]
     ColumnNameNotValid(String),
+
+    #[error("Relation not found in replication: {0}")]
+    RelationNotFound(#[source] std::io::Error),
 }
 
 #[derive(Error, Debug, Eq, PartialEq)]
