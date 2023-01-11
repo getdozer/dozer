@@ -4,7 +4,7 @@ use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_grpc_config, get_pipeline_config,
     get_pipeline_dir, get_rest_config,
 };
-use crate::Orchestrator;
+use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{
@@ -107,7 +107,7 @@ impl Orchestrator for SimpleOrchestrator {
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
-            tokio::spawn(async move {
+            let rest_handle = tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
                     .run(cache_endpoints, tx)
@@ -133,13 +133,17 @@ impl Orchestrator for SimpleOrchestrator {
 
             let api_security = get_api_security_config(self.config.to_owned());
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
-            tokio::spawn(async move {
+            let grpc_handle = tokio::spawn(async move {
                 grpc_server
                     .run(ce2, receiver_shutdown, rx1)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
-        });
+            tokio::try_join!(
+                flatten_joinhandle(rest_handle),
+                flatten_joinhandle(grpc_handle)
+            )
+        })?;
 
         let server_handle = rx
             .recv()

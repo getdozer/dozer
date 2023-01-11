@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_api::errors::GRPCError;
+use dozer_api::errors::{ApiError, GRPCError};
 use dozer_cache::errors::CacheError;
 use dozer_core::dag::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -23,7 +23,7 @@ pub enum OrchestrationError {
     #[error("Failed to generate token: {0:?}")]
     GenerateTokenFailed(String),
     #[error("Failed to initialize api server: {0}")]
-    ApiServerFailed(#[source] std::io::Error),
+    ApiServerFailed(#[source] ApiError),
     #[error("Failed to initialize grpc server: {0}")]
     GrpcServerFailed(#[source] GRPCError),
     #[error("Failed to initialize internal server: {0}")]

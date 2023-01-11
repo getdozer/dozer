@@ -192,7 +192,14 @@ impl ApiServer {
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))
+            .map_err(|e| {
+                let inner_error: Box<dyn std::error::Error> = e.into();
+                let detail = inner_error.source();
+                if let Some(detail) = detail {
+                    return GRPCError::TransportErrorDetail(detail.to_string());
+                }
+                GRPCError::TransportErrorDetail(inner_error.to_string())
+            })
     }
 
     pub fn setup_broad_cast_channel(
