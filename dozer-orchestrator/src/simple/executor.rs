@@ -128,7 +128,7 @@ impl Executor {
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
         api_security: Option<ApiSecurity>,
-        flags: Option<Flags>
+        flags: Option<Flags>,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups()?;
         let asm = SourceBuilder::build_source_manager(
@@ -195,11 +195,11 @@ impl Executor {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_security: Option<ApiSecurity>,
-        flags: Option<Flags>
+        flags: Option<Flags>,
     ) -> Result<(), OrchestrationError> {
         let running_wait = self.running.clone();
 
-        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), api_security,flags)?;
+        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), api_security, flags)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {

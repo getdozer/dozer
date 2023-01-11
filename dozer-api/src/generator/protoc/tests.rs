@@ -105,7 +105,6 @@ fn test_generate_proto_and_descriptor_with_security() {
     );
 }
 
-
 #[test]
 fn test_generate_proto_and_descriptor_with_push_event_off() {
     let schema_name = "films".to_string();
