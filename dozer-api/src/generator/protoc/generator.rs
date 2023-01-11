@@ -198,7 +198,6 @@ impl<'a> ProtoGenerator<'a> {
 
     pub fn generate(
         folder_path: String,
-        endpoint_name: String,
         details: PipelineDetails,
         security: &Option<ApiSecurity>,
     ) -> Result<(), GenerationError> {
