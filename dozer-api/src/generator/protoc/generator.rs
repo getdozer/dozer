@@ -208,7 +208,6 @@ impl<'a> ProtoGenerator<'a> {
     ) -> Result<(), GenerationError> {
         let generator = ProtoGenerator::new(details, folder_path, security, flags)?;
         generator._generate_proto()?;
-
         Ok(())
     }
 
