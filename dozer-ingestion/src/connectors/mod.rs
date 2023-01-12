@@ -24,6 +24,9 @@ use std::sync::Arc;
 pub mod snowflake;
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
+
+pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
+
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>>
@@ -43,10 +46,7 @@ pub trait Connector: Send + Sync {
     fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
     fn stop(&self);
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
-    fn validate_schemas(
-        &self,
-        tables: &Vec<TableInfo>,
-    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>;
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -103,6 +103,6 @@ pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
         Some(Authentication::Ethereum(config)) => Some(config.convert_to_table()),
         Some(Authentication::Snowflake(config)) => Some(config.convert_to_table()),
         Some(Authentication::Kafka(config)) => Some(config.convert_to_table()),
-        _ => None
+        _ => None,
     }
 }

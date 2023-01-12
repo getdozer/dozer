@@ -1,9 +1,8 @@
 use crate::connectors::postgres::schema_helper::SchemaHelper;
-use std::collections::HashMap;
 
 use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
-use crate::connectors::{Connector, TableInfo};
+use crate::connectors::{Connector, TableInfo, ValidationResults};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::parking_lot::RwLock;
@@ -158,11 +157,7 @@ impl Connector for PostgresConnector {
         vec![sources]
     }
 
-    fn validate_schemas(
-        &self,
-        tables: &Vec<TableInfo>,
-    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>
-    {
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         SchemaHelper::validate(&self.schema_helper, tables)
             .map_err(ConnectorError::PostgresConnectorError)
     }

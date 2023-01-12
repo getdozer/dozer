@@ -47,7 +47,7 @@ pub trait Orchestrator {
 }
 
 // Re-exports
-use dozer_ingestion::connectors::TableInfo;
+use dozer_ingestion::connectors::{TableInfo, ValidationResults};
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
 
 pub use dozer_types::models::connection::Connection;
@@ -70,8 +70,8 @@ pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(),
 
 pub fn validate_schema(
     input: Connection,
-    tables: &Vec<TableInfo>,
-) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError> {
+    tables: &[TableInfo],
+) -> Result<ValidationResults, ConnectorError> {
     get_connector(input)?.validate_schemas(tables)
 }
 

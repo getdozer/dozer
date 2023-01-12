@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::connectors::Connector;
+use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
@@ -72,10 +71,13 @@ impl Connector for KafkaConnector {
 
     fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
-        let tables = self.tables.as_ref().map_or_else(|| Err(TopicNotDefined), |t| Ok(t))?;
+        let tables = self
+            .tables
+            .as_ref()
+            .map_or_else(|| Err(TopicNotDefined), Ok)?;
         let topic = tables
-                .get(0)
-                .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
+            .get(0)
+            .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
 
         let broker = self.config.broker.to_owned();
         let ingestor = self
@@ -102,11 +104,7 @@ impl Connector for KafkaConnector {
         sources.iter().map(|s| vec![s.clone()]).collect()
     }
 
-    fn validate_schemas(
-        &self,
-        _tables: &Vec<TableInfo>,
-    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>
-    {
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         todo!()
     }
 }

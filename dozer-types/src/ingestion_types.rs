@@ -119,7 +119,9 @@ impl KafkaConfig {
             ["broker", self.broker],
             [
                 "schema registry url",
-                self.schema_registry_url.as_ref().map_or("--------", |url| url)
+                self.schema_registry_url
+                    .as_ref()
+                    .map_or("--------", |url| url)
             ]
         )
     }

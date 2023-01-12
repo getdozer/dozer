@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 use dozer_types::types::ReplicationChangesTrackingType;
 use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
+use crate::connectors::ValidationResults;
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
@@ -85,11 +85,7 @@ impl Connector for EventsConnector {
         vec![sources]
     }
 
-    fn validate_schemas(
-        &self,
-        _tables: &Vec<TableInfo>,
-    ) -> Result<HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>, ConnectorError>
-    {
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
         todo!()
     }
 }

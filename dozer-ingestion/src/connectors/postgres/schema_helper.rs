@@ -6,7 +6,7 @@ use dozer_types::types::{
     SchemaWithChangesType,
 };
 
-use crate::connectors::TableInfo;
+use crate::connectors::{TableInfo, ValidationResults};
 
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
@@ -23,6 +23,8 @@ pub struct SchemaHelper {
     conn_config: tokio_postgres::Config,
     schema: String,
 }
+
+type RowsWithColumnsMap = (Vec<Row>, HashMap<String, Vec<String>>);
 
 impl SchemaHelper {
     pub fn new(conn_config: tokio_postgres::Config, schema: Option<String>) -> SchemaHelper {
@@ -53,8 +55,8 @@ impl SchemaHelper {
 
     fn get_columns(
         &self,
-        table_name: Option<&Vec<TableInfo>>,
-    ) -> Result<(Vec<Row>, HashMap<String, Vec<String>>), PostgresConnectorError> {
+        table_name: Option<&[TableInfo]>,
+    ) -> Result<RowsWithColumnsMap, PostgresConnectorError> {
         let mut tables_columns_map: HashMap<String, Vec<String>> = HashMap::new();
         let mut client = helper::connect(self.conn_config.clone())?;
         let schema = self.schema.clone();
@@ -81,7 +83,7 @@ impl SchemaHelper {
         &self,
         tables: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, PostgresConnectorError> {
-        let (results, tables_columns_map) = self.get_columns(tables.as_ref())?;
+        let (results, tables_columns_map) = self.get_columns(tables.as_deref())?;
 
         let mut columns_map: HashMap<String, (Vec<FieldDefinition>, Vec<bool>, u32, String)> =
             HashMap::new();
@@ -163,7 +165,7 @@ impl SchemaHelper {
     }
 
     pub fn validate_schema_replication_identity(
-        schemas: &Vec<SchemaWithChangesType>,
+        schemas: &[SchemaWithChangesType],
     ) -> Result<(), PostgresSchemaError> {
         let table_without_primary_index = schemas
             .iter()
@@ -177,17 +179,11 @@ impl SchemaHelper {
 
     pub fn validate(
         &self,
-        tables: &Vec<TableInfo>,
-    ) -> Result<
-        HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>,
-        PostgresConnectorError,
-    > {
+        tables: &[TableInfo],
+    ) -> Result<ValidationResults, PostgresConnectorError> {
         let (results, tables_columns_map) = self.get_columns(Some(tables))?;
 
-        let mut validation_result: HashMap<
-            String,
-            Vec<(Option<String>, Result<(), ConnectorError>)>,
-        > = HashMap::new();
+        let mut validation_result: ValidationResults = HashMap::new();
         for row in results {
             let table_name: String = row.get(0);
             let column_name: String = row.get(1);
