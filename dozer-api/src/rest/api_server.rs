@@ -1,4 +1,5 @@
 use super::api_generator;
+use crate::errors::ApiError;
 use crate::rest::api_generator::health_route;
 use crate::{
     auth::{
@@ -99,8 +100,7 @@ impl ApiServer {
         let cors_middleware = Self::get_cors(cors);
 
         cache_endpoints
-            .iter()
-            .cloned()
+            .into_iter()
             .fold(app, |app, cache_endpoint| {
                 let endpoint = cache_endpoint.endpoint.clone();
                 let scope = endpoint.path.clone();
@@ -115,6 +115,7 @@ impl ApiServer {
                             });
                             srv.call(req)
                         })
+                        .route("/count", web::post().to(api_generator::count))
                         .route("/query", web::post().to(api_generator::query))
                         .route("/oapi", web::post().to(api_generator::generate_oapi))
                         .route("/{id}", web::get().to(api_generator::get))
@@ -143,7 +144,7 @@ impl ApiServer {
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
         tx: Sender<ServerHandle>,
-    ) -> std::io::Result<()> {
+    ) -> Result<(), ApiError> {
         info!(
             "Starting Rest Api Server on http://{}:{} with security: {}",
             self.host,
@@ -156,6 +157,7 @@ impl ApiServer {
         );
         let cors = self.cors.clone();
         let security = self.security.clone();
+        let address = format!("{}:{}", self.host.to_owned(), self.port.to_owned());
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.to_owned(),
@@ -163,12 +165,15 @@ impl ApiServer {
                 cache_endpoints.clone(),
             )
         })
-        .bind(format!("{}:{}", self.host.to_owned(), self.port.to_owned()))?
+        .bind(address.to_owned())
+        .map_err(ApiError::PortAlreadyInUse)?
         .shutdown_timeout(self.shutdown_timeout.to_owned())
         .run();
 
         let _ = tx.send(server.handle());
-        server.await
+        server
+            .await
+            .map_err(|e| ApiError::InternalError(Box::new(e)))
     }
 
     pub fn stop(server_handle: ServerHandle) {

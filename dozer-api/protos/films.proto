@@ -10,10 +10,20 @@ syntax = "proto3";
 package dozer.generated.films;
 import "types.proto";
 
-// The generated service for `/films` endpoint.
+/**
+ * TypedService provides explicit and strongly-typed data access experience for developers.
+ *
+ * This allows for a more user-friendly and predictable API. Developers can rely on the explicitly defined types to guide them and catch errors at compile-time.
+ */
 service Films {
   /**
-   * Performs query. See query documentation for the query format. 
+   * Counts the number of records satisfying the given query. See [Query](../query) for the query format.
+   *
+   * If no query is specified, total number of records or 50 will be returned, whichever is smaller.
+   */
+  rpc count(QueryFilmsRequest) returns (CountFilmsResponse);
+  /**
+   * Performs query. See [Query](../query) for the query format.
    *
    * If no query is specified, the first 50 records will be returned.
    */
@@ -30,10 +40,16 @@ service Films {
   rpc token(TokenRequest) returns (TokenResponse);
 }
 
-// Request for `query`.
+// Request for `count` and `query`.
 message QueryFilmsRequest {
   // JSON query string.
   optional string query = 1;
+}
+
+// Response for `count`.
+message CountFilmsResponse {
+  // The number of records.
+  uint64 count = 1;
 }
 
 // Response for `query`.

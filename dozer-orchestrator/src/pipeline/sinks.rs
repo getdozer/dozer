@@ -83,7 +83,28 @@ impl CacheSinkFactory {
         let hash = self.get_schema_hash();
 
         let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-        schema.primary_index = create_primary_indexes(schema.clone(), api_index)?;
+        if schema.primary_index.is_empty() {
+            if !api_index.primary_key.is_empty() {
+                schema.primary_index = create_primary_indexes(schema.clone(), api_index)?;
+            } else {
+                return Err(ExecutionError::FailedToGetPrimaryKey(
+                    self.api_endpoint.name.clone(),
+                ));
+            }
+        } else {
+            let index = create_primary_indexes(schema.clone(), api_index)?;
+            if index.is_empty() {
+                return Err(ExecutionError::FailedToGetPrimaryKey(
+                    self.api_endpoint.name.clone(),
+                ));
+            } else if !schema.primary_index.eq(&index) {
+                return Err(ExecutionError::MismatchPrimaryKey(
+                    self.api_endpoint.name.clone(),
+                ));
+            } else {
+                schema.primary_index = index;
+            }
+        }
 
         schema.identifier = Some(SchemaIdentifier {
             id: hash as u32,
@@ -188,8 +209,7 @@ impl SinkFactory for CacheSinkFactory {
         }
 
         ProtoGenerator::generate(
-            self.generated_path.to_string_lossy().to_string(),
-            self.api_endpoint.name.to_owned(),
+            &self.generated_path,
             PipelineDetails {
                 schema_name: self.api_endpoint.name.to_owned(),
                 cache_endpoint: CacheEndpoint {

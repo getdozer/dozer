@@ -19,6 +19,7 @@ use std::{
         Arc,
     },
 };
+use tokio::task::JoinHandle;
 #[cfg(test)]
 mod test_utils;
 mod utils;
@@ -51,6 +52,16 @@ use dozer_types::log::info;
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 use dozer_types::types::Schema;
+
+async fn flatten_joinhandle(
+    handle: JoinHandle<Result<(), OrchestrationError>>,
+) -> Result<(), OrchestrationError> {
+    match handle.await {
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err(err)) => Err(err),
+        Err(err) => Err(OrchestrationError::InternalError(Box::new(err))),
+    }
+}
 
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
     let connection_service = get_connector(input.clone())?;

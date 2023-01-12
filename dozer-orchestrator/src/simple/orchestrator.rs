@@ -4,8 +4,9 @@ use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_grpc_config, get_pipeline_config,
     get_pipeline_dir, get_rest_config,
 };
-use crate::Orchestrator;
+use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
+use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
@@ -106,7 +107,7 @@ impl Orchestrator for SimpleOrchestrator {
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
-            tokio::spawn(async move {
+            let rest_handle = tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
                     .run(cache_endpoints, tx)
@@ -132,13 +133,17 @@ impl Orchestrator for SimpleOrchestrator {
 
             let api_security = get_api_security_config(self.config.to_owned());
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
-            tokio::spawn(async move {
+            let grpc_handle = tokio::spawn(async move {
                 grpc_server
                     .run(ce2, receiver_shutdown, rx1)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
-        });
+            tokio::try_join!(
+                flatten_joinhandle(rest_handle),
+                flatten_joinhandle(grpc_handle)
+            )
+        })?;
 
         let server_handle = rx
             .recv()
@@ -285,7 +290,7 @@ impl Orchestrator for SimpleOrchestrator {
         // Api Path
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {
-            fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(generated_path.clone()).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // Pipeline path
@@ -296,13 +301,25 @@ impl Orchestrator for SimpleOrchestrator {
             )
         })?;
 
-        let dag = executor.build_pipeline(
-            None,
-            generated_path,
-            get_api_security_config(self.config.clone()),
-        )?;
+        let api_security = get_api_security_config(self.config.clone());
+        let dag = executor.build_pipeline(None, generated_path.clone(), api_security)?;
         let schema_manager = DagSchemaManager::new(&dag)?;
+        // Every sink will initialize its schema in sink and also in a proto file.
         schema_manager.prepare()?;
+
+        let mut resources = Vec::new();
+        for e in &self.config.endpoints {
+            resources.push(e.name.clone());
+        }
+
+        // Copy common service to be included in descriptor.
+        resources.push("common".to_string());
+
+        ProtoGenerator::copy_common(&generated_path)
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        // Generate a descriptor based on all proto files generated within sink.
+        ProtoGenerator::generate_descriptor(&generated_path, resources)
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())
     }

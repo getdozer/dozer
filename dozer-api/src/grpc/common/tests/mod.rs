@@ -23,17 +23,28 @@ fn setup_common_service() -> CommonService {
 }
 
 #[tokio::test]
-async fn test_grpc_common_query() {
+async fn test_grpc_common_count_and_query() {
     let service = setup_common_service();
+    let endpoint = "films".to_string();
+    let filter = r#"{ "$filter": { "film_id": 524 } }"#.to_string();
     let response = service
-        .query(Request::new(QueryRequest {
-            endpoint: "films".to_string(),
-            query: Some(r#"{ "$filter": { "film_id": 524 } }"#.to_string()),
+        .count(Request::new(QueryRequest {
+            endpoint: endpoint.clone(),
+            query: Some(filter.clone()),
         }))
         .await
         .unwrap()
         .into_inner();
-    assert!(!response.records.is_empty());
+    assert_eq!(response.count, 1);
+    let response = service
+        .query(Request::new(QueryRequest {
+            endpoint,
+            query: Some(filter),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(response.records.len(), 1);
 }
 
 #[tokio::test]

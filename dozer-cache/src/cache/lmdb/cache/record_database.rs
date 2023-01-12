@@ -48,6 +48,12 @@ impl RecordDatabase {
             .map_err(|e| CacheError::QueryError(QueryError::DeleteValue(e)))
     }
 
+    pub fn count(&self, txn: &impl Transaction) -> Result<usize, CacheError> {
+        helper::lmdb_stat(txn, self.0)
+            .map(|stat| stat.ms_entries)
+            .map_err(|e| CacheError::InternalError(Box::new(e)))
+    }
+
     pub fn open_ro_cursor<'txn, T: Transaction>(
         &self,
         txn: &'txn T,
@@ -68,6 +74,10 @@ mod tests {
         let env = init_env(&CacheOptions::default()).unwrap();
         let writer = RecordDatabase::new(&env, true).unwrap();
         let reader = RecordDatabase::new(&env, false).unwrap();
+        let txn = env.begin_ro_txn().unwrap();
+        assert_eq!(writer.count(&txn).unwrap(), 0);
+        assert_eq!(reader.count(&txn).unwrap(), 0);
+        txn.commit().unwrap();
 
         let id = 1u64;
         let record = Record::new(None, vec![], None);
@@ -77,6 +87,8 @@ mod tests {
         txn.commit().unwrap();
 
         let txn = env.begin_ro_txn().unwrap();
+        assert_eq!(writer.count(&txn).unwrap(), 1);
+        assert_eq!(reader.count(&txn).unwrap(), 1);
         assert_eq!(writer.get(&txn, id.to_be_bytes()).unwrap(), record);
         assert_eq!(reader.get(&txn, id.to_be_bytes()).unwrap(), record);
         txn.commit().unwrap();
@@ -86,6 +98,8 @@ mod tests {
         txn.commit().unwrap();
 
         let txn = env.begin_ro_txn().unwrap();
+        assert_eq!(writer.count(&txn).unwrap(), 0);
+        assert_eq!(reader.count(&txn).unwrap(), 0);
         assert!(writer.get(&txn, id.to_be_bytes()).is_err());
         assert!(reader.get(&txn, id.to_be_bytes()).is_err());
         txn.commit().unwrap();

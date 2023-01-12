@@ -12,6 +12,16 @@ fn get_response_descriptor(
     endpoint_name: &str,
 ) -> MessageDescriptor {
     match method {
+        "count" => {
+            let count_path = format!(
+                "dozer.generated.{}.Count{}Response",
+                endpoint_name.to_lowercase(),
+                endpoint_name.to_pascal_case().to_plural(),
+            );
+
+            desc.get_message_by_name(&count_path)
+                .unwrap_or_else(|| panic!("{}: not found", count_path))
+        }
         "query" => {
             let query_path = format!(
                 "dozer.generated.{}.Query{}Response",
@@ -129,6 +139,19 @@ fn record_to_pb(record: Record, desc: &MessageDescriptor) -> DynamicMessage {
         }
     }
     resource
+}
+
+pub fn count_response_to_typed_response(
+    count: usize,
+    desc: &DescriptorPool,
+    endpoint_name: &str,
+) -> TypedResponse {
+    let count_desc = get_response_descriptor(desc, "count", endpoint_name);
+
+    let mut msg = DynamicMessage::new(count_desc);
+    msg.set_field_by_name("count", prost_reflect::Value::U64(count as _));
+
+    TypedResponse::new(msg)
 }
 
 pub fn query_response_to_typed_response(

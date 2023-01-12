@@ -1,4 +1,4 @@
-pp_name: eth-smartcontracts-sample
+app_name: eth-smartcontracts-sample
 connections:
   - db_type: Ethereum
     authentication: !Ethereum

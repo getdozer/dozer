@@ -50,7 +50,7 @@ impl QueryExpression {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FilterExpression {
-    // a = 1, a containts "s", a> 4
+    // a = 1, a containts "s", a > 4
     Simple(String, Operator, Value),
     And(Vec<FilterExpression>),
 }
