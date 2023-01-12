@@ -144,7 +144,6 @@ fn connector_disabled_test_e2e_connect_debezium_json_and_get_schema() {
         1,
         KafkaConfig {
             broker,
-            topic: topic.clone(),
             schema_registry_url: None,
         },
     );
@@ -201,7 +200,6 @@ fn connector_disabled_test_e2e_connect_debezium_avro_and_get_schema() {
         1,
         KafkaConfig {
             broker,
-            topic: topic.clone(),
             schema_registry_url,
         },
     );
