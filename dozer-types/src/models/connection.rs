@@ -15,6 +15,7 @@ use std::{
 
 pub struct Connection {
     #[prost(oneof = "Authentication", tags = "1,2,3,4,5")]
+    /// authentication config - depends on db_type
     pub authentication: Option<Authentication>,
     #[prost(string, optional, tag = "6")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -25,6 +26,7 @@ pub struct Connection {
     #[prost(enumeration = "DBType", tag = "8")]
     #[serde(serialize_with = "serialize_db_type_i32_as_string")]
     #[serde(deserialize_with = "deserialize_db_type_str_as_i32")]
+    /// database type - posible values could be: `Postgres`, `Snowflake`, `Ethereum`, `Events`, `Kafka`.; Type: String
     pub db_type: i32,
     #[prost(string, tag = "9")]
     pub name: String,
@@ -98,14 +100,19 @@ pub struct EventsAuthentication {}
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
 pub enum Authentication {
     #[prost(message, tag = "1")]
+    /// In yaml, present as tag: `!Postgres`
     Postgres(PostgresAuthentication),
     #[prost(message, tag = "2")]
+    /// In yaml, present as tag: `!Ethereum`
     Ethereum(EthConfig),
+    /// In yaml, present as tag: `!Events`
     #[prost(message, tag = "3")]
     Events(EventsAuthentication),
     #[prost(message, tag = "4")]
+    /// In yaml, present as tag: `!Snowflake`
     Snowflake(SnowflakeConfig),
     #[prost(message, tag = "5")]
+    /// In yaml, present as tag: `!Kafka`
     Kafka(KafkaConfig),
 }
 
