@@ -5,6 +5,7 @@ use std::task::{Context, Poll};
 use tonic::{
     body::{empty_body, BoxBody},
     codegen::http,
+    transport::NamedService,
 };
 use tower::{Layer, Service};
 
@@ -96,4 +97,8 @@ where
             }
         })
     }
+}
+
+impl<S: NamedService> NamedService for AuthMiddleware<S> {
+    const NAME: &'static str = S::NAME;
 }
