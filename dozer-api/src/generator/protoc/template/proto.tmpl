@@ -8,16 +8,20 @@ package {{package_name}};
 import "{{this}}";
 {{~/each}}
 
-// Endpoint /{{lower_name}}
+/**
+ * TypedService provides explicit and strongly-typed data access experience for developers.
+ *
+ * This allows for a more user-friendly and predictable API. Developers can rely on the explicitly defined types to guide them and catch errors at compile-time.
+ */
 service {{plural_pascal_name}} {
   /**
-   * Count the number of records satisfying the given query. See query documentation for the query format. 
+   * Counts the number of records satisfying the given query. See [Query](../query) for the query format.
    *
-   * If no query is specified, total number of records of 50 will be returned, whichever is smaller.
+   * If no query is specified, total number of records or 50 will be returned, whichever is smaller.
    */
   rpc count(Query{{plural_pascal_name}}Request) returns (Count{{plural_pascal_name}}Response);
   /**
-   * Performs query. See query documentation for the query format. 
+   * Performs query. See [Query](../query) for the query format.
    *
    * If no query is specified, the first 50 records will be returned.
    */

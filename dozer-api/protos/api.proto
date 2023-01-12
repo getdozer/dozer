@@ -7,13 +7,17 @@ package dozer.common;
 import "types.proto";
 
 /**
- * The service that handles Pull and Push queries of all endpoints.
+ * CommonGrpcService allows developers to query data from various endpoints.
+ *
+ * The service supports both Pull and Push queries. It provides methods to return metadata about the fields that can be used to construct the data types dynamically.
+ *
+ * This is preferred while working with libraries or in the case of dynamic scenarios and interpreted languages.
  */
 service CommonGrpcService {
   /**
-   * Count the number of records satisfying the given query. See [Query](../query) for the query format.
+   * Counts the number of records satisfying the given query. See [Query](../query) for the query format.
    *
-   * If no query is specified, total number of records of 50 will be returned, whichever is smaller.
+   * If no query is specified, total number of records or 50 will be returned, whichever is smaller.
    */
   rpc count(QueryRequest) returns (CountResponse);
   /**
