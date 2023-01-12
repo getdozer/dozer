@@ -74,7 +74,7 @@ type Question = (
     &'static str,
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
-pub fn init_with_question() -> Result<(), OrchestrationError> {
+pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError> {
     let mut rl = Editor::<()>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     let mut default_config = Config::default();
