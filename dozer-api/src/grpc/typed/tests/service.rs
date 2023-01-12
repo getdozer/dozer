@@ -73,12 +73,9 @@ pub fn setup_pipeline() -> (
 fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    let path = out_dir
-        .join("generated_films.bin")
-        .to_string_lossy()
-        .to_string();
+    let path = out_dir.join("generated_films.bin");
 
-    let (_, desc) = get_proto_descriptor(path).unwrap();
+    let (_, desc) = get_proto_descriptor(&path).unwrap();
 
     let (pipeline_map, schema_map, rx1) = setup_pipeline();
 

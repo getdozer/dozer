@@ -83,7 +83,7 @@ impl ApiServer {
 
         let generated_path = self.api_dir.join("generated");
 
-        let proto_res = ProtoGenerator::read(generated_path.to_string_lossy().to_string())?;
+        let proto_res = ProtoGenerator::read(&generated_path)?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())

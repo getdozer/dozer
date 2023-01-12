@@ -312,14 +312,13 @@ impl Orchestrator for SimpleOrchestrator {
             resources.push(e.name.clone());
         }
 
-        let generated_path_str = generated_path.to_string_lossy().to_string();
         // Copy common service to be included in descriptor.
         resources.push("common".to_string());
 
-        ProtoGenerator::copy_common(generated_path_str.clone())
+        ProtoGenerator::copy_common(&generated_path)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
         // Generate a descriptor based on all proto files generated within sink.
-        ProtoGenerator::generate_descriptor(generated_path_str, resources)
+        ProtoGenerator::generate_descriptor(&generated_path, resources)
             .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())
