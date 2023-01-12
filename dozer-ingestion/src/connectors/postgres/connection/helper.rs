@@ -23,7 +23,7 @@ pub fn map_connection_config(
 pub fn connect(config: tokio_postgres::Config) -> Result<Client, PostgresConnectorError> {
     Config::from(config)
         .connect(NoTls)
-        .map_err(PostgresConnectorError::ConnetionFailure)
+        .map_err(PostgresConnectorError::ConnectionFailure)
 }
 
 pub async fn async_connect(
@@ -38,6 +38,6 @@ pub async fn async_connect(
             });
             Ok(client)
         }
-        Err(e) => Err(PostgresConnectorError::ConnetionFailure(e)),
+        Err(e) => Err(PostgresConnectorError::ConnectionFailure(e)),
     }
 }

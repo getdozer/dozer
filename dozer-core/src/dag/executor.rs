@@ -177,6 +177,10 @@ impl<'a> DagExecutor<'a> {
         })
     }
 
+    pub fn validate(dag: &'a Dag, path: &Path) -> Result<(), ExecutionError> {
+        Self::load_or_init_schema(dag, path).map(|_| ())
+    }
+
     fn validate_schemas(
         current: &NodeSchemas,
         existing: &DagMetadata,

@@ -44,6 +44,10 @@ pub enum OrchestrationError {
     CliError(#[from] CliError),
     #[error("Failed to receive server handle from grpc server: {0}")]
     GrpcServerHandleError(#[source] RecvError),
+    #[error("Source validation failed")]
+    SourceValidationError,
+    #[error("Pipeline validation failed")]
+    PipelineValidationError,
 }
 
 #[derive(Error, Debug)]

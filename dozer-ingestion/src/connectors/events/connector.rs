@@ -4,6 +4,7 @@ use dozer_types::models::source::Source;
 use dozer_types::types::ReplicationChangesTrackingType;
 use dozer_types::{ingestion_types::IngestionMessage, parking_lot::RwLock};
 
+use crate::connectors::ValidationResults;
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
@@ -82,5 +83,9 @@ impl Connector for EventsConnector {
 
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
         vec![sources]
+    }
+
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
+        todo!()
     }
 }

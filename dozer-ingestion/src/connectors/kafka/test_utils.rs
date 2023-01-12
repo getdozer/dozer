@@ -90,7 +90,7 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
 
     thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![TableInfo {
-            name: table_name.clone(),
+            name: format!("dbserver1.public.{}", table_name),
             id: 0,
             columns: None,
         }];
@@ -98,13 +98,11 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
         let mut connection = config.config.connections.get(0).unwrap().clone();
         if let Some(Authentication::Kafka(KafkaConfig {
             broker,
-            topic: _,
             schema_registry_url,
         })) = connection.authentication
         {
             connection.authentication = Some(Authentication::Kafka(KafkaConfig {
                 broker,
-                topic: format!("dbserver1.public.{}", table_name),
                 schema_registry_url,
             }));
         };
