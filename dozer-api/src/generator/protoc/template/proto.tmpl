@@ -8,7 +8,11 @@ package {{package_name}};
 import "{{this}}";
 {{~/each}}
 
-// Endpoint /{{lower_name}}
+/**
+ * TypedService provides explicit and strongly-typed data access experience for developers.
+ *
+ * This allows for a more user-friendly and predictable API. Developers can rely on the explicitly defined types to guide them and catch errors at compile-time.
+ */
 service {{plural_pascal_name}} {
   /**
    * Counts the number of records satisfying the given query. See [Query](../query) for the query format.
