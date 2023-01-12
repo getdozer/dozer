@@ -1,4 +1,5 @@
 mod helper;
+pub mod init_question_interactive;
 mod repl;
 #[cfg(test)]
 pub mod tests;

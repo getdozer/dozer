@@ -16,7 +16,8 @@ pub struct Config {
     /// name of the app
     pub app_name: String,
     #[prost(message, tag = "3")]
-    // Api server config related: port, host, etc
+    /// Api server config related: port, host, etc
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api: Option<ApiConfig>,
     #[prost(message, repeated, tag = "4")]
     /// connections to databases: Eg: Postgres, Snowflake, etc
