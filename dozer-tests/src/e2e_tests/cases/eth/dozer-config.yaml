@@ -31,3 +31,4 @@ endpoints:
   index:
     primary_key:
     - block_number
+    - id
