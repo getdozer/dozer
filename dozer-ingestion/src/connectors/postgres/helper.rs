@@ -32,7 +32,7 @@ pub fn postgres_type_to_field(
                         .parse::<f64>()
                         .unwrap(),
                 ))),
-                Type::TEXT | Type::VARCHAR => {
+                Type::TEXT | Type::VARCHAR | Type::CHAR => {
                     Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
                 }
                 Type::BYTEA => Ok(Field::Binary(v.to_vec())),
