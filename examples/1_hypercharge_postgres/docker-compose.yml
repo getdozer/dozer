@@ -14,7 +14,7 @@ services:
     volumes:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
-    command: "dozer -c /usr/dozer/dozer-config.yaml init -f"
+    command: "dozer -c /usr/dozer/dozer-config.yaml migrate -f"
   dozer:
     container_name: dozer
     depends_on:

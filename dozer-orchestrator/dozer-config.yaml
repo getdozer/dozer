@@ -1,0 +1,81 @@
+app_name: build_your_first_app
+api:
+  rest:
+    port: 8080
+    host: 0.0.0.0
+    cors: true
+  grpc:
+    port: 3000
+    host: 0.0.0.0
+    cors: true
+    web: true
+  auth: false
+  api_internal:
+    home_dir: ./.dozer/api
+  pipeline_internal:
+    port: 50053
+    host: 0.0.0.0
+    home_dir: ./.dozer/pipeline
+  app_id: aa883e46-c412-4988-b13f-46f3368a727d
+  id: 950914b1-f516-4d6b-81b4-ac97fff998e9
+connections:
+- authentication: !Postgres
+    user: postgres
+    password: postgres
+    host: localhost
+    port: 5434
+    database: stocks
+  id: 7ac57d1c-6499-4bb5-b540-1ae9ab99f798
+  app_id: aa883e46-c412-4988-b13f-46f3368a727d
+  db_type: postgres
+  name: stocks
+sources:
+- name: stocks
+  table_name: stocks
+  columns:
+  - id
+  - ticker
+  - date
+  - open
+  - high
+  - low
+  - close
+  - adj_close
+  - volume
+  connection: !Ref stocks
+  refresh_config: !RealTime {}
+- name: stocks_meta
+  table_name: stocks_meta
+  columns:
+  - nasdaq_traded
+  - symbol
+  - security_name
+  - listing_exchange
+  - market_category
+  - etf
+  - round_lot_size
+  - test_issue
+  - financial_status
+  - cqs_symbol
+  - nasdaq_symbol
+  - next_shares
+  connection: !Ref stocks
+  refresh_config: !RealTime {}
+endpoints:
+- id: 103704a6-fa23-48ce-be00-0ef42f869c59
+  app_id: aa883e46-c412-4988-b13f-46f3368a727d
+  name: stocks_meta
+  path: /stocks-meta
+  sql: select symbol, security_name from stocks_meta where 1=1;
+  index:
+    primary_key:
+    - symbol
+- id: d32c044a-53c5-467f-bf89-5fabfe55aeae
+  app_id: aa883e46-c412-4988-b13f-46f3368a727d
+  name: stocks
+  path: /stocks
+  sql: select id, ticker, date, open, high, low, close, adj_close, volume from stocks where 1=1;
+  index:
+    primary_key:
+    - id
+home_dir: ./.dozer

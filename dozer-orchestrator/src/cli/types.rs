@@ -28,7 +28,7 @@ pub enum Commands {
     #[command(
         about = "Initialize and lock schema definitions. Once intiialized, schemas cannot be changed."
     )]
-    Init(Init),
+    Migrate(Migrate),
     #[command(about = "Clean home directory")]
     Clean,
     #[command(about = "Run Api Server")]
@@ -48,7 +48,7 @@ pub struct Api {
 
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
-pub struct Init {
+pub struct Migrate {
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
 }

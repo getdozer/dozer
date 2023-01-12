@@ -70,7 +70,7 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Connector(sources) => match sources.command {
                 ConnectorCommands::Ls => list_sources(&cli.config_path),
             },
-            Commands::Init(init) => {
+            Commands::Migrate(init) => {
                 let force = init.force.is_some();
                 let mut dozer = init_dozer(cli.config_path)?;
                 dozer.init(force)
