@@ -23,13 +23,13 @@ fn test_generate_proto_and_descriptor() {
     map.insert(schema_name, details.clone());
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
-    let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
+    let tmp_dir_path = tmp_dir.path();
     let api_security: Option<ApiSecurity> = None;
 
-    ProtoGenerator::generate(tmp_dir_path.to_owned(), details, &api_security).unwrap();
+    ProtoGenerator::generate(tmp_dir_path, details, &api_security).unwrap();
 
     let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(descriptor_path).unwrap();
+    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
 
     let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
     let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");
@@ -64,14 +64,14 @@ fn test_generate_proto_and_descriptor_with_security() {
     map.insert(schema_name, details.clone());
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
-    let tmp_dir_path = String::from(tmp_dir.path().to_str().unwrap());
+    let tmp_dir_path = tmp_dir.path();
 
     let api_security = Some(ApiSecurity::Jwt("vDKrSDOrVY".to_owned()));
 
-    ProtoGenerator::generate(tmp_dir_path.to_owned(), details, &api_security).unwrap();
+    ProtoGenerator::generate(tmp_dir_path, details, &api_security).unwrap();
 
     let descriptor_path = create_descriptor_set(tmp_dir_path, &[endpoint.name]).unwrap();
-    let (_, descriptor) = get_proto_descriptor(descriptor_path).unwrap();
+    let (_, descriptor) = get_proto_descriptor(&descriptor_path).unwrap();
 
     let msg = descriptor.get_message_by_name("dozer.generated.films.Film");
     let token_response = descriptor.get_message_by_name("dozer.generated.films.TokenResponse");

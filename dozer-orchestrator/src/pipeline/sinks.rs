@@ -209,7 +209,7 @@ impl SinkFactory for CacheSinkFactory {
         }
 
         ProtoGenerator::generate(
-            self.generated_path.to_string_lossy().to_string(),
+            &self.generated_path,
             PipelineDetails {
                 schema_name: self.api_endpoint.name.to_owned(),
                 cache_endpoint: CacheEndpoint {
