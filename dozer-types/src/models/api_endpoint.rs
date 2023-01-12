@@ -17,6 +17,7 @@ pub struct ApiEndpoint {
     #[prost(string, tag = "3")]
     pub name: String,
     #[prost(string, tag = "4")]
+    /// path of endpoint - e.g: /stocks
     pub path: String,
     #[prost(string, tag = "5")]
     pub sql: String,
