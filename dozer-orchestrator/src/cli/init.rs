@@ -137,17 +137,25 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
             }),
         ),
     ];
-    let _ = questions.iter().try_for_each(|(question, func)| {
+    let result = questions.iter().try_for_each(|(question, func)| {
         let readline = rl.readline(question);
         match readline {
             Ok(input) => func((input, &mut default_config)),
-            Err(_) => {
-                info!("Terminate signal -- Exiting..");
-                Err(OrchestrationError::CliError(CliError::ReadlineError(
-                    ReadlineError::Interrupted,
-                )))
-            }
+            Err(err) => Err(OrchestrationError::CliError(CliError::ReadlineError(err))),
         }
     });
-    Ok(())
+    if let Err(e) = result {
+        return match e {
+            OrchestrationError::CliError(CliError::ReadlineError(ReadlineError::Interrupted)) => {
+                info!("Exiting..");
+                Ok(())
+            }
+            OrchestrationError::CliError(CliError::ReadlineError(ReadlineError::Eof)) => {
+                info!("CTRL-D - exiting...");
+                Ok(())
+            }
+            _ => Err(e),
+        };
+    };
+    result
 }
