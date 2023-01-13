@@ -1,3 +1,4 @@
+use crate::errors::{CliError, OrchestrationError};
 use dozer_types::{
     ingestion_types::{EthConfig, EthFilter, SnowflakeConfig},
     log::info,
@@ -7,13 +8,59 @@ use dozer_types::{
     },
     serde_yaml,
 };
+use rustyline::{
+    completion::{Completer, Pair},
+    Context,
+};
 use rustyline::{error::ReadlineError, Editor};
+use rustyline_derive::{Helper, Highlighter, Hinter, Validator};
 
-use crate::errors::{CliError, OrchestrationError};
+#[derive(Helper, Highlighter, Hinter, Validator)]
+pub struct InitHelper {}
+
+impl Completer for InitHelper {
+    type Candidate = Pair;
+    fn complete(
+        &self,
+        line: &str,
+        _pos: usize,
+        _ctx: &Context,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let line = format!("{}_", line);
+        let mut tokens = line.split_whitespace();
+        let mut last_token = String::from(tokens.next_back().unwrap());
+        last_token.pop();
+        let candidates: Vec<String> = vec![
+            "Postgres".to_owned(),
+            "Ethereum".to_owned(),
+            "Snowflake".to_owned(),
+        ];
+        let mut match_pair: Vec<Pair> = candidates
+            .iter()
+            .filter_map(|f| {
+                if f.to_lowercase().starts_with(&last_token.to_lowercase()) {
+                    Some(Pair {
+                        display: f.to_owned(),
+                        replacement: f.to_owned(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        if match_pair.is_empty() {
+            match_pair = vec![Pair {
+                display: "Postgres".to_owned(),
+                replacement: "Postgres".to_owned(),
+            }]
+        }
+        Ok((line.len() - last_token.len() - 1, match_pair))
+    }
+}
 
 fn sample_connection(connection_name: &str) -> Connection {
     match connection_name {
-        "Snowflake" | "snowflake" => {
+        "Snowflake" | "snowflake" | "S" | "s" => {
             let snowflake_config = SnowflakeConfig {
                 server: "server".to_owned(),
                 port: "443".to_owned(),
@@ -32,7 +79,7 @@ fn sample_connection(connection_name: &str) -> Connection {
             };
             connection
         }
-        "Ethereum" => {
+        "Ethereum" | "ethereum" | "E" | "e" => {
             let eth_filter = EthFilter {
                 from_block: Some(0),
                 to_block: None,
@@ -75,8 +122,9 @@ type Question = (
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
 pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError> {
-    let mut rl = Editor::<()>::new()
+    let mut rl = Editor::<InitHelper>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
+    rl.set_helper(Some(InitHelper {}));
     let mut default_config = Config::default();
     let questions: Vec<Question> = vec![
         (
