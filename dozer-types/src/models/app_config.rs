@@ -46,6 +46,10 @@ pub struct Flags {
     /// http1 + web support for grpc. This is required for browser clients.; Default: true
     #[prost(bool, tag = "2", default = true)]
     pub grpc_web: bool,
+    /// require authentication to access grpc server reflection service if true.; Default: false
+    #[prost(bool, tag = "4", default = false)]
+    pub authenticate_server_reflection: bool,
+
     /// push events enabled. Currently unstable.; Default: false
     #[prost(bool, tag = "3", default = false)]
     pub push_events: bool,
