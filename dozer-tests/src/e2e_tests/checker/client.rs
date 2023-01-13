@@ -117,7 +117,7 @@ impl Client {
         // REST endpoint oapi.
         let response = self
             .rest_client
-            .post(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
+            .get(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
             .send()
             .await
             .unwrap_or_else(|e| {
@@ -174,7 +174,7 @@ impl Client {
         // REST OpenAPI schema.
         let response = self
             .rest_client
-            .post(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
+            .get(&format!("{}{}/oapi", self.rest_endpoint, rest_path))
             .send()
             .await
             .unwrap_or_else(|e| {
