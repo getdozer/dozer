@@ -31,9 +31,9 @@ impl<'a> ApiHelper<'a> {
                 fields: vec![],
             },
 
-            Access::Custom(access_filters) => {
-                if let Some(access_filter) = access_filters.get(&pipeline_details.schema_name) {
-                    access_filter.to_owned()
+            Access::Custom(mut access_filters) => {
+                if let Some(access_filter) = access_filters.remove(&pipeline_details.schema_name) {
+                    access_filter
                 } else {
                     return Err(ApiError::ApiAuthError(AuthError::InvalidToken));
                 }

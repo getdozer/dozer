@@ -331,7 +331,7 @@ fn token(
         let _parts = request.into_parts();
         let endpoint_name = pipeline_details.cache_endpoint.endpoint.name;
 
-        let auth = Authorizer::from(security);
+        let auth = Authorizer::from(&security);
         let token = auth.generate_token(Access::All, None).unwrap();
         let res = token_response(token, &desc, &endpoint_name);
         Ok(Response::new(res))

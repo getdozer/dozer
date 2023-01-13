@@ -185,7 +185,7 @@ async fn test_grpc_query_with_access_token() {
         query: Some(dozer_types::serde_json::to_string(&query).unwrap()),
     };
     let api_security = ApiSecurity::Jwt("DXkzrlnTy6".to_owned());
-    let authorizer = Authorizer::from(api_security.to_owned());
+    let authorizer = Authorizer::from(&api_security);
     let generated_token = authorizer.generate_token(Access::All, None).unwrap();
     let (count_response, query_response) =
         test_grpc_count_and_query_common(1403, request, Some(api_security), Some(generated_token))
