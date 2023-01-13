@@ -26,8 +26,8 @@
   <!-- <a href="https://gitHub.com/getdozer/dozer/stargazers/" target="_blank"><img src="https://img.shields.io/github/stars/getdozer/dozer?style=social&label=Star&maxAge=2592000" alt="stars"></a> -->
   <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg" alt="CI"></a>
   <a href="https://coveralls.io/github/getdozer/dozer?branch=main" target="_blank"><img src="https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV&style=flat" alt="Coverage Status"></a>
-  <!-- <a><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a> -->
-  <!-- <a><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a> -->
+  <a href="https://getdozer.io/docs/dozer" target="_blank"><img src="https://img.shields.io/badge/doc-reference-green" alt="Doc reference"></a>
+  <a href="https://discord.gg/DsmC9FP5" target="_blank"><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>
   <a href="https://github.com/getdozer/dozer/blob/main/LICENSE.txt" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
 
 </p>
