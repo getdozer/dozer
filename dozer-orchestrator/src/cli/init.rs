@@ -128,7 +128,7 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
                     .open(yaml_path)
                     .expect("Couldn't open file");
                 serde_yaml::to_writer(f, &config).expect("Couldn't write to file");
-                info!("write config at path: {}", yaml_path.to_owned());
+                info!("write config at: {}", yaml_path.to_owned());
                 Ok(())
             }),
         ),

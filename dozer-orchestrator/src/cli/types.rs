@@ -37,7 +37,7 @@ pub enum Commands {
     App(App),
     #[command(about = "Show Sources")]
     Connector(Connector),
-    #[command(about = "Interactive cli to create simple dozer-config.yaml")]
+    #[command(about = "Initalize an app using a template.")]
     Init,
 }
 

@@ -1,5 +1,5 @@
 use clap::Parser;
-use dozer_orchestrator::cli::init_question_interactive::init_simple_config_file_with_question;
+use dozer_orchestrator::cli::init::init_simple_config_file_with_question;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
