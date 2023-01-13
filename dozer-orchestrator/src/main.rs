@@ -71,10 +71,10 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Connector(sources) => match sources.command {
                 ConnectorCommands::Ls => list_sources(&cli.config_path),
             },
-            Commands::Migrate(init) => {
-                let force = init.force.is_some();
+            Commands::Migrate(migrate) => {
+                let force = migrate.force.is_some();
                 let mut dozer = init_dozer(cli.config_path)?;
-                dozer.init(force)
+                dozer.migrate(force)
             }
             Commands::Clean => {
                 let mut dozer = init_dozer(cli.config_path)?;
@@ -90,7 +90,7 @@ fn run() -> Result<(), OrchestrationError> {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        if let Err(e) = dozer.init(false) {
+        if let Err(e) = dozer.migrate(false) {
             if let OrchestrationError::InitializationFailed(_) = e {
                 warn!(
                     "{} is already present. Skipping initialisation..",
