@@ -13,18 +13,22 @@ use dozer_types::models::source::Source;
 use crate::pipeline::{CacheSinkFactory, StreamingSinkFactory};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
-use dozer_ingestion::connectors::{get_connector, TableInfo};
+use dozer_ingestion::connectors::{get_connector, get_connector_info_table, TableInfo};
+
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam;
+use dozer_types::log::{error, info};
 use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
+use OrchestrationError::ExecutionError;
 
+use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::source_builder::SourceBuilder;
-use crate::validate;
+use crate::{validate, validate_schema};
 
 pub struct Executor {
     sources: Vec<Source>,
@@ -53,15 +57,18 @@ impl Executor {
         }
     }
 
-    pub fn get_connection_groups(
-        &self,
-    ) -> Result<HashMap<String, Vec<Source>>, OrchestrationError> {
-        let grouped_connections = SourceBuilder::group_connections(self.sources.clone());
+    pub fn get_connection_groups(&self) -> HashMap<String, Vec<Source>> {
+        SourceBuilder::group_connections(self.sources.clone())
+    }
+
+    pub fn validate_grouped_connections(
+        grouped_connections: &HashMap<String, Vec<Source>>,
+    ) -> Result<(), OrchestrationError> {
         for sources_group in grouped_connections.values() {
             let first_source = sources_group.get(0).unwrap();
 
             if let Some(connection) = &first_source.connection {
-                let tables = sources_group
+                let tables: Vec<TableInfo> = sources_group
                     .iter()
                     .map(|source| TableInfo {
                         name: source.table_name.clone(),
@@ -70,10 +77,79 @@ impl Executor {
                     })
                     .collect();
 
-                validate(connection.clone(), Some(tables))?;
+                if let Some(info_table) = get_connector_info_table(connection) {
+                    info!("[{}] Connection parameters", connection.name);
+                    info_table.printstd();
+                }
+
+                validate(connection.clone(), Some(tables.clone()))
+                    .map_err(|e| {
+                        error!(
+                            "[{}] {} Connection validation error: {}",
+                            connection.name,
+                            get_colored_text("X", "31"),
+                            e
+                        );
+                        OrchestrationError::SourceValidationError
+                    })
+                    .map(|_| {
+                        info!(
+                            "[{}] {} Connection validation completed",
+                            connection.name,
+                            get_colored_text("✓", "32")
+                        );
+                    })?;
+
+                validate_schema(connection.clone(), &tables).map_or_else(
+                    |e| {
+                        error!(
+                            "[{}] {} Schema validation error: {}",
+                            connection.name,
+                            get_colored_text("X", "31"),
+                            e
+                        );
+                        Err(OrchestrationError::SourceValidationError)
+                    },
+                    |r| {
+                        let mut all_valid = true;
+                        for (table_name, validation_result) in r.into_iter() {
+                            let is_valid =
+                                validation_result.iter().all(|(_, result)| result.is_ok());
+
+                            if is_valid {
+                                info!(
+                                    "[{}][{}] {} Schema validation completed",
+                                    connection.name,
+                                    table_name,
+                                    get_colored_text("✓", "32")
+                                );
+                            } else {
+                                all_valid = false;
+                                for (_, error) in validation_result {
+                                    if let Err(e) = error {
+                                        error!(
+                                            "[{}][{}] {} Schema validation error: {}",
+                                            connection.name,
+                                            table_name,
+                                            get_colored_text("X", "31"),
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        if !all_valid {
+                            return Err(OrchestrationError::SourceValidationError);
+                        }
+
+                        Ok(())
+                    },
+                )?;
             }
         }
-        Ok(grouped_connections)
+
+        Ok(())
     }
 
     // This function is used to run a query using a temporary pipeline
@@ -82,7 +158,7 @@ impl Executor {
         sql: String,
         sender: crossbeam::channel::Sender<Operation>,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
-        let grouped_connections = self.get_connection_groups()?;
+        let grouped_connections = self.get_connection_groups();
         let asm = SourceBuilder::build_source_manager(
             grouped_connections,
             self.ingestor.clone(),
@@ -122,7 +198,7 @@ impl Executor {
         Ok(dag)
     }
 
-    // This function is used by both init and actual execution
+    // This function is used by both migrate and actual execution
     pub fn build_pipeline(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
@@ -130,7 +206,10 @@ impl Executor {
         api_security: Option<ApiSecurity>,
         flags: Option<Flags>,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
-        let grouped_connections = self.get_connection_groups()?;
+        let grouped_connections = self.get_connection_groups();
+
+        Self::validate_grouped_connections(&grouped_connections)?;
+
         let asm = SourceBuilder::build_source_manager(
             grouped_connections,
             self.ingestor.clone(),
@@ -168,12 +247,23 @@ impl Executor {
                     cache_endpoint.endpoint.name.as_str(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
-                .map_err(OrchestrationError::ExecutionError)?;
+                .map_err(ExecutionError)?;
 
             app.add_pipeline(pipeline);
         }
 
-        app.get_dag().map_err(OrchestrationError::ExecutionError)
+        let dag = app.get_dag().map_err(ExecutionError)?;
+
+        DagExecutor::validate(&dag, &self.pipeline_dir)
+            .map(|_| {
+                info!("[pipeline] Validation completed");
+            })
+            .map_err(|e| {
+                error!("[pipeline] Validation error: {}", e);
+                OrchestrationError::PipelineValidationError
+            })?;
+
+        Ok(dag)
     }
 
     pub fn get_tables(
@@ -216,6 +306,6 @@ impl Executor {
         )?;
 
         exec.start()?;
-        exec.join().map_err(OrchestrationError::ExecutionError)
+        exec.join().map_err(ExecutionError)
     }
 }

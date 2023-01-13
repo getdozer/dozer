@@ -61,6 +61,10 @@ pub enum ExecutionError {
     UnsupportedDeleteOperation(String),
     #[error("Invalid AppSource connection {0}. Already exists.")]
     AppSourceConnectionAlreadyExists(String),
+    #[error("Failed to get primary key for `{0}`")]
+    FailedToGetPrimaryKey(String),
+    #[error("Got mismatching primary key for `{0}`")]
+    MismatchPrimaryKey(String),
 
     // Error forwarders
     #[error(transparent)]

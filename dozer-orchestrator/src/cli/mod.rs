@@ -1,4 +1,5 @@
 mod helper;
+pub mod init;
 mod repl;
 pub mod types;
 pub use repl::configure;

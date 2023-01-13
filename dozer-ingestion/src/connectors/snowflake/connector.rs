@@ -6,7 +6,7 @@ use std::time::Duration;
 
 #[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connection::client::Client;
-use crate::connectors::Connector;
+use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::SnowflakeConfig;
@@ -106,6 +106,10 @@ impl Connector for SnowflakeConnector {
 
     fn validate(&self, _tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
         Ok(())
+    }
+
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
+        todo!()
     }
 }
 

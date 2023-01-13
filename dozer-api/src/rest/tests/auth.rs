@@ -18,17 +18,17 @@ struct TokenResponse {
 }
 #[actix_web::test]
 async fn call_auth_token_api() {
-    let secret = "secret".to_string();
+    let secret = "secret";
 
     // Shouldnt be able to create token without Master Token
-    let res = _call_auth_token_api(secret.clone(), None, None).await;
+    let res = _call_auth_token_api(secret.to_string(), None, None).await;
     assert_eq!(res.status().as_u16(), 401, "Should be unauthorized.");
 
-    let auth = Authorizer::new(secret.to_owned(), None, None);
+    let auth = Authorizer::new(secret, None, None);
     let token = auth.generate_token(Access::All, None).unwrap();
 
     let json = json!({"Custom":{"films":{"filter":null,"fields":[]}}});
-    let res = _call_auth_token_api(secret.clone(), Some(token), Some(json)).await;
+    let res = _call_auth_token_api(secret.to_string(), Some(token), Some(json)).await;
     assert_eq!(
         res.status().as_u16(),
         200,
@@ -41,17 +41,18 @@ async fn call_auth_token_api() {
 
 #[actix_web::test]
 async fn verify_token_test() {
-    let secret = "secret".to_string();
+    let secret = "secret";
 
     // Without ApiSecurity
     let res = check_status(None, None).await;
+    dbg!(&res.status());
     assert!(res.status().is_success());
 
     // With ApiSecurity but no token
-    let res = check_status(Some(ApiSecurity::Jwt(secret.to_owned())), None).await;
+    let res = check_status(Some(ApiSecurity::Jwt(secret.to_string())), None).await;
     assert_eq!(res.status().as_u16(), 401, "Should be unauthorized.");
 
-    let auth = Authorizer::new(secret.to_owned(), None, None);
+    let auth = Authorizer::new(secret, None, None);
     let token = auth.generate_token(Access::All, None).unwrap();
 
     let res = check_status(Some(ApiSecurity::Jwt("secret".to_string())), Some(token)).await;
@@ -92,15 +93,12 @@ async fn _call_auth_token_api(
     body: Option<Value>,
 ) -> ServiceResponse<impl MessageBody> {
     let endpoint = test_utils::get_endpoint();
-    let schema_name = endpoint.name.to_owned();
+    let schema_name = endpoint.name.clone();
     let cache = test_utils::initialize_cache(&schema_name, None);
     let api_server = ApiServer::create_app_entry(
-        Some(ApiSecurity::Jwt(secret.to_owned())),
+        Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
-        vec![CacheEndpoint {
-            cache,
-            endpoint: endpoint.clone(),
-        }],
+        vec![CacheEndpoint { cache, endpoint }],
     );
     let app = actix_web::test::init_service(api_server).await;
 

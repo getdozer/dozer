@@ -10,16 +10,21 @@ pub struct Source {
     #[prost(string, optional, tag = "2")]
     pub app_id: Option<String>,
     #[prost(string, tag = "3")]
+    /// name of the source - to distinguish between multiple sources; Type: String
     pub name: String,
     #[prost(string, tag = "4")]
+    /// name of the table in source database; Type: String
     pub table_name: String,
     #[prost(string, repeated, tag = "5")]
+    /// list of columns gonna be used in the source table; Type: String[]
     pub columns: Vec<String>,
     #[prost(message, tag = "6")]
     #[serde(skip_deserializing)]
+    /// reference to pre-defined connection name - syntax: `!Ref <connection_name>`; Type: `Ref!` tag
     pub connection: Option<Connection>,
     #[prost(oneof = "RefreshConfig", tags = "7")]
     #[serde(default = "default_refresh_config")]
+    /// setting for how to refresh the data; Default: RealTime
     pub refresh_config: Option<RefreshConfig>,
 }
 fn default_refresh_config() -> Option<RefreshConfig> {

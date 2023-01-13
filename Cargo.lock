@@ -1551,7 +1551,6 @@ dependencies = [
  "dozer-types",
  "handlebars",
  "include_dir",
- "indicatif",
  "rustyline",
  "rustyline-derive",
  "serde",
@@ -1570,6 +1569,7 @@ dependencies = [
  "dozer-core",
  "dozer-types",
  "dyn-clone",
+ "like",
  "lmdb-rkv",
  "lmdb-rkv-sys",
  "num-traits",
@@ -1622,6 +1622,7 @@ dependencies = [
  "crossbeam",
  "fp_rust",
  "indexmap",
+ "indicatif",
  "log",
  "ordered-float 2.10.0",
  "parking_lot 0.12.1",
@@ -2702,6 +2703,12 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
+
+[[package]]
+name = "like"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc7281e4b2b1a1fae03463a7c49dd21464de50251a450f6da9715c40c7b21a70"
 
 [[package]]
 name = "link-cplusplus"

@@ -1,5 +1,4 @@
 #![allow(clippy::enum_variant_names)]
-
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
@@ -31,6 +30,8 @@ pub enum ApiError {
     TypeError(#[from] TypeError),
     #[error("Schema Identifier is not present")]
     SchemaIdentifierNotFound,
+    #[error(transparent)]
+    PortAlreadyInUse(#[from] std::io::Error),
 }
 
 impl ApiError {
@@ -65,6 +66,8 @@ pub enum GRPCError {
     ServerReflectionError(#[from] tonic_reflection::server::Error),
     #[error("Unable to decode query expression: {0}")]
     UnableToDecodeQueryExpression(String),
+    #[error("{0}")]
+    TransportErrorDetail(String),
 }
 impl From<GRPCError> for tonic::Status {
     fn from(input: GRPCError) -> Self {
@@ -130,6 +133,7 @@ impl actix_web::error::ResponseError for ApiError {
             ApiError::ApiGenerationError(_)
             | ApiError::SchemaNotFound(_)
             | ApiError::TypeError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

@@ -7,37 +7,46 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 #[derive(Serialize, PartialEq, Eq, Clone, prost::Message)]
+/// The configuration for the app
 pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[prost(string, optional, tag = "1")]
     pub id: Option<String>,
     #[prost(string, tag = "2")]
+    /// name of the app
     pub app_name: String,
     #[prost(message, tag = "3")]
+    /// Api server config related: port, host, etc
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api: Option<ApiConfig>,
     #[prost(message, repeated, tag = "4")]
+    /// connections to databases: Eg: Postgres, Snowflake, etc
     pub connections: Vec<Connection>,
     #[prost(message, repeated, tag = "5")]
+    /// sources to ingest data related to particular connection
     pub sources: Vec<Source>,
     #[prost(message, repeated, tag = "6")]
+    /// api endpoints to expose
     pub endpoints: Vec<ApiEndpoint>,
     #[prost(string, tag = "7")]
     #[serde(default = "default_home_dir")]
+    ///directory for all process; Default: ~/.dozer
     pub home_dir: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[prost(message, tag = "8")]
+    /// flags to enable/disable features
     pub flags: Option<Flags>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
 pub struct Flags {
-    // dynamic grpc enabled
+    /// dynamic grpc enabled; Default: true
     #[prost(bool, tag = "1", default = true)]
     pub dynamic: bool,
-    // http1 + web support for grpc. This is required for browser clients.
+    /// http1 + web support for grpc. This is required for browser clients.; Default: true
     #[prost(bool, tag = "2", default = true)]
     pub grpc_web: bool,
-    // push events enabled. Currently unstable.
+    /// push events enabled. Currently unstable.; Default: false
     #[prost(bool, tag = "3", default = false)]
     pub push_events: bool,
 }

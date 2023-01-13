@@ -19,12 +19,14 @@ use std::{
         Arc,
     },
 };
+use tokio::task::JoinHandle;
+mod console_helper;
 #[cfg(test)]
 mod test_utils;
 mod utils;
 
 pub trait Orchestrator {
-    fn init(&mut self, force: bool) -> Result<(), OrchestrationError>;
+    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, running: Arc<AtomicBool>) -> Result<(), OrchestrationError>;
     fn run_apps(
@@ -45,19 +47,32 @@ pub trait Orchestrator {
 }
 
 // Re-exports
-use dozer_ingestion::connectors::TableInfo;
+use dozer_ingestion::connectors::{TableInfo, ValidationResults};
 pub use dozer_ingestion::{connectors::get_connector, errors::ConnectorError};
-use dozer_types::log::info;
+
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 use dozer_types::types::Schema;
 
+async fn flatten_joinhandle(
+    handle: JoinHandle<Result<(), OrchestrationError>>,
+) -> Result<(), OrchestrationError> {
+    match handle.await {
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err(err)) => Err(err),
+        Err(err) => Err(OrchestrationError::InternalError(Box::new(err))),
+    }
+}
+
 pub fn validate(input: Connection, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
-    let connection_service = get_connector(input.clone())?;
-    connection_service.validate(tables).map(|t| {
-        info!("[{}] Validation completed", input.name);
-        t
-    })
+    get_connector(input)?.validate(tables)
+}
+
+pub fn validate_schema(
+    input: Connection,
+    tables: &[TableInfo],
+) -> Result<ValidationResults, ConnectorError> {
+    get_connector(input)?.validate_schemas(tables)
 }
 
 pub fn set_panic_hook() {

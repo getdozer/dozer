@@ -2,7 +2,7 @@ use crate::connectors::postgres::schema_helper::SchemaHelper;
 
 use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
-use crate::connectors::{Connector, TableInfo};
+use crate::connectors::{Connector, TableInfo, ValidationResults};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
 use dozer_types::parking_lot::RwLock;
@@ -96,7 +96,9 @@ impl Connector for PostgresConnector {
         &self,
         table_names: Option<Vec<TableInfo>>,
     ) -> Result<Vec<SchemaWithChangesType>, ConnectorError> {
-        self.schema_helper.get_schemas(table_names)
+        self.schema_helper
+            .get_schemas(table_names)
+            .map_err(ConnectorError::PostgresConnectorError)
     }
 
     fn initialize(
@@ -140,16 +142,24 @@ impl Connector for PostgresConnector {
     }
 
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError> {
+        let tables_list = tables.or_else(|| self.tables.clone());
         validate_connection(
+            &self.name,
             self.conn_config.clone(),
-            tables.or_else(|| self.tables.clone()),
+            tables_list.as_ref(),
             None,
         )?;
+
         Ok(())
     }
 
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
         vec![sources]
+    }
+
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
+        SchemaHelper::validate(&self.schema_helper, tables)
+            .map_err(ConnectorError::PostgresConnectorError)
     }
 }
 

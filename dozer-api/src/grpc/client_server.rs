@@ -83,10 +83,7 @@ impl ApiServer {
 
         let generated_path = self.api_dir.join("generated");
 
-        let proto_res = ProtoGenerator::read(
-            generated_path.to_string_lossy().to_string(),
-            pipeline_map.to_owned(),
-        )?;
+        let proto_res = ProtoGenerator::read(&generated_path)?;
 
         let inflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(proto_res.descriptor_bytes.as_slice())
@@ -195,7 +192,14 @@ impl ApiServer {
         grpc_router
             .serve_with_shutdown(addr, receiver_shutdown.map(drop))
             .await
-            .map_err(|e| GRPCError::InternalError(Box::new(e)))
+            .map_err(|e| {
+                let inner_error: Box<dyn std::error::Error> = e.into();
+                let detail = inner_error.source();
+                if let Some(detail) = detail {
+                    return GRPCError::TransportErrorDetail(detail.to_string());
+                }
+                GRPCError::TransportErrorDetail(inner_error.to_string())
+            })
     }
 
     pub fn setup_broad_cast_channel(

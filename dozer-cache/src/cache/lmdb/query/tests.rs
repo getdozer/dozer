@@ -44,6 +44,7 @@ fn query_secondary() {
     let query = QueryExpression::new(Some(filter), vec![], 10, 0);
 
     let records = cache.query("sample", &query).unwrap();
+    assert_eq!(cache.count("sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1, "must be equal");
     assert_eq!(records[0], record, "must be equal");
 
@@ -69,6 +70,7 @@ fn query_secondary() {
     let query = QueryExpression::new(Some(filter), vec![], 10, 0);
 
     let records = cache.query("full_text_sample", &query).unwrap();
+    assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0], record);
 }
@@ -227,6 +229,7 @@ fn query_secondary_multi_indices() {
     );
 
     let records = cache.query("sample", &query).unwrap();
+    assert_eq!(cache.count("sample", &query).unwrap(), 2);
     assert_eq!(
         records,
         vec![
@@ -246,18 +249,21 @@ fn query_secondary_multi_indices() {
 
 fn test_query_err(query: Value, cache: &LmdbCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    let count_result = cache.count("sample", &query);
     let result = cache.query("sample", &query);
 
-    assert!(result.is_err());
-    if let Err(err) = result {
-        assert!(
-            matches!(err, crate::errors::CacheError::PlanError(_)),
-            "Must be a PlanError"
-        );
-    }
+    assert!(matches!(
+        count_result.unwrap_err(),
+        crate::errors::CacheError::PlanError(_)
+    ),);
+    assert!(matches!(
+        result.unwrap_err(),
+        crate::errors::CacheError::PlanError(_)
+    ),);
 }
 fn test_query(query: Value, count: usize, cache: &LmdbCache) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    assert_eq!(cache.count("sample", &query).unwrap(), count);
     let records = cache.query("sample", &query).unwrap();
 
     assert_eq!(records.len(), count, "Count must be equal : {:?}", query);
@@ -270,6 +276,7 @@ fn test_query_record(
     cache: &LmdbCache,
 ) {
     let query = serde_json::from_value::<QueryExpression>(query).unwrap();
+    assert_eq!(cache.count("sample", &query).unwrap(), expected.len());
     let records = cache.query("sample", &query).unwrap();
     let expected = expected
         .into_iter()

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc};
 
-use crate::connectors::Connector;
+use crate::connectors::{Connector, ValidationResults};
 use crate::ingestion::Ingestor;
 use crate::{
     connectors::{ethereum::helper, TableInfo},
@@ -230,5 +230,9 @@ impl Connector for EthConnector {
 
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>> {
         vec![sources]
+    }
+
+    fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
+        Ok(HashMap::new())
     }
 }
