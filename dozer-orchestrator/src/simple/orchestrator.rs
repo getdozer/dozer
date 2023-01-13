@@ -215,7 +215,7 @@ impl Orchestrator for SimpleOrchestrator {
             if let Some(api_security) = api_config.api_security {
                 match api_security {
                     dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
-                        let auth = Authorizer::new(secret, None, None);
+                        let auth = Authorizer::new(&secret, None, None);
                         let token = auth.generate_token(Access::All, None).map_err(|err| {
                             OrchestrationError::GenerateTokenFailed(err.to_string())
                         })?;

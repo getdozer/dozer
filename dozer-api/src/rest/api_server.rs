@@ -2,10 +2,7 @@ use super::api_generator;
 use crate::errors::ApiError;
 use crate::rest::api_generator::health_route;
 use crate::{
-    auth::{
-        api::{auth_route, validate},
-        Access,
-    },
+    auth::api::{auth_route, validate},
     CacheEndpoint, PipelineDetails,
 };
 use actix_cors::Cors;
@@ -21,7 +18,6 @@ use dozer_types::{
     models::api_security::ApiSecurity,
     serde::{self, Deserialize, Serialize},
 };
-use futures_util::FutureExt;
 use tracing_actix_web::TracingLogger;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -89,11 +85,13 @@ impl ApiServer {
             .wrap(Logger::default())
             .wrap(TracingLogger::default());
 
-        if let Some(api_security) = security.to_owned() {
+        let is_auth_configured = if let Some(api_security) = security {
             // Injecting API Security
             app = app.app_data(api_security);
-        }
-        let is_auth_configured = security.is_some();
+            true
+        } else {
+            false
+        };
         let auth_middleware =
             Condition::new(is_auth_configured, HttpAuthentication::bearer(validate));
 
@@ -125,17 +123,10 @@ impl ApiServer {
             })
             // Attach token generation route
             .route("/auth/token", web::post().to(auth_route))
-            // Attach token generation route
+            // Attach health route
             .route("/health", web::get().to(health_route))
             // Wrap Api Validator
             .wrap(auth_middleware)
-            // Insert None as Auth when no api security configured
-            .wrap_fn(move |req, srv| {
-                if !is_auth_configured {
-                    req.extensions_mut().insert(Access::All);
-                }
-                srv.call(req).map(|res| res)
-            })
             // Wrap CORS around api validator. Required to return the right headers.
             .wrap(cors_middleware)
     }

@@ -8,18 +8,18 @@ use crate::errors::AuthError;
 
 use super::{Access, Claims};
 
-pub struct Authorizer {
-    secret: Vec<u8>,
-    aud: String,
-    sub: String,
+pub struct Authorizer<'a> {
+    secret: &'a [u8],
+    aud: &'a str,
+    sub: &'a str,
 }
 
-impl Authorizer {
-    pub fn new(secret: String, aud: Option<String>, sub: Option<String>) -> Self {
+impl<'a> Authorizer<'a> {
+    pub fn new(secret: &'a str, aud: Option<&'a str>, sub: Option<&'a str>) -> Self {
         Self {
-            secret: secret.as_bytes().to_owned(),
-            aud: aud.unwrap_or_else(|| "cache_user".to_owned()),
-            sub: sub.unwrap_or_else(|| "api@dozer.com".to_owned()),
+            secret: secret.as_bytes(),
+            aud: aud.unwrap_or("cache_user"),
+            sub: sub.unwrap_or("api@dozer.com"),
         }
     }
 
@@ -56,7 +56,7 @@ impl Authorizer {
         encode(
             &Header::default(),
             &my_claims,
-            &EncodingKey::from_secret(&self.secret),
+            &EncodingKey::from_secret(self.secret),
         )
         .map_err(|e| AuthError::InternalError(Box::new(e)))
     }
@@ -66,7 +66,7 @@ impl Authorizer {
         validation.sub = Some(self.sub.to_owned());
         validation.set_audience(&[self.aud.to_owned()]);
 
-        match decode::<Claims>(token, &DecodingKey::from_secret(&self.secret), &validation) {
+        match decode::<Claims>(token, &DecodingKey::from_secret(self.secret), &validation) {
             Ok(c) => Ok(c.claims),
             Err(err) => Err(match *err.kind() {
                 ErrorKind::InvalidToken => AuthError::InvalidToken,
@@ -77,8 +77,8 @@ impl Authorizer {
     }
 }
 
-impl From<ApiSecurity> for Authorizer {
-    fn from(value: ApiSecurity) -> Self {
+impl<'a> From<&'a ApiSecurity> for Authorizer<'a> {
+    fn from(value: &'a ApiSecurity) -> Self {
         match value {
             ApiSecurity::Jwt(secret) => Authorizer::new(secret, None, None),
         }
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn generate_and_verify_claim() {
-        let auth_utils = Authorizer::new("secret".to_string(), None, None);
+        let auth_utils = Authorizer::new("secret", None, None);
 
         let token = auth_utils.generate_token(Access::All, None).unwrap();
 
