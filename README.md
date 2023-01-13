@@ -108,5 +108,4 @@ Check out this module for above [end-to-end examples](./examples/).
 - `sqlite3` (`sudo apt install libsqlite3-dev` on Ubuntu)
 - `openssl` (brew install pkg-config openssl on MacOS)
 
-Please refeer to this [module](./dozer-ingestion/tests) on how to **test/build/implement a new connector**.
-
+Please refer to [Contributing](https://getdozer.io/docs/contributing/overview) for more details.
