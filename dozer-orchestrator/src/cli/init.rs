@@ -151,7 +151,7 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
             }),
         ),
         (
-            "question: Connection Type - one of: Postgres, Ethereum, Snowflake (Postgres): ",
+            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): ",
             Box::new(move |(connection, config)| {
                 let connections_available = vec!["Postgres", "Ethereum", "Snowflake"];
                 if connections_available.contains(&connection.as_str()) {
