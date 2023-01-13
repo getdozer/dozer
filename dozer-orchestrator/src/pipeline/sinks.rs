@@ -85,22 +85,24 @@ impl CacheSinkFactory {
         let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
         if schema.primary_index.is_empty() {
             if !api_index.primary_key.is_empty() {
-                schema.primary_index = create_primary_indexes(schema.clone(), api_index)?;
+                schema.primary_index = create_primary_indexes(&schema, &api_index)?;
             } else {
                 return Err(ExecutionError::FailedToGetPrimaryKey(
                     self.api_endpoint.name.clone(),
                 ));
             }
         } else {
-            let index = create_primary_indexes(schema.clone(), api_index)?;
+            let index = create_primary_indexes(&schema, &api_index)?;
             if index.is_empty() {
                 return Err(ExecutionError::FailedToGetPrimaryKey(
                     self.api_endpoint.name.clone(),
                 ));
             } else if !schema.primary_index.eq(&index) {
-                return Err(ExecutionError::MismatchPrimaryKey(
-                    self.api_endpoint.name.clone(),
-                ));
+                return Err(ExecutionError::MismatchPrimaryKey {
+                    endpoint_name: self.api_endpoint.name.clone(),
+                    expected: get_field_names(&schema, &schema.primary_index),
+                    actual: get_field_names(&schema, &index),
+                });
             } else {
                 schema.primary_index = index;
             }
@@ -181,12 +183,11 @@ impl SinkFactory for CacheSinkFactory {
             }))?;
 
             let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-            pipeline_schema.primary_index =
-                create_primary_indexes(pipeline_schema.clone(), api_index.clone())?;
+            pipeline_schema.primary_index = create_primary_indexes(&pipeline_schema, &api_index)?;
 
             pipeline_schema.print().printstd();
             // Automatically create secondary indexes
-            let secondary_indexes = create_secondary_indexes(pipeline_schema.clone());
+            let secondary_indexes = create_secondary_indexes(&pipeline_schema);
             if self
                 .cache
                 .get_schema_and_indexes_by_name(&self.api_endpoint.name)
@@ -244,8 +245,8 @@ impl SinkFactory for CacheSinkFactory {
 }
 
 fn create_primary_indexes(
-    schema: Schema,
-    api_index: ApiIndex,
+    schema: &Schema,
+    api_index: &ApiIndex,
 ) -> Result<Vec<usize>, ExecutionError> {
     let mut primary_index = Vec::new();
     for name in api_index.primary_key.iter() {
@@ -262,7 +263,7 @@ fn create_primary_indexes(
     Ok(primary_index)
 }
 
-fn create_secondary_indexes(schema: Schema) -> Vec<IndexDefinition> {
+fn create_secondary_indexes(schema: &Schema) -> Vec<IndexDefinition> {
     // Automatically create secondary indexes
     schema
         .fields
@@ -285,6 +286,13 @@ fn create_secondary_indexes(schema: Schema) -> Vec<IndexDefinition> {
             // Skip creating indexes
             FieldType::Binary | FieldType::Bson => None,
         })
+        .collect()
+}
+
+fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
+    indexes
+        .iter()
+        .map(|idx| schema.fields[*idx].name.to_owned())
         .collect()
 }
 
