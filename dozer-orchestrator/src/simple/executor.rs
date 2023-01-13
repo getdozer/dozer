@@ -197,7 +197,7 @@ impl Executor {
         Ok(dag)
     }
 
-    // This function is used by both init and actual execution
+    // This function is used by both migrate and actual execution
     pub fn build_pipeline(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,

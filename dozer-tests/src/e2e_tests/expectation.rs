@@ -61,7 +61,7 @@ fn find_expectations_path(case_dir: &Path) -> Option<String> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
 pub enum ErrorExpectation {
-    InitFailure { message: Option<String> },
+    MigrateFailure { message: Option<String> },
 }
 
 impl ErrorExpectation {

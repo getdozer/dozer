@@ -262,7 +262,7 @@ impl Orchestrator for SimpleOrchestrator {
             .clone();
         Ok(schema)
     }
-    fn init(&mut self, force: bool) -> Result<(), OrchestrationError> {
+    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
         self.write_internal_config()
             .map_err(|e| InternalError(Box::new(e)))?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
