@@ -82,10 +82,11 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
         (
             "question: App name (quick-start-app): ",
             Box::new(move |(app_name, config)| {
+                let app_name = app_name.trim();
                 if app_name.is_empty() {
                     config.app_name = "quick-start-app".to_string();
                 } else {
-                    config.app_name = app_name;
+                    config.app_name = app_name.to_string();
                 }
                 Ok(())
             }),
@@ -126,9 +127,12 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
                     .create(true)
                     .write(true)
                     .open(yaml_path)
-                    .expect("Couldn't open file");
-                serde_yaml::to_writer(f, &config).expect("Couldn't write to file");
-                info!("write config at: {}", yaml_path.to_owned());
+                    .map_err(|e| {
+                        OrchestrationError::CliError(CliError::InternalError(Box::new(e)))
+                    })?;
+                serde_yaml::to_writer(f, &config)
+                    .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
+                info!("Generating configuration at: {}", yaml_path.to_owned());
                 Ok(())
             }),
         ),
@@ -138,7 +142,7 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
         match readline {
             Ok(input) => func((input, &mut default_config)),
             Err(_) => {
-                info!("Termiate signal -- Exiting..");
+                info!("Terminate signal -- Exiting..");
                 Err(OrchestrationError::CliError(CliError::ReadlineError(
                     ReadlineError::Interrupted,
                 )))
