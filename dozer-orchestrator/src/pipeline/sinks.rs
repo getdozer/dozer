@@ -89,31 +89,31 @@ impl CacheSinkFactory {
         // Get hash of schema
         let hash = self.get_schema_hash();
 
-        // let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-        // if schema.primary_index.is_empty() {
-        //     if !api_index.primary_key.is_empty() {
-        //         schema.primary_index = create_primary_indexes(&schema, &api_index)?;
-        //     } else {
-        //         return Err(ExecutionError::FailedToGetPrimaryKey(
-        //             self.api_endpoint.name.clone(),
-        //         ));
-        //     }
-        // } else {
-        //     let index = create_primary_indexes(&schema, &api_index)?;
-        //     if index.is_empty() {
-        //         return Err(ExecutionError::FailedToGetPrimaryKey(
-        //             self.api_endpoint.name.clone(),
-        //         ));
-        //     } else if !schema.primary_index.eq(&index) {
-        //         return Err(ExecutionError::MismatchPrimaryKey {
-        //             endpoint_name: self.api_endpoint.name.clone(),
-        //             expected: get_field_names(&schema, &schema.primary_index),
-        //             actual: get_field_names(&schema, &index),
-        //         });
-        //     } else {
-        //         schema.primary_index = index;
-        //     }
-        // }
+        // Generated Cache index based on api_index
+        let configured_index = create_primary_indexes(
+            &schema,
+            &self.api_endpoint.index.to_owned().unwrap_or_default(),
+        )?;
+        // Generated schema in SQL
+        let upstream_index = schema.primary_index.clone();
+
+        let index = match (configured_index.is_empty(), upstream_index.is_empty()) {
+            (true, true) => vec![],
+            (true, false) => upstream_index,
+            (false, true) => configured_index,
+            (false, false) => {
+                if !upstream_index.eq(&configured_index) {
+                    return Err(ExecutionError::MismatchPrimaryKey {
+                        endpoint_name: self.api_endpoint.name.clone(),
+                        expected: get_field_names(&schema, &upstream_index),
+                        actual: get_field_names(&schema, &configured_index),
+                    });
+                }
+                configured_index
+            }
+        };
+
+        schema.primary_index = index;
 
         schema.identifier = Some(SchemaIdentifier {
             id: hash as u32,
@@ -297,7 +297,7 @@ fn create_secondary_indexes(schema: &Schema) -> Vec<IndexDefinition> {
         .collect()
 }
 
-fn _get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
+fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
     indexes
         .iter()
         .map(|idx| schema.fields[*idx].name.to_owned())
