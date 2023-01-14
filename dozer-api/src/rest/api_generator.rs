@@ -69,10 +69,14 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
 pub async fn count(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
-    query_info: web::Json<Value>,
+    query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
-    let query_expression = serde_json::from_value::<QueryExpression>(query_info.0)
-        .map_err(ApiError::map_deserialization_error)?;
+    let query_expression = match query_info {
+        Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
+            .map_err(ApiError::map_deserialization_error)?,
+        None => QueryExpression::default(),
+    };
+
     let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
     helper
         .get_records_count(query_expression)
@@ -89,10 +93,13 @@ pub async fn count(
 pub async fn query(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
-    query_info: web::Json<Value>,
+    query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
-    let query_expression = serde_json::from_value::<QueryExpression>(query_info.0)
-        .map_err(ApiError::map_deserialization_error)?;
+    let query_expression = match query_info {
+        Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
+            .map_err(ApiError::map_deserialization_error)?,
+        None => QueryExpression::default(),
+    };
     let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
     helper
         .get_records_map(query_expression)

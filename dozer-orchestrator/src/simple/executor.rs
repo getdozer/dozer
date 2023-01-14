@@ -1,5 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::App;
+use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -36,6 +37,7 @@ pub struct Executor {
     ingestor: Arc<RwLock<Ingestor>>,
     iterator: Arc<RwLock<IngestionIterator>>,
     running: Arc<AtomicBool>,
+    progress: MultiProgress,
 }
 impl Executor {
     pub fn new(
@@ -53,6 +55,7 @@ impl Executor {
             ingestor,
             iterator,
             running,
+            progress: MultiProgress::new(),
         }
     }
 
@@ -233,6 +236,7 @@ impl Executor {
                     notifier.clone(),
                     api_dir.clone(),
                     api_security.clone(),
+                    self.progress.clone(),
                 )),
                 cache_endpoint.endpoint.name.as_str(),
             );
