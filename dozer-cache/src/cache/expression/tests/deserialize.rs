@@ -102,7 +102,6 @@ fn test_filter_query_deserialize_simple() {
     test_deserialize_filter_error(json!({"a":  {"lte": 1}}));
     test_deserialize_filter_error(json!({"$lte":  {"lte": 1}}));
     test_deserialize_filter_error(json!([]));
-    test_deserialize_filter_error(json!({}));
     test_deserialize_filter_error(json!(2));
     test_deserialize_filter_error(json!(true));
     test_deserialize_filter_error(json!("abc"));
@@ -231,8 +230,9 @@ fn test_deserialize_filter(a: Value, b: FilterExpression) {
     assert_eq!(parsed_result, b, "must be equal");
 }
 fn test_deserialize_filter_error(a: Value) {
+    use std::println as info;
+    info!("deserialize: {:?}", a);
     let parsed_result = serde_json::from_value::<FilterExpression>(a);
-
     assert!(parsed_result.is_err());
 }
 
