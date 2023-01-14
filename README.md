@@ -39,13 +39,31 @@ export ETH_WSS_URL=<WSS_URL>
 docker-compose -f examples/2_eth_stats_sample/docker-compose.yml up
 ```
 
+## Running Dozer CLI
+To view list of commands
+```bash
+docker run -it \
+  public.ecr.aws/k7k6x1d4/dozer \
+  dozer -h
+```
 
+Run dozer as a single process with a local `dozer-config.yaml`
+```bash
+# `dozer-config.yaml` should be in your current directory.
+docker run -it \
+  -v "$PWD":/usr/dozer \
+  -p 8080:8080 \
+  -p 50051:50051 \
+  public.ecr.aws/k7k6x1d4/dozer \
+  dozer
+```
 
 ## Releases
 We release dozer typically every 2 weeks and is available on our [releases page](https://github.com/getdozer/dozer/releases/latest). Currently we publish a binary for Ubuntu 20.04 and also as a docker container.
 
 
-- Please go to [issue here](https://github.com/getdozer/dozer/issues) if you are having any trouble running the project.
+Please visit our [issues section](https://github.com/getdozer/dozer/issues) if you are having any trouble running the project.
+
 
 ##  Architecture
 
