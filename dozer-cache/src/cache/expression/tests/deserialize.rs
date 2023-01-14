@@ -179,6 +179,10 @@ fn test_sort_options_query_deserialize() {
 fn test_query_expression_deserialize() {
     test_deserialize_query(json!({}), QueryExpression::new(None, vec![], 50, 0));
     test_deserialize_query(
+        json!({"$filter": {}}),
+        QueryExpression::new(Some(FilterExpression::And(vec![])), vec![], 50, 0),
+    );
+    test_deserialize_query(
         json!({"$order_by": {"abc": "asc"}}),
         QueryExpression::new(
             None,

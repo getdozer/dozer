@@ -1,7 +1,6 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use dozer_types::serde::de::{self, Deserialize, Deserializer, Unexpected, Visitor};
+use dozer_types::serde::de::{self, Deserialize, Deserializer, Visitor};
 use dozer_types::serde::ser::{self, Serialize, SerializeMap, Serializer};
 use dozer_types::serde_json::Value;
 use dozer_types::{serde, serde_json};
@@ -41,14 +40,10 @@ impl<'de> Deserialize<'de> for FilterExpression {
                         expressions.push(expression);
                     }
                 }
-                let size = expressions.len();
-                match size.cmp(&1) {
-                    Ordering::Equal => Ok(expressions[0].to_owned()),
-                    Ordering::Greater => Ok(FilterExpression::And(expressions)),
-                    Ordering::Less => Err(de::Error::invalid_value(
-                        Unexpected::Str("No conditions specified"),
-                        &self,
-                    )),
+                if expressions.len() == 1 {
+                    Ok(expressions.remove(0))
+                } else {
+                    Ok(FilterExpression::And(expressions))
                 }
             }
         }
