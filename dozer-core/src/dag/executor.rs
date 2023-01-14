@@ -308,7 +308,7 @@ impl<'a> DagExecutor<'a> {
                 max_duration_between_commits,
                 epoch_manager,
                 output_schemas,
-                start_seq
+                start_seq,
             )?;
             start_barrier.wait();
             listener.run()
