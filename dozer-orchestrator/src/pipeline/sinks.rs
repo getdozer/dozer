@@ -82,31 +82,31 @@ impl CacheSinkFactory {
         // Get hash of schema
         let hash = self.get_schema_hash();
 
-        let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-        if schema.primary_index.is_empty() {
-            if !api_index.primary_key.is_empty() {
-                schema.primary_index = create_primary_indexes(&schema, &api_index)?;
-            } else {
-                return Err(ExecutionError::FailedToGetPrimaryKey(
-                    self.api_endpoint.name.clone(),
-                ));
-            }
-        } else {
-            let index = create_primary_indexes(&schema, &api_index)?;
-            if index.is_empty() {
-                return Err(ExecutionError::FailedToGetPrimaryKey(
-                    self.api_endpoint.name.clone(),
-                ));
-            } else if !schema.primary_index.eq(&index) {
-                return Err(ExecutionError::MismatchPrimaryKey {
-                    endpoint_name: self.api_endpoint.name.clone(),
-                    expected: get_field_names(&schema, &schema.primary_index),
-                    actual: get_field_names(&schema, &index),
-                });
-            } else {
-                schema.primary_index = index;
-            }
-        }
+        // let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
+        // if schema.primary_index.is_empty() {
+        //     if !api_index.primary_key.is_empty() {
+        //         schema.primary_index = create_primary_indexes(&schema, &api_index)?;
+        //     } else {
+        //         return Err(ExecutionError::FailedToGetPrimaryKey(
+        //             self.api_endpoint.name.clone(),
+        //         ));
+        //     }
+        // } else {
+        //     let index = create_primary_indexes(&schema, &api_index)?;
+        //     if index.is_empty() {
+        //         return Err(ExecutionError::FailedToGetPrimaryKey(
+        //             self.api_endpoint.name.clone(),
+        //         ));
+        //     } else if !schema.primary_index.eq(&index) {
+        //         return Err(ExecutionError::MismatchPrimaryKey {
+        //             endpoint_name: self.api_endpoint.name.clone(),
+        //             expected: get_field_names(&schema, &schema.primary_index),
+        //             actual: get_field_names(&schema, &index),
+        //         });
+        //     } else {
+        //         schema.primary_index = index;
+        //     }
+        // }
 
         schema.identifier = Some(SchemaIdentifier {
             id: hash as u32,
