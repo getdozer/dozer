@@ -3,6 +3,7 @@ use dozer_api::grpc::internal_grpc::pipeline_response::ApiEvent;
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_api::grpc::types_helper;
 use dozer_api::{CacheEndpoint, PipelineDetails};
+use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::index::get_primary_key;
 use dozer_cache::cache::{
     lmdb_rs::{self, Transaction},
@@ -308,7 +309,7 @@ pub struct CacheSink {
     // It's not really 'static, the actual lifetime is the lifetime of `cache`. See comments in `process`.
     txn: Option<lmdb_rs::RwTransaction<'static>>,
     cache: Arc<LmdbCache>,
-    counter: i32,
+    counter: usize,
     input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
     api_endpoint: ApiEndpoint,
     pb: ProgressBar,
@@ -332,7 +333,18 @@ impl Sink for CacheSink {
     }
 
     fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        debug!("SINK: Initialising CacheSink: {}", self.api_endpoint.name);
+        let mut query = QueryExpression::default();
+        // TODO: Extend limit temporarily to get count
+        query.limit = 1000000000;
+        self.counter = self
+            .cache
+            .count(&self.api_endpoint.name, &query)
+            .map_err(|e| ExecutionError::SinkError(SinkError::CacheCountFailed(Box::new(e))))?;
+
+        debug!(
+            "SINK: Initialising CacheSink: {} with count: {}",
+            self.api_endpoint.name, self.counter
+        );
         Ok(())
     }
 

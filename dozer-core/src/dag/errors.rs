@@ -114,4 +114,7 @@ pub enum SinkError {
 
     #[error("Failed to commit cache transaction: {0}")]
     CacheCommitTransactionFailed(#[source] BoxedError),
+
+    #[error("Failed to initialize schema in Sink: {0}")]
+    CacheCountFailed(#[source] BoxedError),
 }
