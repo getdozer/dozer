@@ -31,10 +31,12 @@ Refer to our [getting started](https://v1.getdozer.io/docs/category/getting-star
 docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
 ```
 #### 2) Real time Ethereum stats example
-Get a websocket url from one of the hosted eth node providers such as [Infura](https://www.infura.io/product/ethereum).
+Get a websocket url from one of the hosted eth node providers such as [Infura](https://www.infura.io/product/ethereum) and initialize the env variable `ETH_WSS_URL`.
 ```bash
-export ETH_WSS_URL=<>
-examples/2_eth_stats_sample/docker-compose.yml up
+# Intialize ETH Web Socker Url
+export ETH_WSS_URL=<WSS_URL>
+
+docker-compose -f examples/2_eth_stats_sample/docker-compose.yml up
 ```
 
 
