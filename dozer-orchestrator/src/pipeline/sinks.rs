@@ -14,7 +14,7 @@ use dozer_core::dag::node::{PortHandle, Sink, SinkFactory};
 use dozer_core::dag::record_store::RecordReader;
 use dozer_core::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use dozer_types::crossbeam::channel::Sender;
-use dozer_types::indicatif::{ProgressBar, ProgressStyle};
+use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{ApiEndpoint, ApiIndex};
 use dozer_types::models::api_security::ApiSecurity;
@@ -26,18 +26,9 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub struct CacheSinkFactory {
-    input_ports: Vec<PortHandle>,
-    cache: Arc<LmdbCache>,
-    api_endpoint: ApiEndpoint,
-    notifier: Option<Sender<PipelineResponse>>,
-    generated_path: PathBuf,
-    api_security: Option<ApiSecurity>,
-}
-
-pub fn get_progress() -> ProgressBar {
+pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
+    multi_pb.as_ref().map(|m| m.add(pb.clone()));
     pb.set_style(
         ProgressStyle::with_template("{spinner:.blue} {msg}")
             .unwrap()
@@ -55,6 +46,18 @@ pub fn get_progress() -> ProgressBar {
     );
     pb
 }
+
+#[derive(Debug)]
+pub struct CacheSinkFactory {
+    input_ports: Vec<PortHandle>,
+    cache: Arc<LmdbCache>,
+    api_endpoint: ApiEndpoint,
+    notifier: Option<Sender<PipelineResponse>>,
+    generated_path: PathBuf,
+    api_security: Option<ApiSecurity>,
+    multi_pb: MultiProgress,
+}
+
 impl CacheSinkFactory {
     pub fn new(
         input_ports: Vec<PortHandle>,
@@ -63,6 +66,7 @@ impl CacheSinkFactory {
         notifier: Option<Sender<PipelineResponse>>,
         generated_path: PathBuf,
         api_security: Option<ApiSecurity>,
+        multi_pb: MultiProgress,
     ) -> Self {
         Self {
             input_ports,
@@ -71,8 +75,10 @@ impl CacheSinkFactory {
             notifier,
             generated_path,
             api_security,
+            multi_pb,
         }
     }
+
     fn get_output_schema(
         &self,
         schema: &Schema,
@@ -240,6 +246,7 @@ impl SinkFactory for CacheSinkFactory {
             self.api_endpoint.clone(),
             sink_schemas,
             self.notifier.clone(),
+            Some(self.multi_pb.clone()),
         )))
     }
 }
@@ -410,14 +417,16 @@ impl CacheSink {
         api_endpoint: ApiEndpoint,
         input_schemas: HashMap<PortHandle, (Schema, Vec<IndexDefinition>)>,
         notifier: Option<Sender<PipelineResponse>>,
+        multi_pb: Option<MultiProgress>,
     ) -> Self {
+        let pb = attach_progress(multi_pb);
         Self {
             txn: None,
             cache,
             counter: 0,
             input_schemas,
             api_endpoint,
-            pb: get_progress(),
+            pb,
             notifier,
         }
     }
