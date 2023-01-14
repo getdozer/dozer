@@ -151,6 +151,7 @@ impl SourceListenerNode {
         max_duration_between_commits: Duration,
         epoch_manager: Arc<EpochManager>,
         output_schemas: HashMap<PortHandle, Schema>,
+        start_seq: (u64, u64)
     ) -> Result<Self, ExecutionError> {
         let state_meta = init_component(&node_handle, base_path, |_| Ok(()))?;
         let (master_tx, port_databases) =
@@ -174,6 +175,7 @@ impl SourceListenerNode {
             commit_sz,
             max_duration_between_commits,
             epoch_manager,
+            start_seq
         );
         Ok(Self {
             node_handle,
