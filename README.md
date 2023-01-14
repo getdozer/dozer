@@ -67,7 +67,6 @@ Please visit our [issues section](https://github.com/getdozer/dozer/issues) if y
 
 ##  Architecture
 
-Read more about [Dozer here](https://v1.getdozer.io/docs/dozer)
 ![Architecture](https://v1.getdozer.io/assets/images/dozer-binary-e14a8fddd51aa608afe694245eb78271.svg)
 
 - Create **blazing fast** end to end APIs in minutes with a simple configuration.
@@ -75,6 +74,7 @@ Read more about [Dozer here](https://v1.getdozer.io/docs/dozer)
 - Extend Dozer with **custom connectors, operators and Api transformations** using **WASM**.
 - Built in **Rust** with performance and extensibility in mind.
 
+Read more about [Dozer here](https://v1.getdozer.io/docs/dozer)
 <br>
 
 ## Features
