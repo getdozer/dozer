@@ -46,6 +46,8 @@ impl CacheError {
 pub enum QueryError {
     #[error("Failed to get a record by id - {0:?}")]
     GetValue(#[source] lmdb::Error),
+    #[error("Get by primary key is not supported when it is composite: {0:?}")]
+    MultiIndexFetch(String),
     #[error("Failed to get a schema by id - {0:?}")]
     GetSchema(#[source] lmdb::Error),
     #[error("Failed to insert a record - {0:?}")]
@@ -124,8 +126,8 @@ pub enum QueryValidationError {
 
 #[derive(Error, Debug)]
 pub enum PlanError {
-    #[error("Field not found")]
-    FieldNotFound,
+    #[error("Field {0:?} not found in query")]
+    FieldNotFound(String),
     #[error(transparent)]
     TypeError(#[from] TypeError),
     #[error("Cannot sort full text filter")]

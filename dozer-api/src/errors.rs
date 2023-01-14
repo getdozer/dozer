@@ -124,16 +124,16 @@ impl actix_web::error::ResponseError for ApiError {
 
     fn status_code(&self) -> StatusCode {
         match *self {
-            ApiError::InvalidQuery(_) => StatusCode::BAD_REQUEST,
+            ApiError::TypeError(_) => StatusCode::BAD_REQUEST,
             ApiError::ApiAuthError(_) => StatusCode::UNAUTHORIZED,
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
-            ApiError::InternalError(_)
-            | ApiError::InitError(_)
-            | ApiError::SchemaIdentifierNotFound => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::ApiGenerationError(_)
             | ApiError::SchemaNotFound(_)
-            | ApiError::TypeError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ApiError::InvalidQuery(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            ApiError::InternalError(_)
+            | ApiError::InitError(_)
+            | ApiError::SchemaIdentifierNotFound
+            | ApiError::PortAlreadyInUse(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
