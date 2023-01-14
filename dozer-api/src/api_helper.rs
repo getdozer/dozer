@@ -77,7 +77,7 @@ impl<'a> ApiHelper<'a> {
             .get_schema_and_indexes_by_name(&self.details.schema_name)?
             .0;
 
-        let key = if schema.primary_index.len() < 1 {
+        let key = if schema.primary_index.is_empty() {
             json_str_to_field(key, dozer_types::types::FieldType::UInt, false)
                 .map_err(CacheError::TypeError)
         } else if schema.primary_index.len() == 1 {

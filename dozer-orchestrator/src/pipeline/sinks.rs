@@ -289,7 +289,7 @@ fn create_secondary_indexes(schema: &Schema) -> Vec<IndexDefinition> {
         .collect()
 }
 
-fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
+fn _get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
     indexes
         .iter()
         .map(|idx| schema.fields[*idx].name.to_owned())
