@@ -19,6 +19,8 @@ services:
       - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
       - ./.dozer:/usr/dozer/.dozer
     command: "dozer -c /usr/dozer/dozer-config.yaml"
+    stdin_open: true 
+    tty: true
 
   postgres:
     container_name: quick-start-postgres
