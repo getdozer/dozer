@@ -280,7 +280,7 @@ pub fn get_eth_schema() -> Schema {
             },
             FieldDefinition {
                 name: "block_number".to_string(),
-                typ: FieldType::Int,
+                typ: FieldType::UInt,
                 nullable: true,
             },
             FieldDefinition {
