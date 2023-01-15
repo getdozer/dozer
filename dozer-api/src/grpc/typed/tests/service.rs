@@ -60,7 +60,11 @@ pub fn setup_pipeline() -> (
 
     let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
     let default_api_internal = default_api_config().pipeline_internal.unwrap_or_default();
-    ApiServer::setup_broad_cast_channel(tx, default_api_internal).unwrap();
+    tokio::spawn(async {
+        ApiServer::setup_broad_cast_channel(tx, default_api_internal)
+            .await
+            .unwrap();
+    });
     let mut pipeline_map = HashMap::new();
     pipeline_map.insert("films".to_string(), pipeline_details);
 

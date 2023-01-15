@@ -24,7 +24,7 @@ use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
-use dozer_types::log::info;
+use dozer_types::log::{info, warn};
 use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
@@ -32,6 +32,8 @@ use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_yaml;
 use dozer_types::tracing::error;
 use dozer_types::types::{Operation, Schema, SchemaWithChangesType};
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -111,6 +113,8 @@ impl Orchestrator for SimpleOrchestrator {
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
+            let mut futures = FuturesUnordered::new();
+
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
@@ -127,7 +131,15 @@ impl Orchestrator for SimpleOrchestrator {
 
             let rx1 = if flags.push_events {
                 let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
-                grpc::ApiServer::setup_broad_cast_channel(tx, pipeline_config).unwrap();
+
+                let handle = tokio::spawn(async move {
+                    grpc::ApiServer::setup_broad_cast_channel(tx, pipeline_config)
+                        .await
+                        .map_err(OrchestrationError::GrpcServerFailed)
+                });
+
+                futures.push(flatten_joinhandle(handle));
+
                 Some(rx1)
             } else {
                 None
@@ -146,10 +158,14 @@ impl Orchestrator for SimpleOrchestrator {
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
-            tokio::try_join!(
-                flatten_joinhandle(rest_handle),
-                flatten_joinhandle(grpc_handle)
-            )
+
+            futures.push(flatten_joinhandle(rest_handle));
+            futures.push(flatten_joinhandle(grpc_handle));
+
+            while let Some(result) = futures.next().await {
+                result?;
+            }
+            Ok::<(), OrchestrationError>(())
         })?;
 
         let server_handle = rx
@@ -178,6 +194,7 @@ impl Orchestrator for SimpleOrchestrator {
             if let Err(e) = start_internal_pipeline_server(internal_app_config, receiver) {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
+            warn!("Shutting down internal pipeline server");
         });
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
