@@ -1549,6 +1549,7 @@ dependencies = [
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
+ "futures",
  "handlebars",
  "include_dir",
  "rustyline",

@@ -17,7 +17,7 @@ use crate::{
 };
 use dozer_cache::cache::Cache;
 use dozer_types::{
-    log::info,
+    log::{info, warn},
     models::{
         api_config::{ApiGrpc, ApiPipelineInternal},
         api_security::ApiSecurity,
@@ -48,7 +48,6 @@ impl ApiServer {
         let mut client = InternalPipelineServiceClient::connect(address)
             .await
             .map_err(|err| GRPCError::InternalError(Box::new(err)))?;
-
         let stream_response = client
             .stream_pipeline_request(PipelineRequest {})
             .await
@@ -218,24 +217,21 @@ impl ApiServer {
             })
     }
 
-    pub fn setup_broad_cast_channel(
+    pub async fn setup_broad_cast_channel(
         tx: Sender<PipelineResponse>,
         pipeline_config: ApiPipelineInternal,
     ) -> Result<(), GRPCError> {
-        tokio::spawn(async move {
-            info!(
-                "Connecting to Internal service  on http://{}:{}",
-                pipeline_config.host, pipeline_config.port
-            );
-            let mut stream = ApiServer::connect_internal_client(pipeline_config.to_owned())
-                .await
-                .unwrap();
-            while let Some(event_response) = stream.next().await {
-                if let Ok(event) = event_response {
-                    let _ = tx.send(event);
-                }
+        info!(
+            "Connecting to Internal service  on http://{}:{}",
+            pipeline_config.host, pipeline_config.port
+        );
+        let mut stream = ApiServer::connect_internal_client(pipeline_config.to_owned()).await?;
+        while let Some(event_response) = stream.next().await {
+            if let Ok(event) = event_response {
+                let _ = tx.send(event);
             }
-        });
-        Ok(())
+        }
+        warn!("exiting internal grpc connection on api thread");
+        Ok::<(), GRPCError>(())
     }
 }
