@@ -180,7 +180,7 @@ pub fn init_simple_config_file_with_question() -> Result<(), OrchestrationError>
                     })?;
                 serde_yaml::to_writer(f, &config)
                     .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-                info!("\nGenerating configuration at: {}\n• More details about our config: https://v1.getdozer.io/docs/reference/configuration/introduction\n• Connector & Sources: https://v1.getdozer.io/docs/reference/configuration/connectors\n• Endpoints: https://v1.getdozer.io/docs/reference/configuration/endpoints/",
+                info!("\nGenerating configuration at: {}\n• More details about our config: https://getdozer.io/docs/reference/configuration/introduction\n• Connector & Sources: https://getdozer.io/docs/reference/configuration/connectors\n• Endpoints: https://getdozer.io/docs/reference/configuration/endpoints/",
                    yaml_path.to_owned());
                 Ok(())
             }),
