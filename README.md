@@ -1,6 +1,6 @@
 <div align="center">
     <a target="_blank" href="https://getdozer.io/">
-        <br><img src="https://getdozer.io/assets/logo-green.svg" width=40%><br>
+        <br><img src="https://dozer-assets.s3.ap-southeast-1.amazonaws.com/logo-blue.svg" width=40%><br>
     </a>
 </div>
 
