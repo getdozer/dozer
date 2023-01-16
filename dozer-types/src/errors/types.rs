@@ -12,38 +12,38 @@ pub enum TypeError {
     InvalidFieldType,
     #[error("Invalid field value: {0}")]
     InvalidFieldValue(String),
-    #[error("Failed to serialise the field")]
+    #[error("Serialization failed: {0}")]
     SerializationError(#[source] SerializationError),
-    #[error("Failed to deserialise the field")]
+    #[error("Failed to parse the field: {0}")]
     DeserializationError(#[source] DeserializationError),
 }
 
 #[derive(Error, Debug)]
 pub enum SerializationError {
-    #[error("Failed serialising json field")]
-    Json(#[source] serde_json::Error),
-    #[error("Failed serialising bincode field")]
-    Bincode(#[source] bincode::Error),
-    #[error("Failed serialising custom field")]
-    Custom(#[source] BoxedError),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Bincode(#[from] bincode::Error),
+    #[error(transparent)]
+    Custom(#[from] BoxedError),
 }
 
 #[derive(Error, Debug)]
 pub enum DeserializationError {
-    #[error("Failed deserialising json field")]
-    Json(#[source] serde_json::Error),
-    #[error("Failed deserialising bincode field")]
-    Bincode(#[source] bincode::Error),
-    #[error("Failed deserialising custom field")]
-    Custom(#[source] BoxedError),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Bincode(#[from] bincode::Error),
+    #[error(transparent)]
+    Custom(#[from] BoxedError),
     #[error("Empty input")]
     EmptyInput,
-    #[error("Unrecognised field type")]
+    #[error("Unrecognised field type : {0}")]
     UnrecognisedFieldType(u8),
     #[error("Bad data length")]
     BadDataLength,
-    #[error("Bad date format: {0}")]
+    #[error(transparent)]
     BadDateFormat(#[from] chrono::ParseError),
-    #[error("Utf8: {0}")]
+    #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
 }

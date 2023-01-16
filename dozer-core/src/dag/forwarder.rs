@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::dag::channels::ProcessorChannelForwarder;
 use crate::dag::dag_metadata::SOURCE_ID_IDENTIFIER;
 use crate::dag::epoch::{Epoch, EpochManager};
@@ -175,11 +176,12 @@ impl SourceChannelManager {
         commit_sz: u32,
         max_duration_between_commits: Duration,
         epoch_manager: Arc<EpochManager>,
+        start_seq: (u64, u64),
     ) -> Self {
         Self {
             manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
-            curr_txid: 0,
-            curr_seq_in_tx: 0,
+            curr_txid: start_seq.0,
+            curr_seq_in_tx: start_seq.1,
             source_handle: owner,
             commit_sz,
             num_uncommited_ops: 0,
