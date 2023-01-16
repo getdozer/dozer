@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg" alt="CI"></a>
   <a href="https://coveralls.io/github/getdozer/dozer?branch=main" target="_blank"><img src="https://coveralls.io/repos/github/getdozer/dozer/badge.svg?branch=main&t=kZMYaV&style=flat" alt="Coverage Status"></a>
-  <a href="https://v1.getdozer.io/docs/dozer" target="_blank"><img src="https://img.shields.io/badge/doc-reference-green" alt="Docs"></a>
+  <a href="https://getdozer.io/docs/dozer" target="_blank"><img src="https://img.shields.io/badge/doc-reference-green" alt="Docs"></a>
   <a href="https://discord.com/invite/3eWXBgJaEQ" target="_blank"><img src="https://img.shields.io/badge/join-on%20discord-primary" alt="Join on Discord"></a>
   <a href="https://github.com/getdozer/dozer/blob/main/LICENSE.txt" target="_blank"><img src="https://img.shields.io/badge/license-ELv2-informational" alt="License"></a>
 
@@ -25,7 +25,7 @@
 <br>
 
 ## Quick Start
-Refer to our [getting started](https://v1.getdozer.io/docs/category/getting-started) and [examples section](https://getdozer.io/docs/category/getting-started) for more details.
+Refer to our [getting started](https://getdozer.io/docs/category/getting-started) and [examples section](https://getdozer.io/docs/category/getting-started) for more details.
 #### 1) End-to-end hypercharge postgres example
 ```bash
 docker-compose -f examples/1_hypercharge_postgres/docker-compose.yml up
@@ -67,14 +67,14 @@ Please visit our [issues section](https://github.com/getdozer/dozer/issues) if y
 
 ##  Architecture
 
-![Architecture](https://v1.getdozer.io/assets/images/dozer-binary-e14a8fddd51aa608afe694245eb78271.svg)
+![Architecture](https://getdozer.io/assets/images/dozer-binary-e14a8fddd51aa608afe694245eb78271.svg)
 
 - Create **blazing fast** end to end APIs in minutes with a simple configuration.
 - Build and rapidly iterate on customer facing data apps.
 - Extend Dozer with **custom connectors, operators and Api transformations** using **WASM**.
 - Built in **Rust** with performance and extensibility in mind.
 
-Read more about [Dozer here](https://v1.getdozer.io/docs/dozer)
+Read more about [Dozer here](https://getdozer.io/docs/dozer)
 <br>
 
 ## Features
@@ -101,4 +101,4 @@ Read more about [Dozer here](https://v1.getdozer.io/docs/dozer)
 <br>
 
 ## Contributing
-Please refer to [Contributing](https://v1.getdozer.io/docs/contributing/overview) for more details.
+Please refer to [Contributing](https://getdozer.io/docs/contributing/overview) for more details.
