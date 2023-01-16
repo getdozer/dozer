@@ -42,7 +42,7 @@ pub async fn list(
     pipeline_details: ReqData<PipelineDetails>,
 ) -> Result<HttpResponse, ApiError> {
     let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
-    let exp = QueryExpression::new(None, vec![], 50, 0);
+    let exp = QueryExpression::new(None, vec![], Some(50), 0);
     match helper
         .get_records_map(exp)
         .map(|maps| HttpResponse::Ok().json(maps))

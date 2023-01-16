@@ -112,7 +112,7 @@ fn insert_and_query_record_impl(
             Value::from("bar".to_string()),
         )),
         vec![],
-        10,
+        Some(10),
         0,
     );
 
@@ -123,7 +123,7 @@ fn insert_and_query_record_impl(
         &cache,
         &record,
         "docs",
-        &QueryExpression::new(None, vec![], 10, 0),
+        &QueryExpression::new(None, vec![], Some(10), 0),
     );
 }
 

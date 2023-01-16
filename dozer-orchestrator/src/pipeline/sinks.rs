@@ -333,12 +333,7 @@ impl Sink for CacheSink {
     }
 
     fn init(&mut self, _tx: &mut LmdbEnvironmentManager) -> Result<(), ExecutionError> {
-        // TODO: Extend limit temporarily to get count
-        let query = QueryExpression {
-            limit: 1000000000,
-            ..Default::default()
-        };
-
+        let query = QueryExpression::new(None, vec![], None, 0);
         self.counter = self
             .cache
             .count(&self.api_endpoint.name, &query)

@@ -41,7 +41,7 @@ fn query_secondary() {
     ]);
 
     // Query with an expression
-    let query = QueryExpression::new(Some(filter), vec![], 10, 0);
+    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
 
     let records = cache.query("sample", &query).unwrap();
     assert_eq!(cache.count("sample", &query).unwrap(), 1);
@@ -67,7 +67,7 @@ fn query_secondary() {
         "good".to_string().into(),
     );
 
-    let query = QueryExpression::new(Some(filter), vec![], 10, 0);
+    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
 
     let records = cache.query("full_text_sample", &query).unwrap();
     assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
@@ -224,7 +224,7 @@ fn query_secondary_multi_indices() {
             ),
         ])),
         vec![],
-        10,
+        Some(10),
         0,
     );
 
