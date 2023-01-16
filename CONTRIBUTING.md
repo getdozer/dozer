@@ -1,7 +1,7 @@
 # Contributing
 
 Thank you for your interest in contributing to Dozer! Contributions in various ways are most welcome.
-Please refer to [Contributing](https://v1.getdozer.io/docs/contributing/overview) for more details.
+Please refer to [Contributing](https://getdozer.io/docs/contributing/overview) for more details.
 
 
 ## Developer's Certificate of Origin 1.1
