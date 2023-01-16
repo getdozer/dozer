@@ -61,7 +61,7 @@ pub trait JoinExecutor: Send + Sync {
     fn execute_left(
         &self,
         records: Vec<Record>,
-        join_key: &[u8],
+        join_table: &JoinTable,
         database: &Database,
         transaction: &SharedTransaction,
         reader: &HashMap<PortHandle, RecordReader>,
@@ -283,7 +283,7 @@ impl JoinExecutor for JoinOperator {
     fn execute_left(
         &self,
         mut records: Vec<Record>,
-        join_key: &[u8],
+        join_table: &JoinTable,
         db: &Database,
         transaction: &SharedTransaction,
         readers: &HashMap<PortHandle, RecordReader>,
@@ -295,8 +295,9 @@ impl JoinExecutor for JoinOperator {
             .ok_or(ExecutionError::InvalidPortHandle(self.left_table))?;
 
         for record in records.iter_mut() {
+            let join_key: Vec<u8> = self.get_right_record_join_key(record)?;
             // retrieve the lookup keys for the table on the right side of the join
-            let left_lookup_keys = self.get_left_join_keys(join_key, db, transaction)?;
+            let left_lookup_keys = self.get_left_join_keys(&join_key, db, transaction)?;
             //let left_lookup_keys = self.get_left_lookup_keys(&left_join_keys, db, transaction)?;
 
             // retrieve records for the table on the right side of the join

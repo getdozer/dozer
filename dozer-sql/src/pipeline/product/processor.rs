@@ -68,7 +68,7 @@ impl ProductProcessor {
                 let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
                 records = left_join.execute_left(
                     records,
-                    &join_key,
+                    &join_table,
                     database,
                     transaction,
                     reader,
@@ -122,6 +122,8 @@ impl ProductProcessor {
         reader: &HashMap<PortHandle, RecordReader>,
     ) -> Result<Vec<Record>, ExecutionError> {
         // Get the input Table based on the port of the incoming message
+
+        let input_table =
         if let Some(input_table) = self.join_tables.get(&from_port) {
             let mut records = vec![record.clone()];
 
