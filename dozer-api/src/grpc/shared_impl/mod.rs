@@ -61,7 +61,7 @@ pub fn on_event<T: Send + 'static>(
     access: Option<Access>,
     event_mapper: impl Fn(Operation, String) -> Option<T> + Send + Sync + 'static,
 ) -> Result<Response<ReceiverStream<T>>, Status> {
-    if let None = broadcast_receiver {
+    if broadcast_receiver.is_none() {
         return Err(Status::unavailable(
             "on_event is not enabled. This is currently an experimental feature. Enable it in the config.",
         ));
