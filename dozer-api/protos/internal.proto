@@ -37,17 +37,33 @@ message ApplicationDetail {
   repeated SourceInfo sources = 5;
   repeated EndpointInfo endpoints = 6;
   string home_dir = 7;
+  Flags flags = 8;
 }
 
+message Flags {
+  bool dynamic = 1;
+  bool grpc_web = 2;
+  bool authenticate_server_reflection = 3;
+  bool push_events = 4;
+}
 //========== ApiConfig =====
 message ApiConfig {
-  ApiRest rest = 1;
-  ApiGrpc grpc = 2;
-  bool auth = 3;
-  ApiInternal api_internal = 4;
-  ApiInternal pipeline_internal = 5;
-  optional string app_id = 6;
-  optional string id = 7;
+  oneof ApiSecurity {
+    string Jwt = 1;
+  }
+  ApiRest rest = 2;
+  ApiGrpc grpc = 3;
+  bool auth = 4;
+  ApiInternal api_internal = 5;
+  ApiPipelineInternal pipeline_internal = 6;
+  optional string app_id = 7;
+  optional string id = 8;
+}
+
+message ApiPipelineInternal {
+  uint32 port = 1;
+  string host = 2;
+  string home_dir = 3;
 }
 message ApiRest {
   uint32 port = 1;
@@ -61,9 +77,7 @@ message ApiGrpc {
   bool web = 4;
 }
 message ApiInternal {
-  uint32 port = 1;
-  string host = 2;
-  string home_dir = 3;
+  string home_dir = 1;
 }
 
 //========== ConnectionInfo =====
