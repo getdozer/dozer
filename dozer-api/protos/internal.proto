@@ -43,8 +43,8 @@ message ApplicationDetail {
 message Flags {
   bool dynamic = 1;
   bool grpc_web = 2;
-  bool authenticate_server_reflection = 3;
-  bool push_events = 4;
+  bool push_events = 3;
+  bool authenticate_server_reflection = 4;
 }
 //========== ApiConfig =====
 message ApiConfig {
