@@ -37,7 +37,7 @@ fn query(cache: &LmdbCache, _n: usize) {
             Value::from("bar".to_string()),
         )),
         vec![],
-        10,
+        Some(10),
         0,
     );
 

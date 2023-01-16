@@ -18,7 +18,7 @@ fn test_generate_plan_simple() {
             Value::from("bar".to_string()),
         )),
         vec![],
-        10,
+        Some(10),
         0,
     );
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
@@ -53,7 +53,7 @@ fn test_generate_plan_and() {
             Value::from("test".to_string()),
         ),
     ]);
-    let query = QueryExpression::new(Some(filter), vec![], 10, 0);
+    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
     // Pick the 3rd index
     if let Plan::IndexScans(index_scans) = planner.plan().unwrap() {
@@ -86,7 +86,7 @@ fn test_generate_plan_range_query_and_order_by() {
             field_name: "c".into(),
             direction: SortDirection::Descending,
         }],
-        10,
+        Some(10),
         0,
     );
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);
@@ -126,7 +126,7 @@ fn test_generate_plan_empty() {
             Value::Null,
         )),
         vec![],
-        10,
+        Some(10),
         0,
     );
     let planner = QueryPlanner::new(&schema, &secondary_indexes, &query);

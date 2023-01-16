@@ -58,7 +58,7 @@ impl<'a> LmdbQueryHandler<'a> {
                 .db
                 .count(self.txn)?
                 .saturating_sub(self.query.skip)
-                .min(self.query.limit)),
+                .min(self.query.limit.unwrap_or(usize::MAX))),
             Plan::ReturnEmpty => Ok(0),
         }
     }
@@ -80,7 +80,7 @@ impl<'a> LmdbQueryHandler<'a> {
         let cursor = self.db.open_ro_cursor(self.txn)?;
         CacheIterator::new(cursor, None, SortDirection::Ascending)
             .skip(self.query.skip)
-            .take(self.query.limit)
+            .take(self.query.limit.unwrap_or(usize::MAX))
             .map(|(_, v)| bincode::deserialize(v).map_err(CacheError::map_deserialization_error))
             .collect()
     }
@@ -109,7 +109,9 @@ impl<'a> LmdbQueryHandler<'a> {
                 intersection(iterators, self.intersection_chunk_size).map(|id| id.to_be_bytes()),
             )
         };
-        Ok(full_sacan.skip(self.query.skip).take(self.query.limit))
+        Ok(full_sacan
+            .skip(self.query.skip)
+            .take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
     fn query_with_secondary_index(
