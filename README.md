@@ -67,7 +67,7 @@ Please visit our [issues section](https://github.com/getdozer/dozer/issues) if y
 
 ##  Architecture
 
-![Architecture](https://getdozer.io/assets/images/dozer-binary-e14a8fddd51aa608afe694245eb78271.svg)
+![Architecture](https://getdozer.io/assets/images/dozer-binary-bg.svg)
 
 - Create **blazing fast** end to end APIs in minutes with a simple configuration.
 - Build and rapidly iterate on customer facing data apps.
