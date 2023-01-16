@@ -4,6 +4,7 @@ pub mod kafka;
 pub mod postgres;
 
 use crate::connectors::postgres::connection::helper::map_connection_config;
+use std::collections::HashMap;
 
 use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
@@ -14,6 +15,7 @@ use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::RwLock;
+use dozer_types::prettytable::Table;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::SchemaWithChangesType;
@@ -22,6 +24,9 @@ use std::sync::Arc;
 pub mod snowflake;
 use self::{ethereum::connector::EthConnector, events::connector::EventsConnector};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
+
+pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
+
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
     fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>>
@@ -41,6 +46,7 @@ pub trait Connector: Send + Sync {
     fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError>;
     fn stop(&self);
     fn validate(&self, tables: Option<Vec<TableInfo>>) -> Result<(), ConnectorError>;
+    fn validate_schemas(&self, tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -88,5 +94,15 @@ pub fn get_connector_outputs(connection: Connection, sources: Vec<Source>) -> Ve
         }
         Some(Authentication::Kafka { .. }) => KafkaConnector::get_connection_groups(sources),
         None => todo!(),
+    }
+}
+
+pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
+    match &connection.authentication {
+        Some(Authentication::Postgres(config)) => Some(config.convert_to_table()),
+        Some(Authentication::Ethereum(config)) => Some(config.convert_to_table()),
+        Some(Authentication::Snowflake(config)) => Some(config.convert_to_table()),
+        Some(Authentication::Kafka(config)) => Some(config.convert_to_table()),
+        _ => None,
     }
 }

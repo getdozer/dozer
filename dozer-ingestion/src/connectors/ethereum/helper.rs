@@ -136,6 +136,7 @@ pub fn decode_event(
                                 version: 1,
                             }),
                             values,
+                            version: None,
                         },
                     },
                 })
@@ -190,6 +191,7 @@ pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<OperationE
                 new: Record {
                     schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                     values,
+                    version: None,
                 },
             },
         })
@@ -278,7 +280,7 @@ pub fn get_eth_schema() -> Schema {
             },
             FieldDefinition {
                 name: "block_number".to_string(),
-                typ: FieldType::Int,
+                typ: FieldType::UInt,
                 nullable: true,
             },
             FieldDefinition {

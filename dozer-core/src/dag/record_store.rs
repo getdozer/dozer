@@ -50,38 +50,6 @@ impl RecordWriterUtils {
             ),
         }
     }
-
-    fn write_record(
-        db: Database,
-        rec: &Record,
-        schema: &Schema,
-        tx: &SharedTransaction,
-    ) -> Result<(), ExecutionError> {
-        let key = rec.get_key(&schema.primary_index);
-        let value = bincode::serialize(&rec).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        tx.write().put(db, key.as_slice(), value.as_slice())?;
-        Ok(())
-    }
-
-    fn retr_record(
-        db: Database,
-        key: &[u8],
-        tx: &SharedTransaction,
-    ) -> Result<Record, ExecutionError> {
-        let tx = tx.read();
-        let curr = tx
-            .get(db, key)?
-            .ok_or_else(ExecutionError::RecordNotFound)?;
-
-        let r: Record = bincode::deserialize(curr).map_err(|e| SerializationError {
-            typ: "Record".to_string(),
-            reason: Box::new(e),
-        })?;
-        Ok(r)
-    }
 }
 
 #[derive(Debug)]
@@ -109,6 +77,34 @@ impl PrimaryKeyLookupRecordWriter {
             retr_old_records_for_updates,
         }
     }
+
+    fn write_record(
+        &self,
+        rec: &Record,
+        schema: &Schema,
+        tx: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let key = rec.get_key(&schema.primary_index);
+        let value = bincode::serialize(&rec).map_err(|e| SerializationError {
+            typ: "Record".to_string(),
+            reason: Box::new(e),
+        })?;
+        tx.write().put(self.db, key.as_slice(), value.as_slice())?;
+        Ok(())
+    }
+
+    fn retr_record(&self, key: &[u8], tx: &SharedTransaction) -> Result<Record, ExecutionError> {
+        let tx = tx.read();
+        let curr = tx
+            .get(self.db, key)?
+            .ok_or_else(ExecutionError::RecordNotFound)?;
+
+        let r: Record = bincode::deserialize(curr).map_err(|e| SerializationError {
+            typ: "Record".to_string(),
+            reason: Box::new(e),
+        })?;
+        Ok(r)
+    }
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
@@ -119,13 +115,13 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
     ) -> Result<Operation, ExecutionError> {
         match op {
             Operation::Insert { new } => {
-                RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
+                self.write_record(&new, &self.schema, tx)?;
                 Ok(Operation::Insert { new })
             }
             Operation::Delete { mut old } => {
                 let key = old.get_key(&self.schema.primary_index);
                 if self.retr_old_records_for_deletes {
-                    old = RecordWriterUtils::retr_record(self.db, &key, tx)?;
+                    old = self.retr_record(&key, tx)?;
                 }
                 tx.write().del(self.db, &key, None)?;
                 Ok(Operation::Delete { old })
@@ -133,9 +129,9 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
             Operation::Update { mut old, new } => {
                 let key = old.get_key(&self.schema.primary_index);
                 if self.retr_old_records_for_updates {
-                    old = RecordWriterUtils::retr_record(self.db, &key, tx)?;
+                    old = self.retr_record(&key, tx)?;
                 }
-                RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
+                self.write_record(&new, &self.schema, tx)?;
                 Ok(Operation::Update { old, new })
             }
         }
@@ -170,6 +166,21 @@ impl AutogenRowKeyLookupRecordWriter {
             meta_db,
             schema,
         }
+    }
+
+    fn write_record(
+        &self,
+        rec: &Record,
+        schema: &Schema,
+        tx: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
+        let key = rec.get_key(&schema.primary_index);
+        let value = bincode::serialize(&rec).map_err(|e| SerializationError {
+            typ: "Record".to_string(),
+            reason: Box::new(e),
+        })?;
+        tx.write().put(self.db, key.as_slice(), value.as_slice())?;
+        Ok(())
     }
 
     fn get_autogen_counter(&mut self, tx: &SharedTransaction) -> Result<u64, StorageError> {
@@ -208,7 +219,7 @@ impl RecordWriter for AutogenRowKeyLookupRecordWriter {
                     self.schema.primary_index.len() == 1
                         && self.schema.primary_index[0] == new.values.len() - 1
                 );
-                RecordWriterUtils::write_record(self.db, &new, &self.schema, tx)?;
+                self.write_record(&new, &self.schema, tx)?;
                 Ok(Operation::Insert { new })
             }
             Operation::Update { .. } => Err(UnsupportedUpdateOperation(

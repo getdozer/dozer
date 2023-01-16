@@ -2,7 +2,7 @@ use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::errors::PostgresSchemaError::{
     ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, ValueConversionError,
 };
-use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
+use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc};
 use dozer_types::ordered_float::OrderedFloat;
@@ -17,13 +17,12 @@ use std::vec;
 pub fn postgres_type_to_field(
     value: Option<&Bytes>,
     column: &TableColumn,
-) -> Result<Field, ConnectorError> {
+) -> Result<Field, PostgresSchemaError> {
     value.map_or(Ok(Field::Null), |v| {
-        column.r#type.clone().map_or(
-            Err(ConnectorError::PostgresConnectorError(
-                PostgresConnectorError::PostgresSchemaError(ColumnTypeNotFound),
-            )),
-            |column_type| match column_type {
+        column
+            .r#type
+            .clone()
+            .map_or(Err(ColumnTypeNotFound), |column_type| match column_type {
                 Type::INT2 | Type::INT4 | Type::INT8 => Ok(Field::Int(
                     String::from_utf8(v.to_vec()).unwrap().parse().unwrap(),
                 )),
@@ -33,7 +32,7 @@ pub fn postgres_type_to_field(
                         .parse::<f64>()
                         .unwrap(),
                 ))),
-                Type::TEXT | Type::VARCHAR => {
+                Type::TEXT | Type::VARCHAR | Type::CHAR => {
                     Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
                 }
                 Type::BYTEA => Ok(Field::Binary(v.to_vec())),
@@ -72,17 +71,12 @@ pub fn postgres_type_to_field(
                 }
                 Type::JSONB | Type::JSON => Ok(Field::Bson(v.to_vec())),
                 Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
-                _ => Err(ConnectorError::PostgresConnectorError(
-                    PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
-                        column_type.name().to_string(),
-                    )),
-                )),
-            },
-        )
+                _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
+            })
     })
 }
 
-pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, ConnectorError> {
+pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, PostgresSchemaError> {
     match column_type {
         Type::BOOL => Ok(FieldType::Boolean),
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
@@ -93,11 +87,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Conne
         Type::NUMERIC => Ok(FieldType::Decimal),
         Type::JSONB => Ok(FieldType::Bson),
         Type::DATE => Ok(FieldType::Date),
-        _ => Err(ConnectorError::PostgresConnectorError(
-            PostgresConnectorError::PostgresSchemaError(ColumnTypeNotSupported(
-                column_type.name().to_string(),
-            )),
-        )),
+        _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
     }
 }
 
@@ -179,7 +169,7 @@ pub fn map_row_to_operation_event(
     match get_values(row, columns) {
         Ok(values) => Ok(OperationEvent {
             operation: Operation::Insert {
-                new: Record::new(Some(identifier), values),
+                new: Record::new(Some(identifier), values, None),
             },
             seq_no,
         }),
@@ -201,15 +191,12 @@ pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Result<Schema, ConnectorE
     })
 }
 
-pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, ConnectorError> {
-    match postgres_type_to_dozer_type(column.type_().clone()) {
-        Ok(typ) => Ok(FieldDefinition {
-            name: column.name().to_string(),
-            typ,
-            nullable: true,
-        }),
-        Err(e) => Err(e),
-    }
+pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, PostgresSchemaError> {
+    postgres_type_to_dozer_type(column.type_().clone()).map(|typ| FieldDefinition {
+        name: column.name().to_string(),
+        typ,
+        nullable: true,
+    })
 }
 
 #[cfg(test)]

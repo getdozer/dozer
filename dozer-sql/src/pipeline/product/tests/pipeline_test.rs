@@ -121,7 +121,21 @@ impl Source for TestSource {
         let operations = vec![
             (
                 Operation::Insert {
-                    new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: Record::new(
+                        None,
+                        vec![Field::Int(0), Field::String("IT".to_string())],
+                        None,
+                    ),
+                },
+                DEPARTMENT_PORT,
+            ),
+            (
+                Operation::Insert {
+                    new: Record::new(
+                        None,
+                        vec![Field::Int(1), Field::String("HR".to_string())],
+                        None,
+                    ),
                 },
                 DEPARTMENT_PORT,
             ),
@@ -135,6 +149,7 @@ impl Source for TestSource {
                             Field::Int(0),
                             Field::Float(OrderedFloat(1.1)),
                         ],
+                        None,
                     ),
                 },
                 USER_PORT,
@@ -155,6 +170,7 @@ impl Source for TestSource {
                             Field::Int(0),
                             Field::Float(OrderedFloat(1.1)),
                         ],
+                        None,
                     ),
                 },
                 USER_PORT,
@@ -169,6 +185,7 @@ impl Source for TestSource {
                             Field::Int(1),
                             Field::Float(OrderedFloat(1.1)),
                         ],
+                        None,
                     ),
                 },
                 USER_PORT,
@@ -183,6 +200,7 @@ impl Source for TestSource {
                             Field::Int(0),
                             Field::Float(OrderedFloat(1.1)),
                         ],
+                        None,
                     ),
                 },
                 USER_PORT,
@@ -197,6 +215,7 @@ impl Source for TestSource {
                             Field::Int(1),
                             Field::Float(OrderedFloat(1.1)),
                         ],
+                        None,
                     ),
                 },
                 USER_PORT,
@@ -211,6 +230,7 @@ impl Source for TestSource {
                             Field::Int(1),
                             Field::Float(OrderedFloat(1.1)),
                         ],
+                        None,
                     ),
                 },
                 USER_PORT,
@@ -225,6 +245,7 @@ impl Source for TestSource {
                             Field::Int(1),
                             Field::Float(OrderedFloat(1.5)),
                         ],
+                        None,
                     ),
                 },
                 USER_PORT,

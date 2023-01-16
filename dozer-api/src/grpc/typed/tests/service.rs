@@ -9,7 +9,8 @@ use crate::{
             tests::{
                 fake_internal_pipeline_server::start_fake_internal_grpc_pipeline,
                 generated::films::{
-                    films_client::FilmsClient, FilmEvent, QueryFilmsRequest, QueryFilmsResponse,
+                    films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
+                    QueryFilmsResponse,
                 },
             },
             TypedService,
@@ -59,7 +60,11 @@ pub fn setup_pipeline() -> (
 
     let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
     let default_api_internal = default_api_config().pipeline_internal.unwrap_or_default();
-    ApiServer::setup_broad_cast_channel(tx, default_api_internal).unwrap();
+    tokio::spawn(async {
+        ApiServer::setup_broad_cast_channel(tx, default_api_internal)
+            .await
+            .unwrap();
+    });
     let mut pipeline_map = HashMap::new();
     pipeline_map.insert("films".to_string(), pipeline_details);
 
@@ -72,24 +77,21 @@ pub fn setup_pipeline() -> (
 fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    let path = out_dir
-        .join("generated_films.bin")
-        .to_string_lossy()
-        .to_string();
+    let path = out_dir.join("generated_films.bin");
 
-    let (_, desc) = get_proto_descriptor(path).unwrap();
+    let (_, desc) = get_proto_descriptor(&path).unwrap();
 
     let (pipeline_map, schema_map, rx1) = setup_pipeline();
 
     TypedService::new(desc, pipeline_map, schema_map, Some(rx1), security)
 }
 
-async fn test_grpc_query_common(
+async fn test_grpc_count_and_query_common(
     port: u32,
     request: QueryFilmsRequest,
     api_security: Option<ApiSecurity>,
     access_token: Option<String>,
-) -> Result<QueryFilmsResponse, tonic::Status> {
+) -> Result<(CountFilmsResponse, QueryFilmsResponse), tonic::Status> {
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
     let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();
     let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
@@ -128,16 +130,20 @@ async fn test_grpc_query_common(
             req.metadata_mut().insert("authorization", token);
             Ok(req)
         });
+        let res = client.count(Request::new(request.clone())).await?;
+        let count_response = res.into_inner();
         let res = client.query(Request::new(request)).await?;
-        let request_response: QueryFilmsResponse = res.into_inner();
+        let query_response = res.into_inner();
         _ = sender_shutdown_internal.send(());
-        Ok(request_response)
+        Ok((count_response, query_response))
     } else {
         let mut client = FilmsClient::new(channel);
+        let res = client.count(Request::new(request.clone())).await?;
+        let count_response = res.into_inner();
         let res = client.query(Request::new(request)).await?;
-        let request_response: QueryFilmsResponse = res.into_inner();
+        let query_response = res.into_inner();
         _ = sender_shutdown_internal.send(());
-        Ok(request_response)
+        Ok((count_response, query_response))
     }
 }
 
@@ -158,9 +164,12 @@ async fn test_grpc_query() {
         query: Some(dozer_types::serde_json::to_string(&query).unwrap()),
     };
 
-    let request_response = test_grpc_query_common(1402, request, None, None).await;
-    assert!(request_response.is_ok());
-    assert!(!request_response.unwrap().data.len() > 0);
+    let (count_response, query_response) =
+        test_grpc_count_and_query_common(1402, request, None, None)
+            .await
+            .unwrap();
+    assert_eq!(count_response.count, query_response.data.len() as u64);
+    assert!(!query_response.data.len() > 0);
 }
 
 #[tokio::test]
@@ -180,12 +189,14 @@ async fn test_grpc_query_with_access_token() {
         query: Some(dozer_types::serde_json::to_string(&query).unwrap()),
     };
     let api_security = ApiSecurity::Jwt("DXkzrlnTy6".to_owned());
-    let authorizer = Authorizer::from(api_security.to_owned());
+    let authorizer = Authorizer::from(&api_security);
     let generated_token = authorizer.generate_token(Access::All, None).unwrap();
-    let request_response =
-        test_grpc_query_common(1403, request, Some(api_security), Some(generated_token)).await;
-    assert!(request_response.is_ok());
-    assert!(!request_response.unwrap().data.is_empty());
+    let (count_response, query_response) =
+        test_grpc_count_and_query_common(1403, request, Some(api_security), Some(generated_token))
+            .await
+            .unwrap();
+    assert_eq!(count_response.count, query_response.data.len() as u64);
+    assert!(!query_response.data.is_empty());
 }
 
 #[tokio::test]
@@ -207,7 +218,8 @@ async fn test_grpc_query_with_wrong_access_token() {
     let api_security = ApiSecurity::Jwt("DXkzrlnTy6".to_owned());
     let generated_token = "wrongrandomtoken".to_owned();
     let request_response =
-        test_grpc_query_common(1404, request, Some(api_security), Some(generated_token)).await;
+        test_grpc_count_and_query_common(1404, request, Some(api_security), Some(generated_token))
+            .await;
     assert!(request_response.is_err());
     assert!(request_response.unwrap_err().code() == Code::PermissionDenied);
 }

@@ -1,4 +1,6 @@
-use super::utils::{convert_cache_to_oapi_schema, create_contact_info, create_reference_response};
+use super::utils::{
+    convert_cache_to_oapi_schema, create_contact_info, create_reference_response, create_response,
+};
 use crate::errors::GenerationError;
 use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
@@ -120,6 +122,47 @@ impl OpenApiGenerator {
         })
     }
 
+    fn generate_count_route(&self) -> ReferenceOr<PathItem> {
+        let request_body = RequestBody {
+            content: indexmap::indexmap! {
+                "application/json".to_owned() => MediaType { example: Some(self.generate_query_example()), ..Default::default() }
+            },
+            required: true,
+            ..Default::default()
+        };
+        let responses = Responses {
+            responses: indexmap::indexmap! {
+                StatusCode::Code(200) => ReferenceOr::Item(
+                    create_response(
+                        "Count of records satisfying the query".to_string(),
+                        Schema {
+                            schema_data: Default::default(),
+                            schema_kind: SchemaKind::Type(Type::Integer(IntegerType {
+                                format: VariantOrUnknownOrEmpty::Item(IntegerFormat::Int64),
+                                minimum: Some(0),
+                                ..Default::default()
+                            })),
+                        }
+                    )
+                )
+            },
+            ..Default::default()
+        };
+        let operation = Some(Operation {
+            tags: vec![format!("{}", self.schema_name)],
+            summary: Some("Count documents based on an expression".to_string()),
+            description: Some("Count documents based on an expression".to_string()),
+            operation_id: Some(format!("count-{}", self.endpoint.name)),
+            request_body: Some(ReferenceOr::Item(request_body)),
+            responses,
+            ..Default::default()
+        });
+        ReferenceOr::Item(PathItem {
+            post: operation,
+            ..Default::default()
+        })
+    }
+
     fn generate_query_route(&self) -> ReferenceOr<PathItem> {
         let request_body = RequestBody {
             content: indexmap::indexmap! {
@@ -141,7 +184,7 @@ impl OpenApiGenerator {
                 "Documents can be queried based on a simple or a composite expression".to_owned(),
             ),
             operation_id: Some(format!("query-{}", self.endpoint.name.to_owned())),
-            request_body: Some(openapiv3::ReferenceOr::Item(request_body)),
+            request_body: Some(ReferenceOr::Item(request_body)),
             responses,
             ..Default::default()
         });
@@ -154,10 +197,12 @@ impl OpenApiGenerator {
     fn _generate_available_paths(&self) -> Paths {
         let get_list = self.generate_list_route();
         let get_by_id_item = self.generate_get_route();
+        let count_list = self.generate_count_route();
         let query_list = self.generate_query_route();
         let path_items = indexmap::indexmap! {
             self.endpoint.path.to_owned() => get_list,
             format!("{}/{}", self.endpoint.path.to_owned(), "{id}") => get_by_id_item,
+            format!("{}/count", self.endpoint.path.to_owned()) => count_list,
             format!("{}/query", self.endpoint.path.to_owned()) => query_list
         };
         Paths {

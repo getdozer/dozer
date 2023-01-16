@@ -1,11 +1,13 @@
 use super::executor::Executor;
+use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::utils::{
     get_api_dir, get_api_security_config, get_cache_dir, get_grpc_config, get_pipeline_config,
     get_pipeline_dir, get_rest_config,
 };
-use crate::Orchestrator;
+use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
+use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_api::{
     actix_web::dev::ServerHandle,
     grpc::{
@@ -20,10 +22,18 @@ use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
+use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
+use dozer_types::log::{info, warn};
+use dozer_types::models::api_config::ApiConfig;
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::app_config::Config;
+use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_yaml;
+use dozer_types::tracing::error;
 use dozer_types::types::{Operation, Schema, SchemaWithChangesType};
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -103,10 +113,12 @@ impl Orchestrator for SimpleOrchestrator {
         let rt = tokio::runtime::Runtime::new().expect("Failed to initialize tokio runtime");
         let (sender_shutdown, receiver_shutdown) = oneshot::channel::<()>();
         rt.block_on(async {
+            let mut futures = FuturesUnordered::new();
+
             // Initialize API Server
             let rest_config = get_rest_config(self.config.to_owned());
             let security = get_api_security_config(self.config.to_owned());
-            tokio::spawn(async move {
+            let rest_handle = tokio::spawn(async move {
                 let api_server = rest::ApiServer::new(rest_config, security);
                 api_server
                     .run(cache_endpoints, tx)
@@ -119,7 +131,15 @@ impl Orchestrator for SimpleOrchestrator {
 
             let rx1 = if flags.push_events {
                 let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
-                grpc::ApiServer::setup_broad_cast_channel(tx, pipeline_config).unwrap();
+
+                let handle = tokio::spawn(async move {
+                    grpc::ApiServer::setup_broad_cast_channel(tx, pipeline_config)
+                        .await
+                        .map_err(OrchestrationError::GrpcServerFailed)
+                });
+
+                futures.push(flatten_joinhandle(handle));
+
                 Some(rx1)
             } else {
                 None
@@ -132,13 +152,21 @@ impl Orchestrator for SimpleOrchestrator {
 
             let api_security = get_api_security_config(self.config.to_owned());
             let grpc_server = grpc::ApiServer::new(grpc_config, api_dir, api_security, flags);
-            tokio::spawn(async move {
+            let grpc_handle = tokio::spawn(async move {
                 grpc_server
                     .run(ce2, receiver_shutdown, rx1)
                     .await
                     .map_err(OrchestrationError::GrpcServerFailed)
             });
-        });
+
+            futures.push(flatten_joinhandle(rest_handle));
+            futures.push(flatten_joinhandle(grpc_handle));
+
+            while let Some(result) = futures.next().await {
+                result?;
+            }
+            Ok::<(), OrchestrationError>(())
+        })?;
 
         let server_handle = rx
             .recv()
@@ -166,6 +194,7 @@ impl Orchestrator for SimpleOrchestrator {
             if let Err(e) = start_internal_pipeline_server(internal_app_config, receiver) {
                 std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
             }
+            warn!("Shutting down internal pipeline server");
         });
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
@@ -203,7 +232,7 @@ impl Orchestrator for SimpleOrchestrator {
             if let Some(api_security) = api_config.api_security {
                 match api_security {
                     dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
-                        let auth = Authorizer::new(secret, None, None);
+                        let auth = Authorizer::new(&secret, None, None);
                         let token = auth.generate_token(Access::All, None).map_err(|err| {
                             OrchestrationError::GenerateTokenFailed(err.to_string())
                         })?;
@@ -250,13 +279,17 @@ impl Orchestrator for SimpleOrchestrator {
             .clone();
         Ok(schema)
     }
-    fn init(&mut self, force: bool) -> Result<(), OrchestrationError> {
+    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
         self.write_internal_config()
             .map_err(|e| InternalError(Box::new(e)))?;
         let pipeline_home_dir = get_pipeline_dir(self.config.to_owned());
         let api_dir = get_api_dir(self.config.to_owned());
         let cache_dir = get_cache_dir(self.config.to_owned());
 
+        info!(
+            "Initiating app: {}",
+            get_colored_text(&self.config.app_name, "35")
+        );
         if api_dir.exists() || pipeline_home_dir.exists() || cache_dir.exists() {
             if force {
                 self.clean()?;
@@ -266,6 +299,18 @@ impl Orchestrator for SimpleOrchestrator {
                 ));
             }
         }
+
+        info!(
+            "Home dir: {}",
+            get_colored_text(&self.config.home_dir, "35")
+        );
+        if let Some(api_config) = &self.config.api {
+            print_api_config(api_config)
+        }
+
+        print_api_endpoints(&self.config.endpoints);
+        validate_endpoints(&self.config.endpoints)?;
+
         // Ingestion channel
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
@@ -285,7 +330,7 @@ impl Orchestrator for SimpleOrchestrator {
         // Api Path
         let generated_path = api_dir.join("generated");
         if !generated_path.exists() {
-            fs::create_dir_all(&generated_path).map_err(|e| InternalError(Box::new(e)))?;
+            fs::create_dir_all(generated_path.clone()).map_err(|e| InternalError(Box::new(e)))?;
         }
 
         // Pipeline path
@@ -296,13 +341,25 @@ impl Orchestrator for SimpleOrchestrator {
             )
         })?;
 
-        let dag = executor.build_pipeline(
-            None,
-            generated_path,
-            get_api_security_config(self.config.clone()),
-        )?;
+        let api_security = get_api_security_config(self.config.clone());
+        let dag = executor.build_pipeline(None, generated_path.clone(), api_security)?;
         let schema_manager = DagSchemaManager::new(&dag)?;
+        // Every sink will initialize its schema in sink and also in a proto file.
         schema_manager.prepare()?;
+
+        let mut resources = Vec::new();
+        for e in &self.config.endpoints {
+            resources.push(e.name.clone());
+        }
+
+        // Copy common service to be included in descriptor.
+        resources.push("common".to_string());
+
+        ProtoGenerator::copy_common(&generated_path)
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
+        // Generate a descriptor based on all proto files generated within sink.
+        ProtoGenerator::generate_descriptor(&generated_path, resources)
+            .map_err(|e| OrchestrationError::InternalError(Box::new(e)))?;
 
         Ok(())
     }
@@ -340,4 +397,63 @@ impl SimpleOrchestrator {
         }
         Ok(cache_endpoints)
     }
+}
+
+pub fn validate_endpoints(endpoints: &Vec<ApiEndpoint>) -> Result<(), OrchestrationError> {
+    let mut is_all_valid = true;
+    for endpoint in endpoints {
+        let builder = PipelineBuilder {};
+        builder.build_pipeline(&endpoint.sql).map_or_else(
+            |e| {
+                is_all_valid = false;
+                error!(
+                    "[Endpoints][{}] {} Endpoint validation error: {}",
+                    endpoint.name,
+                    get_colored_text("X", "31"),
+                    e
+                );
+            },
+            |_| {
+                info!(
+                    "[Endpoints][{}] {} Endpoint validation completed",
+                    endpoint.name,
+                    get_colored_text("✓", "32")
+                );
+            },
+        );
+    }
+
+    if is_all_valid {
+        Ok(())
+    } else {
+        Err(OrchestrationError::PipelineValidationError)
+    }
+}
+
+fn print_api_config(api_config: &ApiConfig) {
+    info!("[API] {}", get_colored_text("Configuration", "35"));
+    let mut table_parent = Table::new();
+
+    table_parent.add_row(row!["Type", "IP", "Port"]);
+    if let Some(rest_config) = &api_config.rest {
+        table_parent.add_row(row!["REST", rest_config.host, rest_config.port]);
+    }
+
+    if let Some(grpc_config) = &api_config.grpc {
+        table_parent.add_row(row!["GRPC", grpc_config.host, grpc_config.port]);
+    }
+
+    table_parent.printstd();
+}
+
+fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
+    info!("[API] {}", get_colored_text("Endpoints", "35"));
+    let mut table_parent = Table::new();
+
+    table_parent.add_row(row!["Path", "Name", "Sql"]);
+    for endpoint in endpoints {
+        table_parent.add_row(row![endpoint.path, endpoint.name, endpoint.sql]);
+    }
+
+    table_parent.printstd();
 }

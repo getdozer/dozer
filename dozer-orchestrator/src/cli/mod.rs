@@ -1,4 +1,5 @@
 mod helper;
+pub mod init;
 mod repl;
 #[cfg(test)]
 pub mod tests;

@@ -13,12 +13,12 @@ pub struct QueryExpression {
     pub filter: Option<FilterExpression>,
     #[serde(rename = "$order_by", default)]
     pub order_by: SortOptions,
-    #[serde(rename = "$limit", default = "default_limit")]
-    pub limit: usize,
+    #[serde(rename = "$limit")]
+    pub limit: Option<usize>,
     #[serde(rename = "$skip", default)]
     pub skip: usize,
 }
-fn default_limit() -> usize {
+pub fn default_limit_for_query() -> usize {
     50
 }
 impl Default for QueryExpression {
@@ -26,7 +26,7 @@ impl Default for QueryExpression {
         Self {
             filter: None,
             order_by: Default::default(),
-            limit: default_limit(),
+            limit: Some(default_limit_for_query()),
             skip: Default::default(),
         }
     }
@@ -36,7 +36,7 @@ impl QueryExpression {
     pub fn new(
         filter: Option<FilterExpression>,
         order_by: Vec<SortOption>,
-        limit: usize,
+        limit: Option<usize>,
         skip: usize,
     ) -> Self {
         Self {
@@ -50,7 +50,7 @@ impl QueryExpression {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FilterExpression {
-    // a = 1, a containts "s", a> 4
+    // a = 1, a containts "s", a > 4
     Simple(String, Operator, Value),
     And(Vec<FilterExpression>),
 }

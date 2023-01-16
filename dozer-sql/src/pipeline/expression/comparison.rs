@@ -177,7 +177,7 @@ use crate::pipeline::expression::execution::Expression::Literal;
 
 #[test]
 fn test_float_float_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.3))));
     let f1 = Box::new(Literal(Field::Float(OrderedFloat(1.3))));
     assert!(matches!(
@@ -188,7 +188,7 @@ fn test_float_float_eq() {
 
 #[test]
 fn test_float_null_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.3))));
     let f1 = Box::new(Literal(Field::Null));
     assert!(matches!(
@@ -199,7 +199,7 @@ fn test_float_null_eq() {
 
 #[test]
 fn test_float_int_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
     let f1 = Box::new(Literal(Field::Int(1)));
     assert!(matches!(
@@ -210,7 +210,7 @@ fn test_float_int_eq() {
 
 #[test]
 fn test_int_null_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
     let f1 = Box::new(Literal(Field::Null));
     assert!(matches!(
@@ -221,7 +221,7 @@ fn test_int_null_eq() {
 
 #[test]
 fn test_int_float_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::Int(1)));
     let f1 = Box::new(Literal(Field::Float(OrderedFloat(1.0))));
     assert!(matches!(
@@ -232,7 +232,7 @@ fn test_int_float_eq() {
 
 #[test]
 fn test_bool_bool_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::Boolean(false)));
     let f1 = Box::new(Literal(Field::Boolean(false)));
     assert!(matches!(
@@ -243,7 +243,7 @@ fn test_bool_bool_eq() {
 
 #[test]
 fn test_str_str_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::String("abc".to_string())));
     let f1 = Box::new(Literal(Field::String("abc".to_string())));
     assert!(matches!(
@@ -254,7 +254,7 @@ fn test_str_str_eq() {
 
 #[test]
 fn test_str_null_eq() {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(None, vec![], None);
     let f0 = Box::new(Literal(Field::String("abc".to_string())));
     let f1 = Box::new(Literal(Field::Null));
     assert!(matches!(

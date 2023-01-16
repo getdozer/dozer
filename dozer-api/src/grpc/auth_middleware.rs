@@ -5,6 +5,7 @@ use std::task::{Context, Poll};
 use tonic::{
     body::{empty_body, BoxBody},
     codegen::http,
+    transport::NamedService,
 };
 use tower::{Layer, Service};
 
@@ -60,7 +61,7 @@ where
                     let auth_header = req.headers().get("authorization");
                     if let Some(auth_header) = auth_header {
                         let auth_header_str = auth_header.to_str().unwrap();
-                        let authorizer = Authorizer::from(security);
+                        let authorizer = Authorizer::from(&security);
                         if auth_header_str.starts_with("Bearer ") {
                             let token_array: Vec<&str> = auth_header_str.split(' ').collect();
                             let token_data = authorizer.validate_token(token_array[1]);
@@ -96,4 +97,8 @@ where
             }
         })
     }
+}
+
+impl<S: NamedService> NamedService for AuthMiddleware<S> {
+    const NAME: &'static str = S::NAME;
 }

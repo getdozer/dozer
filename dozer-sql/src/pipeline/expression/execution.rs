@@ -7,6 +7,7 @@ use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, 
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
+use super::scalar::string::{evaluate_like, get_like_operator_type};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -35,6 +36,11 @@ pub enum Expression {
         arg: Box<Expression>,
         what: Option<Box<Expression>>,
         typ: Option<TrimType>,
+    },
+    Like {
+        arg: Box<Expression>,
+        pattern: Box<Expression>,
+        escape: Option<char>,
     },
 }
 
@@ -83,6 +89,11 @@ impl ExpressionExecutor for Expression {
                 )))
             }
             Expression::Trim { typ, what, arg } => evaluate_trim(schema, arg, what, typ, record),
+            Expression::Like {
+                arg,
+                pattern,
+                escape,
+            } => evaluate_like(schema, arg, pattern, *escape, record),
         }
     }
 
@@ -114,6 +125,11 @@ impl ExpressionExecutor for Expression {
                 typ: _,
                 arg,
             } => validate_trim(arg, schema),
+            Expression::Like {
+                arg,
+                pattern,
+                escape: _,
+            } => get_like_operator_type(arg, pattern, schema),
         }
     }
 }

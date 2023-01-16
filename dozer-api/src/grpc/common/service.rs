@@ -11,8 +11,8 @@ use tonic::{Request, Response, Status};
 
 use super::super::types_helper;
 use crate::grpc::common_grpc::{
-    GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, OnEventRequest,
-    QueryRequest, QueryResponse,
+    CountResponse, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse,
+    OnEventRequest, QueryRequest, QueryResponse,
 };
 use crate::grpc::types::{FieldDefinition, Operation, Record};
 
@@ -25,27 +25,48 @@ pub struct CommonService {
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<PipelineResponse>>,
 }
 
+impl CommonService {
+    fn parse_request(
+        &self,
+        request: Request<QueryRequest>,
+    ) -> Result<(&PipelineDetails, QueryRequest, Option<Access>), Status> {
+        let parts = request.into_parts();
+        let mut extensions = parts.1;
+        let query_request = parts.2;
+        let access = extensions.remove::<Access>();
+        let endpoint = &query_request.endpoint;
+        let pipeline_details = self
+            .pipeline_map
+            .get(endpoint)
+            .map_or(Err(Status::invalid_argument(endpoint)), Ok)?;
+        Ok((pipeline_details, query_request, access))
+    }
+}
+
 #[tonic::async_trait]
 impl CommonGrpcService for CommonService {
+    async fn count(
+        &self,
+        request: Request<QueryRequest>,
+    ) -> Result<Response<CountResponse>, Status> {
+        let (pipeline_details, query_request, access) = self.parse_request(request)?;
+
+        let count = shared_impl::count(pipeline_details, query_request.query.as_deref(), access)?;
+
+        let reply = CountResponse {
+            count: count as u64,
+        };
+        Ok(Response::new(reply))
+    }
+
     async fn query(
         &self,
         request: Request<QueryRequest>,
     ) -> Result<Response<QueryResponse>, Status> {
-        let parts = request.into_parts();
-        let extensions = parts.1;
-        let query_request = parts.2;
-        let access = extensions.get::<Access>();
-        let endpoint = query_request.endpoint;
-        let pipeline_details = self
-            .pipeline_map
-            .get(&endpoint)
-            .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
+        let (pipeline_details, query_request, access) = self.parse_request(request)?;
 
-        let (schema, records) = shared_impl::query(
-            pipeline_details.clone(),
-            query_request.query.as_deref(),
-            access,
-        )?;
+        let (schema, records) =
+            shared_impl::query(pipeline_details, query_request.query.as_deref(), access)?;
 
         let fields = schema
             .fields
@@ -76,7 +97,7 @@ impl CommonGrpcService for CommonService {
             .ok_or_else(|| Status::invalid_argument(endpoint))?;
 
         shared_impl::on_event(
-            pipeline_details.clone(),
+            pipeline_details,
             query_request.filter.as_deref(),
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
@@ -109,7 +130,7 @@ impl CommonGrpcService for CommonService {
             .get(&endpoint)
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let api_helper = api_helper::ApiHelper::new(pipeline_details.clone(), None)?;
+        let api_helper = api_helper::ApiHelper::new(pipeline_details, None)?;
         let schema = api_helper
             .get_schema()
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;

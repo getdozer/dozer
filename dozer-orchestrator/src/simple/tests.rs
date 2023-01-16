@@ -105,6 +105,7 @@ fn single_source_sink_impl(schema: Schema) {
         let record = Record::new(
             schema.identifier,
             vec![Field::Int(a), Field::String(b), Field::Int(c)],
+            None,
         );
         ingestor2
             .write()
@@ -120,7 +121,7 @@ fn single_source_sink_impl(schema: Schema) {
 
     // Allow for the thread to process the records
     thread::sleep(Duration::from_millis(3000));
-    //Shutdown the thread
+    // Shutdown the thread
     r.store(false, Ordering::SeqCst);
 
     test_query("events".to_string(), json!({}), 7, &cache);

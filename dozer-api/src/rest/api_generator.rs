@@ -15,10 +15,7 @@ pub async fn generate_oapi(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(
-        pipeline_details.into_inner(),
-        access.map(|a| a.into_inner()),
-    )?;
+    let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
 
     helper
         .generate_oapi3()
@@ -31,10 +28,7 @@ pub async fn get(
     pipeline_details: ReqData<PipelineDetails>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(
-        pipeline_details.into_inner(),
-        access.map(|a| a.into_inner()),
-    )?;
+    let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
     let key = path.as_str();
     helper
         .get_record(key)
@@ -47,11 +41,8 @@ pub async fn list(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
 ) -> Result<HttpResponse, ApiError> {
-    let helper = ApiHelper::new(
-        pipeline_details.into_inner(),
-        access.map(|a| a.into_inner()),
-    )?;
-    let exp = QueryExpression::new(None, vec![], 50, 0);
+    let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
+    let exp = QueryExpression::new(None, vec![], Some(50), 0);
     match helper
         .get_records_map(exp)
         .map(|maps| HttpResponse::Ok().json(maps))
@@ -75,18 +66,41 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
     Ok(HttpResponse::Ok().body(resp))
 }
 
+pub async fn count(
+    access: Option<ReqData<Access>>,
+    pipeline_details: ReqData<PipelineDetails>,
+    query_info: Option<web::Json<Value>>,
+) -> Result<HttpResponse, ApiError> {
+    let query_expression = match query_info {
+        Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
+            .map_err(ApiError::map_deserialization_error)?,
+        None => QueryExpression::default(),
+    };
+
+    let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
+    helper
+        .get_records_count(query_expression)
+        .map(|count| HttpResponse::Ok().json(count))
+        .map_err(|e| match e {
+            CacheError::QueryValidationError(e) => ApiError::InvalidQuery(e),
+            CacheError::TypeError(e) => ApiError::TypeError(e),
+            CacheError::InternalError(e) => ApiError::InternalError(e),
+            e => ApiError::InternalError(Box::new(e)),
+        })
+}
+
 // Generated query function for multiple records
 pub async fn query(
     access: Option<ReqData<Access>>,
     pipeline_details: ReqData<PipelineDetails>,
-    query_info: web::Json<Value>,
+    query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
-    let query_expression = serde_json::from_value::<QueryExpression>(query_info.0)
-        .map_err(ApiError::map_deserialization_error)?;
-    let helper = ApiHelper::new(
-        pipeline_details.into_inner(),
-        access.map(|a| a.into_inner()),
-    )?;
+    let query_expression = match query_info {
+        Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
+            .map_err(ApiError::map_deserialization_error)?,
+        None => QueryExpression::default(),
+    };
+    let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
     helper
         .get_records_map(query_expression)
         .map(|maps| HttpResponse::Ok().json(maps))

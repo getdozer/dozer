@@ -177,6 +177,10 @@ impl<'a> DagExecutor<'a> {
         })
     }
 
+    pub fn validate(dag: &'a Dag, path: &Path) -> Result<(), ExecutionError> {
+        Self::load_or_init_schema(dag, path).map(|_| ())
+    }
+
     fn validate_schemas(
         current: &NodeSchemas,
         existing: &DagMetadata,
@@ -305,6 +309,7 @@ impl<'a> DagExecutor<'a> {
                 max_duration_between_commits,
                 epoch_manager,
                 output_schemas,
+                start_seq,
             )?;
             start_barrier.wait();
             listener.run()

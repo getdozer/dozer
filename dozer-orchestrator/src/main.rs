@@ -1,4 +1,5 @@
 use clap::Parser;
+use dozer_orchestrator::cli::init::init_simple_config_file_with_question;
 use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
 use dozer_orchestrator::cli::{configure, init_dozer, list_sources, LOGO};
 use dozer_orchestrator::errors::OrchestrationError;
@@ -70,16 +71,17 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Connector(sources) => match sources.command {
                 ConnectorCommands::Ls => list_sources(&cli.config_path),
             },
-            Commands::Init(init) => {
-                let force = init.force.is_some();
+            Commands::Migrate(migrate) => {
+                let force = migrate.force.is_some();
                 let mut dozer = init_dozer(cli.config_path)?;
-                dozer.init(force)
+                dozer.migrate(force)
             }
             Commands::Clean => {
                 let mut dozer = init_dozer(cli.config_path)?;
                 dozer.clean()
             }
             Commands::Configure => configure(cli.config_path, running),
+            Commands::Init => init_simple_config_file_with_question(),
         }
     } else {
         render_logo();
@@ -88,7 +90,7 @@ fn run() -> Result<(), OrchestrationError> {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        if let Err(e) = dozer.init(false) {
+        if let Err(e) = dozer.migrate(false) {
             if let OrchestrationError::InitializationFailed(_) = e {
                 warn!(
                     "{} is already present. Skipping initialisation..",

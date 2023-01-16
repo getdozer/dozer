@@ -8,6 +8,7 @@ use super::api_security::ApiSecurity;
 pub struct ApiConfig {
     #[prost(oneof = "ApiSecurity", tags = "1")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// The security configuration for the API; Default: None
     pub api_security: Option<ApiSecurity>,
     #[prost(message, tag = "2")]
     #[serde(default = "default_api_rest")]

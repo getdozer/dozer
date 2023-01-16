@@ -61,6 +61,14 @@ pub enum ExecutionError {
     UnsupportedDeleteOperation(String),
     #[error("Invalid AppSource connection {0}. Already exists.")]
     AppSourceConnectionAlreadyExists(String),
+    #[error("Failed to get primary key for `{0}`")]
+    FailedToGetPrimaryKey(String),
+    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
+    MismatchPrimaryKey {
+        endpoint_name: String,
+        expected: Vec<String>,
+        actual: Vec<String>,
+    },
 
     // Error forwarders
     #[error(transparent)]
@@ -106,4 +114,7 @@ pub enum SinkError {
 
     #[error("Failed to commit cache transaction: {0}")]
     CacheCommitTransactionFailed(#[source] BoxedError),
+
+    #[error("Failed to initialize schema in Sink: {0}")]
+    CacheCountFailed(#[source] BoxedError),
 }

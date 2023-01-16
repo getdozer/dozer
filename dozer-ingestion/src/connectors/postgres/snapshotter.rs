@@ -5,11 +5,12 @@ use super::helper;
 use super::schema_helper::SchemaHelper;
 use crate::connectors::postgres::connection::helper as connection_helper;
 use crate::errors::ConnectorError;
-use crate::errors::PostgresConnectorError::PostgresSchemaError;
 use crate::errors::PostgresConnectorError::SyncWithSnapshotError;
+use crate::errors::PostgresConnectorError::{InvalidQueryError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::RwLock;
 
+use crate::errors::ConnectorError::PostgresConnectorError;
 use postgres::fallible_iterator::FallibleIterator;
 use postgres_types::PgLsn;
 use std::cell::RefCell;
@@ -51,8 +52,7 @@ impl PostgresSnapshotter {
         lsn_option: Option<&(PgLsn, u64)>,
     ) -> Result<Option<Vec<TableInfo>>, ConnectorError> {
         let client_plain = Arc::new(RefCell::new(
-            connection_helper::connect(self.conn_config.clone())
-                .map_err(ConnectorError::PostgresConnectorError)?,
+            connection_helper::connect(self.conn_config.clone()).map_err(PostgresConnectorError)?,
         ));
 
         let lsn = lsn_option.map_or(0u64, |(pg_lsn, _)| u64::from(*pg_lsn));
@@ -74,7 +74,7 @@ impl PostgresSnapshotter {
                 .clone()
                 .borrow_mut()
                 .prepare(&query)
-                .map_err(ConnectorError::InvalidQueryError)?;
+                .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
             let columns = stmt.columns();
 
             // Ingest schema for every table
@@ -85,7 +85,7 @@ impl PostgresSnapshotter {
                 .clone()
                 .borrow_mut()
                 .query_raw(&stmt, empty_vec)
-                .map_err(ConnectorError::InvalidQueryError)?
+                .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?
                 .iterator()
             {
                 match msg {
@@ -99,9 +99,7 @@ impl PostgresSnapshotter {
                             columns,
                             idx,
                         )
-                        .map_err(|e| {
-                            ConnectorError::PostgresConnectorError(PostgresSchemaError(e))
-                        })?;
+                        .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
 
                         self.ingestor
                             .write()
@@ -109,9 +107,7 @@ impl PostgresSnapshotter {
                             .map_err(ConnectorError::IngestorError)?;
                     }
                     Err(e) => {
-                        return Err(ConnectorError::PostgresConnectorError(
-                            SyncWithSnapshotError(e.to_string()),
-                        ))
+                        return Err(PostgresConnectorError(SyncWithSnapshotError(e.to_string())))
                     }
                 }
                 idx += 1;

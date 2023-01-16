@@ -16,6 +16,7 @@ use dozer_types::{
     parking_lot::RwLock,
     types::{Field, IndexDefinition, Record, Schema},
 };
+use itertools::Either;
 use lmdb::RoTransaction;
 
 pub struct LmdbQueryHandler<'a> {
@@ -48,31 +49,27 @@ impl<'a> LmdbQueryHandler<'a> {
         }
     }
 
+    pub fn count(&self) -> Result<usize, CacheError> {
+        let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
+        let execution = planner.plan()?;
+        match execution {
+            Plan::IndexScans(index_scans) => Ok(self.build_index_scan(index_scans)?.count()),
+            Plan::SeqScan(_) => Ok(self
+                .db
+                .count(self.txn)?
+                .saturating_sub(self.query.skip)
+                .min(self.query.limit.unwrap_or(usize::MAX))),
+            Plan::ReturnEmpty => Ok(0),
+        }
+    }
+
     pub fn query(&self) -> Result<Vec<Record>, CacheError> {
         let planner = QueryPlanner::new(self.schema, self.secondary_indexes, self.query);
         let execution = planner.plan()?;
         match execution {
             Plan::IndexScans(index_scans) => {
-                debug_assert!(
-                    !index_scans.is_empty(),
-                    "Planner should not generate empty index scan"
-                );
-                if index_scans.len() == 1 {
-                    // The fast path, without intersection calculation.
-                    let iter = self.query_with_secondary_index(&index_scans[0])?;
-                    self.collect_records(iter)
-                } else {
-                    // Intersection of multiple index scans.
-                    let iterators = index_scans
-                        .iter()
-                        .map(|index_scan| {
-                            self.query_with_secondary_index(index_scan)
-                                .map(|iter| iter.map(u64::from_be_bytes))
-                        })
-                        .collect::<Result<Vec<_>, CacheError>>()?;
-                    let intersection = intersection(iterators, self.intersection_chunk_size);
-                    self.collect_records(intersection.map(|id| id.to_be_bytes()))
-                }
+                let scan = self.build_index_scan(index_scans)?;
+                self.collect_records(scan)
             }
             Plan::SeqScan(_seq_scan) => self.iterate_and_deserialize(),
             Plan::ReturnEmpty => Ok(vec![]),
@@ -83,9 +80,38 @@ impl<'a> LmdbQueryHandler<'a> {
         let cursor = self.db.open_ro_cursor(self.txn)?;
         CacheIterator::new(cursor, None, SortDirection::Ascending)
             .skip(self.query.skip)
-            .take(self.query.limit)
+            .take(self.query.limit.unwrap_or(usize::MAX))
             .map(|(_, v)| bincode::deserialize(v).map_err(CacheError::map_deserialization_error))
             .collect()
+    }
+
+    fn build_index_scan(
+        &self,
+        index_scans: Vec<IndexScan>,
+    ) -> Result<impl Iterator<Item = [u8; 8]> + '_, CacheError> {
+        debug_assert!(
+            !index_scans.is_empty(),
+            "Planner should not generate empty index scan"
+        );
+        let full_sacan = if index_scans.len() == 1 {
+            // The fast path, without intersection calculation.
+            Either::Left(self.query_with_secondary_index(&index_scans[0])?)
+        } else {
+            // Intersection of multiple index scans.
+            let iterators = index_scans
+                .iter()
+                .map(|index_scan| {
+                    self.query_with_secondary_index(index_scan)
+                        .map(|iter| iter.map(u64::from_be_bytes))
+                })
+                .collect::<Result<Vec<_>, CacheError>>()?;
+            Either::Right(
+                intersection(iterators, self.intersection_chunk_size).map(|id| id.to_be_bytes()),
+            )
+        };
+        Ok(full_sacan
+            .skip(self.query.skip)
+            .take(self.query.limit.unwrap_or(usize::MAX)))
     }
 
     fn query_with_secondary_index(
@@ -132,10 +158,7 @@ impl<'a> LmdbQueryHandler<'a> {
         &self,
         ids: impl Iterator<Item = [u8; 8]>,
     ) -> Result<Vec<Record>, CacheError> {
-        ids.skip(self.query.skip)
-            .take(self.query.limit)
-            .map(|id| self.db.get(self.txn, id))
-            .collect()
+        ids.map(|id| self.db.get(self.txn, id)).collect()
     }
 }
 

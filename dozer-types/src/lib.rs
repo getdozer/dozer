@@ -16,6 +16,7 @@ pub use bytes;
 pub use chrono;
 pub use crossbeam;
 pub use indexmap;
+pub use indicatif;
 pub use log;
 pub use ordered_float;
 pub use parking_lot;

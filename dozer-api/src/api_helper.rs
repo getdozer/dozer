@@ -12,16 +12,16 @@ use dozer_types::serde_json::Value;
 use dozer_types::types::{Record, Schema};
 use openapiv3::OpenAPI;
 
-pub struct ApiHelper {
-    details: PipelineDetails,
+pub struct ApiHelper<'a> {
+    details: &'a PipelineDetails,
     reader: CacheReader,
 }
-impl ApiHelper {
+impl<'a> ApiHelper<'a> {
     pub fn new(
-        pipeline_details: PipelineDetails,
+        pipeline_details: &'a PipelineDetails,
         access: Option<Access>,
     ) -> Result<Self, ApiError> {
-        let access = access.map_or(Access::All, |a| a);
+        let access = access.unwrap_or(Access::All);
 
         // Define Access Filter based on token
         let reader_access = match access {
@@ -31,9 +31,9 @@ impl ApiHelper {
                 fields: vec![],
             },
 
-            Access::Custom(access_filters) => {
-                if let Some(access_filter) = access_filters.get(&pipeline_details.schema_name) {
-                    access_filter.to_owned()
+            Access::Custom(mut access_filters) => {
+                if let Some(access_filter) = access_filters.remove(&pipeline_details.schema_name) {
+                    access_filter
                 } else {
                     return Err(ApiError::ApiAuthError(AuthError::InvalidToken));
                 }
@@ -77,18 +77,26 @@ impl ApiHelper {
             .get_schema_and_indexes_by_name(&self.details.schema_name)?
             .0;
 
-        if schema.primary_index.len() != 1 {
-            todo!("Decide what to do when primary key is empty or has more than one field");
-        }
-
-        let field = &schema.fields[schema.primary_index[0]];
-        let key =
-            json_str_to_field(key, field.typ, field.nullable).map_err(CacheError::TypeError)?;
+        let key = if schema.primary_index.is_empty() {
+            json_str_to_field(key, dozer_types::types::FieldType::UInt, false)
+                .map_err(CacheError::TypeError)
+        } else if schema.primary_index.len() == 1 {
+            let field = &schema.fields[schema.primary_index[0]];
+            json_str_to_field(key, field.typ, field.nullable).map_err(CacheError::TypeError)
+        } else {
+            Err(CacheError::QueryError(
+                dozer_cache::errors::QueryError::MultiIndexFetch(key.to_string()),
+            ))
+        }?;
 
         let key = index::get_primary_key(&[0], &[key]);
         let rec = self.reader.get(&key)?;
 
         record_to_map(&rec, &schema).map_err(CacheError::TypeError)
+    }
+
+    pub fn get_records_count(&self, mut exp: QueryExpression) -> Result<usize, CacheError> {
+        self.reader.count(&self.details.schema_name, &mut exp)
     }
 
     /// Get multiple records

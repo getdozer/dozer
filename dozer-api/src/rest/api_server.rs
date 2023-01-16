@@ -1,10 +1,8 @@
 use super::api_generator;
+use crate::errors::ApiError;
 use crate::rest::api_generator::health_route;
 use crate::{
-    auth::{
-        api::{auth_route, validate},
-        Access,
-    },
+    auth::api::{auth_route, validate},
     CacheEndpoint, PipelineDetails,
 };
 use actix_cors::Cors;
@@ -20,7 +18,6 @@ use dozer_types::{
     models::api_security::ApiSecurity,
     serde::{self, Deserialize, Serialize},
 };
-use futures_util::FutureExt;
 use tracing_actix_web::TracingLogger;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -88,19 +85,20 @@ impl ApiServer {
             .wrap(Logger::default())
             .wrap(TracingLogger::default());
 
-        if let Some(api_security) = security.to_owned() {
+        let is_auth_configured = if let Some(api_security) = security {
             // Injecting API Security
             app = app.app_data(api_security);
-        }
-        let is_auth_configured = security.is_some();
+            true
+        } else {
+            false
+        };
         let auth_middleware =
             Condition::new(is_auth_configured, HttpAuthentication::bearer(validate));
 
         let cors_middleware = Self::get_cors(cors);
 
         cache_endpoints
-            .iter()
-            .cloned()
+            .into_iter()
             .fold(app, |app, cache_endpoint| {
                 let endpoint = cache_endpoint.endpoint.clone();
                 let scope = endpoint.path.clone();
@@ -115,6 +113,7 @@ impl ApiServer {
                             });
                             srv.call(req)
                         })
+                        .route("/count", web::post().to(api_generator::count))
                         .route("/query", web::post().to(api_generator::query))
                         .route("/oapi", web::post().to(api_generator::generate_oapi))
                         .route("/{id}", web::get().to(api_generator::get))
@@ -124,17 +123,10 @@ impl ApiServer {
             })
             // Attach token generation route
             .route("/auth/token", web::post().to(auth_route))
-            // Attach token generation route
+            // Attach health route
             .route("/health", web::get().to(health_route))
             // Wrap Api Validator
             .wrap(auth_middleware)
-            // Insert None as Auth when no api security configured
-            .wrap_fn(move |req, srv| {
-                if !is_auth_configured {
-                    req.extensions_mut().insert(Access::All);
-                }
-                srv.call(req).map(|res| res)
-            })
             // Wrap CORS around api validator. Required to return the right headers.
             .wrap(cors_middleware)
     }
@@ -143,7 +135,7 @@ impl ApiServer {
         &self,
         cache_endpoints: Vec<CacheEndpoint>,
         tx: Sender<ServerHandle>,
-    ) -> std::io::Result<()> {
+    ) -> Result<(), ApiError> {
         info!(
             "Starting Rest Api Server on http://{}:{} with security: {}",
             self.host,
@@ -156,6 +148,7 @@ impl ApiServer {
         );
         let cors = self.cors.clone();
         let security = self.security.clone();
+        let address = format!("{}:{}", self.host.to_owned(), self.port.to_owned());
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.to_owned(),
@@ -163,12 +156,15 @@ impl ApiServer {
                 cache_endpoints.clone(),
             )
         })
-        .bind(format!("{}:{}", self.host.to_owned(), self.port.to_owned()))?
+        .bind(address.to_owned())
+        .map_err(ApiError::PortAlreadyInUse)?
         .shutdown_timeout(self.shutdown_timeout.to_owned())
         .run();
 
         let _ = tx.send(server.handle());
-        server.await
+        server
+            .await
+            .map_err(|e| ApiError::InternalError(Box::new(e)))
     }
 
     pub fn stop(server_handle: ServerHandle) {

@@ -36,6 +36,7 @@ pub fn test_yml_content_full() -> &'static str {
     grpc_web: true
     dynamic: true
     push_events: false
+    authenticate_server_reflection: false
   connections:
     - db_type: Postgres
       authentication: !Postgres

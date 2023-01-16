@@ -29,5 +29,6 @@ pub trait Cache {
     fn delete(&self, key: &[u8]) -> Result<(), CacheError>;
     fn update(&self, key: &[u8], record: &Record) -> Result<(), CacheError>;
     fn get(&self, key: &[u8]) -> Result<Record, CacheError>;
+    fn count(&self, schema_name: &str, query: &QueryExpression) -> Result<usize, CacheError>;
     fn query(&self, schema_name: &str, query: &QueryExpression) -> Result<Vec<Record>, CacheError>;
 }

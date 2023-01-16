@@ -1,5 +1,5 @@
 use crate::connectors::postgres::helper;
-use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
+use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{Field, FieldDefinition, Operation, OperationEvent, Record, Schema};
 use helper::postgres_type_to_dozer_type;
@@ -76,7 +76,7 @@ impl XlogMapper {
     pub fn handle_message(
         &mut self,
         message: XLogDataBody<LogicalReplicationMessage>,
-    ) -> Result<Option<IngestionMessage>, ConnectorError> {
+    ) -> Result<Option<IngestionMessage>, PostgresConnectorError> {
         match &message.data() {
             Relation(relation) => {
                 let body = MessageBody::new(relation);
@@ -119,6 +119,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             values,
+                            None,
                         ),
                     },
                     seq_no: 0,
@@ -141,6 +142,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             old_values,
+                            None,
                         ),
                         new: Record::new(
                             Some(dozer_types::types::SchemaIdentifier {
@@ -148,6 +150,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             values,
+                            None,
                         ),
                     },
                     seq_no: 0,
@@ -170,6 +173,7 @@ impl XlogMapper {
                                 version: table.rel_id as u16,
                             }),
                             values,
+                            None,
                         ),
                     },
                     seq_no: 0,
@@ -183,7 +187,11 @@ impl XlogMapper {
         Ok(None)
     }
 
-    fn ingest_schema(&mut self, relation: &RelationBody, hash: u64) -> Result<(), ConnectorError> {
+    fn ingest_schema(
+        &mut self,
+        relation: &RelationBody,
+        hash: u64,
+    ) -> Result<(), PostgresConnectorError> {
         let rel_id = relation.rel_id();
         let existing_columns = self
             .tables_columns
@@ -209,7 +217,7 @@ impl XlogMapper {
 
         let _table_name = relation
             .name()
-            .map_err(ConnectorError::RelationNotFound)?
+            .map_err(PostgresConnectorError::RelationNotFound)?
             .to_string();
 
         let replica_identity = match relation.replica_identity() {
@@ -229,14 +237,12 @@ impl XlogMapper {
         let mut fields = vec![];
         for c in &table.columns {
             let typ = c.r#type.clone();
-            let typ = typ.map_or(
-                Err(ConnectorError::PostgresConnectorError(
-                    PostgresConnectorError::PostgresSchemaError(
-                        PostgresSchemaError::InvalidColumnType,
-                    ),
-                )),
-                postgres_type_to_dozer_type,
-            )?;
+            let typ = typ
+                .map_or(
+                    Err(PostgresSchemaError::InvalidColumnType),
+                    postgres_type_to_dozer_type,
+                )
+                .map_err(PostgresConnectorError::PostgresSchemaError)?;
 
             fields.push(FieldDefinition {
                 name: c.name.clone(),
@@ -263,18 +269,22 @@ impl XlogMapper {
         table: &Table,
         new_values: &[TupleData],
         only_key: bool,
-    ) -> Result<Vec<Field>, ConnectorError> {
+    ) -> Result<Vec<Field>, PostgresConnectorError> {
         let mut values: Vec<Field> = vec![];
 
         for column in &table.columns {
             if column.flags == 1 || !only_key {
                 let value = new_values.get(column.idx).unwrap();
                 match value {
-                    TupleData::Null => values.push(helper::postgres_type_to_field(None, column)?),
+                    TupleData::Null => values.push(
+                        helper::postgres_type_to_field(None, column)
+                            .map_err(PostgresConnectorError::PostgresSchemaError)?,
+                    ),
                     TupleData::UnchangedToast => {}
-                    TupleData::Text(text) => {
-                        values.push(helper::postgres_type_to_field(Some(text), column)?)
-                    }
+                    TupleData::Text(text) => values.push(
+                        helper::postgres_type_to_field(Some(text), column)
+                            .map_err(PostgresConnectorError::PostgresSchemaError)?,
+                    ),
                 }
             } else {
                 values.push(Field::Null);
@@ -287,7 +297,7 @@ impl XlogMapper {
     fn convert_old_value_to_fields(
         table: &Table,
         update: &UpdateBody,
-    ) -> Result<Vec<Field>, ConnectorError> {
+    ) -> Result<Vec<Field>, PostgresConnectorError> {
         match table.replica_identity {
             ReplicaIdentity::Default | ReplicaIdentity::Full | ReplicaIdentity::Index => {
                 update.key_tuple().map_or_else(
