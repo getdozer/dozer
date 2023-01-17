@@ -38,7 +38,7 @@ pub fn map_record(record: DozerRecord) -> Record {
     Record { values }
 }
 
-fn field_to_prost_value(f: Field) -> Value {
+pub fn field_to_prost_value(f: Field) -> Value {
     match f {
         Field::UInt(n) => Value {
             value: Some(value::Value::UintValue(n)),
@@ -83,7 +83,20 @@ fn field_to_prost_value(f: Field) -> Value {
     }
 }
 
-pub fn map_field_type_to_pb(typ: FieldType) -> Type {
+pub fn map_field_definitions(
+    fields: Vec<dozer_types::types::FieldDefinition>,
+) -> Vec<crate::grpc::types::FieldDefinition> {
+    fields
+        .into_iter()
+        .map(|f| crate::grpc::types::FieldDefinition {
+            typ: field_type_to_internal_type(f.typ) as i32,
+            name: f.name,
+            nullable: f.nullable,
+        })
+        .collect()
+}
+
+fn field_type_to_internal_type(typ: FieldType) -> Type {
     match typ {
         FieldType::UInt => Type::UInt,
         FieldType::Int => Type::Int,
