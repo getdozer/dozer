@@ -15,6 +15,7 @@ const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
 impl SourceBuilder {
     pub fn build_source_manager(
+        used_sources: Vec<String>,
         grouped_connections: HashMap<String, Vec<Source>>,
         ingestor: Arc<RwLock<Ingestor>>,
         iterator: Arc<RwLock<IngestionIterator>>,
@@ -35,15 +36,17 @@ impl SourceBuilder {
                     let mut ports = HashMap::new();
                     let mut tables = vec![];
                     for source in same_connection_sources {
-                        ports.insert(source.table_name.clone(), port);
+                        if used_sources.contains(&source.table_name) {
+                            ports.insert(source.table_name.clone(), port);
 
-                        tables.push(TableInfo {
-                            name: source.table_name,
-                            id: port as u32,
-                            columns: Some(source.columns),
-                        });
+                            tables.push(TableInfo {
+                                name: source.table_name,
+                                id: port as u32,
+                                columns: Some(source.columns),
+                            });
 
-                        port += 1;
+                            port += 1;
+                        }
                     }
 
                     let source_factory = ConnectorSourceFactory::new(
@@ -94,8 +97,7 @@ mod tests {
     };
     use dozer_types::models::source::Source;
 
-    #[test]
-    fn load_multi_sources() {
+    fn get_default_config() -> Config {
         let events1_conn = Connection {
             authentication: Some(Authentication::Events(EventsAuthentication {})),
             id: None,
@@ -112,7 +114,7 @@ mod tests {
             name: "snow".to_string(),
         };
 
-        let config = Config {
+        Config {
             id: None,
             app_name: "multi".to_string(),
             api: Default::default(),
@@ -158,13 +160,61 @@ mod tests {
             ],
             endpoints: vec![],
             home_dir: "test".to_string(),
-        };
+        }
+    }
+
+    #[test]
+    fn load_multi_sources() {
+        let config = get_default_config();
 
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
         let iterator_ref = Arc::clone(&iterator);
 
+        let tables = config
+            .sources
+            .iter()
+            .map(|s| s.table_name.clone())
+            .collect();
         let asm = SourceBuilder::build_source_manager(
+            tables,
+            SourceBuilder::group_connections(config.sources.clone()),
+            ingestor,
+            iterator_ref,
+            Arc::new(AtomicBool::new(true)),
+        )
+        .unwrap();
+
+        let conn_name_1 = config.connections.get(0).unwrap().name.clone();
+        let conn_name_2 = config.connections.get(1).unwrap().name.clone();
+        let pg_source_mapping: Vec<AppSourceMappings> = asm
+            .get(vec![
+                AppSourceId::new(
+                    config.sources.get(0).unwrap().table_name.clone(),
+                    Some(conn_name_1),
+                ),
+                AppSourceId::new(
+                    config.sources.get(1).unwrap().table_name.clone(),
+                    Some(conn_name_2),
+                ),
+            ])
+            .unwrap();
+
+        assert_eq!(2, pg_source_mapping.get(0).unwrap().mappings.len());
+    }
+
+    #[test]
+    fn load_only_used_sources() {
+        let config = get_default_config();
+
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+
+        let iterator_ref = Arc::clone(&iterator);
+
+        let only_used_table_name = vec![config.sources.get(0).unwrap().table_name.clone()];
+        let conn_name = config.connections.get(0).unwrap().name.clone();
+        let asm = SourceBuilder::build_source_manager(
+            only_used_table_name,
             SourceBuilder::group_connections(config.sources.clone()),
             ingestor,
             iterator_ref,
@@ -173,18 +223,21 @@ mod tests {
         .unwrap();
 
         let pg_source_mapping: Vec<AppSourceMappings> = asm
-            .get(vec![
-                AppSourceId::new(
-                    config.sources.get(0).unwrap().table_name.clone(),
-                    Some(events1_conn.name.clone()),
-                ),
-                AppSourceId::new(
-                    config.sources.get(1).unwrap().table_name.clone(),
-                    Some(events1_conn.name),
-                ),
-            ])
+            .get(vec![AppSourceId::new(
+                config.sources.get(0).unwrap().table_name.clone(),
+                Some(conn_name.clone()),
+            )])
             .unwrap();
 
-        assert_eq!(2, pg_source_mapping.get(0).unwrap().mappings.len());
+        assert_eq!(1, pg_source_mapping.get(0).unwrap().mappings.len());
+
+        assert_eq!(
+            false,
+            asm.get(vec![AppSourceId::new(
+                config.sources.get(0).unwrap().table_name.clone(),
+                Some(conn_name.clone()),
+            ),])
+                .is_err()
+        )
     }
 }
