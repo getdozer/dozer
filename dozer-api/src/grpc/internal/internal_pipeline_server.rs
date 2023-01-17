@@ -5,14 +5,38 @@ use crate::grpc::internal_grpc::{
 };
 use crossbeam::channel::Receiver;
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
-use std::{net::ToSocketAddrs, pin::Pin, thread};
-use tokio::runtime::Runtime;
+use std::{net::ToSocketAddrs, pin::Pin};
+use tokio::{
+    runtime::Runtime,
+    sync::broadcast::{self, Sender},
+};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
 
 pub struct InternalPipelineServer {
     app_config: Config,
-    receiver: Receiver<PipelineResponse>,
+    receiver: broadcast::Receiver<PipelineResponse>,
+}
+impl InternalPipelineServer {
+    pub fn new(app_config: Config, receiver: Receiver<PipelineResponse>) -> Self {
+        let (tx, rx1) = broadcast::channel::<PipelineResponse>(16);
+        tokio::spawn(async move {
+            Self::setup_broad_cast_channel(tx, receiver);
+        });
+        Self {
+            app_config,
+            receiver: rx1,
+        }
+    }
+
+    fn setup_broad_cast_channel(
+        tx: Sender<PipelineResponse>,
+        receiver: Receiver<PipelineResponse>,
+    ) {
+        while let Ok(event_response) = receiver.recv() {
+            let _ = tx.send(event_response);
+        }
+    }
 }
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<PipelineResponse, Status>> + Send>>;
 
@@ -24,27 +48,20 @@ impl InternalPipelineService for InternalPipelineServer {
         _request: tonic::Request<PipelineRequest>,
     ) -> Result<Response<ResponseStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1000);
-        let receiver = self.receiver.to_owned();
-        thread::spawn(move || loop {
-            let event_received = receiver.recv();
-            match event_received {
-                Ok(event) => {
-                    let result = tx.try_send(Ok(event));
-                    if let Err(e) = result {
-                        match e {
-                            tokio::sync::mpsc::error::TrySendError::Closed(err) => {
-                                warn!("Channel closed {:?}", err);
-                                break;
-                            }
-                            tokio::sync::mpsc::error::TrySendError::Full(err) => {
-                                warn!("Channel full {:?}", err);
-                            }
+        let mut receiver = self.receiver.resubscribe();
+        tokio::spawn(async move {
+            while let Ok(event_received) = receiver.recv().await {
+                let result = tx.try_send(Ok(event_received));
+                if let Err(e) = result {
+                    match e {
+                        tokio::sync::mpsc::error::TrySendError::Closed(err) => {
+                            warn!("Channel closed {:?}", err);
+                            break;
+                        }
+                        tokio::sync::mpsc::error::TrySendError::Full(err) => {
+                            warn!("Channel full {:?}", err);
                         }
                     }
-                }
-                Err(e) => {
-                    warn!("Error receiving event: {:?}", e);
-                    break;
                 }
             }
         });
@@ -81,10 +98,7 @@ async fn _start_internal_pipeline_server(
     app_config: Config,
     receiver: Receiver<PipelineResponse>,
 ) -> Result<(), tonic::transport::Error> {
-    let server = InternalPipelineServer {
-        app_config: app_config.to_owned(),
-        receiver,
-    };
+    let server = InternalPipelineServer::new(app_config.to_owned(), receiver);
 
     let internal_config = app_config
         .api
