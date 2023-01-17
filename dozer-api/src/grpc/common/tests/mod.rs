@@ -87,7 +87,7 @@ async fn test_grpc_common_get_fields() {
                 nullable: true
             },
             FieldDefinition {
-                typ: Type::Int as i32,
+                typ: Type::UInt as i32,
                 name: "release_year".to_string(),
                 nullable: true
             },
