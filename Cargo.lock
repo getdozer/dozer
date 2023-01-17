@@ -1447,6 +1447,7 @@ version = "0.1.3"
 dependencies = [
  "Inflector",
  "actix-cors",
+ "actix-http",
  "actix-web",
  "actix-web-httpauth",
  "async-trait",

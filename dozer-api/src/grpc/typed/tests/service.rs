@@ -225,6 +225,18 @@ async fn test_grpc_query_with_wrong_access_token() {
 }
 
 #[tokio::test]
+async fn test_grpc_query_empty_body() {
+    let request = QueryFilmsRequest { query: None };
+
+    let (count_response, query_response) =
+        test_grpc_count_and_query_common(1405, request, None, None)
+            .await
+            .unwrap();
+    assert_eq!(count_response.count, 52);
+    assert_eq!(query_response.data.len(), 50);
+}
+
+#[tokio::test]
 async fn test_typed_streaming1() {
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
     let default_pipeline_internal = default_api_config().pipeline_internal.unwrap_or_default();

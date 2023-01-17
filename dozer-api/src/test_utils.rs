@@ -67,8 +67,8 @@ pub fn get_endpoint() -> ApiEndpoint {
     }
 }
 
-pub fn get_films() -> Vec<Value> {
-    vec![
+fn get_films() -> Vec<Value> {
+    let mut result = vec![
         json!({
           "description": "A Amazing Panorama of a Mad Scientist And a Husband who must Meet a Woman in The Outback",
           "rental_rate": null,
@@ -83,7 +83,18 @@ pub fn get_films() -> Vec<Value> {
           "description": "A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China",
           "updated_at": null
         }),
-    ]
+    ];
+
+    for film_id in 1..=50 {
+        result.push(json!({
+            "film_id": film_id,
+            "description": format!("Film {}", film_id),
+            "rental_rate": null,
+            "release_year": 2006,
+            "updated_at": null
+        }));
+    }
+    result
 }
 
 pub fn initialize_cache(

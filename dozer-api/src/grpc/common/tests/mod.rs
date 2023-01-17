@@ -6,7 +6,7 @@ use crate::grpc::{
     typed::tests::{
         fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, service::setup_pipeline,
     },
-    types::{value, EventType, FieldDefinition, OperationType, Type, Value},
+    types::{value, EventType, FieldDefinition, OperationType, Record, Type, Value},
 };
 use dozer_types::models::api_config::default_api_config;
 use tokio::sync::oneshot;
@@ -22,29 +22,63 @@ fn setup_common_service() -> CommonService {
     }
 }
 
+async fn count_and_query(
+    service: &impl CommonGrpcService,
+    endpoint: &str,
+    query: Option<String>,
+) -> (u64, Vec<Record>) {
+    let response = service
+        .count(Request::new(QueryRequest {
+            endpoint: endpoint.to_string(),
+            query: query.clone(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let count = response.count;
+    let response = service
+        .query(Request::new(QueryRequest {
+            endpoint: endpoint.to_string(),
+            query,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let records = response.records;
+    (count, records)
+}
+
 #[tokio::test]
 async fn test_grpc_common_count_and_query() {
     let service = setup_common_service();
-    let endpoint = "films".to_string();
+    let endpoint = "films";
+
+    // Empty query.
+    let (count, records) = count_and_query(&service, endpoint, None).await;
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
+    let (count, records) = count_and_query(&service, endpoint, Some("".to_string())).await;
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
+    let (count, records) = count_and_query(&service, endpoint, Some("{}".to_string())).await;
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
+
+    // Query with filter.
     let filter = r#"{ "$filter": { "film_id": 524 } }"#.to_string();
-    let response = service
-        .count(Request::new(QueryRequest {
-            endpoint: endpoint.clone(),
-            query: Some(filter.clone()),
-        }))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(response.count, 1);
-    let response = service
-        .query(Request::new(QueryRequest {
-            endpoint,
-            query: Some(filter),
-        }))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(response.records.len(), 1);
+    let (count, records) = count_and_query(&service, endpoint, Some(filter)).await;
+    assert_eq!(count, 1);
+    assert_eq!(records.len(), 1);
+    let filter = r#"{ "$filter": { "release_year": 2006 } }"#.to_string();
+    let (count, records) = count_and_query(&service, endpoint, Some(filter)).await;
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
+
+    // Query with limit.
+    let limit = r#"{ "$limit": 11 }"#.to_string();
+    let (count, records) = count_and_query(&service, endpoint, Some(limit)).await;
+    assert_eq!(count, 11);
+    assert_eq!(records.len(), 11);
 }
 
 #[tokio::test]
