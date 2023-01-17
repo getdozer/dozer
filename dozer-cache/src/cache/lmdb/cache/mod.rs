@@ -5,7 +5,7 @@ use dozer_types::parking_lot::RwLock;
 pub use lmdb;
 use lmdb::{Environment, RoTransaction, RwTransaction, Transaction};
 
-use dozer_types::types::{IndexDefinition, Record};
+use dozer_types::types::{Field, FieldType, IndexDefinition, Record};
 use dozer_types::types::{Schema, SchemaIdentifier};
 
 use super::super::Cache;
@@ -85,6 +85,8 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
+        debug_check_schema_record_consistency(schema, record);
+
         let id = if schema.primary_index.is_empty() {
             self.id.get_or_generate(txn, None)?
         } else {
@@ -125,6 +127,8 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
+        debug_check_schema_record_consistency(schema, record);
+
         let id = self.id.get(txn, key)?;
         self.db.delete(txn, id)?;
 
@@ -143,6 +147,9 @@ impl LmdbCache {
         schema: &Schema,
         secondary_indexes: &[IndexDefinition],
     ) -> Result<(), CacheError> {
+        debug_check_schema_record_consistency(schema, old);
+        debug_check_schema_record_consistency(schema, new);
+
         self.delete_with_txn(txn, key, old, schema, secondary_indexes)?;
 
         self.insert_with_txn(txn, new, schema, secondary_indexes)
@@ -294,6 +301,29 @@ impl Cache for LmdbCache {
         txn.commit()
             .map_err(|e| CacheError::InternalError(Box::new(e)))?;
         Ok(())
+    }
+}
+
+fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
+    debug_assert_eq!(schema.identifier, record.schema_id);
+    debug_assert_eq!(schema.fields.len(), record.values.len());
+    for (field, value) in schema.fields.iter().zip(record.values.iter()) {
+        if field.nullable && value == &Field::Null {
+            continue;
+        }
+        match field.typ {
+            FieldType::UInt => debug_assert!(value.as_uint().is_some()),
+            FieldType::Int => debug_assert!(value.as_int().is_some()),
+            FieldType::Float => debug_assert!(value.as_float().is_some()),
+            FieldType::Boolean => debug_assert!(value.as_boolean().is_some()),
+            FieldType::String => debug_assert!(value.as_string().is_some()),
+            FieldType::Text => debug_assert!(value.as_text().is_some()),
+            FieldType::Binary => debug_assert!(value.as_binary().is_some()),
+            FieldType::Decimal => debug_assert!(value.as_decimal().is_some()),
+            FieldType::Timestamp => debug_assert!(value.as_timestamp().is_some()),
+            FieldType::Date => debug_assert!(value.as_date().is_some()),
+            FieldType::Bson => debug_assert!(value.as_bson().is_some()),
+        }
     }
 }
 
