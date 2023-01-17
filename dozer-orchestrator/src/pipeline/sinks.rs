@@ -125,22 +125,27 @@ impl CacheSinkFactory {
             .fields
             .iter()
             .enumerate()
-            .filter_map(|(idx, f)| match f.typ {
-                // Create secondary indexes for these fields
+            .flat_map(|(idx, f)| match f.typ {
+                // Create sorted inverted indexes for these fields
                 FieldType::UInt
                 | FieldType::Int
                 | FieldType::Float
                 | FieldType::Boolean
-                | FieldType::String
                 | FieldType::Decimal
                 | FieldType::Timestamp
-                | FieldType::Date => Some(IndexDefinition::SortedInverted(vec![idx])),
+                | FieldType::Date => vec![IndexDefinition::SortedInverted(vec![idx])],
+
+                // Create sorted inverted and full text indexes for string fields.
+                FieldType::String => vec![
+                    IndexDefinition::SortedInverted(vec![idx]),
+                    IndexDefinition::FullText(idx),
+                ],
 
                 // Create full text indexes for text fields
-                FieldType::Text => Some(IndexDefinition::FullText(idx)),
+                FieldType::Text => vec![IndexDefinition::FullText(idx)],
 
                 // Skip creating indexes
-                FieldType::Binary | FieldType::Bson => None,
+                FieldType::Binary | FieldType::Bson => vec![],
             })
             .collect();
         Ok((schema, secondary_indexes))
@@ -176,25 +181,13 @@ impl SinkFactory for CacheSinkFactory {
             self.api_endpoint.name
         );
         for (_, schema) in input_schemas.iter() {
-            let mut pipeline_schema = schema.to_owned();
             stdinfo!(
                 "SINK: Initializing output schema: {}",
                 self.api_endpoint.name
             );
-
-            let hash = self.get_schema_hash();
-
-            pipeline_schema.set_identifier(Some(SchemaIdentifier {
-                id: hash as u32,
-                version: 1,
-            }))?;
-
-            let api_index = self.api_endpoint.index.to_owned().unwrap_or_default();
-            pipeline_schema.primary_index = create_primary_indexes(&pipeline_schema, &api_index)?;
-
+            let (pipeline_schema, secondary_indexes) = self.get_output_schema(schema)?;
             pipeline_schema.print().printstd();
-            // Automatically create secondary indexes
-            let secondary_indexes = create_secondary_indexes(&pipeline_schema);
+
             if self
                 .cache
                 .get_schema_and_indexes_by_name(&self.api_endpoint.name)
@@ -269,32 +262,6 @@ fn create_primary_indexes(
         primary_index.push(idx);
     }
     Ok(primary_index)
-}
-
-fn create_secondary_indexes(schema: &Schema) -> Vec<IndexDefinition> {
-    // Automatically create secondary indexes
-    schema
-        .fields
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, f)| match f.typ {
-            // Create secondary indexes for these fields
-            FieldType::UInt
-            | FieldType::Int
-            | FieldType::Float
-            | FieldType::Boolean
-            | FieldType::String
-            | FieldType::Decimal
-            | FieldType::Timestamp
-            | FieldType::Date => Some(IndexDefinition::SortedInverted(vec![idx])),
-
-            // Create full text indexes for text fields
-            FieldType::Text => Some(IndexDefinition::FullText(idx)),
-
-            // Skip creating indexes
-            FieldType::Binary | FieldType::Bson => None,
-        })
-        .collect()
 }
 
 fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
