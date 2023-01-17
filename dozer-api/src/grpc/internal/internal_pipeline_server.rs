@@ -33,8 +33,20 @@ impl InternalPipelineServer {
         tx: Sender<PipelineResponse>,
         receiver: Receiver<PipelineResponse>,
     ) {
-        while let Ok(event_response) = receiver.recv() {
-            let _ = tx.send(event_response);
+        loop {
+            let message = receiver.recv();
+            match message {
+                Ok(message) => {
+                    let result = tx.send(message);
+                    if let Err(e) = result {
+                        warn!("Error sending message to broadcast channel: {:?}", e);
+                    }
+                }
+                Err(err) => {
+                    warn!("Message reveived error: {:?}", err);
+                    break;
+                }
+            }
         }
     }
 }
