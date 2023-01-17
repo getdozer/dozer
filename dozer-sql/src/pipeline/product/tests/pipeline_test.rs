@@ -156,7 +156,11 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(None, vec![Field::Int(1), Field::String("HR".to_string())]),
+                    new: Record::new(
+                        None,
+                        vec![Field::Int(1), Field::String("HR".to_string())],
+                        None,
+                    ),
                 },
                 DEPARTMENT_PORT,
             ),
@@ -252,8 +256,16 @@ impl Source for TestSource {
             ),
             (
                 Operation::Update {
-                    old: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
-                    new: Record::new(None, vec![Field::Int(0), Field::String("XX".to_string())]),
+                    old: Record::new(
+                        None,
+                        vec![Field::Int(0), Field::String("IT".to_string())],
+                        None,
+                    ),
+                    new: Record::new(
+                        None,
+                        vec![Field::Int(0), Field::String("XX".to_string())],
+                        None,
+                    ),
                 },
                 DEPARTMENT_PORT,
             ),
