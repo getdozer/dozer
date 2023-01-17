@@ -48,18 +48,25 @@ pub fn schema_1() -> (Schema, Vec<IndexDefinition>) {
     )
 }
 
-pub fn schema_full_text_single() -> (Schema, Vec<IndexDefinition>) {
+pub fn schema_full_text() -> (Schema, Vec<IndexDefinition>) {
     (
         Schema {
             identifier: Some(SchemaIdentifier { id: 2, version: 1 }),
-            fields: vec![FieldDefinition {
-                name: "foo".to_string(),
-                typ: dozer_types::types::FieldType::String,
-                nullable: false,
-            }],
+            fields: vec![
+                FieldDefinition {
+                    name: "foo".to_string(),
+                    typ: dozer_types::types::FieldType::String,
+                    nullable: false,
+                },
+                FieldDefinition {
+                    name: "bar".to_string(),
+                    typ: dozer_types::types::FieldType::Text,
+                    nullable: false,
+                },
+            ],
             primary_index: vec![0],
         },
-        vec![IndexDefinition::FullText(0)],
+        vec![IndexDefinition::FullText(0), IndexDefinition::FullText(1)],
     )
 }
 
