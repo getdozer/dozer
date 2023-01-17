@@ -5,9 +5,9 @@ use crate::grpc::internal_grpc::{
 };
 use crossbeam::channel::Receiver;
 use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
-use std::{net::ToSocketAddrs, pin::Pin};
+use std::{net::ToSocketAddrs, pin::Pin, thread};
 use tokio::runtime::Runtime;
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
 
 pub struct InternalPipelineServer {
@@ -19,32 +19,41 @@ type ResponseStream = Pin<Box<dyn Stream<Item = Result<PipelineResponse, Status>
 #[tonic::async_trait]
 impl InternalPipelineService for InternalPipelineServer {
     type StreamPipelineRequestStream = ResponseStream;
-
     async fn stream_pipeline_request(
         &self,
         _request: tonic::Request<PipelineRequest>,
     ) -> Result<Response<ResponseStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1000);
-        let iterator = InternalIterator {
-            receiver: self.receiver.to_owned(),
-        };
-        let in_stream = tokio_stream::iter(iterator);
-        let mut stream = Box::pin(in_stream);
-        tokio::spawn(async move {
-            while let Some(item) = stream.next().await {
-                if let Err(_item) = tx.send(Result::<_, Status>::Ok(item)).await {
-                    warn!("output_stream was build from rx and both are dropped");
+        let receiver = self.receiver.to_owned();
+        thread::spawn(move || loop {
+            let event_received = receiver.recv();
+            match event_received {
+                Ok(event) => {
+                    let result = tx.try_send(Ok(event));
+                    if let Err(e) = result {
+                        match e {
+                            tokio::sync::mpsc::error::TrySendError::Closed(err) => {
+                                warn!("Channel closed {:?}", err);
+                                break;
+                            }
+                            tokio::sync::mpsc::error::TrySendError::Full(err) => {
+                                warn!("Channel full {:?}", err);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Error receiving event: {:?}", e);
                     break;
                 }
             }
-            warn!("client disconnected");
         });
-
         let output_stream = ReceiverStream::new(rx);
         Ok(Response::new(
             Box::pin(output_stream) as Self::StreamPipelineRequestStream
         ))
     }
+
     async fn get_config(
         &self,
         _request: tonic::Request<GetAppConfigRequest>,
@@ -94,18 +103,4 @@ async fn _start_internal_pipeline_server(
         .add_service(internal_pipeline_service_server::InternalPipelineServiceServer::new(server))
         .serve(addr.next().unwrap())
         .await
-}
-
-struct InternalIterator {
-    receiver: Receiver<PipelineResponse>,
-}
-impl Iterator for InternalIterator {
-    type Item = PipelineResponse;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.receiver.recv() {
-            Ok(msg) => Some(msg),
-            Err(_) => None,
-        }
-    }
 }
