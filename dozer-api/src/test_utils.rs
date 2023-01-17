@@ -27,7 +27,7 @@ pub fn get_schema() -> (Schema, Vec<IndexDefinition>) {
         },
         FieldDefinition {
             name: "release_year".to_string(),
-            typ: FieldType::Int,
+            typ: FieldType::UInt,
             nullable: true,
         },
         FieldDefinition {
