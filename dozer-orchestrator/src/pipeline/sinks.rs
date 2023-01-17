@@ -398,17 +398,17 @@ impl Sink for CacheSink {
                         ExecutionError::SinkError(SinkError::CacheDeleteFailed(Box::new(e)))
                     })?;
             }
-            Operation::Insert { new } => {
-                // new.schema_id = schema.identifier.clone();
+            Operation::Insert { mut new } => {
+                new.schema_id = schema.identifier;
                 self.cache
                     .insert_with_txn(txn, &new, schema, secondary_indexes)
                     .map_err(|e| {
                         ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
                     })?;
             }
-            Operation::Update { old, new } => {
+            Operation::Update { old, mut new } => {
                 let key = get_primary_key(&schema.primary_index, &old.values);
-                // new.schema_id = old.schema_id.clone();
+                new.schema_id = old.schema_id;
                 self.cache
                     .update_with_txn(txn, &key, &old, &new, schema, secondary_indexes)
                     .map_err(|e| {
