@@ -110,16 +110,18 @@ impl Indexer {
         field_index: usize,
         values: &[Field],
     ) -> Result<Vec<Vec<u8>>, CacheError> {
-        let string = if let Some(field) = values.get(field_index) {
-            if let Field::String(string) = field {
-                string
-            } else {
+        let Some(field) = values.get(field_index) else {
+            return Err(CacheError::IndexError(IndexError::FieldIndexOutOfRange));
+        };
+
+        let string = match field {
+            Field::String(string) => string,
+            Field::Text(string) => string,
+            _ => {
                 return Err(CacheError::IndexError(IndexError::FieldNotCompatibleIndex(
                     field_index,
-                )));
+                )))
             }
-        } else {
-            return Err(CacheError::IndexError(IndexError::FieldIndexOutOfRange));
         };
 
         Ok(string
