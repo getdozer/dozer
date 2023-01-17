@@ -57,6 +57,8 @@ pub enum PipelineError {
         "Invalid argument type for function {0}(): type: {1}, expected types: {2}, index: {3}"
     )]
     InvalidFunctionArgumentType(String, FieldType, FieldTypes, usize),
+    #[error("Invalid cast: from: {from}, to: {to}")]
+    InvalidCast { from: Field, to: FieldType },
 
     // Error forwarding
     #[error(transparent)]

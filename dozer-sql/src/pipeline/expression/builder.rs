@@ -6,7 +6,7 @@ use dozer_types::{
 };
 
 use sqlparser::ast::{
-    BinaryOperator as SqlBinaryOperator, Expr as SqlExpr, Expr, Function, FunctionArg,
+    BinaryOperator as SqlBinaryOperator, DataType, Expr as SqlExpr, Expr, Function, FunctionArg,
     FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
@@ -21,6 +21,8 @@ use crate::pipeline::expression::execution::Expression::ScalarFunction;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::expression::scalar::string::TrimType;
+
+use super::cast::CastOperatorType;
 
 pub type Bypass = bool;
 
@@ -104,6 +106,9 @@ impl ExpressionBuilder {
                 escape_char,
                 schema,
             ),
+            SqlExpr::Cast { expr, data_type } => {
+                self.parse_sql_cast_operator(expression_type, expr, data_type, schema)
+            }
             _ => Err(InvalidExpression(format!("{:?}", expression))),
         }
     }
@@ -434,6 +439,51 @@ impl ExpressionBuilder {
         } else {
             Ok((like_expression, arg.1))
         }
+    }
+
+    fn parse_sql_cast_operator(
+        &self,
+        expression_type: &BuilderExpressionType,
+        expr: &Expr,
+        data_type: &DataType,
+        schema: &Schema,
+    ) -> Result<(Box<Expression>, bool), PipelineError> {
+        let expression = self.parse_sql_expression(expression_type, expr, schema)?;
+        let cast_to = match data_type {
+            DataType::Decimal(_precision, _scale) => CastOperatorType::Decimal,
+            DataType::Binary(_length) => CastOperatorType::Binary,
+            DataType::Float(_precision) => CastOperatorType::Float,
+            DataType::Int(_width) => CastOperatorType::Int,
+            DataType::Integer(_width) => CastOperatorType::Int,
+            DataType::UnsignedInt(_width) => CastOperatorType::UInt,
+            DataType::UnsignedInteger(_width) => CastOperatorType::UInt,
+            DataType::Boolean => CastOperatorType::Boolean,
+            DataType::Date => CastOperatorType::Date,
+            DataType::Timestamp => CastOperatorType::Timestamp,
+            DataType::Text => CastOperatorType::Text,
+            DataType::String => CastOperatorType::String,
+            DataType::Custom(name) => {
+                if name.to_string().to_lowercase() == "bson" {
+                    CastOperatorType::Bson
+                } else {
+                    Err(PipelineError::InvalidFunction(format!(
+                        "Unsupported Cast type {}",
+                        name
+                    )))?
+                }
+            }
+            _ => Err(PipelineError::InvalidFunction(format!(
+                "Unsupported Cast type {}",
+                data_type
+            )))?,
+        };
+        Ok((
+            Box::new(Expression::Cast {
+                arg: expression.0,
+                typ: cast_to,
+            }),
+            expression.1,
+        ))
     }
 }
 
