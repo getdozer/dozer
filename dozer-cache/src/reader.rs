@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use crate::cache::{
-    expression::{default_limit_for_query, QueryExpression},
-    Cache, LmdbCache,
-};
+use crate::cache::{expression::QueryExpression, Cache, LmdbCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
@@ -58,10 +55,6 @@ impl CacheReader {
         query: &mut QueryExpression,
     ) -> Result<Vec<Record>, CacheError> {
         self.apply_access_filter(query);
-        if query.limit.is_none() {
-            // Apply default query limit.
-            query.limit = Some(default_limit_for_query());
-        }
         self.cache.query(schema_name, query)
     }
 

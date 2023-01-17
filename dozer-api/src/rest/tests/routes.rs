@@ -1,5 +1,9 @@
+use std::fmt::Debug;
+
 use super::super::api_server::{ApiServer, CorsOptions};
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint};
+use actix_http::{body::MessageBody, Request};
+use actix_web::dev::{Service, ServiceResponse};
 use dozer_types::serde_json::{json, Value};
 
 #[test]
@@ -46,6 +50,41 @@ async fn list_route() {
     assert!(!body.as_array().unwrap().is_empty(), "Must return records");
 }
 
+async fn count_and_query<S, B, E>(
+    path: &str,
+    service: &S,
+    query: Option<Value>,
+) -> (u64, Vec<Value>)
+where
+    S: Service<Request, Response = ServiceResponse<B>, Error = E>,
+    B: MessageBody,
+    E: Debug,
+{
+    let mut req = actix_web::test::TestRequest::post().uri(&format!("{}/count", path));
+    if let Some(query) = query.clone() {
+        req = req.set_json(query);
+    }
+    let req = req.to_request();
+    let res = actix_web::test::call_service(service, req).await;
+    assert!(res.status().is_success());
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    let count = body.as_u64().unwrap();
+
+    let mut req = actix_web::test::TestRequest::post().uri(&format!("{}/query", path));
+    if let Some(query) = query {
+        req = req.set_json(query);
+    }
+    let req = req.to_request();
+    let res = actix_web::test::call_service(service, req).await;
+    assert!(res.status().is_success());
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    let records = body.as_array().unwrap().to_vec();
+
+    (count, records)
+}
+
 #[actix_web::test]
 async fn count_and_query_route() {
     let endpoint = test_utils::get_endpoint();
@@ -62,26 +101,36 @@ async fn count_and_query_route() {
     );
     let app = actix_web::test::init_service(api_server).await;
 
-    let filter = json!({"$filter": {"film_id":  268}});
-    let req = actix_web::test::TestRequest::post()
-        .uri(&format!("{}/count", endpoint.path))
-        .set_json(&filter)
-        .to_request();
-    let res = actix_web::test::call_service(&app, req).await;
-    assert!(res.status().is_success());
+    // Empty query.
+    let (count, records) = count_and_query(&endpoint.path, &app, None).await;
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
+    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({}))).await;
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
 
-    let body: Value = actix_web::test::read_body_json(res).await;
-    assert_eq!(body.as_u64().unwrap(), 1);
+    // Query with filter.
+    let (count, records) = count_and_query(
+        &endpoint.path,
+        &app,
+        Some(json!({"$filter": {"film_id":  268}})),
+    )
+    .await;
+    assert_eq!(count, 1);
+    assert_eq!(records.len(), 1);
+    let (count, records) = count_and_query(
+        &endpoint.path,
+        &app,
+        Some(json!({"$filter": {"release_year": 2006}})),
+    )
+    .await;
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
 
-    let req = actix_web::test::TestRequest::post()
-        .uri(&format!("{}/query", endpoint.path))
-        .set_json(&filter)
-        .to_request();
-    let res = actix_web::test::call_service(&app, req).await;
-    assert!(res.status().is_success());
-
-    let body: Value = actix_web::test::read_body_json(res).await;
-    assert_eq!(body.as_array().unwrap().len(), 1);
+    // Query with limit.
+    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({"$limit": 11}))).await;
+    assert_eq!(count, 11);
+    assert_eq!(records.len(), 11);
 }
 
 #[actix_web::test]

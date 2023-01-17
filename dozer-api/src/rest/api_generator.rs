@@ -1,6 +1,6 @@
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
-use dozer_cache::cache::expression::QueryExpression;
+use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
 use dozer_types::log::info;
 
 use super::super::api_helper::ApiHelper;
@@ -74,7 +74,7 @@ pub async fn count(
     let query_expression = match query_info {
         Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
             .map_err(ApiError::map_deserialization_error)?,
-        None => QueryExpression::default(),
+        None => QueryExpression::with_no_limit(),
     };
 
     let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
@@ -95,11 +95,14 @@ pub async fn query(
     pipeline_details: ReqData<PipelineDetails>,
     query_info: Option<web::Json<Value>>,
 ) -> Result<HttpResponse, ApiError> {
-    let query_expression = match query_info {
+    let mut query_expression = match query_info {
         Some(query_info) => serde_json::from_value::<QueryExpression>(query_info.0)
             .map_err(ApiError::map_deserialization_error)?,
-        None => QueryExpression::default(),
+        None => QueryExpression::with_default_limit(),
     };
+    if query_expression.limit.is_none() {
+        query_expression.limit = Some(default_limit_for_query());
+    }
     let helper = ApiHelper::new(&pipeline_details, access.map(|a| a.into_inner()))?;
     helper
         .get_records_map(query_expression)

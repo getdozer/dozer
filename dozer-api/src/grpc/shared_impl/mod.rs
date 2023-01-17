@@ -1,4 +1,4 @@
-use dozer_cache::cache::expression::QueryExpression;
+use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
 use dozer_types::log::warn;
 use dozer_types::serde_json;
 use dozer_types::types::{Record, Schema};
@@ -20,16 +20,19 @@ pub fn from_error(error: impl std::error::Error) -> Status {
     Status::new(Code::Internal, error.to_string())
 }
 
-fn parse_query(query: Option<&str>) -> Result<QueryExpression, Status> {
+fn parse_query(
+    query: Option<&str>,
+    default: impl FnOnce() -> QueryExpression,
+) -> Result<QueryExpression, Status> {
     match query {
         Some(query) => {
             if query.is_empty() {
-                Ok(QueryExpression::default())
+                Ok(default())
             } else {
                 serde_json::from_str(query).map_err(from_error)
             }
         }
-        None => Ok(QueryExpression::default()),
+        None => Ok(default()),
     }
 }
 
@@ -38,7 +41,7 @@ pub fn count(
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<usize, Status> {
-    let query = parse_query(query)?;
+    let query = parse_query(query, QueryExpression::with_no_limit)?;
     let api_helper = ApiHelper::new(pipeline_details, access)?;
     api_helper.get_records_count(query).map_err(from_error)
 }
@@ -48,7 +51,10 @@ pub fn query(
     query: Option<&str>,
     access: Option<Access>,
 ) -> Result<(Schema, Vec<Record>), Status> {
-    let query = parse_query(query)?;
+    let mut query = parse_query(query, QueryExpression::with_default_limit)?;
+    if query.limit.is_none() {
+        query.limit = Some(default_limit_for_query());
+    }
     let api_helper = ApiHelper::new(pipeline_details, access)?;
     let (schema, records) = api_helper.get_records(query).map_err(from_error)?;
     Ok((schema, records))
