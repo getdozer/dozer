@@ -47,7 +47,7 @@ fn field_to_prost_value(f: Field) -> Value {
             value: Some(value::Value::IntValue(n)),
         },
         Field::Float(n) => Value {
-            value: Some(value::Value::FloatValue(n.0 as f32)),
+            value: Some(value::Value::DoubleValue(n.0)),
         },
 
         Field::Boolean(n) => Value {
