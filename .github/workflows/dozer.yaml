@@ -8,11 +8,11 @@ env:
   CARGO_TERM_COLOR: always
 
 concurrency:
-  group: ${{ github.ref }}
+  group: ci/${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
+  lint:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
@@ -32,11 +32,6 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: MongoDB in GitHub Actions
-        uses: supercharge/mongodb-github-action@1.8.0
-
-      - uses: ./.github/workflows/setup-snowflake-and-kafka
 
       - name: ⚡ Cache
         uses: actions/cache@v3
@@ -61,6 +56,3 @@ jobs:
       - name: Lint
         run: |
           cargo fmt -- --check
-
-      - name: Run tests
-        run: cargo test --verbose --features mongodb
