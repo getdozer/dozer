@@ -1627,7 +1627,7 @@ dependencies = [
  "indexmap",
  "indicatif",
  "log",
- "ordered-float 2.10.0",
+ "ordered-float 3.4.0",
  "parking_lot 0.12.1",
  "prettytable-rs",
  "prost",
@@ -3348,6 +3348,15 @@ name = "ordered-float"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7940cf2ca942593318d07fcf2596cdca60a85c9e7fab408a5e21a4f9dcd40d87"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "ordered-float"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d84eb1409416d254e4a9c8fa56cc24701755025b458f0fcd8e59e1f5f40c23bf"
 dependencies = [
  "num-traits",
  "serde",
