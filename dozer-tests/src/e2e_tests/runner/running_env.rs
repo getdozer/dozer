@@ -240,14 +240,18 @@ fn add_connection_services(
     for (name, connection) in connections {
         let mut service = connection.service.clone().unwrap_or_default();
 
-        let context = connection
-            .directory
-            .to_str()
-            .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", connection.directory));
-        service.build = Some(Build {
-            context: context.to_string(),
-            dockerfile: None,
-        });
+        if connection.has_docker_file {
+            let context = connection
+                .directory
+                .to_str()
+                .unwrap_or_else(|| panic!("Non-UTF8 path: {:?}", connection.directory));
+            service.build = Some(Build {
+                context: context.to_string(),
+                dockerfile: None,
+            });
+        } else {
+            service.build = None;
+        }
 
         depends_on.insert(
             name.clone(),

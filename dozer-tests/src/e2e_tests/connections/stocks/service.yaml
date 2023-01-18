@@ -1,4 +1,5 @@
-container_name: hypercharge-postgres
+container_name: dozer-samples-pg-stocks
+image: public.ecr.aws/k7k6x1d4/dozer-samples-pg-stocks
 command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
 environment:
   POSTGRES_DB: stocks
