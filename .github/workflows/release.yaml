@@ -62,7 +62,7 @@ jobs:
             echo "::set-output name=version::$tag"
             echo "::set-output name=prerelease::false"
           else
-            echo "::set-output name=version::latest"
+            echo "::set-output name=version::dev"
             echo "::set-output name=prerelease::true"
           fi
   release:
@@ -164,6 +164,14 @@ jobs:
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
           docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Update latest image if releasing
+        if: (!needs.prepare.outputs.prerelease) && (matrix.os == 'ubuntu-20.04')
+        env:
+          IMAGE_TAG: ${{ needs.prepare.outputs.version }}
+        run: |
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Discord notification
         env:
