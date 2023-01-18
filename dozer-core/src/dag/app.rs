@@ -15,6 +15,10 @@ impl PipelineEntryPoint {
     pub fn new(id: AppSourceId, port: PortHandle) -> Self {
         Self { id, port }
     }
+
+    pub fn id(&self) -> &AppSourceId {
+        &self.id
+    }
 }
 
 pub struct AppPipeline {
@@ -85,6 +89,13 @@ impl AppPipeline {
             edges: Vec::new(),
             entry_points: Vec::new(),
         }
+    }
+
+    pub fn get_entry_points_sources_names(&self) -> Vec<String> {
+        self.entry_points
+            .iter()
+            .map(|(_, p)| p.id().id.clone())
+            .collect()
     }
 }
 
