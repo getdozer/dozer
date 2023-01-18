@@ -5,9 +5,9 @@ use dozer_tests::e2e_tests::{run_test_client, Case, CaseKind};
 
 #[derive(Parser)]
 struct Args {
-    #[arg(short, long)]
+    #[arg(long)]
     case_dir: String,
-    #[arg(short, long)]
+    #[arg(long)]
     connections_dir: String,
     #[arg(short, long)]
     dozer_api_host: String,

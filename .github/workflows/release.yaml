@@ -62,7 +62,7 @@ jobs:
             echo "::set-output name=version::$tag"
             echo "::set-output name=prerelease::false"
           else
-            echo "::set-output name=version::latest"
+            echo "::set-output name=version::dev"
             echo "::set-output name=prerelease::true"
           fi
   release:
@@ -165,6 +165,20 @@ jobs:
           docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
+      - name: Update latest image if releasing
+        if: (!needs.prepare.outputs.prerelease) && (matrix.os == 'ubuntu-20.04')
+        env:
+          IMAGE_TAG: ${{ needs.prepare.outputs.version }}
+        run: |
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Trigger BuildKite integration tests
+        run: |
+          curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
+            --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
+            -d '{ "commit": "HEAD", "branch": "${{ github.ref_name }}", "message": "${{ github.event.head_commit.message }}", "env": { "DOZER_VERSION": "${{ env.VERSION }}" }, "ignore_pipeline_branch_filters": true }'
+
       - name: Discord notification
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_HOOK }}
@@ -174,7 +188,7 @@ jobs:
           "fields": [
             { "name": "Repository", "value": "[getdozer/dozer](https://github.com/getdozer/dozer)", "inline": true },
             { "name": "Binary", "value": "[${{ env.RELEASE_NAME }}](${{ env.ARTIFACT_URL }})", "inline": true },
-            { "name": "Using Docker", "value": "`docker run ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY}} dozer -h`"},
+            { "name": "Using Docker", "value": "`docker run ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY}}:${{ env.VERSION }} dozer -h`"},
             { "name": "Using Binary", "value": "`dozer -h`"},
             { "name": "Release Notes", "value": "Release notes can be found [here](https://github.com/getdozer/dozer/releases/tag/${{env.VERSION}})"}
           ],
