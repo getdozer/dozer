@@ -5,7 +5,17 @@ use dozer_types::serde::{Deserialize, Serialize};
 #[derive(Serialize)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DockerCompose {
-    pub services: HashMap<String, Service>,
+    version: String,
+    services: HashMap<String, Service>,
+}
+
+impl DockerCompose {
+    pub fn new_v2_4(services: HashMap<String, Service>) -> Self {
+        Self {
+            version: "2.4".to_string(),
+            services,
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Default)]
@@ -19,8 +29,8 @@ pub struct Service {
     pub build: Option<Build>,
     #[serde(skip_serializing_if = "Vec::is_empty", default = "Vec::new")]
     pub ports: Vec<Port>,
-    #[serde(skip_serializing_if = "HashMap::is_empty", default = "HashMap::new")]
-    pub environment: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default = "Vec::new")]
+    pub environment: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default = "Vec::new")]
     pub volumes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

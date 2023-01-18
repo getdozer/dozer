@@ -2,6 +2,7 @@ use std::path::Path;
 
 use clap::Parser;
 use dozer_tests::e2e_tests::{create_runner, Case, RunnerType};
+use dozer_types::log::info;
 
 #[derive(Parser)]
 struct Args {
@@ -53,6 +54,7 @@ async fn main() {
                 .unwrap_or_else(|| panic!("Non-UTF8 path {:?}", case_dir))
                 .starts_with(&args.case_prefix)
         {
+            info!("Running case {:?}", case_dir);
             let case = Case::load_from_case_dir(case_dir, connections_dir.clone());
             runner.run_test_case(&case).await;
         }
