@@ -357,7 +357,8 @@ impl Sink for CacheSink {
                 .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
         }
         match op {
-            Operation::Delete { old } => {
+            Operation::Delete { mut old } => {
+                old.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
                 self.cache
                     .delete_with_txn(txn, &key, &old, schema, secondary_indexes)
@@ -373,9 +374,10 @@ impl Sink for CacheSink {
                         ExecutionError::SinkError(SinkError::CacheInsertFailed(Box::new(e)))
                     })?;
             }
-            Operation::Update { old, mut new } => {
+            Operation::Update { mut old, mut new } => {
+                old.schema_id = schema.identifier;
+                new.schema_id = schema.identifier;
                 let key = get_primary_key(&schema.primary_index, &old.values);
-                new.schema_id = old.schema_id;
                 self.cache
                     .update_with_txn(txn, &key, &old, &new, schema, secondary_indexes)
                     .map_err(|e| {
