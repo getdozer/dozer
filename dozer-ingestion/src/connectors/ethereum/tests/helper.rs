@@ -70,6 +70,7 @@ pub fn get_eth_producer(
             }],
             wss_url,
         },
+        "eth_test".to_string(),
     );
 
     let schemas = eth_connector.get_schemas(None)?;

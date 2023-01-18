@@ -27,6 +27,7 @@ pub struct EthConnector {
     // contract_signacture -> SchemaID
     schema_map: HashMap<H256, usize>,
     ingestor: Option<Arc<RwLock<Ingestor>>>,
+    conn_name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -83,7 +84,7 @@ impl EthConnector {
         builder.build()
     }
 
-    pub fn new(id: u64, config: EthConfig) -> Self {
+    pub fn new(id: u64, config: EthConfig, conn_name: String) -> Self {
         let mut contracts = HashMap::new();
 
         for c in &config.contracts {
@@ -102,6 +103,7 @@ impl EthConnector {
             schema_map,
             tables: None,
             ingestor: None,
+            conn_name,
         }
     }
 
@@ -207,6 +209,7 @@ impl Connector for EthConnector {
                 self.tables.to_owned(),
                 self.schema_map.to_owned(),
                 from_seq,
+                self.conn_name.clone(),
             ));
             run(details).await
         })

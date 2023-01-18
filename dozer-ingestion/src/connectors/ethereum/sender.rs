@@ -8,7 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
-use dozer_types::log::{debug, trace};
+use dozer_types::log::{debug, info, trace};
 use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
@@ -29,9 +29,11 @@ pub struct EthDetails {
     pub tables: Option<Vec<TableInfo>>,
     pub schema_map: HashMap<H256, usize>,
     from_seq: Option<(u64, u64)>,
+    pub conn_name: String,
 }
 
 impl EthDetails {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         wss_url: String,
         filter: EthFilter,
@@ -40,6 +42,7 @@ impl EthDetails {
         tables: Option<Vec<TableInfo>>,
         schema_map: HashMap<H256, usize>,
         from_seq: Option<(u64, u64)>,
+        conn_name: String,
     ) -> Self {
         EthDetails {
             wss_url,
@@ -49,6 +52,7 @@ impl EthDetails {
             tables,
             schema_map,
             from_seq,
+            conn_name,
         }
     }
 }
@@ -60,12 +64,17 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
         .map_err(ConnectorError::EthError)?;
 
     // Get current block no.
-    let block_end = client
+    let latest_block_no = client
         .eth()
         .block_number()
         .await
         .map_err(ConnectorError::EthError)?
         .as_u64();
+
+    let block_end = match details.filter.to_block {
+        None => latest_block_no,
+        Some(block_no) => block_no,
+    };
 
     // Default to current block if from_block is not specified
     let block_start = match (details.from_seq, details.filter.from_block) {
@@ -76,30 +85,55 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
 
     fetch_logs(details.clone(), client.clone(), block_start, block_end, 0).await?;
 
-    // Create a filter from the last block to check for changes
-    let mut filter = details.filter.clone();
-    filter.from_block = Some(block_end);
+    let changes_handler_filter = match details.filter.to_block {
+        None => {
+            // Create a filter from the last block to check for changes
+            let mut filter = details.filter.clone();
+            filter.from_block = Some(latest_block_no);
+            Some(filter)
+        }
+        Some(block_end) => {
+            if block_end > latest_block_no {
+                // Create a filter from the last block to defined end of blocks.
+                // It can be used to fetch future records with limiting it by `block_to`
 
-    debug!("Fetching from block ..: {}", block_end);
+                let mut filter = details.filter.clone();
+                filter.from_block = Some(latest_block_no);
+                filter.to_block = Some(block_end);
+                Some(filter)
+            } else {
+                None
+            }
+        }
+    };
 
-    let filter = client
-        .eth_filter()
-        .create_logs_filter(EthConnector::build_filter(&filter))
-        .await
-        .map_err(ConnectorError::EthError)?;
+    if let Some(filter) = changes_handler_filter {
+        debug!(
+            "[{}] Fetching from block ..: {}",
+            details.conn_name, block_end
+        );
 
-    let stream = filter.stream(time::Duration::from_secs(1));
-
-    tokio::pin!(stream);
-
-    loop {
-        let msg = stream.next().await;
-
-        let msg = msg
-            .map_or(Err(ConnectorError::EmptyMessage), Ok)?
+        let filter = client
+            .eth_filter()
+            .create_logs_filter(EthConnector::build_filter(&filter))
+            .await
             .map_err(ConnectorError::EthError)?;
 
-        process_log(details.clone(), msg)?;
+        let stream = filter.stream(time::Duration::from_secs(1));
+
+        tokio::pin!(stream);
+
+        loop {
+            let msg = stream.next().await;
+
+            let msg = msg
+                .map_or(Err(ConnectorError::EmptyMessage), Ok)?
+                .map_err(ConnectorError::EthError)?;
+
+            process_log(details.clone(), msg)?;
+        }
+    } else {
+        info!("[{}] Reading reached block_to limit", details.conn_name)
     }
     Ok(())
 }
@@ -124,7 +158,7 @@ pub fn fetch_logs(
 
         match res {
             Ok(logs) => {
-                debug!(" {} Fetched: {} , block_start: {},block_end: {}, depth: {}", depth_str, logs.len(), block_start, block_end, depth);
+                debug!("[{}] {} Fetched: {} , block_start: {},block_end: {}, depth: {}", details.conn_name, depth_str, logs.len(), block_start, block_end, depth);
                 for msg in logs {
                     process_log(
                         details.clone(),
@@ -139,12 +173,12 @@ pub fn fetch_logs(
                     // { code: ServerError(-32005), message: "query returned more than 10000 results", data: None }
                     // break it down into half on each error and exit after 10 errors in a specific branch
                     if rpc_error.code.code() == -32005 {
-                        debug!("{} More than 10000 records, block_start: {},block_end: {}, depth: {}", depth_str, block_start, block_end, depth);                
+                        debug!("[{}] {} More than 10000 records, block_start: {},block_end: {}, depth: {}", details.conn_name, depth_str, block_start, block_end, depth);
                         if depth > 100 {
                             Err(ConnectorError::EthTooManyRecurisions(depth))
                         } else {
                             let middle = (block_start + block_end) / 2;
-                            debug!("{} Splitting in two calls block_start: {}, middle: {}, block_end: {}", depth_str,block_start, block_end, middle);
+                            debug!("[{}] {} Splitting in two calls block_start: {}, middle: {}, block_end: {}", details.conn_name, depth_str,block_start, block_end, middle);
                             fetch_logs(
                                 details.clone(),
                                 client.clone(),
