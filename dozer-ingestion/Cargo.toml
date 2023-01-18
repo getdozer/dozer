@@ -30,7 +30,7 @@ regex = "1"
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
-serial_test = "0.9.0"
+serial_test = "1.0.0"
 rand = "0.8.5"
 include_dir = "0.7.3"
 dozer-tracing = {path = "../dozer-tracing"}
