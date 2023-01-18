@@ -177,7 +177,7 @@ jobs:
         run: |
           curl -X POST "https://api.buildkite.com/v2/organizations/dozer-data-pte-ltd/pipelines/integration-tests/builds" \
             --header 'Authorization: Bearer ${{ secrets.BUILDKITE_API_ACCESS_TOKEN_WRITE_BUILDS }}' \
-            -d '{ "commit": "HEAD", "branch": "${{ github.ref_name }}", "message": "Triggered by GitHub Actions", "env": { "DOZER_VERSION": "${{ env.VERSION }}" } }'
+            -d '{ "commit": "HEAD", "branch": "${{ github.ref_name }}", "message": "${{ github.event.head_commit.message }}", "env": { "DOZER_VERSION": "${{ env.VERSION }}" }, "ignore_pipeline_branch_filters": true }'
 
       - name: Discord notification
         env:
