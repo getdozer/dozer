@@ -1,0 +1,6 @@
+- name: Support questions
+  url: https://github.com/getdozer/dozer/discussions/new?category=q-a
+  about: Open a discussion to ask for help
+- name: Discord
+  url: https://discord.gg/ChZzfvVH2p
+  about: Get a real-time support from our Discord community
