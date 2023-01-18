@@ -5368,9 +5368,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-web"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e392f7556972523aa87ddb0fc7f2d2ce530559956706aa081bb0bd8fed158559"
+checksum = "9213351ad53b0dcf1c9cf7c372a47533446b1114928a9177bedc6c551e14b7cf"
 dependencies = [
  "base64",
  "bytes",
@@ -5380,6 +5380,8 @@ dependencies = [
  "hyper",
  "pin-project",
  "tonic",
+ "tower-http",
+ "tower-layer",
  "tower-service",
  "tracing",
 ]
