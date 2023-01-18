@@ -14,7 +14,7 @@ lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 libc = "0.2.139"
 unixstring = "0.2.7"
-dyn-clone = "1.0.9"
+dyn-clone = "1.0.10"
 fp_rust = "0.3.5"
 
 [dev-dependencies]
