@@ -73,7 +73,9 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             }
             Ok(Box::new(PostgresConnector::new(1, postgres_config)))
         }
-        Authentication::Ethereum(eth_config) => Ok(Box::new(EthConnector::new(2, eth_config))),
+        Authentication::Ethereum(eth_config) => {
+            Ok(Box::new(EthConnector::new(2, eth_config, connection.name)))
+        }
         Authentication::Events(_) => Ok(Box::new(EventsConnector::new(3, connection.name))),
         Authentication::Snowflake(snowflake) => {
             let snowflake_config = snowflake;

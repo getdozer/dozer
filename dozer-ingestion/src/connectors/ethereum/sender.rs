@@ -8,7 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
-use dozer_types::log::{debug, trace};
+use dozer_types::log::{debug, info, trace, warn};
 use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
@@ -21,6 +21,8 @@ use web3::Web3;
 
 use super::connector::{ContractTuple, EthConnector};
 
+const MAX_RETRIES: usize = 3;
+
 pub struct EthDetails {
     wss_url: String,
     filter: EthFilter,
@@ -28,9 +30,12 @@ pub struct EthDetails {
     contracts: HashMap<String, ContractTuple>,
     pub tables: Option<Vec<TableInfo>>,
     pub schema_map: HashMap<H256, usize>,
+    from_seq: Option<(u64, u64)>,
+    pub conn_name: String,
 }
 
 impl EthDetails {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         wss_url: String,
         filter: EthFilter,
@@ -38,6 +43,8 @@ impl EthDetails {
         contracts: HashMap<String, ContractTuple>,
         tables: Option<Vec<TableInfo>>,
         schema_map: HashMap<H256, usize>,
+        from_seq: Option<(u64, u64)>,
+        conn_name: String,
     ) -> Self {
         EthDetails {
             wss_url,
@@ -46,6 +53,8 @@ impl EthDetails {
             contracts,
             tables,
             schema_map,
+            from_seq,
+            conn_name,
         }
     }
 }
@@ -57,45 +66,84 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
         .map_err(ConnectorError::EthError)?;
 
     // Get current block no.
-    let block_end = client
+    let latest_block_no = client
         .eth()
         .block_number()
         .await
         .map_err(ConnectorError::EthError)?
         .as_u64();
 
-    // Default to current block if from_block is not specified
-    let block_start = match details.filter.from_block {
+    let block_end = match details.filter.to_block {
+        None => latest_block_no,
         Some(block_no) => block_no,
-        None => block_end,
     };
 
-    fetch_logs(details.clone(), client.clone(), block_start, block_end, 0).await?;
+    // Default to current block if from_block is not specified
+    let block_start = match (details.from_seq, details.filter.from_block) {
+        (Some((0, _)), Some(block_no)) | (None, Some(block_no)) => block_no,
+        (Some((0, _)), None) | (None, None) => block_end,
+        (Some((lsn, _)), _) => lsn + 1,
+    };
 
-    // Create a filter from the last block to check for changes
-    let mut filter = details.filter.clone();
-    filter.from_block = Some(block_end);
+    fetch_logs(
+        details.clone(),
+        client.clone(),
+        block_start,
+        block_end,
+        0,
+        MAX_RETRIES,
+    )
+    .await?;
 
-    debug!("Fetching from block ..: {}", block_end);
+    let changes_handler_filter = match details.filter.to_block {
+        None => {
+            // Create a filter from the last block to check for changes
+            let mut filter = details.filter.clone();
+            filter.from_block = Some(latest_block_no);
+            Some(filter)
+        }
+        Some(block_end) => {
+            if block_end > latest_block_no {
+                // Create a filter from the last block to defined end of blocks.
+                // It can be used to fetch future records with limiting it by `block_to`
 
-    let filter = client
-        .eth_filter()
-        .create_logs_filter(EthConnector::build_filter(&filter))
-        .await
-        .map_err(ConnectorError::EthError)?;
+                let mut filter = details.filter.clone();
+                filter.from_block = Some(latest_block_no);
+                filter.to_block = Some(block_end);
+                Some(filter)
+            } else {
+                None
+            }
+        }
+    };
 
-    let stream = filter.stream(time::Duration::from_secs(1));
+    if let Some(filter) = changes_handler_filter {
+        debug!(
+            "[{}] Fetching from block ..: {}",
+            details.conn_name, block_end
+        );
 
-    tokio::pin!(stream);
-
-    loop {
-        let msg = stream.next().await;
-
-        let msg = msg
-            .map_or(Err(ConnectorError::EmptyMessage), Ok)?
+        let filter = client
+            .eth_filter()
+            .create_logs_filter(EthConnector::build_filter(&filter))
+            .await
             .map_err(ConnectorError::EthError)?;
 
-        process_log(details.clone(), msg)?;
+        let stream = filter.stream(time::Duration::from_secs(1));
+
+        tokio::pin!(stream);
+
+        loop {
+            let msg = stream.next().await;
+
+            let msg = msg
+                .map_or(Err(ConnectorError::EmptyMessage), Ok)?
+                .map_err(ConnectorError::EthError)?;
+
+            process_log(details.clone(), msg)?;
+        }
+    } else {
+        info!("[{}] Reading reached block_to limit", details.conn_name)
     }
     Ok(())
 }
@@ -106,6 +154,7 @@ pub fn fetch_logs(
     block_start: u64,
     block_end: u64,
     depth: usize,
+    retries_left: usize,
 ) -> BoxFuture<'static, Result<(), ConnectorError>> {
     let filter = details.filter.clone();
     let depth_str = (0..depth)
@@ -120,7 +169,7 @@ pub fn fetch_logs(
 
         match res {
             Ok(logs) => {
-                debug!(" {} Fetched: {} , block_start: {},block_end: {}, depth: {}", depth_str, logs.len(), block_start, block_end, depth);
+                debug!("[{}] {} Fetched: {} , block_start: {},block_end: {}, depth: {}", details.conn_name, depth_str, logs.len(), block_start, block_end, depth);
                 for msg in logs {
                     process_log(
                         details.clone(),
@@ -135,27 +184,29 @@ pub fn fetch_logs(
                     // { code: ServerError(-32005), message: "query returned more than 10000 results", data: None }
                     // break it down into half on each error and exit after 10 errors in a specific branch
                     if rpc_error.code.code() == -32005 {
-                        debug!("{} More than 10000 records, block_start: {},block_end: {}, depth: {}", depth_str, block_start, block_end, depth);                
+                        debug!("[{}] {} More than 10000 records, block_start: {},block_end: {}, depth: {}", details.conn_name, depth_str, block_start, block_end, depth);
                         if depth > 100 {
                             Err(ConnectorError::EthTooManyRecurisions(depth))
                         } else {
                             let middle = (block_start + block_end) / 2;
-                            debug!("{} Splitting in two calls block_start: {}, middle: {}, block_end: {}", depth_str,block_start, block_end, middle);
+                            debug!("[{}] {} Splitting in two calls block_start: {}, middle: {}, block_end: {}", details.conn_name, depth_str,block_start, block_end, middle);
                             fetch_logs(
                                 details.clone(),
                                 client.clone(),
                                 block_start,
                                 middle,
                                 depth + 1,
+                                MAX_RETRIES
                             )
                             .await?;
 
                             fetch_logs(
                                 details,
                                 client.clone(),
-                                middle,
+                                middle + 1,
                                 block_end,
                                 depth + 1,
+                                MAX_RETRIES
                             )
                             .await?;
                             Ok(())
@@ -164,7 +215,15 @@ pub fn fetch_logs(
                         Err(ConnectorError::EthError(e))
                     }
                 }
-                e => Err(ConnectorError::EthError(e.to_owned())),
+                e => {
+                    if retries_left == 0 {
+                        Err(ConnectorError::EthError(e.to_owned()))
+                    } else {
+                        warn!("[{}] Retrying to fetch logs", details.conn_name);
+                        fetch_logs(details, client, block_start, block_end, depth, retries_left - 1).await?;
+                        Ok(())
+                    }
+                },
             },
         }
     }
@@ -182,7 +241,13 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             details
                 .ingestor
                 .write()
-                .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
+                .handle_message((
+                    (
+                        msg.block_number.expect("expected for non pending").as_u64(),
+                        0,
+                    ),
+                    IngestionMessage::OperationEvent(op),
+                ))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Ignoring log : {:?}", msg);
