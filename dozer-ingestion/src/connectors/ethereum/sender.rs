@@ -8,7 +8,7 @@ use crate::{
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
-use dozer_types::log::{debug, info, trace};
+use dozer_types::log::{debug, info, trace, warn};
 use dozer_types::parking_lot::RwLock;
 
 use futures::StreamExt;
@@ -20,6 +20,8 @@ use web3::types::{Log, H256};
 use web3::Web3;
 
 use super::connector::{ContractTuple, EthConnector};
+
+const MAX_RETRIES: usize = 3;
 
 pub struct EthDetails {
     wss_url: String,
@@ -83,7 +85,15 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
         (Some((lsn, _)), _) => lsn + 1,
     };
 
-    fetch_logs(details.clone(), client.clone(), block_start, block_end, 0).await?;
+    fetch_logs(
+        details.clone(),
+        client.clone(),
+        block_start,
+        block_end,
+        0,
+        MAX_RETRIES,
+    )
+    .await?;
 
     let changes_handler_filter = match details.filter.to_block {
         None => {
@@ -144,6 +154,7 @@ pub fn fetch_logs(
     block_start: u64,
     block_end: u64,
     depth: usize,
+    retries_left: usize,
 ) -> BoxFuture<'static, Result<(), ConnectorError>> {
     let filter = details.filter.clone();
     let depth_str = (0..depth)
@@ -185,6 +196,7 @@ pub fn fetch_logs(
                                 block_start,
                                 middle,
                                 depth + 1,
+                                MAX_RETRIES
                             )
                             .await?;
 
@@ -194,6 +206,7 @@ pub fn fetch_logs(
                                 middle + 1,
                                 block_end,
                                 depth + 1,
+                                MAX_RETRIES
                             )
                             .await?;
                             Ok(())
@@ -202,7 +215,15 @@ pub fn fetch_logs(
                         Err(ConnectorError::EthError(e))
                     }
                 }
-                e => Err(ConnectorError::EthError(e.to_owned())),
+                e => {
+                    if retries_left == 0 {
+                        Err(ConnectorError::EthError(e.to_owned()))
+                    } else {
+                        warn!("[{}] Retrying to fetch logs", details.conn_name);
+                        fetch_logs(details, client, block_start, block_end, depth, retries_left - 1).await?;
+                        Ok(())
+                    }
+                },
             },
         }
     }
