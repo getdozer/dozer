@@ -39,11 +39,14 @@ impl InternalPipelineServer {
                 Ok(message) => {
                     let result = tx.send(message);
                     if let Err(e) = result {
-                        warn!("Error sending message to broadcast channel: {:?}", e);
+                        warn!("Internal Pipeline server - Error sending message to broadcast channel: {:?}", e);
                     }
                 }
                 Err(err) => {
-                    warn!("Message reveived error: {:?}", err);
+                    warn!(
+                        "Internal Pipeline server - message reveived error: {:?}",
+                        err
+                    );
                     break;
                 }
             }
@@ -62,19 +65,23 @@ impl InternalPipelineService for InternalPipelineServer {
         let (tx, rx) = tokio::sync::mpsc::channel(1000);
         let mut receiver = self.receiver.resubscribe();
         tokio::spawn(async move {
-            while let Ok(event_received) = receiver.recv().await {
-                let result = tx.try_send(Ok(event_received));
-                if let Err(e) = result {
-                    match e {
-                        tokio::sync::mpsc::error::TrySendError::Closed(err) => {
-                            warn!("Channel closed {:?}", err);
+            loop {
+                let result = receiver.try_recv();
+                match result {
+                    Ok(message) => {
+                        let result = tx.send(Ok(message)).await;
+                        if let Err(e) = result {
+                            warn!("Error sending message to mpsc channel: {:?}", e);
                             break;
                         }
-                        tokio::sync::mpsc::error::TrySendError::Full(err) => {
-                            warn!("Channel full {:?}", err);
+                    }
+                    Err(err) => {
+                        if err == broadcast::error::TryRecvError::Closed {
+                            break;
                         }
                     }
                 }
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
             }
         });
         let output_stream = ReceiverStream::new(rx);
