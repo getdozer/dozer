@@ -206,7 +206,7 @@ impl Connector for EthConnector {
                 self.contracts.to_owned(),
                 self.tables.to_owned(),
                 self.schema_map.to_owned(),
-                from_seq
+                from_seq,
             ));
             run(details).await
         })

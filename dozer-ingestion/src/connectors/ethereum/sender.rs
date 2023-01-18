@@ -48,7 +48,7 @@ impl EthDetails {
             contracts,
             tables,
             schema_map,
-            from_seq
+            from_seq,
         }
     }
 }
@@ -186,7 +186,13 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             details
                 .ingestor
                 .write()
-                .handle_message(((msg.block_number.expect("expected for non pending").as_u64(), 0), IngestionMessage::OperationEvent(op)))
+                .handle_message((
+                    (
+                        msg.block_number.expect("expected for non pending").as_u64(),
+                        0,
+                    ),
+                    IngestionMessage::OperationEvent(op),
+                ))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Ignoring log : {:?}", msg);

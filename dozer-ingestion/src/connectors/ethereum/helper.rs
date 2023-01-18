@@ -138,7 +138,7 @@ pub fn decode_event(
                             version: None,
                         },
                     },
-                })
+                });
             }
         }
     }
@@ -206,10 +206,7 @@ pub fn get_id(log: &Log) -> u64 {
     block_no * 100_000 + log_idx * 2
 }
 pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
-    let block_no = log
-        .block_number
-        .expect("expected for non pending")
-        .as_u64();
+    let block_no = log.block_number.expect("expected for non pending").as_u64();
     let txn_idx = log
         .transaction_index
         .expect("expected for non pending")
@@ -219,7 +216,7 @@ pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
     let idx = get_id(&log);
 
     let values = vec![
-        Field::UInt(idx as u64),
+        Field::UInt(idx),
         Field::String(format!("{:?}", log.address)),
         Field::Text(
             log.topics
