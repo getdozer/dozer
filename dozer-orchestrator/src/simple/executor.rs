@@ -73,7 +73,8 @@ impl Executor {
                 let tables: Vec<TableInfo> = sources_group
                     .iter()
                     .map(|source| TableInfo {
-                        name: source.table_name.clone(),
+                        name: source.name.clone(),
+                        table_name: source.table_name.clone(),
                         id: 0,
                         columns: Some(source.columns.clone()),
                     })

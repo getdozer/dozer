@@ -60,7 +60,7 @@ impl StreamConsumer {
 
     fn map_record(row: Vec<Option<Field>>) -> Record {
         Record {
-            schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
+            schema_id: Some(SchemaIdentifier { id: 0, version: 1 }),
             values: row
                 .iter()
                 .map(|v| match v.clone() {

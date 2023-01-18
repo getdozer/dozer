@@ -79,6 +79,11 @@ impl ConnectorSourceFactory {
         HashMap<u32, u16>,
         HashMap<u16, ReplicationChangesTrackingType>,
     ) {
+        let mut tables_map = HashMap::new();
+        for t in &tables {
+            tables_map.insert(t.table_name.clone(), t.name.clone());
+        }
+
         let connector = get_connector(connection).unwrap();
         let schema_tuples = connector.get_schemas(Some(tables)).unwrap();
 
@@ -88,8 +93,9 @@ impl ConnectorSourceFactory {
             HashMap::new();
 
         for (table_name, schema, replication_changes_type) in schema_tuples {
+            let source_name = tables_map.get(&table_name).unwrap();
             let port: u16 = *ports
-                .get(&table_name)
+                .get(source_name)
                 .map_or(Err(ExecutionError::PortNotFound(table_name.clone())), Ok)
                 .unwrap();
             let schema_id = get_schema_id(schema.identifier.as_ref()).unwrap();

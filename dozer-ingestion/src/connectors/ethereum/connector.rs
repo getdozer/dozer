@@ -154,7 +154,7 @@ impl Connector for EthConnector {
         let schemas = if let Some(tables) = tables {
             schemas
                 .iter()
-                .filter(|(n, _, _)| tables.iter().any(|t| t.name == *n))
+                .filter(|(n, _, _)| tables.iter().any(|t| t.table_name == *n))
                 .cloned()
                 .collect()
         } else {
@@ -172,6 +172,7 @@ impl Connector for EthConnector {
             .enumerate()
             .map(|(id, (name, schema, _))| TableInfo {
                 name: name.to_string(),
+                table_name: name.to_string(),
                 id: id as u32,
                 columns: Some(schema.fields.iter().map(|f| f.name.to_owned()).collect()),
             })

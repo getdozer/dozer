@@ -177,7 +177,7 @@ impl PostgresConnector {
         let table_str: String = match self.tables.as_ref() {
             None => "ALL TABLES".to_string(),
             Some(arr) => {
-                let table_names: Vec<String> = arr.iter().map(|t| t.name.clone()).collect();
+                let table_names: Vec<String> = arr.iter().map(|t| t.table_name.clone()).collect();
                 format!("TABLE {}", table_names.join(" , "))
             }
         };
