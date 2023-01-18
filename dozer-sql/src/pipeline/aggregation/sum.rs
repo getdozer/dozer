@@ -2,8 +2,8 @@ use crate::pipeline::aggregation::aggregator::AggregationResult;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use crate::{
-    deserialize, deserialize_decimal, deserialize_f64, deserialize_i64, field_extract_decimal,
-    field_extract_f64, field_extract_i64,
+    deserialize, deserialize_decimal, deserialize_f64, deserialize_i64, deserialize_u64,
+    field_extract_decimal, field_extract_f64, field_extract_i64, field_extract_u64,
 };
 use std::ops::{Add, Sub};
 
@@ -23,6 +23,7 @@ impl SumAggregator {
             FieldType::Decimal => FieldType::Decimal,
             FieldType::Float => FieldType::Float,
             FieldType::Int => FieldType::Int,
+            FieldType::UInt => FieldType::UInt,
             _ => from,
         }
     }
@@ -59,6 +60,15 @@ impl SumAggregator {
             FieldType::Int => {
                 let prev = deserialize_i64!(cur_state);
                 let curr = field_extract_i64!(&new, AGGREGATOR_NAME);
+                let r_bytes = (prev + *curr).to_be_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type)?,
+                    Some(Vec::from(r_bytes)),
+                ))
+            }
+            FieldType::UInt => {
+                let prev = deserialize_u64!(cur_state);
+                let curr = field_extract_u64!(&new, AGGREGATOR_NAME);
                 let r_bytes = (prev + *curr).to_be_bytes();
                 Ok(AggregationResult::new(
                     Self::get_value(&r_bytes, return_type)?,
@@ -107,6 +117,16 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
+            FieldType::UInt => {
+                let prev = deserialize_u64!(cur_state);
+                let curr_del = field_extract_u64!(&old, AGGREGATOR_NAME);
+                let curr_added = field_extract_u64!(&new, AGGREGATOR_NAME);
+                let r_bytes = (prev - *curr_del + *curr_added).to_be_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type)?,
+                    Some(Vec::from(r_bytes)),
+                ))
+            }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
@@ -145,6 +165,15 @@ impl SumAggregator {
                     Some(Vec::from(r_bytes)),
                 ))
             }
+            FieldType::UInt => {
+                let prev = deserialize_u64!(cur_state);
+                let curr = field_extract_u64!(&old, AGGREGATOR_NAME);
+                let r_bytes = (prev - *curr).to_be_bytes();
+                Ok(AggregationResult::new(
+                    Self::get_value(&r_bytes, return_type)?,
+                    Some(Vec::from(r_bytes)),
+                ))
+            }
             _ => Err(InvalidOperandType(AGGREGATOR_NAME.to_string())),
         }
     }
@@ -156,6 +185,7 @@ impl SumAggregator {
                 deserialize!(f),
             )))),
             FieldType::Int => Ok(Field::Int(i64::from_be_bytes(deserialize!(f)))),
+            FieldType::UInt => Ok(Field::UInt(u64::from_be_bytes(deserialize!(f)))),
             _ => Err(PipelineError::DataTypeMismatch),
         }
     }
