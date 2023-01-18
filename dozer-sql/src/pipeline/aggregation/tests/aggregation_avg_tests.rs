@@ -1,11 +1,10 @@
 use crate::output;
 use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_exp, delete_field, get_decimal_div_field, get_decimal_field, init_input_schema,
-    init_processor, insert_exp, insert_field, update_exp, update_field, FIELD_0_FLOAT, FIELD_0_INT,
+    init_processor, insert_exp, insert_field, update_exp, update_field, FIELD_0_FLOAT,
     FIELD_100_FLOAT, FIELD_100_INT, FIELD_100_UINT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_200_UINT,
-    FIELD_250_DIV_3_FLOAT, FIELD_250_DIV_3_INT, FIELD_250_DIV_3_UINT, FIELD_350_DIV_3_FLOAT,
-    FIELD_350_DIV_3_INT, FIELD_350_DIV_3_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT,
-    FIELD_75_FLOAT, FIELD_75_INT, FIELD_75_UINT, FIELD_NULL, ITALY, SINGAPORE,
+    FIELD_250_DIV_3_FLOAT, FIELD_350_DIV_3_FLOAT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT,
+    FIELD_75_FLOAT, FIELD_NULL, ITALY, SINGAPORE,
 };
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_types::types::FieldType::{Decimal, Float, Int, UInt};
@@ -153,7 +152,7 @@ fn test_avg_aggregation_int() {
     */
     let mut inp = insert_field(ITALY, FIELD_100_INT);
     let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_100_INT)];
+    let mut exp = vec![insert_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 
     // Insert another 100 for segment Italy
@@ -165,7 +164,12 @@ fn test_avg_aggregation_int() {
     */
     inp = insert_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_100_INT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(100),
+        &get_decimal_field(100),
+    )];
     assert_eq!(out, exp);
 
     // Insert 50 for segment Singapore
@@ -181,7 +185,7 @@ fn test_avg_aggregation_int() {
     */
     inp = insert_field(SINGAPORE, FIELD_50_INT);
     out = output!(processor, inp, tx);
-    exp = vec![insert_exp(SINGAPORE, FIELD_50_INT)];
+    exp = vec![insert_exp(SINGAPORE, &get_decimal_field(50))];
     assert_eq!(out, exp);
 
     // Update Singapore segment to Italy
@@ -195,8 +199,13 @@ fn test_avg_aggregation_int() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_INT, FIELD_50_INT);
     out = output!(processor, inp, tx);
     exp = vec![
-        delete_exp(SINGAPORE, FIELD_50_INT),
-        update_exp(ITALY, ITALY, FIELD_100_INT, FIELD_250_DIV_3_INT),
+        delete_exp(SINGAPORE, &get_decimal_field(50)),
+        update_exp(
+            ITALY,
+            ITALY,
+            &get_decimal_field(100),
+            &get_decimal_div_field(250, 3),
+        ),
     ];
     assert_eq!(out, exp);
 
@@ -213,8 +222,8 @@ fn test_avg_aggregation_int() {
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        FIELD_250_DIV_3_INT,
-        FIELD_350_DIV_3_INT,
+        &get_decimal_div_field(250, 3),
+        &get_decimal_div_field(350, 3),
     )];
     assert_eq!(out, exp);
 
@@ -227,7 +236,12 @@ fn test_avg_aggregation_int() {
     */
     inp = delete_field(ITALY, FIELD_200_INT);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_350_DIV_3_INT, FIELD_75_INT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_div_field(350, 3),
+        &get_decimal_field(75),
+    )];
     assert_eq!(out, exp);
 
     // Delete another record (50)
@@ -238,7 +252,12 @@ fn test_avg_aggregation_int() {
     */
     inp = delete_field(ITALY, FIELD_50_INT);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_75_INT, FIELD_100_INT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(75),
+        &get_decimal_field(100),
+    )];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -248,7 +267,7 @@ fn test_avg_aggregation_int() {
     */
     inp = delete_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, FIELD_100_INT)];
+    exp = vec![delete_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 }
 
@@ -271,7 +290,7 @@ fn test_avg_aggregation_uint() {
     */
     let mut inp = insert_field(ITALY, FIELD_100_UINT);
     let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_100_UINT)];
+    let mut exp = vec![insert_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 
     // Insert another 100 for segment Italy
@@ -283,7 +302,12 @@ fn test_avg_aggregation_uint() {
     */
     inp = insert_field(ITALY, FIELD_100_UINT);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_100_UINT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(100),
+        &get_decimal_field(100),
+    )];
     assert_eq!(out, exp);
 
     // Insert 50 for segment Singapore
@@ -299,7 +323,7 @@ fn test_avg_aggregation_uint() {
     */
     inp = insert_field(SINGAPORE, FIELD_50_UINT);
     out = output!(processor, inp, tx);
-    exp = vec![insert_exp(SINGAPORE, FIELD_50_UINT)];
+    exp = vec![insert_exp(SINGAPORE, &get_decimal_field(50))];
     assert_eq!(out, exp);
 
     // Update Singapore segment to Italy
@@ -313,8 +337,13 @@ fn test_avg_aggregation_uint() {
     inp = update_field(SINGAPORE, ITALY, FIELD_50_UINT, FIELD_50_UINT);
     out = output!(processor, inp, tx);
     exp = vec![
-        delete_exp(SINGAPORE, FIELD_50_UINT),
-        update_exp(ITALY, ITALY, FIELD_100_UINT, FIELD_250_DIV_3_UINT),
+        delete_exp(SINGAPORE, &get_decimal_field(50)),
+        update_exp(
+            ITALY,
+            ITALY,
+            &get_decimal_field(100),
+            &get_decimal_div_field(250, 3),
+        ),
     ];
     assert_eq!(out, exp);
 
@@ -331,8 +360,8 @@ fn test_avg_aggregation_uint() {
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        FIELD_250_DIV_3_UINT,
-        FIELD_350_DIV_3_UINT,
+        &get_decimal_div_field(250, 3),
+        &get_decimal_div_field(350, 3),
     )];
     assert_eq!(out, exp);
 
@@ -348,8 +377,8 @@ fn test_avg_aggregation_uint() {
     exp = vec![update_exp(
         ITALY,
         ITALY,
-        FIELD_350_DIV_3_UINT,
-        FIELD_75_UINT,
+        &get_decimal_div_field(350, 3),
+        &get_decimal_field(75),
     )];
     assert_eq!(out, exp);
 
@@ -361,7 +390,12 @@ fn test_avg_aggregation_uint() {
     */
     inp = delete_field(ITALY, FIELD_50_UINT);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_75_UINT, FIELD_100_UINT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(75),
+        &get_decimal_field(100),
+    )];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -371,7 +405,7 @@ fn test_avg_aggregation_uint() {
     */
     inp = delete_field(ITALY, FIELD_100_UINT);
     out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, FIELD_100_UINT)];
+    exp = vec![delete_exp(ITALY, &get_decimal_field(100))];
     assert_eq!(out, exp);
 }
 
@@ -542,7 +576,7 @@ fn test_avg_aggregation_int_null() {
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp, tx);
-    let mut exp = vec![insert_exp(ITALY, FIELD_0_INT)];
+    let mut exp = vec![insert_exp(ITALY, &get_decimal_field(0))];
     assert_eq!(out, exp);
 
     // Insert 100 for segment Italy
@@ -554,7 +588,12 @@ fn test_avg_aggregation_int_null() {
     */
     inp = insert_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_50_INT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(0),
+        &get_decimal_field(50),
+    )];
     assert_eq!(out, exp);
 
     // Update 100 for segment Italy to NULL
@@ -566,7 +605,12 @@ fn test_avg_aggregation_int_null() {
     */
     inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_NULL);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_50_INT, FIELD_0_INT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(50),
+        &get_decimal_field(0),
+    )];
     assert_eq!(out, exp);
 
     // Delete a record
@@ -577,7 +621,12 @@ fn test_avg_aggregation_int_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp, tx);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_0_INT, FIELD_0_INT)];
+    exp = vec![update_exp(
+        ITALY,
+        ITALY,
+        &get_decimal_field(0),
+        &get_decimal_field(0),
+    )];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -587,7 +636,7 @@ fn test_avg_aggregation_int_null() {
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp, tx);
-    exp = vec![delete_exp(ITALY, FIELD_0_INT)];
+    exp = vec![delete_exp(ITALY, &get_decimal_field(0))];
     assert_eq!(out, exp);
 }
 

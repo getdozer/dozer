@@ -257,6 +257,17 @@ macro_rules! check_nan_f64 {
 }
 
 #[macro_export]
+macro_rules! check_nan_decimal {
+    ($stmt:expr) => {
+        if $stmt.is_nan() {
+            dozer_types::rust_decimal::Decimal::zero()
+        } else {
+            $stmt
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! try_unwrap {
     ($stmt:expr) => {
         $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
