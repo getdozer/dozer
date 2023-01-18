@@ -187,7 +187,7 @@ impl Connector for EthConnector {
         Ok(())
     }
 
-    fn start(&self, _from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
+    fn start(&self, from_seq: Option<(u64, u64)>) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
         let filter = self.config.filter.to_owned().unwrap_or_default();
@@ -206,6 +206,7 @@ impl Connector for EthConnector {
                 self.contracts.to_owned(),
                 self.tables.to_owned(),
                 self.schema_map.to_owned(),
+                from_seq
             ));
             run(details).await
         })

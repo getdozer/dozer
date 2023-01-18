@@ -126,7 +126,7 @@ pub fn decode_event(
                     .into_iter()
                     .map(|p| map_abitype_to_field(p.value))
                     .collect();
-                Some(OperationEvent {
+                return Some(OperationEvent {
                     seq_no,
                     operation: Operation::Insert {
                         new: Record {
@@ -139,15 +139,11 @@ pub fn decode_event(
                         },
                     },
                 })
-            } else {
-                None
             }
-        } else {
-            None
         }
-    } else {
-        None
     }
+
+    None
 }
 
 pub fn get_table_name(contract_tuple: &ContractTuple, event_name: &str) -> String {
@@ -212,18 +208,18 @@ pub fn get_id(log: &Log) -> u64 {
 pub fn map_log_to_values(log: Log) -> (u64, Vec<Field>) {
     let block_no = log
         .block_number
-        .expect("expected for non pendning")
+        .expect("expected for non pending")
         .as_u64();
     let txn_idx = log
         .transaction_index
-        .expect("expected for non pendning")
+        .expect("expected for non pending")
         .as_u64();
-    let log_idx = log.log_index.expect("expected for non pendning").as_u64();
+    let log_idx = log.log_index.expect("expected for non pending").as_u64();
 
     let idx = get_id(&log);
 
     let values = vec![
-        Field::Int(idx as i64),
+        Field::UInt(idx as u64),
         Field::String(format!("{:?}", log.address)),
         Field::Text(
             log.topics
@@ -254,7 +250,7 @@ pub fn get_eth_schema() -> Schema {
         fields: vec![
             FieldDefinition {
                 name: "id".to_string(),
-                typ: FieldType::Int,
+                typ: FieldType::UInt,
                 nullable: false,
             },
             FieldDefinition {

@@ -28,6 +28,7 @@ pub struct EthDetails {
     contracts: HashMap<String, ContractTuple>,
     pub tables: Option<Vec<TableInfo>>,
     pub schema_map: HashMap<H256, usize>,
+    from_seq: Option<(u64, u64)>,
 }
 
 impl EthDetails {
@@ -38,6 +39,7 @@ impl EthDetails {
         contracts: HashMap<String, ContractTuple>,
         tables: Option<Vec<TableInfo>>,
         schema_map: HashMap<H256, usize>,
+        from_seq: Option<(u64, u64)>,
     ) -> Self {
         EthDetails {
             wss_url,
@@ -46,6 +48,7 @@ impl EthDetails {
             contracts,
             tables,
             schema_map,
+            from_seq
         }
     }
 }
@@ -65,9 +68,10 @@ pub async fn run(details: Arc<EthDetails>) -> Result<(), ConnectorError> {
         .as_u64();
 
     // Default to current block if from_block is not specified
-    let block_start = match details.filter.from_block {
-        Some(block_no) => block_no,
-        None => block_end,
+    let block_start = match (details.from_seq, details.filter.from_block) {
+        (Some((0, _)), Some(block_no)) | (None, Some(block_no)) => block_no,
+        (Some((0, _)), None) | (None, None) => block_end,
+        (Some((lsn, _)), _) => lsn + 1,
     };
 
     fetch_logs(details.clone(), client.clone(), block_start, block_end, 0).await?;
@@ -153,7 +157,7 @@ pub fn fetch_logs(
                             fetch_logs(
                                 details,
                                 client.clone(),
-                                middle,
+                                middle + 1,
                                 block_end,
                                 depth + 1,
                             )
@@ -182,7 +186,7 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             details
                 .ingestor
                 .write()
-                .handle_message(((0, 0), IngestionMessage::OperationEvent(op)))
+                .handle_message(((msg.block_number.expect("expected for non pending").as_u64(), 0), IngestionMessage::OperationEvent(op)))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Ignoring log : {:?}", msg);
