@@ -36,11 +36,12 @@ impl SourceBuilder {
                     let mut ports = HashMap::new();
                     let mut tables = vec![];
                     for source in same_connection_sources {
-                        if used_sources.contains(&source.table_name) {
-                            ports.insert(source.table_name.clone(), port);
+                        if used_sources.contains(&source.name) {
+                            ports.insert(source.name.clone(), port);
 
                             tables.push(TableInfo {
-                                name: source.table_name,
+                                name: source.name,
+                                table_name: source.table_name,
                                 id: port as u32,
                                 columns: Some(source.columns),
                             });

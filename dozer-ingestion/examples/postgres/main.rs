@@ -14,6 +14,7 @@ fn main() {
         name: "test_c".to_string(),
         tables: Some(vec![TableInfo {
             name: "users".to_string(),
+            table_name: "users".to_string(),
             id: 0,
             columns: None,
         }]),

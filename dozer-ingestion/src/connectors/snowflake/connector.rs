@@ -1,5 +1,6 @@
 #[cfg(feature = "snowflake")]
 use odbc::create_environment_v3;
+use std::collections::HashMap;
 use std::sync::Arc;
 #[cfg(feature = "snowflake")]
 use std::time::Duration;
@@ -109,7 +110,7 @@ impl Connector for SnowflakeConnector {
     }
 
     fn validate_schemas(&self, _tables: &[TableInfo]) -> Result<ValidationResults, ConnectorError> {
-        todo!()
+        Ok(HashMap::new())
     }
 }
 
@@ -127,11 +128,11 @@ async fn run(
         Some(tables) => {
             for table in tables.iter() {
                 let is_stream_created =
-                    StreamConsumer::is_stream_created(&client, table.name.clone())?;
+                    StreamConsumer::is_stream_created(&client, table.table_name.clone())?;
                 if !is_stream_created {
                     let ingestor_snapshot = Arc::clone(&ingestor);
-                    Snapshotter::run(&client, &ingestor_snapshot, table.name.clone())?;
-                    StreamConsumer::create_stream(&client, &table.name)?;
+                    Snapshotter::run(&client, &ingestor_snapshot, table.table_name.clone())?;
+                    StreamConsumer::create_stream(&client, &table.table_name)?;
                 }
             }
 

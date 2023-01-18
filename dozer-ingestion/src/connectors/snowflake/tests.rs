@@ -32,6 +32,7 @@ fn connector_disabled_test_e2e_connect_snowflake_and_read_from_stream() {
     thread::spawn(|| {
         let tables: Vec<TableInfo> = vec![TableInfo {
             name: source.table_name,
+            table_name: source.table_name,
             id: 0,
             columns: None,
         }];
@@ -173,6 +174,7 @@ fn connector_disabled_test_e2e_connect_snowflake_get_schemas_test() {
         .as_ref()
         .get_schemas(Some(vec![TableInfo {
             name: table_name.to_string(),
+            table_name: table_name.to_string(),
             id: 0,
             columns: None,
         }]))

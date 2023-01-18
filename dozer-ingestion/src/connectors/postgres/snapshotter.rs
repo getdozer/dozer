@@ -34,11 +34,13 @@ impl PostgresSnapshotter {
         match self.tables.as_ref() {
             None => Ok(arr),
             Some(filtered_tables) => {
-                let table_names: Vec<String> =
-                    filtered_tables.iter().map(|t| t.name.to_owned()).collect();
+                let table_names: Vec<String> = filtered_tables
+                    .iter()
+                    .map(|t| t.table_name.to_owned())
+                    .collect();
                 let arr = arr
                     .iter()
-                    .filter(|t| table_names.contains(&t.name))
+                    .filter(|t| table_names.contains(&t.table_name))
                     .cloned()
                     .collect();
                 Ok(arr)
@@ -69,7 +71,7 @@ impl PostgresSnapshotter {
                 .collect();
 
             let column_str = column_str.join(",");
-            let query = format!("select {} from {}", column_str, table_info.name);
+            let query = format!("select {} from {}", column_str, table_info.table_name);
             let stmt = client_plain
                 .clone()
                 .borrow_mut()
@@ -91,7 +93,7 @@ impl PostgresSnapshotter {
                 match msg {
                     Ok(msg) => {
                         let evt = helper::map_row_to_operation_event(
-                            table_info.name.to_string(),
+                            table_info.table_name.to_string(),
                             schema
                                 .identifier
                                 .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,

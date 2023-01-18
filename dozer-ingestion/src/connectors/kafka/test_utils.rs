@@ -90,7 +90,8 @@ pub fn get_iterator_and_client(table_name: String) -> (Arc<RwLock<IngestionItera
 
     thread::spawn(move || {
         let tables: Vec<TableInfo> = vec![TableInfo {
-            name: format!("dbserver1.public.{}", table_name),
+            name: table_name.clone(),
+            table_name: table_name.clone(),
             id: 0,
             columns: None,
         }];

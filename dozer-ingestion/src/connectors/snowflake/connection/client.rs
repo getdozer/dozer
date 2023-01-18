@@ -295,7 +295,8 @@ impl Client {
                 if idx > 0 {
                     buf.write_char(',').unwrap();
                 }
-                buf.write_str(&format!("\'{}\'", table_info.name)).unwrap();
+                buf.write_str(&format!("\'{}\'", table_info.table_name))
+                    .unwrap();
             }
             buf.write_char(')').unwrap();
             buf
@@ -378,7 +379,7 @@ impl Client {
                         .or_insert(Schema {
                             identifier: Some(SchemaIdentifier { id: 0, version: 0 }),
                             fields: vec![],
-                            primary_index: vec![],
+                            primary_index: vec![0],
                         })
                         .fields
                         .push(FieldDefinition {

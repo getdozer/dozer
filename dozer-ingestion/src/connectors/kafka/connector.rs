@@ -77,7 +77,7 @@ impl Connector for KafkaConnector {
             .map_or_else(|| Err(TopicNotDefined), Ok)?;
         let topic = tables
             .get(0)
-            .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
+            .map_or(Err(TopicNotDefined), |table| Ok(&table.table_name))?;
 
         let broker = self.config.broker.to_owned();
         let ingestor = self

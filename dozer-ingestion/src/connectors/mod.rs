@@ -53,6 +53,7 @@ pub trait Connector: Send + Sync {
 #[serde(crate = "self::serde")]
 pub struct TableInfo {
     pub name: String,
+    pub table_name: String,
     pub id: u32,
     pub columns: Option<Vec<String>>,
 }
