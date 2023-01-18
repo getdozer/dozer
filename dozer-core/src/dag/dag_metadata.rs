@@ -8,21 +8,28 @@ use crate::dag::node::{NodeHandle, PortHandle};
 use crate::storage::common::Seek;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
-use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
+use crate::storage::lmdb_storage::{
+    LmdbEnvironmentManager, LmdbExclusiveTransaction, SharedTransaction,
+};
 use dozer_types::bincode;
 use dozer_types::types::Schema;
+use lmdb::Database;
 use std::collections::{HashMap, HashSet};
 
+use std::iter::once;
 use std::path::Path;
 
+use super::epoch::{OpIdentifier, PipelineCheckpoint};
+
 pub(crate) const METADATA_DB_NAME: &str = "__META__";
-pub(crate) const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
+const SOURCE_ID_IDENTIFIER: u8 = 0_u8;
+const EMPTY_METADATA_IDENTIFIER: u8 = 0_u8;
 pub(crate) const OUTPUT_SCHEMA_IDENTIFIER: u8 = 1_u8;
 pub(crate) const INPUT_SCHEMA_IDENTIFIER: u8 = 2_u8;
 
 pub(crate) enum Consistency {
-    FullyConsistent((u64, u64)),
-    PartiallyConsistent(HashMap<(u64, u64), Vec<NodeHandle>>),
+    FullyConsistent(Option<OpIdentifier>),
+    PartiallyConsistent(HashMap<Option<OpIdentifier>, Vec<NodeHandle>>),
 }
 
 struct DependencyTreeNode {
@@ -40,7 +47,7 @@ impl DependencyTreeNode {
 }
 
 pub(crate) struct DagMetadata {
-    pub commits: HashMap<NodeHandle, (u64, u64)>,
+    pub commits: PipelineCheckpoint,
     pub input_schemas: HashMap<PortHandle, Schema>,
     pub output_schemas: HashMap<PortHandle, Schema>,
 }
@@ -100,7 +107,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             ));
         }
 
-        let mut map = HashMap::<NodeHandle, (u64, u64)>::new();
+        let mut commits = PipelineCheckpoint::default();
         let mut input_schemas: HashMap<PortHandle, Schema> = HashMap::new();
         let mut output_schemas: HashMap<PortHandle, Schema> = HashMap::new();
 
@@ -109,12 +116,9 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 StorageError::InvalidRecord,
             ))?;
             match value.0[0] {
-                SOURCE_ID_IDENTIFIER => {
-                    let handle: NodeHandle = NodeHandle::from_bytes(&value.0[1..]);
-                    let txid: u64 = u64::from_be_bytes(value.1[0..8].try_into().unwrap());
-                    let seq_in_tx: u64 = u64::from_be_bytes(value.1[8..16].try_into().unwrap());
-                    map.insert(handle, (txid, seq_in_tx));
-                }
+                SOURCE_ID_IDENTIFIER => commits
+                    .0
+                    .extend(once(read_source_metadata(value.0, value.1))),
                 OUTPUT_SCHEMA_IDENTIFIER => {
                     let handle: PortHandle = PortHandle::from_be_bytes(
                         (&value.0[1..])
@@ -153,7 +157,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         }
 
         Ok(DagMetadata {
-            commits: map,
+            commits,
             input_schemas,
             output_schemas,
         })
@@ -173,22 +177,6 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
             }
         }
         Ok(all)
-    }
-
-    fn get_state_seq_for_node(
-        &self,
-        src: &NodeHandle,
-        curr: &NodeHandle,
-    ) -> Result<(u64, u64), ExecutionError> {
-        let node_meta = self
-            .metadata
-            .get(curr)
-            .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))?;
-        node_meta
-            .commits
-            .get(src)
-            .copied()
-            .ok_or_else(|| ExecutionError::InvalidCheckpointState(curr.clone()))
     }
 
     fn get_source_dependency_tree(curr: &mut DependencyTreeNode, dag: &Dag<T>) {
@@ -222,11 +210,11 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
         &self,
         source_handle: &NodeHandle,
         tree_node: &DependencyTreeNode,
-        res: &mut HashMap<(u64, u64), Vec<NodeHandle>>,
+        res: &mut HashMap<Option<OpIdentifier>, Vec<NodeHandle>>,
     ) {
         let seq = match self.metadata.get(&tree_node.handle) {
-            Some(v) => *v.commits.get(source_handle).unwrap_or(&(0, 0)),
-            None => (0, 0),
+            Some(v) => *v.commits.0.get(source_handle).unwrap_or(&None),
+            None => None,
         };
         res.entry(seq).or_insert_with(Vec::new);
         res.get_mut(&seq).unwrap().push(tree_node.handle.clone());
@@ -239,7 +227,7 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
     pub(crate) fn get_checkpoint_consistency(&self) -> HashMap<NodeHandle, Consistency> {
         let mut r: HashMap<NodeHandle, Consistency> = HashMap::new();
         for e in &self.deps_trees {
-            let mut res: HashMap<(u64, u64), Vec<NodeHandle>> = HashMap::new();
+            let mut res: HashMap<Option<OpIdentifier>, Vec<NodeHandle>> = HashMap::new();
             self.get_dependency_tree_consistency_rec(&e.1.handle, e.1, &mut res);
             match res.len() {
                 1 => r.insert(
@@ -307,19 +295,48 @@ impl<'a, T: Clone + 'a> DagMetadataManager<'a, T> {
                 txn.put(db, &key, &value)?;
             }
 
-            for (source, _factory) in &self.dag.get_sources() {
-                let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
-                key.extend(source.to_bytes());
-
-                let mut value: Vec<u8> = Vec::with_capacity(16);
-                value.extend(0_u64.to_be_bytes());
-                value.extend(0_u64.to_be_bytes());
-
-                txn.put(db, &key, &value)?;
-            }
+            let sources = self.dag.get_sources();
+            let mut metadata = sources.iter().map(|(source, _)| (source, None));
+            write_source_metadata(&mut txn, db, &mut metadata)?;
 
             txn.commit_and_renew()?;
         }
         Ok(())
+    }
+}
+
+pub fn write_source_metadata<'a>(
+    txn: &mut LmdbExclusiveTransaction,
+    db: Database,
+    metadata: &'a mut impl Iterator<Item = (&'a NodeHandle, Option<OpIdentifier>)>,
+) -> Result<(), StorageError> {
+    for (source, op_id) in metadata {
+        let mut key: Vec<u8> = vec![SOURCE_ID_IDENTIFIER];
+        key.extend(source.to_bytes());
+
+        let mut value: Vec<u8> = Vec::with_capacity(16);
+        if let Some(op_id) = op_id {
+            value.extend(op_id.txid.to_be_bytes());
+            value.extend(op_id.seq_in_tx.to_be_bytes());
+        } else {
+            value.push(EMPTY_METADATA_IDENTIFIER);
+        }
+
+        txn.put(db, &key, &value)?;
+    }
+    Ok(())
+}
+
+fn read_source_metadata(key: &[u8], value: &[u8]) -> (NodeHandle, Option<OpIdentifier>) {
+    debug_assert!(key[0] == SOURCE_ID_IDENTIFIER);
+    let source = NodeHandle::from_bytes(&key[1..]);
+
+    if value.len() == 1 {
+        debug_assert!(value[0] == EMPTY_METADATA_IDENTIFIER);
+        (source, None)
+    } else {
+        let txid = u64::from_be_bytes(value[0..8].try_into().unwrap());
+        let seq_in_tx = u64::from_be_bytes(value[8..16].try_into().unwrap());
+        (source, Some(OpIdentifier { txid, seq_in_tx }))
     }
 }

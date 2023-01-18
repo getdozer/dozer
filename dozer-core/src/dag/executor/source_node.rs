@@ -19,7 +19,7 @@ use dozer_types::{
 use crate::dag::{
     channels::SourceChannelForwarder,
     dag::Edge,
-    epoch::EpochManager,
+    epoch::{EpochManager, OpIdentifier},
     errors::ExecutionError::{self, InternalError},
     executor_utils::{create_ports_databases_and_fill_downstream_record_readers, init_component},
     forwarder::{SourceChannelManager, StateWriter},
@@ -60,7 +60,7 @@ pub struct SourceSenderNode {
     /// The source.
     source: Box<dyn Source>,
     /// Last checkpointed output data sequence number.
-    last_checkpoint: (u64, u64),
+    last_checkpoint: Option<OpIdentifier>,
     /// The forwarder that will be passed to the source for outputig data.
     forwarder: InternalChannelSourceForwarder,
     /// If the execution DAG should be running. Used for terminating the execution DAG.
@@ -80,7 +80,7 @@ impl SourceSenderNode {
         node_handle: NodeHandle,
         source_factory: &dyn SourceFactory<T>,
         output_schemas: HashMap<PortHandle, Schema>,
-        last_checkpoint: (u64, u64),
+        last_checkpoint: Option<OpIdentifier>,
         sender: Sender<(PortHandle, u64, u64, Operation)>,
         running: Arc<AtomicBool>,
     ) -> Result<Self, ExecutionError> {
@@ -98,9 +98,11 @@ impl SourceSenderNode {
 
 impl Node for SourceSenderNode {
     fn run(mut self) -> Result<(), ExecutionError> {
-        let result = self
-            .source
-            .start(&mut self.forwarder, Some(self.last_checkpoint));
+        let result = self.source.start(
+            &mut self.forwarder,
+            self.last_checkpoint
+                .map(|op_id| (op_id.txid, op_id.seq_in_tx)),
+        );
         self.running.store(false, Ordering::SeqCst);
         debug!("[{}-sender] Quit", self.node_handle);
         result
@@ -154,7 +156,6 @@ impl SourceListenerNode {
         max_duration_between_commits: Duration,
         epoch_manager: Arc<EpochManager>,
         output_schemas: HashMap<PortHandle, Schema>,
-        start_seq: (u64, u64),
         retention_queue_size: usize,
     ) -> Result<Self, ExecutionError> {
         let state_meta = init_component(&node_handle, base_path, |_| Ok(()))?;
@@ -180,7 +181,6 @@ impl SourceListenerNode {
             commit_sz,
             max_duration_between_commits,
             epoch_manager,
-            start_seq,
         );
         Ok(Self {
             node_handle,
