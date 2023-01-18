@@ -1569,6 +1569,7 @@ name = "dozer-sql"
 version = "0.1.3"
 dependencies = [
  "dozer-core",
+ "dozer-tracing",
  "dozer-types",
  "dyn-clone",
  "like",

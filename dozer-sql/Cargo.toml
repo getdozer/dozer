@@ -15,6 +15,7 @@ lmdb-rkv-sys = "0.11.2"
 
 dozer-types = {path = "../dozer-types"}
 dozer-core = {path = "../dozer-core"}
+dozer-tracing = {path = "../dozer-tracing"}
 
 [dev-dependencies]
 tempdir = "0.3.7"
