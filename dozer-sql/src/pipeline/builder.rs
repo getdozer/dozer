@@ -121,9 +121,17 @@ pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
 }
 
 fn get_statement(sql: &str) -> Result<Statement, PipelineError> {
-    let ast = Parser::parse_sql(&AnsiDialect {}, sql)
+    let mut ast = Parser::parse_sql(&AnsiDialect {}, sql)
         .map_err(|e| PipelineError::InvalidQuery(e.to_string()))?;
-    Ok(ast[0].clone())
+    if ast.is_empty() {
+        return Err(InvalidQuery(
+            "Query must have at least one statement".into(),
+        ));
+    }
+    if ast.len() > 1 {
+        return Err(InvalidQuery("Query must have only one statement".into()));
+    }
+    Ok(ast.remove(0))
 }
 
 pub fn statement_to_pipeline(statement: Statement) -> Result<Box<Select>, PipelineError> {
@@ -149,5 +157,42 @@ pub fn get_body(query: Query) -> Result<Box<Select>, PipelineError> {
             SetExpr::Query(q) => get_body(*q),
             _ => Err(InvalidQuery(set_expr.to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::pipeline::errors::PipelineError;
+
+    use super::get_statement;
+
+    fn assert_invalid_query(error: PipelineError, expected: &str) {
+        match error {
+            PipelineError::InvalidQuery(actual) => assert_eq!(actual, expected),
+            _ => panic!("Expected InvalidQuery error"),
+        }
+    }
+
+    #[test]
+    fn test_get_statement() {
+        assert_invalid_query(
+            get_statement("").unwrap_err(),
+            "Query must have at least one statement".into(),
+        );
+        assert_invalid_query(
+            get_statement(";").unwrap_err(),
+            "Query must have at least one statement".into(),
+        );
+        assert!(get_statement("SELECT * FROM foo").is_ok());
+        assert!(get_statement("SELECT * FROM foo;").is_ok());
+        assert!(get_statement("SELECT * FROM foo;;").is_ok());
+        assert_invalid_query(
+            get_statement("SELECT * FROM foo; SELECT * FROM foo").unwrap_err(),
+            "Query must have only one statement".into(),
+        );
+        assert_invalid_query(
+            get_statement("SELECT * FROM foo; SELECT * FROM foo;").unwrap_err(),
+            "Query must have only one statement".into(),
+        );
     }
 }

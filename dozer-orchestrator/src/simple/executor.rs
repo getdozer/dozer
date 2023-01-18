@@ -1,5 +1,5 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
-use dozer_core::dag::app::App;
+use dozer_core::dag::app::{App, AppPipeline};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -161,13 +161,6 @@ impl Executor {
         sender: crossbeam::channel::Sender<Operation>,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
-        let asm = SourceBuilder::build_source_manager(
-            grouped_connections,
-            self.ingestor.clone(),
-            self.iterator.clone(),
-            self.running.clone(),
-        )?;
-        let mut app = App::new(asm);
 
         let mut pipeline = PipelineBuilder {}
             .build_pipeline(&sql)
@@ -185,6 +178,16 @@ impl Executor {
             )
             .map_err(OrchestrationError::ExecutionError)?;
 
+        let used_sources: Vec<String> = pipeline.get_entry_points_sources_names();
+
+        let asm = SourceBuilder::build_source_manager(
+            used_sources,
+            grouped_connections,
+            self.ingestor.clone(),
+            self.iterator.clone(),
+            self.running.clone(),
+        )?;
+        let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
         let dag = app.get_dag().map_err(OrchestrationError::ExecutionError)?;
@@ -211,14 +214,8 @@ impl Executor {
 
         Self::validate_grouped_connections(&grouped_connections)?;
 
-        let asm = SourceBuilder::build_source_manager(
-            grouped_connections,
-            self.ingestor.clone(),
-            self.iterator.clone(),
-            self.running.clone(),
-        )?;
-        let mut app = App::new(asm);
-
+        let mut pipelines: Vec<AppPipeline> = vec![];
+        let mut used_sources = vec![];
         for cache_endpoint in self.cache_endpoints.iter().cloned() {
             let api_endpoint = cache_endpoint.endpoint.clone();
             let _api_endpoint_name = api_endpoint.name.clone();
@@ -250,8 +247,25 @@ impl Executor {
                 )
                 .map_err(ExecutionError)?;
 
-            app.add_pipeline(pipeline);
+            for name in pipeline.get_entry_points_sources_names() {
+                used_sources.push(name);
+            }
+
+            pipelines.push(pipeline);
         }
+
+        let asm = SourceBuilder::build_source_manager(
+            used_sources,
+            grouped_connections,
+            self.ingestor.clone(),
+            self.iterator.clone(),
+            self.running.clone(),
+        )?;
+        let mut app = App::new(asm);
+
+        Vec::into_iter(pipelines).for_each(|p| {
+            app.add_pipeline(p);
+        });
 
         let dag = app.get_dag().map_err(ExecutionError)?;
 

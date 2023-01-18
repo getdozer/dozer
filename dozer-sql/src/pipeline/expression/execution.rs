@@ -7,6 +7,7 @@ use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, 
 use dozer_types::types::{Field, FieldType, Record, Schema};
 
 use super::aggregate::AggregateFunctionType;
+use super::cast::CastOperatorType;
 use super::scalar::string::{evaluate_like, get_like_operator_type};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -31,6 +32,10 @@ pub enum Expression {
     AggregateFunction {
         fun: AggregateFunctionType,
         args: Vec<Expression>,
+    },
+    Cast {
+        arg: Box<Expression>,
+        typ: CastOperatorType,
     },
     Trim {
         arg: Box<Expression>,
@@ -94,6 +99,7 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape,
             } => evaluate_like(schema, arg, pattern, *escape, record),
+            Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
         }
     }
 
@@ -130,6 +136,7 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape: _,
             } => get_like_operator_type(arg, pattern, schema),
+            Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
         }
     }
 }

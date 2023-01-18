@@ -49,10 +49,13 @@ fn query_secondary() {
     assert_eq!(records[0], record, "must be equal");
 
     // Full text query.
-    let (schema, secondary_indexes) = test_utils::schema_full_text_single();
+    let (schema, secondary_indexes) = test_utils::schema_full_text();
     let record = Record::new(
         schema.identifier,
-        vec![Field::String("today is a good day".into())],
+        vec![
+            Field::String("today is a good day".into()),
+            Field::Text("marry has a little lamb".into()),
+        ],
         None,
     );
 
@@ -61,14 +64,19 @@ fn query_secondary() {
         .unwrap();
     cache.insert(&record).unwrap();
 
-    let filter = FilterExpression::Simple(
-        "foo".into(),
-        expression::Operator::Contains,
-        "good".to_string().into(),
-    );
+    let filter =
+        FilterExpression::Simple("foo".into(), expression::Operator::Contains, "good".into());
 
     let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
 
+    let records = cache.query("full_text_sample", &query).unwrap();
+    assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0], record);
+
+    let filter =
+        FilterExpression::Simple("bar".into(), expression::Operator::Contains, "lamb".into());
+    let query = QueryExpression::new(Some(filter), vec![], Some(10), 0);
     let records = cache.query("full_text_sample", &query).unwrap();
     assert_eq!(cache.count("full_text_sample", &query).unwrap(), 1);
     assert_eq!(records.len(), 1);
