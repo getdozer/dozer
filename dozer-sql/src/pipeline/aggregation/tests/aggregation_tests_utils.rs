@@ -231,3 +231,13 @@ pub const FIELD_75_INT: &Field = &Field::Int(75);
 pub const FIELD_50_INT: &Field = &Field::Int(50);
 pub const FIELD_250_DIV_3_INT: &Field = &Field::Int(250 / 3);
 pub const FIELD_350_DIV_3_INT: &Field = &Field::Int(350 / 3);
+
+pub const FIELD_100_UINT: &Field = &Field::UInt(100);
+pub const FIELD_150_UINT: &Field = &Field::UInt(150);
+pub const FIELD_200_UINT: &Field = &Field::UInt(200);
+pub const FIELD_250_UINT: &Field = &Field::UInt(250);
+pub const FIELD_350_UINT: &Field = &Field::UInt(350);
+pub const FIELD_75_UINT: &Field = &Field::UInt(75);
+pub const FIELD_50_UINT: &Field = &Field::UInt(50);
+pub const FIELD_250_DIV_3_UINT: &Field = &Field::UInt(250 / 3);
+pub const FIELD_350_DIV_3_UINT: &Field = &Field::UInt(350 / 3);

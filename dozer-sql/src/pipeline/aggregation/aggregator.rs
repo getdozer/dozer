@@ -138,6 +138,16 @@ macro_rules! deserialize_i64 {
 }
 
 #[macro_export]
+macro_rules! deserialize_u64 {
+    ($stmt:expr) => {
+        match $stmt {
+            Some(v) => u64::from_be_bytes(deserialize!(v)),
+            None => 0_u64,
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! deserialize_decimal {
     ($stmt:expr) => {
         match $stmt {
@@ -215,6 +225,19 @@ macro_rules! field_extract_i64 {
         match $stmt {
             Field::Int(i) => i,
             Field::Null => &0_i64,
+            _ => {
+                return Err(InvalidOperandType($agg.to_string()));
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! field_extract_u64 {
+    ($stmt:expr, $agg:expr) => {
+        match $stmt {
+            Field::UInt(i) => i,
+            Field::Null => &0_u64,
             _ => {
                 return Err(InvalidOperandType($agg.to_string()));
             }

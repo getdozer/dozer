@@ -177,22 +177,22 @@ mod tests {
     fn test_get_statement() {
         assert_invalid_query(
             get_statement("").unwrap_err(),
-            "Query must have at least one statement".into(),
+            "Query must have at least one statement",
         );
         assert_invalid_query(
             get_statement(";").unwrap_err(),
-            "Query must have at least one statement".into(),
+            "Query must have at least one statement",
         );
         assert!(get_statement("SELECT * FROM foo").is_ok());
         assert!(get_statement("SELECT * FROM foo;").is_ok());
         assert!(get_statement("SELECT * FROM foo;;").is_ok());
         assert_invalid_query(
             get_statement("SELECT * FROM foo; SELECT * FROM foo").unwrap_err(),
-            "Query must have only one statement".into(),
+            "Query must have only one statement",
         );
         assert_invalid_query(
             get_statement("SELECT * FROM foo; SELECT * FROM foo;").unwrap_err(),
-            "Query must have only one statement".into(),
+            "Query must have only one statement",
         );
     }
 }

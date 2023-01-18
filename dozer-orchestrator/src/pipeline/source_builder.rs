@@ -135,7 +135,7 @@ mod tests {
                     name: "addresses".to_string(),
                     table_name: "addresses".to_string(),
                     columns: vec!["id".to_string()],
-                    connection: Some(events1_conn.clone()),
+                    connection: Some(events1_conn),
                     refresh_config: None,
                     app_id: None,
                 },
@@ -231,13 +231,11 @@ mod tests {
 
         assert_eq!(1, pg_source_mapping.get(0).unwrap().mappings.len());
 
-        assert_eq!(
-            false,
-            asm.get(vec![AppSourceId::new(
+        assert!(asm
+            .get(vec![AppSourceId::new(
                 config.sources.get(0).unwrap().table_name.clone(),
-                Some(conn_name.clone()),
+                Some(conn_name),
             ),])
-                .is_err()
-        )
+            .is_ok())
     }
 }

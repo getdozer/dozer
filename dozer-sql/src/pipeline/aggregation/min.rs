@@ -3,13 +3,13 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidOperandType;
 use crate::{
     deserialize_u8, field_extract_date, field_extract_decimal, field_extract_f64,
-    field_extract_i64, field_extract_timestamp, to_bytes, try_unwrap,
+    field_extract_i64, field_extract_timestamp, field_extract_u64, to_bytes, try_unwrap,
 };
 
 use dozer_core::storage::common::Database;
 use dozer_core::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp};
+use dozer_types::types::Field::{Date, Decimal, Float, Int, Timestamp, UInt};
 use dozer_types::types::{Field, FieldType, DATE_FORMAT};
 
 use crate::deserialize;
@@ -28,6 +28,7 @@ impl MinAggregator {
             FieldType::Decimal => FieldType::Decimal,
             FieldType::Float => FieldType::Float,
             FieldType::Int => FieldType::Int,
+            FieldType::UInt => FieldType::UInt,
             FieldType::Timestamp => FieldType::Timestamp,
             _ => from,
         }
@@ -105,6 +106,25 @@ impl MinAggregator {
                 // Calculate minimum
                 let minimum = try_unwrap!(Self::calc_i64_min(ptx, aggregators_db));
                 if minimum == i64::MAX {
+                    Ok(AggregationResult::new(
+                        Field::Null,
+                        Some(Vec::from(minimum.to_be_bytes())),
+                    ))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
+                    ))
+                }
+            }
+            (FieldType::UInt, _) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_u64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+
+                // Calculate minimum
+                let minimum = try_unwrap!(Self::calc_u64_min(ptx, aggregators_db));
+                if minimum == u64::MAX {
                     Ok(AggregationResult::new(
                         Field::Null,
                         Some(Vec::from(minimum.to_be_bytes())),
@@ -231,6 +251,27 @@ impl MinAggregator {
                     ))
                 }
             }
+            (FieldType::UInt, _) => {
+                // Update aggregators_db with new val and its occurrence
+                let new_val = field_extract_u64!(&new, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(new_val), 1, false, ptx, aggregators_db);
+                let old_val = field_extract_u64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+
+                // Calculate minimum
+                let minimum = try_unwrap!(Self::calc_u64_min(ptx, aggregators_db));
+                if minimum == u64::MAX {
+                    Ok(AggregationResult::new(
+                        Field::Null,
+                        Some(Vec::from(minimum.to_be_bytes())),
+                    ))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
+                    ))
+                }
+            }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let new_val = field_extract_timestamp!(&new, AGGREGATOR_NAME)
@@ -335,6 +376,22 @@ impl MinAggregator {
                     ))
                 }
             }
+            (FieldType::UInt, _) => {
+                // Update aggregators_db with new val and its occurrence
+                let old_val = field_extract_u64!(&old, AGGREGATOR_NAME);
+                Self::update_aggregator_db(to_bytes!(old_val), 1, true, ptx, aggregators_db);
+
+                // Calculate minimum
+                let minimum = try_unwrap!(Self::calc_u64_min(ptx, aggregators_db));
+                if minimum == u64::MAX {
+                    Ok(AggregationResult::new(Field::Null, None))
+                } else {
+                    Ok(AggregationResult::new(
+                        Self::get_value(&minimum.to_be_bytes(), return_type),
+                        Some(Vec::from(minimum.to_be_bytes())),
+                    ))
+                }
+            }
             (FieldType::Timestamp, _) => {
                 // Update aggregators_db with new val and its occurrence
                 let old_val = field_extract_timestamp!(&old, AGGREGATOR_NAME)
@@ -376,6 +433,7 @@ impl MinAggregator {
             )),
             FieldType::Float => Float(OrderedFloat(f64::from_be_bytes(deserialize!(f)))),
             FieldType::Int => Int(i64::from_be_bytes(deserialize!(f))),
+            FieldType::UInt => UInt(u64::from_be_bytes(deserialize!(f))),
             FieldType::Timestamp => Timestamp(DateTime::from(
                 Utc.timestamp_millis(i64::from_be_bytes(deserialize!(f))),
             )),
@@ -480,6 +538,21 @@ impl MinAggregator {
         if ptx_cur.first()? {
             let cur = try_unwrap!(ptx_cur.read()).unwrap();
             minimum = i64::from_be_bytes(deserialize!(cur.0));
+        }
+        Ok(minimum)
+    }
+
+    fn calc_u64_min(
+        ptx: &mut PrefixTransaction,
+        aggregators_db: Database,
+    ) -> Result<u64, PipelineError> {
+        let ptx_cur = ptx.open_cursor(aggregators_db)?;
+        let mut minimum = u64::MAX;
+
+        // get first to get the minimum
+        if ptx_cur.first()? {
+            let cur = try_unwrap!(ptx_cur.read()).unwrap();
+            minimum = u64::from_be_bytes(deserialize!(cur.0));
         }
         Ok(minimum)
     }
