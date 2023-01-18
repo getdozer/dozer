@@ -27,10 +27,32 @@ jobs:
           toolchain: stable
           components: llvm-tools-preview
 
+      - name: Download grcov
+        run: |
+          mkdir target
+          wget -O target/grcov https://dozer-ci.s3.ap-southeast-1.amazonaws.com/grcov-linux-amd64-v0.8.13
+          chmod +x target/grcov
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚡ Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ~/.cargo/.package-cache
+            ~/.cargo/registry/
+            ~/.cargo/git/db/
+            target/
+          key: coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+            coverage-${{ runner.os }}-cargo-
 
       - name: MongoDB in GitHub Actions
         uses: supercharge/mongodb-github-action@1.8.0
@@ -61,9 +83,8 @@ jobs:
 
       - id: coverage
         run: |
-          cargo install grcov
-          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" --ignore 'target/*' --ignore 'dozer-tests/*' -o target/coverage.lcov
-          echo "::set-output name=report::target/coverage.lcov"
+          ./target/grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" --ignore 'target/*' --ignore 'dozer-tests/*' -o coverage.lcov
+          echo "::set-output name=report::coverage.lcov"
 
       - uses: actions/upload-artifact@v3
         with:
