@@ -47,7 +47,10 @@ impl Snapshotter {
                                 seq_no: 0,
                                 operation: Operation::Insert {
                                     new: Record {
-                                        schema_id: Some(SchemaIdentifier { id: table_idx as u32, version: 1 }),
+                                        schema_id: Some(SchemaIdentifier {
+                                            id: table_idx as u32,
+                                            version: 1,
+                                        }),
                                         values: values
                                             .iter()
                                             .map(|v| match v {

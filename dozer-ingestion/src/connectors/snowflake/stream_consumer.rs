@@ -60,7 +60,10 @@ impl StreamConsumer {
 
     fn map_record(row: Vec<Option<Field>>, table_idx: usize) -> Record {
         Record {
-            schema_id: Some(SchemaIdentifier { id: table_idx as u32, version: 1 }),
+            schema_id: Some(SchemaIdentifier {
+                id: table_idx as u32,
+                version: 1,
+            }),
             values: row
                 .iter()
                 .map(|v| match v.clone() {
@@ -76,7 +79,7 @@ impl StreamConsumer {
         row: Vec<Option<Field>>,
         action_idx: usize,
         used_columns_for_schema: usize,
-        table_idx: usize
+        table_idx: usize,
     ) -> Result<IngestionMessage, ConnectorError> {
         if let Some(action) = row.get(action_idx).unwrap() {
             let mut row_mut = row.clone();
@@ -154,8 +157,12 @@ impl StreamConsumer {
             let action_idx = used_columns_for_schema;
 
             for (idx, row) in iterator.enumerate() {
-                let ingestion_message =
-                    Self::get_ingestion_message(row, action_idx, used_columns_for_schema, table_idx)?;
+                let ingestion_message = Self::get_ingestion_message(
+                    row,
+                    action_idx,
+                    used_columns_for_schema,
+                    table_idx,
+                )?;
                 ingestor
                     .write()
                     .handle_message(((1, idx as u64), ingestion_message))

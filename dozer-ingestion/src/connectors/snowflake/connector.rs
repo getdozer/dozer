@@ -24,7 +24,6 @@ use dozer_types::types::SchemaWithChangesType;
 use tokio::runtime::Runtime;
 #[cfg(feature = "snowflake")]
 use tokio::time;
-use dozer_types::log::info;
 
 pub struct SnowflakeConnector {
     pub id: u64,
@@ -153,7 +152,12 @@ async fn run(
             let mut consumer = StreamConsumer::new();
             loop {
                 for (idx, table) in tables.iter().enumerate() {
-                    consumer.consume_stream(&stream_client, &table.table_name, &ingestor_stream, idx)?;
+                    consumer.consume_stream(
+                        &stream_client,
+                        &table.table_name,
+                        &ingestor_stream,
+                        idx,
+                    )?;
 
                     interval.tick().await;
                 }

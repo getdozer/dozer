@@ -36,30 +36,26 @@ pub fn convert_data(
         SqlDataType::SQL_DECIMAL
         | SqlDataType::SQL_NUMERIC
         | SqlDataType::SQL_INTEGER
-        | SqlDataType::SQL_SMALLINT => {
-            match column_descriptor.decimal_digits {
-                None => {
-                    match cursor
-                        .get_data::<i64>(i)
-                        .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
-                    {
-                        None => Ok(Field::Null),
-                        Some(value) => Ok(Field::from(value)),
-                    }
-                }
-                Some(_) => {
-                    match cursor
-                        .get_data::<f64>(i)
-                        .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
-                    {
-                        None => Ok(Field::Null),
-                        Some(value) => {
-                            Ok(Field::from(value))
-                        },
-                    }
+        | SqlDataType::SQL_SMALLINT => match column_descriptor.decimal_digits {
+            None => {
+                match cursor
+                    .get_data::<i64>(i)
+                    .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+                {
+                    None => Ok(Field::Null),
+                    Some(value) => Ok(Field::from(value)),
                 }
             }
-        }
+            Some(_) => {
+                match cursor
+                    .get_data::<f64>(i)
+                    .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+                {
+                    None => Ok(Field::Null),
+                    Some(value) => Ok(Field::from(value)),
+                }
+            }
+        },
         SqlDataType::SQL_FLOAT | SqlDataType::SQL_REAL | SqlDataType::SQL_DOUBLE => {
             match cursor
                 .get_data::<f64>(i)
@@ -395,7 +391,10 @@ impl Client {
                     schemas
                         .entry(table_name.clone())
                         .or_insert(Schema {
-                            identifier: Some(SchemaIdentifier { id: schema_id as u32, version: 0 }),
+                            identifier: Some(SchemaIdentifier {
+                                id: schema_id as u32,
+                                version: 0,
+                            }),
                             fields: vec![],
                             primary_index: vec![0],
                         })
