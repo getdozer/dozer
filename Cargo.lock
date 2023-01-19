@@ -1578,6 +1578,7 @@ dependencies = [
  "num-traits",
  "sqlparser",
  "tempdir",
+ "uuid 1.2.1",
 ]
 
 [[package]]

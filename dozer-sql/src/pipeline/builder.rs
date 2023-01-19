@@ -45,7 +45,7 @@ impl PipelineBuilder {
         }
     }
 
-    fn select_to_pipeline(&self, select: Select) -> Result<AppPipeline, PipelineError> {
+    pub fn select_to_pipeline(&self, select: Select) -> Result<AppPipeline, PipelineError> {
         let mut pipeline = AppPipeline::new();
 
         // FROM clause
@@ -98,7 +98,7 @@ impl PipelineBuilder {
         Ok(pipeline)
     }
 
-    fn get_input_endpoints(
+    pub fn get_input_endpoints(
         &self,
         input_tables: &[String],
     ) -> Result<Vec<PipelineEntryPoint>, PipelineError> {

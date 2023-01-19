@@ -128,9 +128,12 @@ pub fn get_input_name(relation: &TableFactor) -> Result<String, ExecutionError> 
                 Ok(input_name)
             }
         }
-        _ => Err(ExecutionError::InternalStringError(
-            "Invalid Input table".to_string(),
-        )),
+        t => {
+            println!("TableFactor: {:?}", t);
+            Err(ExecutionError::InternalStringError(
+                "Invalid Input table".to_string(),
+            ))
+        }
     }
 }
 
