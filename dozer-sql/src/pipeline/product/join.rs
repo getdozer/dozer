@@ -236,7 +236,6 @@ impl JoinExecutor for JoinOperator {
         let reader = readers
             .get(&self.right_table)
             .ok_or(ExecutionError::InvalidPortHandle(self.right_table))?;
-
         for record in records.iter_mut() {
             // retrieve the lookup keys for the table on the right side of the join
             let right_lookup_keys = self.get_right_join_keys(join_key, db, transaction)?;

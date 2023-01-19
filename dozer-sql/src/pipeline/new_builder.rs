@@ -37,7 +37,7 @@ pub fn statement_to_pipeline(
     let mut pipeline = AppPipeline::new();
     let mut pipeline_map = HashMap::new();
     if let Statement::Query(query) = statement {
-        query_to_pipeline(query_name.clone(), &query, &mut pipeline, &mut pipeline_map)?;
+        query_to_pipeline(query_name.clone(), &query, &mut pipeline, &mut pipeline_map, false)?;
     };
     let node = pipeline_map
         .get(&query_name)
@@ -51,8 +51,10 @@ fn query_to_pipeline(
     query: &Query,
     pipeline: &mut AppPipeline,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    stateful: bool,
 ) -> Result<(), PipelineError> {
-    // println!("alias: {:?}", table.alias);
+
+    println!("query_to_pipeline: {:?}, {:?}", processor_name, stateful);
 
     // Attach the first pipeline if there is with clause
     if let Some(with) = &query.with {
@@ -74,17 +76,18 @@ fn query_to_pipeline(
                 &table.query,
                 pipeline,
                 pipeline_map,
+                true
             )?;
         }
     };
 
     match *query.body.clone() {
         SetExpr::Select(select) => {
-            select_to_pipeline(processor_name, *select, pipeline, pipeline_map)?;
+            select_to_pipeline(processor_name, *select, pipeline, pipeline_map, stateful)?;
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", uuid::Uuid::new_v4().to_string());
-            query_to_pipeline(query_name, &query, pipeline, pipeline_map)?
+            query_to_pipeline(query_name, &query, pipeline, pipeline_map, stateful)?
         }
         _ => {
             return Err(PipelineError::UnsupportedSqlError(
@@ -100,7 +103,10 @@ fn select_to_pipeline(
     select: Select,
     pipeline: &mut AppPipeline,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+    stateful: bool
 ) -> Result<(), PipelineError> {
+    println!("select_to_pipeline: {:?}, {:?}", processor_name, stateful);
+
     // FROM clause
     if select.from.len() != 1 {
         return Err(InvalidQuery(
@@ -131,7 +137,7 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation = AggregationProcessorFactory::new(select.projection.clone(), select.group_by);
+    let aggregation = AggregationProcessorFactory::new(select.projection.clone(), select.group_by, stateful);
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 
@@ -257,7 +263,7 @@ pub fn get_from_source(
                 |alias_ident| fullname_from_ident(&[alias_ident.name.clone()]),
             );
 
-            query_to_pipeline(alias_name.clone(), subquery, pipeline, pipeline_map)?;
+            query_to_pipeline(alias_name.clone(), subquery, pipeline, pipeline_map, true)?;
             Ok(alias_name)
         }
         _ => {
