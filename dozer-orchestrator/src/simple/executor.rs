@@ -163,7 +163,7 @@ impl Executor {
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
-        let (mut pipeline, _) =
+        let (mut pipeline, (query_name, query_port)) =
             statement_to_pipeline(&sql).map_err(OrchestrationError::PipelineError)?;
         pipeline.add_sink(
             Arc::new(StreamingSinkFactory::new(sender)),
@@ -171,8 +171,8 @@ impl Executor {
         );
         pipeline
             .connect_nodes(
-                "aggregation",
-                Some(DEFAULT_PORT_HANDLE),
+                &query_name,
+                Some(query_port),
                 "streaming_sink",
                 Some(DEFAULT_PORT_HANDLE),
             )

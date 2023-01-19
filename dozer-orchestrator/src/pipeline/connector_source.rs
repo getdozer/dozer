@@ -1,6 +1,6 @@
 use dozer_core::dag::channels::SourceChannelForwarder;
-use dozer_core::dag::errors::ExecutionError;
 use dozer_core::dag::errors::ExecutionError::ReplicationTypeNotFound;
+use dozer_core::dag::errors::{ExecutionError, SourceError};
 use dozer_core::dag::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_ingestion::connectors::{get_connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
@@ -209,10 +209,12 @@ impl Source for ConnectorSource {
                             Operation::Update { old: _, new } => new.schema_id.to_owned(),
                         };
                         let schema_id = get_schema_id(identifier.as_ref())?;
-                        let port = self
-                            .schema_port_map
-                            .get(&schema_id)
-                            .map_or(Err(ExecutionError::PortNotFound(schema_id.to_string())), Ok)?;
+                        let port = self.schema_port_map.get(&schema_id).map_or(
+                            Err(ExecutionError::SourceError(SourceError::PortError(
+                                schema_id.to_string(),
+                            ))),
+                            Ok,
+                        )?;
                         fw.send(lsn, seq_no, op.operation.to_owned(), port.to_owned())?
                     }
                 }

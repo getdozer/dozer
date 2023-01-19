@@ -93,6 +93,12 @@ pub enum ExecutionError {
         "Channel returned empty message in processor. Might be an issue with the sender: {0}, {1}"
     )]
     ProcessorReceiverError(usize, #[source] BoxedError),
+
+    #[error(transparent)]
+    JoinError(JoinError),
+
+    #[error(transparent)]
+    SourceError(SourceError),
 }
 
 #[derive(Error, Debug)]
@@ -117,4 +123,22 @@ pub enum SinkError {
 
     #[error("Failed to initialize schema in Sink: {0}")]
     CacheCountFailed(#[source] BoxedError),
+}
+
+#[derive(Error, Debug)]
+pub enum JoinError {
+    #[error("Failed to find table in Join during Insert: {0}")]
+    InsertPortError(PortHandle),
+    #[error("Failed to find table in Join during Delete: {0}")]
+    DeletePortError(PortHandle),
+    #[error("Failed to find table in Join during Update: {0}")]
+    UpdatePortError(PortHandle),
+    #[error("Join ports are not properly initialized")]
+    PortNotConnected(PortHandle),
+}
+
+#[derive(Error, Debug)]
+pub enum SourceError {
+    #[error("Failed to find table in Source: {0:?}")]
+    PortError(String),
 }

@@ -7,12 +7,13 @@ use dozer_core::dag::{
 };
 use dozer_types::types::Schema;
 use sqlparser::ast::{
-    BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint, TableFactor, TableWithJoins,
+    BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint
 };
 
 use crate::pipeline::{
     errors::PipelineError,
-    expression::builder::{fullname_from_ident, get_field_index, normalize_ident},
+    expression::builder::{fullname_from_ident, get_field_index},
+    new_builder::{get_input_names, IndexedTabelWithJoins},
 };
 
 use super::{
@@ -22,21 +23,20 @@ use super::{
 
 #[derive(Debug)]
 pub struct ProductProcessorFactory {
-    from: TableWithJoins,
-    input_names: Vec<String>,
+    input_tables: IndexedTabelWithJoins,
 }
 
 impl ProductProcessorFactory {
     /// Creates a new [`ProductProcessorFactory`].
-    pub fn new(from: TableWithJoins, input_names: Vec<String>) -> Self {
-        Self { from, input_names }
+    pub fn new(input_tables: IndexedTabelWithJoins) -> Self {
+        Self { input_tables }
     }
 }
 
 impl ProcessorFactory for ProductProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        let input_tables = get_input_tables(&self.from).unwrap();
-        input_tables
+        let input_names = get_input_names(&self.input_tables);
+        input_names
             .iter()
             .enumerate()
             .map(|(number, _)| number as PortHandle)
@@ -56,9 +56,8 @@ impl ProcessorFactory for ProductProcessorFactory {
         input_schemas: &HashMap<PortHandle, dozer_types::types::Schema>,
     ) -> Result<Schema, ExecutionError> {
         let mut output_schema = Schema::empty();
-
-        let input_tables = get_input_tables(&self.from)?;
-        for (port, table) in input_tables.iter().enumerate() {
+        let input_names = get_input_names(&self.input_tables);
+        for (port, table) in input_names.iter().enumerate() {
             if let Some(current_schema) = input_schemas.get(&(port as PortHandle)) {
                 output_schema = append_schema(output_schema, table, current_schema);
             } else {
@@ -74,7 +73,7 @@ impl ProcessorFactory for ProductProcessorFactory {
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        match build_join_chain(&self.from, self.input_names.clone(), input_schemas) {
+        match build_join_chain(&self.input_tables, input_schemas) {
             Ok(join_tables) => Ok(Box::new(ProductProcessor::new(join_tables))),
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
@@ -89,54 +88,7 @@ impl ProcessorFactory for ProductProcessorFactory {
     }
 }
 
-/// Returns a vector of input port handles and relative table name
-///
-/// # Errors
-///
-/// This function will return an error if it's not possible to get an input name.
-pub fn get_input_tables(from: &TableWithJoins) -> Result<Vec<String>, ExecutionError> {
-    let mut input_tables = vec![];
 
-    input_tables.insert(0, get_input_name(&from.relation)?);
-
-    for (index, join) in from.joins.iter().enumerate() {
-        let input_name = get_input_name(&join.relation)?;
-        input_tables.insert(index + 1, input_name);
-    }
-
-    Ok(input_tables)
-}
-
-/// Returns the table name
-///
-/// # Errors
-///
-/// This function will return an error if the input argument is not a Table.
-pub fn get_input_name(relation: &TableFactor) -> Result<String, ExecutionError> {
-    match relation {
-        TableFactor::Table { name, alias, .. } => {
-            if let Some(alias_ident) = alias {
-                let alias_name = fullname_from_ident(&[alias_ident.name.clone()]);
-                Ok(alias_name)
-            } else {
-                let input_name = name
-                    .0
-                    .iter()
-                    .map(normalize_ident)
-                    .collect::<Vec<String>>()
-                    .join(".");
-
-                Ok(input_name)
-            }
-        }
-        t => {
-            println!("TableFactor: {:?}", t);
-            Err(ExecutionError::InternalStringError(
-                "Invalid Input table".to_string(),
-            ))
-        }
-    }
-}
 
 /// Returns an hashmap with the operations to execute the join.
 /// Each entry is linked on the left and/or the right to the other side of the Join operation
@@ -145,8 +97,7 @@ pub fn get_input_name(relation: &TableFactor) -> Result<String, ExecutionError> 
 ///
 /// This function will return an error if.
 pub fn build_join_chain(
-    from: &TableWithJoins,
-    names: Vec<String>,
+    join_tables: &IndexedTabelWithJoins,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<HashMap<PortHandle, JoinTable>, PipelineError> {
     let mut input_tables = HashMap::new();
@@ -158,14 +109,14 @@ pub fn build_join_chain(
         return Err(PipelineError::InvalidRelation);
     }
 
-    let relation_name = get_input_name(&from.relation)?;
+    let relation_name = join_tables.relation.0.clone();
     let mut left_join_table = get_join_table(relation_name, input_schema.unwrap())?;
     input_tables.insert(port, left_join_table.clone());
 
-    for (index, join) in from.joins.iter().enumerate() {
+    for (index, (relation_name, join)) in join_tables.joins.iter().enumerate() {
         if let Some(input_schema) = input_schemas.get(&((index + 1) as PortHandle)) {
-            let relation_name = get_input_name(&join.relation)?;
-            let mut right_join_table = get_join_table(relation_name, input_schema)?;
+            
+            let mut right_join_table = get_join_table(relation_name.clone(), input_schema)?;
 
             let join_op = match &join.join_operator {
                 sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {

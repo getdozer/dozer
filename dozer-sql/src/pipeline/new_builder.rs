@@ -7,7 +7,7 @@ use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::appsource::AppSourceId;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
-use sqlparser::ast::{TableFactor, TableWithJoins};
+use sqlparser::ast::{Join, TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
@@ -18,6 +18,13 @@ use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::expression::builder::{fullname_from_ident, normalize_ident};
+
+#[derive(Debug, Clone)]
+pub struct IndexedTabelWithJoins {
+    pub relation: (String, TableFactor),
+    pub joins: Vec<(String, Join)>,
+}
+
 pub fn statement_to_pipeline(
     sql: &str,
 ) -> Result<(AppPipeline, (String, PortHandle)), PipelineError> {
@@ -103,7 +110,7 @@ fn select_to_pipeline(
 
     let input_tables = get_input_tables(&select.from[0], pipeline, pipeline_map)?;
 
-    let product = ProductProcessorFactory::new(select.from[0].clone(), input_tables.clone());
+    let product = ProductProcessorFactory::new(input_tables.clone());
 
     let input_endpoints = get_entry_points(&input_tables, pipeline_map)?;
 
@@ -112,7 +119,8 @@ fn select_to_pipeline(
     let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4().to_string());
     pipeline.add_processor(Arc::new(product), &gen_product_name, input_endpoints);
 
-    for (port_index, table_name) in input_tables.iter().enumerate() {
+    let input_names = get_input_names(&input_tables);
+    for (port_index, table_name) in input_names.iter().enumerate() {
         if let Some((processor_name, processor_port)) = pipeline_map.get(table_name) {
             pipeline.connect_nodes(
                 processor_name,
@@ -170,26 +178,43 @@ pub fn get_input_tables(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
-) -> Result<Vec<String>, PipelineError> {
+) -> Result<IndexedTabelWithJoins, PipelineError> {
     let mut input_tables = vec![];
 
-    input_tables.insert(0, get_from_source(&from.relation, pipeline, pipeline_map)?);
+    let name = get_from_source(&from.relation, pipeline, pipeline_map)?;
+    input_tables.insert(0, name.clone());
+    let mut joins = vec![];
 
     for (index, join) in from.joins.iter().enumerate() {
         let input_name = get_from_source(&join.relation, pipeline, pipeline_map)?;
+        joins.push((input_name.clone(), join.clone()));
         input_tables.insert(index + 1, input_name);
     }
 
-    Ok(input_tables)
+    Ok(IndexedTabelWithJoins {
+        relation: (name, from.relation.clone()),
+        joins,
+    })
 }
 
+pub fn get_input_names(input_tables: &IndexedTabelWithJoins) -> Vec<String> {
+    let mut input_names = vec![];
+    input_names.push(input_tables.relation.0.clone());
+
+    for join in &input_tables.joins {
+        input_names.push(join.0.clone());
+    }
+    input_names
+}
 pub fn get_entry_points(
-    input_tables: &[String],
+    input_tables: &IndexedTabelWithJoins,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<Vec<PipelineEntryPoint>, PipelineError> {
     let mut endpoints = vec![];
 
-    for (input_port, table) in input_tables.iter().enumerate() {
+    let input_names = get_input_names(input_tables);
+
+    for (input_port, table) in input_names.iter().enumerate() {
         if !pipeline_map.contains_key(table) {
             endpoints.push(PipelineEntryPoint::new(
                 AppSourceId::new(table.clone(), None),
@@ -199,6 +224,48 @@ pub fn get_entry_points(
     }
 
     Ok(endpoints)
+}
+
+pub fn get_from_source(
+    relation: &TableFactor,
+    pipeline: &mut AppPipeline,
+    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+) -> Result<String, PipelineError> {
+    match relation {
+        TableFactor::Table { name, alias, .. } => {
+            if let Some(alias_ident) = alias {
+                let alias_name = fullname_from_ident(&[alias_ident.name.clone()]);
+                Ok(alias_name)
+            } else {
+                let input_name = name
+                    .0
+                    .iter()
+                    .map(normalize_ident)
+                    .collect::<Vec<String>>()
+                    .join(".");
+
+                Ok(input_name)
+            }
+        }
+        TableFactor::Derived {
+            lateral: _,
+            subquery,
+            alias,
+        } => {
+            let alias_name = alias.as_ref().map_or_else(
+                || format!("derived_{}", uuid::Uuid::new_v4().to_string()),
+                |alias_ident| fullname_from_ident(&[alias_ident.name.clone()]),
+            );
+
+            query_to_pipeline(alias_name.clone(), subquery, pipeline, pipeline_map)?;
+            Ok(alias_name)
+        }
+        _ => {
+            return Err(PipelineError::UnsupportedSqlError(
+                UnsupportedSqlError::JoinTable,
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -249,10 +316,14 @@ mod tests {
             // tbl2 as (select id from tbl)
             // select id from tbl2
             // "#,
+            // r#"
+            // WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
+            // cte_table2 as (select id_ct1 from cte_table1)
+            // select id_ct2 from cte_table2
+            // "#,
             r#"
-            WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
-            cte_table2 as (select id_ct1 from cte_table1)
-            select id_ct2 from cte_table2
+                with tbl as (select id, ticker from stocks)
+                select tbl.id from  stocks join tbl on tbl.id = stocks.id;
             "#,
         ];
         for sql in statements {
@@ -260,54 +331,5 @@ mod tests {
             let _pipeline = statement_to_pipeline(sql).unwrap();
             println!("Pipeline ready");
         }
-    }
-}
-
-pub fn get_from_source(
-    relation: &TableFactor,
-    pipeline: &mut AppPipeline,
-    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
-) -> Result<String, PipelineError> {
-    match relation {
-        TableFactor::Table { name, alias, .. } => {
-            if let Some(alias_ident) = alias {
-                let alias_name = fullname_from_ident(&[alias_ident.name.clone()]);
-                Ok(alias_name)
-            } else {
-                let input_name = name
-                    .0
-                    .iter()
-                    .map(normalize_ident)
-                    .collect::<Vec<String>>()
-                    .join(".");
-
-                Ok(input_name)
-            }
-        }
-        TableFactor::Derived {
-            lateral,
-            subquery,
-            alias,
-        } => {
-            if let Some(alias_ident) = alias {
-                let alias_name = fullname_from_ident(&[alias_ident.name.clone()]);
-
-                query_to_pipeline(alias_name.clone(), subquery, pipeline, pipeline_map)?;
-                Ok(alias_name)
-            } else {
-                return Err(InvalidQuery("Derived table must have an alias".to_string()));
-            }
-        }
-        TableFactor::TableFunction { expr, alias } => todo!(),
-        TableFactor::UNNEST {
-            alias,
-            array_expr,
-            with_offset,
-            with_offset_alias,
-        } => todo!(),
-        TableFactor::NestedJoin {
-            table_with_joins,
-            alias,
-        } => todo!(),
     }
 }
