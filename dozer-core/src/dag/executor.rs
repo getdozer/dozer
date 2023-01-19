@@ -111,7 +111,7 @@ use self::source_node::{SourceListenerNode, SourceSenderNode};
 pub struct DagExecutor<'a> {
     dag: &'a Dag,
     schemas: HashMap<NodeHandle, NodeSchemas>,
-    record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    record_stores: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>>,
     join_handles: HashMap<NodeHandle, JoinHandle<()>>,
     path: PathBuf,
     options: ExecutorOptions,
@@ -166,7 +166,12 @@ impl<'a> DagExecutor<'a> {
             record_stores: Arc::new(RwLock::new(
                 dag.nodes
                     .iter()
-                    .map(|e| (e.0.clone(), HashMap::<PortHandle, RecordReader>::new()))
+                    .map(|e| {
+                        (
+                            e.0.clone(),
+                            HashMap::<PortHandle, Box<dyn RecordReader>>::new(),
+                        )
+                    })
                     .collect(),
             )),
             path: path.to_path_buf(),

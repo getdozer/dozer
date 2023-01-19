@@ -143,7 +143,9 @@ impl SourceListenerNode {
         timeout: Duration,
         base_path: &Path,
         output_ports: &[OutputPortDef],
-        record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        record_readers: Arc<
+            RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>,
+        >,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         edges: &[Edge],
         running: Arc<AtomicBool>,

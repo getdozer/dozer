@@ -24,6 +24,16 @@ impl Debug for dyn RecordWriter {
     }
 }
 
+pub trait RecordReader: Send + Sync {
+    fn get(&self, key: &[u8], version: u32) -> Result<Option<Record>, ExecutionError>;
+}
+
+impl Debug for dyn RecordReader {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("RecordReader")
+    }
+}
+
 pub(crate) struct RecordWriterUtils {}
 
 impl RecordWriterUtils {
@@ -232,6 +242,46 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
     }
 }
 
+#[derive(Debug)]
+pub struct PrimaryKeyValueLookupRecordReader {
+    tx: SharedTransaction,
+    db: Database,
+}
+
+impl PrimaryKeyValueLookupRecordReader {
+    pub fn new(tx: SharedTransaction, db: Database) -> Self {
+        Self { tx, db }
+    }
+}
+
+impl RecordReader for PrimaryKeyValueLookupRecordReader {
+    fn get(&self, key: &[u8], version: u32) -> Result<Option<Record>, ExecutionError> {
+        let mut versioned_key: Vec<u8> = Vec::with_capacity(key.len() + 4);
+        versioned_key.extend(VERSIONED_RECORDS_INDEX_ID.to_le_bytes());
+        versioned_key.extend(key);
+        versioned_key.extend(version.to_le_bytes());
+
+        let guard = self.tx.read();
+
+        let buf = guard
+            .get(self.db, &versioned_key)?
+            .ok_or_else(|| RecordNotFound())?;
+        let rec: Option<Record> = match buf[0] {
+            RECORD_PRESENT_FLAG => {
+                let mut r: Record =
+                    bincode::deserialize(&buf[1..]).map_err(|e| DeserializationError {
+                        typ: "Record".to_string(),
+                        reason: Box::new(e),
+                    })?;
+                r.version = Some(INITIAL_RECORD_VERSION);
+                Some(r)
+            }
+            _ => None,
+        };
+        Ok(rec)
+    }
+}
+
 const DOZER_ROWID: &str = "_DOZER_ROWID";
 
 #[derive(Debug)]
@@ -314,6 +364,7 @@ impl RecordWriter for AutogenRowKeyLookupRecordWriter {
                         && self.schema.primary_index[0] == new.values.len() - 1
                 );
                 self.write_record(&new, &self.schema, tx)?;
+                new.version = Some(INITIAL_RECORD_VERSION);
                 Ok(Operation::Insert { new })
             }
             Operation::Update { .. } => Err(UnsupportedUpdateOperation(
@@ -327,20 +378,30 @@ impl RecordWriter for AutogenRowKeyLookupRecordWriter {
 }
 
 #[derive(Debug)]
-pub struct RecordReader {
+pub struct AutogenRowKeyLookupRecordReader {
     tx: SharedTransaction,
     db: Database,
 }
 
-impl RecordReader {
+impl AutogenRowKeyLookupRecordReader {
     pub fn new(tx: SharedTransaction, db: Database) -> Self {
         Self { tx, db }
     }
+}
 
-    pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        self.tx
-            .read()
-            .get(self.db, key)
-            .map(|b| b.map(|b| b.to_vec()))
+impl RecordReader for AutogenRowKeyLookupRecordReader {
+    fn get(&self, key: &[u8], version: u32) -> Result<Option<Record>, ExecutionError> {
+        Ok(match self.tx.read().get(self.db, key)? {
+            Some(buf) => {
+                let mut r: Record =
+                    bincode::deserialize(&buf).map_err(|e| DeserializationError {
+                        typ: "Record".to_string(),
+                        reason: Box::new(e),
+                    })?;
+                r.version = Some(INITIAL_RECORD_VERSION);
+                Some(r)
+            }
+            None => None,
+        })
     }
 }

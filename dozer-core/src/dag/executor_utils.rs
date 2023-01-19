@@ -5,7 +5,9 @@ use crate::dag::errors::ExecutionError;
 use crate::dag::errors::ExecutionError::InvalidOperation;
 use crate::dag::executor::ExecutorOperation;
 use crate::dag::node::{NodeHandle, OutputPortDef, OutputPortType, PortHandle};
-use crate::dag::record_store::RecordReader;
+use crate::dag::record_store::{
+    AutogenRowKeyLookupRecordReader, PrimaryKeyValueLookupRecordReader, RecordReader,
+};
 use crate::storage::common::Database;
 use crate::storage::lmdb_storage::{LmdbEnvironmentManager, SharedTransaction};
 use crossbeam::channel::{bounded, Receiver, Select, Sender};
@@ -176,7 +178,7 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
     edges: &[Edge],
     mut env: LmdbEnvironmentManager,
     output_ports: &[OutputPortDef],
-    record_stores: &mut HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>,
+    record_stores: &mut HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>,
 ) -> Result<(SharedTransaction, HashMap<PortHandle, StateOptions>), ExecutionError> {
     let mut port_databases: Vec<Option<StateOptions>> = Vec::new();
     for port in output_ports {
@@ -202,13 +204,20 @@ pub(crate) fn create_ports_databases_and_fill_downstream_record_readers(
     for (state_options, port) in port_databases.iter().zip(output_ports.iter()) {
         if let Some(state_options) = state_options {
             for endpoint in get_inputs_for_output(edges, handle, &port.handle) {
+                let record_reader: Box<dyn RecordReader> = match port.typ {
+                    OutputPortType::AutogenRowKeyLookup => Box::new(
+                        AutogenRowKeyLookupRecordReader::new(master_tx.clone(), state_options.db),
+                    ),
+                    OutputPortType::StatefulWithPrimaryKeyLookup { .. } => Box::new(
+                        PrimaryKeyValueLookupRecordReader::new(master_tx.clone(), state_options.db),
+                    ),
+                    OutputPortType::Stateless => panic!("Internal error: Invalid port type"),
+                };
+
                 record_stores
                     .get_mut(&endpoint.node)
                     .expect("Record store HashMap must be created for every node upfront")
-                    .insert(
-                        endpoint.port,
-                        RecordReader::new(master_tx.clone(), state_options.db),
-                    );
+                    .insert(endpoint.port, record_reader);
             }
         }
     }

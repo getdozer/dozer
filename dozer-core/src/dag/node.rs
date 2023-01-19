@@ -149,7 +149,7 @@ pub trait Processor: Debug {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
         tx: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError>;
 }
 
@@ -178,6 +178,6 @@ pub trait Sink: Debug {
         from_port: PortHandle,
         op: Operation,
         state: &SharedTransaction,
-        reader: &HashMap<PortHandle, RecordReader>,
+        reader: &HashMap<PortHandle, Box<dyn RecordReader>>,
     ) -> Result<(), ExecutionError>;
 }

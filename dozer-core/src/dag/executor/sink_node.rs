@@ -30,7 +30,7 @@ pub struct SinkNode {
     /// The sink.
     sink: Box<dyn Sink>,
     /// Record readers of all stateful ports. Using `self.node_handle`, we can find the record readers of our stateful inputs.
-    record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>>,
     /// The transaction for this node's environment. Sink uses it to persist data.
     master_tx: SharedTransaction,
     /// This node's state writer, for writing metadata and port state.
@@ -50,7 +50,9 @@ impl SinkNode {
         node_handle: NodeHandle,
         sink_factory: &dyn SinkFactory,
         base_path: &Path,
-        record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        record_readers: Arc<
+            RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>,
+        >,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Self, ExecutionError> {

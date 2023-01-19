@@ -33,7 +33,7 @@ pub struct ProcessorNode {
     /// The processor.
     processor: Box<dyn Processor>,
     /// Record readers of all stateful ports. Using `self.node_handle`, we can find the record readers of our stateful inputs.
-    record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+    record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>>,
     /// The transaction for this node's environment. Processor uses it to persist data.
     master_tx: SharedTransaction,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
@@ -56,7 +56,9 @@ impl ProcessorNode {
         node_handle: NodeHandle,
         processor_factory: &dyn ProcessorFactory,
         base_path: &Path,
-        record_readers: Arc<RwLock<HashMap<NodeHandle, HashMap<PortHandle, RecordReader>>>>,
+        record_readers: Arc<
+            RwLock<HashMap<NodeHandle, HashMap<PortHandle, Box<dyn RecordReader>>>>,
+        >,
         receivers: HashMap<PortHandle, Vec<Receiver<ExecutorOperation>>>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         edges: &[Edge],
