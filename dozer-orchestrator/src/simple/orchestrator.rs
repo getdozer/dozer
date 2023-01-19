@@ -22,7 +22,7 @@ use dozer_core::dag::dag_schemas::DagSchemaManager;
 use dozer_core::dag::errors::ExecutionError::InternalError;
 use dozer_ingestion::ingestion::IngestionConfig;
 use dozer_ingestion::ingestion::Ingestor;
-use dozer_sql::pipeline::builder::PipelineBuilder;
+use dozer_sql::pipeline::new_builder::statement_to_pipeline;
 use dozer_types::crossbeam::channel::{self, unbounded, Sender};
 use dozer_types::log::{info, warn};
 use dozer_types::models::api_config::ApiConfig;
@@ -402,8 +402,7 @@ impl SimpleOrchestrator {
 pub fn validate_endpoints(endpoints: &Vec<ApiEndpoint>) -> Result<(), OrchestrationError> {
     let mut is_all_valid = true;
     for endpoint in endpoints {
-        let builder = PipelineBuilder {};
-        builder.build_pipeline(&endpoint.sql).map_or_else(
+        statement_to_pipeline(&endpoint.sql).map_or_else(
             |e| {
                 is_all_valid = false;
                 error!(

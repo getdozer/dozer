@@ -2,4 +2,4 @@
 mod builder_test;
 
 #[cfg(test)]
-mod utils;
+pub mod utils;
