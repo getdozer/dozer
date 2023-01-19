@@ -1,5 +1,5 @@
 use dozer_types::ingestion_types::SnowflakeConfig;
-use dozer_types::log::{debug, info};
+use dozer_types::log::debug;
 
 use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
@@ -386,7 +386,7 @@ impl Client {
                         None
                     };
 
-                    let schema_id = tables_indexes.get(&table_name.clone()).unwrap().clone();
+                    let schema_id = *tables_indexes.get(&table_name.clone()).unwrap();
 
                     schemas
                         .entry(table_name.clone())
@@ -458,7 +458,7 @@ impl Client {
 
                 let schema = schema_result?;
 
-                let mut keys = HashMap::new();
+                let mut keys: HashMap<String, Vec<String>> = HashMap::new();
                 let iterator = ResultIterator {
                     cols,
                     stmt: data,
@@ -480,7 +480,7 @@ impl Client {
                         })
                     });
 
-                    keys.entry(table_name).or_insert(vec![]).push(column_name);
+                    keys.entry(table_name).or_default().push(column_name);
                 }
 
                 Ok(keys)
