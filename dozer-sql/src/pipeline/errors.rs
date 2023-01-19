@@ -69,4 +69,17 @@ pub enum PipelineError {
     InternalExecutionError(#[from] ExecutionError),
     #[error(transparent)]
     InternalError(#[from] BoxedError),
+
+    #[error(transparent)]
+    UnsupportedSqlError(#[from] UnsupportedSqlError),
+}
+
+#[derive(Error, Debug)]
+pub enum UnsupportedSqlError {
+    #[error("Recursive CTE is not supported. Please refer to the documentation(https://getdozer.io/docs/reference/sql/introduction) for more information. ")]
+    Recursive,
+    #[error("Currently this syntax is not supported for CTEs")]
+    CteFromError,
+    #[error("Currently only SELECT operations are allowed")]
+    SelectOnlyError,
 }
