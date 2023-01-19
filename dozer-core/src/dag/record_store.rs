@@ -1,15 +1,17 @@
 use crate::dag::errors::ExecutionError;
-use crate::dag::errors::ExecutionError::{UnsupportedDeleteOperation, UnsupportedUpdateOperation};
+use crate::dag::errors::ExecutionError::{
+    RecordNotFound, UnsupportedDeleteOperation, UnsupportedUpdateOperation,
+};
 use crate::dag::node::OutputPortType;
 
 use crate::storage::common::Database;
 use crate::storage::errors::StorageError;
 use crate::storage::errors::StorageError::{DeserializationError, SerializationError};
 use crate::storage::lmdb_storage::SharedTransaction;
+use crate::storage::prefix_transaction::PrefixTransaction;
 use dozer_types::bincode;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use std::fmt::{Debug, Formatter};
-use crate::storage::prefix_transaction::PrefixTransaction;
 
 pub trait RecordWriter {
     fn write(&mut self, op: Operation, tx: &SharedTransaction)
@@ -53,8 +55,8 @@ impl RecordWriterUtils {
     }
 }
 
-const VERSIONED_RECORDS_INDEX_ID : u32 = 0x01;
-const RECORD_VERSIONS_INDEX_ID : u32 = 0x02;
+const VERSIONED_RECORDS_INDEX_ID: u32 = 0x01;
+const RECORD_VERSIONS_INDEX_ID: u32 = 0x02;
 const INITIAL_RECORD_VERSION: u32 = 1_u32;
 
 const RECORD_PRESENT_FLAG: u8 = 0x01;
@@ -87,20 +89,32 @@ impl PrimaryKeyLookupRecordWriter {
     }
 
     #[inline]
-    pub(crate) fn get_last_record_version(&self, rec_key: &[u8], tx: &SharedTransaction) -> Result<u32, ExecutionError> {
+    pub(crate) fn get_last_record_version(
+        &self,
+        rec_key: &[u8],
+        tx: &SharedTransaction,
+    ) -> Result<u32, ExecutionError> {
         let mut exclusive_tx = Box::new(tx.write());
         let versions_tx = PrefixTransaction::new(exclusive_tx.as_mut(), RECORD_VERSIONS_INDEX_ID);
         match versions_tx.get(self.db, rec_key)? {
             Some(payload) => Ok(u32::from_le_bytes(payload.try_into().unwrap())),
-            None => Err(ExecutionError::RecordNotFound())
+            None => Err(ExecutionError::RecordNotFound()),
         }
     }
 
     #[inline]
-    pub(crate) fn put_last_record_version(&self, rec_key: &[u8], version: u32, tx: &SharedTransaction) -> Result<(), ExecutionError> {
+    pub(crate) fn put_last_record_version(
+        &self,
+        rec_key: &[u8],
+        version: u32,
+        tx: &SharedTransaction,
+    ) -> Result<(), ExecutionError> {
         let mut exclusive_tx = Box::new(tx.write());
-        let mut versions_tx = PrefixTransaction::new(exclusive_tx.as_mut(), RECORD_VERSIONS_INDEX_ID);
-        versions_tx.put(self.db, rec_key, &version.to_le_bytes()).map_err(|e|ExecutionError::InternalDatabaseError(e))
+        let mut versions_tx =
+            PrefixTransaction::new(exclusive_tx.as_mut(), RECORD_VERSIONS_INDEX_ID);
+        versions_tx
+            .put(self.db, rec_key, &version.to_le_bytes())
+            .map_err(|e| ExecutionError::InternalDatabaseError(e))
     }
 
     pub(crate) fn write_versioned_record(
@@ -111,22 +125,19 @@ impl PrimaryKeyLookupRecordWriter {
         schema: &Schema,
         tx: &SharedTransaction,
     ) -> Result<(), ExecutionError> {
-
         self.put_last_record_version(&key, version, tx)?;
         key.extend(version.to_le_bytes());
         let value = match record {
             Some(r) => {
                 let mut v = Vec::with_capacity(32);
                 v.extend(RECORD_PRESENT_FLAG.to_le_bytes());
-                v.extend(
-                    bincode::serialize(r).map_err(|e| SerializationError {
-                        typ: "Record".to_string(),
-                        reason: Box::new(e),
-                    })?
-                );
+                v.extend(bincode::serialize(r).map_err(|e| SerializationError {
+                    typ: "Record".to_string(),
+                    reason: Box::new(e),
+                })?);
                 v
-            },
-            None => Vec::from(RECORD_DELETED_FLAG.to_le_bytes())
+            }
+            None => Vec::from(RECORD_DELETED_FLAG.to_le_bytes()),
         };
         let mut exclusive_tx = Box::new(tx.write());
         let mut store = PrefixTransaction::new(exclusive_tx.as_mut(), VERSIONED_RECORDS_INDEX_ID);
@@ -134,21 +145,28 @@ impl PrimaryKeyLookupRecordWriter {
         Ok(())
     }
 
-    pub(crate) fn retr_versioned_record(&self, mut key: Vec<u8>, version: u32, tx: &SharedTransaction) -> Result<Option<Record>, ExecutionError> {
-
+    pub(crate) fn retr_versioned_record(
+        &self,
+        mut key: Vec<u8>,
+        version: u32,
+        tx: &SharedTransaction,
+    ) -> Result<Option<Record>, ExecutionError> {
         key.extend(version.to_le_bytes());
         let mut exclusive_tx = Box::new(tx.write());
         let mut store = PrefixTransaction::new(exclusive_tx.as_mut(), VERSIONED_RECORDS_INDEX_ID);
-        let curr = store.get(self.db, &key)?
+        let curr = store
+            .get(self.db, &key)?
             .ok_or_else(ExecutionError::RecordNotFound)?;
         let rec: Option<Record> = match curr[0] {
             RECORD_PRESENT_FLAG => {
-                Some(bincode::deserialize(&curr[1..]).map_err(|e| DeserializationError {
-                    typ: "Record".to_string(),
-                    reason: Box::new(e),
-                })?)
-            },
-            _ => None
+                Some(
+                    bincode::deserialize(&curr[1..]).map_err(|e| DeserializationError {
+                        typ: "Record".to_string(),
+                        reason: Box::new(e),
+                    })?,
+                )
+            }
+            _ => None,
         };
         Ok(rec)
     }
@@ -160,28 +178,54 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
         op: Operation,
         tx: &SharedTransaction,
     ) -> Result<Operation, ExecutionError> {
-
         match op {
             Operation::Insert { mut new } => {
-                // let key = new.get_key(&self.schema.primary_index);
-                // self.write_versioned_record_op(&record_op, key, INITIAL_RECORD_VERSION, &self.schema, tx)?;
-                // new.version = Some(INITIAL_RECORD_VERSION);
+                let key = new.get_key(&self.schema.primary_index);
+                self.write_versioned_record(
+                    Some(&new),
+                    key,
+                    INITIAL_RECORD_VERSION,
+                    &self.schema,
+                    tx,
+                )?;
+                new.version = Some(INITIAL_RECORD_VERSION);
                 Ok(Operation::Insert { new })
             }
             Operation::Delete { mut old } => {
-                // let key = old.get_key(&self.schema.primary_index);
-                // if self.retr_old_records_for_deletes {
-                //     old = self.retr_record(&key, tx)?;
-                // }
-                // tx.write().del(self.db, &key, None)?;
+                let key = old.get_key(&self.schema.primary_index);
+                let curr_version = self.get_last_record_version(&key, &tx)?;
+                if self.retr_old_records_for_deletes {
+                    old = self
+                        .retr_versioned_record(key.to_owned(), curr_version, tx)?
+                        .ok_or_else(|| RecordNotFound())?;
+                }
+                self.write_versioned_record(
+                    None,
+                    key.to_owned(),
+                    curr_version + 1,
+                    &self.schema,
+                    tx,
+                )?;
+                old.version = Some(curr_version);
                 Ok(Operation::Delete { old })
             }
-            Operation::Update { mut old, new } => {
-                // let key = old.get_key(&self.schema.primary_index);
-                // if self.retr_old_records_for_updates {
-                //     old = self.retr_record(&key, tx)?;
-                // }
-                // self.write_record(&new, &self.schema, tx)?;
+            Operation::Update { mut old, mut new } => {
+                let key = old.get_key(&self.schema.primary_index);
+                let curr_version = self.get_last_record_version(&key, &tx)?;
+                if self.retr_old_records_for_updates {
+                    old = self
+                        .retr_versioned_record(key.to_owned(), curr_version, tx)?
+                        .ok_or_else(|| RecordNotFound())?;
+                }
+                self.write_versioned_record(
+                    Some(&new),
+                    key.to_owned(),
+                    curr_version + 1,
+                    &self.schema,
+                    tx,
+                )?;
+                old.version = Some(curr_version);
+                new.version = Some(curr_version + 1);
                 Ok(Operation::Update { old, new })
             }
         }
