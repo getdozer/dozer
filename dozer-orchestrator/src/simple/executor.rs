@@ -1,7 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
 use dozer_types::indicatif::MultiProgress;
-use dozer_types::models::app_config::Flags;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,7 +10,7 @@ use std::sync::Arc;
 use dozer_api::CacheEndpoint;
 use dozer_types::models::source::Source;
 
-use crate::pipeline::{CacheSinkFactory, StreamingSinkFactory};
+use crate::pipeline::{CacheSinkFactory, CacheSinkSettings, StreamingSinkFactory};
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::executor::{DagExecutor, ExecutorOptions};
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table, TableInfo};
@@ -21,7 +20,7 @@ use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
-use dozer_types::models::api_security::ApiSecurity;
+
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::RwLock;
 use OrchestrationError::ExecutionError;
@@ -210,8 +209,7 @@ impl Executor {
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
         api_dir: PathBuf,
-        api_security: Option<ApiSecurity>,
-        flags: Option<Flags>,
+        settings: CacheSinkSettings,
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
@@ -235,9 +233,8 @@ impl Executor {
                     api_endpoint,
                     notifier.clone(),
                     api_dir.clone(),
-                    api_security.clone(),
                     self.progress.clone(),
-                    flags.clone(),
+                    settings.to_owned(),
                 )),
                 cache_endpoint.endpoint.name.as_str(),
             );
@@ -303,12 +300,11 @@ impl Executor {
     pub fn run(
         &self,
         notifier: Option<crossbeam::channel::Sender<PipelineResponse>>,
-        api_security: Option<ApiSecurity>,
-        flags: Option<Flags>,
+        settings: CacheSinkSettings,
     ) -> Result<(), OrchestrationError> {
         let running_wait = self.running.clone();
 
-        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), api_security, flags)?;
+        let parent_dag = self.build_pipeline(notifier, PathBuf::default(), settings)?;
         let path = &self.pipeline_dir;
 
         if !path.exists() {

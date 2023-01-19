@@ -1,9 +1,10 @@
 use super::executor::Executor;
 use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
+use crate::pipeline::CacheSinkSettings;
 use crate::utils::{
-    get_api_dir, get_api_security_config, get_cache_dir, get_grpc_config, get_pipeline_config,
-    get_pipeline_dir, get_rest_config,
+    get_api_dir, get_api_security_config, get_cache_dir, get_flags, get_grpc_config,
+    get_pipeline_config, get_pipeline_dir, get_rest_config,
 };
 use crate::{flatten_joinhandle, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
@@ -217,11 +218,10 @@ impl Orchestrator for SimpleOrchestrator {
             running,
             pipeline_home_dir,
         );
-        executor.run(
-            Some(sender),
-            self.config.api.to_owned().unwrap_or_default().api_security,
-            self.config.flags.to_owned(),
-        )
+        let flags = get_flags(self.config.clone());
+        let api_security = get_api_security_config(self.config.clone());
+        let settings = CacheSinkSettings::new(flags, api_security);
+        executor.run(Some(sender), settings)
     }
 
     fn list_connectors(
@@ -343,9 +343,10 @@ impl Orchestrator for SimpleOrchestrator {
                 e,
             )
         })?;
-
         let api_security = get_api_security_config(self.config.clone());
-        let dag = executor.build_pipeline(None, generated_path.clone(), api_security,  self.config.flags.to_owned())?;
+        let flags = get_flags(self.config.clone());
+        let settings = CacheSinkSettings::new(flags, api_security);
+        let dag = executor.build_pipeline(None, generated_path.clone(), settings)?;
         let schema_manager = DagSchemaManager::new(&dag)?;
         // Every sink will initialize its schema in sink and also in a proto file.
         schema_manager.prepare()?;

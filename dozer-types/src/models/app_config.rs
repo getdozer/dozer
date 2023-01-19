@@ -1,5 +1,6 @@
 use super::{
-    api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, source::Source,
+    api_config::ApiConfig, api_endpoint::ApiEndpoint, connection::Connection, flags::Flags,
+    source::Source,
 };
 use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
 use serde::{
@@ -38,24 +39,6 @@ pub struct Config {
     pub flags: Option<Flags>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
-pub struct Flags {
-    /// dynamic grpc enabled; Default: true
-    #[prost(bool, tag = "1", default = true)]
-    pub dynamic: bool,
-    /// http1 + web support for grpc. This is required for browser clients.; Default: true
-    #[prost(bool, tag = "2", default = true)]
-    pub grpc_web: bool,
-
-    /// push events enabled. Currently unstable.; Default: false
-    #[prost(bool, tag = "3", default = false)]
-    pub push_events: bool,
-
-    /// require authentication to access grpc server reflection service if true.; Default: false
-    #[prost(bool, tag = "4", default = false)]
-    pub authenticate_server_reflection: bool,
-}
-
 pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
 }
@@ -78,7 +61,7 @@ impl<'de> Deserialize<'de> for Config {
                 A: serde::de::MapAccess<'de>,
             {
                 let mut api: Option<ApiConfig> = Some(default_api_config());
-                let mut flags: Option<Flags> = None;
+                let mut flags: Option<Flags> = Some(Flags::default());
                 let mut connections: Vec<Connection> = vec![];
                 let mut sources_value: Vec<serde_yaml::Value> = vec![];
                 let mut endpoints: Vec<ApiEndpoint> = vec![];

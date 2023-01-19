@@ -2,7 +2,7 @@ use crate::{errors::GenerationError, PipelineDetails};
 use dozer_cache::cache::Cache;
 use dozer_types::log::error;
 use dozer_types::models::api_security::ApiSecurity;
-use dozer_types::models::app_config::Flags;
+use dozer_types::models::flags::Flags;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::FieldType;
 use handlebars::Handlebars;

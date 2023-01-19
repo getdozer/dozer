@@ -5,7 +5,6 @@ fn test_partial_flag_config_input() {
     let input_config_with_flag = r#"
   app_name: working_app
   flags:
-    dynamic: true
     grpc_web: false
     push_events: false
 "#;
@@ -20,6 +19,7 @@ fn test_partial_flag_config_input() {
         flags_deserialize.authenticate_server_reflection,
         default_flags.authenticate_server_reflection,
     );
+    assert_eq!(flags_deserialize.dynamic, default_flags.dynamic);
 }
 
 #[test]

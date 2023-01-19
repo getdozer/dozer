@@ -1,7 +1,8 @@
 use super::generator::ProtoGenerator;
 use crate::generator::protoc::utils::{create_descriptor_set, get_proto_descriptor};
 use crate::{test_utils, CacheEndpoint, PipelineDetails};
-use dozer_types::models::{api_security::ApiSecurity, app_config::Flags};
+use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::models::flags::Flags;
 use prost_reflect::{MethodDescriptor, ServiceDescriptor};
 use std::collections::HashMap;
 use tempdir::TempDir;
