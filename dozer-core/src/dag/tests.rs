@@ -24,3 +24,5 @@ mod node;
 mod sinks;
 #[cfg(test)]
 mod sources;
+#[cfg(test)]
+mod record_store;
