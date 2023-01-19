@@ -1,8 +1,8 @@
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineBuilder;
+use crate::pipeline::new_builder::PipelineError::InvalidQuery;
 use crate::pipeline::product::factory::get_input_name;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
-use crate::pipeline::tests::sql::PipelineError::InvalidQuery;
 use crate::pipeline::{errors::PipelineError, product::factory::ProductProcessorFactory};
 use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::appsource::AppSourceId;
@@ -12,7 +12,6 @@ use dozer_core::dag::{
     dag::{Endpoint, DEFAULT_PORT_HANDLE},
     node::NodeHandle,
 };
-
 use sqlparser::ast::TableWithJoins;
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
@@ -74,32 +73,37 @@ select id from tbl2
 "#;
 #[test]
 fn sql_logic_test_1() {
-    let dialect = AnsiDialect {};
-
-    let ast = Parser::parse_sql(&dialect, SQL_4).unwrap();
-
-    let statement = ast.get(0).expect("First statement is missing").to_owned();
-
-    let pipeline = statement_to_pipeline(&statement).unwrap();
+    let _pipeline = statement_to_pipeline(SQL_4).unwrap();
 
     println!("sdfs");
 }
 
-fn statement_to_pipeline(statement: &Statement) -> Result<AppPipeline, PipelineError> {
+pub fn statement_to_pipeline(
+    sql: &str,
+) -> Result<(AppPipeline, (String, PortHandle)), PipelineError> {
+    let dialect = AnsiDialect {};
+
+    let ast = Parser::parse_sql(&dialect, sql).unwrap();
+    let query_name = format!("query_{}", uuid::Uuid::new_v4().to_string());
+    let statement = ast.get(0).expect("First statement is missing").to_owned();
+
     let mut pipeline = AppPipeline::new();
     let mut source_map = HashMap::new();
     let mut pipeline_map = HashMap::new();
     if let Statement::Query(query) = statement {
-        let query_name = format!("query_{}", uuid::Uuid::new_v4().to_string());
         query_to_pipeline(
-            query_name,
+            query_name.clone(),
             &query,
             &mut pipeline,
             &mut source_map,
             &mut pipeline_map,
         )?;
     };
-    Ok(pipeline)
+    let node = pipeline_map
+        .get(&query_name)
+        .expect("query should have been initialized")
+        .to_owned();
+    Ok((pipeline, node))
 }
 
 fn query_to_pipeline(

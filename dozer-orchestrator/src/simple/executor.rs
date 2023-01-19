@@ -1,5 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
+use dozer_sql::pipeline::new_builder;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -222,9 +223,13 @@ impl Executor {
             let _api_endpoint_name = api_endpoint.name.clone();
             let cache = cache_endpoint.cache;
 
-            let mut pipeline = PipelineBuilder {}
-                .build_pipeline(&api_endpoint.sql)
-                .map_err(OrchestrationError::PipelineError)?;
+            // let mut pipeline = PipelineBuilder {}
+            //     .build_pipeline(&api_endpoint.sql)
+            //     .map_err(OrchestrationError::PipelineError)?;
+
+            let (mut pipeline, (query_name, query_port)) =
+                new_builder::statement_to_pipeline(&api_endpoint.sql)
+                    .map_err(OrchestrationError::PipelineError)?;
 
             pipeline.add_sink(
                 Arc::new(CacheSinkFactory::new(
@@ -241,8 +246,8 @@ impl Executor {
 
             pipeline
                 .connect_nodes(
-                    "aggregation",
-                    Some(DEFAULT_PORT_HANDLE),
+                    &query_name,
+                    Some(query_port),
                     cache_endpoint.endpoint.name.as_str(),
                     Some(DEFAULT_PORT_HANDLE),
                 )
