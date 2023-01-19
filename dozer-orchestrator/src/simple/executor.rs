@@ -1,6 +1,6 @@
 use dozer_api::grpc::internal_grpc::PipelineResponse;
 use dozer_core::dag::app::{App, AppPipeline};
-use dozer_sql::pipeline::new_builder;
+use dozer_sql::pipeline::new_builder::{self, statement_to_pipeline};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::types::{Operation, SchemaWithChangesType};
 use std::collections::HashMap;
@@ -18,7 +18,6 @@ use dozer_ingestion::connectors::{get_connector, get_connector_info_table, Table
 
 use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 
-use dozer_sql::pipeline::builder::PipelineBuilder;
 use dozer_types::crossbeam;
 use dozer_types::log::{error, info};
 use dozer_types::models::api_security::ApiSecurity;
@@ -164,9 +163,8 @@ impl Executor {
     ) -> Result<dozer_core::dag::dag::Dag, OrchestrationError> {
         let grouped_connections = self.get_connection_groups();
 
-        let mut pipeline = PipelineBuilder {}
-            .build_pipeline(&sql)
-            .map_err(OrchestrationError::PipelineError)?;
+        let (mut pipeline, _) =
+            statement_to_pipeline(&sql).map_err(OrchestrationError::PipelineError)?;
         pipeline.add_sink(
             Arc::new(StreamingSinkFactory::new(sender)),
             "streaming_sink",

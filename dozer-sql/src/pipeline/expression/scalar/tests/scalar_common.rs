@@ -1,6 +1,4 @@
-use crate::pipeline::builder::get_select;
-
-use crate::pipeline::projection::factory::ProjectionProcessorFactory;
+use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::dag::channels::ProcessorChannelForwarder;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::ProcessorFactory;

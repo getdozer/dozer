@@ -1,4 +1,3 @@
-use crate::pipeline::builder::PipelineBuilder;
 use dozer_core::dag::app::App;
 use dozer_core::dag::appsource::{AppSource, AppSourceManager};
 use dozer_core::dag::channels::SourceChannelForwarder;
@@ -22,6 +21,8 @@ use std::fs;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tempdir::TempDir;
+
+use crate::pipeline::new_builder::statement_to_pipeline;
 
 /// Test Source
 #[derive(Debug)]
@@ -166,13 +167,12 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let mut pipeline = PipelineBuilder {}
-        .build_pipeline(
-            "SELECT COUNT(Spending), users.Country \
-                FROM users \
-                WHERE Spending >= 1",
-        )
-        .unwrap_or_else(|e| panic!("Unable to start the Executor: {}", e));
+    let (mut pipeline, _) = statement_to_pipeline(
+        "SELECT COUNT(Spending), users.Country \
+    FROM users \
+    WHERE Spending >= 1",
+    )
+    .unwrap();
 
     let mut asm = AppSourceManager::new();
     asm.add(AppSource::new(

@@ -4,8 +4,8 @@
 // use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
 // use crate::pipeline::{
-//     builder::get_select,
 //     product::factory::{build_join_chain, ProductProcessorFactory},
+//     tests::utils::get_select,
 // };
 
 // #[test]
