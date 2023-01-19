@@ -1,4 +1,6 @@
-use crate::dag::record_store::{PrimaryKeyLookupRecordWriter, RecordWriter};
+use crate::dag::record_store::{
+    PrimaryKeyLookupRecordWriter, PrimaryKeyValueLookupRecordReader, RecordReader, RecordWriter,
+};
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
 use tempdir::TempDir;
@@ -206,4 +208,21 @@ fn test_write() {
             )
         }
     );
+
+    let lookup_record = Record::new(None, vec![Field::Int(1), Field::Null], None);
+    let lookup_key = lookup_record.get_key(&schema.primary_index);
+
+    let reader = PrimaryKeyValueLookupRecordReader::new(tx, master_db);
+    let r = reader.get(&lookup_key, 1).unwrap();
+    assert_eq!(
+        r,
+        Some(Record::new(
+            None,
+            vec![Field::Int(1), Field::String("John1".to_string())],
+            Some(1)
+        ))
+    );
+
+    let r = reader.get(&lookup_key, 3).unwrap();
+    assert!(r.is_none());
 }

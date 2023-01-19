@@ -257,7 +257,7 @@ impl PrimaryKeyValueLookupRecordReader {
 impl RecordReader for PrimaryKeyValueLookupRecordReader {
     fn get(&self, key: &[u8], version: u32) -> Result<Option<Record>, ExecutionError> {
         let mut versioned_key: Vec<u8> = Vec::with_capacity(key.len() + 4);
-        versioned_key.extend(VERSIONED_RECORDS_INDEX_ID.to_le_bytes());
+        versioned_key.extend(VERSIONED_RECORDS_INDEX_ID.to_be_bytes());
         versioned_key.extend(key);
         versioned_key.extend(version.to_le_bytes());
 
