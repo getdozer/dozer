@@ -9,11 +9,8 @@ use dozer_core::{dag::errors::ExecutionError, storage::prefix_transaction::Prefi
 use dozer_types::bincode;
 use dozer_types::errors::types::TypeError;
 use dozer_types::types::{Record, Schema};
-use sqlparser::ast::TableFactor;
 
 use crate::pipeline::product::join::StorageError::SerializationError;
-
-use super::factory::get_input_name;
 
 const REVERSE_JOIN_FLAG: u32 = 0x80000000;
 
@@ -26,9 +23,9 @@ pub struct JoinTable {
 }
 
 impl JoinTable {
-    pub fn from(relation: &TableFactor, schema: &Schema) -> Self {
+    pub fn from(name: String, schema: &Schema) -> Self {
         Self {
-            name: get_input_name(relation).unwrap(),
+            name,
             schema: schema.clone(),
             left: None,
             right: None,

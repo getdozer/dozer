@@ -1,6 +1,5 @@
 use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::new_builder::PipelineError::InvalidQuery;
-use crate::pipeline::product::factory::get_input_name;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use crate::pipeline::{errors::PipelineError, product::factory::ProductProcessorFactory};
 use dozer_core::dag::app::AppPipeline;
@@ -8,7 +7,7 @@ use dozer_core::dag::app::PipelineEntryPoint;
 use dozer_core::dag::appsource::AppSourceId;
 use dozer_core::dag::dag::DEFAULT_PORT_HANDLE;
 use dozer_core::dag::node::PortHandle;
-use sqlparser::ast::TableWithJoins;
+use sqlparser::ast::{TableFactor, TableWithJoins};
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::AnsiDialect,
@@ -18,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
+use super::expression::builder::{fullname_from_ident, normalize_ident};
 pub fn statement_to_pipeline(
     sql: &str,
 ) -> Result<(AppPipeline, (String, PortHandle)), PipelineError> {
@@ -28,16 +28,9 @@ pub fn statement_to_pipeline(
     let statement = ast.get(0).expect("First statement is missing").to_owned();
 
     let mut pipeline = AppPipeline::new();
-    let mut source_map = HashMap::new();
     let mut pipeline_map = HashMap::new();
     if let Statement::Query(query) = statement {
-        query_to_pipeline(
-            query_name.clone(),
-            &query,
-            &mut pipeline,
-            &mut source_map,
-            &mut pipeline_map,
-        )?;
+        query_to_pipeline(query_name.clone(), &query, &mut pipeline, &mut pipeline_map)?;
     };
     let node = pipeline_map
         .get(&query_name)
@@ -50,7 +43,6 @@ fn query_to_pipeline(
     processor_name: String,
     query: &Query,
     pipeline: &mut AppPipeline,
-    source_map: &mut HashMap<String, PortHandle>,
     pipeline_map: &mut HashMap<String, (String, PortHandle)>,
 ) -> Result<(), PipelineError> {
     // println!("alias: {:?}", table.alias);
@@ -74,7 +66,6 @@ fn query_to_pipeline(
                 table.alias.name.to_string(),
                 &table.query,
                 pipeline,
-                source_map,
                 pipeline_map,
             )?;
         }
@@ -86,7 +77,7 @@ fn query_to_pipeline(
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", uuid::Uuid::new_v4().to_string());
-            query_to_pipeline(query_name, &query, pipeline, source_map, pipeline_map)?
+            query_to_pipeline(query_name, &query, pipeline, pipeline_map)?
         }
         _ => {
             return Err(PipelineError::UnsupportedSqlError(
@@ -110,9 +101,10 @@ fn select_to_pipeline(
         ));
     }
 
-    let product = ProductProcessorFactory::new(select.from[0].clone());
+    let input_tables = get_input_tables(&select.from[0], pipeline, pipeline_map)?;
 
-    let input_tables = get_input_tables(&select.from[0])?;
+    let product = ProductProcessorFactory::new(select.from[0].clone(), input_tables.clone());
+
     let input_endpoints = get_entry_points(&input_tables, pipeline_map)?;
 
     let gen_product_name = format!("product_{}", uuid::Uuid::new_v4().to_string());
@@ -174,13 +166,17 @@ fn select_to_pipeline(
 /// # Errors
 ///
 /// This function will return an error if it's not possible to get an input name.
-pub fn get_input_tables(from: &TableWithJoins) -> Result<Vec<String>, PipelineError> {
+pub fn get_input_tables(
+    from: &TableWithJoins,
+    pipeline: &mut AppPipeline,
+    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+) -> Result<Vec<String>, PipelineError> {
     let mut input_tables = vec![];
 
-    input_tables.insert(0, get_input_name(&from.relation)?);
+    input_tables.insert(0, get_from_source(&from.relation, pipeline, pipeline_map)?);
 
     for (index, join) in from.joins.iter().enumerate() {
-        let input_name = get_input_name(&join.relation)?;
+        let input_name = get_from_source(&join.relation, pipeline, pipeline_map)?;
         input_tables.insert(index + 1, input_name);
     }
 
@@ -238,30 +234,80 @@ mod tests {
             // ORDER BY sum(amount) desc
             // LIMIT 5;
             // "#,
-            r#"
-                SELECT
-                c.name, f.title, p.amount 
-            FROM film f
-            LEFT JOIN film_category fc
-            "#,
-            r#"
-            WITH tbl as (select id from a)    
-            select id from tbl
-            "#,
-            r#"
-            WITH tbl as (select id from  a),
-            tbl2 as (select id from tbl)    
-            select id from tbl2
-            "#,
             // r#"
-            // WITH tbl as (select id from (select ttid from a) as a),
+            //     SELECT
+            //     c.name, f.title, p.amount
+            // FROM film f
+            // LEFT JOIN film_category fc
+            // "#,
+            // r#"
+            // WITH tbl as (select id from a)
+            // select id from tbl
+            // "#,
+            // r#"
+            // WITH tbl as (select id from  a),
             // tbl2 as (select id from tbl)
             // select id from tbl2
             // "#,
+            r#"
+            WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
+            cte_table2 as (select id_ct1 from cte_table1)
+            select id_ct2 from cte_table2
+            "#,
         ];
         for sql in statements {
             println!("Parsing {:?}", sql);
             let _pipeline = statement_to_pipeline(sql).unwrap();
+            println!("Pipeline ready");
         }
+    }
+}
+
+pub fn get_from_source(
+    relation: &TableFactor,
+    pipeline: &mut AppPipeline,
+    pipeline_map: &mut HashMap<String, (String, PortHandle)>,
+) -> Result<String, PipelineError> {
+    match relation {
+        TableFactor::Table { name, alias, .. } => {
+            if let Some(alias_ident) = alias {
+                let alias_name = fullname_from_ident(&[alias_ident.name.clone()]);
+                Ok(alias_name)
+            } else {
+                let input_name = name
+                    .0
+                    .iter()
+                    .map(normalize_ident)
+                    .collect::<Vec<String>>()
+                    .join(".");
+
+                Ok(input_name)
+            }
+        }
+        TableFactor::Derived {
+            lateral,
+            subquery,
+            alias,
+        } => {
+            if let Some(alias_ident) = alias {
+                let alias_name = fullname_from_ident(&[alias_ident.name.clone()]);
+
+                query_to_pipeline(alias_name.clone(), subquery, pipeline, pipeline_map)?;
+                Ok(alias_name)
+            } else {
+                return Err(InvalidQuery("Derived table must have an alias".to_string()));
+            }
+        }
+        TableFactor::TableFunction { expr, alias } => todo!(),
+        TableFactor::UNNEST {
+            alias,
+            array_expr,
+            with_offset,
+            with_offset_alias,
+        } => todo!(),
+        TableFactor::NestedJoin {
+            table_with_joins,
+            alias,
+        } => todo!(),
     }
 }

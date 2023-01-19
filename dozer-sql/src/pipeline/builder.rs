@@ -55,8 +55,9 @@ impl PipelineBuilder {
             ));
         }
 
-        let product = ProductProcessorFactory::new(select.from[0].clone());
         let input_tables = get_input_tables(&select.from[0])?;
+        let product = ProductProcessorFactory::new(select.from[0].clone(), input_tables.clone());
+
         let input_endpoints = self.get_input_endpoints(&input_tables)?;
 
         pipeline.add_processor(Arc::new(product), "product", input_endpoints);

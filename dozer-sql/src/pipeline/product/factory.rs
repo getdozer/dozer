@@ -23,12 +23,13 @@ use super::{
 #[derive(Debug)]
 pub struct ProductProcessorFactory {
     from: TableWithJoins,
+    input_names: Vec<String>,
 }
 
 impl ProductProcessorFactory {
     /// Creates a new [`ProductProcessorFactory`].
-    pub fn new(from: TableWithJoins) -> Self {
-        Self { from }
+    pub fn new(from: TableWithJoins, input_names: Vec<String>) -> Self {
+        Self { from, input_names }
     }
 }
 
@@ -73,7 +74,7 @@ impl ProcessorFactory for ProductProcessorFactory {
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
     ) -> Result<Box<dyn Processor>, ExecutionError> {
-        match build_join_chain(&self.from, input_schemas) {
+        match build_join_chain(&self.from, self.input_names.clone(), input_schemas) {
             Ok(join_tables) => Ok(Box::new(ProductProcessor::new(join_tables))),
             Err(e) => Err(ExecutionError::InternalStringError(e.to_string())),
         }
@@ -145,6 +146,7 @@ pub fn get_input_name(relation: &TableFactor) -> Result<String, ExecutionError> 
 /// This function will return an error if.
 pub fn build_join_chain(
     from: &TableWithJoins,
+    names: Vec<String>,
     input_schemas: HashMap<PortHandle, Schema>,
 ) -> Result<HashMap<PortHandle, JoinTable>, PipelineError> {
     let mut input_tables = HashMap::new();
@@ -156,12 +158,14 @@ pub fn build_join_chain(
         return Err(PipelineError::InvalidRelation);
     }
 
-    let mut left_join_table = get_join_table(&from.relation, input_schema.unwrap())?;
+    let relation_name = get_input_name(&from.relation)?;
+    let mut left_join_table = get_join_table(relation_name, input_schema.unwrap())?;
     input_tables.insert(port, left_join_table.clone());
 
     for (index, join) in from.joins.iter().enumerate() {
         if let Some(input_schema) = input_schemas.get(&((index + 1) as PortHandle)) {
-            let mut right_join_table = get_join_table(&join.relation, input_schema)?;
+            let relation_name = get_input_name(&join.relation)?;
+            let mut right_join_table = get_join_table(relation_name, input_schema)?;
 
             let join_op = match &join.join_operator {
                 sqlparser::ast::JoinOperator::Inner(constraint) => match constraint {
@@ -338,8 +342,8 @@ fn parse_compound_identifier(
     }
 }
 
-fn get_join_table(relation: &TableFactor, schema: &Schema) -> Result<JoinTable, PipelineError> {
-    Ok(JoinTable::from(relation, schema))
+fn get_join_table(name: String, schema: &Schema) -> Result<JoinTable, PipelineError> {
+    Ok(JoinTable::from(name, schema))
 }
 
 fn append_schema(mut output_schema: Schema, table: &str, current_schema: &Schema) -> Schema {
