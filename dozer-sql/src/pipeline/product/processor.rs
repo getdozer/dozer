@@ -130,6 +130,7 @@ impl ProductProcessor {
 
             let mut input_left_join = &input_table.left;
 
+            // Update the Join index
             if let Some(left_join) = input_left_join {
                 // generate the key with the fields of the left table used in the join contstraint
                 let join_key: Vec<u8> = left_join.get_right_record_join_key(record)?;
