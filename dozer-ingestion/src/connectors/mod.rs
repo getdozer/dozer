@@ -27,7 +27,6 @@ use crate::connectors::snowflake::connector::SnowflakeConnector;
 
 pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), ConnectorError>)>>;
 
-// use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
     fn get_schemas(
         &self,
