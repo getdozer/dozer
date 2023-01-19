@@ -1,5 +1,6 @@
 use crate::dag::record_store::{
-    PrimaryKeyLookupRecordWriter, PrimaryKeyValueLookupRecordReader, RecordReader, RecordWriter,
+    AutogenRowKeyLookupRecordReader, AutogenRowKeyLookupRecordWriter, PrimaryKeyLookupRecordWriter,
+    PrimaryKeyValueLookupRecordReader, RecordReader, RecordWriter,
 };
 use crate::storage::lmdb_storage::LmdbEnvironmentManager;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Operation, Record, Schema};
@@ -114,7 +115,7 @@ fn test_pk_record_writer() {
 }
 
 #[test]
-fn test_write() {
+fn test_read_write_kv() {
     let tmp_path = TempDir::new("rw");
     let mut env =
         LmdbEnvironmentManager::create(tmp_path.expect("UNKNOWN").path(), "test").unwrap();
@@ -225,4 +226,73 @@ fn test_write() {
 
     let r = reader.get(&lookup_key, 3).unwrap();
     assert!(r.is_none());
+}
+
+#[test]
+fn test_read_write_incr() {
+    let tmp_path = TempDir::new("rw");
+    let mut env =
+        LmdbEnvironmentManager::create(tmp_path.expect("UNKNOWN").path(), "test").unwrap();
+    let master_db = env.open_database("master", false).unwrap();
+    let meta_db = env.open_database("meta", false).unwrap();
+    let tx = env.create_txn().unwrap();
+
+    let schema = Schema::empty()
+        .field(
+            FieldDefinition::new("id".to_string(), FieldType::Int, false),
+            false,
+        )
+        .field(
+            FieldDefinition::new("name".to_string(), FieldType::String, false),
+            false,
+        )
+        .field(
+            FieldDefinition::new("rowkey".to_string(), FieldType::Int, false),
+            true,
+        )
+        .clone();
+
+    let mut writer = AutogenRowKeyLookupRecordWriter::new(master_db, meta_db, schema.clone());
+
+    let r = writer
+        .write(
+            Operation::Insert {
+                new: Record::new(
+                    None,
+                    vec![Field::Int(1), Field::String("John1".to_string())],
+                    None,
+                ),
+            },
+            &tx,
+        )
+        .unwrap();
+    assert_eq!(
+        r,
+        Operation::Insert {
+            new: Record::new(
+                None,
+                vec![
+                    Field::Int(1),
+                    Field::String("John1".to_string()),
+                    Field::UInt(1)
+                ],
+                Some(1)
+            )
+        }
+    );
+
+    let lookup_record = Record::new(
+        None,
+        vec![
+            Field::Int(1),
+            Field::String("John1".to_string()),
+            Field::UInt(1),
+        ],
+        Some(1),
+    );
+    let lookup_key = lookup_record.get_key(&schema.primary_index);
+
+    let reader = AutogenRowKeyLookupRecordReader::new(tx, master_db);
+    let r = reader.get(&lookup_key, 1).unwrap();
+    assert_eq!(r, Some(lookup_record));
 }
