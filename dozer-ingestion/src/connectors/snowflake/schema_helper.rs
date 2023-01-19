@@ -12,7 +12,7 @@ impl SchemaHelper {
         match type_name {
             "NUMBER" => scale.map_or(Ok(FieldType::Int), |scale| {
                 if scale > 0 {
-                    Ok(FieldType::Decimal)
+                    Ok(FieldType::Float)
                 } else {
                     Ok(FieldType::Int)
                 }

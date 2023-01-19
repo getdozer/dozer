@@ -13,7 +13,7 @@ use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Authentication;
 use dozer_types::models::connection::Connection;
-use dozer_types::models::source::Source;
+
 use dozer_types::parking_lot::RwLock;
 use dozer_types::prettytable::Table;
 use dozer_types::serde;
@@ -29,9 +29,6 @@ pub type ValidationResults = HashMap<String, Vec<(Option<String>, Result<(), Con
 
 // use super::{seq_no_resolver::SeqNoResolver, storage::RocksStorage};
 pub trait Connector: Send + Sync {
-    fn get_connection_groups(sources: Vec<Source>) -> Vec<Vec<Source>>
-    where
-        Self: Sized;
     fn get_schemas(
         &self,
         table_names: Option<Vec<TableInfo>>,
@@ -84,19 +81,6 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             Ok(Box::new(SnowflakeConnector::new(4, snowflake_config)))
         }
         Authentication::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
-    }
-}
-
-pub fn get_connector_outputs(connection: Connection, sources: Vec<Source>) -> Vec<Vec<Source>> {
-    match connection.authentication {
-        Some(Authentication::Postgres { .. }) => PostgresConnector::get_connection_groups(sources),
-        Some(Authentication::Ethereum { .. }) => EthConnector::get_connection_groups(sources),
-        Some(Authentication::Events(_)) => EventsConnector::get_connection_groups(sources),
-        Some(Authentication::Snowflake { .. }) => {
-            SnowflakeConnector::get_connection_groups(sources)
-        }
-        Some(Authentication::Kafka { .. }) => KafkaConnector::get_connection_groups(sources),
-        None => todo!(),
     }
 }
 

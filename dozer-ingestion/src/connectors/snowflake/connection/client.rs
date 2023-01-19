@@ -1,5 +1,5 @@
 use dozer_types::ingestion_types::SnowflakeConfig;
-use dozer_types::log::debug;
+use dozer_types::log::{debug, info};
 
 use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
@@ -33,16 +33,31 @@ pub fn convert_data(
                 Some(value) => Ok(Field::from(value)),
             }
         }
-        SqlDataType::SQL_NUMERIC
-        | SqlDataType::SQL_DECIMAL
+        SqlDataType::SQL_DECIMAL
+        | SqlDataType::SQL_NUMERIC
         | SqlDataType::SQL_INTEGER
         | SqlDataType::SQL_SMALLINT => {
-            match cursor
-                .get_data::<i64>(i)
-                .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
-            {
-                None => Ok(Field::Null),
-                Some(value) => Ok(Field::from(value)),
+            match column_descriptor.decimal_digits {
+                None => {
+                    match cursor
+                        .get_data::<i64>(i)
+                        .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+                    {
+                        None => Ok(Field::Null),
+                        Some(value) => Ok(Field::from(value)),
+                    }
+                }
+                Some(_) => {
+                    match cursor
+                        .get_data::<f64>(i)
+                        .map_err(|e| SnowflakeSchemaError::ValueConversionError(Box::new(e)))?
+                    {
+                        None => Ok(Field::Null),
+                        Some(value) => {
+                            Ok(Field::from(value))
+                        },
+                    }
+                }
             }
         }
         SqlDataType::SQL_FLOAT | SqlDataType::SQL_REAL | SqlDataType::SQL_DOUBLE => {
@@ -66,7 +81,7 @@ pub fn convert_data(
                         value.month as u32,
                         value.day as u32,
                     );
-                    let time = NaiveTime::from_hms_milli(
+                    let time = NaiveTime::from_hms_nano(
                         value.hour as u32,
                         value.minute as u32,
                         value.second as u32,
@@ -285,7 +300,8 @@ impl Client {
     pub fn fetch_tables(
         &self,
         tables: Option<Vec<TableInfo>>,
-        _config: &SnowflakeConfig,
+        tables_indexes: HashMap<String, usize>,
+        keys: HashMap<String, Vec<String>>,
         conn: &Connection<AutocommitOn>,
     ) -> Result<Vec<SchemaWithChangesType>, SnowflakeError> {
         let tables_condition = tables.map_or("".to_string(), |tables| {
@@ -374,10 +390,12 @@ impl Client {
                         None
                     };
 
+                    let schema_id = tables_indexes.get(&table_name.clone()).unwrap().clone();
+
                     schemas
                         .entry(table_name.clone())
                         .or_insert(Schema {
-                            identifier: Some(SchemaIdentifier { id: 0, version: 0 }),
+                            identifier: Some(SchemaIdentifier { id: schema_id as u32, version: 0 }),
                             fields: vec![],
                             primary_index: vec![0],
                         })
@@ -391,12 +409,84 @@ impl Client {
 
                 Ok(schemas
                     .into_iter()
-                    .map(|(name, schema)| {
+                    .map(|(name, mut schema)| {
+                        let mut indexes = vec![];
+                        keys.get(&name).map_or((), |columns| {
+                            schema.fields.iter().enumerate().for_each(|(idx, f)| {
+                                if columns.contains(&f.name) {
+                                    indexes.push(idx);
+                                }
+                            });
+                        });
+
+                        schema.primary_index = indexes;
+
                         (name, schema, ReplicationChangesTrackingType::FullChanges)
                     })
                     .collect())
             }
             NoData(_) => Ok(vec![]),
+        }
+    }
+
+    pub fn fetch_keys(
+        &self,
+        conn: &Connection<AutocommitOn>,
+    ) -> Result<HashMap<String, Vec<String>>, SnowflakeError> {
+        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
+        match stmt
+            .exec_direct("SHOW PRIMARY KEYS IN SCHEMA")
+            .map_err(|e| QueryError(Box::new(e)))?
+        {
+            Data(data) => {
+                let cols = data
+                    .num_result_cols()
+                    .map_err(|e| QueryError(Box::new(e)))?;
+
+                let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
+                    .map(|i| {
+                        let value = i.try_into();
+                        match value {
+                            Ok(v) => {
+                                Ok(data.describe_col(v).map_err(|e| QueryError(Box::new(e)))?)
+                            }
+                            Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
+                                SchemaConversionError(e),
+                            )),
+                        }
+                    })
+                    .collect();
+
+                let schema = schema_result?;
+
+                let mut keys = HashMap::new();
+                let iterator = ResultIterator {
+                    cols,
+                    stmt: data,
+                    schema,
+                };
+
+                for row_data in iterator {
+                    let empty = "".to_string();
+                    let table_name = row_data.get(3).map_or(empty.clone(), |v| {
+                        v.as_ref().map_or(empty.clone(), |field| match field {
+                            Field::String(v) => v.clone(),
+                            _ => empty.clone(),
+                        })
+                    });
+                    let column_name = row_data.get(4).map_or(empty.clone(), |v| {
+                        v.as_ref().map_or(empty.clone(), |field| match field {
+                            Field::String(v) => v.clone(),
+                            _ => empty.clone(),
+                        })
+                    });
+
+                    keys.entry(table_name).or_insert(vec![]).push(column_name);
+                }
+
+                Ok(keys)
+            }
+            NoData(_) => Ok(HashMap::new()),
         }
     }
 }
