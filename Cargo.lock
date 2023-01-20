@@ -1582,7 +1582,7 @@ dependencies = [
  "lmdb-rkv",
  "lmdb-rkv-sys",
  "num-traits",
- "sqlparser",
+ "sqlparser 0.30.0",
  "tempdir",
  "uuid 1.2.1",
 ]
@@ -1605,7 +1605,7 @@ dependencies = [
  "mongodb",
  "reqwest",
  "rusqlite",
- "sqlparser",
+ "sqlparser 0.24.0",
  "tempdir",
  "tokio",
 ]
@@ -4853,6 +4853,15 @@ name = "sqlparser"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dac9c312566fdfc45a38ecf1924013c82af2a7d5315e46f67b1cc987f12be260"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db67dc6ef36edb658196c3fef0464a80b53dbbc194a904e81f9bd4190f9ecc5b"
 dependencies = [
  "log",
 ]

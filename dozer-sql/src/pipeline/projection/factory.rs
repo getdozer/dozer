@@ -134,8 +134,8 @@ pub(crate) fn parse_sql_select_item(
                 Err(error) => Err(error),
             }
         }
-        SelectItem::Wildcard => Err(PipelineError::InvalidOperator("*".to_string())),
-        SelectItem::QualifiedWildcard(ref object_name) => {
+        SelectItem::Wildcard(_) => Err(PipelineError::InvalidOperator("*".to_string())),
+        SelectItem::QualifiedWildcard(ref object_name, ..) => {
             Err(PipelineError::InvalidOperator(object_name.to_string()))
         }
     }
