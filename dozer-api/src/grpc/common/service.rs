@@ -4,17 +4,16 @@ use crate::auth::Access;
 use crate::grpc::common_grpc::common_grpc_service_server::CommonGrpcService;
 use crate::grpc::internal_grpc::PipelineResponse;
 use crate::grpc::shared_impl;
-use crate::grpc::types_helper::map_record;
+use crate::grpc::types_helper::{map_field_definitions, map_record};
 use crate::{api_helper, PipelineDetails};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
-use super::super::types_helper;
 use crate::grpc::common_grpc::{
     CountResponse, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse,
     OnEventRequest, QueryRequest, QueryResponse,
 };
-use crate::grpc::types::{FieldDefinition, Operation, Record};
+use crate::grpc::types::Operation;
 
 type EventResult<T> = Result<Response<T>, Status>;
 type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
@@ -68,16 +67,8 @@ impl CommonGrpcService for CommonService {
         let (schema, records) =
             shared_impl::query(pipeline_details, query_request.query.as_deref(), access)?;
 
-        let fields = schema
-            .fields
-            .into_iter()
-            .map(|f| FieldDefinition {
-                typ: types_helper::map_field_type_to_pb(f.typ) as i32,
-                name: f.name,
-                nullable: f.nullable,
-            })
-            .collect();
-        let records: Vec<Record> = records.into_iter().map(map_record).collect();
+        let fields = map_field_definitions(schema.fields);
+        let records = records.into_iter().map(map_record).collect();
         let reply = QueryResponse { fields, records };
 
         Ok(Response::new(reply))
@@ -135,15 +126,7 @@ impl CommonGrpcService for CommonService {
             .get_schema()
             .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
 
-        let fields: Vec<FieldDefinition> = schema
-            .fields
-            .iter()
-            .map(|f| FieldDefinition {
-                typ: types_helper::map_field_type_to_pb(f.typ) as i32,
-                name: f.name.to_owned(),
-                nullable: f.nullable,
-            })
-            .collect();
+        let fields = map_field_definitions(schema.fields);
 
         let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
         Ok(Response::new(GetFieldsResponse {
