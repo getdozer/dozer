@@ -10,7 +10,7 @@ use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint};
 
 use crate::pipeline::{
     errors::{PipelineError, UnsupportedSqlError},
-    expression::builder::{fullname_from_ident, get_field_index},
+    expression::builder::get_field_index,
     new_builder::{get_input_names, IndexedTabelWithJoins, NameOrAlias},
 };
 
@@ -264,13 +264,22 @@ fn parse_join_constraint(
 }
 
 fn from_table(ident: &[Ident], left_join_table: &JoinTable) -> bool {
-    let full_ident = fullname_from_ident(ident);
-    full_ident.starts_with(&left_join_table.name.0)
-        || left_join_table
-            .name
-            .1
-            .as_ref()
-            .map_or(false, |a| full_ident.starts_with(a))
+    left_join_table.schema.print().printstd();
+    left_join_table.schema.fields.iter().any(|f| {
+        // If table name is provided, match the schema name with table name
+        let tables_matches = if ident.len() > 1 {
+            left_join_table.name.0 == ident[0].value
+                || left_join_table
+                    .name
+                    .1
+                    .as_ref()
+                    .map_or(false, |a| a.to_string() == ident[0].value)
+        } else {
+            true
+        };
+        // In any case, match the ident name
+        tables_matches && f.name == ident.last().unwrap().value
+    })
 }
 
 fn parse_compound_identifier(

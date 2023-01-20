@@ -272,10 +272,10 @@ pub fn get_from_source(
                 .as_ref()
                 .map(|alias_ident| fullname_from_ident(&[alias_ident.name.clone()]));
 
-            let nameOr = NameOrAlias(name, alias_name);
-            query_to_pipeline(&nameOr, subquery, pipeline, pipeline_map, true)?;
+            let name_or = NameOrAlias(name, alias_name);
+            query_to_pipeline(&name_or, subquery, pipeline, pipeline_map, true)?;
 
-            Ok(nameOr)
+            Ok(name_or)
         }
         _ => {
             return Err(PipelineError::UnsupportedSqlError(
